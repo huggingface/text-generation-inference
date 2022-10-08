@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package generate.v1;
+
+service TextGeneration {
+    /// Service discovery
+    rpc ServiceDiscovery(Empty) returns (ServiceDiscoveryResponse) {}
+    /// Empties batch cache
+    rpc ClearCache(Empty) returns (Empty);
+    /// Generate tokens for a batch without cache
+    rpc Generate(Batch) returns (Response);
+    /// Generate tokens for a batch with cache
+    rpc GenerateWithCache(BatchCached) returns (Response);
+}
+
+message ServiceDiscoveryResponse {
+    repeated string urls = 1;
+}
+
+message LogitsWarperParameters {
+    float temperature = 1;
+    uint32 top_k = 2;
+    float top_p = 3;
+    bool do_sample = 4;
+}
+
+message Request {
+    /// Request ID
+    uint64 id = 1;
+    /// The generation context
+    string inputs = 2;
+    /// Logits Warper Parameters
+    LogitsWarperParameters parameters = 3;
+    /// Stopping criteria
+    uint32 max_new_tokens = 4;
+}
+
+message Batch {
+    /// Batch ID
+    uint64 id = 1;
+    /// Individual requests
+    repeated Request requests = 2;
+}
+
+message BatchCached {
+    /// Batch ID
+    uint64 id = 1;
+    /// Request ids within cache
+    repeated uint64 request_ids = 2;
+    /// Cache IDs
+    repeated uint64 batch_cached_ids = 3;
+    /// Batch size (sum of all batch sizes)
+    uint32 total_batch_size = 4;
+    /// Max sequence length
+    uint32 max_sequence_length = 5;
+}
+
+message FinishedGeneration {
+    /// ID of the original request
+    uint64 id = 1;
+    /// Output
+    string output = 2;
+}
+
+message CacheEntry {
+    /// Cache ID; same as batch ID
+    uint64 id = 1;
+    /// Requests present in cache entry
+    repeated uint64 request_ids = 2;
+    /// Sequence length
+    uint32 sequence_length = 3;
+}
+
+message Response {
+    /// Finished requests (optional)
+    repeated FinishedGeneration finished = 1;
+    /// Cache entry (optional)
+    optional CacheEntry cache_entry = 2;
+}
+
+
+// Represent an empty message.
+message Empty {}

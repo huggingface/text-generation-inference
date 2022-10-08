@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "bloom-inference"
+version = "0.1.0"
+description = "BLOOM Inference Python gRPC Server"
+authors = ["Olivier Dehaene <olivier@huggingface.co>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+protobuf = "^4.21.7"
+grpcio = "^1.49.1"
+torch = "^1.12.1"
+typer = "^0.6.1"
+grpcio-reflection = "^1.49.1"
+accelerate = "^0.12.0"
+
+[tool.poetry.group.dev.dependencies]
+grpcio-tools = "^1.49.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
