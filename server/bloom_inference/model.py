@@ -8,7 +8,6 @@ from typing import List, Tuple, Optional, Dict
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from transformers.modeling_utils import no_init_weights
 
-from bloom_inference.cache import CacheEntry
 from bloom_inference.pb import generate_pb2
 from bloom_inference.shard_model import shard_model, match_suffix
 from bloom_inference.utils import (
@@ -24,25 +23,35 @@ torch.manual_seed(0)
 @dataclass
 class Batch:
     batch_id: int
-    request_ids: List[int]
+    requests: List[generate_pb2.Request]
     input_ids: Dict[str, torch.Tensor]
     all_input_ids: List[torch.Tensor]
     next_token_choosers: List[NextTokenChooser]
     stopping_criterias: List[StoppingCriteria]
+    size: int
+    max_sequence_length: int
+
+    def to_pb(self):
+        return generate_pb2.Batch(
+            id=self.batch_id,
+            requests=self.requests,
+            size=self.size,
+            max_sequence_length=self.max_sequence_length,
+        )
 
     @classmethod
-    def from_batch_pb(
-            cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+    def from_pb(
+        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
     ) -> "Batch":
-        request_ids = []
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
+        input_lengths = []
 
         # Parse batch
         for r in pb.requests:
-            request_ids.append(r.id)
             inputs.append(r.inputs)
+            input_lengths.append(r.input_length)
             next_token_choosers.append(
                 NextTokenChooser(
                     temperature=r.parameters.temperature,
@@ -54,94 +63,93 @@ class Batch:
             stopping_criterias.append(StoppingCriteria(max_new_tokens=r.max_new_tokens))
 
         input_ids = tokenizer(inputs, return_tensors="pt", padding=True).to(device)
-        all_input_ids = input_ids["input_ids"].unsqueeze(-1)
+        # Remove padding from all_input_ids
+        all_input_ids = [
+            input_ids.squeeze(0)[-length:].unsqueeze(-1)
+            for length, input_ids in zip(
+                input_lengths, input_ids["input_ids"].split(1, dim=0)
+            )
+        ]
 
         return cls(
-            pb.id,
-            request_ids,
-            input_ids,
-            all_input_ids,
-            next_token_choosers,
-            stopping_criterias,
+            batch_id=pb.id,
+            requests=pb.requests,
+            input_ids=input_ids,
+            all_input_ids=all_input_ids,
+            next_token_choosers=next_token_choosers,
+            stopping_criterias=stopping_criterias,
+            size=pb.size,
+            max_sequence_length=pb.max_sequence_length,
         )
 
     @classmethod
-    def from_cache_entry(cls, cache_entry: CacheEntry) -> "Batch":
-        return cls(
-            cache_entry.batch_id,
-            cache_entry.request_ids,
-            cache_entry.input_ids,
-            cache_entry.all_input_ids,
-            cache_entry.next_token_choosers,
-            cache_entry.stopping_criterias,
-        )
+    def concatenate(cls, batches: List["Batch"]) -> "Batch":
+        # Used for padding
+        total_batch_size = sum(batch.size for batch in batches)
+        max_sequence_length = max(batch.max_sequence_length for batch in batches)
 
-    @classmethod
-    def from_batch_cached_pb(cls, pb: generate_pb2.BatchCached, cache) -> "Batch":
-        if len(pb.batch_cached_ids) == 1:
-            cache_entry = cache.pop(pb.batch_cached_ids[0])
-            if cache_entry is None:
-                raise ValueError(f"Batch ID {pb.batch_id} not found in cache")
-            return cls.from_cache_entry(cache_entry)
-
-        total_batch_size = pb.total_batch_size
-        max_sequence_length = pb.max_sequence_length
+        # Batch attributes
         input_ids = {"input_ids": None, "attention_mask": None, "past_key_values": []}
-        request_ids = []
+        requests = []
         all_input_ids = []
         next_token_choosers = []
         stopping_criterias = []
+
+        # Used for slicing correctly inside the tensors
+        # Equivalent to a cumsum on batch sizes
         start_index = 0
-        for i, batch_id in enumerate(pb.batch_cached_ids):
-            cache_entry = cache.pop(batch_id)
-            if cache_entry is None:
-                raise ValueError(f"Batch ID {batch_id} not found in cache")
-            request_ids.extend(cache_entry.request_ids)
-            all_input_ids.extend(cache_entry.all_input_ids)
-            next_token_choosers.extend(cache_entry.next_token_choosers)
-            stopping_criterias.extend(cache_entry.stopping_criterias)
+        for i, batch in enumerate(batches):
+            requests.extend(batch.requests)
+            all_input_ids.extend(batch.all_input_ids)
+            next_token_choosers.extend(batch.next_token_choosers)
+            stopping_criterias.extend(batch.stopping_criterias)
 
-            batch_size = len(cache_entry.request_ids)
-            end_index = start_index + batch_size
-            sequence_length = max(len(entry) for entry in cache_entry.all_input_ids)
+            # Slicing end index for this batch
+            end_index = start_index + batch.size
 
-            if input_ids["input_ids"] is None:
+            # We only concatenate batches that did at least one step
+            if batch.input_ids["input_ids"].shape[1] > 1:
+                raise ValueError("Batch input_ids should be of shape (batch_size, 1)")
+
+            # Initialize tensors
+            if i == 0:
                 input_ids["input_ids"] = torch.empty(
                     (total_batch_size, 1),
-                    dtype=cache_entry.input_ids["input_ids"].dtype,
-                    device=cache_entry.input_ids["input_ids"].device,
+                    dtype=batch.input_ids["input_ids"].dtype,
+                    device=batch.input_ids["input_ids"].device,
                 )
-
-            input_ids["input_ids"][start_index:end_index] = cache_entry.input_ids[
-                "input_ids"
-            ]
-
-            if input_ids["attention_mask"] is None:
                 input_ids["attention_mask"] = torch.zeros(
                     (total_batch_size, max_sequence_length),
-                    dtype=cache_entry.input_ids["attention_mask"].dtype,
-                    device=cache_entry.input_ids["attention_mask"].device,
+                    dtype=batch.input_ids["attention_mask"].dtype,
+                    device=batch.input_ids["attention_mask"].device,
                 )
 
-            input_ids["attention_mask"][
-            start_index:end_index, -sequence_length:
-            ] = cache_entry.input_ids["attention_mask"][:, -sequence_length:]
+            # input_ids["input_ids"] is always of shape [batch_size, 1]
+            # We do not need to pad it
+            input_ids["input_ids"][start_index:end_index] = batch.input_ids["input_ids"]
 
-            for j, past in enumerate(cache_entry.input_ids["past_key_values"]):
-                # TODO: this could be done without the views by using indices
+            # We need to slice the attention mask to remove padding from previous steps
+            input_ids["attention_mask"][
+                start_index:end_index, -batch.max_sequence_length :
+            ] = batch.input_ids["attention_mask"][:, -batch.max_sequence_length :]
+
+            for j, past in enumerate(batch.input_ids["past_key_values"]):
                 past_keys = past[0]
                 past_values = past[1]
 
                 _, head_dim, padded_sequence_length = past_keys.shape
 
+                # Reshape the tensors to make slicing easier
                 past_keys = past_keys.view(
-                    batch_size, -1, head_dim, padded_sequence_length
+                    batch.size, -1, head_dim, padded_sequence_length
                 )
                 past_values = past_values.view(
-                    batch_size, -1, padded_sequence_length, head_dim
+                    batch.size, -1, padded_sequence_length, head_dim
                 )
                 num_heads = past_keys.shape[1]
 
+                # Initialize tensors
+                # This will run only once per layer
                 if j == len(input_ids["past_key_values"]):
                     padded_past_keys = torch.zeros(
                         (
@@ -167,15 +175,17 @@ class Batch:
                         [padded_past_keys, padded_past_values]
                     )
 
+                # We slice the past keys and values to remove the padding from previous batches
                 input_ids["past_key_values"][j][0][
-                start_index:end_index, :, :, -(sequence_length - 1):
-                ] = past_keys[:, :, :, -(sequence_length - 1):]
+                    start_index:end_index, :, :, -(batch.max_sequence_length - 1) :
+                ] = past_keys[:, :, :, -(batch.max_sequence_length - 1) :]
 
                 input_ids["past_key_values"][j][1][
-                start_index:end_index, :, -(sequence_length - 1):, :
-                ] = past_values[:, :, -(sequence_length - 1):, :]
+                    start_index:end_index, :, -(batch.max_sequence_length - 1) :, :
+                ] = past_values[:, :, -(batch.max_sequence_length - 1) :, :]
 
-                if (i + 1) == len(pb.batch_cached_ids):
+                # If we are on the last batch, we need to reshape the tensors
+                if (i + 1) == len(batches):
                     input_ids["past_key_values"][j][0] = input_ids["past_key_values"][
                         j
                     ][0].view(total_batch_size * num_heads, head_dim, -1)
@@ -183,27 +193,27 @@ class Batch:
                         j
                     ][1].view(total_batch_size * num_heads, -1, head_dim)
 
-            start_index += batch_size
-
-        assert pb.request_ids == request_ids
+            start_index += batch.size
 
         return cls(
-            pb.id,
-            request_ids,
-            input_ids,
-            all_input_ids,
-            next_token_choosers,
-            stopping_criterias,
+            batch_id=batches[0].batch_id,
+            requests=requests,
+            input_ids=input_ids,
+            all_input_ids=all_input_ids,
+            next_token_choosers=next_token_choosers,
+            stopping_criterias=stopping_criterias,
+            size=total_batch_size,
+            max_sequence_length=max_sequence_length,
         )
 
 
 @dataclass
-class FinishedGeneration:
-    request_id: str
+class GeneratedText:
+    request: generate_pb2.Request
     output: str
 
-    def to_pb(self) -> generate_pb2.FinishedGeneration:
-        return generate_pb2.FinishedGeneration(id=self.request_id, output=self.output)
+    def to_pb(self) -> generate_pb2.GeneratedText:
+        return generate_pb2.GeneratedText(request=self.request, output=self.output)
 
 
 class BLOOM:
@@ -229,25 +239,28 @@ class BLOOM:
         )
 
     def generate_token(
-            self, batch: Batch
-    ) -> Tuple[List[FinishedGeneration], Optional[CacheEntry]]:
+        self, batch: Batch
+    ) -> Tuple[List[GeneratedText], Optional[Batch]]:
         with torch.no_grad():
             outputs = self.forward(**batch.input_ids)
 
         # List of indices to cache
-        cache_indices = []
-        cache_past_indices = []
+        next_batch_keep_indices = []
+        next_batch_past_keep_indices = []
 
-        # New input_ids for next forward; keep in cache
-        cache_next_input_ids = []
-        cache_all_input_ids = []
+        # New input_ids for next forward
+        next_batch_input_ids = []
+        next_batch_all_input_ids = []
+
+        next_batch_size = 0
+        next_batch_max_sequence_length = 0
 
         # Finished requests
-        finished_generations: List[FinishedGeneration] = []
+        generated_texts: List[GeneratedText] = []
 
         # Zipped iterator
         iterator = zip(
-            batch.request_ids,
+            batch.requests,
             outputs.logits,
             batch.next_token_choosers,
             batch.stopping_criterias,
@@ -256,11 +269,11 @@ class BLOOM:
 
         # For each member of the batch
         for i, (
-                request_id,
-                logits,
-                next_token_chooser,
-                stopping_criteria,
-                all_tokens,
+            request,
+            logits,
+            next_token_chooser,
+            stopping_criteria,
+            all_tokens,
         ) in enumerate(iterator):
             # Select next token
             next_token = next_token_chooser(all_tokens, logits.unsqueeze(0)[:, -1])
@@ -274,64 +287,75 @@ class BLOOM:
                 output = self.tokenizer.decode(
                     all_tokens.squeeze(-1), skip_special_tokens=True
                 )
-                # Add to the list of finished generations with the original request id
-                finished_generations.append(FinishedGeneration(request_id, output))
-            # must be added to the cache
+                # Add to the list of finished generations with the original request
+                generated_texts.append(GeneratedText(request, output))
+            # add to the next batch
             else:
-                cache_indices.append(i)
-                cache_past_indices.extend([j for j in range(i * self.num_heads, (i + 1) * self.num_heads)])
-                cache_next_input_ids.append(next_token)
-                cache_all_input_ids.append(all_tokens)
+                next_batch_keep_indices.append(i)
+                # past_key_values is of shape [batch_size * num_heads, ...]
+                # so we need to take into account the `num_heads` stride here
+                next_batch_past_keep_indices.extend(
+                    [j for j in range(i * self.num_heads, (i + 1) * self.num_heads)]
+                )
+                next_batch_input_ids.append(next_token)
+                next_batch_all_input_ids.append(all_tokens)
+                next_batch_size += 1
+                next_batch_max_sequence_length = max(
+                    next_batch_max_sequence_length, len(all_tokens)
+                )
 
-        # No cache is needed, we finished all generations in the batch
-        if not cache_indices:
-            return finished_generations, None
+        # We finished all generations in the batch; there is no next batch
+        if not next_batch_keep_indices:
+            return generated_texts, None
 
         # If we finished at least one generation
-        cache_input_ids = {"input_ids": torch.cat(cache_next_input_ids, dim=0)}
-        if finished_generations:
+        next_batch_input_ids = {"input_ids": torch.cat(next_batch_input_ids, dim=0)}
+        if generated_texts:
             # Apply indices to attention mask, past key values and other items that need to be cached
-            cache_input_ids["attention_mask"] = batch.input_ids["attention_mask"][
-                cache_indices
+            next_batch_input_ids["attention_mask"] = batch.input_ids["attention_mask"][
+                next_batch_keep_indices
             ]
-            cache_input_ids["past_key_values"] = [
-                (keys[cache_past_indices], values[cache_past_indices])
+            next_batch_input_ids["past_key_values"] = [
+                (
+                    keys[next_batch_past_keep_indices],
+                    values[next_batch_past_keep_indices],
+                )
                 for keys, values in outputs["past_key_values"]
             ]
-            cache_request_ids = [batch.request_ids[i] for i in cache_indices]
-            cache_next_token_choosers = [
-                batch.next_token_choosers[i] for i in cache_indices
+            next_batch_requests = [batch.requests[i] for i in next_batch_keep_indices]
+            next_batch_next_token_choosers = [
+                batch.next_token_choosers[i] for i in next_batch_keep_indices
             ]
-            cache_stopping_criterias = [
-                batch.stopping_criterias[i] for i in cache_indices
+            next_batch_stopping_criterias = [
+                batch.stopping_criterias[i] for i in next_batch_keep_indices
             ]
         else:
-            cache_input_ids["attention_mask"] = batch.input_ids["attention_mask"]
-            cache_input_ids["past_key_values"] = outputs["past_key_values"]
-            cache_request_ids = batch.request_ids
-            cache_next_token_choosers = batch.next_token_choosers
-            cache_stopping_criterias = batch.stopping_criterias
+            next_batch_input_ids["attention_mask"] = batch.input_ids["attention_mask"]
+            next_batch_input_ids["past_key_values"] = outputs["past_key_values"]
+            next_batch_requests = batch.requests
+            next_batch_next_token_choosers = batch.next_token_choosers
+            next_batch_stopping_criterias = batch.stopping_criterias
 
         # Update attention_mask with padding as we added a new token to input_ids
-        cache_input_ids["attention_mask"] = torch.cat(
+        next_batch_input_ids["attention_mask"] = torch.cat(
             [
-                cache_input_ids["attention_mask"],
-                torch.ones((cache_input_ids["attention_mask"].shape[0], 1)).to(
-                    cache_input_ids["attention_mask"].device
-                ),
+                next_batch_input_ids["attention_mask"],
+                torch.ones((next_batch_size, 1)).to(self.device),
             ],
             dim=1,
         )
 
-        cache_entry = CacheEntry(
-            batch.batch_id,
-            cache_request_ids,
-            cache_input_ids,
-            cache_all_input_ids,
-            cache_next_token_choosers,
-            cache_stopping_criterias,
+        next_batch = Batch(
+            batch_id=batch.batch_id,
+            requests=next_batch_requests,
+            input_ids=next_batch_input_ids,
+            all_input_ids=next_batch_all_input_ids,
+            next_token_choosers=next_batch_next_token_choosers,
+            stopping_criterias=next_batch_stopping_criterias,
+            size=next_batch_size,
+            max_sequence_length=next_batch_max_sequence_length,
         )
-        return finished_generations, cache_entry
+        return generated_texts, next_batch
 
 
 class BLOOMSharded(BLOOM):

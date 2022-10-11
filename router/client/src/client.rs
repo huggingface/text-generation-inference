@@ -1,4 +1,4 @@
-use crate::pb::generate::v1::text_generation_client::TextGenerationClient;
+use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
 use crate::pb::generate::v1::*;
 use crate::Result;
 use std::time::Duration;
@@ -9,7 +9,7 @@ use tracing::*;
 /// BLOOM Inference gRPC client
 #[derive(Clone)]
 pub struct Client {
-    stub: TextGenerationClient<Timeout<Channel>>,
+    stub: TextGenerationServiceClient<Timeout<Channel>>,
 }
 
 impl Client {
@@ -22,13 +22,13 @@ impl Client {
         let timeout_channel = Timeout::new(channel, timeout);
 
         Self {
-            stub: TextGenerationClient::new(timeout_channel),
+            stub: TextGenerationServiceClient::new(timeout_channel),
         }
     }
 
     /// Returns a client connected to the given unix socket. Requests exceeding timeout will fail.
     pub async fn connect_uds(path: String, timeout: Duration) -> Self {
-        let channel = Channel::from_shared(format!("http://[::]:50051"))
+        let channel = Channel::from_shared("http://[::]:50051".to_string())
             .unwrap()
             .connect_with_connector(tower::service_fn(move |_: Uri| {
                 tokio::net::UnixStream::connect(path.clone())
@@ -38,13 +38,13 @@ impl Client {
         let timeout_channel = Timeout::new(channel, timeout);
 
         Self {
-            stub: TextGenerationClient::new(timeout_channel),
+            stub: TextGenerationServiceClient::new(timeout_channel),
         }
     }
 
     #[instrument(skip(self))]
     pub async fn service_discovery(&mut self) -> Result<Vec<String>> {
-        let request = tonic::Request::new(Empty {});
+        let request = tonic::Request::new(ServiceDiscoveryRequest {});
         let response = self
             .stub
             .service_discovery(request)
@@ -64,7 +64,7 @@ impl Client {
 
     #[instrument(skip(self))]
     pub async fn clear_cache(&mut self) -> Result<()> {
-        let request = tonic::Request::new(Empty {});
+        let request = tonic::Request::new(ClearCacheRequest {});
         self.stub
             .clear_cache(request)
             .instrument(info_span!("clear_cache"))
@@ -73,32 +73,59 @@ impl Client {
     }
 
     #[instrument(skip(self))]
-    pub async fn generate(
-        &mut self,
-        request: Batch,
-    ) -> Result<(Vec<FinishedGeneration>, Option<CacheEntry>)> {
-        let request = tonic::Request::new(request);
+    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+        let request = tonic::Request::new(GenerateRequest { batch: Some(batch) });
         let response = self
             .stub
             .generate(request)
             .instrument(info_span!("generate"))
             .await?
             .into_inner();
-        Ok((response.finished, response.cache_entry))
+        Ok((response.generated_texts, response.batch))
     }
 
     #[instrument(skip(self))]
     pub async fn generate_with_cache(
         &mut self,
-        request: BatchCached,
-    ) -> Result<(Vec<FinishedGeneration>, Option<CacheEntry>)> {
-        let request = tonic::Request::new(request);
+        batches: Vec<Batch>,
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+        let request = tonic::Request::new(GenerateWithCacheRequest { batches });
         let response = self
             .stub
             .generate_with_cache(request)
             .instrument(info_span!("generate_with_cache"))
             .await?
             .into_inner();
-        Ok((response.finished, response.cache_entry))
+        Ok((response.generated_texts, response.batch))
+    }
+
+    #[instrument(skip(self))]
+    pub async fn generate_until_finished(
+        &mut self,
+        batch: Batch,
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+        let request = tonic::Request::new(GenerateUntilFinishedRequest { batch: Some(batch) });
+        let response = self
+            .stub
+            .generate_until_finished(request)
+            .instrument(info_span!("generate_until_finished"))
+            .await?
+            .into_inner();
+        Ok((response.generated_texts, response.batch))
+    }
+
+    #[instrument(skip(self))]
+    pub async fn generate_until_finished_with_cache(
+        &mut self,
+        batches: Vec<Batch>,
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+        let request = tonic::Request::new(GenerateUntilFinishedWithCacheRequest { batches });
+        let response = self
+            .stub
+            .generate_until_finished_with_cache(request)
+            .instrument(info_span!("generate_until_finished_with_cache"))
+            .await?
+            .into_inner();
+        Ok((response.generated_texts, response.batch))
     }
 }

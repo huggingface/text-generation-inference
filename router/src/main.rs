@@ -1,31 +1,45 @@
 use bloom_inference_client::ShardedClient;
-use poem;
 use poem::listener::TcpListener;
 use std::time::Duration;
+use tokenizers::Tokenizer;
 
 mod server;
+mod validation;
+
+use validation::Validation;
 
 mod db;
+
 use db::Db;
 
 mod batcher;
+
 use batcher::Batcher;
 
-#[tokio::main]
-async fn main() -> Result<(), std::io::Error> {
-    tracing_subscriber::fmt::init();
+fn main() -> Result<(), std::io::Error> {
+    let tokenizer = Tokenizer::from_pretrained("bigscience/bloom", None).unwrap();
 
-    let sharded_client =
-        ShardedClient::connect_uds("/tmp/bloom-inference-0".to_string(), Duration::from_secs(5))
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            tracing_subscriber::fmt::init();
+
+            let sharded_client = ShardedClient::connect_uds(
+                "/tmp/bloom-inference-0".to_string(),
+                Duration::from_secs(5),
+            )
             .await;
-    sharded_client
-        .clear_cache()
-        .await
-        .expect("Unable to clear cache");
-    tracing::info!("Connected");
+            sharded_client
+                .clear_cache()
+                .await
+                .expect("Unable to clear cache");
+            tracing::info!("Connected");
 
-    let addr = "127.0.0.1:3000".to_string();
-    let listener = TcpListener::bind(addr);
+            let addr = "127.0.0.1:3000".to_string();
+            let listener = TcpListener::bind(addr);
 
-    server::run(sharded_client, listener).await
+            server::run(sharded_client, tokenizer, listener).await
+        })
 }

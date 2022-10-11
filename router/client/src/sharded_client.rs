@@ -1,5 +1,5 @@
 use crate::Result;
-use crate::{Batch, BatchCached, CacheEntry, Client, FinishedGeneration};
+use crate::{Batch, Client, GeneratedText};
 use futures::future::join_all;
 use std::time::Duration;
 use tokio::sync::{broadcast, mpsc};
@@ -9,11 +9,19 @@ use tonic::transport::Uri;
 enum Command {
     Generate(
         Batch,
-        mpsc::Sender<Result<(Vec<FinishedGeneration>, Option<CacheEntry>)>>,
+        mpsc::Sender<Result<(Vec<GeneratedText>, Option<Batch>)>>,
     ),
     GenerateWithCache(
-        BatchCached,
-        mpsc::Sender<Result<(Vec<FinishedGeneration>, Option<CacheEntry>)>>,
+        Vec<Batch>,
+        mpsc::Sender<Result<(Vec<GeneratedText>, Option<Batch>)>>,
+    ),
+    GenerateUntilFinished(
+        Batch,
+        mpsc::Sender<Result<(Vec<GeneratedText>, Option<Batch>)>>,
+    ),
+    GenerateUntilFinishedWithCache(
+        Vec<Batch>,
+        mpsc::Sender<Result<(Vec<GeneratedText>, Option<Batch>)>>,
     ),
     ClearCache(mpsc::Sender<Result<()>>),
 }
@@ -25,8 +33,16 @@ async fn client_task(mut client: Client, mut request_subscriber: broadcast::Rece
                 let result = client.generate(batch).await;
                 response_tx.try_send(result).unwrap_or(());
             }
-            Command::GenerateWithCache(batch_cached, response_tx) => {
-                let result = client.generate_with_cache(batch_cached).await;
+            Command::GenerateWithCache(batches, response_tx) => {
+                let result = client.generate_with_cache(batches).await;
+                response_tx.try_send(result).unwrap_or(());
+            }
+            Command::GenerateUntilFinished(batch, response_tx) => {
+                let result = client.generate_until_finished(batch).await;
+                response_tx.try_send(result).unwrap_or(());
+            }
+            Command::GenerateUntilFinishedWithCache(batches, response_tx) => {
+                let result = client.generate_until_finished_with_cache(batches).await;
                 response_tx.try_send(result).unwrap_or(());
             }
             Command::ClearCache(response_tx) => {
@@ -74,10 +90,7 @@ impl ShardedClient {
         Self::from_master_client(master_client).await
     }
 
-    pub async fn generate(
-        &self,
-        batch: Batch,
-    ) -> Result<(Vec<FinishedGeneration>, Option<CacheEntry>)> {
+    pub async fn generate(&self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
         let (response_tx, mut response_rx) = mpsc::channel(1);
         self.request_tx
             .send(Command::Generate(batch, response_tx))
@@ -87,11 +100,36 @@ impl ShardedClient {
 
     pub async fn generate_with_cache(
         &self,
-        batch_cached: BatchCached,
-    ) -> Result<(Vec<FinishedGeneration>, Option<CacheEntry>)> {
+        batches: Vec<Batch>,
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
         let (response_tx, mut response_rx) = mpsc::channel(1);
         self.request_tx
-            .send(Command::GenerateWithCache(batch_cached, response_tx))
+            .send(Command::GenerateWithCache(batches, response_tx))
+            .unwrap();
+        response_rx.recv().await.unwrap()
+    }
+
+    pub async fn generate_until_finished(
+        &self,
+        batch: Batch,
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+        let (response_tx, mut response_rx) = mpsc::channel(1);
+        self.request_tx
+            .send(Command::GenerateUntilFinished(batch, response_tx))
+            .unwrap();
+        response_rx.recv().await.unwrap()
+    }
+
+    pub async fn generate_until_finished_with_cache(
+        &self,
+        batches: Vec<Batch>,
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+        let (response_tx, mut response_rx) = mpsc::channel(1);
+        self.request_tx
+            .send(Command::GenerateUntilFinishedWithCache(
+                batches,
+                response_tx,
+            ))
             .unwrap();
         response_rx.recv().await.unwrap()
     }

@@ -46,6 +46,7 @@ impl Db {
 
     pub(crate) fn append(
         &self,
+        input_length: usize,
         request: GenerateRequest,
         sender: Sender<Result<String, ClientError>>,
     ) {
@@ -63,6 +64,7 @@ impl Db {
         let request = Request {
             id,
             inputs: request.inputs,
+            input_length: input_length as u32,
             parameters,
             max_new_tokens: request.parameters.max_new_tokens,
         };
@@ -103,9 +105,13 @@ impl Db {
     pub(crate) fn next_batch(&self, max_size: usize) -> Option<Batch> {
         if let Some((last_id, requests)) = self.next_requests(max_size) {
             let mut state = self.shared.state.write();
+            let size = requests.len();
+            let max_sequence_length = requests.iter().map(|r| r.input_length).max().unwrap();
             let batch = Batch {
                 id: state.next_batch_id,
                 requests,
+                size: size as u32,
+                max_sequence_length,
             };
             state.next_batch_start_id = last_id + 1;
             state.next_batch_id += 1;
@@ -122,9 +128,13 @@ impl Db {
         if let Some((last_id, requests)) = self.next_requests(max_size) {
             if requests.len() >= min_size {
                 let mut state = self.shared.state.write();
+                let size = requests.len();
+                let max_sequence_length = requests.iter().map(|r| r.input_length).max().unwrap();
                 let batch = Batch {
                     id: state.next_batch_id,
                     requests,
+                    size: size as u32,
+                    max_sequence_length,
                 };
                 state.next_batch_start_id = last_id + 1;
                 state.next_batch_id += 1;

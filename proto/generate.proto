@@ -2,20 +2,34 @@ syntax = "proto3";
 
 package generate.v1;
 
-service TextGeneration {
+service TextGenerationService {
     /// Service discovery
-    rpc ServiceDiscovery(Empty) returns (ServiceDiscoveryResponse) {}
+    rpc ServiceDiscovery (ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse) {}
     /// Empties batch cache
-    rpc ClearCache(Empty) returns (Empty);
-    /// Generate tokens for a batch without cache
-    rpc Generate(Batch) returns (Response);
-    /// Generate tokens for a batch with cache
-    rpc GenerateWithCache(BatchCached) returns (Response);
+    rpc ClearCache (ClearCacheRequest) returns (ClearCacheResponse);
+    /// Generate tokens for a batch
+    rpc Generate (GenerateRequest) returns (GenerateResponse);
+    /// Generate tokens for a list of cached batches
+    rpc GenerateWithCache (GenerateWithCacheRequest) returns (GenerateWithCacheResponse);
+    /// Generate tokens until the text of at least one request of the batch is generated
+    rpc GenerateUntilFinished (GenerateUntilFinishedRequest) returns (GenerateUntilFinishedResponse);
+    /// Generate tokens until the text of at least one request of the cached batches i finished
+    rpc GenerateUntilFinishedWithCache (GenerateUntilFinishedWithCacheRequest) returns (GenerateUntilFinishedWithCacheResponse);
 }
 
+/// Empty request
+message ServiceDiscoveryRequest {}
+
 message ServiceDiscoveryResponse {
+    /// Other shards urls
     repeated string urls = 1;
 }
+
+/// Empty request
+message ClearCacheRequest {}
+
+/// Empty response
+message ClearCacheResponse {}
 
 message LogitsWarperParameters {
     float temperature = 1;
@@ -29,10 +43,12 @@ message Request {
     uint64 id = 1;
     /// The generation context
     string inputs = 2;
+    /// The number of tokens inside inputs
+    uint32 input_length = 3;
     /// Logits Warper Parameters
-    LogitsWarperParameters parameters = 3;
+    LogitsWarperParameters parameters = 4;
     /// Stopping criteria
-    uint32 max_new_tokens = 4;
+    uint32 max_new_tokens = 5;
 }
 
 message Batch {
@@ -40,44 +56,63 @@ message Batch {
     uint64 id = 1;
     /// Individual requests
     repeated Request requests = 2;
+    /// Batch size (==len(requests))
+    uint32 size = 3;
+    /// Length of the longest sequence within the batch (used for padding)
+    uint32 max_sequence_length = 4;
 }
 
-message BatchCached {
-    /// Batch ID
-    uint64 id = 1;
-    /// Request ids within cache
-    repeated uint64 request_ids = 2;
-    /// Cache IDs
-    repeated uint64 batch_cached_ids = 3;
-    /// Batch size (sum of all batch sizes)
-    uint32 total_batch_size = 4;
-    /// Max sequence length
-    uint32 max_sequence_length = 5;
-}
-
-message FinishedGeneration {
-    /// ID of the original request
-    uint64 id = 1;
+message GeneratedText {
+    /// Request
+    Request request = 1;
     /// Output
     string output = 2;
 }
 
-message CacheEntry {
-    /// Cache ID; same as batch ID
-    uint64 id = 1;
-    /// Requests present in cache entry
-    repeated uint64 request_ids = 2;
-    /// Sequence length
-    uint32 sequence_length = 3;
+message GenerateRequest {
+    /// Batch
+    Batch batch = 1;
 }
 
-message Response {
-    /// Finished requests (optional)
-    repeated FinishedGeneration finished = 1;
-    /// Cache entry (optional)
-    optional CacheEntry cache_entry = 2;
+message GenerateResponse {
+    /// Finished requests
+    repeated GeneratedText generated_texts = 1;
+    /// Next batch (cached)
+    optional Batch batch = 2;
 }
 
+message GenerateWithCacheRequest {
+    /// Cached batches
+    repeated Batch batches = 1;
+}
 
-// Represent an empty message.
-message Empty {}
+message GenerateWithCacheResponse {
+    /// Finished requests
+    repeated GeneratedText generated_texts = 1;
+    /// Next batch (cached)
+    optional Batch batch = 2;
+}
+
+message GenerateUntilFinishedRequest {
+    /// Batch
+    Batch batch = 1;
+}
+
+message GenerateUntilFinishedResponse {
+    /// Finished requests
+    repeated GeneratedText generated_texts = 1;
+    /// Next batch (cached)
+    optional Batch batch = 2;
+}
+
+message GenerateUntilFinishedWithCacheRequest {
+    /// Cached batches
+    repeated Batch batches = 1;
+}
+
+message GenerateUntilFinishedWithCacheResponse {
+    /// Finished requests
+    repeated GeneratedText generated_texts = 1;
+    /// Next batch (cached)
+    optional Batch batch = 2;
+}

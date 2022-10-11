@@ -10,7 +10,7 @@ from bloom_inference.model import BLOOM, Batch, BLOOMSharded
 from bloom_inference.pb import generate_pb2_grpc, generate_pb2
 
 
-class TextGeneration(generate_pb2_grpc.TextGenerationServicer):
+class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     def __init__(self, model: BLOOM, cache: Cache, server_urls: List[str]):
         self.cache = cache
         self.model = model
@@ -21,32 +21,90 @@ class TextGeneration(generate_pb2_grpc.TextGenerationServicer):
 
     async def ClearCache(self, request, context):
         self.cache.clear()
-        return generate_pb2.Empty()
+        return generate_pb2.ClearCacheResponse()
 
     async def Generate(self, request, context):
-        batch = Batch.from_batch_pb(request, self.model.tokenizer, self.model.device)
-        finished_generations, cache_entry = self.model.generate_token(batch)
-        self.cache.set(cache_entry)
+        batch = Batch.from_pb(request.batch, self.model.tokenizer, self.model.device)
 
-        return generate_pb2.Response(
-            finished=[
-                finished_generation.to_pb()
-                for finished_generation in finished_generations
+        generated_texts, next_batch = self.model.generate_token(batch)
+        self.cache.set(next_batch)
+
+        return generate_pb2.GenerateResponse(
+            generated_texts=[
+                generated_text.to_pb() for generated_text in generated_texts
             ],
-            cache_entry=cache_entry.to_pb() if cache_entry else None,
+            batch=next_batch.to_pb() if next_batch else None,
         )
 
     async def GenerateWithCache(self, request, context):
-        batch = Batch.from_batch_cached_pb(request, self.cache)
-        finished_generations, cache_entry = self.model.generate_token(batch)
-        self.cache.set(cache_entry)
+        if len(request.batches) == 0:
+            raise ValueError("Must provide at least one batch")
 
-        return generate_pb2.Response(
-            finished=[
-                finished_generation.to_pb()
-                for finished_generation in finished_generations
+        batches = []
+        for batch_pb in request.batches:
+            batch = self.cache.pop(batch_pb.id)
+            if batch is None:
+                raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
+            batches.append(batch)
+
+        if len(batches) > 1:
+            batch = Batch.concatenate(batches)
+        else:
+            batch = batches[0]
+
+        generated_texts, next_batch = self.model.generate_token(batch)
+        self.cache.set(next_batch)
+
+        return generate_pb2.GenerateWithCacheResponse(
+            generated_texts=[
+                generated_text.to_pb() for generated_text in generated_texts
             ],
-            cache_entry=cache_entry.to_pb() if cache_entry else None,
+            batch=next_batch.to_pb() if next_batch else None,
+        )
+
+    async def GenerateUntilFinished(self, request, context):
+        batch = Batch.from_pb(request.batch, self.model.tokenizer, self.model.device)
+
+        generated_texts = []
+        while not generated_texts:
+            generated_texts, next_batch = self.model.generate_token(batch)
+            batch = next_batch
+        self.cache.set(next_batch)
+
+        return generate_pb2.GenerateUntilFinishedResponse(
+            generated_texts=[
+                generated_text.to_pb() for generated_text in generated_texts
+            ],
+            batch=next_batch.to_pb() if next_batch else None,
+        )
+
+    async def GenerateUntilFinishedWithCache(self, request, context):
+        if len(request.batches) == 0:
+            raise ValueError("Must provide at least one batch")
+
+        batches = []
+        for batch_pb in request.batches:
+            batch = self.cache.pop(batch_pb.id)
+            if batch is None:
+                raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
+            batches.append(batch)
+
+        if len(batches) > 1:
+            batch = Batch.concatenate(batches)
+        else:
+            batch = batches[0]
+
+        generated_texts = []
+        while not generated_texts:
+            generated_texts, next_batch = self.model.generate_token(batch)
+            batch = next_batch
+        self.cache.set(next_batch)
+
+        return generate_pb2.GenerateUntilFinishedWithCacheResponse(
+            generated_texts=[
+                generated_text.to_pb() for generated_text in generated_texts
+            ],
+            batch=next_batch.to_pb() if next_batch else None,
         )
 
 
@@ -71,11 +129,11 @@ def serve(model_name, sharded, shard_directory):
             server_urls = [local_url]
 
         server = aio.server()
-        generate_pb2_grpc.add_TextGenerationServicer_to_server(
-            TextGeneration(model, Cache(), server_urls), server
+        generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
+            TextGenerationService(model, Cache(), server_urls), server
         )
         SERVICE_NAMES = (
-            generate_pb2.DESCRIPTOR.services_by_name["TextGeneration"].full_name,
+            generate_pb2.DESCRIPTOR.services_by_name["TextGenerationService"].full_name,
             reflection.SERVICE_NAME,
         )
         reflection.enable_server_reflection(SERVICE_NAMES, server)

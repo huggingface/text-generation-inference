@@ -5,9 +5,7 @@ mod pb;
 mod sharded_client;
 
 pub use client::Client;
-pub use pb::generate::v1::{
-    Batch, BatchCached, CacheEntry, FinishedGeneration, LogitsWarperParameters, Request,
-};
+pub use pb::generate::v1::{Batch, GeneratedText, LogitsWarperParameters, Request};
 pub use sharded_client::ShardedClient;
 use thiserror::Error;
 pub use tonic::transport::Uri;

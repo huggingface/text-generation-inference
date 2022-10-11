@@ -1,12 +1,13 @@
-use poem::{EndpointExt, handler, post, Route, Server};
+use crate::{Batcher, ShardedClient, Validation};
 use poem::http::StatusCode;
 use poem::listener::TcpListener;
 use poem::middleware::AddData;
 use poem::web::{Data, Json};
-use tokio::time::Instant;
-use crate::{Batcher, ShardedClient};
-use tracing::instrument;
+use poem::{handler, post, EndpointExt, Route, Server};
 use serde::Deserialize;
+use tokenizers::Tokenizer;
+use tokio::time::Instant;
+use tracing::instrument;
 
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct GenerateParameters {
@@ -59,21 +60,24 @@ pub(crate) struct GenerateRequest {
     pub parameters: GenerateParameters,
 }
 
-
 #[handler]
-#[instrument(skip(infer), fields(time, time_per_token))]
+#[instrument(skip(validation, infer), fields(time, time_per_token))]
 async fn generate(
+    validation: Data<&Validation>,
     infer: Data<&Batcher>,
     req: Json<GenerateRequest>,
 ) -> poem::Result<Json<serde_json::Value>> {
     let start = Instant::now();
 
-    let output = infer
-        .infer(GenerateRequest {
+    let (input_length, validated_request) = validation
+        .validate(GenerateRequest {
             inputs: req.inputs.clone(),
             parameters: req.parameters.clone(),
         })
-        .await;
+        .await
+        .unwrap();
+
+    let output = infer.infer(input_length, validated_request).await;
 
     match output {
         Ok(generated_text) => {
@@ -92,20 +96,22 @@ async fn generate(
     }
 }
 
-pub async fn run(client: ShardedClient, listener: TcpListener<String>) -> Result<(), std::io::Error> {
-    client
-        .clear_cache()
-        .await
-        .expect("Unable to clear cache");
+pub async fn run(
+    client: ShardedClient,
+    tokenizer: Tokenizer,
+    listener: TcpListener<String>,
+) -> Result<(), std::io::Error> {
+    client.clear_cache().await.expect("Unable to clear cache");
     tracing::info!("Connected");
 
     let infer = Batcher::new(client);
 
+    let validation = Validation::new(tokenizer);
+
     let app = Route::new()
         .at("/generate", post(generate))
+        .with(AddData::new(validation))
         .with(AddData::new(infer));
 
-    Server::new(listener)
-        .run(app)
-        .await
+    Server::new(listener).run(app).await
 }
