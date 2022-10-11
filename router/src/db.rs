@@ -1,5 +1,5 @@
 /// This code is massively inspired by Tokio mini-redis
-use crate::GenerateRequest;
+use crate::server::GenerateRequest;
 use bloom_inference_client::{Batch, ClientError, LogitsWarperParameters, Request};
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
@@ -44,7 +44,11 @@ impl Db {
         Self { shared }
     }
 
-    pub(crate) fn append(&self, request: GenerateRequest, sender: Sender<Result<String, ClientError>>) {
+    pub(crate) fn append(
+        &self,
+        request: GenerateRequest,
+        sender: Sender<Result<String, ClientError>>,
+    ) {
         let mut state = self.shared.state.write();
 
         let id = state.next_id;
@@ -65,7 +69,10 @@ impl Db {
         state.entries.insert(id, (request, sender));
     }
 
-    pub(crate) fn remove(&self, id: &u64) -> Option<(Request, Sender<Result<String, ClientError>>)> {
+    pub(crate) fn remove(
+        &self,
+        id: &u64,
+    ) -> Option<(Request, Sender<Result<String, ClientError>>)> {
         let mut state = self.shared.state.write();
         state.entries.remove(id)
     }

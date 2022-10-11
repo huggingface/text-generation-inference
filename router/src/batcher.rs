@@ -1,14 +1,17 @@
-use crate::{Db, GenerateRequest};
-use bloom_inference_client::{Batch, BatchCached, CacheEntry, ClientError, FinishedGeneration, ShardedClient};
+use crate::Db;
+use bloom_inference_client::{
+    Batch, BatchCached, CacheEntry, ClientError, FinishedGeneration, ShardedClient,
+};
 use std::sync::Arc;
-use tokio::sync::{oneshot, Notify};
+use tokio::sync::{Notify, oneshot};
+use crate::server::GenerateRequest;
 
 const MAX_LENGTH: usize = 128;
 
 pub struct InferError {}
 
 #[derive(Clone)]
-pub(crate) struct Infer {
+pub(crate) struct Batcher {
     db: Db,
     shared: Arc<Shared>,
 }
@@ -17,7 +20,7 @@ struct Shared {
     batching_task: Notify,
 }
 
-impl Infer {
+impl Batcher {
     pub(crate) fn new(client: ShardedClient) -> Self {
         let db = Db::new();
         let shared = Arc::new(Shared {
@@ -38,7 +41,7 @@ impl Infer {
         self.shared.batching_task.notify_waiters();
         match request_rx.await.unwrap() {
             Ok(output) => Ok(output),
-            Err(_) => Err(InferError {})
+            Err(_) => Err(InferError {}),
         }
     }
 }
@@ -57,19 +60,19 @@ async fn batching_task(client: ShardedClient, db: Db, shared: Arc<Shared>) {
                     let mut max_sequence_length = entry.sequence_length;
                     let mut request_ids = entry.request_ids;
 
-                    if total_batch_size <= 16 {
-                        if let Some(batch) = db.next_batch_minimum_size(16, 48) {
-                            let other_cache_entry = infer_batch(batch, &client, &db).await;
-
-                            if let Some(entry) = other_cache_entry {
-                                batch_cached_ids.push(entry.id);
-                                total_batch_size += entry.request_ids.len();
-                                max_sequence_length =
-                                    max_sequence_length.max(entry.sequence_length);
-                                request_ids.extend(entry.request_ids.into_iter());
-                            }
-                        }
-                    }
+                    // if total_batch_size <= 16 {
+                    //     if let Some(batch) = db.next_batch_minimum_size(16, 48) {
+                    //         let other_cache_entry = infer_batch(batch, &client, &db).await;
+                    //
+                    //         if let Some(entry) = other_cache_entry {
+                    //             batch_cached_ids.push(entry.id);
+                    //             total_batch_size += entry.request_ids.len();
+                    //             max_sequence_length =
+                    //                 max_sequence_length.max(entry.sequence_length);
+                    //             request_ids.extend(entry.request_ids.into_iter());
+                    //         }
+                    //     }
+                    // }
 
                     let batch_cached = BatchCached {
                         id: entry.id,
@@ -87,7 +90,11 @@ async fn batching_task(client: ShardedClient, db: Db, shared: Arc<Shared>) {
     }
 }
 
-async fn infer_batch_cached(batch: BatchCached, client: &ShardedClient, db: &Db) -> Option<CacheEntry> {
+async fn infer_batch_cached(
+    batch: BatchCached,
+    client: &ShardedClient,
+    db: &Db,
+) -> Option<CacheEntry> {
     match client.generate_with_cache(batch.clone()).await {
         Ok((finished, cache_entry)) => {
             send_finished(finished, db);
@@ -109,7 +116,11 @@ async fn infer_batch(batch: Batch, client: &ShardedClient, db: &Db) -> Option<Ca
         }
         Err(err) => {
             println!("{:?}", err);
-            send_error(err, batch.requests.into_iter().map(|req| req.id).collect(), &db);
+            send_error(
+                err,
+                batch.requests.into_iter().map(|req| req.id).collect(),
+                &db,
+            );
             None
         }
     }
