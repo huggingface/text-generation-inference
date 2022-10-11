@@ -69,13 +69,15 @@ async fn generate(
 ) -> poem::Result<Json<serde_json::Value>> {
     let start = Instant::now();
 
-    let (input_length, validated_request) = validation
+    let (input_length, validated_request) = match validation
         .validate(GenerateRequest {
             inputs: req.inputs.clone(),
             parameters: req.parameters.clone(),
         })
-        .await
-        .unwrap();
+        .await {
+        Ok(result) => result,
+        Err(_) => return Err(poem::Error::from_status(StatusCode::INTERNAL_SERVER_ERROR))
+    };
 
     let output = infer.infer(input_length, validated_request).await;
 
