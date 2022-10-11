@@ -1,9 +1,9 @@
+use std::net::SocketAddr;
+use axum::{Router, Json};
+use axum::http::StatusCode;
+use axum::extract::Extension;
+use axum::routing::post;
 use crate::{Batcher, ShardedClient, Validation};
-use poem::http::StatusCode;
-use poem::listener::TcpListener;
-use poem::middleware::AddData;
-use poem::web::{Data, Json};
-use poem::{handler, post, EndpointExt, Route, Server};
 use serde::Deserialize;
 use tokenizers::Tokenizer;
 use tokio::time::Instant;
@@ -60,26 +60,24 @@ pub(crate) struct GenerateRequest {
     pub parameters: GenerateParameters,
 }
 
-#[handler]
-#[instrument(skip(validation, infer), fields(time, time_per_token))]
+#[instrument(skip(state), fields(time, time_per_token))]
 async fn generate(
-    validation: Data<&Validation>,
-    infer: Data<&Batcher>,
+    state: Extension<ServerState>,
     req: Json<GenerateRequest>,
-) -> poem::Result<Json<serde_json::Value>> {
+) -> Result<Json<serde_json::Value>, StatusCode> {
     let start = Instant::now();
 
-    let (input_length, validated_request) = match validation
+    let (input_length, validated_request) = match state.validation
         .validate(GenerateRequest {
             inputs: req.inputs.clone(),
             parameters: req.parameters.clone(),
         })
         .await {
         Ok(result) => result,
-        Err(_) => return Err(poem::Error::from_status(StatusCode::INTERNAL_SERVER_ERROR))
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR)
     };
 
-    let output = infer.infer(input_length, validated_request).await;
+    let output = state.infer.infer(input_length, validated_request).await;
 
     match output {
         Ok(generated_text) => {
@@ -94,15 +92,21 @@ async fn generate(
                 "generated_text": generated_text,
             })))
         }
-        Err(_) => Err(poem::Error::from_status(StatusCode::INTERNAL_SERVER_ERROR)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
+}
+
+#[derive(Clone)]
+struct ServerState {
+    validation: Validation,
+    infer: Batcher,
 }
 
 pub async fn run(
     client: ShardedClient,
     tokenizer: Tokenizer,
-    listener: TcpListener<String>,
-) -> Result<(), std::io::Error> {
+    addr: SocketAddr,
+)  {
     client.clear_cache().await.expect("Unable to clear cache");
     tracing::info!("Connected");
 
@@ -110,10 +114,13 @@ pub async fn run(
 
     let validation = Validation::new(tokenizer);
 
-    let app = Route::new()
-        .at("/generate", post(generate))
-        .with(AddData::new(validation))
-        .with(AddData::new(infer));
+    let shared_state = ServerState {
+        validation,
+        infer,
+    };
 
-    Server::new(listener).run(app).await
+    let app = Router::new().route("/generate", post(generate)).layer(Extension(shared_state));
+
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service()).await.unwrap();
 }

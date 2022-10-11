@@ -1,5 +1,5 @@
+use std::net::SocketAddr;
 use bloom_inference_client::ShardedClient;
-use poem::listener::TcpListener;
 use std::time::Duration;
 use tokenizers::Tokenizer;
 
@@ -37,9 +37,9 @@ fn main() -> Result<(), std::io::Error> {
                 .expect("Unable to clear cache");
             tracing::info!("Connected");
 
-            let addr = "127.0.0.1:3000".to_string();
-            let listener = TcpListener::bind(addr);
+            let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
-            server::run(sharded_client, tokenizer, listener).await
+            server::run(sharded_client, tokenizer, addr).await;
+            Ok(())
         })
 }
