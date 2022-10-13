@@ -1,10 +1,13 @@
 import torch
 import torch.distributed
+import io
+import json
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 
+from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from transformers.modeling_utils import no_init_weights
 
@@ -41,7 +44,7 @@ class Batch:
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+            cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
     ) -> "Batch":
         inputs = []
         next_token_choosers = []
@@ -130,8 +133,8 @@ class Batch:
 
             # We need to slice the attention mask to remove padding from previous steps
             input_ids["attention_mask"][
-                start_index:end_index, -batch.max_sequence_length :
-            ] = batch.input_ids["attention_mask"][:, -batch.max_sequence_length :]
+            start_index:end_index, -batch.max_sequence_length:
+            ] = batch.input_ids["attention_mask"][:, -batch.max_sequence_length:]
 
             for j, past in enumerate(batch.input_ids["past_key_values"]):
                 past_keys = past[0]
@@ -177,12 +180,12 @@ class Batch:
 
                 # We slice the past keys and values to remove the padding from previous batches
                 input_ids["past_key_values"][j][0][
-                    start_index:end_index, :, :, -(batch.max_sequence_length - 1) :
-                ] = past_keys[:, :, :, -(batch.max_sequence_length - 1) :]
+                start_index:end_index, :, :, -(batch.max_sequence_length - 1):
+                ] = past_keys[:, :, :, -(batch.max_sequence_length - 1):]
 
                 input_ids["past_key_values"][j][1][
-                    start_index:end_index, :, -(batch.max_sequence_length - 1) :, :
-                ] = past_values[:, :, -(batch.max_sequence_length - 1) :, :]
+                start_index:end_index, :, -(batch.max_sequence_length - 1):, :
+                ] = past_values[:, :, -(batch.max_sequence_length - 1):, :]
 
                 # If we are on the last batch, we need to reshape the tensors
                 if (i + 1) == len(batches):
@@ -239,7 +242,7 @@ class BLOOM:
         )
 
     def generate_token(
-        self, batch: Batch
+            self, batch: Batch
     ) -> Tuple[List[GeneratedText], Optional[Batch]]:
         with torch.no_grad():
             outputs = self.forward(**batch.input_ids)
@@ -269,11 +272,11 @@ class BLOOM:
 
         # For each member of the batch
         for i, (
-            request,
-            logits,
-            next_token_chooser,
-            stopping_criteria,
-            all_tokens,
+                request,
+                logits,
+                next_token_chooser,
+                stopping_criteria,
+                all_tokens,
         ) in enumerate(iterator):
             # Select next token
             next_token = next_token_chooser(all_tokens, logits.unsqueeze(0)[:, -1])
@@ -450,3 +453,66 @@ class BLOOMSharded(BLOOM):
 
         outputs.logits = logits
         return outputs
+
+
+class BLOOMDeepSpeed(BLOOM):
+    def __init__(self, model_name):
+        super(BLOOM, self).__init__()
+
+        import deepspeed
+        from deepspeed.comm import init_distributed, get_rank, get_world_size
+
+        init_distributed("nccl")
+        self.rank = get_rank()
+        self.world_size = get_world_size()
+        self.master = self.rank == 0
+
+        if torch.cuda.is_available():
+            self.device = torch.device(f"cuda:{self.rank}")
+            dtype = torch.float16
+        else:
+            raise ValueError("DeepSpeed only supports CUDA")
+
+        model_root_dir = snapshot_download(
+            model_name, allow_patterns=["*"], local_files_only=True
+        )
+
+        if model_name == "microsoft/bloom-deepspeed-inference-fp16":
+            if self.world_size != 8:
+                raise ValueError("microsoft/bloom-deepspeed-inference-fp16 only supports 8 GPUs")
+            checkpoints_json_path = Path(model_root_dir) / "ds_inference_config.json"
+            data = json.load(checkpoints_json_path.open("r"))
+            for key in data["checkpoints"].keys():
+                for i, v in enumerate(data["checkpoints"][key]):
+                    data["checkpoints"][key][i] = str(Path(model_root_dir) / v)
+        else:
+            file_list = [str(entry) for entry in Path(model_root_dir).rglob("*.[bp][it][n]") if entry.is_file()]
+            data = {"type": "BLOOM", "checkpoints": file_list, "version": 1.0}
+
+        checkpoints_json = Path("checkpoints.json")
+        with checkpoints_json.open("w") as f:
+            json.dump(data, f)
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
+        config = AutoConfig.from_pretrained(model_name)
+
+        with deepspeed.OnDevice(dtype=dtype, device="meta", enabled=True):
+            model = AutoModelForCausalLM.from_config(config, torch_dtype=torch.bfloat16)
+
+        model = model.eval()
+
+        model = deepspeed.init_inference(
+            model=model,
+            mp_size=self.world_size,
+            dtype=dtype,
+            replace_with_kernel_inject=True,
+            replace_method="auto",
+            enable_cuda_graph=False,
+            checkpoint=str(checkpoints_json),
+            mpu=None,
+            args=None,
+            training_mp_size=1
+        )
+
+        self.model = model.module
+        self.num_heads = config.n_head // self.world_size

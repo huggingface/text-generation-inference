@@ -197,7 +197,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "cedd0aebeb3731e2bbddf017a2ee6074c285866354272f8dfe930e9606437a25"
+content-hash = "ed2061d45e5885616d5424a01e5ac8c57b9a52fd758a509a9c17406656ce5156"
 
 [metadata.files]
 accelerate = [

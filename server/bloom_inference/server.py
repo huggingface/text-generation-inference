@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional, List
 
 from bloom_inference.cache import Cache
-from bloom_inference.model import BLOOM, Batch, BLOOMSharded
+from bloom_inference.model import BLOOM, Batch, BLOOMDeepSpeed
 from bloom_inference.pb import generate_pb2_grpc, generate_pb2
 
 
@@ -116,9 +116,9 @@ def serve(model_name, sharded, shard_directory):
     ):
         unix_socket_template = "unix:///tmp/bloom-inference-{}"
         if sharded:
-            if shard_directory is None:
-                raise ValueError("shard_directory must be set when sharded is True")
-            model = BLOOMSharded(model_name, shard_directory)
+            # if shard_directory is None:
+            #     raise ValueError("shard_directory must be set when sharded is True")
+            model = BLOOMDeepSpeed(model_name)
             server_urls = [
                 unix_socket_template.format(rank) for rank in range(model.world_size)
             ]
