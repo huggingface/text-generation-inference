@@ -1,5 +1,5 @@
-use std::net::SocketAddr;
 use bloom_inference_client::ShardedClient;
+use std::net::SocketAddr;
 use std::time::Duration;
 use tokenizers::Tokenizer;
 
@@ -37,7 +37,7 @@ fn main() -> Result<(), std::io::Error> {
                 .expect("Unable to clear cache");
             tracing::info!("Connected");
 
-            let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+            let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
             server::run(sharded_client, tokenizer, addr).await;
             Ok(())

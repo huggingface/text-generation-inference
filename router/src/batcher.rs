@@ -83,7 +83,12 @@ async fn batching_task(client: ShardedClient, db: Db, shared: Arc<Shared>) {
 
                 cached_batch = match batch_size {
                     size if size > 16 => {
-                        wrap_future(client.generate_until_finished_with_cache(batches), request_ids, &db).await
+                        wrap_future(
+                            client.generate_until_finished_with_cache(batches),
+                            request_ids,
+                            &db,
+                        )
+                        .await
                     }
                     _ => wrap_future(client.generate_with_cache(batches), request_ids, &db).await,
                 };

@@ -1,10 +1,10 @@
-use std::net::SocketAddr;
-use axum::{Router, Json};
-use axum::http::StatusCode;
-use axum::extract::Extension;
-use axum::routing::post;
 use crate::{Batcher, ShardedClient, Validation};
+use axum::extract::Extension;
+use axum::http::StatusCode;
+use axum::routing::post;
+use axum::{Json, Router};
 use serde::Deserialize;
+use std::net::SocketAddr;
 use tokenizers::Tokenizer;
 use tokio::time::Instant;
 use tracing::instrument;
@@ -61,20 +61,47 @@ pub(crate) struct GenerateRequest {
 }
 
 #[instrument(skip(state), fields(time, time_per_token))]
+async fn liveness(state: Extension<ServerState>) -> Result<(), StatusCode> {
+    let output = state
+        .infer
+        .infer(
+            1,
+            GenerateRequest {
+                inputs: "liveness".to_string(),
+                parameters: GenerateParameters {
+                    temperature: 1.0,
+                    top_k: 0,
+                    top_p: 1.0,
+                    do_sample: false,
+                    max_new_tokens: 1,
+                },
+            },
+        )
+        .await;
+
+    match output {
+        Ok(_) => Ok(()),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+#[instrument(skip(state), fields(time, time_per_token))]
 async fn generate(
     state: Extension<ServerState>,
     req: Json<GenerateRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let start = Instant::now();
 
-    let (input_length, validated_request) = match state.validation
+    let (input_length, validated_request) = match state
+        .validation
         .validate(GenerateRequest {
             inputs: req.inputs.clone(),
             parameters: req.parameters.clone(),
         })
-        .await {
+        .await
+    {
         Ok(result) => result,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR)
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
     let output = state.infer.infer(input_length, validated_request).await;
@@ -102,11 +129,7 @@ struct ServerState {
     infer: Batcher,
 }
 
-pub async fn run(
-    client: ShardedClient,
-    tokenizer: Tokenizer,
-    addr: SocketAddr,
-)  {
+pub async fn run(client: ShardedClient, tokenizer: Tokenizer, addr: SocketAddr) {
     client.clear_cache().await.expect("Unable to clear cache");
     tracing::info!("Connected");
 
@@ -114,13 +137,16 @@ pub async fn run(
 
     let validation = Validation::new(tokenizer);
 
-    let shared_state = ServerState {
-        validation,
-        infer,
-    };
+    let shared_state = ServerState { validation, infer };
 
-    let app = Router::new().route("/generate", post(generate)).layer(Extension(shared_state));
+    let app = Router::new()
+        .route("/generate", post(generate))
+        .layer(Extension(shared_state.clone()))
+        .route("/health", post(liveness))
+        .layer(Extension(shared_state.clone()));
 
     axum::Server::bind(&addr)
-        .serve(app.into_make_service()).await.unwrap();
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 }

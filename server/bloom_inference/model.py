@@ -220,12 +220,14 @@ class BLOOM:
     def __init__(self, model_name: str):
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
+            dtype = torch.bfloat16
         else:
             self.device = torch.device("cpu")
+            dtype = torch.float32
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
         self.model = (
-            AutoModelForCausalLM.from_pretrained(model_name).eval().to(self.device)
+            AutoModelForCausalLM.from_pretrained(model_name).eval().to(self.device).to(dtype)
         )
         self.num_heads = self.model.base_model.num_heads
 
@@ -427,7 +429,8 @@ class BLOOMSharded(BLOOM):
             if do_transpose:
                 state_dict[key] = state_dict[key].transpose(1, 0).contiguous()
 
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
+        model.tie_weights()
         self.model = model.to(self.device).eval()
         self.num_heads = config.n_head // self.process_group.size()
         torch.distributed.barrier(group=self.process_group)

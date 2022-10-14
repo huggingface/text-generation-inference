@@ -43,8 +43,6 @@ python server/bloom_inference/main.py bigscience/bloom --num-gpus 8 --shard-dire
 
 ## TODO:
 
-- [ ] Improve model download
-  - Store "shardable" layers separately and layer by layer
 - [ ] Add batching args to router CLI 
 - [ ] Add docstrings + comments everywhere as the codebase is fairly complicated
 - [ ] Add tests
