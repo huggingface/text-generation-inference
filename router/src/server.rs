@@ -1,7 +1,8 @@
-use crate::{Batcher, ShardedClient, Validation};
+use bloom_inference_client::ShardedClient;
+use crate::{Batcher, Validation};
 use axum::extract::Extension;
 use axum::http::StatusCode;
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -142,7 +143,7 @@ pub async fn run(client: ShardedClient, tokenizer: Tokenizer, addr: SocketAddr) 
     let app = Router::new()
         .route("/generate", post(generate))
         .layer(Extension(shared_state.clone()))
-        .route("/health", post(liveness))
+        .route("/health", get(liveness))
         .layer(Extension(shared_state.clone()));
 
     axum::Server::bind(&addr)

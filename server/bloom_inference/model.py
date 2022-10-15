@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from transformers.modeling_utils import no_init_weights
 
 from bloom_inference.pb import generate_pb2
-from bloom_inference.shard_model import shard_model, match_suffix
+from bloom_inference.prepare_weights import prepare_weights, match_suffix
 from bloom_inference.utils import (
     StoppingCriteria,
     NextTokenChooser,
@@ -377,8 +377,8 @@ class BLOOMSharded(BLOOM):
         # shard state_dict
         if self.master:
             # TODO @thomasw21 do some caching
-            shard_state_dict_paths = shard_model(
-                model_name, shard_directory, tp_world_size=self.world_size, dtype=dtype
+            shard_state_dict_paths = prepare_weights(
+                model_name, shard_directory / "cache", shard_directory, tp_world_size=self.world_size
             )
             shard_state_dict_paths = [
                 str(path.absolute()) for path in shard_state_dict_paths

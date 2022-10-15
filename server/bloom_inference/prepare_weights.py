@@ -62,7 +62,7 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
 
     if all(save_path.exists() for save_path in save_paths):
         print("Weights are already prepared")
-        return
+        return save_paths
 
     cache_path.mkdir(parents=True, exist_ok=True)
     if model_name == "bigscience/bloom-560m":

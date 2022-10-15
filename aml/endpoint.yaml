@@ -1,0 +1,3 @@
+$schema: https://azuremlsdk2.blob.core.windows.net/latest/managedOnlineEndpoint.schema.json
+name: bloom-inference
+auth_mode: aml_token

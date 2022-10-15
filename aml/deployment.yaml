@@ -1,0 +1,39 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
+name: bloom-deployment
+endpoint_name: bloom-inference
+model:
+  name: bloom
+  path: ./bloom
+model_mount_path: /var/azureml-model
+environment_variables:
+  MODEL_BASE_PATH: /var/azureml-model/bloom
+  MODEL_NAME: bigscience/bloom
+  NUM_GPUS: 8
+environment:
+  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation:0.1
+  inference_config:
+    liveness_route:
+      port: 3000
+      path: /health
+    readiness_route:
+      port: 3000
+      path: /health
+    scoring_route:
+      port: 3000
+      path: /generate
+instance_type: Standard_ND96amsr_A100_v4
+request_settings:
+  request_timeout_ms: 90000
+liveness_probe:
+  initial_delay: 300
+  timeout: 20
+  period: 60
+  success_threshold: 1
+  failure_threshold: 60
+readiness_probe:
+  initial_delay: 300
+  timeout: 20
+  period: 60
+  success_threshold: 1
+  failure_threshold: 60
+instance_count: 1
