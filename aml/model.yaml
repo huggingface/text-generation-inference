@@ -1,0 +1,5 @@
+$schema: https://azuremlschemas.azureedge.net/latest/model.schema.json
+name: bloom
+version: 1
+path: ./bloom
+type: custom_model
