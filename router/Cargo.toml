@@ -2,6 +2,8 @@
 name = "text-generation-router"
 version = "0.1.0"
 edition = "2021"
+authors = ["Olivier Dehaene"]
+description = "Text Generation Webserver"
 
 [lib]
 path = "src/lib.rs"
@@ -13,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 axum = { version = "0.5.16", features = ["json", "serde_json"] }
 bloom-inference-client = { path = "client" }
+clap = { version = "4.0.15", features = ["derive", "env"] }
 futures = "0.3.24"
 parking_lot = "0.12.1"
 serde = "1.0.145"

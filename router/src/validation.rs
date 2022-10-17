@@ -14,7 +14,7 @@ pub enum ValidationError {
     TopK,
     #[error("Max New Tokens must be < 512")]
     MaxNewTokens,
-    #[error("Inputs must have less than 512 tokens. Given: {0}")]
+    #[error("Inputs must have less than 1000 tokens. Given: {0}")]
     InputLength(usize),
 }
 
@@ -30,7 +30,7 @@ type ValidationRequest = (
 );
 
 #[derive(Debug, Clone)]
-pub(crate) struct Validation {
+pub struct Validation {
     sender: mpsc::Sender<ValidationRequest>,
 }
 
@@ -81,7 +81,7 @@ async fn validation_task(tokenizer: Tokenizer, mut receiver: mpsc::Receiver<Vali
         let inputs = tokenizer.encode(request.inputs.clone(), false).unwrap();
         let input_length = inputs.len();
 
-        if input_length > 512 {
+        if input_length > 1000 {
             response_tx
                 .send(Err(ValidationError::InputLength(input_length)))
                 .unwrap_or(());

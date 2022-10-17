@@ -1,8 +1,8 @@
 mod batcher;
 mod db;
-pub mod server;
 mod validation;
+pub mod server;
 
-use batcher::Batcher;
 use db::{Db, Entry};
+use batcher::Batcher;
 use validation::Validation;

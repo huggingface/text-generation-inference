@@ -43,7 +43,6 @@ python server/bloom_inference/main.py bigscience/bloom --num-gpus 8 --shard-dire
 
 ## TODO:
 
-- [ ] Add batching args to router CLI 
 - [ ] Add docstrings + comments everywhere as the codebase is fairly complicated
 - [ ] Add tests
 - [ ] Add shutdown logic in router and server

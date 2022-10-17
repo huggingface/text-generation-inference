@@ -9,7 +9,7 @@ WORKDIR /usr/src/router
 
 RUN cargo install --path .
 
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+FROM nvidia/cuda:11.6.1-devel-ubuntu18.04
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \

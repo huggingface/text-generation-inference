@@ -27,7 +27,7 @@ impl From<InferError> for (StatusCode, String) {
 }
 
 #[derive(Clone)]
-pub(crate) struct Batcher {
+pub struct Batcher {
     db: Db,
     shared: Arc<Shared>,
 }
@@ -37,13 +37,13 @@ struct Shared {
 }
 
 impl Batcher {
-    pub(crate) fn new(client: ShardedClient) -> Self {
+    pub(crate) fn new(client: ShardedClient, max_batch_size: usize) -> Self {
         let db = Db::new();
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });
 
-        tokio::spawn(batching_task(client, db.clone(), shared.clone()));
+        tokio::spawn(batching_task(max_batch_size, client, db.clone(), shared.clone()));
 
         Self { db, shared }
     }
@@ -70,40 +70,46 @@ impl Batcher {
     }
 }
 
-async fn batching_task(client: ShardedClient, db: Db, shared: Arc<Shared>) {
+async fn batching_task(max_batch_size: usize,
+                       client: ShardedClient,
+                       db: Db,
+                       shared: Arc<Shared>) {
+    let limit_min_batch_size = (max_batch_size / 2) as u32;
+
     loop {
         shared.batching_task.notified().await;
 
-        if let Some(batch) = db.next_batch(32) {
+        if let Some(batch) = db.next_batch(max_batch_size) {
             let request_ids = batch.requests.iter().map(|req| req.id).collect();
             let mut cached_batch = match batch.size {
-                size if size > 16 => {
+                size if size > limit_min_batch_size => {
                     wrap_future(client.generate_until_finished(batch), request_ids, &db).await
                 }
                 _ => wrap_future(client.generate(batch), request_ids, &db).await,
             };
 
             while let Some(batch) = cached_batch {
-                let batch_size = batch.size;
+                let mut current_batch_size = batch.size;
                 let mut request_ids: Vec<u64> = batch.requests.iter().map(|req| req.id).collect();
                 let mut batches = vec![batch];
 
-                if batch_size <= 16 {
-                    if let Some(new_batch) = db.next_batch_minimum_size(16, 48) {
+                if current_batch_size <= limit_min_batch_size {
+                    if let Some(new_batch) = db.next_batch_minimum_size(limit_min_batch_size as usize, max_batch_size) {
                         let new_batch_request_ids =
                             new_batch.requests.iter().map(|req| req.id).collect();
                         let new_cached_batch =
                             wrap_future(client.generate(new_batch), new_batch_request_ids, &db)
                                 .await;
                         if let Some(new_cached_batch) = new_cached_batch {
+                            current_batch_size += new_cached_batch.size;
                             request_ids.extend(new_cached_batch.requests.iter().map(|req| req.id));
                             batches.push(new_cached_batch);
                         }
                     }
                 }
 
-                cached_batch = match batch_size {
-                    size if size > 16 => {
+                cached_batch = match current_batch_size {
+                    size if size > limit_min_batch_size => {
                         wrap_future(
                             client.generate_until_finished_with_cache(batches),
                             request_ids,

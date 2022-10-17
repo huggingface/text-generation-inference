@@ -64,7 +64,7 @@ pub(crate) struct GenerateRequest {
 #[instrument(skip(state), fields(time, time_per_token))]
 async fn liveness(state: Extension<ServerState>) -> Result<(), (StatusCode, String)> {
     state
-        .infer
+        .batcher
         .infer(
             1,
             GenerateRequest {
@@ -97,7 +97,7 @@ async fn generate(
         })
         .await?;
 
-    let generated_text = state.infer.infer(input_length, validated_request).await?;
+    let generated_text = state.batcher.infer(input_length, validated_request).await?;
 
     tracing::Span::current().record("time", format!("{:?}", start.elapsed()));
     tracing::Span::current().record(
@@ -114,18 +114,14 @@ async fn generate(
 #[derive(Clone)]
 struct ServerState {
     validation: Validation,
-    infer: Batcher,
+    batcher: Batcher,
 }
 
-pub async fn run(client: ShardedClient, tokenizer: Tokenizer, addr: SocketAddr) {
-    client.clear_cache().await.expect("Unable to clear cache");
-    tracing::info!("Connected");
-
-    let infer = Batcher::new(client);
-
+pub async fn run(max_batch_size: usize, client: ShardedClient, tokenizer: Tokenizer, addr: SocketAddr) {
+    let batcher = Batcher::new(client, max_batch_size);
     let validation = Validation::new(tokenizer);
 
-    let shared_state = ServerState { validation, infer };
+    let shared_state = ServerState { validation, batcher };
 
     let app = Router::new()
         .route("/generate", post(generate))
