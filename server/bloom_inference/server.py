@@ -1,4 +1,6 @@
 import asyncio
+import os
+
 from grpc import aio
 
 from grpc_reflection.v1alpha import reflection
@@ -143,7 +145,3 @@ def serve(model_name, sharded, shard_directory):
         await server.wait_for_termination()
 
     asyncio.run(serve_inner(model_name, sharded, shard_directory))
-
-
-if __name__ == "__main__":
-    serve("bigscience/bloom-560m", True, Path("/tmp/models"))

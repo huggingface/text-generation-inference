@@ -1,7 +1,6 @@
 use crate::Result;
 use crate::{Batch, Client, GeneratedText};
 use futures::future::join_all;
-use std::time::Duration;
 use tokio::sync::{broadcast, mpsc};
 use tonic::transport::Uri;
 
@@ -69,24 +68,22 @@ impl ShardedClient {
         Self { request_tx }
     }
 
-    async fn from_master_client(mut master_client: Client) -> Self {
+    async fn from_master_client(mut master_client: Client) -> Result<Self> {
         let uris = master_client.service_discovery().await.unwrap();
-        let futures = uris
-            .into_iter()
-            .map(|path| Client::connect_uds(path, Duration::from_secs(5)));
-        let clients = join_all(futures).await;
-        Self::new(clients)
+        let futures = uris.into_iter().map(|path| Client::connect_uds(path));
+        let clients: Result<Vec<Client>> = join_all(futures).await.into_iter().collect();
+        Ok(Self::new(clients?))
     }
 
-    /// Returns a client connected to the given url. Requests exceeding timeout will fail.
-    pub async fn connect(uri: Uri, timeout: Duration) -> Self {
-        let master_client = Client::connect(uri, timeout).await;
+    /// Returns a client connected to the given url
+    pub async fn connect(uri: Uri) -> Result<Self> {
+        let master_client = Client::connect(uri).await?;
         Self::from_master_client(master_client).await
     }
 
-    /// Returns a client connected to the given unix socket. Requests exceeding timeout will fail.
-    pub async fn connect_uds(path: String, timeout: Duration) -> Self {
-        let master_client = Client::connect_uds(path, timeout).await;
+    /// Returns a client connected to the given unix socket
+    pub async fn connect_uds(path: String) -> Result<Self> {
+        let master_client = Client::connect_uds(path).await?;
         Self::from_master_client(master_client).await
     }
 

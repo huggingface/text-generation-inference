@@ -1,45 +1,37 @@
 use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
 use crate::pb::generate::v1::*;
 use crate::Result;
-use std::time::Duration;
 use tonic::transport::{Channel, Uri};
-use tower::timeout::Timeout;
 use tracing::*;
 
 /// BLOOM Inference gRPC client
 #[derive(Clone)]
 pub struct Client {
-    stub: TextGenerationServiceClient<Timeout<Channel>>,
+    stub: TextGenerationServiceClient<Channel>,
 }
 
 impl Client {
-    /// Returns a client connected to the given url. Requests exceeding timeout will fail.
-    pub async fn connect(uri: Uri, timeout: Duration) -> Self {
-        let channel = Channel::builder(uri)
-            .connect()
-            .await
-            .expect("Transport error");
-        let timeout_channel = Timeout::new(channel, timeout);
+    /// Returns a client connected to the given url
+    pub async fn connect(uri: Uri) -> Result<Self> {
+        let channel = Channel::builder(uri).connect().await?;
 
-        Self {
-            stub: TextGenerationServiceClient::new(timeout_channel),
-        }
+        Ok(Self {
+            stub: TextGenerationServiceClient::new(channel),
+        })
     }
 
-    /// Returns a client connected to the given unix socket. Requests exceeding timeout will fail.
-    pub async fn connect_uds(path: String, timeout: Duration) -> Self {
+    /// Returns a client connected to the given unix socket
+    pub async fn connect_uds(path: String) -> Result<Self> {
         let channel = Channel::from_shared("http://[::]:50051".to_string())
             .unwrap()
             .connect_with_connector(tower::service_fn(move |_: Uri| {
                 tokio::net::UnixStream::connect(path.clone())
             }))
-            .await
-            .expect("Transport error");
-        let timeout_channel = Timeout::new(channel, timeout);
+            .await?;
 
-        Self {
-            stub: TextGenerationServiceClient::new(timeout_channel),
-        }
+        Ok(Self {
+            stub: TextGenerationServiceClient::new(channel),
+        })
     }
 
     #[instrument(skip(self))]

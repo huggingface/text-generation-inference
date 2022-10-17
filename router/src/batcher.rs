@@ -1,13 +1,30 @@
 use crate::server::GenerateRequest;
-use crate::Db;
+use crate::{Db, Entry};
+use axum::http::StatusCode;
 use bloom_inference_client::{Batch, ClientError, GeneratedText, ShardedClient};
 use std::future::Future;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::sync::{oneshot, Notify};
 
 const MAX_LENGTH: usize = 128;
 
-pub struct InferError {}
+#[derive(Debug, Error)]
+pub enum InferError {
+    #[error("Request failed during generation: {0}")]
+    GenerationError(String),
+    #[error("Model is overloaded")]
+    Overloaded,
+}
+
+impl From<InferError> for (StatusCode, String) {
+    fn from(err: InferError) -> Self {
+        match err {
+            InferError::GenerationError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+            InferError::Overloaded => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct Batcher {
@@ -37,14 +54,18 @@ impl Batcher {
         request: GenerateRequest,
     ) -> Result<String, InferError> {
         if self.db.len() > MAX_LENGTH {
-            return Err(InferError {});
+            return Err(InferError::Overloaded);
         }
         let (request_tx, request_rx) = oneshot::channel();
-        self.db.append(input_length, request, request_tx);
+        self.db.append(Entry {
+            request,
+            response_tx: request_tx,
+            input_length,
+        });
         self.shared.batching_task.notify_waiters();
         match request_rx.await.unwrap() {
             Ok(output) => Ok(output),
-            Err(_) => Err(InferError {}),
+            Err(err) => Err(InferError::GenerationError(err.to_string())),
         }
     }
 }
@@ -108,7 +129,6 @@ async fn wrap_future(
             next_batch
         }
         Err(err) => {
-            println!("{:?}", err);
             send_error(err, request_ids, db);
             None
         }
@@ -117,14 +137,18 @@ async fn wrap_future(
 
 fn send_error(error: ClientError, request_ids: Vec<u64>, db: &Db) {
     request_ids.into_iter().for_each(|id| {
-        let (_, response_tx) = db.remove(&id).unwrap();
-        response_tx.send(Err(error.clone())).unwrap_or(());
+        let entry = db.remove(&id).expect("ID not found in db. This is a bug.");
+        // unwrap_or is valid here as we don't care if the receiver is gone.
+        entry.response_tx.send(Err(error.clone())).unwrap_or(());
     });
 }
 
 fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
     finished.into_iter().for_each(|output| {
-        let (_, response_tx) = db.remove(&output.request.unwrap().id).unwrap();
-        response_tx.send(Ok(output.output)).unwrap_or(());
+        let entry = db
+            .remove(&output.request.unwrap().id)
+            .expect("ID not found in db. This is a bug.");
+        // unwrap_or is valid here as we don't care if the receiver is gone.
+        entry.response_tx.send(Ok(output.output)).unwrap_or(());
     });
 }

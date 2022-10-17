@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 
-server_cmd="python server/bloom_inference/main.py $MODEL_NAME --num-gpus $NUM_GPUS --shard-directory $MODEL_BASE_PATH"
-$server_cmd &
+server_cmd="bloom-inference-server launcher $MODEL_NAME --num-gpus $NUM_GPUS --shard-directory $MODEL_BASE_PATH"
 
+# Run in background
+$server_cmd 2>&1 > /dev/null &
+
+# Check if server is running by checking if the unix socket is created
 FILE=/tmp/bloom-inference-0
-
 while :
   do
     if test -S "$FILE"; then
@@ -18,4 +20,11 @@ while :
 
 sleep 1
 
-exec "bloom-inference"
+# Run in background
+text-generation-router &
+
+# Wait for any process to exit
+wait -n
+
+# Exit with status of process that exited first
+exit $?

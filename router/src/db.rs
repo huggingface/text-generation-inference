@@ -1,10 +1,28 @@
 /// This code is massively inspired by Tokio mini-redis
-use crate::server::GenerateRequest;
+use crate::server::{GenerateParameters, GenerateRequest};
 use bloom_inference_client::{Batch, ClientError, LogitsWarperParameters, Request};
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::sync::oneshot::Sender;
+
+#[derive(Debug)]
+pub(crate) struct Entry {
+    pub request: GenerateRequest,
+    pub response_tx: Sender<Result<String, ClientError>>,
+    pub input_length: usize,
+}
+
+impl From<GenerateParameters> for LogitsWarperParameters {
+    fn from(parameters: GenerateParameters) -> Self {
+        Self {
+            temperature: parameters.temperature,
+            top_k: parameters.top_k as u32,
+            top_p: parameters.top_p,
+            do_sample: parameters.do_sample,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct Db {
@@ -18,7 +36,7 @@ pub struct Shared {
 
 #[derive(Debug)]
 struct State {
-    entries: BTreeMap<u64, (Request, Sender<Result<String, ClientError>>)>,
+    entries: BTreeMap<u64, Entry>,
 
     /// Identifier to use for the next expiration. Each expiration is associated
     /// with a unique identifier. See above for why.
@@ -44,37 +62,16 @@ impl Db {
         Self { shared }
     }
 
-    pub(crate) fn append(
-        &self,
-        input_length: usize,
-        request: GenerateRequest,
-        sender: Sender<Result<String, ClientError>>,
-    ) {
+    pub(crate) fn append(&self, entry: Entry) {
         let mut state = self.shared.state.write();
 
         let id = state.next_id;
         state.next_id += 1;
 
-        let parameters = Some(LogitsWarperParameters {
-            temperature: request.parameters.temperature,
-            top_k: request.parameters.top_k,
-            top_p: request.parameters.top_p,
-            do_sample: request.parameters.do_sample,
-        });
-        let request = Request {
-            id,
-            inputs: request.inputs,
-            input_length: input_length as u32,
-            parameters,
-            max_new_tokens: request.parameters.max_new_tokens,
-        };
-        state.entries.insert(id, (request, sender));
+        state.entries.insert(id, entry);
     }
 
-    pub(crate) fn remove(
-        &self,
-        id: &u64,
-    ) -> Option<(Request, Sender<Result<String, ClientError>>)> {
+    pub(crate) fn remove(&self, id: &u64) -> Option<Entry> {
         let mut state = self.shared.state.write();
         state.entries.remove(id)
     }
@@ -91,7 +88,15 @@ impl Db {
             .entries
             .range(state.next_batch_start_id..)
             .take(max_size)
-            .map(|(_, (request, _))| request.clone())
+            .map(|(id, entry)| Request {
+                id: *id,
+                inputs: entry.request.inputs.clone(),
+                input_length: entry.input_length as u32,
+                parameters: Some(LogitsWarperParameters::from(
+                    entry.request.parameters.clone(),
+                )),
+                max_new_tokens: entry.request.parameters.max_new_tokens,
+            })
             .collect();
 
         if requests.is_empty() {

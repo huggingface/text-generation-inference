@@ -1,20 +1,7 @@
 use bloom_inference_client::ShardedClient;
 use std::net::SocketAddr;
-use std::time::Duration;
+use text_generation_router::server;
 use tokenizers::Tokenizer;
-
-mod server;
-mod validation;
-
-use validation::Validation;
-
-mod db;
-
-use db::Db;
-
-mod batcher;
-
-use batcher::Batcher;
 
 fn main() -> Result<(), std::io::Error> {
     let tokenizer = Tokenizer::from_pretrained("bigscience/bloom", None).unwrap();
@@ -26,11 +13,9 @@ fn main() -> Result<(), std::io::Error> {
         .block_on(async {
             tracing_subscriber::fmt::init();
 
-            let sharded_client = ShardedClient::connect_uds(
-                "/tmp/bloom-inference-0".to_string(),
-                Duration::from_secs(5),
-            )
-            .await;
+            let sharded_client = ShardedClient::connect_uds("/tmp/bloom-inference-0".to_string())
+                .await
+                .expect("Could not connect to server");
             sharded_client
                 .clear_cache()
                 .await

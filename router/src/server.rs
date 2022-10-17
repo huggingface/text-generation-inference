@@ -1,9 +1,9 @@
-use bloom_inference_client::ShardedClient;
 use crate::{Batcher, Validation};
 use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use bloom_inference_client::ShardedClient;
 use serde::Deserialize;
 use std::net::SocketAddr;
 use tokenizers::Tokenizer;
@@ -15,7 +15,7 @@ pub(crate) struct GenerateParameters {
     #[serde(default = "default_temperature")]
     pub temperature: f32,
     #[serde(default = "default_top_k")]
-    pub top_k: u32,
+    pub top_k: i32,
     #[serde(default = "default_top_p")]
     pub top_p: f32,
     #[serde(default = "default_do_sample")]
@@ -28,7 +28,7 @@ fn default_temperature() -> f32 {
     1.0
 }
 
-fn default_top_k() -> u32 {
+fn default_top_k() -> i32 {
     0
 }
 
@@ -62,8 +62,8 @@ pub(crate) struct GenerateRequest {
 }
 
 #[instrument(skip(state), fields(time, time_per_token))]
-async fn liveness(state: Extension<ServerState>) -> Result<(), StatusCode> {
-    let output = state
+async fn liveness(state: Extension<ServerState>) -> Result<(), (StatusCode, String)> {
+    state
         .infer
         .infer(
             1,
@@ -78,50 +78,37 @@ async fn liveness(state: Extension<ServerState>) -> Result<(), StatusCode> {
                 },
             },
         )
-        .await;
-
-    match output {
-        Ok(_) => Ok(()),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
+        .await?;
+    Ok(())
 }
 
 #[instrument(skip(state), fields(time, time_per_token))]
 async fn generate(
     state: Extension<ServerState>,
     req: Json<GenerateRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let start = Instant::now();
 
-    let (input_length, validated_request) = match state
+    let (input_length, validated_request) = state
         .validation
         .validate(GenerateRequest {
             inputs: req.inputs.clone(),
             parameters: req.parameters.clone(),
         })
-        .await
-    {
-        Ok(result) => result,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
+        .await?;
 
-    let output = state.infer.infer(input_length, validated_request).await;
+    let generated_text = state.infer.infer(input_length, validated_request).await?;
 
-    match output {
-        Ok(generated_text) => {
-            tracing::Span::current().record("time", format!("{:?}", start.elapsed()));
-            tracing::Span::current().record(
-                "time_per_token",
-                format!("{:?}", start.elapsed() / req.parameters.max_new_tokens),
-            );
-            tracing::info!("response: {}", generated_text);
+    tracing::Span::current().record("time", format!("{:?}", start.elapsed()));
+    tracing::Span::current().record(
+        "time_per_token",
+        format!("{:?}", start.elapsed() / req.parameters.max_new_tokens),
+    );
+    tracing::info!("response: {}", generated_text);
 
-            Ok(Json(serde_json::json!({
-                "generated_text": generated_text,
-            })))
-        }
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
+    Ok(Json(serde_json::json!({
+        "generated_text": generated_text,
+    })))
 }
 
 #[derive(Clone)]

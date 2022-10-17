@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "BLOOM Inference Python gRPC Server"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
 
+[tool.poetry.scripts]
+bloom-inference-server = 'bloom_inference.cli:app'
+
 [tool.poetry.dependencies]
 python = "^3.9"
 protobuf = "^4.21.7"

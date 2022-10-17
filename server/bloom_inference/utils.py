@@ -2,6 +2,8 @@ import os
 import contextlib
 import torch
 import torch.distributed
+
+from datetime import timedelta
 from transformers.generation_logits_process import (
     LogitsProcessorList,
     TemperatureLogitsWarper,
@@ -79,6 +81,7 @@ def initialize_torch_distributed():
         backend=backend,
         world_size=world_size,
         rank=rank,
+        timeout=timedelta(seconds=60),
         init_method="tcp://localhost:6000",
     )
 

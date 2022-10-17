@@ -18,6 +18,7 @@ ENV LANG=C.UTF-8 \
     MODEL_NAME=bigscience/bloom \
     NUM_GPUS=8 \
     CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+    NCCL_ASYNC_ERROR_HANDLING=1 \
     CUDA_HOME=/usr/local/cuda \
     LD_LIBRARY_PATH="/opt/miniconda/envs/text-generation/lib:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH" \
     CONDA_DEFAULT_ENV=text-generation \
@@ -51,7 +52,7 @@ RUN cd server && \
     /opt/miniconda/envs/text-generation/bin/pip install . --no-cache-dir
 
 # Install router
-COPY --from=builder /usr/local/cargo/bin/bloom-inference /usr/local/bin/bloom-inference
+COPY --from=builder /usr/local/cargo/bin/text-generation-router /usr/local/bin/text-generation-router
 
 COPY run.sh .
 RUN chmod +x run.sh

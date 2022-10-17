@@ -8,22 +8,26 @@ pub use client::Client;
 pub use pb::generate::v1::{Batch, GeneratedText, LogitsWarperParameters, Request};
 pub use sharded_client::ShardedClient;
 use thiserror::Error;
-pub use tonic::transport::Uri;
+pub use tonic::transport;
 use tonic::Status;
 
 #[derive(Error, Debug, Clone)]
-#[error("Text generation client error: {msg:?}")]
-pub struct ClientError {
-    msg: String,
-    // source: Status,
+pub enum ClientError {
+    #[error("Could not connect to Text Generation server: {0:?}")]
+    Connection(String),
+    #[error("Server error: {0:?}")]
+    Generation(String),
 }
 
 impl From<Status> for ClientError {
     fn from(err: Status) -> Self {
-        Self {
-            msg: err.to_string(),
-            // source: err,
-        }
+        Self::Generation(err.to_string())
+    }
+}
+
+impl From<transport::Error> for ClientError {
+    fn from(err: transport::Error) -> Self {
+        Self::Connection(err.to_string())
     }
 }
 

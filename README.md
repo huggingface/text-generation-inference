@@ -48,5 +48,4 @@ python server/bloom_inference/main.py bigscience/bloom --num-gpus 8 --shard-dire
 - [ ] Add tests
 - [ ] Add shutdown logic in router and server
 - [ ] Improve multi-processing logic in server
-- [ ] Improve error handling everywhere
 - [ ] Improve past key layer indexing?
