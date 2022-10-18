@@ -64,70 +64,31 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch=next_batch.to_pb() if next_batch else None,
         )
 
-    async def GenerateUntilFinished(self, request, context):
-        batch = Batch.from_pb(request.batch, self.model.tokenizer, self.model.device)
 
-        generated_texts = []
-        while not generated_texts:
-            generated_texts, next_batch = self.model.generate_token(batch)
-            batch = next_batch
-        self.cache.set(next_batch)
-
-        return generate_pb2.GenerateUntilFinishedResponse(
-            generated_texts=[
-                generated_text.to_pb() for generated_text in generated_texts
-            ],
-            batch=next_batch.to_pb() if next_batch else None,
-        )
-
-    async def GenerateUntilFinishedWithCache(self, request, context):
-        if len(request.batches) == 0:
-            raise ValueError("Must provide at least one batch")
-
-        batches = []
-        for batch_pb in request.batches:
-            batch = self.cache.pop(batch_pb.id)
-            if batch is None:
-                raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
-            batches.append(batch)
-
-        if len(batches) > 1:
-            batch = Batch.concatenate(batches)
-        else:
-            batch = batches[0]
-
-        generated_texts = []
-        while not generated_texts:
-            generated_texts, next_batch = self.model.generate_token(batch)
-            batch = next_batch
-        self.cache.set(next_batch)
-
-        return generate_pb2.GenerateUntilFinishedWithCacheResponse(
-            generated_texts=[
-                generated_text.to_pb() for generated_text in generated_texts
-            ],
-            batch=next_batch.to_pb() if next_batch else None,
-        )
-
-
-def serve(model_name, sharded, shard_directory):
+def serve(
+    model_name: str,
+    sharded: bool,
+    uds_path: Path,
+    shard_directory: Optional[Path] = None,
+):
     async def serve_inner(
         model_name: str,
         sharded: bool = False,
         shard_directory: Optional[Path] = None,
     ):
-        unix_socket_template = "unix:///tmp/bloom-inference-{}"
+        unix_socket_template = "unix://{}-{}"
         if sharded:
             if shard_directory is None:
                 raise ValueError("shard_directory must be set when sharded is True")
             model = BLOOMSharded(model_name, shard_directory)
             server_urls = [
-                unix_socket_template.format(rank) for rank in range(model.world_size)
+                unix_socket_template.format(uds_path, rank)
+                for rank in range(model.world_size)
             ]
-            local_url = unix_socket_template.format(model.rank)
+            local_url = server_urls[model.rank]
         else:
             model = BLOOM(model_name)
-            local_url = unix_socket_template.format(0)
+            local_url = unix_socket_template.format(uds_path, 0)
             server_urls = [local_url]
 
         server = aio.server()
@@ -142,6 +103,10 @@ def serve(model_name, sharded, shard_directory):
         server.add_insecure_port(local_url)
         await server.start()
         print("Server started at {}".format(local_url))
-        await server.wait_for_termination()
+        try:
+            await server.wait_for_termination()
+        except KeyboardInterrupt:
+            print("Signal received. Shutting down")
+            await server.stop(0)
 
     asyncio.run(serve_inner(model_name, sharded, shard_directory))

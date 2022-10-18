@@ -14,15 +14,15 @@ from huggingface_hub.file_download import _request_wrapper, hf_raise_for_status
 
 
 def match_suffix(text, suffix):
-    return text[-len(suffix):] == suffix
+    return text[-len(suffix) :] == suffix
 
 
 def http_get(
-        url: str,
-        temp_file: BinaryIO,
-        *,
-        timeout=10.0,
-        max_retries=0,
+    url: str,
+    temp_file: BinaryIO,
+    *,
+    timeout=10.0,
+    max_retries=0,
 ):
     """
     Download a remote file. Do not gobble up errors, and will return errors tailored to the Hugging Face Hub.
@@ -54,7 +54,9 @@ def cache_download_url(url: str, root_dir: Path):
     return filename
 
 
-def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world_size: int):
+def prepare_weights(
+    model_name: str, cache_path: Path, save_path: Path, tp_world_size: int
+):
     save_paths = [
         save_path / f"{model_name}_tp-rank-{tp_rank}-of-{tp_world_size}.pty"
         for tp_rank in range(tp_world_size)
@@ -68,6 +70,7 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
     if model_name == "bigscience/bloom-560m":
         url = hf_hub_url(model_name, filename="pytorch_model.bin")
         cache_download_url(url, cache_path)
+
     elif model_name == "bigscience/bloom":
         url = hf_hub_url(model_name, filename="pytorch_model.bin.index.json")
         index_path = cache_download_url(url, cache_path)
@@ -75,10 +78,14 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
             index = json.load(f)
 
         # Get unique file names
-        weight_files = list(set([filename for filename in index["weight_map"].values()]))
+        weight_files = list(
+            set([filename for filename in index["weight_map"].values()])
+        )
         urls = [hf_hub_url(model_name, filename=filename) for filename in weight_files]
 
-        Parallel(n_jobs=5)(delayed(cache_download_url)(url, cache_path) for url in tqdm(urls))
+        Parallel(n_jobs=5)(
+            delayed(cache_download_url)(url, cache_path) for url in tqdm(urls)
+        )
     else:
         raise ValueError(f"Unknown model name: {model_name}")
 
@@ -91,14 +98,14 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
         for state_name in keys:
             state = state_dict[state_name]
             if any(
-                    match_suffix(state_name, candidate)
-                    for candidate in [
-                        "self_attention.query_key_value.weight",
-                        "self_attention.query_key_value.bias",
-                        "mlp.dense_h_to_4h.weight",
-                        "mlp.dense_h_to_4h.bias",
-                        "word_embeddings.weight",
-                    ]
+                match_suffix(state_name, candidate)
+                for candidate in [
+                    "self_attention.query_key_value.weight",
+                    "self_attention.query_key_value.bias",
+                    "mlp.dense_h_to_4h.weight",
+                    "mlp.dense_h_to_4h.bias",
+                    "word_embeddings.weight",
+                ]
             ):
                 output_size = state.shape[0]
                 assert output_size % tp_world_size == 0
@@ -107,7 +114,9 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
                 assert len(sharded_weights) == tp_world_size
 
                 for tp_rank, shard in enumerate(sharded_weights):
-                    shards_state_dicts[tp_rank]["transformer." + state_name] = shard.detach().clone()
+                    shards_state_dicts[tp_rank][
+                        "transformer." + state_name
+                    ] = shard.detach().clone()
 
             elif match_suffix(state_name, "lm_head.weight"):
                 output_size = state.shape[0]
@@ -120,11 +129,11 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
                     shards_state_dicts[tp_rank][state_name] = shard.detach().clone()
 
             elif any(
-                    match_suffix(state_name, candidate)
-                    for candidate in [
-                        "self_attention.dense.weight",
-                        "mlp.dense_4h_to_h.weight",
-                    ]
+                match_suffix(state_name, candidate)
+                for candidate in [
+                    "self_attention.dense.weight",
+                    "mlp.dense_4h_to_h.weight",
+                ]
             ):
                 input_size = state.shape[1]
                 assert input_size % tp_world_size == 0
@@ -132,23 +141,31 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
                 sharded_weights = torch.split(state, block_size, dim=1)
                 assert len(sharded_weights) == tp_world_size
                 for tp_rank, shard in enumerate(sharded_weights):
-                    shards_state_dicts[tp_rank]["transformer." + state_name] = shard.detach().clone()
+                    shards_state_dicts[tp_rank][
+                        "transformer." + state_name
+                    ] = shard.detach().clone()
 
             elif any(
-                    match_suffix(state_name, candidate)
-                    for candidate in [
-                        "self_attention.dense.bias",
-                        "mlp.dense_4h_to_h.bias",
-                    ]
+                match_suffix(state_name, candidate)
+                for candidate in [
+                    "self_attention.dense.bias",
+                    "mlp.dense_4h_to_h.bias",
+                ]
             ):
-                shards_state_dicts[0]["transformer." + state_name] = state.detach().clone()
+                shards_state_dicts[0][
+                    "transformer." + state_name
+                ] = state.detach().clone()
                 for tp_rank in range(1, tp_world_size):
-                    shards_state_dicts[tp_rank]["transformer." + state_name] = torch.zeros_like(state)
+                    shards_state_dicts[tp_rank][
+                        "transformer." + state_name
+                    ] = torch.zeros_like(state)
 
             else:
                 # We duplicate parameters across tp ranks
                 for tp_rank in range(tp_world_size):
-                    shards_state_dicts[tp_rank]["transformer." + state_name] = state.detach().clone()
+                    shards_state_dicts[tp_rank][
+                        "transformer." + state_name
+                    ] = state.detach().clone()
 
             del state_dict[state_name]  # delete key from state_dict
             del state  # delete tensor
@@ -156,7 +173,7 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
 
     # we save state_dict
     for tp_rank, (save_path, shard_state_dict) in enumerate(
-            zip(save_paths, shards_state_dicts)
+        zip(save_paths, shards_state_dicts)
     ):
         save_paths.append(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,17 +183,3 @@ def prepare_weights(model_name: str, cache_path: Path, save_path: Path, tp_world
             torch.save(shard_state_dict, save_path)
 
     return save_paths
-
-
-if __name__ == "__main__":
-    from argparse import ArgumentParser
-
-    parser = ArgumentParser()
-
-    parser.add_argument("--model-name", required=True, type=str)
-    parser.add_argument("--cache-path", required=True, type=str)
-    parser.add_argument("--save-path", required=True, type=str)
-    parser.add_argument("--world-size", required=True, type=int)
-    args = parser.parse_args()
-
-    prepare_weights(args.model_name, Path(args.cache_path), Path(args.save_path), args.world_size)

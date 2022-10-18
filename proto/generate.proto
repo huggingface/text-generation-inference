@@ -11,10 +11,6 @@ service TextGenerationService {
     rpc Generate (GenerateRequest) returns (GenerateResponse);
     /// Generate tokens for a list of cached batches
     rpc GenerateWithCache (GenerateWithCacheRequest) returns (GenerateWithCacheResponse);
-    /// Generate tokens until the text of at least one request of the batch is generated
-    rpc GenerateUntilFinished (GenerateUntilFinishedRequest) returns (GenerateUntilFinishedResponse);
-    /// Generate tokens until the text of at least one request of the cached batches i finished
-    rpc GenerateUntilFinishedWithCache (GenerateUntilFinishedWithCacheRequest) returns (GenerateUntilFinishedWithCacheResponse);
 }
 
 /// Empty request
@@ -87,30 +83,6 @@ message GenerateWithCacheRequest {
 }
 
 message GenerateWithCacheResponse {
-    /// Finished requests
-    repeated GeneratedText generated_texts = 1;
-    /// Next batch (cached)
-    optional Batch batch = 2;
-}
-
-message GenerateUntilFinishedRequest {
-    /// Batch
-    Batch batch = 1;
-}
-
-message GenerateUntilFinishedResponse {
-    /// Finished requests
-    repeated GeneratedText generated_texts = 1;
-    /// Next batch (cached)
-    optional Batch batch = 2;
-}
-
-message GenerateUntilFinishedWithCacheRequest {
-    /// Cached batches
-    repeated Batch batches = 1;
-}
-
-message GenerateUntilFinishedWithCacheResponse {
     /// Finished requests
     repeated GeneratedText generated_texts = 1;
     /// Next batch (cached)

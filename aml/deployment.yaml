@@ -8,7 +8,7 @@ environment_variables:
   MODEL_NAME: bigscience/bloom
   NUM_GPUS: 8
 environment:
-  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation:0.3
+  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:0.2
   inference_config:
     liveness_route:
       port: 3000

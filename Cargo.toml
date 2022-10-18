@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "router",
+    "router/client",
+    "launcher"
+]
+
+[profile.release]
+debug = 1
+incremental = true
+lto = "off"

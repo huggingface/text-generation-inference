@@ -24,6 +24,7 @@ torch.manual_seed(0)
 class Batch:
     batch_id: int
     requests: List[generate_pb2.Request]
+    all_input_lengths: List[int]
     input_ids: Dict[str, torch.Tensor]
     all_input_ids: List[torch.Tensor]
     next_token_choosers: List[NextTokenChooser]
@@ -46,12 +47,12 @@ class Batch:
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
-        input_lengths = []
+        all_input_lengths = []
 
         # Parse batch
         for r in pb.requests:
             inputs.append(r.inputs)
-            input_lengths.append(r.input_length)
+            all_input_lengths.append(r.input_length)
             next_token_choosers.append(
                 NextTokenChooser(
                     temperature=r.parameters.temperature,
@@ -63,17 +64,12 @@ class Batch:
             stopping_criterias.append(StoppingCriteria(max_new_tokens=r.max_new_tokens))
 
         input_ids = tokenizer(inputs, return_tensors="pt", padding=True).to(device)
-        # Remove padding from all_input_ids
-        all_input_ids = [
-            input_ids.squeeze(0)[-length:].unsqueeze(-1)
-            for length, input_ids in zip(
-                input_lengths, input_ids["input_ids"].split(1, dim=0)
-            )
-        ]
+        all_input_ids = input_ids["input_ids"].unsqueeze(-1)
 
         return cls(
             batch_id=pb.id,
             requests=pb.requests,
+            all_input_lengths=all_input_lengths,
             input_ids=input_ids,
             all_input_ids=all_input_ids,
             next_token_choosers=next_token_choosers,
@@ -91,6 +87,7 @@ class Batch:
         # Batch attributes
         input_ids = {"input_ids": None, "attention_mask": None, "past_key_values": []}
         requests = []
+        all_input_lengths = []
         all_input_ids = []
         next_token_choosers = []
         stopping_criterias = []
@@ -100,6 +97,7 @@ class Batch:
         start_index = 0
         for i, batch in enumerate(batches):
             requests.extend(batch.requests)
+            all_input_lengths.extend(batch.all_input_lengths)
             all_input_ids.extend(batch.all_input_ids)
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
@@ -198,6 +196,7 @@ class Batch:
         return cls(
             batch_id=batches[0].batch_id,
             requests=requests,
+            all_input_lengths=all_input_lengths,
             input_ids=input_ids,
             all_input_ids=all_input_ids,
             next_token_choosers=next_token_choosers,
@@ -227,7 +226,10 @@ class BLOOM:
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
         self.model = (
-            AutoModelForCausalLM.from_pretrained(model_name).eval().to(self.device).to(dtype)
+            AutoModelForCausalLM.from_pretrained(model_name)
+            .eval()
+            .to(self.device)
+            .to(dtype)
         )
         self.num_heads = self.model.base_model.num_heads
 
@@ -253,6 +255,7 @@ class BLOOM:
         # New input_ids for next forward
         next_batch_input_ids = []
         next_batch_all_input_ids = []
+        next_all_input_lengths = []
 
         next_batch_size = 0
         next_batch_max_sequence_length = 0
@@ -263,6 +266,7 @@ class BLOOM:
         # Zipped iterator
         iterator = zip(
             batch.requests,
+            batch.all_input_lengths,
             outputs.logits,
             batch.next_token_choosers,
             batch.stopping_criterias,
@@ -272,6 +276,7 @@ class BLOOM:
         # For each member of the batch
         for i, (
             request,
+            input_length,
             logits,
             next_token_chooser,
             stopping_criteria,
@@ -302,8 +307,10 @@ class BLOOM:
                 next_batch_input_ids.append(next_token)
                 next_batch_all_input_ids.append(all_tokens)
                 next_batch_size += 1
+                new_input_length = input_length + 1
+                next_all_input_lengths.append(new_input_length)
                 next_batch_max_sequence_length = max(
-                    next_batch_max_sequence_length, len(all_tokens)
+                    next_batch_max_sequence_length, new_input_length
                 )
 
         # We finished all generations in the batch; there is no next batch
@@ -350,6 +357,7 @@ class BLOOM:
         next_batch = Batch(
             batch_id=batch.batch_id,
             requests=next_batch_requests,
+            all_input_lengths=next_all_input_lengths,
             input_ids=next_batch_input_ids,
             all_input_ids=next_batch_all_input_ids,
             next_token_choosers=next_batch_next_token_choosers,
@@ -378,7 +386,10 @@ class BLOOMSharded(BLOOM):
         if self.master:
             # TODO @thomasw21 do some caching
             shard_state_dict_paths = prepare_weights(
-                model_name, shard_directory / "cache", shard_directory, tp_world_size=self.world_size
+                model_name,
+                shard_directory / "cache",
+                shard_directory,
+                tp_world_size=self.world_size,
             )
             shard_state_dict_paths = [
                 str(path.absolute()) for path in shard_state_dict_paths
@@ -443,6 +454,7 @@ class BLOOMSharded(BLOOM):
             use_cache=True,
         )
 
+        # Logits are sharded, so we need to gather them
         logits_shard = outputs.logits[:, -1, :].contiguous()
 
         batch_size, vocab_shard_size = logits_shard.shape

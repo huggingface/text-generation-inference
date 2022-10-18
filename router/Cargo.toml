@@ -22,16 +22,7 @@ serde = "1.0.145"
 serde_json = "1.0.85"
 thiserror = "1.0.37"
 tokenizers = "0.13.0"
-tokio = { version = "1.21.1", features = ["rt-multi-thread", "parking_lot", "sync"] }
+tokio = { version = "1.21.1", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tracing = "0.1.36"
 tracing-subscriber = "0.3.15"
 
-[workspace]
-members = [
-    "client",
-]
-
-[profile.release]
-debug = 1
-incremental = true
-lto = "off"

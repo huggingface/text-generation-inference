@@ -11,7 +11,6 @@ bloom-inference-server = 'bloom_inference.cli:app'
 python = "^3.9"
 protobuf = "^4.21.7"
 grpcio = "^1.49.1"
-torch = "^1.12.1"
 typer = "^0.6.1"
 grpcio-reflection = "^1.49.1"
 accelerate = "^0.12.0"

@@ -1,6 +1,7 @@
-//! BLOOM Inference gRPC client library
+//! Text Generation gRPC client library
 
 mod client;
+#[allow(clippy::derive_partial_eq_without_eq)]
 mod pb;
 mod sharded_client;
 
@@ -8,7 +9,7 @@ pub use client::Client;
 pub use pb::generate::v1::{Batch, GeneratedText, LogitsWarperParameters, Request};
 pub use sharded_client::ShardedClient;
 use thiserror::Error;
-pub use tonic::transport;
+use tonic::transport;
 use tonic::Status;
 
 #[derive(Error, Debug, Clone)]
@@ -21,7 +22,7 @@ pub enum ClientError {
 
 impl From<Status> for ClientError {
     fn from(err: Status) -> Self {
-        Self::Generation(err.to_string())
+        Self::Generation(err.message().to_string())
     }
 }
 

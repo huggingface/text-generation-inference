@@ -1,4 +1,4 @@
-FROM rust:1.64 as builder
+FROM rust:1.64 as router-builder
 
 WORKDIR /usr/src
 
@@ -9,7 +9,17 @@ WORKDIR /usr/src/router
 
 RUN cargo install --path .
 
-FROM nvidia/cuda:11.6.1-devel-ubuntu18.04
+FROM rust:1.64 as launcher-builder
+
+WORKDIR /usr/src
+
+COPY launcher launcher
+
+WORKDIR /usr/src/launcher
+
+RUN cargo install --path .
+
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
@@ -34,17 +44,15 @@ RUN cd ~ && \
     bash ./Miniconda3-latest-Linux-x86_64.sh -bf -p /opt/miniconda && \
     conda create -n text-generation python=3.9 -y
 
+WORKDIR /usr/src
+
+COPY server/Makefile server/Makefile
+
 # Install specific version of torch
-RUN /opt/miniconda/envs/text-generation/bin/pip install torch --extra-index-url https://download.pytorch.org/whl/cu116 --no-cache-dir
+RUN cd server && make install-torch
 
 # Install specific version of transformers
-RUN wget https://github.com/huggingface/transformers/archive/46d37bece7d3ffdef97b1ee4a3170c0a0627d921.zip && \
-    unzip 46d37bece7d3ffdef97b1ee4a3170c0a0627d921.zip && \
-    rm 46d37bece7d3ffdef97b1ee4a3170c0a0627d921.zip && \
-    cd transformers-46d37bece7d3ffdef97b1ee4a3170c0a0627d921 && \
-    /opt/miniconda/envs/text-generation/bin/python setup.py install
-
-WORKDIR /usr/src
+RUN cd server && make install-transformers
 
 # Install server
 COPY server server
@@ -52,9 +60,7 @@ RUN cd server && \
     /opt/miniconda/envs/text-generation/bin/pip install . --no-cache-dir
 
 # Install router
-COPY --from=builder /usr/local/cargo/bin/text-generation-router /usr/local/bin/text-generation-router
+COPY --from=router-builder /usr/local/cargo/bin/text-generation-router /usr/local/bin/text-generation-router
+COPY --from=launcher-builder /usr/local/cargo/bin/text-generation-launcher /usr/local/bin/text-generation-launcher
 
-COPY run.sh .
-RUN chmod +x run.sh
-
-CMD ["./run.sh"]
+CMD text-generation-launcher --model-name $MODEL_NAME --num-shard $NUM_GPUS --shard-directory $MODEL_BASE_PATH

@@ -1,41 +1,51 @@
+import os
 import typer
 
 from pathlib import Path
-from torch.distributed.launcher import launch_agent, LaunchConfig
 from typing import Optional
 
-from bloom_inference import server
+from bloom_inference import prepare_weights, server
 
 app = typer.Typer()
 
 
 @app.command()
-def launcher(
-        model_name: str,
-        num_gpus: int = 1,
-        shard_directory: Optional[Path] = None,
+def serve(
+    model_name: str,
+    sharded: bool = False,
+    shard_directory: Optional[Path] = None,
+    uds_path: Path = "/tmp/bloom-inference",
 ):
-    if num_gpus == 1:
-        serve(model_name, False, shard_directory)
+    if sharded:
+        assert (
+            shard_directory is not None
+        ), "shard_directory must be set when sharded is True"
+        assert (
+            os.getenv("RANK", None) is not None
+        ), "RANK must be set when sharded is True"
+        assert (
+            os.getenv("WORLD_SIZE", None) is not None
+        ), "WORLD_SIZE must be set when sharded is True"
+        assert (
+            os.getenv("MASTER_ADDR", None) is not None
+        ), "MASTER_ADDR must be set when sharded is True"
+        assert (
+            os.getenv("MASTER_PORT", None) is not None
+        ), "MASTER_PORT must be set when sharded is True"
 
-    else:
-        config = LaunchConfig(
-            min_nodes=1,
-            max_nodes=1,
-            nproc_per_node=num_gpus,
-            rdzv_backend="c10d",
-            max_restarts=0,
-        )
-        launch_agent(config, server.serve, [model_name, True, shard_directory])
+    server.serve(model_name, sharded, uds_path, shard_directory)
 
 
 @app.command()
-def serve(
-        model_name: str,
-        sharded: bool = False,
-        shard_directory: Optional[Path] = None,
+def prepare_weights(
+    model_name: str,
+    shard_directory: Path,
+    cache_directory: Path,
+    num_shard: int = 1,
 ):
-    server.serve(model_name, sharded, shard_directory)
+    prepare_weights.prepare_weights(
+        model_name, cache_directory, shard_directory, num_shard
+    )
 
 
 if __name__ == "__main__":

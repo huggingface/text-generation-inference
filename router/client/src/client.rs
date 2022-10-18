@@ -1,10 +1,11 @@
+/// Single shard Client
 use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
 use crate::pb::generate::v1::*;
 use crate::Result;
 use tonic::transport::{Channel, Uri};
 use tracing::*;
 
-/// BLOOM Inference gRPC client
+/// Text Generation Inference gRPC client
 #[derive(Clone)]
 pub struct Client {
     stub: TextGenerationServiceClient<Channel>,
@@ -34,6 +35,7 @@ impl Client {
         })
     }
 
+    /// Returns a list of uris or unix sockets of all shards
     #[instrument(skip(self))]
     pub async fn service_discovery(&mut self) -> Result<Vec<String>> {
         let request = tonic::Request::new(ServiceDiscoveryRequest {});
@@ -46,6 +48,7 @@ impl Client {
             .into_inner()
             .urls
             .into_iter()
+            // Remove unix socket prefix
             .map(|url| match url.strip_prefix("unix://") {
                 None => url,
                 Some(stripped_url) => stripped_url.to_string(),
@@ -54,6 +57,7 @@ impl Client {
         Ok(urls)
     }
 
+    /// Clear the past generations cache
     #[instrument(skip(self))]
     pub async fn clear_cache(&mut self) -> Result<()> {
         let request = tonic::Request::new(ClearCacheRequest {});
@@ -64,6 +68,10 @@ impl Client {
         Ok(())
     }
 
+    /// Generate one token for each request in the given batch
+    ///
+    /// Returns a list of generated texts of request that met their stopping criteria
+    /// and the next cached batch
     #[instrument(skip(self))]
     pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
         let request = tonic::Request::new(GenerateRequest { batch: Some(batch) });
@@ -76,6 +84,10 @@ impl Client {
         Ok((response.generated_texts, response.batch))
     }
 
+    /// Generate one token for each request in the given cached batch
+    ///
+    /// Returns a list of generated texts of request that met their stopping criteria
+    /// and the next cached batch
     #[instrument(skip(self))]
     pub async fn generate_with_cache(
         &mut self,
@@ -86,36 +98,6 @@ impl Client {
             .stub
             .generate_with_cache(request)
             .instrument(info_span!("generate_with_cache"))
-            .await?
-            .into_inner();
-        Ok((response.generated_texts, response.batch))
-    }
-
-    #[instrument(skip(self))]
-    pub async fn generate_until_finished(
-        &mut self,
-        batch: Batch,
-    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
-        let request = tonic::Request::new(GenerateUntilFinishedRequest { batch: Some(batch) });
-        let response = self
-            .stub
-            .generate_until_finished(request)
-            .instrument(info_span!("generate_until_finished"))
-            .await?
-            .into_inner();
-        Ok((response.generated_texts, response.batch))
-    }
-
-    #[instrument(skip(self))]
-    pub async fn generate_until_finished_with_cache(
-        &mut self,
-        batches: Vec<Batch>,
-    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
-        let request = tonic::Request::new(GenerateUntilFinishedWithCacheRequest { batches });
-        let response = self
-            .stub
-            .generate_until_finished_with_cache(request)
-            .instrument(info_span!("generate_until_finished_with_cache"))
             .await?
             .into_inner();
         Ok((response.generated_texts, response.batch))

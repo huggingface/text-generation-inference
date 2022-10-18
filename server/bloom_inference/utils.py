@@ -82,7 +82,6 @@ def initialize_torch_distributed():
         world_size=world_size,
         rank=rank,
         timeout=timedelta(seconds=60),
-        init_method="tcp://localhost:6000",
     )
 
     return torch.distributed.distributed_c10d._get_default_group(), rank, world_size
