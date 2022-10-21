@@ -4,7 +4,7 @@ mod db;
 pub mod server;
 mod validation;
 
-use batcher::Batcher;
+use batcher::{Batcher, InferResponse};
 use db::{Db, Entry};
 use serde::{Deserialize, Serialize};
 use validation::Validation;
@@ -64,5 +64,3 @@ pub(crate) struct GenerateRequest {
 pub(crate) struct GeneratedText {
     pub generated_text: String,
 }
-
-pub(crate) type GenerateResponse = Vec<GeneratedText>;

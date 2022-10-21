@@ -5,7 +5,6 @@ use axum::http::StatusCode;
 use bloom_inference_client::{Batch, ClientError, GeneratedText, ShardedClient};
 use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::{oneshot, Notify};
 use tokio::time::Instant;
@@ -30,7 +29,7 @@ impl Batcher {
     pub(crate) fn new(
         client: ShardedClient,
         max_batch_size: usize,
-        max_waiting_time: Duration,
+        max_waiting_tokens: usize,
     ) -> Self {
         // Batcher shared state
         let db = Db::new();
@@ -41,7 +40,7 @@ impl Batcher {
         // Spawn batching background task that contains all the inference logic
         tokio::spawn(batching_task(
             max_batch_size,
-            max_waiting_time,
+            max_waiting_tokens,
             client,
             db.clone(),
             shared.clone(),
@@ -55,7 +54,7 @@ impl Batcher {
         &self,
         input_length: usize,
         request: GenerateRequest,
-    ) -> Result<String, InferError> {
+    ) -> Result<InferResponse, InferError> {
         // One shot channel to communicate with the background batching task
         let (response_tx, response_rx) = oneshot::channel();
 
@@ -65,6 +64,7 @@ impl Batcher {
             response_tx,
             input_length,
             time: Instant::now(),
+            batch_time: None,
         });
 
         // Notify the background task that we have a new entry in the database that needs
@@ -87,7 +87,7 @@ impl Batcher {
 #[instrument(skip(client, db, shared))]
 async fn batching_task(
     max_batch_size: usize,
-    max_waiting_time: Duration,
+    max_waiting_tokens: usize,
     client: ShardedClient,
     db: Db,
     shared: Arc<Shared>,
@@ -103,8 +103,10 @@ async fn batching_task(
         // Get the next batch from the DB
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the DB
-        if let Some((request_ids, batch)) = db.next_batch(None, max_batch_size, None) {
+        let mut waiting_tokens = 0;
+        if let Some((request_ids, batch)) = db.next_batch(None, max_batch_size) {
             let mut cached_batch = wrap_future(client.generate(batch), request_ids, &db).await;
+            waiting_tokens += 1;
 
             // We loop until we do not receive any cached batch from the inference server (== until
             // all requests have met their stopping criteria)
@@ -116,25 +118,21 @@ async fn batching_task(
 
                 // If the current batch is too small, we try to add more requests to it
                 if batch_size <= limit_min_batch_size {
-                    // Get the next batch from the DB that meet our minimum size criteria
+                    let min_size = match waiting_tokens {
+                        // If we didn't onboard any new requests since >= max_waiting_tokens, we try
+                        // to add a new batch even though its size might be small
+                        _ if waiting_tokens >= max_waiting_tokens => None,
+                        // Minimum size criteria
+                        _ => Some(limit_min_batch_size as usize),
+                    };
+
+                    // Try to get a new batch
                     if let Some((new_request_ids, new_batch)) =
-                        db.next_batch(Some(limit_min_batch_size as usize), max_batch_size, None)
+                        db.next_batch(min_size, max_batch_size)
                     {
+                        // Reset waiting counter
+                        waiting_tokens = 0;
                         // Generate one token for this new batch to have the attention past in cache
-                        let new_cached_batch =
-                            wrap_future(client.generate(new_batch), new_request_ids, &db).await;
-                        // Extend current batch with the new batch
-                        if let Some(new_cached_batch) = new_cached_batch {
-                            request_ids.extend(new_cached_batch.requests.iter().map(|req| req.id));
-                            batches.push(new_cached_batch);
-                        }
-                    }
-                    // If we don't have enough requests to meet the minimum size criteria, we
-                    // try to get the next batch from the DB that have been waiting over
-                    // the max_waiting_time
-                    else if let Some((new_request_ids, new_batch)) =
-                        db.next_batch(None, max_batch_size, Some(max_waiting_time))
-                    {
                         let new_cached_batch =
                             wrap_future(client.generate(new_batch), new_request_ids, &db).await;
                         // Extend current batch with the new batch
@@ -147,6 +145,7 @@ async fn batching_task(
 
                 cached_batch =
                     wrap_future(client.generate_with_cache(batches), request_ids, &db).await;
+                waiting_tokens += 1;
             }
         }
     }
@@ -188,9 +187,23 @@ fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
         let entry = db
             .remove(&output.request.unwrap().id)
             .expect("ID not found in db. This is a bug.");
+        let response = InferResponse {
+            output: output.output,
+            queued: entry.time,
+            start: entry.batch_time.unwrap(), // unwrap is always valid
+            end: Instant::now(),
+        };
         // unwrap_or is valid here as we don't care if the receiver is gone.
-        entry.response_tx.send(Ok(output.output)).unwrap_or(());
+        entry.response_tx.send(Ok(response)).unwrap_or(());
     });
+}
+
+#[derive(Debug)]
+pub(crate) struct InferResponse {
+    pub(crate) output: String,
+    pub(crate) queued: Instant,
+    pub(crate) start: Instant,
+    pub(crate) end: Instant,
 }
 
 #[derive(Debug, Error)]

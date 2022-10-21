@@ -1,10 +1,10 @@
+use crate::InferResponse;
 /// This code is massively inspired by Tokio mini-redis
 use crate::{GenerateParameters, GenerateRequest};
 use bloom_inference_client::{Batch, ClientError, LogitsWarperParameters, Request};
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::oneshot::Sender;
 use tokio::time::Instant;
 
@@ -14,11 +14,13 @@ pub(crate) struct Entry {
     /// Request
     pub request: GenerateRequest,
     /// Response sender to communicate between the Batcher and the batching_task
-    pub response_tx: Sender<Result<String, ClientError>>,
+    pub response_tx: Sender<Result<InferResponse, ClientError>>,
     /// Number of tokens in the input
     pub input_length: usize,
     /// Instant when this entry was created
     pub time: Instant,
+    /// Instant when this entry was added to a batch
+    pub batch_time: Option<Instant>,
 }
 
 /// Request Database
@@ -51,11 +53,7 @@ struct State {
 
 impl State {
     /// Get the next requests
-    fn next_requests(
-        &self,
-        max_size: usize,
-        min_waiting_time: Option<Duration>,
-    ) -> Option<(Vec<u64>, Vec<Request>)> {
+    fn next_requests(&self, max_size: usize) -> Option<(Vec<u64>, Vec<Request>)> {
         // Iterates for max_size over the BTreemap starting from next_batch_start_id
         let mut requests = Vec::new();
         let mut ids = Vec::new();
@@ -67,15 +65,6 @@ impl State {
             // Take max_size
             .take(max_size)
         {
-            if let Some(min_waiting_time) = min_waiting_time {
-                // Only take entries that waited for at least min_waiting_time
-                if entry.time.elapsed() < min_waiting_time {
-                    // Since entries are ordered, we already know that all following entries won't
-                    // satisfy the condition
-                    break;
-                }
-            }
-
             requests.push(Request {
                 id: *id,
                 inputs: entry.request.inputs.clone(),
@@ -134,19 +123,22 @@ impl Db {
         &self,
         min_size: Option<usize>,
         max_size: usize,
-        min_waiting_time: Option<Duration>,
     ) -> Option<(Vec<u64>, Batch)> {
         // Acquire lock
         let mut state = self.shared.state.lock();
 
         // Get requests from the database
-        if let Some((ids, requests)) = state.next_requests(max_size, min_waiting_time) {
+        if let Some((ids, requests)) = state.next_requests(max_size) {
             if let Some(min_size) = min_size {
                 // If min_size is set, only return a batch if there are enough requests
                 if requests.len() < min_size {
                     return None;
                 }
             }
+            ids.iter().for_each(|id| {
+                // Set batch_time for each request
+                state.entries.get_mut(id).unwrap().batch_time = Some(Instant::now());
+            });
 
             // Batch size
             let size = requests.len();

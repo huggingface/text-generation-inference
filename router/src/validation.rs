@@ -127,7 +127,10 @@ fn validation_worker(
 
         if input_length > max_input_length {
             response_tx
-                .send(Err(ValidationError::InputLength(input_length, max_input_length)))
+                .send(Err(ValidationError::InputLength(
+                    input_length,
+                    max_input_length,
+                )))
                 .unwrap_or(());
             continue;
         }

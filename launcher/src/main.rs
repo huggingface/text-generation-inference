@@ -28,8 +28,8 @@ struct Args {
     max_input_length: usize,
     #[clap(default_value = "32", long, env)]
     max_batch_size: usize,
-    #[clap(default_value = "5", long, env)]
-    max_waiting_time: u64,
+    #[clap(default_value = "20", long, env)]
+    max_waiting_tokens: usize,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
     #[clap(default_value = "/tmp/text-generation-server", long, env)]
@@ -41,7 +41,7 @@ struct Args {
 }
 
 fn main() -> ExitCode {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().compact().with_ansi(false).init();
 
     // Pattern match configuration
     let Args {
@@ -51,7 +51,7 @@ fn main() -> ExitCode {
         max_concurrent_requests,
         max_input_length,
         max_batch_size,
-        max_waiting_time,
+        max_waiting_tokens,
         port,
         shard_uds_path,
         master_addr,
@@ -148,8 +148,8 @@ fn main() -> ExitCode {
             &max_input_length.to_string(),
             "--max-batch-size",
             &max_batch_size.to_string(),
-            "--max-waiting-time",
-            &max_waiting_time.to_string(),
+            "--max-waiting-tokens",
+            &max_waiting_tokens.to_string(),
             "--port",
             &port.to_string(),
             "--master-shard-uds-path",

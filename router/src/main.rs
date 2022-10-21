@@ -2,7 +2,6 @@
 use bloom_inference_client::ShardedClient;
 use clap::Parser;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::time::Duration;
 use text_generation_router::server;
 use tokenizers::Tokenizer;
 
@@ -16,8 +15,8 @@ struct Args {
     max_input_length: usize,
     #[clap(default_value = "32", long, env)]
     max_batch_size: usize,
-    #[clap(default_value = "5", long, env)]
-    max_waiting_time: u64,
+    #[clap(default_value = "20", long, env)]
+    max_waiting_tokens: usize,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
     #[clap(default_value = "/tmp/bloom-inference-0", long, env)]
@@ -36,18 +35,18 @@ fn main() -> Result<(), std::io::Error> {
         max_concurrent_requests,
         max_input_length,
         max_batch_size,
-        max_waiting_time,
+        max_waiting_tokens,
         port,
         master_shard_uds_path,
         tokenizer_name,
         validation_workers,
     } = args;
 
+    tracing_subscriber::fmt().compact().with_ansi(false).init();
+
     if validation_workers == 1 {
         panic!("validation_workers must be > 0");
     }
-
-    let max_waiting_time = Duration::from_secs(max_waiting_time);
 
     // Download and instantiate tokenizer
     // This will only be used to validate payloads
@@ -61,8 +60,6 @@ fn main() -> Result<(), std::io::Error> {
         .build()
         .unwrap()
         .block_on(async {
-            tracing_subscriber::fmt::init();
-
             // Instantiate sharded client from the master unix socket
             let sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
                 .await
@@ -82,7 +79,7 @@ fn main() -> Result<(), std::io::Error> {
                 max_concurrent_requests,
                 max_input_length,
                 max_batch_size,
-                max_waiting_time,
+                max_waiting_tokens,
                 sharded_client,
                 tokenizer,
                 validation_workers,
