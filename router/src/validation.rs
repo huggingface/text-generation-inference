@@ -127,7 +127,7 @@ fn validation_worker(
 
         if input_length > max_input_length {
             response_tx
-                .send(Err(ValidationError::InputLength(input_length)))
+                .send(Err(ValidationError::InputLength(input_length, max_input_length)))
                 .unwrap_or(());
             continue;
         }
@@ -145,14 +145,14 @@ type ValidationRequest = (
 pub enum ValidationError {
     #[error("Temperature must be strictly positive")]
     Temperature,
-    #[error("Top p must be <= 0.0 or > 1.0")]
+    #[error("Top p must be >= 0.0 or < 1.0")]
     TopP,
     #[error("Top k must be strictly positive")]
     TopK,
-    #[error("Max New Tokens must be < 512")]
+    #[error("Max New Tokens must be <= 512")]
     MaxNewTokens,
-    #[error("Inputs must have less than 1000 tokens. Given: {0}")]
-    InputLength(usize),
+    #[error("Inputs must have less than {1} tokens. Given: {0}")]
+    InputLength(usize, usize),
 }
 
 impl From<ValidationError> for (StatusCode, String) {
