@@ -39,9 +39,9 @@ impl Batcher {
 
         // Spawn batching background task that contains all the inference logic
         tokio::spawn(batching_task(
+            client,
             max_batch_size,
             max_waiting_tokens,
-            client,
             db.clone(),
             shared.clone(),
         ));
@@ -86,9 +86,9 @@ impl Batcher {
 /// Batches requests and sends them to the inference server
 #[instrument(skip(client, db, shared))]
 async fn batching_task(
+    mut client: ShardedClient,
     max_batch_size: usize,
     max_waiting_tokens: usize,
-    client: ShardedClient,
     db: Db,
     shared: Arc<Shared>,
 ) {

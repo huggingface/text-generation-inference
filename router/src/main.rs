@@ -61,7 +61,7 @@ fn main() -> Result<(), std::io::Error> {
         .unwrap()
         .block_on(async {
             // Instantiate sharded client from the master unix socket
-            let sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
+            let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
                 .await
                 .expect("Could not connect to server");
             // Clear the cache; useful if the webserver rebooted
