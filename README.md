@@ -41,11 +41,21 @@ make run-bloom-560m
 
 ```shell
 curl 127.0.0.1:3000/generate \
+    -v \
     -X POST \
     -d '{"inputs":"Testing API","parameters":{"max_new_tokens":9}}' \
     -H 'Content-Type: application/json'
 ```
 
+## Develop
+
+```shell
+make server-dev
+make router-dev
+```
+
 ## TODO:
 
 - [ ] Add tests for the `server/model` logic
+- [ ] Backport custom CUDA kernels to Transformers
+- [ ] Install safetensors with pip

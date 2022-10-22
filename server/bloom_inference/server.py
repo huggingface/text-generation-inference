@@ -69,18 +69,14 @@ def serve(
     model_name: str,
     sharded: bool,
     uds_path: Path,
-    shard_directory: Optional[Path] = None,
 ):
     async def serve_inner(
         model_name: str,
         sharded: bool = False,
-        shard_directory: Optional[Path] = None,
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:
-            if shard_directory is None:
-                raise ValueError("shard_directory must be set when sharded is True")
-            model = BLOOMSharded(model_name, shard_directory)
+            model = BLOOMSharded(model_name)
             server_urls = [
                 unix_socket_template.format(uds_path, rank)
                 for rank in range(model.world_size)
@@ -109,4 +105,4 @@ def serve(
             print("Signal received. Shutting down")
             await server.stop(0)
 
-    asyncio.run(serve_inner(model_name, sharded, shard_directory))
+    asyncio.run(serve_inner(model_name, sharded))

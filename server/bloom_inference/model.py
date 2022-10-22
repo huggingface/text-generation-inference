@@ -2,19 +2,24 @@ import torch
 import torch.distributed
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 
+from accelerate import init_empty_weights
+from safetensors import safe_open
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
-from transformers.modeling_utils import no_init_weights
+from transformers.models.bloom.parallel_layers import (
+    TensorParallelColumnLinear,
+    TensorParallelEmbedding,
+    TensorParallelRowLinear,
+)
 
 from bloom_inference.pb import generate_pb2
-from bloom_inference.prepare_weights import prepare_weights, match_suffix
 from bloom_inference.utils import (
     StoppingCriteria,
     NextTokenChooser,
     initialize_torch_distributed,
-    set_default_dtype,
+    weight_files,
+    download_weights
 )
 
 torch.manual_seed(0)
@@ -63,7 +68,7 @@ class Batch:
             )
             stopping_criterias.append(StoppingCriteria(max_new_tokens=r.max_new_tokens))
 
-        input_ids = tokenizer(inputs, return_tensors="pt", padding=True).to(device)
+        input_ids = tokenizer(inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8).to(device)
         all_input_ids = input_ids["input_ids"].unsqueeze(-1)
 
         return cls(
@@ -369,7 +374,7 @@ class BLOOM:
 
 
 class BLOOMSharded(BLOOM):
-    def __init__(self, model_name: str, shard_directory: Path):
+    def __init__(self, model_name: str):
         super(BLOOM, self).__init__()
         self.process_group, self.rank, self.world_size = initialize_torch_distributed()
         self.master = self.rank == 0
@@ -382,30 +387,11 @@ class BLOOMSharded(BLOOM):
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 
-        # shard state_dict
-        if self.master:
-            # TODO @thomasw21 do some caching
-            shard_state_dict_paths = prepare_weights(
-                model_name,
-                shard_directory / "cache",
-                shard_directory,
-                tp_world_size=self.world_size,
-            )
-            shard_state_dict_paths = [
-                str(path.absolute()) for path in shard_state_dict_paths
-            ]
-        else:
-            shard_state_dict_paths = [None] * self.world_size
-
-        torch.distributed.broadcast_object_list(
-            shard_state_dict_paths, src=0, group=self.process_group
-        )
-        shard_state_dict_path = shard_state_dict_paths[self.rank]
-
         config = AutoConfig.from_pretrained(
             model_name, slow_but_exact=False, tp_parallel=True
         )
         config.pad_token_id = 3
+        self.num_heads = config.n_head // self.process_group.size()
 
         # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
         # in PyTorch 1.12 and later.
@@ -414,37 +400,88 @@ class BLOOMSharded(BLOOM):
         # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
         torch.backends.cudnn.allow_tf32 = True
 
-        with set_default_dtype(dtype):
-            with no_init_weights():
-                # we can probably set the device to `meta` here?
-                model = AutoModelForCausalLM.from_config(config).to(dtype)
+        # Only download weights for small models
+        if self.master and model_name == "bigscience/bloom-560m":
+            download_weights(model_name)
 
         torch.distributed.barrier(group=self.process_group)
-        # print_rank_0(f"Initialized model")
-        state_dict = torch.load(shard_state_dict_path)
-        # TODO @thomasw21: HACK in order to transpose all weight prior
-        for key in state_dict.keys():
-            do_transpose = False
-            if not match_suffix(key, "weight"):
-                continue
+        filenames = weight_files(model_name)
 
-            for potential_suffix in [
-                "self_attention.query_key_value.weight",
-                "self_attention.dense.weight",
-                "dense_h_to_4h.weight",
-                "dense_4h_to_h.weight",
-            ]:
-                if match_suffix(key, potential_suffix):
-                    do_transpose = True
+        with init_empty_weights():
+            model = AutoModelForCausalLM.from_config(config)
 
-            if do_transpose:
-                state_dict[key] = state_dict[key].transpose(1, 0).contiguous()
-
-        model.load_state_dict(state_dict, strict=False)
-        model.tie_weights()
-        self.model = model.to(self.device).eval()
-        self.num_heads = config.n_head // self.process_group.size()
         torch.distributed.barrier(group=self.process_group)
+        self.load_weights(
+            model,
+            filenames,
+            device=self.device,
+            rank=self.rank,
+            world_size=self.world_size,
+        )
+        self.model = model.eval().to(dtype)
+        torch.distributed.barrier(group=self.process_group)
+
+    @staticmethod
+    def load_weights(
+        model, filenames: List[str], device: torch.device, rank: int, world_size: int
+    ):
+        parameters = dict(model.named_parameters())
+        for file in filenames:
+            with safe_open(file, framework="pt", device=str(device)) as f:
+                for name in f.keys():
+                    full_name = f"transformer.{name}"
+
+                    module_name, param_name = full_name.rsplit(".", 1)
+                    module = model.get_submodule(module_name)
+                    current_tensor = parameters[full_name]
+
+                    slice_ = f.get_slice(name)
+
+                    if isinstance(module, TensorParallelColumnLinear):
+                        if param_name == "weight":
+                            size = slice_.get_shape()[0]
+                            block_size = size // world_size
+                            start = rank * block_size
+                            stop = (rank + 1) * block_size
+                            tensor = slice_[start:stop]
+                            tensor = tensor.transpose(1, 0)
+                        else:
+                            size = slice_.get_shape()[0]
+                            block_size = size // world_size
+                            start = rank * block_size
+                            stop = (rank + 1) * block_size
+                            tensor = slice_[start:stop]
+                    elif isinstance(module, TensorParallelRowLinear):
+                        if param_name == "weight":
+                            size = slice_.get_shape()[1]
+                            block_size = size // world_size
+                            start = rank * block_size
+                            stop = (rank + 1) * block_size
+                            tensor = slice_[:, start:stop]
+                            tensor = tensor.transpose(1, 0)
+                        else:
+                            tensor = slice_[:]
+                            # XXX: Hack for Rowlinear to add the bias only once.
+                            if rank != 0:
+                                tensor = torch.zeros_like(tensor)
+                    elif isinstance(module, TensorParallelEmbedding):
+                        size = slice_.get_shape()[0]
+                        block_size = size // world_size
+                        start = rank * block_size
+                        stop = (rank + 1) * block_size
+                        tensor = slice_[start:stop]
+                    else:
+                        tensor = slice_[:]
+
+                    if current_tensor.shape != tensor.shape:
+                        raise ValueError(
+                            f"Name {name} -- Current {current_tensor.shape} and got {tensor.shape}"
+                        )
+
+                    tensor = tensor.contiguous()
+                    module._parameters[param_name] = tensor
+                    if name == "word_embeddings.weight":
+                        model.lm_head._parameters["weight"] = tensor
 
     def forward(self, input_ids, attention_mask, past_key_values: Optional = None):
         outputs = self.model.forward(
