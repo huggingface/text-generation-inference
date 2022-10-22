@@ -1,5 +1,5 @@
 install-server:
-	cd server && make pip-install
+	cd server && make install
 
 install-router:
 	cd router && cargo install --path .
@@ -7,13 +7,16 @@ install-router:
 install-launcher:
 	cd launcher && cargo install --path .
 
-install:
-	make install-server
-	make install-router
-	make install-launcher
+install: install-server install-router install-launcher
+
+server-dev:
+	cd server && make run-dev
+
+router-dev:
+	cd router && cargo run
 
 run-bloom-560m:
-	text-generation-launcher --model-name bigscience/bloom-560m --shard-directory /tmp/models --num-shard 2
+	text-generation-launcher --model-name bigscience/bloom-560m --num-shard 2
 
 run-bloom:
-	text-generation-launcher --model-name bigscience/bloom --shard-directory /tmp/models --num-shard 8
+	text-generation-launcher --model-name bigscience/bloom --num-shard 8

@@ -1,12 +1,10 @@
 import torch
 import torch.distributed
 
-from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 
-from huggingface_hub import hf_hub_download, HfApi
+from accelerate import init_empty_weights
 from safetensors import safe_open
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from transformers.models.bloom.parallel_layers import (
@@ -15,13 +13,13 @@ from transformers.models.bloom.parallel_layers import (
     TensorParallelRowLinear,
 )
 
-
 from bloom_inference.pb import generate_pb2
 from bloom_inference.utils import (
     StoppingCriteria,
     NextTokenChooser,
     initialize_torch_distributed,
-    set_default_dtype,
+    weight_files,
+    download_weights
 )
 
 torch.manual_seed(0)
@@ -70,7 +68,7 @@ class Batch:
             )
             stopping_criterias.append(StoppingCriteria(max_new_tokens=r.max_new_tokens))
 
-        input_ids = tokenizer(inputs, return_tensors="pt", padding=True).to(device)
+        input_ids = tokenizer(inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8).to(device)
         all_input_ids = input_ids["input_ids"].unsqueeze(-1)
 
         return cls(
@@ -375,155 +373,8 @@ class BLOOM:
         return generated_texts, next_batch
 
 
-def dl_weights(group, model_id):
-    rank = group.rank()
-    api = HfApi()
-    info = api.model_info(model_id)
-    filenames = [
-        s.rfilename for s in info.siblings if s.rfilename.endswith(".safetensors")
-    ]
-    # Download the files only on rank 0
-    if rank == 0:
-        # XXX: You might want to try and launch these in a multiprocessing.Pool to download the files faster.
-        [
-            hf_hub_download(model_id, filename=filename, local_files_only=True)
-            for filename in filenames
-        ]
-    else:
-        pass
-    torch.distributed.barrier(group=group)
-    # At this point the files should be in cache
-    return [
-        hf_hub_download(model_id, filename=filename, local_files_only=True)
-        for filename in filenames
-    ]
-
-
-def load(model, filenames, group):
-    tp_rank = group.rank()
-    tp_world_size = group.size()
-    parameters = dict(model.named_parameters())
-    for filename in filenames:
-        with safe_open(filename, framework="pt", device=f"cuda:{tp_rank}") as f:
-            for name in f.keys():
-                full_name = f"transformer.{name}"
-
-                module_name, param_name = full_name.rsplit(".", 1)
-                module = model.get_submodule(module_name)
-                current_tensor = parameters[full_name]
-
-                slice_ = f.get_slice(name)
-
-                if isinstance(module, TensorParallelColumnLinear):
-                    if param_name == "weight":
-                        size = slice_.get_shape()[0]
-                        block_size = size // tp_world_size
-                        start = tp_rank * block_size
-                        stop = (tp_rank + 1) * block_size
-                        tensor = slice_[start:stop]
-                        tensor = tensor.transpose(1, 0)
-                    else:
-                        size = slice_.get_shape()[0]
-                        block_size = size // tp_world_size
-                        start = tp_rank * block_size
-                        stop = (tp_rank + 1) * block_size
-                        tensor = slice_[start:stop]
-                elif isinstance(module, TensorParallelRowLinear):
-                    if param_name == "weight":
-                        size = slice_.get_shape()[1]
-                        block_size = size // tp_world_size
-                        start = tp_rank * block_size
-                        stop = (tp_rank + 1) * block_size
-                        tensor = slice_[:, start:stop]
-                        tensor = tensor.transpose(1, 0)
-                    else:
-                        tensor = slice_[:]
-                        # XXX: Hack for Rowlinear to add the bias only once.
-                        if tp_rank != 0:
-                            tensor = torch.zeros_like(tensor)
-                elif isinstance(module, TensorParallelEmbedding):
-                    size = slice_.get_shape()[0]
-                    block_size = size // tp_world_size
-                    start = tp_rank * block_size
-                    stop = (tp_rank + 1) * block_size
-                    tensor = slice_[start:stop]
-                else:
-                    tensor = slice_[:]
-
-                if current_tensor.shape != tensor.shape:
-                    raise ValueError(
-                        f"Name {name} -- Current {current_tensor.shape} and got {tensor.shape}"
-                    )
-
-                tensor = tensor.contiguous()
-                module._parameters[param_name] = tensor
-                if name == "word_embeddings.weight":
-                    model.lm_head._parameters["weight"] = tensor
-
-
-@contextmanager
-def init_empty_weights(include_buffers: bool = False):
-    """
-    imported from `accelerate` to not depend on it.
-    """
-    old_register_parameter = torch.nn.Module.register_parameter
-    if include_buffers:
-        old_register_buffer = torch.nn.Module.register_buffer
-
-    def register_empty_parameter(module, name, param):
-        old_register_parameter(module, name, param)
-        if param is not None:
-            param_cls = type(module._parameters[name])
-            kwargs = module._parameters[name].__dict__
-            module._parameters[name] = param_cls(
-                module._parameters[name].to(torch.device("meta")), **kwargs
-            )
-
-    def register_empty_buffer(module, name, buffer):
-        old_register_buffer(module, name, buffer)
-        if buffer is not None:
-            module._buffers[name] = module._buffers[name].to(torch.device("meta"))
-
-    # Patch tensor creation
-    if include_buffers:
-        tensor_constructors_to_patch = {
-            torch_function_name: getattr(torch, torch_function_name)
-            for torch_function_name in ["empty", "zeros", "ones", "full"]
-        }
-    else:
-        tensor_constructors_to_patch = {}
-
-    def patch_tensor_constructor(fn):
-        def wrapper(*args, **kwargs):
-            kwargs["device"] = torch.device("meta")
-            return fn(*args, **kwargs)
-
-        return wrapper
-
-    try:
-        torch.nn.Module.register_parameter = register_empty_parameter
-        if include_buffers:
-            torch.nn.Module.register_buffer = register_empty_buffer
-        for torch_function_name in tensor_constructors_to_patch.keys():
-            setattr(
-                torch,
-                torch_function_name,
-                patch_tensor_constructor(getattr(torch, torch_function_name)),
-            )
-        yield
-    finally:
-        torch.nn.Module.register_parameter = old_register_parameter
-        if include_buffers:
-            torch.nn.Module.register_buffer = old_register_buffer
-        for (
-            torch_function_name,
-            old_torch_function,
-        ) in tensor_constructors_to_patch.items():
-            setattr(torch, torch_function_name, old_torch_function)
-
-
 class BLOOMSharded(BLOOM):
-    def __init__(self, model_name: str, shard_directory: Path):
+    def __init__(self, model_name: str):
         super(BLOOM, self).__init__()
         self.process_group, self.rank, self.world_size = initialize_torch_distributed()
         self.master = self.rank == 0
@@ -536,12 +387,11 @@ class BLOOMSharded(BLOOM):
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 
-        filenames = dl_weights(self.process_group, model_name)
-
         config = AutoConfig.from_pretrained(
             model_name, slow_but_exact=False, tp_parallel=True
         )
         config.pad_token_id = 3
+        self.num_heads = config.n_head // self.process_group.size()
 
         # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
         # in PyTorch 1.12 and later.
@@ -550,17 +400,88 @@ class BLOOMSharded(BLOOM):
         # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
         torch.backends.cudnn.allow_tf32 = True
 
-        with set_default_dtype(dtype):
-            with init_empty_weights():
-                # we can probably set the device to `meta` here?
-                model = AutoModelForCausalLM.from_config(config).to(dtype)
+        # Only download weights for small models
+        if self.master and model_name == "bigscience/bloom-560m":
+            download_weights(model_name)
 
         torch.distributed.barrier(group=self.process_group)
-        # print_rank_0(f"Initialized model")
-        load(model, filenames, self.process_group)
-        self.model = model.to(self.device).eval()
-        self.num_heads = config.n_head // self.process_group.size()
+        filenames = weight_files(model_name)
+
+        with init_empty_weights():
+            model = AutoModelForCausalLM.from_config(config)
+
         torch.distributed.barrier(group=self.process_group)
+        self.load_weights(
+            model,
+            filenames,
+            device=self.device,
+            rank=self.rank,
+            world_size=self.world_size,
+        )
+        self.model = model.eval().to(dtype)
+        torch.distributed.barrier(group=self.process_group)
+
+    @staticmethod
+    def load_weights(
+        model, filenames: List[str], device: torch.device, rank: int, world_size: int
+    ):
+        parameters = dict(model.named_parameters())
+        for file in filenames:
+            with safe_open(file, framework="pt", device=str(device)) as f:
+                for name in f.keys():
+                    full_name = f"transformer.{name}"
+
+                    module_name, param_name = full_name.rsplit(".", 1)
+                    module = model.get_submodule(module_name)
+                    current_tensor = parameters[full_name]
+
+                    slice_ = f.get_slice(name)
+
+                    if isinstance(module, TensorParallelColumnLinear):
+                        if param_name == "weight":
+                            size = slice_.get_shape()[0]
+                            block_size = size // world_size
+                            start = rank * block_size
+                            stop = (rank + 1) * block_size
+                            tensor = slice_[start:stop]
+                            tensor = tensor.transpose(1, 0)
+                        else:
+                            size = slice_.get_shape()[0]
+                            block_size = size // world_size
+                            start = rank * block_size
+                            stop = (rank + 1) * block_size
+                            tensor = slice_[start:stop]
+                    elif isinstance(module, TensorParallelRowLinear):
+                        if param_name == "weight":
+                            size = slice_.get_shape()[1]
+                            block_size = size // world_size
+                            start = rank * block_size
+                            stop = (rank + 1) * block_size
+                            tensor = slice_[:, start:stop]
+                            tensor = tensor.transpose(1, 0)
+                        else:
+                            tensor = slice_[:]
+                            # XXX: Hack for Rowlinear to add the bias only once.
+                            if rank != 0:
+                                tensor = torch.zeros_like(tensor)
+                    elif isinstance(module, TensorParallelEmbedding):
+                        size = slice_.get_shape()[0]
+                        block_size = size // world_size
+                        start = rank * block_size
+                        stop = (rank + 1) * block_size
+                        tensor = slice_[start:stop]
+                    else:
+                        tensor = slice_[:]
+
+                    if current_tensor.shape != tensor.shape:
+                        raise ValueError(
+                            f"Name {name} -- Current {current_tensor.shape} and got {tensor.shape}"
+                        )
+
+                    tensor = tensor.contiguous()
+                    module._parameters[param_name] = tensor
+                    if name == "word_embeddings.weight":
+                        model.lm_head._parameters["weight"] = tensor
 
     def forward(self, input_ids, attention_mask, past_key_values: Optional = None):
         outputs = self.model.forward(

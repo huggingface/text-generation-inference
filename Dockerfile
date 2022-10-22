@@ -36,10 +36,10 @@ ENV LANG=C.UTF-8 \
 
 SHELL ["/bin/bash", "-c"]
 
-RUN apt-get update && apt-get install -y unzip wget libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y unzip curl libssl-dev && rm -rf /var/lib/apt/lists/*
 
 RUN cd ~ && \
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    curl -L -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     chmod +x Miniconda3-latest-Linux-x86_64.sh && \
     bash ./Miniconda3-latest-Linux-x86_64.sh -bf -p /opt/miniconda && \
     conda create -n text-generation python=3.9 -y
@@ -54,13 +54,22 @@ RUN cd server && make install-torch
 # Install specific version of transformers
 RUN cd server && make install-transformers
 
+# Install specific version of safetensors
+# FIXME: This is a temporary fix while we wait for a new release
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN cd server && make install-safetensors
+
 # Install server
+COPY proto proto
 COPY server server
 RUN cd server && \
+    make gen-server && \
     /opt/miniconda/envs/text-generation/bin/pip install . --no-cache-dir
 
 # Install router
 COPY --from=router-builder /usr/local/cargo/bin/text-generation-router /usr/local/bin/text-generation-router
+# Install launcher
 COPY --from=launcher-builder /usr/local/cargo/bin/text-generation-launcher /usr/local/bin/text-generation-launcher
 
-CMD text-generation-launcher --model-name $MODEL_NAME --num-shard $NUM_GPUS --shard-directory $MODEL_BASE_PATH
+CMD HUGGINGFACE_HUB_CACHE=$MODEL_BASE_PATH text-generation-launcher --model-name $MODEL_NAME --num-shard $NUM_GPUS

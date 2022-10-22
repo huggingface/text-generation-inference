@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::env;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::ExitCode;
@@ -20,8 +21,6 @@ struct Args {
     model_name: String,
     #[clap(long, env)]
     num_shard: Option<usize>,
-    #[clap(long, env)]
-    shard_directory: Option<String>,
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
     #[clap(default_value = "1000", long, env)]
@@ -47,7 +46,6 @@ fn main() -> ExitCode {
     let Args {
         model_name,
         num_shard,
-        shard_directory,
         max_concurrent_requests,
         max_input_length,
         max_batch_size,
@@ -82,7 +80,6 @@ fn main() -> ExitCode {
     for rank in 0..num_shard {
         let model_name = model_name.clone();
         let uds_path = shard_uds_path.clone();
-        let shard_directory = shard_directory.clone();
         let master_addr = master_addr.clone();
         let status_sender = status_sender.clone();
         let shutdown = shutdown.clone();
@@ -91,7 +88,6 @@ fn main() -> ExitCode {
             shard_manager(
                 model_name,
                 uds_path,
-                shard_directory,
                 rank,
                 num_shard,
                 master_addr,
@@ -237,7 +233,6 @@ enum ShardStatus {
 fn shard_manager(
     model_name: String,
     uds_path: String,
-    shard_directory: Option<String>,
     rank: usize,
     world_size: usize,
     master_addr: String,
@@ -265,10 +260,27 @@ fn shard_manager(
         shard_argv.push("--sharded".to_string());
     }
 
-    if let Some(shard_directory) = shard_directory {
-        shard_argv.push("--shard-directory".to_string());
-        shard_argv.push(shard_directory);
-    }
+    let mut env = vec![
+        ("RANK".parse().unwrap(), rank.to_string().parse().unwrap()),
+        (
+            "WORLD_SIZE".parse().unwrap(),
+            world_size.to_string().parse().unwrap(),
+        ),
+        ("MASTER_ADDR".parse().unwrap(), master_addr.parse().unwrap()),
+        (
+            "MASTER_PORT".parse().unwrap(),
+            master_port.to_string().parse().unwrap(),
+        ),
+    ];
+
+    // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
+    // Useful when running inside a docker container
+    if let Ok(huggingface_hub_cache) = env::var("HUGGINGFACE_HUB_CACHE") {
+        env.push((
+            "HUGGINGFACE_HUB_CACHE".parse().unwrap(),
+            huggingface_hub_cache.parse().unwrap(),
+        ));
+    };
 
     // Start process
     tracing::info!("Starting shard {}", rank);
@@ -280,18 +292,7 @@ fn shard_manager(
             // Needed for the shutdown procedure
             setpgid: true,
             // NCCL env vars
-            env: Some(vec![
-                ("RANK".parse().unwrap(), rank.to_string().parse().unwrap()),
-                (
-                    "WORLD_SIZE".parse().unwrap(),
-                    world_size.to_string().parse().unwrap(),
-                ),
-                ("MASTER_ADDR".parse().unwrap(), master_addr.parse().unwrap()),
-                (
-                    "MASTER_PORT".parse().unwrap(),
-                    master_port.to_string().parse().unwrap(),
-                ),
-            ]),
+            env: Some(env),
             ..Default::default()
         },
     ) {
@@ -312,6 +313,7 @@ fn shard_manager(
 
     let mut ready = false;
     let start_time = Instant::now();
+    let mut wait_time = Instant::now();
     loop {
         // Process exited
         if p.poll().is_some() {
@@ -337,9 +339,12 @@ fn shard_manager(
             status_sender.send(ShardStatus::Ready).unwrap();
             ready = true;
         } else if !ready {
-            tracing::info!("Waiting for shard {} to be ready...", rank);
+            if wait_time.elapsed() > Duration::from_secs(10) {
+                tracing::info!("Waiting for shard {} to be ready...", rank);
+                wait_time = Instant::now();
+            }
         }
-        sleep(Duration::from_secs(5));
+        sleep(Duration::from_millis(100));
     }
 }
 

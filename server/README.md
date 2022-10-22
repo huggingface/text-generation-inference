@@ -2,14 +2,14 @@
 
 A Python gRPC server for BLOOM Inference
 
-## Local Install (with poetry)
+## Install
 
 ```shell
 make install
 ```
 
-## Local Install (with pip)
+## Run
 
 ```shell
-make pip-install
+make run-dev
 ```

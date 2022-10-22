@@ -1,9 +1,14 @@
 import os
-import contextlib
 import torch
 import torch.distributed
 
 from datetime import timedelta
+
+from functools import partial
+from joblib import Parallel, delayed
+from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
+from huggingface_hub.utils import LocalEntryNotFoundError
+from tqdm import tqdm
 from transformers.generation_logits_process import (
     LogitsProcessorList,
     TemperatureLogitsWarper,
@@ -87,11 +92,42 @@ def initialize_torch_distributed():
     return torch.distributed.distributed_c10d._get_default_group(), rank, world_size
 
 
-@contextlib.contextmanager
-def set_default_dtype(dtype):
-    saved_dtype = torch.get_default_dtype()
-    torch.set_default_dtype(dtype)
-    try:
-        yield
-    finally:
-        torch.set_default_dtype(saved_dtype)
+def weight_hub_files(model_name):
+    """Get the safetensors filenames on the hub"""
+    api = HfApi()
+    info = api.model_info(model_name)
+    filenames = [
+        s.rfilename for s in info.siblings if s.rfilename.endswith(".safetensors")
+    ]
+    return filenames
+
+
+def weight_files(model_name):
+    """Get the local safetensors filenames"""
+    filenames = weight_hub_files(model_name)
+    files = []
+    for filename in filenames:
+        cache_file = try_to_load_from_cache(model_name, filename=filename)
+        if cache_file is None:
+            raise LocalEntryNotFoundError(
+                f"File {filename} of model {model_name} not found in "
+                f"{os.getenv('HUGGINGFACE_HUB_CACHE', 'the local cache')}. "
+                f"Please run `bloom-inference-server download-weights {model_name}` first."
+            )
+        files.append(cache_file)
+
+    return files
+
+
+def download_weights(model_name):
+    """Download the safetensors files from the hub"""
+    filenames = weight_hub_files(model_name)
+
+    download_function = partial(
+        hf_hub_download, repo_id=model_name, local_files_only=False
+    )
+    # FIXME: fix the overlapping progress bars
+    files = Parallel(n_jobs=5)(
+        delayed(download_function)(filename=filename) for filename in tqdm(filenames)
+    )
+    return files
