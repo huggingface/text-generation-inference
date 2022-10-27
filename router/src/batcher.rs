@@ -1,7 +1,8 @@
 /// Batching and inference logic
-use crate::GenerateRequest;
 use crate::{Db, Entry};
+use crate::{ErrorResponse, GenerateRequest};
 use axum::http::StatusCode;
+use axum::Json;
 use bloom_inference_client::{Batch, ClientError, GeneratedText, ShardedClient};
 use std::future::Future;
 use std::sync::Arc;
@@ -213,10 +214,15 @@ pub enum InferError {
 }
 
 /// Convert to Axum supported format
-impl From<InferError> for (StatusCode, String) {
+impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
     fn from(err: InferError) -> Self {
         match err {
-            InferError::GenerationError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+            InferError::GenerationError(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: err.to_string(),
+                }),
+            ),
         }
     }
 }

@@ -21,6 +21,8 @@ struct Args {
     model_name: String,
     #[clap(long, env)]
     num_shard: Option<usize>,
+    #[clap(long, env)]
+    quantize: bool,
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
     #[clap(default_value = "1000", long, env)]
@@ -46,6 +48,7 @@ fn main() -> ExitCode {
     let Args {
         model_name,
         num_shard,
+        quantize,
         max_concurrent_requests,
         max_input_length,
         max_batch_size,
@@ -87,6 +90,7 @@ fn main() -> ExitCode {
         thread::spawn(move || {
             shard_manager(
                 model_name,
+                quantize,
                 uds_path,
                 rank,
                 num_shard,
@@ -169,6 +173,8 @@ fn main() -> ExitCode {
                     tracing::error!("text-generation-router not found in PATH");
                     tracing::error!("Please install it with `make install-router`")
                 }
+            } else {
+                tracing::error!("{}", err);
             }
 
             shutdown_shards(shutdown, &shutdown_receiver);
@@ -232,6 +238,7 @@ enum ShardStatus {
 #[allow(clippy::too_many_arguments)]
 fn shard_manager(
     model_name: String,
+    quantize: bool,
     uds_path: String,
     rank: usize,
     world_size: usize,
@@ -258,6 +265,10 @@ fn shard_manager(
 
     if world_size > 1 {
         shard_argv.push("--sharded".to_string());
+    }
+
+    if quantize {
+        shard_argv.push("--quantize".to_string())
     }
 
     let mut env = vec![
@@ -338,11 +349,9 @@ fn shard_manager(
             tracing::info!("Shard {} ready in {:?}", rank, start_time.elapsed());
             status_sender.send(ShardStatus::Ready).unwrap();
             ready = true;
-        } else if !ready {
-            if wait_time.elapsed() > Duration::from_secs(10) {
-                tracing::info!("Waiting for shard {} to be ready...", rank);
-                wait_time = Instant::now();
-            }
+        } else if !ready && wait_time.elapsed() > Duration::from_secs(10) {
+            tracing::info!("Waiting for shard {} to be ready...", rank);
+            wait_time = Instant::now();
         }
         sleep(Duration::from_millis(100));
     }

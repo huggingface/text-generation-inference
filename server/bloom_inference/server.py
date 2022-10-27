@@ -68,21 +68,27 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 def serve(
     model_name: str,
     sharded: bool,
+    quantize: bool,
     uds_path: Path,
 ):
     async def serve_inner(
         model_name: str,
         sharded: bool = False,
+        quantize: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:
-            model = BLOOMSharded(model_name)
+            model = BLOOMSharded(model_name, quantize)
             server_urls = [
                 unix_socket_template.format(uds_path, rank)
                 for rank in range(model.world_size)
             ]
             local_url = server_urls[model.rank]
         else:
+            if quantize:
+                raise ValueError(
+                    "bitsandbytes quantization is only available when running in `sharded` mode."
+                )
             model = BLOOM(model_name)
             local_url = unix_socket_template.format(uds_path, 0)
             server_urls = [local_url]
@@ -105,4 +111,4 @@ def serve(
             print("Signal received. Shutting down")
             await server.stop(0)
 
-    asyncio.run(serve_inner(model_name, sharded))
+    asyncio.run(serve_inner(model_name, sharded, quantize))

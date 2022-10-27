@@ -1,6 +1,7 @@
 /// Payload validation logic
-use crate::GenerateRequest;
+use crate::{ErrorResponse, GenerateRequest};
 use axum::http::StatusCode;
+use axum::Json;
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::{
@@ -146,20 +147,25 @@ type ValidationRequest = (
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
-    #[error("Temperature must be strictly positive")]
+    #[error("temperature must be strictly positive")]
     Temperature,
-    #[error("Top p must be >= 0.0 or < 1.0")]
+    #[error("top_p must be >= 0.0 or < 1.0")]
     TopP,
-    #[error("Top k must be strictly positive")]
+    #[error("top_k must be strictly positive")]
     TopK,
-    #[error("Max New Tokens must be <= 512")]
+    #[error("max_new_tokens must be <= 512")]
     MaxNewTokens,
-    #[error("Inputs must have less than {1} tokens. Given: {0}")]
+    #[error("inputs must have less than {1} tokens. Given: {0}")]
     InputLength(usize, usize),
 }
 
-impl From<ValidationError> for (StatusCode, String) {
+impl From<ValidationError> for (StatusCode, Json<ErrorResponse>) {
     fn from(err: ValidationError) -> Self {
-        (StatusCode::BAD_REQUEST, err.to_string())
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: err.to_string(),
+            }),
+        )
     }
 }

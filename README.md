@@ -8,22 +8,26 @@
 
 A Rust and gRPC server for large language models text generation inference.
 
+## Features
+
+- Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
+- [Dynamic bathing of incoming requests](https://github.com/huggingface/text-generation-inference/blob/main/router/src/batcher.rs#L88) for increased total throughput
+- [Safetensors](https://github.com/huggingface/safetensors) weight loading
+- 45ms per token generation for BLOOM with 8xA100 80GB
+
+## Supported models
+
+- BLOOM
+- BLOOM-560m
+
 ## Load Tests for BLOOM
 
 See `k6/load_test.js`
-We send the default examples with a 1 second delay between requests.
-
-Stages: 
-- Ramp up to 50 vus in 1min
-- Ramp up from 50 to 100 vus in 2min
-- Ramp down to 0 vus in 1min
-
 
 |                                                              | avg       | min          | med       | max        | p(90)     | p(95)     | RPS      |
 |--------------------------------------------------------------|-----------|--------------|-----------|------------|-----------|-----------|----------|
 | [Original code](https://github.com/huggingface/transformers_bloom_parallel) | 8.9s      | 1s           | 9.12s     | 16.69s     | 13.7s     | 14.26s    | 5.9      |
-| ISO with original code                                       | 8.88s     | **959.53ms** | 8.89s     | 17.08s     | 13.34s    | 14.12s    | 5.94     |
-| New batching logic                                           | **5.44s** | 1.27s        | **5.28s** | **13.12s** | **7.78s** | **8.92s** | **9.08** |
+| New batching logic                                           | **5.44s** | **959.53ms** | **5.28s** | **13.12s** | **7.78s** | **8.92s** | **9.08** |
 
 ## Install
 
@@ -33,8 +37,28 @@ make install
 
 ## Run 
 
+### BLOOM 560-m
+
 ```shell
 make run-bloom-560m
+```
+
+### BLOOM
+
+First you need to download the weights:
+
+```shell
+make download-bloom
+```
+
+```shell
+make run-bloom # Requires 8xA100 80GB
+```
+
+You can also quantize the weights with bitsandbytes to reduce the VRAM requirement:
+
+```shell
+make run-bloom-quantize # Requires 8xA100 40GB
 ```
 
 ## Test

@@ -12,6 +12,7 @@ app = typer.Typer()
 def serve(
     model_name: str,
     sharded: bool = False,
+    quantize: bool = False,
     uds_path: Path = "/tmp/bloom-inference",
 ):
     if sharded:
@@ -28,7 +29,7 @@ def serve(
             os.getenv("MASTER_PORT", None) is not None
         ), "MASTER_PORT must be set when sharded is True"
 
-    server.serve(model_name, sharded, uds_path)
+    server.serve(model_name, sharded, quantize, uds_path)
 
 
 @app.command()

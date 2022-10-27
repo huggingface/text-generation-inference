@@ -1,4 +1,6 @@
-use crate::{Batcher, GenerateParameters, GenerateRequest, GeneratedText, Validation};
+use crate::{
+    Batcher, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Validation,
+};
 use axum::extract::Extension;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
@@ -23,7 +25,7 @@ struct ServerState {
 
 /// Health check method
 #[instrument(skip(state), fields(time, time_per_token))]
-async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, String)> {
+async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
     // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
     //       be a bit too slow for a health check.
     //       What we should do instead if check if the gRPC channels are still healthy.
@@ -32,7 +34,9 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, String
     let _permit = state.limit_concurrent_requests.try_acquire().map_err(|_| {
         (
             StatusCode::TOO_MANY_REQUESTS,
-            "Model is overloaded".to_string(),
+            Json(ErrorResponse {
+                error: "Model is overloaded".to_string(),
+            }),
         )
     })?;
 
@@ -70,13 +74,16 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, String
 async fn generate(
     state: Extension<ServerState>,
     req: Json<GenerateRequest>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
     // Limit concurrent requests by acquiring a permit from the semaphore
     let _permit = state.limit_concurrent_requests.try_acquire().map_err(|_| {
+        tracing::error!("Model is overloaded");
         (
             StatusCode::TOO_MANY_REQUESTS,
-            "Model is overloaded".to_string(),
+            Json(ErrorResponse {
+                error: "Model is overloaded".to_string(),
+            }),
         )
     })?;
 
@@ -88,10 +95,21 @@ async fn generate(
             inputs: req.inputs.clone(),
             parameters: req.parameters.clone(),
         })
-        .await?;
+        .await
+        .map_err(|err| {
+            tracing::error!("{}", err.to_string());
+            err
+        })?;
 
     // Inference
-    let response = state.batcher.infer(input_length, validated_request).await?;
+    let response = state
+        .batcher
+        .infer(input_length, validated_request)
+        .await
+        .map_err(|err| {
+            tracing::error!("{}", err.to_string());
+            err
+        })?;
 
     // Timings
     let total_time = start_time.elapsed();

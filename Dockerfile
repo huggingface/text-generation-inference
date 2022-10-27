@@ -26,6 +26,7 @@ ENV LANG=C.UTF-8 \
     DEBIAN_FRONTEND=noninteractive \
     MODEL_BASE_PATH=/var/azureml-model \
     MODEL_NAME=bigscience/bloom \
+    QUANTIZE=false \
     NUM_GPUS=8 \
     CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
     NCCL_ASYNC_ERROR_HANDLING=1 \
@@ -72,4 +73,4 @@ COPY --from=router-builder /usr/local/cargo/bin/text-generation-router /usr/loca
 # Install launcher
 COPY --from=launcher-builder /usr/local/cargo/bin/text-generation-launcher /usr/local/bin/text-generation-launcher
 
-CMD HUGGINGFACE_HUB_CACHE=$MODEL_BASE_PATH text-generation-launcher --model-name $MODEL_NAME --num-shard $NUM_GPUS
+CMD HUGGINGFACE_HUB_CACHE=$MODEL_BASE_PATH text-generation-launcher --num-shard $NUM_GPUS

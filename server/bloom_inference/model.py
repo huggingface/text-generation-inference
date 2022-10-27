@@ -19,8 +19,15 @@ from bloom_inference.utils import (
     NextTokenChooser,
     initialize_torch_distributed,
     weight_files,
-    download_weights
+    download_weights,
 )
+
+HAS_BITS_AND_BYTES = True
+try:
+    import bitsandbytes as bnb
+    from bitsandbytes.nn import Int8Params
+except Exception as e:
+    HAS_BITS_AND_BYTES = False
 
 torch.manual_seed(0)
 
@@ -68,7 +75,9 @@ class Batch:
             )
             stopping_criterias.append(StoppingCriteria(max_new_tokens=r.max_new_tokens))
 
-        input_ids = tokenizer(inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8).to(device)
+        input_ids = tokenizer(
+            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8
+        ).to(device)
         all_input_ids = input_ids["input_ids"].unsqueeze(-1)
 
         return cls(
@@ -250,7 +259,7 @@ class BLOOM:
     def generate_token(
         self, batch: Batch
     ) -> Tuple[List[GeneratedText], Optional[Batch]]:
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = self.forward(**batch.input_ids)
 
         # List of indices to cache
@@ -374,13 +383,13 @@ class BLOOM:
 
 
 class BLOOMSharded(BLOOM):
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, quantize: bool = False):
         super(BLOOM, self).__init__()
         self.process_group, self.rank, self.world_size = initialize_torch_distributed()
         self.master = self.rank == 0
         if torch.cuda.is_available():
             self.device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16
+            dtype = torch.float16
         else:
             self.device = torch.device("cpu")
             dtype = torch.float32
@@ -414,6 +423,7 @@ class BLOOMSharded(BLOOM):
         self.load_weights(
             model,
             filenames,
+            quantize=quantize,
             device=self.device,
             rank=self.rank,
             world_size=self.world_size,
@@ -423,11 +433,18 @@ class BLOOMSharded(BLOOM):
 
     @staticmethod
     def load_weights(
-        model, filenames: List[str], device: torch.device, rank: int, world_size: int
+        model,
+        filenames: List[str],
+        quantize: bool,
+        device: torch.device,
+        rank: int,
+        world_size: int,
     ):
         parameters = dict(model.named_parameters())
         for file in filenames:
-            with safe_open(file, framework="pt", device=str(device)) as f:
+            with safe_open(
+                file, framework="pt", device=str(device) if not quantize else "cpu"
+            ) as f:
                 for name in f.keys():
                     full_name = f"transformer.{name}"
 
@@ -479,6 +496,67 @@ class BLOOMSharded(BLOOM):
                         )
 
                     tensor = tensor.contiguous()
+
+                    if quantize:
+                        if not HAS_BITS_AND_BYTES:
+                            raise ImportError(
+                                "bitsandbytes is not available on your machine"
+                            )
+
+                        if (
+                            type(module)
+                            in [TensorParallelRowLinear, TensorParallelColumnLinear]
+                            and param_name == "weight"
+                        ):
+                            tensor = Int8Params(
+                                tensor.transpose(1, 0),
+                                has_fp16_weights=False,
+                                requires_grad=False,
+                            ).to(device)
+                            state = bnb.MatmulLtState()
+                            state.threshold = 6.0
+                            state.has_fp16_weights = False
+                            state.memory_efficient_backward = False
+                            state.use_pool = True
+                            state.CB = tensor.CB
+                            state.SCB = tensor.SCB
+                            tensor.CB = None
+                            tensor.SCB = None
+
+                            def replace_linear(state, in_features, out_features):
+                                def linear(input, weight, bias):
+                                    size_out = input.size()[:-1] + (out_features,)
+                                    input = input.view(-1, in_features)
+                                    out = torch.empty(
+                                        size_out, device=input.device, dtype=input.dtype
+                                    )
+                                    out = bnb.matmul(
+                                        input,
+                                        weight,
+                                        out=out.view(-1, out_features),
+                                        state=state,
+                                        threshold=state.threshold,
+                                        bias=bias,
+                                    )
+
+                                    if state.CB is not None:
+                                        # we converted 8-bit row major to turing/ampere format
+                                        # in the first inference pass
+                                        # we no longer need the row-major weight
+                                        del state.CB
+                                        weight.data = state.CxB
+
+                                    return out.view(size_out)
+
+                                return linear
+
+                            module.linear = replace_linear(
+                                state, module.in_features, module.out_features
+                            )
+
+                        else:
+                            tensor = tensor.to(device)
+
                     module._parameters[param_name] = tensor
                     if name == "word_embeddings.weight":
                         model.lm_head._parameters["weight"] = tensor

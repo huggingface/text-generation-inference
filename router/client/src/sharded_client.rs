@@ -12,9 +12,7 @@ pub struct ShardedClient {
 
 impl ShardedClient {
     fn new(clients: Vec<Client>) -> Self {
-        Self {
-            clients,
-        }
+        Self { clients }
     }
 
     /// Create a new ShardedClient from a master client. The master client will communicate with
