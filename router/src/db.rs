@@ -1,10 +1,10 @@
 use crate::InferResponse;
 /// This code is massively inspired by Tokio mini-redis
 use crate::{GenerateParameters, GenerateRequest};
-use bloom_inference_client::{Batch, ClientError, LogitsWarperParameters, Request};
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use text_generation_client::{Batch, ClientError, LogitsWarperParameters, Request};
 use tokio::sync::oneshot::Sender;
 use tokio::time::Instant;
 

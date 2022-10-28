@@ -92,19 +92,17 @@ def initialize_torch_distributed():
     return torch.distributed.distributed_c10d._get_default_group(), rank, world_size
 
 
-def weight_hub_files(model_name):
+def weight_hub_files(model_name, extension=".safetensors"):
     """Get the safetensors filenames on the hub"""
     api = HfApi()
     info = api.model_info(model_name)
-    filenames = [
-        s.rfilename for s in info.siblings if s.rfilename.endswith(".safetensors")
-    ]
+    filenames = [s.rfilename for s in info.siblings if s.rfilename.endswith(extension)]
     return filenames
 
 
-def weight_files(model_name):
+def weight_files(model_name, extension=".safetensors"):
     """Get the local safetensors filenames"""
-    filenames = weight_hub_files(model_name)
+    filenames = weight_hub_files(model_name, extension)
     files = []
     for filename in filenames:
         cache_file = try_to_load_from_cache(model_name, filename=filename)
@@ -112,16 +110,16 @@ def weight_files(model_name):
             raise LocalEntryNotFoundError(
                 f"File {filename} of model {model_name} not found in "
                 f"{os.getenv('HUGGINGFACE_HUB_CACHE', 'the local cache')}. "
-                f"Please run `bloom-inference-server download-weights {model_name}` first."
+                f"Please run `text-generation-server download-weights {model_name}` first."
             )
         files.append(cache_file)
 
     return files
 
 
-def download_weights(model_name):
+def download_weights(model_name, extension=".safetensors"):
     """Download the safetensors files from the hub"""
-    filenames = weight_hub_files(model_name)
+    filenames = weight_hub_files(model_name, extension)
 
     download_function = partial(
         hf_hub_download, repo_id=model_name, local_files_only=False

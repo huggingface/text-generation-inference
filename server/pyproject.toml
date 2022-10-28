@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "bloom-inference"
+name = "text-generation"
 version = "0.1.0"
 description = "BLOOM Inference Python gRPC Server"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
 
 [tool.poetry.scripts]
-bloom-inference-server = 'bloom_inference.cli:app'
+text-generation-server = 'text_generation.cli:app'
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -16,6 +16,9 @@ grpcio-reflection = "^1.49.1"
 accelerate = "^0.12.0"
 joblib = "^1.2.0"
 bitsandbytes = "^0.35.1"
+
+[tool.poetry.extras]
+bnb = ["bitsandbytes"]
 
 [tool.poetry.group.dev.dependencies]
 grpcio-tools = "^1.49.1"

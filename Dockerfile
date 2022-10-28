@@ -66,7 +66,7 @@ COPY proto proto
 COPY server server
 RUN cd server && \
     make gen-server && \
-    /opt/miniconda/envs/text-generation/bin/pip install . --no-cache-dir
+    /opt/miniconda/envs/text-generation/bin/pip install ".[bnb]" --no-cache-dir
 
 # Install router
 COPY --from=router-builder /usr/local/cargo/bin/text-generation-router /usr/local/bin/text-generation-router

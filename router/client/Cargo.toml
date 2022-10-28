@@ -1,5 +1,5 @@
 [package]
-name = "bloom-inference-client"
+name = "text-generation-client"
 version = "0.1.0"
 edition = "2021"
 

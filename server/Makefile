@@ -1,10 +1,10 @@
 gen-server:
 	# Compile protos
 	pip install grpcio-tools==1.49.1 --no-cache-dir
-	mkdir bloom_inference/pb || true
-	python -m grpc_tools.protoc -I../proto --python_out=bloom_inference/pb --grpc_python_out=bloom_inference/pb ../proto/generate.proto
-	find bloom_inference/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
-	touch bloom_inference/pb/__init__.py
+	mkdir text_generation/pb || true
+	python -m grpc_tools.protoc -I../proto --python_out=text_generation/pb --grpc_python_out=text_generation/pb ../proto/generate.proto
+	find text_generation/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
+	touch text_generation/pb/__init__.py
 
 install-transformers:
 	# Install specific version of transformers
@@ -36,4 +36,4 @@ install: gen-server install-torch install-transformers install-safetensors
 	pip install -e . --no-cache-dir
 
 run-dev:
-	python -m torch.distributed.run --nproc_per_node=2 bloom_inference/cli.py serve bigscience/bloom-560m --sharded
+	python -m torch.distributed.run --nproc_per_node=2 text_generation/cli.py serve bigscience/bloom-560m --sharded

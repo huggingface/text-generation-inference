@@ -3,7 +3,7 @@ import typer
 
 from pathlib import Path
 
-from bloom_inference import server, utils
+from text_generation import server, utils
 
 app = typer.Typer()
 
@@ -13,7 +13,7 @@ def serve(
     model_name: str,
     sharded: bool = False,
     quantize: bool = False,
-    uds_path: Path = "/tmp/bloom-inference",
+    uds_path: Path = "/tmp/text-generation",
 ):
     if sharded:
         assert (
@@ -35,8 +35,9 @@ def serve(
 @app.command()
 def download_weights(
     model_name: str,
+    extension: str = ".safetensors",
 ):
-    utils.download_weights(model_name)
+    utils.download_weights(model_name, extension)
 
 
 if __name__ == "__main__":

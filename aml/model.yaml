@@ -1,5 +1,5 @@
 $schema: https://azuremlschemas.azureedge.net/latest/model.schema.json
-name: bloom
+name: bloom-safetensors
 version: 1
-path: ./bloom
+path: ./bloom-safetensors
 type: custom_model

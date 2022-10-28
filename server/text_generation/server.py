@@ -5,15 +5,16 @@ from grpc import aio
 
 from grpc_reflection.v1alpha import reflection
 from pathlib import Path
-from typing import Optional, List
+from typing import List
 
-from bloom_inference.cache import Cache
-from bloom_inference.model import BLOOM, Batch, BLOOMSharded
-from bloom_inference.pb import generate_pb2_grpc, generate_pb2
+from text_generation.cache import Cache
+from text_generation.models import Model, get_model
+from text_generation.models.types import Batch
+from text_generation.pb import generate_pb2_grpc, generate_pb2
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
-    def __init__(self, model: BLOOM, cache: Cache, server_urls: List[str]):
+    def __init__(self, model: Model, cache: Cache, server_urls: List[str]):
         self.cache = cache
         self.model = model
         self.server_urls = server_urls
@@ -78,20 +79,16 @@ def serve(
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:
-            model = BLOOMSharded(model_name, quantize)
             server_urls = [
                 unix_socket_template.format(uds_path, rank)
-                for rank in range(model.world_size)
+                for rank in range(int(os.environ["WORLD_SIZE"]))
             ]
-            local_url = server_urls[model.rank]
+            local_url = server_urls[int(os.environ["RANK"])]
         else:
-            if quantize:
-                raise ValueError(
-                    "bitsandbytes quantization is only available when running in `sharded` mode."
-                )
-            model = BLOOM(model_name)
             local_url = unix_socket_template.format(uds_path, 0)
             server_urls = [local_url]
+
+        model = get_model(model_name, sharded, quantize)
 
         server = aio.server()
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(

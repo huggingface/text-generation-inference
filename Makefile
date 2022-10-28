@@ -22,7 +22,7 @@ run-bloom-560m-quantize:
 	text-generation-launcher --model-name bigscience/bloom-560m --num-shard 2 --quantize
 
 download-bloom:
-	bloom-inference-server download-weights bigscience/bloom
+	text-generation-server download-weights bigscience/bloom
 
 run-bloom:
 	text-generation-launcher --model-name bigscience/bloom --num-shard 8

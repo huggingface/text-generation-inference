@@ -1,7 +1,7 @@
-/// Text Generation Inference webserver entrypoint
-use bloom_inference_client::ShardedClient;
 use clap::Parser;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+/// Text Generation Inference webserver entrypoint
+use text_generation_client::ShardedClient;
 use text_generation_router::server;
 use tokenizers::Tokenizer;
 
@@ -19,7 +19,7 @@ struct Args {
     max_waiting_tokens: usize,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
-    #[clap(default_value = "/tmp/bloom-inference-0", long, env)]
+    #[clap(default_value = "/tmp/text-generation-0", long, env)]
     master_shard_uds_path: String,
     #[clap(default_value = "bigscience/bloom", long, env)]
     tokenizer_name: String,

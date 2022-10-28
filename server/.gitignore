@@ -1,7 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-bloom_inference/__pycache__/
-bloom_inference/pb/__pycache__/
+text_generation/__pycache__/
+text_generation/pb/__pycache__/
 *.py[cod]
 *$py.class
 

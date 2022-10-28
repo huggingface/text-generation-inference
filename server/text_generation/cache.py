@@ -1,5 +1,6 @@
-from bloom_inference.model import Batch
 from typing import Dict, Optional
+
+from text_generation.models.types import Batch
 
 
 class Cache:

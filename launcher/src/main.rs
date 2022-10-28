@@ -256,7 +256,7 @@ fn shard_manager(
 
     // Process args
     let mut shard_argv = vec![
-        "bloom-inference-server".to_string(),
+        "text-generation-server".to_string(),
         "serve".to_string(),
         model_name,
         "--uds-path".to_string(),
@@ -311,7 +311,7 @@ fn shard_manager(
         Err(err) => {
             if let PopenError::IoError(ref err) = err {
                 if err.kind() == io::ErrorKind::NotFound {
-                    tracing::error!("bloom-inference-server not found in PATH");
+                    tracing::error!("text-generation-server not found in PATH");
                     tracing::error!("Please install it with `make install-server`")
                 }
             }
