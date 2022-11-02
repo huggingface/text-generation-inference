@@ -89,14 +89,6 @@ protobuf = ">=4.21.6,<5.0dev"
 setuptools = "*"
 
 [[package]]
-name = "joblib"
-version = "1.2.0"
-description = "Lightweight pipelining with Python functions"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[[package]]
 name = "numpy"
 version = "1.23.4"
 description = "NumPy is the fundamental package for array computing with Python."
@@ -210,10 +202,13 @@ category = "main"
 optional = false
 python-versions = ">=3.7"
 
+[extras]
+bnb = ["bitsandbytes"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "50d9d44577a0222f125c770732d5f88807378573bd7386036eb5c79fc2a7c552"
+content-hash = "224b1e379d6105fe911bff4563946a90dfa6ff5918cf2e7be59f8d4f7c5cd7cf"
 
 [metadata.files]
 accelerate = [
@@ -329,10 +324,6 @@ grpcio-tools = [
     {file = "grpcio_tools-1.50.0-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:d8aaff094d94d2119fffe7e0d08ca59d42076971f9d85857e99288e500ab31f0"},
     {file = "grpcio_tools-1.50.0-cp39-cp39-win32.whl", hash = "sha256:e1a8f9a57bbcc2e633aaf327e39830527f3c1f7add18c7580f3058fe9a0fa780"},
     {file = "grpcio_tools-1.50.0-cp39-cp39-win_amd64.whl", hash = "sha256:b7eb7a84d9171c0ae1550833f4a6ca52372bed9db0fa10f8c9dbe6ca65f97a8c"},
-]
-joblib = [
-    {file = "joblib-1.2.0-py3-none-any.whl", hash = "sha256:091138ed78f800342968c523bdde947e7a305b8594b910a0fea2ab83c3c6d385"},
-    {file = "joblib-1.2.0.tar.gz", hash = "sha256:e1cee4a79e4af22881164f218d4311f60074197fb707e082e803b61f6d137018"},
 ]
 numpy = [
     {file = "numpy-1.23.4-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:95d79ada05005f6f4f337d3bb9de8a7774f259341c70bc88047a1f7b96a4bcb2"},

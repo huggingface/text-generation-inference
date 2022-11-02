@@ -15,7 +15,7 @@ def get_model(model_name: str, sharded: bool, quantize: bool) -> Model:
             return Model(model_name)
     else:
         if sharded:
-            raise ValueError("sharded is only supported for BLOOM")
+            raise ValueError("sharded is only supported for BLOOM models")
         if quantize:
             raise ValueError("Quantization is only supported for BLOOM models")
 

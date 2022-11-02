@@ -1,4 +1,4 @@
-# LLM Text Generation Inference
+# Text Generation Inference
 
 <div align="center">
 
@@ -6,12 +6,12 @@
 
 </div>
 
-A Rust and gRPC server for large language models text generation inference.
+A Rust and gRPC server for text generation inference.
 
 ## Features
 
-- Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Dynamic bathing of incoming requests](https://github.com/huggingface/text-generation-inference/blob/main/router/src/batcher.rs#L88) for increased total throughput
+- Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - 45ms per token generation for BLOOM with 8xA100 80GB
 

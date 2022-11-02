@@ -14,7 +14,6 @@ grpcio = "^1.49.1"
 typer = "^0.6.1"
 grpcio-reflection = "^1.49.1"
 accelerate = "^0.12.0"
-joblib = "^1.2.0"
 bitsandbytes = "^0.35.1"
 
 [tool.poetry.extras]

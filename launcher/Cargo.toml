@@ -10,4 +10,4 @@ clap = { version = "4.0.15", features = ["derive", "env"] }
 ctrlc = "3.2.3"
 subprocess = "0.2.9"
 tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
+tracing-subscriber = { version = "0.3.16", features = ["json"] }

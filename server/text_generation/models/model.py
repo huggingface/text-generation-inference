@@ -20,7 +20,7 @@ class Model:
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
         self.tokenizer.add_special_tokens({"pad_token": "[PAD]"})
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name, torch_dtype=dtype, device_map="auto"
+            model_name, torch_dtype=dtype, device_map="auto" if torch.cuda.is_available() else None
         ).eval()
 
         self.num_heads = self.model.config.num_attention_heads

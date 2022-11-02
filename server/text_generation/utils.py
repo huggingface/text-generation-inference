@@ -1,11 +1,13 @@
+import concurrent
 import os
+import signal
 import torch
 import torch.distributed
 
 from datetime import timedelta
 
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from joblib import Parallel, delayed
 from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
 from huggingface_hub.utils import LocalEntryNotFoundError
 from tqdm import tqdm
@@ -124,8 +126,9 @@ def download_weights(model_name, extension=".safetensors"):
     download_function = partial(
         hf_hub_download, repo_id=model_name, local_files_only=False
     )
-    # FIXME: fix the overlapping progress bars
-    files = Parallel(n_jobs=5)(
-        delayed(download_function)(filename=filename) for filename in tqdm(filenames)
-    )
+
+    executor = ThreadPoolExecutor(max_workers=5)
+    futures = [executor.submit(download_function, filename=filename) for filename in filenames]
+    files = [file for file in tqdm(concurrent.futures.as_completed(futures), total=len(futures))]
+
     return files

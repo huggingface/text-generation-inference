@@ -39,11 +39,11 @@ struct Args {
     master_addr: String,
     #[clap(default_value = "29500", long, env)]
     master_port: usize,
+    #[clap(long, env)]
+    json_output: bool,
 }
 
 fn main() -> ExitCode {
-    tracing_subscriber::fmt().compact().with_ansi(false).init();
-
     // Pattern match configuration
     let Args {
         model_name,
@@ -57,7 +57,14 @@ fn main() -> ExitCode {
         shard_uds_path,
         master_addr,
         master_port,
+        json_output,
     } = Args::parse();
+
+    if json_output {
+        tracing_subscriber::fmt().json().init();
+    } else {
+        tracing_subscriber::fmt().compact().init();
+    }
 
     // By default we only have one master shard
     let num_shard = num_shard.unwrap_or(1);
@@ -139,24 +146,30 @@ fn main() -> ExitCode {
     // All shard started
     // Start webserver
     tracing::info!("Starting Webserver");
+    let mut argv = vec![
+        "text-generation-router".to_string(),
+        "--max-concurrent-requests".to_string(),
+        max_concurrent_requests.to_string(),
+        "--max-input-length".to_string(),
+        max_input_length.to_string(),
+        "--max-batch-size".to_string(),
+        max_batch_size.to_string(),
+        "--max-waiting-tokens".to_string(),
+        max_waiting_tokens.to_string(),
+        "--port".to_string(),
+        port.to_string(),
+        "--master-shard-uds-path".to_string(),
+        format!("{}-0", shard_uds_path),
+        "--tokenizer-name".to_string(),
+        model_name,
+    ];
+
+    if json_output {
+        argv.push("--json-output".to_string());
+    }
+
     let mut webserver = match Popen::create(
-        &[
-            "text-generation-router",
-            "--max-concurrent-requests",
-            &max_concurrent_requests.to_string(),
-            "--max-input-length",
-            &max_input_length.to_string(),
-            "--max-batch-size",
-            &max_batch_size.to_string(),
-            "--max-waiting-tokens",
-            &max_waiting_tokens.to_string(),
-            "--port",
-            &port.to_string(),
-            "--master-shard-uds-path",
-            &format!("{}-0", shard_uds_path),
-            "--tokenizer-name",
-            &model_name,
-        ],
+        &argv,
         PopenConfig {
             stdout: Redirection::Pipe,
             stderr: Redirection::Pipe,

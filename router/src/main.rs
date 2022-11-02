@@ -25,6 +25,8 @@ struct Args {
     tokenizer_name: String,
     #[clap(default_value = "2", long, env)]
     validation_workers: usize,
+    #[clap(long, env)]
+    json_output: bool,
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -40,11 +42,16 @@ fn main() -> Result<(), std::io::Error> {
         master_shard_uds_path,
         tokenizer_name,
         validation_workers,
+        json_output,
     } = args;
 
-    tracing_subscriber::fmt().compact().with_ansi(false).init();
+    if json_output {
+        tracing_subscriber::fmt().json().init();
+    } else {
+        tracing_subscriber::fmt().compact().init();
+    }
 
-    if validation_workers == 1 {
+    if validation_workers == 0 {
         panic!("validation_workers must be > 0");
     }
 
