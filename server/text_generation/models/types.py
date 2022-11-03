@@ -1,5 +1,6 @@
 import torch
 
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict
 
@@ -70,131 +71,9 @@ class Batch:
         )
 
     @classmethod
+    @abstractmethod
     def concatenate(cls, batches: List["Batch"]) -> "Batch":
-        # Used for padding
-        total_batch_size = sum(batch.size for batch in batches)
-        max_sequence_length = max(batch.max_sequence_length for batch in batches)
-
-        # Batch attributes
-        input_ids = {"input_ids": None, "attention_mask": None, "past_key_values": []}
-        requests = []
-        all_input_lengths = []
-        all_input_ids = []
-        next_token_choosers = []
-        stopping_criterias = []
-
-        # Used for slicing correctly inside the tensors
-        # Equivalent to a cumsum on batch sizes
-        start_index = 0
-        for i, batch in enumerate(batches):
-            requests.extend(batch.requests)
-            all_input_lengths.extend(batch.all_input_lengths)
-            all_input_ids.extend(batch.all_input_ids)
-            next_token_choosers.extend(batch.next_token_choosers)
-            stopping_criterias.extend(batch.stopping_criterias)
-
-            # Slicing end index for this batch
-            end_index = start_index + batch.size
-
-            # We only concatenate batches that did at least one step
-            if batch.input_ids["input_ids"].shape[1] > 1:
-                raise ValueError("Batch input_ids should be of shape (batch_size, 1)")
-
-            # Initialize tensors
-            if i == 0:
-                input_ids["input_ids"] = torch.empty(
-                    (total_batch_size, 1),
-                    dtype=batch.input_ids["input_ids"].dtype,
-                    device=batch.input_ids["input_ids"].device,
-                )
-                input_ids["attention_mask"] = torch.zeros(
-                    (total_batch_size, max_sequence_length),
-                    dtype=batch.input_ids["attention_mask"].dtype,
-                    device=batch.input_ids["attention_mask"].device,
-                )
-
-            # input_ids["input_ids"] is always of shape [batch_size, 1]
-            # We do not need to pad it
-            input_ids["input_ids"][start_index:end_index] = batch.input_ids["input_ids"]
-
-            # We need to slice the attention mask to remove padding from previous steps
-            input_ids["attention_mask"][
-                start_index:end_index, -batch.max_sequence_length :
-            ] = batch.input_ids["attention_mask"][:, -batch.max_sequence_length :]
-
-            for j, past in enumerate(batch.input_ids["past_key_values"]):
-                past_keys = past[0]
-                past_values = past[1]
-
-                _, head_dim, padded_sequence_length = past_keys.shape
-
-                # Reshape the tensors to make slicing easier
-                past_keys = past_keys.view(
-                    batch.size, -1, head_dim, padded_sequence_length
-                )
-                past_values = past_values.view(
-                    batch.size, -1, padded_sequence_length, head_dim
-                )
-                num_heads = past_keys.shape[1]
-
-                # Initialize tensors
-                # This will run only once per layer
-                if j == len(input_ids["past_key_values"]):
-                    padded_past_keys = torch.zeros(
-                        (
-                            total_batch_size,
-                            num_heads,
-                            head_dim,
-                            max_sequence_length - 1,
-                        ),
-                        dtype=past_keys.dtype,
-                        device=past_keys.device,
-                    )
-                    padded_past_values = torch.zeros(
-                        (
-                            total_batch_size,
-                            num_heads,
-                            max_sequence_length - 1,
-                            head_dim,
-                        ),
-                        dtype=past_values.dtype,
-                        device=past_values.device,
-                    )
-                    input_ids["past_key_values"].append(
-                        [padded_past_keys, padded_past_values]
-                    )
-
-                # We slice the past keys and values to remove the padding from previous batches
-                input_ids["past_key_values"][j][0][
-                    start_index:end_index, :, :, -(batch.max_sequence_length - 1) :
-                ] = past_keys[:, :, :, -(batch.max_sequence_length - 1) :]
-
-                input_ids["past_key_values"][j][1][
-                    start_index:end_index, :, -(batch.max_sequence_length - 1) :, :
-                ] = past_values[:, :, -(batch.max_sequence_length - 1) :, :]
-
-                # If we are on the last batch, we need to reshape the tensors
-                if (i + 1) == len(batches):
-                    input_ids["past_key_values"][j][0] = input_ids["past_key_values"][
-                        j
-                    ][0].view(total_batch_size * num_heads, head_dim, -1)
-                    input_ids["past_key_values"][j][1] = input_ids["past_key_values"][
-                        j
-                    ][1].view(total_batch_size * num_heads, -1, head_dim)
-
-            start_index += batch.size
-
-        return cls(
-            batch_id=batches[0].batch_id,
-            requests=requests,
-            all_input_lengths=all_input_lengths,
-            input_ids=input_ids,
-            all_input_ids=all_input_ids,
-            next_token_choosers=next_token_choosers,
-            stopping_criterias=stopping_criterias,
-            size=total_batch_size,
-            max_sequence_length=max_sequence_length,
-        )
+        raise NotImplementedError
 
 
 @dataclass

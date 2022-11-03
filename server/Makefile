@@ -9,11 +9,11 @@ gen-server:
 install-transformers:
 	# Install specific version of transformers
 	rm transformers || true
-	rm transformers-46d37bece7d3ffdef97b1ee4a3170c0a0627d921 || true
-	curl -L -O https://github.com/huggingface/transformers/archive/46d37bece7d3ffdef97b1ee4a3170c0a0627d921.zip
-	unzip 46d37bece7d3ffdef97b1ee4a3170c0a0627d921.zip
-	rm 46d37bece7d3ffdef97b1ee4a3170c0a0627d921.zip
-	mv transformers-46d37bece7d3ffdef97b1ee4a3170c0a0627d921 transformers
+	rm transformers-7302a24535e8dc5637ea5b4e4572fc971d404098 || true
+	curl -L -O https://github.com/OlivierDehaene/transformers/archive/7302a24535e8dc5637ea5b4e4572fc971d404098.zip
+	unzip 7302a24535e8dc5637ea5b4e4572fc971d404098.zip
+	rm 7302a24535e8dc5637ea5b4e4572fc971d404098.zip
+	mv transformers-7302a24535e8dc5637ea5b4e4572fc971d404098 transformers
 	cd transformers && python setup.py install
 
 install-safetensors:

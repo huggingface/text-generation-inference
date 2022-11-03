@@ -1,22 +1,16 @@
 from text_generation.models.model import Model
-from text_generation.models.bloom import BLOOMSharded
+from text_generation.models.bloom import BLOOM, BLOOMSharded
 
-__all__ = ["Model", "BLOOMSharded"]
+__all__ = ["Model", "BLOOM", "BLOOMSharded"]
 
 
 def get_model(model_name: str, sharded: bool, quantize: bool) -> Model:
-
     if model_name.startswith("bigscience/bloom"):
         if sharded:
             return BLOOMSharded(model_name, quantize)
         else:
             if quantize:
                 raise ValueError("quantization is not supported for non-sharded BLOOM")
-            return Model(model_name)
+            return BLOOM(model_name)
     else:
-        if sharded:
-            raise ValueError("sharded is only supported for BLOOM models")
-        if quantize:
-            raise ValueError("Quantization is only supported for BLOOM models")
-
-        return Model(model_name)
+        raise ValueError(f"model {model_name} is not supported yet")

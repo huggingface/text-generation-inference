@@ -15,12 +15,10 @@ A Rust and gRPC server for text generation inference.
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - 45ms per token generation for BLOOM with 8xA100 80GB
 
-## Officially supported models
+## Supported models
 
 - BLOOM
 - BLOOM-560m
-
-Other models are supported on a best-effort basis using `AutoModelForCausalLM.from_pretrained(<model>, torch_dtype=torch.float16, device_map="auto")`.
 
 ## Load Tests for BLOOM
 
@@ -82,6 +80,7 @@ make router-dev
 
 ## TODO:
 
+- [ ] Support AutoModelForSeq2SeqLM
 - [ ] Add tests for the `server/model` logic
 - [ ] Backport custom CUDA kernels to Transformers
 - [ ] Install safetensors with pip
