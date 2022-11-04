@@ -9,7 +9,6 @@ from typing import List
 
 from text_generation.cache import Cache
 from text_generation.models import Model, get_model
-from text_generation.models.types import Batch
 from text_generation.pb import generate_pb2_grpc, generate_pb2
 
 
@@ -27,7 +26,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.ClearCacheResponse()
 
     async def Generate(self, request, context):
-        batch = Batch.from_pb(request.batch, self.model.tokenizer, self.model.device)
+        batch = self.model.batch_type.from_pb(
+            request.batch, self.model.tokenizer, self.model.device
+        )
 
         generated_texts, next_batch = self.model.generate_token(batch)
         self.cache.set(next_batch)
@@ -51,7 +52,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batches.append(batch)
 
         if len(batches) > 1:
-            batch = Batch.concatenate(batches)
+            batch = self.model.batch_type.concatenate(batches)
         else:
             batch = batches[0]
 

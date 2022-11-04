@@ -142,14 +142,10 @@ impl Db {
 
             // Batch size
             let size = requests.len();
-            // Longest input length for all requests in batch size
-            // Used for padding inside the inference server
-            let max_sequence_length = requests.iter().map(|r| r.input_length).max().unwrap();
             let batch = Batch {
                 id: state.next_batch_id,
                 requests,
                 size: size as u32,
-                max_sequence_length,
             };
             // Update next_batch_start_id to the last id in the batch + 1
             state.next_batch_start_id = ids.last().unwrap() + 1;

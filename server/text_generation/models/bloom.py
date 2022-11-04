@@ -12,7 +12,7 @@ from transformers.models.bloom.parallel_layers import (
     TensorParallelRowLinear,
 )
 
-from text_generation.models import Model
+from text_generation.models import CausalLM
 from text_generation.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -29,7 +29,7 @@ except Exception as e:
 torch.manual_seed(0)
 
 
-class BLOOMSharded(Model):
+class BLOOMSharded(CausalLM):
     def __init__(self, model_name: str, quantize: bool = False):
         if not model_name.startswith("bigscience/bloom"):
             raise ValueError(f"Model {model_name} is not supported")
@@ -78,22 +78,25 @@ class BLOOMSharded(Model):
         )
         self.model = model.eval().to(dtype)
         torch.distributed.barrier(group=self.process_group)
-        super(BLOOMSharded, self).__init__(tokenizer=tokenizer, num_heads=config.n_head // self.process_group.size(),
-                                           device=device)
+        super(CausalLM, self).__init__(
+            tokenizer=tokenizer,
+            num_heads=config.n_head // self.process_group.size(),
+            device=device,
+        )
 
     @staticmethod
     def load_weights(
-            model,
-            filenames: List[str],
-            quantize: bool,
-            device: torch.device,
-            rank: int,
-            world_size: int,
+        model,
+        filenames: List[str],
+        quantize: bool,
+        device: torch.device,
+        rank: int,
+        world_size: int,
     ):
         parameters = dict(model.named_parameters())
         for file in filenames:
             with safe_open(
-                    file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if not quantize else "cpu"
             ) as f:
                 for name in f.keys():
                     full_name = f"transformer.{name}"
@@ -156,9 +159,9 @@ class BLOOMSharded(Model):
                             )
 
                         if (
-                                type(module)
-                                in [TensorParallelRowLinear, TensorParallelColumnLinear]
-                                and param_name == "weight"
+                            type(module)
+                            in [TensorParallelRowLinear, TensorParallelColumnLinear]
+                            and param_name == "weight"
                         ):
                             tensor = Int8Params(
                                 tensor.transpose(1, 0),

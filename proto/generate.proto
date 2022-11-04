@@ -54,8 +54,6 @@ message Batch {
     repeated Request requests = 2;
     /// Batch size (==len(requests))
     uint32 size = 3;
-    /// Length of the longest sequence within the batch (used for padding)
-    uint32 max_sequence_length = 4;
 }
 
 message GeneratedText {
