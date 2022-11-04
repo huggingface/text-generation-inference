@@ -190,6 +190,7 @@ fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
             .expect("ID not found in db. This is a bug.");
         let response = InferResponse {
             output: output.output,
+            tokens: output.tokens,
             queued: entry.time,
             start: entry.batch_time.unwrap(), // unwrap is always valid
             end: Instant::now(),
@@ -202,6 +203,7 @@ fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
 #[derive(Debug)]
 pub(crate) struct InferResponse {
     pub(crate) output: String,
+    pub(crate) tokens: u32,
     pub(crate) queued: Instant,
     pub(crate) start: Instant,
     pub(crate) end: Instant,

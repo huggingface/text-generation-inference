@@ -58,13 +58,16 @@ class NextTokenChooser:
 
 
 class StoppingCriteria:
-    def __init__(self, max_new_tokens=20):
+    def __init__(self, eos_token_id, max_new_tokens=20):
+        self.eos_token_id = eos_token_id
         self.max_new_tokens = max_new_tokens
         self.current_tokens = 0
 
     def __call__(self, all_ids):
         self.current_tokens += 1
         if self.current_tokens >= self.max_new_tokens:
+            return True
+        if self.eos_token_id is not None and all_ids[-1] == self.eos_token_id:
             return True
         return False
 
@@ -124,11 +127,18 @@ def download_weights(model_name, extension=".safetensors"):
     filenames = weight_hub_files(model_name, extension)
 
     download_function = partial(
-        hf_hub_download, repo_id=model_name, local_files_only=False
+        hf_hub_download,
+        repo_id=model_name,
+        local_files_only=False,
     )
 
     executor = ThreadPoolExecutor(max_workers=5)
-    futures = [executor.submit(download_function, filename=filename) for filename in filenames]
-    files = [file for file in tqdm(concurrent.futures.as_completed(futures), total=len(futures))]
+    futures = [
+        executor.submit(download_function, filename=filename) for filename in filenames
+    ]
+    files = [
+        file
+        for file in tqdm(concurrent.futures.as_completed(futures), total=len(futures))
+    ]
 
     return files

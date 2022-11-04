@@ -116,7 +116,7 @@ async fn generate(
     let validation_time = response.queued - start_time;
     let queue_time = response.start - response.queued;
     let inference_time = response.end - response.start;
-    let time_per_token = inference_time / req.parameters.max_new_tokens;
+    let time_per_token = inference_time / response.tokens;
 
     // Headers
     let mut headers = HeaderMap::new();

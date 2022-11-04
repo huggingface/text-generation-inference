@@ -1,7 +1,8 @@
 from text_generation.models.model import Model
-from text_generation.models.bloom import BLOOM, BLOOMSharded
+from text_generation.models.bloom import BLOOMSharded
+from text_generation.models.causal_lm import CausalLM
 
-__all__ = ["Model", "BLOOM", "BLOOMSharded"]
+__all__ = ["Model", "BLOOMSharded", "CausalLM"]
 
 
 def get_model(model_name: str, sharded: bool, quantize: bool) -> Model:
@@ -11,6 +12,10 @@ def get_model(model_name: str, sharded: bool, quantize: bool) -> Model:
         else:
             if quantize:
                 raise ValueError("quantization is not supported for non-sharded BLOOM")
-            return BLOOM(model_name)
+            return CausalLM(model_name)
     else:
-        raise ValueError(f"model {model_name} is not supported yet")
+        if sharded:
+            raise ValueError("sharded is not supported for AutoModel")
+        if quantize:
+            raise ValueError("quantize is not supported for AutoModel")
+        return CausalLM(model_name)

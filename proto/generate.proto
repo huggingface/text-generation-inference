@@ -63,6 +63,8 @@ message GeneratedText {
     Request request = 1;
     /// Output
     string output = 2;
+    /// Number of generated tokens
+    uint32 tokens = 3;
 }
 
 message GenerateRequest {

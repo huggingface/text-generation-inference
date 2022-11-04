@@ -18,6 +18,7 @@ A Rust and gRPC server for text generation inference.
 ## Supported models
 
 - BLOOM
+- BLOOMZ
 - BLOOM-560m
 
 ## Load Tests for BLOOM
