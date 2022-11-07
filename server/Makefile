@@ -16,24 +16,13 @@ install-transformers:
 	mv transformers-7302a24535e8dc5637ea5b4e4572fc971d404098 transformers
 	cd transformers && python setup.py install
 
-install-safetensors:
-	# Install specific version of safetensors
-	pip install setuptools_rust
-	rm safetensors || true
-	rm safetensors-634deccbcbad5eaf417935281f8b3be7ebca69c5 || true
-	curl -L -O https://github.com/huggingface/safetensors/archive/634deccbcbad5eaf417935281f8b3be7ebca69c5.zip
-	unzip 634deccbcbad5eaf417935281f8b3be7ebca69c5.zip
-	rm 634deccbcbad5eaf417935281f8b3be7ebca69c5.zip
-	mv safetensors-634deccbcbad5eaf417935281f8b3be7ebca69c5 safetensors
-	cd safetensors/bindings/python && python setup.py develop
-
 install-torch:
 	# Install specific version of torch
 	pip install torch --extra-index-url https://download.pytorch.org/whl/cu116 --no-cache-dir
 
-install: gen-server install-torch install-transformers install-safetensors
+install: gen-server install-torch install-transformers
 	pip install pip --upgrade
 	pip install -e . --no-cache-dir
 
 run-dev:
-	python -m torch.distributed.run --nproc_per_node=2 text_generation/cli.py serve bigscience/bloom-560m --sharded
+	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation/cli.py serve bigscience/bloom-560m --sharded

@@ -28,6 +28,7 @@ ENV LANG=C.UTF-8 \
     MODEL_NAME=bigscience/bloom \
     QUANTIZE=false \
     NUM_GPUS=8 \
+    SAFETENSORS_FAST_GPU=1 \
     CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
     NCCL_ASYNC_ERROR_HANDLING=1 \
     CUDA_HOME=/usr/local/cuda \
@@ -54,12 +55,6 @@ RUN cd server && make install-torch
 
 # Install specific version of transformers
 RUN cd server && make install-transformers
-
-# Install specific version of safetensors
-# FIXME: This is a temporary fix while we wait for a new release
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-RUN cd server && make install-safetensors
 
 # Install server
 COPY proto proto

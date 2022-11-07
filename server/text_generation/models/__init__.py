@@ -9,17 +9,13 @@ __all__ = ["Model", "BLOOMSharded", "CausalLM", "Seq2SeqLM"]
 def get_model(model_name: str, sharded: bool, quantize: bool) -> Model:
     if model_name.startswith("bigscience/bloom"):
         if sharded:
-            return BLOOMSharded(model_name, quantize)
+            return BLOOMSharded(model_name, quantize=quantize)
         else:
-            if quantize:
-                raise ValueError("quantization is not supported for non-sharded BLOOM")
-            return CausalLM(model_name)
+            return CausalLM(model_name, quantize=quantize)
     else:
         if sharded:
             raise ValueError("sharded is not supported for AutoModel")
-        if quantize:
-            raise ValueError("quantize is not supported for AutoModel")
         try:
-            return CausalLM(model_name)
+            return CausalLM(model_name, quantize=quantize)
         except Exception as e:
-            return Seq2SeqLM(model_name)
+            return Seq2SeqLM(model_name, quantize=quantize)

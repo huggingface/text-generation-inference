@@ -6,7 +6,8 @@
 
 </div>
 
-A Rust and gRPC server for text generation inference.
+A Rust and gRPC server for text generation inference. Used in production at [HuggingFace](https://huggingface.co) 
+to power Bloom, BloomZ and MT0-XXL api-inference widgets.
 
 ## Features
 
@@ -15,11 +16,11 @@ A Rust and gRPC server for text generation inference.
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - 45ms per token generation for BLOOM with 8xA100 80GB
 
-## Officialy supported models
+## Officially supported models
 
-- BLOOM
-- BLOOMZ
-- BLOOM-560m
+- [BLOOM](https://huggingface.co/bigscience/bloom)
+- [BLOOMZ](https://huggingface.co/bigscience/bloomz)
+- [MT0-XXL](https://huggingface.co/bigscience/mt0-xxl)
 
 Other models are supported on a best effort basis using:
 
@@ -91,4 +92,3 @@ make router-dev
 
 - [ ] Add tests for the `server/model` logic
 - [ ] Backport custom CUDA kernels to Transformers
-- [ ] Install safetensors with pip

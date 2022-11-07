@@ -295,6 +295,10 @@ fn shard_manager(
             "MASTER_PORT".parse().unwrap(),
             master_port.to_string().parse().unwrap(),
         ),
+        (
+            "SAFETENSORS_FAST_GPU".parse().unwrap(),
+            "1".to_string().parse().unwrap(),
+        ),
     ];
 
     // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
