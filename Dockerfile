@@ -2,6 +2,7 @@ FROM rust:1.64 as router-builder
 
 WORKDIR /usr/src
 
+COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
 COPY router router
 
@@ -13,6 +14,7 @@ FROM rust:1.64 as launcher-builder
 
 WORKDIR /usr/src
 
+COPY rust-toolchain.toml rust-toolchain.toml
 COPY launcher launcher
 
 WORKDIR /usr/src/launcher

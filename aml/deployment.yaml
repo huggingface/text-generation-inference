@@ -8,7 +8,7 @@ environment_variables:
   MODEL_NAME: bigscience/bloom
   NUM_GPUS: 8
 environment:
-  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:0.2
+  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:0.3.1
   inference_config:
     liveness_route:
       port: 3000
@@ -25,14 +25,14 @@ request_settings:
   max_concurrent_requests_per_instance: 256
 liveness_probe:
   initial_delay: 600
-  timeout: 20
+  timeout: 90
   period: 120
   success_threshold: 1
-  failure_threshold: 3
+  failure_threshold: 5
 readiness_probe:
   initial_delay: 600
-  timeout: 20
+  timeout: 90
   period: 120
   success_threshold: 1
-  failure_threshold: 3
+  failure_threshold: 5
 instance_count: 1

@@ -38,7 +38,7 @@ class BLOOMSharded(CausalLM):
         self.master = self.rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.float16
+            dtype = torch.bfloat16
         else:
             device = torch.device("cpu")
             dtype = torch.float32

@@ -7,13 +7,13 @@ gen-server:
 	touch text_generation/pb/__init__.py
 
 install-transformers:
-	# Install specific version of transformers
+	# Install specific version of transformers with custom cuda kernels
 	rm transformers || true
-	rm transformers-7302a24535e8dc5637ea5b4e4572fc971d404098 || true
-	curl -L -O https://github.com/OlivierDehaene/transformers/archive/7302a24535e8dc5637ea5b4e4572fc971d404098.zip
-	unzip 7302a24535e8dc5637ea5b4e4572fc971d404098.zip
-	rm 7302a24535e8dc5637ea5b4e4572fc971d404098.zip
-	mv transformers-7302a24535e8dc5637ea5b4e4572fc971d404098 transformers
+	rm transformers-b55f16c5b71aeef47a66a4270e19c154f050a7a7 || true
+	curl -L -O https://github.com/OlivierDehaene/transformers/archive/b55f16c5b71aeef47a66a4270e19c154f050a7a7.zip
+	unzip b55f16c5b71aeef47a66a4270e19c154f050a7a7.zip
+	rm b55f16c5b71aeef47a66a4270e19c154f050a7a7.zip
+	mv transformers-b55f16c5b71aeef47a66a4270e19c154f050a7a7 transformers
 	cd transformers && python setup.py install
 
 install-torch:
