@@ -148,71 +148,73 @@ class CausalLMBatch:
             ] = batch.attention_mask[:, -batch.max_sequence_length :]
 
             for j, past in enumerate(batch.past_key_values):
+                past_keys, past_values = past
+
                 # Shenanigans to get dimensions because BLOOM outputs a past with a different shape
-                # BLOOM: [batch_size * num_heads, ...] vs [batch_size, num_heads, ...]
-                head_dim, padded_sequence_length = past[0].shape[-2:]
-                num_heads = (
-                    past[0]
-                    .view(batch.size, -1, head_dim, padded_sequence_length)
-                    .shape[1]
+                # BLOOM Keys:   [batch_size * num_heads, head_dim, seq_length]
+                # BLOOM Values: [batch_size * num_heads, seq_length, head_dim]
+                past_keys = past_keys.view(batch.size, -1, *past_keys.shape[-2:])
+                past_values = past_values.view(batch.size, -1, *past_values.shape[-2:])
+
+                _, num_heads, head_dim, padded_sequence_length = past_keys.shape
+
+                padded_past_keys_shape = (
+                    total_batch_size,
+                    num_heads,
+                    head_dim,
+                    max_sequence_length - 1,
                 )
+
+                # head_dim is last for BLOOM
+                if past_values.shape[-1] == head_dim:
+                    past_values_head_dim_last = True
+                    padded_past_values_shape = (
+                        total_batch_size,
+                        num_heads,
+                        max_sequence_length - 1,
+                        head_dim,
+                    )
+                elif past_values.shape[-2] == head_dim:
+                    past_values_head_dim_last = False
+                    padded_past_values_shape = padded_past_keys_shape
+                else:
+                    raise ValueError(
+                        f"past_values shape {past_values.shape} is not valid"
+                    )
 
                 # This will run only once per layer
                 if j == len(past_key_values):
-                    past_key_values.append([])
+                    padded_past_keys = torch.zeros(
+                        padded_past_keys_shape,
+                        dtype=past_keys.dtype,
+                        device=past_keys.device,
+                    )
+                    padded_past_values = torch.zeros(
+                        padded_past_values_shape,
+                        dtype=past_values.dtype,
+                        device=past_values.device,
+                    )
+                    past_key_values.append((padded_past_keys, padded_past_values))
 
-                # Decoder past
-                for k, t in enumerate(past):
-                    # Needed because BLOOM past shapes are not the same for keys and values
-                    # Keys:   [batch_size * num_heads, head_dim, seq_length]
-                    # Values: [batch_size * num_heads, seq_length, head_dim]
-                    head_dim_last = False
-                    if t.shape[-2] == head_dim:
-                        t = t.view(
-                            batch.size, num_heads, head_dim, padded_sequence_length
-                        )
-                        padded_t_shape = (
-                            total_batch_size,
-                            num_heads,
-                            head_dim,
-                            max_sequence_length - 1,
-                        )
-                    elif t.shape[-1] == head_dim:
-                        head_dim_last = True
-                        t = t.view(
-                            batch.size, num_heads, padded_sequence_length, head_dim
-                        )
-                        padded_t_shape = (
-                            total_batch_size,
-                            num_heads,
-                            max_sequence_length - 1,
-                            head_dim,
-                        )
-                    else:
-                        raise ValueError(f"shape {t.shape} is not valid")
+                # We slice the past keys and values to remove the padding from previous batches
+                past_key_values[j][0][
+                    start_index:end_index, :, :, -(batch.max_sequence_length - 1) :
+                ] = past_keys[:, :, :, -(batch.max_sequence_length - 1) :]
 
-                    # Initialize tensors
-                    # This will run only once per layer and per past tensor
-                    if k == len(past_key_values[j]):
-                        past_key_values[j].append(
-                            torch.zeros(padded_t_shape, dtype=t.dtype, device=t.device)
-                        )
-
-                    # We slice the past keys and values to remove the padding from previous batches
-                    if not head_dim_last:
-                        past_key_values[j][k][
-                            start_index:end_index,
-                            :,
-                            :,
-                            -(batch.max_sequence_length - 1) :,
-                        ] = t[:, :, :, -(batch.max_sequence_length - 1) :]
-                    else:
-                        past_key_values[j][k][
-                            start_index:end_index,
-                            :,
-                            -(batch.max_sequence_length - 1) :,
-                            :,
-                        ] = t[:, :, -(batch.max_sequence_length - 1) :, :]
+                if past_values_head_dim_last:
+                    past_key_values[j][1][
+                        start_index:end_index,
+                        :,
+                        -(batch.max_sequence_length - 1) :,
+                        :,
+                    ] = past_values[:, :, -(batch.max_sequence_length - 1) :, :]
+                else:
+                    past_key_values[j][1][
+                        start_index:end_index,
+                        :,
+                        :,
+                        -(batch.max_sequence_length - 1) :,
+                    ] = past_values[:, :, :, -(batch.max_sequence_length - 1) :]
 
             start_index += batch.size
 
