@@ -123,20 +123,26 @@ fn validation_worker(
         }
 
         // Get the number of tokens in the input
-        let inputs = tokenizer.encode(request.inputs.clone(), false).unwrap();
-        let input_length = inputs.len();
+        match tokenizer.encode(request.inputs.clone(), false) {
+            Ok(inputs) => {
+                let input_length = inputs.len();
 
-        if input_length > max_input_length {
-            response_tx
-                .send(Err(ValidationError::InputLength(
-                    input_length,
-                    max_input_length,
-                )))
-                .unwrap_or(());
-            continue;
-        }
+                if input_length > max_input_length {
+                    response_tx
+                        .send(Err(ValidationError::InputLength(
+                            input_length,
+                            max_input_length,
+                        )))
+                        .unwrap_or(());
+                    continue;
+                }
 
-        response_tx.send(Ok((input_length, request))).unwrap_or(());
+                response_tx.send(Ok((input_length, request))).unwrap_or(());
+            }
+            Err(err) => response_tx
+                .send(Err(ValidationError::Tokenizer(err.to_string())))
+                .unwrap_or(()),
+        };
     }
 }
 
@@ -157,6 +163,8 @@ pub enum ValidationError {
     MaxNewTokens,
     #[error("inputs must have less than {1} tokens. Given: {0}")]
     InputLength(usize, usize),
+    #[error("tokenizer error {0}")]
+    Tokenizer(String),
 }
 
 impl From<ValidationError> for (StatusCode, Json<ErrorResponse>) {
