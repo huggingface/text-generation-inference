@@ -1,4 +1,4 @@
-FROM rust:1.64 as router-builder
+FROM rust:1.65 as router-builder
 
 WORKDIR /usr/src
 
@@ -10,7 +10,7 @@ WORKDIR /usr/src/router
 
 RUN cargo install --path .
 
-FROM rust:1.64 as launcher-builder
+FROM rust:1.65 as launcher-builder
 
 WORKDIR /usr/src
 
