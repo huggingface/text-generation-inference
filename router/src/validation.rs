@@ -101,7 +101,7 @@ fn validation_worker(
 ) {
     // Loop over requests
     while let Some((request, response_tx)) = receiver.blocking_recv() {
-        if request.parameters.temperature < 0.0 {
+        if request.parameters.temperature <= 0.0 {
             response_tx
                 .send(Err(ValidationError::Temperature))
                 .unwrap_or(());
@@ -162,7 +162,7 @@ pub enum ValidationError {
 impl From<ValidationError> for (StatusCode, Json<ErrorResponse>) {
     fn from(err: ValidationError) -> Self {
         (
-            StatusCode::BAD_REQUEST,
+            StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorResponse {
                 error: err.to_string(),
             }),

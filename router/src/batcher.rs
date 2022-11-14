@@ -220,7 +220,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
     fn from(err: InferError) -> Self {
         match err {
             InferError::GenerationError(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::FAILED_DEPENDENCY,
                 Json(ErrorResponse {
                     error: err.to_string(),
                 }),
