@@ -243,13 +243,13 @@ class CausalLM(Model):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
-        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=dtype,
             device_map="auto" if torch.cuda.is_available() else None,
             load_in_8bit=quantize,
         ).eval()
+        tokenizer.pad_token_id = self.model.config.pad_token_id
 
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
