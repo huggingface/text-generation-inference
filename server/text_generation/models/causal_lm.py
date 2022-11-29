@@ -381,7 +381,7 @@ class CausalLM(Model):
         next_batch_attention_mask = torch.cat(
             [
                 next_batch_attention_mask,
-                torch.ones((next_batch_size, 1)).to(self.device),
+                next_batch_attention_mask.new_ones(next_batch_size, 1),
             ],
             dim=1,
         )

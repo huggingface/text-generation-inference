@@ -90,11 +90,7 @@ async fn generate(
     // Validate request
     let (input_length, validated_request) = state
         .validation
-        // FIXME: can't we get rid of the cloning here??
-        .validate(GenerateRequest {
-            inputs: req.inputs.clone(),
-            parameters: req.parameters.clone(),
-        })
+        .validate(req.0)
         .await
         .map_err(|err| {
             tracing::error!("{}", err.to_string());

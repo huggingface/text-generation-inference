@@ -105,7 +105,7 @@ async fn batching_task(
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the DB
         let mut waiting_tokens = 0;
-        if let Some((request_ids, batch)) = db.next_batch(None, max_batch_size) {
+        while let Some((request_ids, batch)) = db.next_batch(None, max_batch_size) {
             let mut cached_batch = wrap_future(client.generate(batch), request_ids, &db).await;
             waiting_tokens += 1;
 
