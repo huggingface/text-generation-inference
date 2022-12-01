@@ -204,6 +204,9 @@ class GalacticaSharded(Galactica):
                 file, framework="pt", device=str(device) if not quantize else "cpu"
             ) as f:
                 for name in f.keys():
+                    if name == "lm_head.weight":
+                        continue
+
                     module_name, param_name = name.rsplit(".", 1)
                     try:
                         module = model.get_submodule(module_name)
