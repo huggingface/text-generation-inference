@@ -9,11 +9,11 @@ gen-server:
 install-transformers:
 	# Install specific version of transformers with custom cuda kernels
 	rm transformers || true
-	rm transformers-b55f16c5b71aeef47a66a4270e19c154f050a7a7 || true
-	curl -L -O https://github.com/OlivierDehaene/transformers/archive/b55f16c5b71aeef47a66a4270e19c154f050a7a7.zip
-	unzip b55f16c5b71aeef47a66a4270e19c154f050a7a7.zip
-	rm b55f16c5b71aeef47a66a4270e19c154f050a7a7.zip
-	mv transformers-b55f16c5b71aeef47a66a4270e19c154f050a7a7 transformers
+	rm transformers-text_generation_inference || true
+	curl -L -O https://github.com/OlivierDehaene/transformers/archive/refs/heads/text_generation_inference.zip
+	unzip text_generation_inference.zip
+	rm text_generation_inference.zip
+	mv transformers-text_generation_inference transformers
 	cd transformers && python setup.py install
 
 install-torch:

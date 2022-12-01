@@ -1,19 +1,24 @@
+import re
 import torch
 import torch.distributed
 
-from typing import List, Optional
+from typing import List, Optional, Type
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
-from transformers.models.bloom.parallel_layers import (
+from transformers.models.opt.parallel_layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
 )
 
 from text_generation.models import CausalLM
+from text_generation.pb import generate_pb2
+from text_generation.models.causal_lm import CausalLMBatch
 from text_generation.utils import (
+    NextTokenChooser,
+    StoppingCriteria,
     initialize_torch_distributed,
     weight_files,
     download_weights,
@@ -28,10 +33,110 @@ except Exception as e:
 
 torch.manual_seed(0)
 
+# CREDIT: Papers with code => https://github.com/paperswithcode/galai/blob/main/galai/utils.py
 
-class BLOOMSharded(CausalLM):
+# we split individual characters inside special tokens like [START_DNA]
+CUSTOM_SEQ_RE = re.compile(r"(\[START_(DNA|SMILES|I_SMILES|AMINO)])(.*?)(\[END_\2])")
+
+# token added to implement a custom sequence tokenization. This token is added at
+# corpus cleaning step and removed in pretokenization. The digits are added to increase the chance
+# that they do not occur in the corpus. The digits are escaped so that the token does not appear
+# literally in the source code in case we ever include it in the training data.
+SPLIT_MARKER = f"SPL{1}T-TH{1}S-Pl3A5E"
+
+
+def _insert_split_marker(m: re.Match):
+    """
+    Applies split marker based on a regex match of special tokens such as
+    [START_DNA].
+    Parameters
+    ----------
+    n : str
+        Input text to split
+    Returns
+    ----------
+    str - the text with the split token added
+    """
+    start_token, _, sequence, end_token = m.groups()
+    sequence = re.sub(r"(.)", rf"{SPLIT_MARKER}\1", sequence, flags=re.DOTALL)
+    return f"{start_token}{sequence}{SPLIT_MARKER}{end_token}"
+
+
+def escape_custom_split_sequence(text):
+    """
+    Applies custom splitting to the text for GALILEO's tokenization
+    Parameters
+    ----------
+    text : str
+        Input text to split
+    Returns
+    ----------
+    str - the text with the split token added
+    """
+    return CUSTOM_SEQ_RE.sub(_insert_split_marker, text)
+
+
+# END CREDIT
+
+
+class GalacticaCausalLMBatch(CausalLMBatch):
+    @classmethod
+    def from_pb(
+        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+    ) -> "CausalLMBatch":
+        inputs = []
+        next_token_choosers = []
+        stopping_criterias = []
+        input_lengths = []
+
+        # Parse batch
+        for r in pb.requests:
+            # Add escape_custom_split_sequence to the CausalLMBatch logic
+            inputs.append(escape_custom_split_sequence(r.inputs))
+            input_lengths.append(r.input_length)
+            next_token_choosers.append(
+                NextTokenChooser(
+                    temperature=r.parameters.temperature,
+                    top_k=r.parameters.top_k,
+                    top_p=r.parameters.top_p,
+                    do_sample=r.parameters.do_sample,
+                )
+            )
+            stopping_criterias.append(
+                StoppingCriteria(
+                    eos_token_id=tokenizer.eos_token_id, max_new_tokens=r.max_new_tokens
+                )
+            )
+
+        tokenized_inputs = tokenizer(
+            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8
+        ).to(device)
+        all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
+
+        return cls(
+            batch_id=pb.id,
+            requests=pb.requests,
+            input_ids=tokenized_inputs["input_ids"],
+            attention_mask=tokenized_inputs["attention_mask"],
+            past_key_values=None,
+            all_input_ids=all_input_ids,
+            input_lengths=input_lengths,
+            next_token_choosers=next_token_choosers,
+            stopping_criterias=stopping_criterias,
+            size=pb.size,
+            max_sequence_length=max(input_lengths),
+        )
+
+
+class Galactica(CausalLM):
+    @property
+    def batch_type(self) -> Type[CausalLMBatch]:
+        return GalacticaCausalLMBatch
+
+
+class GalacticaSharded(Galactica):
     def __init__(self, model_name: str, quantize: bool = False):
-        if not model_name.startswith("bigscience/bloom"):
+        if not model_name.startswith("facebook/galactica"):
             raise ValueError(f"Model {model_name} is not supported")
 
         self.process_group, self.rank, self.world_size = initialize_torch_distributed()
@@ -45,10 +150,8 @@ class BLOOMSharded(CausalLM):
 
         tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 
-        config = AutoConfig.from_pretrained(
-            model_name, slow_but_exact=False, tp_parallel=True
-        )
-        config.pad_token_id = 3
+        config = AutoConfig.from_pretrained(model_name, tp_parallel=True)
+        tokenizer.pad_token_id = config.pad_token_id
 
         # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
         # in PyTorch 1.12 and later.
@@ -58,7 +161,7 @@ class BLOOMSharded(CausalLM):
         torch.backends.cudnn.allow_tf32 = True
 
         # Only download weights for small models
-        if self.master and model_name == "bigscience/bloom-560m":
+        if self.master and model_name == "facebook/galactica-125m":
             download_weights(model_name, extension=".safetensors")
 
         torch.distributed.barrier(group=self.process_group)
@@ -82,7 +185,7 @@ class BLOOMSharded(CausalLM):
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
-            num_heads=config.n_head // self.process_group.size(),
+            num_heads=config.num_attention_heads // self.process_group.size(),
             device=device,
         )
 
@@ -101,11 +204,16 @@ class BLOOMSharded(CausalLM):
                 file, framework="pt", device=str(device) if not quantize else "cpu"
             ) as f:
                 for name in f.keys():
-                    full_name = f"transformer.{name}"
+                    if name == "lm_head.weight":
+                        continue
 
-                    module_name, param_name = full_name.rsplit(".", 1)
-                    module = model.get_submodule(module_name)
-                    current_tensor = parameters[full_name]
+                    module_name, param_name = name.rsplit(".", 1)
+                    try:
+                        module = model.get_submodule(module_name)
+                    except Exception as e:
+                        print(type(model), name, module_name, param_name)
+                        raise e
+                    current_tensor = parameters[name]
 
                     slice_ = f.get_slice(name)
 
@@ -215,7 +323,7 @@ class BLOOMSharded(CausalLM):
                             tensor = tensor.to(device)
 
                     module._parameters[param_name] = tensor
-                    if name == "word_embeddings.weight":
+                    if name == "model.decoder.embed_tokens.weight":
                         model.lm_head._parameters["weight"] = tensor
 
     def forward(self, input_ids, attention_mask, past_key_values: Optional = None):

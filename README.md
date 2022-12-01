@@ -21,6 +21,7 @@ to power Bloom, BloomZ and MT0-XXL api-inference widgets.
 - [BLOOM](https://huggingface.co/bigscience/bloom)
 - [BLOOMZ](https://huggingface.co/bigscience/bloomz)
 - [MT0-XXL](https://huggingface.co/bigscience/mt0-xxl)
+- ~~[Galactica](https://huggingface.co/facebook/galactica-120b)~~ (deactivated)
 
 Other models are supported on a best effort basis using:
 

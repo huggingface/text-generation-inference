@@ -11,7 +11,7 @@ from functools import partial
 from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
 from huggingface_hub.utils import LocalEntryNotFoundError
 from tqdm import tqdm
-from transformers.generation_logits_process import (
+from transformers.generation.logits_process import (
     LogitsProcessorList,
     TemperatureLogitsWarper,
     TopPLogitsWarper,
