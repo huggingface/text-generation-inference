@@ -185,7 +185,6 @@ class GalacticaSharded(Galactica):
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
-            num_heads=config.num_attention_heads // self.process_group.size(),
             device=device,
         )
 

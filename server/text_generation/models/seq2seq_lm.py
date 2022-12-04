@@ -319,7 +319,6 @@ class Seq2SeqLM(Model):
 
         super(Seq2SeqLM, self).__init__(
             tokenizer=tokenizer,
-            num_heads=self.model.config.num_attention_heads,
             device=device,
         )
 
