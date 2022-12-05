@@ -155,7 +155,7 @@ type ValidationRequest = (
 pub enum ValidationError {
     #[error("temperature must be strictly positive")]
     Temperature,
-    #[error("top_p must be >= 0.0 or < 1.0")]
+    #[error("top_p must be > 0.0 and <= 1.0")]
     TopP,
     #[error("top_k must be strictly positive")]
     TopK,

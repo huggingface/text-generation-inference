@@ -82,7 +82,6 @@ class BLOOMSharded(CausalLM):
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
-            num_heads=config.n_head // self.process_group.size(),
             device=device,
         )
 

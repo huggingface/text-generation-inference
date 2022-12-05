@@ -10,9 +10,8 @@ B = TypeVar("B", bound=Batch)
 
 
 class Model(ABC):
-    def __init__(self, tokenizer: Tokenizer, num_heads: int, device: torch.device):
+    def __init__(self, tokenizer: Tokenizer, device: torch.device):
         self.tokenizer = tokenizer
-        self.num_heads = num_heads
         self.device = device
 
     @property

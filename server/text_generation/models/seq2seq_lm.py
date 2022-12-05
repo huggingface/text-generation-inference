@@ -87,7 +87,7 @@ class Seq2SeqLMBatch:
             inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8
         ).to(device)
         # Convert decoder_input_ids to torch tensor of size [batch_size, 1]
-        decoder_input_ids = torch.tensor(decoder_input_ids).to(device).unsqueeze(-1)
+        decoder_input_ids = torch.tensor(decoder_input_ids, device=device).unsqueeze(-1)
 
         return cls(
             batch_id=pb.id,
@@ -319,7 +319,6 @@ class Seq2SeqLM(Model):
 
         super(Seq2SeqLM, self).__init__(
             tokenizer=tokenizer,
-            num_heads=self.model.config.num_attention_heads,
             device=device,
         )
 
@@ -499,7 +498,7 @@ class Seq2SeqLM(Model):
             next_batch_decoder_attention_mask = torch.cat(
                 [
                     next_batch_decoder_attention_mask,
-                    torch.ones((next_batch_size, 1)).to(self.device),
+                    next_batch_decoder_attention_mask.new_ones(next_batch_size, 1),
                 ],
                 dim=1,
             )

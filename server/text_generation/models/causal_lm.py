@@ -251,7 +251,6 @@ class CausalLM(Model):
 
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
-            num_heads=self.model.config.num_attention_heads,
             device=device,
         )
 
@@ -358,7 +357,7 @@ class CausalLM(Model):
             # Force past to be of dim [batch_size, num_heads, ...] for easy indexing
             next_batch_past_key_values = [
                 [
-                    t.view(-1, self.num_heads, *t.shape[-2:])[next_batch_keep_indices]
+                    t.view(batch.size, -1, *t.shape[-2:])[next_batch_keep_indices]
                     for t in layer
                 ]
                 for layer in past
@@ -381,7 +380,7 @@ class CausalLM(Model):
         next_batch_attention_mask = torch.cat(
             [
                 next_batch_attention_mask,
-                torch.ones((next_batch_size, 1)).to(self.device),
+                next_batch_attention_mask.new_ones(next_batch_size, 1),
             ],
             dim=1,
         )
