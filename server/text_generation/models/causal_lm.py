@@ -46,7 +46,7 @@ class CausalLMBatch:
 
     @classmethod
     def from_pb(
-            cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
     ) -> "CausalLMBatch":
         inputs = []
         next_token_choosers = []
@@ -147,8 +147,8 @@ class CausalLMBatch:
 
             # We need to slice the attention mask to remove padding from previous steps
             attention_mask[
-            start_index:end_index, -batch.max_sequence_length:
-            ] = batch.attention_mask[:, -batch.max_sequence_length:]
+                start_index:end_index, -batch.max_sequence_length :
+            ] = batch.attention_mask[:, -batch.max_sequence_length :]
 
             for j, past in enumerate(batch.past_key_values):
                 past_keys, past_values = past
@@ -196,22 +196,22 @@ class CausalLMBatch:
                 # We slice the past keys and values to remove the padding from previous batches
                 if batch.keys_head_dim_last:
                     past_key_values[j][0][
-                    start_index:end_index,
-                    :,
-                    -(batch.max_sequence_length - 1):,
-                    :,
-                    ] = past_keys[:, :, -(batch.max_sequence_length - 1):, :]
+                        start_index:end_index,
+                        :,
+                        -(batch.max_sequence_length - 1) :,
+                        :,
+                    ] = past_keys[:, :, -(batch.max_sequence_length - 1) :, :]
                 else:
                     past_key_values[j][0][
-                    start_index:end_index,
-                    :,
-                    :,
-                    -(batch.max_sequence_length - 1):,
-                    ] = past_keys[:, :, :, -(batch.max_sequence_length - 1):]
+                        start_index:end_index,
+                        :,
+                        :,
+                        -(batch.max_sequence_length - 1) :,
+                    ] = past_keys[:, :, :, -(batch.max_sequence_length - 1) :]
 
                 past_key_values[j][1][
-                start_index:end_index, :, -(batch.max_sequence_length - 1):, :
-                ] = past_values[:, :, -(batch.max_sequence_length - 1):, :]
+                    start_index:end_index, :, -(batch.max_sequence_length - 1) :, :
+                ] = past_values[:, :, -(batch.max_sequence_length - 1) :, :]
 
             start_index += batch.size
 
@@ -227,7 +227,7 @@ class CausalLMBatch:
             stopping_criterias=stopping_criterias,
             size=total_batch_size,
             max_sequence_length=max_sequence_length,
-            keys_head_dim_last=batches[0].keys_head_dim_last
+            keys_head_dim_last=batches[0].keys_head_dim_last,
         )
 
 
@@ -250,7 +250,11 @@ class CausalLM(Model):
             device_map="auto" if torch.cuda.is_available() else None,
             load_in_8bit=quantize,
         ).eval()
-        tokenizer.pad_token_id = self.model.config.pad_token_id if self.model.config.pad_token_id is not None else self.model.config.eos_token_id
+        tokenizer.pad_token_id = (
+            self.model.config.pad_token_id
+            if self.model.config.pad_token_id is not None
+            else self.model.config.eos_token_id
+        )
 
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -262,7 +266,7 @@ class CausalLM(Model):
         return CausalLMBatch
 
     def forward(
-            self, input_ids, attention_mask, past_key_values: Optional = None
+        self, input_ids, attention_mask, past_key_values: Optional = None
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
         outputs = self.model.forward(
@@ -274,7 +278,7 @@ class CausalLM(Model):
         return outputs.logits, outputs.past_key_values
 
     def generate_token(
-            self, batch: CausalLMBatch
+        self, batch: CausalLMBatch
     ) -> Tuple[List[GeneratedText], Optional[CausalLMBatch]]:
         # For some reason, inference_mode does not work well with GLOO which we use on CPU
         context_manager = (
@@ -312,12 +316,12 @@ class CausalLM(Model):
 
         # For each member of the batch
         for i, (
-                request,
-                input_length,
-                logits,
-                next_token_chooser,
-                stopping_criteria,
-                all_tokens,
+            request,
+            input_length,
+            logits,
+            next_token_chooser,
+            stopping_criteria,
+            all_tokens,
         ) in enumerate(iterator):
             # Select next token
             next_token = next_token_chooser(all_tokens, logits.unsqueeze(0)[:, -1])
@@ -400,6 +404,6 @@ class CausalLM(Model):
             stopping_criterias=next_batch_stopping_criterias,
             size=next_batch_size,
             max_sequence_length=next_batch_max_sequence_length,
-            keys_head_dim_last=batch.keys_head_dim_last
+            keys_head_dim_last=batch.keys_head_dim_last,
         )
         return generated_texts, next_batch

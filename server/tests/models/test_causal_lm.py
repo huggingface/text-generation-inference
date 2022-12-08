@@ -20,11 +20,7 @@ def default_pb_request(default_pb_parameters):
 
 @pytest.fixture
 def default_pb_batch(default_pb_request):
-    return generate_pb2.Batch(
-        id=0,
-        requests=[default_pb_request],
-        size=1
-    )
+    return generate_pb2.Batch(id=0, requests=[default_pb_request], size=1)
 
 
 @pytest.fixture
@@ -39,11 +35,7 @@ def default_multi_requests_causal_lm_batch(default_pb_request, gpt2_tokenizer):
     req_1.id = 1
     req_1.max_new_tokens = 5
 
-    batch_pb = generate_pb2.Batch(
-        id=0,
-        requests=[req_0, req_1],
-        size=2
-    )
+    batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return CausalLMBatch.from_pb(batch_pb, gpt2_tokenizer, torch.device("cpu"))
 
 
@@ -88,7 +80,9 @@ def test_causal_lm_batch_type(default_causal_lm):
 
 
 def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
-    generated_texts, next_batch = default_causal_lm.generate_token(default_causal_lm_batch)
+    generated_texts, next_batch = default_causal_lm.generate_token(
+        default_causal_lm_batch
+    )
 
     assert generated_texts == []
     assert isinstance(next_batch, CausalLMBatch)
@@ -113,7 +107,9 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     assert all([p[1].shape == (1, 12, 8, 64) for p in next_batch.past_key_values])
 
 
-def test_causal_lm_generate_token_completion(default_causal_lm, default_causal_lm_batch):
+def test_causal_lm_generate_token_completion(
+    default_causal_lm, default_causal_lm_batch
+):
     next_batch = default_causal_lm_batch
     for _ in range(default_causal_lm_batch.stopping_criterias[0].max_new_tokens - 1):
         generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
@@ -123,15 +119,25 @@ def test_causal_lm_generate_token_completion(default_causal_lm, default_causal_l
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "Test Test Test Test Test Test Test Test Test Test Test"
+    assert (
+        generated_texts[0].output
+        == "Test Test Test Test Test Test Test Test Test Test Test"
+    )
     assert generated_texts[0].request == default_causal_lm_batch.requests[0]
-    assert generated_texts[0].tokens == default_causal_lm_batch.stopping_criterias[0].max_new_tokens
+    assert (
+        generated_texts[0].tokens
+        == default_causal_lm_batch.stopping_criterias[0].max_new_tokens
+    )
 
 
-def test_causal_lm_generate_token_completion_multi(default_causal_lm, default_multi_requests_causal_lm_batch):
+def test_causal_lm_generate_token_completion_multi(
+    default_causal_lm, default_multi_requests_causal_lm_batch
+):
     next_batch = default_multi_requests_causal_lm_batch
 
-    for i in range(default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 1):
+    for i in range(
+        default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 1
+    ):
         generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
         assert generated_texts == []
 
@@ -140,12 +146,19 @@ def test_causal_lm_generate_token_completion_multi(default_causal_lm, default_mu
 
     assert len(generated_texts) == 1
     assert generated_texts[0].output == "Test Test Test Test Test Test"
-    assert generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[1]
-    assert generated_texts[0].tokens == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
+    assert (
+        generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[1]
+    )
+    assert (
+        generated_texts[0].tokens
+        == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
+    )
 
     for _ in range(
-            default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens -
-            default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 1):
+        default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
+        - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
+        - 1
+    ):
         generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
         assert generated_texts == []
 
@@ -153,12 +166,22 @@ def test_causal_lm_generate_token_completion_multi(default_causal_lm, default_mu
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "Test Test Test Test Test Test Test Test Test Test Test"
-    assert generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[0]
-    assert generated_texts[0].tokens == default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
+    assert (
+        generated_texts[0].output
+        == "Test Test Test Test Test Test Test Test Test Test Test"
+    )
+    assert (
+        generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[0]
+    )
+    assert (
+        generated_texts[0].tokens
+        == default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
+    )
 
 
-def test_batch_concatenate(default_causal_lm, default_causal_lm_batch, default_multi_requests_causal_lm_batch):
+def test_batch_concatenate(
+    default_causal_lm, default_causal_lm_batch, default_multi_requests_causal_lm_batch
+):
     next_batch_0 = default_causal_lm_batch
     _, next_batch_0 = default_causal_lm.generate_token(next_batch_0)
     _, next_batch_0 = default_causal_lm.generate_token(next_batch_0)
@@ -197,12 +220,18 @@ def test_batch_concatenate(default_causal_lm, default_causal_lm_batch, default_m
 
     for i, past in enumerate(next_batch.past_key_values):
         assert torch.equal(next_batch_0.past_key_values[i][0][0, :, -2:], past[0][0])
-        assert torch.equal(next_batch_1.past_key_values[i][0][:, :, -1:], past[0][1:, :, -1:, :])
+        assert torch.equal(
+            next_batch_1.past_key_values[i][0][:, :, -1:], past[0][1:, :, -1:, :]
+        )
 
         assert torch.equal(next_batch_0.past_key_values[i][1][0, :, -2:], past[1][0])
-        assert torch.equal(next_batch_1.past_key_values[i][1][:, :, -1:], past[1][1:, :, -1:, :])
+        assert torch.equal(
+            next_batch_1.past_key_values[i][1][:, :, -1:], past[1][1:, :, -1:, :]
+        )
 
-    for _ in range(default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 2):
+    for _ in range(
+        default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 2
+    ):
         generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
         assert generated_texts == []
 
@@ -211,12 +240,19 @@ def test_batch_concatenate(default_causal_lm, default_causal_lm_batch, default_m
 
     assert len(generated_texts) == 1
     assert generated_texts[0].output == "Test Test Test Test Test Test"
-    assert generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[1]
-    assert generated_texts[0].tokens == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
+    assert (
+        generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[1]
+    )
+    assert (
+        generated_texts[0].tokens
+        == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
+    )
 
     for _ in range(
-            default_causal_lm_batch.stopping_criterias[0].max_new_tokens -
-            default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 2):
+        default_causal_lm_batch.stopping_criterias[0].max_new_tokens
+        - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
+        - 2
+    ):
         generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
         assert generated_texts == []
 
@@ -224,14 +260,22 @@ def test_batch_concatenate(default_causal_lm, default_causal_lm_batch, default_m
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "Test Test Test Test Test Test Test Test Test Test Test"
+    assert (
+        generated_texts[0].output
+        == "Test Test Test Test Test Test Test Test Test Test Test"
+    )
     assert generated_texts[0].request == default_causal_lm_batch.requests[0]
-    assert generated_texts[0].tokens == default_causal_lm_batch.stopping_criterias[0].max_new_tokens
+    assert (
+        generated_texts[0].tokens
+        == default_causal_lm_batch.stopping_criterias[0].max_new_tokens
+    )
 
     for _ in range(
-            default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens -
-            default_causal_lm_batch.stopping_criterias[0].max_new_tokens -
-            default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 4):
+        default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
+        - default_causal_lm_batch.stopping_criterias[0].max_new_tokens
+        - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
+        - 4
+    ):
         generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
         assert generated_texts == []
 
@@ -239,6 +283,14 @@ def test_batch_concatenate(default_causal_lm, default_causal_lm_batch, default_m
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "Test Test Test Test Test Test Test Test Test Test Test"
-    assert generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[0]
-    assert generated_texts[0].tokens == default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
+    assert (
+        generated_texts[0].output
+        == "Test Test Test Test Test Test Test Test Test Test Test"
+    )
+    assert (
+        generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[0]
+    )
+    assert (
+        generated_texts[0].tokens
+        == default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
+    )

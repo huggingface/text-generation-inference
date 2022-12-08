@@ -34,9 +34,11 @@ torch.manual_seed(0)
 class BloomCausalLMBatch(CausalLMBatch):
     @classmethod
     def from_pb(
-            cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
     ) -> "CausalLMBatch":
-        batch = super(BloomCausalLMBatch, cls).from_pb(pb=pb, tokenizer=tokenizer, device=device)
+        batch = super(BloomCausalLMBatch, cls).from_pb(
+            pb=pb, tokenizer=tokenizer, device=device
+        )
         batch.keys_head_dim_last = False
         return batch
 
@@ -105,17 +107,17 @@ class BLOOMSharded(BLOOM):
 
     @staticmethod
     def load_weights(
-            model,
-            filenames: List[str],
-            quantize: bool,
-            device: torch.device,
-            rank: int,
-            world_size: int,
+        model,
+        filenames: List[str],
+        quantize: bool,
+        device: torch.device,
+        rank: int,
+        world_size: int,
     ):
         parameters = dict(model.named_parameters())
         for file in filenames:
             with safe_open(
-                    file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if not quantize else "cpu"
             ) as f:
                 for name in f.keys():
                     full_name = f"transformer.{name}"
@@ -178,9 +180,9 @@ class BLOOMSharded(BLOOM):
                             )
 
                         if (
-                                type(module)
-                                in [TensorParallelRowLinear, TensorParallelColumnLinear]
-                                and param_name == "weight"
+                            type(module)
+                            in [TensorParallelRowLinear, TensorParallelColumnLinear]
+                            and param_name == "weight"
                         ):
                             tensor = Int8Params(
                                 tensor.transpose(1, 0),

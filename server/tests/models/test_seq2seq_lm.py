@@ -20,16 +20,14 @@ def default_pb_request(default_pb_parameters):
 
 @pytest.fixture
 def default_pb_batch(default_pb_request):
-    return generate_pb2.Batch(
-        id=0,
-        requests=[default_pb_request],
-        size=1
-    )
+    return generate_pb2.Batch(id=0, requests=[default_pb_request], size=1)
 
 
 @pytest.fixture
 def default_seq2seq_lm_batch(default_pb_batch, mt0_small_tokenizer):
-    return Seq2SeqLMBatch.from_pb(default_pb_batch, mt0_small_tokenizer, torch.device("cpu"))
+    return Seq2SeqLMBatch.from_pb(
+        default_pb_batch, mt0_small_tokenizer, torch.device("cpu")
+    )
 
 
 @pytest.fixture
@@ -39,11 +37,7 @@ def default_multi_requests_seq2seq_lm_batch(default_pb_request, mt0_small_tokeni
     req_1.id = 1
     req_1.max_new_tokens = 5
 
-    batch_pb = generate_pb2.Batch(
-        id=0,
-        requests=[req_0, req_1],
-        size=2
-    )
+    batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return Seq2SeqLMBatch.from_pb(batch_pb, mt0_small_tokenizer, torch.device("cpu"))
 
 
@@ -92,16 +86,22 @@ def test_seq2seq_lm_batch_type(default_seq2seq_lm):
 
 
 def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch):
-    generated_texts, next_batch = default_seq2seq_lm.generate_token(default_seq2seq_lm_batch)
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(
+        default_seq2seq_lm_batch
+    )
 
     assert generated_texts == []
     assert isinstance(next_batch, Seq2SeqLMBatch)
 
     assert torch.equal(next_batch.input_ids, default_seq2seq_lm_batch.input_ids)
-    assert torch.equal(next_batch.attention_mask, default_seq2seq_lm_batch.attention_mask)
+    assert torch.equal(
+        next_batch.attention_mask, default_seq2seq_lm_batch.attention_mask
+    )
     assert next_batch.input_lengths == default_seq2seq_lm_batch.input_lengths
     assert next_batch.max_input_length == default_seq2seq_lm_batch.max_input_length
-    assert next_batch.next_token_choosers == default_seq2seq_lm_batch.next_token_choosers
+    assert (
+        next_batch.next_token_choosers == default_seq2seq_lm_batch.next_token_choosers
+    )
     assert next_batch.stopping_criterias == default_seq2seq_lm_batch.stopping_criterias
 
     assert next_batch.decoder_input_ids.shape == (next_batch.size, 2)
@@ -114,13 +114,23 @@ def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch)
     assert next_batch.max_decoder_input_length == 2
 
     assert next_batch.past_key_values is not None
-    assert all([p[0].shape == (next_batch.size, 6, 1, 64) for p in next_batch.past_key_values])
-    assert all([p[1].shape == (next_batch.size, 6, 1, 64) for p in next_batch.past_key_values])
-    assert all([p[2].shape == (next_batch.size, 6, 8, 64) for p in next_batch.past_key_values])
-    assert all([p[3].shape == (next_batch.size, 6, 8, 64) for p in next_batch.past_key_values])
+    assert all(
+        [p[0].shape == (next_batch.size, 6, 1, 64) for p in next_batch.past_key_values]
+    )
+    assert all(
+        [p[1].shape == (next_batch.size, 6, 1, 64) for p in next_batch.past_key_values]
+    )
+    assert all(
+        [p[2].shape == (next_batch.size, 6, 8, 64) for p in next_batch.past_key_values]
+    )
+    assert all(
+        [p[3].shape == (next_batch.size, 6, 8, 64) for p in next_batch.past_key_values]
+    )
 
 
-def test_seq2seq_lm_generate_token_completion(default_seq2seq_lm, default_seq2seq_lm_batch):
+def test_seq2seq_lm_generate_token_completion(
+    default_seq2seq_lm, default_seq2seq_lm_batch
+):
     next_batch = default_seq2seq_lm_batch
     for _ in range(6):
         generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
@@ -135,7 +145,9 @@ def test_seq2seq_lm_generate_token_completion(default_seq2seq_lm, default_seq2se
     assert generated_texts[0].tokens == 7
 
 
-def test_seq2seq_lm_generate_token_completion_multi(default_seq2seq_lm, default_multi_requests_seq2seq_lm_batch):
+def test_seq2seq_lm_generate_token_completion_multi(
+    default_seq2seq_lm, default_multi_requests_seq2seq_lm_batch
+):
     next_batch = default_multi_requests_seq2seq_lm_batch
 
     for i in range(4):
@@ -147,7 +159,10 @@ def test_seq2seq_lm_generate_token_completion_multi(default_seq2seq_lm, default_
 
     assert len(generated_texts) == 1
     assert generated_texts[0].output == "a few "
-    assert generated_texts[0].request == default_multi_requests_seq2seq_lm_batch.requests[1]
+    assert (
+        generated_texts[0].request
+        == default_multi_requests_seq2seq_lm_batch.requests[1]
+    )
     assert generated_texts[0].tokens == 5
 
     generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
@@ -158,11 +173,18 @@ def test_seq2seq_lm_generate_token_completion_multi(default_seq2seq_lm, default_
 
     assert len(generated_texts) == 1
     assert generated_texts[0].output == "a few weeks"
-    assert generated_texts[0].request == default_multi_requests_seq2seq_lm_batch.requests[0]
+    assert (
+        generated_texts[0].request
+        == default_multi_requests_seq2seq_lm_batch.requests[0]
+    )
     assert generated_texts[0].tokens == 7
 
 
-def test_batch_concatenate(default_seq2seq_lm, default_seq2seq_lm_batch, default_multi_requests_seq2seq_lm_batch):
+def test_batch_concatenate(
+    default_seq2seq_lm,
+    default_seq2seq_lm_batch,
+    default_multi_requests_seq2seq_lm_batch,
+):
     next_batch_0 = default_seq2seq_lm_batch
     _, next_batch_0 = default_seq2seq_lm.generate_token(next_batch_0)
     _, next_batch_0 = default_seq2seq_lm.generate_token(next_batch_0)
@@ -179,16 +201,26 @@ def test_batch_concatenate(default_seq2seq_lm, default_seq2seq_lm_batch, default
 
     assert torch.all(next_batch.attention_mask == 1)
 
-    assert torch.equal(next_batch.decoder_input_ids[0], next_batch_0.decoder_input_ids[0])
+    assert torch.equal(
+        next_batch.decoder_input_ids[0], next_batch_0.decoder_input_ids[0]
+    )
     assert torch.all(next_batch.decoder_input_ids[1:, 0] == 0)
-    assert torch.equal(next_batch.decoder_input_ids[1:, -2:], next_batch_1.decoder_input_ids)
+    assert torch.equal(
+        next_batch.decoder_input_ids[1:, -2:], next_batch_1.decoder_input_ids
+    )
 
     assert torch.all(next_batch.decoder_attention_mask[0] == 1)
     assert torch.all(next_batch.decoder_attention_mask[1:, 0] == 0)
     assert torch.all(next_batch.decoder_attention_mask[1:, -2:] == 1)
 
-    assert torch.equal(next_batch.encoder_last_hidden_state[0], next_batch_0.encoder_last_hidden_state[0, -2:])
-    assert torch.equal(next_batch.encoder_last_hidden_state[1:], next_batch_1.encoder_last_hidden_state[:, -2:])
+    assert torch.equal(
+        next_batch.encoder_last_hidden_state[0],
+        next_batch_0.encoder_last_hidden_state[0, -2:],
+    )
+    assert torch.equal(
+        next_batch.encoder_last_hidden_state[1:],
+        next_batch_1.encoder_last_hidden_state[:, -2:],
+    )
 
     assert next_batch.input_lengths == [2, 2, 2]
     assert next_batch.decoder_input_lengths == [3, 2, 2]
@@ -205,23 +237,39 @@ def test_batch_concatenate(default_seq2seq_lm, default_seq2seq_lm_batch, default
     assert next_batch.stopping_criterias[1:] == next_batch_1.stopping_criterias
 
     assert next_batch.past_key_values is not None
-    assert all([p[0].shape == (next_batch.size, 6, 2, 64) for p in next_batch.past_key_values])
-    assert all([p[1].shape == (next_batch.size, 6, 2, 64) for p in next_batch.past_key_values])
-    assert all([p[2].shape == (next_batch.size, 6, 2, 64) for p in next_batch.past_key_values])
-    assert all([p[3].shape == (next_batch.size, 6, 2, 64) for p in next_batch.past_key_values])
+    assert all(
+        [p[0].shape == (next_batch.size, 6, 2, 64) for p in next_batch.past_key_values]
+    )
+    assert all(
+        [p[1].shape == (next_batch.size, 6, 2, 64) for p in next_batch.past_key_values]
+    )
+    assert all(
+        [p[2].shape == (next_batch.size, 6, 2, 64) for p in next_batch.past_key_values]
+    )
+    assert all(
+        [p[3].shape == (next_batch.size, 6, 2, 64) for p in next_batch.past_key_values]
+    )
 
     for i, past in enumerate(next_batch.past_key_values):
         assert torch.equal(next_batch_0.past_key_values[i][0][0, :, -2:, :], past[0][0])
-        assert torch.equal(next_batch_1.past_key_values[i][0][:, :, -1:, :], past[0][1:, :, -1:, :])
+        assert torch.equal(
+            next_batch_1.past_key_values[i][0][:, :, -1:, :], past[0][1:, :, -1:, :]
+        )
 
         assert torch.equal(next_batch_0.past_key_values[i][1][0, :, -2:, :], past[1][0])
-        assert torch.equal(next_batch_1.past_key_values[i][1][:, :, -1:, :], past[1][1:, :, -1:, :])
+        assert torch.equal(
+            next_batch_1.past_key_values[i][1][:, :, -1:, :], past[1][1:, :, -1:, :]
+        )
 
         assert torch.equal(next_batch_0.past_key_values[i][2][0, :, -2:, :], past[2][0])
-        assert torch.equal(next_batch_1.past_key_values[i][2][:, :, -2:, :], past[2][1:])
+        assert torch.equal(
+            next_batch_1.past_key_values[i][2][:, :, -2:, :], past[2][1:]
+        )
 
         assert torch.equal(next_batch_0.past_key_values[i][3][0, :, -2:, :], past[3][0])
-        assert torch.equal(next_batch_1.past_key_values[i][3][:, :, -2:, :], past[3][1:])
+        assert torch.equal(
+            next_batch_1.past_key_values[i][3][:, :, -2:, :], past[3][1:]
+        )
 
     for _ in range(3):
         generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
@@ -232,7 +280,10 @@ def test_batch_concatenate(default_seq2seq_lm, default_seq2seq_lm_batch, default
 
     assert len(generated_texts) == 1
     assert generated_texts[0].output == "a few "
-    assert generated_texts[0].request == default_multi_requests_seq2seq_lm_batch.requests[1]
+    assert (
+        generated_texts[0].request
+        == default_multi_requests_seq2seq_lm_batch.requests[1]
+    )
     assert generated_texts[0].tokens == 5
 
     generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
@@ -248,5 +299,8 @@ def test_batch_concatenate(default_seq2seq_lm, default_seq2seq_lm_batch, default
 
     assert len(generated_texts) == 1
     assert generated_texts[0].output == "a few weeks"
-    assert generated_texts[0].request == default_multi_requests_seq2seq_lm_batch.requests[0]
+    assert (
+        generated_texts[0].request
+        == default_multi_requests_seq2seq_lm_batch.requests[0]
+    )
     assert generated_texts[0].tokens == 7

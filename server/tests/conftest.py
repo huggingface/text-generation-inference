@@ -29,6 +29,8 @@ def gpt2_tokenizer():
 
 @pytest.fixture(scope="session")
 def mt0_small_tokenizer():
-    tokenizer = AutoTokenizer.from_pretrained("bigscience/mt0-small", padding_side="left")
+    tokenizer = AutoTokenizer.from_pretrained(
+        "bigscience/mt0-small", padding_side="left"
+    )
     tokenizer.bos_token_id = 0
     return tokenizer

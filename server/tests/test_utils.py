@@ -1,6 +1,11 @@
 import pytest
 
-from text_generation.utils import weight_hub_files, download_weights, weight_files, LocalEntryNotFoundError
+from text_generation.utils import (
+    weight_hub_files,
+    download_weights,
+    weight_files,
+    LocalEntryNotFoundError,
+)
 
 
 def test_weight_hub_files():
@@ -27,4 +32,3 @@ def test_download_weights():
 def test_weight_files_error():
     with pytest.raises(LocalEntryNotFoundError):
         weight_files("bert-base-uncased")
-
