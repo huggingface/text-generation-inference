@@ -8,8 +8,9 @@ gen-server:
 
 install-transformers:
 	# Install specific version of transformers with custom cuda kernels
-	rm transformers || true
-	rm transformers-text_generation_inference || true
+	pip uninstall transformers -y || true
+	rm -rf transformers || true
+	rm -rf transformers-text_generation_inference || true
 	curl -L -O https://github.com/OlivierDehaene/transformers/archive/refs/heads/text_generation_inference.zip
 	unzip text_generation_inference.zip
 	rm text_generation_inference.zip

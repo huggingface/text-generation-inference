@@ -70,7 +70,7 @@ impl Batcher {
 
         // Notify the background task that we have a new entry in the database that needs
         // to be batched
-        self.shared.batching_task.notify_waiters();
+        self.shared.batching_task.notify_one();
 
         // Await on the response from the background task
         // We can safely unwrap as the background task will never drop the sender

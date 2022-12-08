@@ -221,8 +221,8 @@ class Seq2SeqLMBatch:
 
             # Copy to correct indices
             encoder_last_hidden_state[
-                start_index:end_index, -batch.max_decoder_input_length :, :
-            ] = batch.encoder_last_hidden_state[:, -batch.max_decoder_input_length :, :]
+                start_index:end_index, -batch.max_input_length :, :
+            ] = batch.encoder_last_hidden_state[:, -batch.max_input_length :, :]
 
             # Iterate over attention layers
             for j, past in enumerate(batch.past_key_values):
@@ -305,6 +305,9 @@ class Seq2SeqLM(Model):
             device = torch.device("cuda")
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
         else:
+            if quantize:
+                raise ValueError("quantization is not available on CPU")
+
             device = torch.device("cpu")
             dtype = torch.float32
 

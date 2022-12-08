@@ -83,7 +83,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
     @classmethod
     def from_pb(
         cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
-    ) -> "CausalLMBatch":
+    ) -> "GalacticaCausalLMBatch":
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
