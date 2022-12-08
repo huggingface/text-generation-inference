@@ -2,7 +2,7 @@ import torch
 
 from dataclasses import dataclass
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from typing import Optional, Tuple, List, Type, ClassVar
+from typing import Optional, Tuple, List, Type
 
 from text_generation.models import Model
 from text_generation.models.types import GeneratedText
