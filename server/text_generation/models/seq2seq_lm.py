@@ -83,8 +83,9 @@ class Seq2SeqLMBatch:
             )
 
         # Tokenize batch
+        pad_to_multiple_of = 8 if "gpu" in str(device) else None
         tokenized_inputs = tokenizer(
-            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8
+            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=pad_to_multiple_of
         ).to(device)
         # Convert decoder_input_ids to torch tensor of size [batch_size, 1]
         decoder_input_ids = torch.tensor(decoder_input_ids, device=device).unsqueeze(-1)

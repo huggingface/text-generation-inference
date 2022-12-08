@@ -71,8 +71,9 @@ class CausalLMBatch:
                 )
             )
 
+        pad_to_multiple_of = 8 if "gpu" in str(device) else None
         tokenized_inputs = tokenizer(
-            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8
+            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=pad_to_multiple_of
         ).to(device)
         all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
 
