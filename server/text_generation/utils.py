@@ -137,8 +137,8 @@ def download_weights(model_name, extension=".safetensors"):
         executor.submit(download_function, filename=filename) for filename in filenames
     ]
     files = [
-        file
-        for file in tqdm(concurrent.futures.as_completed(futures), total=len(futures))
+        future.result()
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures))
     ]
 
     return files

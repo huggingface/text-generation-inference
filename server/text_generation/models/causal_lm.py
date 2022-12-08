@@ -34,6 +34,9 @@ class CausalLMBatch:
     size: int
     max_sequence_length: int
 
+    # Past metadata
+    keys_head_dim_last: bool = True
+
     def to_pb(self):
         return generate_pb2.Batch(
             id=self.batch_id,
@@ -165,20 +168,16 @@ class CausalLMBatch:
                     head_dim,
                 )
 
+                if batch.keys_head_dim_last:
+                    padded_past_keys_shape = padded_past_values_shape
                 # seq_length is last for BLOOM
-                if past_keys.shape[-2] == head_dim:
-                    past_keys_head_dim_last = False
+                else:
                     padded_past_keys_shape = (
                         total_batch_size,
                         num_heads,
                         head_dim,
                         max_sequence_length - 1,
                     )
-                elif past_keys.shape[-1] == head_dim:
-                    past_keys_head_dim_last = True
-                    padded_past_keys_shape = padded_past_values_shape
-                else:
-                    raise ValueError(f"past_keys shape {past_keys.shape} is not valid")
 
                 # This will run only once per layer
                 if j == len(past_key_values):
@@ -195,7 +194,7 @@ class CausalLMBatch:
                     past_key_values.append((padded_past_keys, padded_past_values))
 
                 # We slice the past keys and values to remove the padding from previous batches
-                if past_keys_head_dim_last:
+                if batch.keys_head_dim_last:
                     past_key_values[j][0][
                         start_index:end_index,
                         :,
@@ -228,6 +227,7 @@ class CausalLMBatch:
             stopping_criterias=stopping_criterias,
             size=total_batch_size,
             max_sequence_length=max_sequence_length,
+            keys_head_dim_last=batches[0].keys_head_dim_last,
         )
 
 
@@ -237,6 +237,9 @@ class CausalLM(Model):
             device = torch.device("cuda")
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
         else:
+            if quantize:
+                raise ValueError("quantization is not available on CPU")
+
             device = torch.device("cpu")
             dtype = torch.float32
 
@@ -247,7 +250,11 @@ class CausalLM(Model):
             device_map="auto" if torch.cuda.is_available() else None,
             load_in_8bit=quantize,
         ).eval()
-        tokenizer.pad_token_id = self.model.config.pad_token_id
+        tokenizer.pad_token_id = (
+            self.model.config.pad_token_id
+            if self.model.config.pad_token_id is not None
+            else self.model.config.eos_token_id
+        )
 
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -397,5 +404,6 @@ class CausalLM(Model):
             stopping_criterias=next_batch_stopping_criterias,
             size=next_batch_size,
             max_sequence_length=next_batch_max_sequence_length,
+            keys_head_dim_last=batch.keys_head_dim_last,
         )
         return generated_texts, next_batch

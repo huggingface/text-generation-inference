@@ -88,8 +88,3 @@ curl 127.0.0.1:3000/generate \
 make server-dev
 make router-dev
 ```
-
-## TODO:
-
-- [ ] Add tests for the `server/model` logic
-- [ ] Backport custom CUDA kernels to Transformers

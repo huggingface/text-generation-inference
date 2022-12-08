@@ -1,7 +1,7 @@
 import torch
 import torch.distributed
 
-from typing import List, Optional
+from typing import List, Optional, Type
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
@@ -13,6 +13,8 @@ from transformers.models.bloom.parallel_layers import (
 )
 
 from text_generation.models import CausalLM
+from text_generation.models.causal_lm import CausalLMBatch
+from text_generation.pb import generate_pb2
 from text_generation.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -29,7 +31,25 @@ except Exception as e:
 torch.manual_seed(0)
 
 
-class BLOOMSharded(CausalLM):
+class BloomCausalLMBatch(CausalLMBatch):
+    @classmethod
+    def from_pb(
+        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+    ) -> "CausalLMBatch":
+        batch = super(BloomCausalLMBatch, cls).from_pb(
+            pb=pb, tokenizer=tokenizer, device=device
+        )
+        batch.keys_head_dim_last = False
+        return batch
+
+
+class BLOOM(CausalLM):
+    @property
+    def batch_type(self) -> Type[CausalLMBatch]:
+        return BloomCausalLMBatch
+
+
+class BLOOMSharded(BLOOM):
     def __init__(self, model_name: str, quantize: bool = False):
         if not model_name.startswith("bigscience/bloom"):
             raise ValueError(f"Model {model_name} is not supported")
