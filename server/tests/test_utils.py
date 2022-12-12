@@ -39,18 +39,18 @@ def test_stop_sequence_criteria_empty():
 
 def test_stopping_criteria():
     criteria = StoppingCriteria([StopSequenceCriteria([1, 2, 3])], max_new_tokens=5)
-    assert not criteria([1])
-    assert not criteria([1, 2])
-    assert criteria([1, 2, 3])
+    assert criteria([1]) == (False, None)
+    assert criteria([1, 2]) == (False, None)
+    assert criteria([1, 2, 3]) == (True, "stop_sequence")
 
 
 def test_stopping_criteria_max():
     criteria = StoppingCriteria([StopSequenceCriteria([1, 2, 3])], max_new_tokens=5)
-    assert not criteria([1])
-    assert not criteria([1, 1])
-    assert not criteria([1, 1, 1])
-    assert not criteria([1, 1, 1, 1])
-    assert criteria([1, 1, 1, 1, 1])
+    assert criteria([1]) == (False, None)
+    assert criteria([1, 1]) == (False, None)
+    assert criteria([1, 1, 1]) == (False, None)
+    assert criteria([1, 1, 1, 1]) == (False, None)
+    assert criteria([1, 1, 1, 1, 1]) == (True, "length")
 
 
 def test_weight_hub_files():
