@@ -1,6 +1,5 @@
 import concurrent
 import os
-import signal
 import torch
 import torch.distributed
 
@@ -11,12 +10,16 @@ from functools import partial
 from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
 from huggingface_hub.utils import LocalEntryNotFoundError
 from tqdm import tqdm
+from typing import List, Optional, Tuple
+from transformers import AutoTokenizer
 from transformers.generation.logits_process import (
     LogitsProcessorList,
     TemperatureLogitsWarper,
     TopPLogitsWarper,
     TopKLogitsWarper,
 )
+
+from text_generation.pb import generate_pb2
 
 
 class Sampling:
@@ -56,20 +59,72 @@ class NextTokenChooser:
         next_ids = self.choice(scores)
         return next_ids.unsqueeze(-1)
 
+    @classmethod
+    def from_pb(cls, pb: generate_pb2.LogitsWarperParameters) -> "NextTokenChooser":
+        return NextTokenChooser(
+            temperature=pb.temperature,
+            top_k=pb.top_k,
+            top_p=pb.top_p,
+            do_sample=pb.do_sample,
+        )
+
+
+class StopSequenceCriteria:
+    def __init__(self, tokens: List[int]):
+        if not tokens:
+            raise ValueError("tokens cannot be empty")
+
+        self.tokens = tokens
+        self.current_token_idx = 0
+
+    def __call__(self, last_token: int) -> bool:
+        if last_token == self.tokens[self.current_token_idx]:
+            # Increase idx to go to next token
+            self.current_token_idx += 1
+        else:
+            # Reset to first token of the stopping sequence
+            self.current_token_idx = 0
+
+        if self.current_token_idx == len(self.tokens):
+            # We matched the entire sequence without resetting
+            return True
+        return False
+
 
 class StoppingCriteria:
-    def __init__(self, eos_token_id, max_new_tokens=20):
-        self.eos_token_id = eos_token_id
+    def __init__(
+        self, stop_sequence_criterias: List[StopSequenceCriteria], max_new_tokens=20
+    ):
+        self.stop_sequence_criterias = stop_sequence_criterias
         self.max_new_tokens = max_new_tokens
         self.current_tokens = 0
 
-    def __call__(self, all_ids):
+    def __call__(self, all_ids) -> Tuple[bool, Optional[str]]:
         self.current_tokens += 1
         if self.current_tokens >= self.max_new_tokens:
-            return True
-        if self.eos_token_id is not None and all_ids[-1] == self.eos_token_id:
-            return True
-        return False
+            return True, "length"
+
+        last_token = all_ids[-1]
+        for stop_sequence_criteria in self.stop_sequence_criterias:
+            if stop_sequence_criteria(last_token):
+                return True, "stop_sequence"
+
+        return False, None
+
+    @classmethod
+    def from_pb(
+        cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: AutoTokenizer
+    ) -> "StoppingCriteria":
+        stop_sequence_criterias = []
+        for stop_sequence in pb.stop_sequences:
+            tokens = tokenizer(
+                stop_sequence, padding=False, return_attention_mask=False
+            ).input_ids
+            if tokens:
+                stop_sequence_criterias.append(StopSequenceCriteria(tokens))
+        stop_sequence_criterias.append(StopSequenceCriteria([tokenizer.eos_token_id]))
+
+        return StoppingCriteria(stop_sequence_criterias, pb.max_new_tokens)
 
 
 def initialize_torch_distributed():

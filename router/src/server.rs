@@ -53,6 +53,7 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
                     top_p: 1.0,
                     do_sample: false,
                     max_new_tokens: 1,
+                    stop: vec![],
                 },
             },
         )
@@ -88,11 +89,8 @@ async fn generate(
     })?;
 
     // Validate request
-    let (input_length, validated_request) = state
-        .validation
-        .validate(req.0)
-        .await
-        .map_err(|err| {
+    let (input_length, validated_request) =
+        state.validation.validate(req.0).await.map_err(|err| {
             tracing::error!("{}", err.to_string());
             err
         })?;
@@ -148,6 +146,7 @@ async fn generate(
     // Send response
     let response = vec![GeneratedText {
         generated_text: response.output,
+        finish_reason: response.finish_reason,
     }];
     Ok((headers, Json(response)))
 }

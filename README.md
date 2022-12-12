@@ -15,6 +15,8 @@ to power Bloom, BloomZ and MT0-XXL api-inference widgets.
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - 45ms per token generation for BLOOM with 8xA100 80GB
+- Logits warpers (temperature scaling, topk ...)
+- Stop sequences
 
 ## Officially supported models
 

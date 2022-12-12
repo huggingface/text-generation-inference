@@ -68,24 +68,18 @@ class Seq2SeqLMBatch:
             # Decoder sequence only contains the bos_token
             decoder_input_ids.append(tokenizer.bos_token_id)
             decoder_input_lengths.append(1)
-            next_token_choosers.append(
-                NextTokenChooser(
-                    temperature=r.parameters.temperature,
-                    top_k=r.parameters.top_k,
-                    top_p=r.parameters.top_p,
-                    do_sample=r.parameters.do_sample,
-                )
-            )
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters))
             stopping_criterias.append(
-                StoppingCriteria(
-                    eos_token_id=tokenizer.eos_token_id, max_new_tokens=r.max_new_tokens
-                )
+                StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
             )
 
         # Tokenize batch
         pad_to_multiple_of = 8 if "gpu" in str(device) else None
         tokenized_inputs = tokenizer(
-            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=pad_to_multiple_of
+            inputs,
+            return_tensors="pt",
+            padding=True,
+            pad_to_multiple_of=pad_to_multiple_of,
         ).to(device)
         # Convert decoder_input_ids to torch tensor of size [batch_size, 1]
         decoder_input_ids = torch.tensor(decoder_input_ids, device=device).unsqueeze(-1)
@@ -431,12 +425,15 @@ class Seq2SeqLM(Model):
             decoder_tokens = torch.cat([decoder_tokens, next_token.squeeze(1)])
 
             # Evaluate stopping criteria
-            if stopping_criteria(decoder_tokens):
+            stop, reason = stopping_criteria(decoder_tokens)
+            if stop:
                 # Decode tokens
                 output = self.tokenizer.decode(decoder_tokens, skip_special_tokens=True)
                 # Add to the list of finished generations with the original request
                 generated_texts.append(
-                    GeneratedText(request, output, stopping_criteria.current_tokens)
+                    GeneratedText(
+                        request, output, stopping_criteria.current_tokens, reason
+                    )
                 )
             # add to the next batch
             else:

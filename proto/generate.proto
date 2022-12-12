@@ -28,10 +28,21 @@ message ClearCacheRequest {}
 message ClearCacheResponse {}
 
 message LogitsWarperParameters {
+    /// exponential scaling output probability distribution
     float temperature = 1;
+    /// restricting to the k highest probability elements
     uint32 top_k = 2;
+    /// restricting to top tokens summing to prob_cut_off <= prob_cut_off
     float top_p = 3;
+    /// apply sampling on the logits
     bool do_sample = 4;
+}
+
+message StoppingCriteriaParameters {
+    /// Maximum number of generated tokens
+    uint32 max_new_tokens = 1;
+    /// Optional stopping sequences
+    repeated string stop_sequences = 2;
 }
 
 message Request {
@@ -43,8 +54,8 @@ message Request {
     uint32 input_length = 3;
     /// Logits Warper Parameters
     LogitsWarperParameters parameters = 4;
-    /// Stopping criteria
-    uint32 max_new_tokens = 5;
+    /// Stopping Criteria Parameters
+    StoppingCriteriaParameters stopping_parameters = 5;
 }
 
 message Batch {
@@ -63,6 +74,8 @@ message GeneratedText {
     string output = 2;
     /// Number of generated tokens
     uint32 tokens = 3;
+    /// Finish reason
+    string finish_reason = 4;
 }
 
 message GenerateRequest {

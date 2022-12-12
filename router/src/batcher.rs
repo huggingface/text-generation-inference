@@ -190,6 +190,7 @@ fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
         let response = InferResponse {
             output: output.output,
             tokens: output.tokens,
+            finish_reason: output.finish_reason,
             queued: entry.time,
             start: entry.batch_time.unwrap(), // unwrap is always valid
             end: Instant::now(),
@@ -203,6 +204,7 @@ fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
 pub(crate) struct InferResponse {
     pub(crate) output: String,
     pub(crate) tokens: u32,
+    pub(crate) finish_reason: String,
     pub(crate) queued: Instant,
     pub(crate) start: Instant,
     pub(crate) end: Instant,

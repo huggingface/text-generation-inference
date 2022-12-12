@@ -8,13 +8,13 @@ from text_generation.models.seq2seq_lm import Seq2SeqLM, Seq2SeqLMBatch
 
 
 @pytest.fixture
-def default_pb_request(default_pb_parameters):
+def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="Test",
         input_length=2,
         parameters=default_pb_parameters,
-        max_new_tokens=10,
+        stopping_parameters=default_pb_stop_parameters,
     )
 
 
@@ -35,7 +35,7 @@ def default_multi_requests_seq2seq_lm_batch(default_pb_request, mt0_small_tokeni
     req_0 = copy(default_pb_request)
     req_1 = default_pb_request
     req_1.id = 1
-    req_1.max_new_tokens = 5
+    req_1.stopping_parameters.max_new_tokens = 5
 
     batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return Seq2SeqLMBatch.from_pb(batch_pb, mt0_small_tokenizer, torch.device("cpu"))
@@ -48,11 +48,12 @@ def default_seq2seq_lm():
 
 def test_batch_from_pb(default_pb_batch, default_seq2seq_lm_batch):
     batch = default_seq2seq_lm_batch
+    sequence_length = len(default_seq2seq_lm_batch.input_ids[0])
 
     assert batch.batch_id == default_pb_batch.id
     assert batch.requests == default_pb_batch.requests
 
-    assert batch.input_ids.shape == (default_pb_batch.size, 8)
+    assert batch.input_ids.shape == (default_pb_batch.size, sequence_length)
     assert batch.input_ids[0][-2] == 4268
     assert batch.input_ids[0][-1] == 1
     assert torch.all(batch.input_ids[0][:-2] == 0)
@@ -86,6 +87,7 @@ def test_seq2seq_lm_batch_type(default_seq2seq_lm):
 
 
 def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch):
+    sequence_length = len(default_seq2seq_lm_batch.input_ids[0])
     generated_texts, next_batch = default_seq2seq_lm.generate_token(
         default_seq2seq_lm_batch
     )
@@ -108,7 +110,7 @@ def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch)
     assert next_batch.decoder_input_ids[0, 0] == 0
     assert next_batch.decoder_input_ids[0, 1] == 259
     assert next_batch.decoder_attention_mask is None
-    assert next_batch.encoder_last_hidden_state.shape == (1, 8, 512)
+    assert next_batch.encoder_last_hidden_state.shape == (1, sequence_length, 512)
 
     assert next_batch.decoder_input_lengths == [2]
     assert next_batch.max_decoder_input_length == 2
@@ -121,10 +123,16 @@ def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch)
         [p[1].shape == (next_batch.size, 6, 1, 64) for p in next_batch.past_key_values]
     )
     assert all(
-        [p[2].shape == (next_batch.size, 6, 8, 64) for p in next_batch.past_key_values]
+        [
+            p[2].shape == (next_batch.size, 6, sequence_length, 64)
+            for p in next_batch.past_key_values
+        ]
     )
     assert all(
-        [p[3].shape == (next_batch.size, 6, 8, 64) for p in next_batch.past_key_values]
+        [
+            p[3].shape == (next_batch.size, 6, sequence_length, 64)
+            for p in next_batch.past_key_values
+        ]
     )
 
 

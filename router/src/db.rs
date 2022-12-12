@@ -4,7 +4,9 @@ use crate::{GenerateParameters, GenerateRequest};
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use text_generation_client::{Batch, ClientError, LogitsWarperParameters, Request};
+use text_generation_client::{
+    Batch, ClientError, LogitsWarperParameters, Request, StoppingCriteriaParameters,
+};
 use tokio::sync::oneshot::Sender;
 use tokio::time::Instant;
 
@@ -72,7 +74,9 @@ impl State {
                 parameters: Some(LogitsWarperParameters::from(
                     entry.request.parameters.clone(),
                 )),
-                max_new_tokens: entry.request.parameters.max_new_tokens,
+                stopping_parameters: Some(StoppingCriteriaParameters::from(
+                    entry.request.parameters.clone(),
+                )),
             });
 
             ids.push(*id);
@@ -165,6 +169,15 @@ impl From<GenerateParameters> for LogitsWarperParameters {
             top_k: parameters.top_k as u32,
             top_p: parameters.top_p,
             do_sample: parameters.do_sample,
+        }
+    }
+}
+
+impl From<GenerateParameters> for StoppingCriteriaParameters {
+    fn from(parameters: GenerateParameters) -> Self {
+        Self {
+            stop_sequences: parameters.stop,
+            max_new_tokens: parameters.max_new_tokens,
         }
     }
 }

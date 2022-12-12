@@ -57,23 +57,17 @@ class CausalLMBatch:
         for r in pb.requests:
             inputs.append(r.inputs)
             input_lengths.append(r.input_length)
-            next_token_choosers.append(
-                NextTokenChooser(
-                    temperature=r.parameters.temperature,
-                    top_k=r.parameters.top_k,
-                    top_p=r.parameters.top_p,
-                    do_sample=r.parameters.do_sample,
-                )
-            )
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters))
             stopping_criterias.append(
-                StoppingCriteria(
-                    eos_token_id=tokenizer.eos_token_id, max_new_tokens=r.max_new_tokens
-                )
+                StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
             )
 
         pad_to_multiple_of = 8 if "gpu" in str(device) else None
         tokenized_inputs = tokenizer(
-            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=pad_to_multiple_of
+            inputs,
+            return_tensors="pt",
+            padding=True,
+            pad_to_multiple_of=pad_to_multiple_of,
         ).to(device)
         all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
 
@@ -123,8 +117,8 @@ class CausalLMBatch:
             end_index = start_index + batch.size
 
             # We only concatenate batches that did at least one step
-            if batch.input_ids.shape[1] > 1:
-                raise ValueError("Batch input_ids should be of shape (batch_size, 1)")
+            if batch.past_key_values is None:
+                raise ValueError("only concatenate prefilled batches")
 
             # Create empty tensor
             # input_ids is always of shape [batch_size, 1]
@@ -331,14 +325,17 @@ class CausalLM(Model):
             all_tokens = torch.cat([all_tokens, next_token])
 
             # Evaluate stopping criteria
-            if stopping_criteria(all_tokens):
+            stop, reason = stopping_criteria(all_tokens)
+            if stop:
                 # Decode all tokens
                 output = self.tokenizer.decode(
                     all_tokens.squeeze(-1), skip_special_tokens=True
                 )
                 # Add to the list of finished generations with the original request
                 generated_texts.append(
-                    GeneratedText(request, output, stopping_criteria.current_tokens)
+                    GeneratedText(
+                        request, output, stopping_criteria.current_tokens, reason
+                    )
                 )
             # add to the next batch
             else:

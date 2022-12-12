@@ -8,13 +8,13 @@ from text_generation.models.causal_lm import CausalLM, CausalLMBatch
 
 
 @pytest.fixture
-def default_pb_request(default_pb_parameters):
+def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="Test",
         input_length=1,
         parameters=default_pb_parameters,
-        max_new_tokens=10,
+        stopping_parameters=default_pb_stop_parameters,
     )
 
 
@@ -33,7 +33,7 @@ def default_multi_requests_causal_lm_batch(default_pb_request, gpt2_tokenizer):
     req_0 = copy(default_pb_request)
     req_1 = default_pb_request
     req_1.id = 1
-    req_1.max_new_tokens = 5
+    req_1.stopping_parameters.max_new_tokens = 5
 
     batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return CausalLMBatch.from_pb(batch_pb, gpt2_tokenizer, torch.device("cpu"))
@@ -51,7 +51,6 @@ def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):
     assert batch.requests == default_pb_batch.requests
 
     assert len(batch.input_ids) == default_pb_batch.size
-    assert len(batch.input_ids[0]) == 8
     assert batch.input_ids[0][-1] == 14402
     assert torch.all(batch.input_ids[0][:-1] == 50256)
 
@@ -80,6 +79,7 @@ def test_causal_lm_batch_type(default_causal_lm):
 
 
 def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
+    sequence_length = len(default_causal_lm_batch.all_input_ids[0])
     generated_texts, next_batch = default_causal_lm.generate_token(
         default_causal_lm_batch
     )
@@ -88,8 +88,12 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     assert isinstance(next_batch, CausalLMBatch)
 
     assert len(next_batch.all_input_ids) == next_batch.size
-    assert len(next_batch.all_input_ids[0]) == len(next_batch.attention_mask[0]) == 9
-    assert next_batch.all_input_ids[0][-1] == 6208
+    assert (
+        len(next_batch.all_input_ids[0])
+        == len(next_batch.attention_mask[0])
+        == sequence_length + 1
+    )
+    assert next_batch.all_input_ids[0][-1] == 13
     assert next_batch.all_input_ids[0][-2] == 14402
     assert torch.all(next_batch.all_input_ids[0][:-2] == 50256)
 
@@ -97,14 +101,18 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     assert torch.all(next_batch.attention_mask[0][:-2] == 0)
 
     assert next_batch.input_ids.shape == (next_batch.size, 1)
-    assert next_batch.input_ids[0, 0] == 6208
+    assert next_batch.input_ids[0, 0] == 13
 
     assert next_batch.input_lengths == [2]
     assert next_batch.max_sequence_length == next_batch.input_lengths[0]
 
     assert next_batch.past_key_values is not None
-    assert all([p[0].shape == (1, 12, 8, 64) for p in next_batch.past_key_values])
-    assert all([p[1].shape == (1, 12, 8, 64) for p in next_batch.past_key_values])
+    assert all(
+        [p[0].shape == (1, 12, sequence_length, 64) for p in next_batch.past_key_values]
+    )
+    assert all(
+        [p[1].shape == (1, 12, sequence_length, 64) for p in next_batch.past_key_values]
+    )
 
 
 def test_causal_lm_generate_token_completion(
@@ -119,10 +127,7 @@ def test_causal_lm_generate_token_completion(
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert (
-        generated_texts[0].output
-        == "Test Test Test Test Test Test Test Test Test Test Test"
-    )
+    assert generated_texts[0].output == "Test.java:784) at net.minecraft."
     assert generated_texts[0].request == default_causal_lm_batch.requests[0]
     assert (
         generated_texts[0].tokens
@@ -145,7 +150,7 @@ def test_causal_lm_generate_token_completion_multi(
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "Test Test Test Test Test Test"
+    assert generated_texts[0].output == "Test.java:784)"
     assert (
         generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[1]
     )
@@ -166,10 +171,7 @@ def test_causal_lm_generate_token_completion_multi(
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert (
-        generated_texts[0].output
-        == "Test Test Test Test Test Test Test Test Test Test Test"
-    )
+    assert generated_texts[0].output == "Test.java:784) at net.minecraft."
     assert (
         generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[0]
     )
@@ -200,7 +202,8 @@ def test_batch_concatenate(
     assert torch.all(next_batch.attention_mask[1:, :-2] == 0)
 
     assert next_batch.batch_id == 0
-    assert torch.all(next_batch.input_ids == 6208)
+    assert next_batch.input_ids[0, 0] == 12355
+    assert torch.all(next_batch.input_ids[1:] == 13)
 
     assert next_batch.input_lengths == [3, 2, 2]
     assert next_batch.max_sequence_length == 3
@@ -239,7 +242,7 @@ def test_batch_concatenate(
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "Test Test Test Test Test Test"
+    assert generated_texts[0].output == "Test.java:784)"
     assert (
         generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[1]
     )
@@ -260,10 +263,7 @@ def test_batch_concatenate(
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert (
-        generated_texts[0].output
-        == "Test Test Test Test Test Test Test Test Test Test Test"
-    )
+    assert generated_texts[0].output == "Test.java:784) at net.minecraft."
     assert generated_texts[0].request == default_causal_lm_batch.requests[0]
     assert (
         generated_texts[0].tokens
@@ -283,10 +283,7 @@ def test_batch_concatenate(
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert (
-        generated_texts[0].output
-        == "Test Test Test Test Test Test Test Test Test Test Test"
-    )
+    assert generated_texts[0].output == "Test.java:784) at net.minecraft."
     assert (
         generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[0]
     )
