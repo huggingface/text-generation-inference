@@ -94,18 +94,9 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
             input_lengths.append(r.input_length)
-            next_token_choosers.append(
-                NextTokenChooser(
-                    temperature=r.parameters.temperature,
-                    top_k=r.parameters.top_k,
-                    top_p=r.parameters.top_p,
-                    do_sample=r.parameters.do_sample,
-                )
-            )
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters))
             stopping_criterias.append(
-                StoppingCriteria(
-                    eos_token_id=tokenizer.eos_token_id, max_new_tokens=r.max_new_tokens
-                )
+                StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
             )
 
         tokenized_inputs = tokenizer(
@@ -207,11 +198,7 @@ class GalacticaSharded(Galactica):
                         continue
 
                     module_name, param_name = name.rsplit(".", 1)
-                    try:
-                        module = model.get_submodule(module_name)
-                    except Exception as e:
-                        print(type(model), name, module_name, param_name)
-                        raise e
+                    module = model.get_submodule(module_name)
                     current_tensor = parameters[name]
 
                     slice_ = f.get_slice(name)

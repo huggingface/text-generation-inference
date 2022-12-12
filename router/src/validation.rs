@@ -121,6 +121,14 @@ fn validation_worker(
                 .unwrap_or(());
             continue;
         }
+        if request.parameters.stop.len() > 4 {
+            response_tx
+                .send(Err(ValidationError::StopSequence(
+                    request.parameters.stop.len(),
+                )))
+                .unwrap_or(());
+            continue;
+        }
 
         // Get the number of tokens in the input
         match tokenizer.encode(request.inputs.clone(), false) {
@@ -163,6 +171,8 @@ pub enum ValidationError {
     MaxNewTokens,
     #[error("inputs must have less than {1} tokens. Given: {0}")]
     InputLength(usize, usize),
+    #[error("stop supports up to 4 stop sequences. Given: {0}")]
+    StopSequence(usize),
     #[error("tokenizer error {0}")]
     Tokenizer(String),
 }

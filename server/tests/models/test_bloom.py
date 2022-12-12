@@ -9,13 +9,13 @@ from text_generation.models.bloom import BloomCausalLMBatch, BLOOM
 
 
 @pytest.fixture
-def default_pb_request(default_pb_parameters):
+def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="Test",
         input_length=1,
         parameters=default_pb_parameters,
-        max_new_tokens=10,
+        stopping_parameters=default_pb_stop_parameters,
     )
 
 
@@ -36,7 +36,7 @@ def default_multi_requests_bloom_batch(default_pb_request, bloom_560m_tokenizer)
     req_0 = copy(default_pb_request)
     req_1 = default_pb_request
     req_1.id = 1
-    req_1.max_new_tokens = 5
+    req_1.stopping_parameters.max_new_tokens = 5
 
     batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return BloomCausalLMBatch.from_pb(
@@ -56,7 +56,6 @@ def test_batch_from_pb(default_pb_batch, default_bloom_batch):
     assert batch.requests == default_pb_batch.requests
 
     assert len(batch.input_ids) == default_pb_batch.size
-    assert len(batch.input_ids[0]) == 8
     assert batch.input_ids[0][-1] == 10264
     assert torch.all(batch.input_ids[0][:-1] == 3)
 
@@ -85,6 +84,7 @@ def test_causal_lm_batch_type(default_bloom):
 
 
 def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
+    sequence_length = len(default_bloom_batch.all_input_ids[0])
     generated_texts, next_batch = default_bloom.generate_token(default_bloom_batch)
 
     assert generated_texts == []
@@ -92,7 +92,11 @@ def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     assert not next_batch.keys_head_dim_last
 
     assert len(next_batch.all_input_ids) == next_batch.size
-    assert len(next_batch.all_input_ids[0]) == len(next_batch.attention_mask[0]) == 9
+    assert (
+        len(next_batch.all_input_ids[0])
+        == len(next_batch.attention_mask[0])
+        == sequence_length + 1
+    )
     assert torch.all(next_batch.all_input_ids[0][-2:] == 10264)
     assert torch.all(next_batch.all_input_ids[0][:-2] == 3)
 
@@ -106,8 +110,12 @@ def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     assert next_batch.max_sequence_length == next_batch.input_lengths[0]
 
     assert next_batch.past_key_values is not None
-    assert all([p[0].shape == (16, 64, 8) for p in next_batch.past_key_values])
-    assert all([p[1].shape == (16, 8, 64) for p in next_batch.past_key_values])
+    assert all(
+        [p[0].shape == (16, 64, sequence_length) for p in next_batch.past_key_values]
+    )
+    assert all(
+        [p[1].shape == (16, sequence_length, 64) for p in next_batch.past_key_values]
+    )
 
 
 def test_causal_lm_generate_token_completion(default_bloom, default_bloom_batch):

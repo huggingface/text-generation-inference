@@ -15,6 +15,11 @@ def default_pb_parameters():
     )
 
 
+@pytest.fixture
+def default_pb_stop_parameters():
+    return generate_pb2.StoppingCriteriaParameters(stop_sequences=[], max_new_tokens=10)
+
+
 @pytest.fixture(scope="session")
 def bloom_560m_tokenizer():
     return AutoTokenizer.from_pretrained("bigscience/bloom-560m", padding_side="left")
