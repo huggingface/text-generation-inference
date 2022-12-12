@@ -65,6 +65,7 @@ pub(crate) struct GenerateRequest {
 #[derive(Serialize)]
 pub(crate) struct GeneratedText {
     pub generated_text: String,
+    pub finish_reason: String,
 }
 
 #[derive(Serialize)]

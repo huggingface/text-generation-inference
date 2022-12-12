@@ -74,6 +74,8 @@ message GeneratedText {
     string output = 2;
     /// Number of generated tokens
     uint32 tokens = 3;
+    /// Finish reason
+    string finish_reason = 4;
 }
 
 message GenerateRequest {

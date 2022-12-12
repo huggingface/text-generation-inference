@@ -32,8 +32,12 @@ class GeneratedText:
     request: generate_pb2.Request
     output: str
     tokens: int
+    reason: str
 
     def to_pb(self) -> generate_pb2.GeneratedText:
         return generate_pb2.GeneratedText(
-            request=self.request, output=self.output, tokens=self.tokens
+            request=self.request,
+            output=self.output,
+            tokens=self.tokens,
+            finish_reason=self.reason,
         )

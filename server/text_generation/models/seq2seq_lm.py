@@ -425,12 +425,15 @@ class Seq2SeqLM(Model):
             decoder_tokens = torch.cat([decoder_tokens, next_token.squeeze(1)])
 
             # Evaluate stopping criteria
-            if stopping_criteria(decoder_tokens):
+            stop, reason = stopping_criteria(decoder_tokens)
+            if stop:
                 # Decode tokens
                 output = self.tokenizer.decode(decoder_tokens, skip_special_tokens=True)
                 # Add to the list of finished generations with the original request
                 generated_texts.append(
-                    GeneratedText(request, output, stopping_criteria.current_tokens)
+                    GeneratedText(
+                        request, output, stopping_criteria.current_tokens, reason
+                    )
                 )
             # add to the next batch
             else:

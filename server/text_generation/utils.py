@@ -10,7 +10,7 @@ from functools import partial
 from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
 from huggingface_hub.utils import LocalEntryNotFoundError
 from tqdm import tqdm
-from typing import List
+from typing import List, Optional, Tuple
 from transformers import AutoTokenizer
 from transformers.generation.logits_process import (
     LogitsProcessorList,
@@ -99,17 +99,17 @@ class StoppingCriteria:
         self.max_new_tokens = max_new_tokens
         self.current_tokens = 0
 
-    def __call__(self, all_ids):
+    def __call__(self, all_ids) -> Tuple[bool, Optional[str]]:
         self.current_tokens += 1
         if self.current_tokens >= self.max_new_tokens:
-            return True
+            return True, "length"
 
         last_token = all_ids[-1]
         for stop_sequence_criteria in self.stop_sequence_criterias:
             if stop_sequence_criteria(last_token):
-                return True
+                return True, "stop_sequence"
 
-        return False
+        return False, None
 
     @classmethod
     def from_pb(

@@ -325,14 +325,17 @@ class CausalLM(Model):
             all_tokens = torch.cat([all_tokens, next_token])
 
             # Evaluate stopping criteria
-            if stopping_criteria(all_tokens):
+            stop, reason = stopping_criteria(all_tokens)
+            if stop:
                 # Decode all tokens
                 output = self.tokenizer.decode(
                     all_tokens.squeeze(-1), skip_special_tokens=True
                 )
                 # Add to the list of finished generations with the original request
                 generated_texts.append(
-                    GeneratedText(request, output, stopping_criteria.current_tokens)
+                    GeneratedText(
+                        request, output, stopping_criteria.current_tokens, reason
+                    )
                 )
             # add to the next batch
             else:

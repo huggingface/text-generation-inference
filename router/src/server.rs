@@ -146,6 +146,7 @@ async fn generate(
     // Send response
     let response = vec![GeneratedText {
         generated_text: response.output,
+        finish_reason: response.finish_reason,
     }];
     Ok((headers, Json(response)))
 }
