@@ -148,9 +148,9 @@ def test_seq2seq_lm_generate_token_completion(
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "a few weeks"
+    assert generated_texts[0].output_text == "a few weeks"
     assert generated_texts[0].request == default_seq2seq_lm_batch.requests[0]
-    assert generated_texts[0].tokens == 7
+    assert generated_texts[0].generated_tokens == 7
 
 
 def test_seq2seq_lm_generate_token_completion_multi(
@@ -166,12 +166,12 @@ def test_seq2seq_lm_generate_token_completion_multi(
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "a few "
+    assert generated_texts[0].output_text == "a few "
     assert (
         generated_texts[0].request
         == default_multi_requests_seq2seq_lm_batch.requests[1]
     )
-    assert generated_texts[0].tokens == 5
+    assert generated_texts[0].generated_tokens == 5
 
     generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert generated_texts == []
@@ -180,12 +180,12 @@ def test_seq2seq_lm_generate_token_completion_multi(
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "a few weeks"
+    assert generated_texts[0].output_text == "a few weeks"
     assert (
         generated_texts[0].request
         == default_multi_requests_seq2seq_lm_batch.requests[0]
     )
-    assert generated_texts[0].tokens == 7
+    assert generated_texts[0].generated_tokens == 7
 
 
 def test_batch_concatenate(
@@ -287,28 +287,28 @@ def test_batch_concatenate(
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "a few "
+    assert generated_texts[0].output_text == "a few "
     assert (
         generated_texts[0].request
         == default_multi_requests_seq2seq_lm_batch.requests[1]
     )
-    assert generated_texts[0].tokens == 5
+    assert generated_texts[0].generated_tokens == 5
 
     generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "a few weeks"
+    assert generated_texts[0].output_text == "a few weeks"
     assert generated_texts[0].request == default_seq2seq_lm_batch.requests[0]
-    assert generated_texts[0].tokens == 7
+    assert generated_texts[0].generated_tokens == 7
 
     generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "a few weeks"
+    assert generated_texts[0].output_text == "a few weeks"
     assert (
         generated_texts[0].request
         == default_multi_requests_seq2seq_lm_batch.requests[0]
     )
-    assert generated_texts[0].tokens == 7
+    assert generated_texts[0].generated_tokens == 7

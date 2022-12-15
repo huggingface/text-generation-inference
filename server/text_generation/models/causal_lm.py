@@ -22,6 +22,7 @@ class CausalLMBatch:
 
     # All tokens
     all_input_ids: List[torch.Tensor]
+    all_logprobs: List[Optional[torch.Tensor]]
 
     # Lengths of all generations present in the batch
     input_lengths: List[int]
@@ -52,6 +53,7 @@ class CausalLMBatch:
         next_token_choosers = []
         stopping_criterias = []
         input_lengths = []
+        all_logprobs = []
 
         # Parse batch
         for r in pb.requests:
@@ -61,6 +63,7 @@ class CausalLMBatch:
             stopping_criterias.append(
                 StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
             )
+            all_logprobs.append(None)
 
         pad_to_multiple_of = 8 if "gpu" in str(device) else None
         tokenized_inputs = tokenizer(
@@ -78,6 +81,7 @@ class CausalLMBatch:
             attention_mask=tokenized_inputs["attention_mask"],
             past_key_values=None,
             all_input_ids=all_input_ids,
+            all_logprobs=all_logprobs,
             input_lengths=input_lengths,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
@@ -95,6 +99,7 @@ class CausalLMBatch:
         requests = []
         input_lengths = []
         all_input_ids = []
+        all_logprobs = []
         next_token_choosers = []
         stopping_criterias = []
 
@@ -110,6 +115,7 @@ class CausalLMBatch:
             requests.extend(batch.requests)
             input_lengths.extend(batch.input_lengths)
             all_input_ids.extend(batch.all_input_ids)
+            all_logprobs.extend(batch.all_logprobs)
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
 
@@ -217,6 +223,7 @@ class CausalLMBatch:
             attention_mask=attention_mask,
             past_key_values=past_key_values,
             all_input_ids=all_input_ids,
+            all_logprobs=all_logprobs,
             input_lengths=input_lengths,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
@@ -291,6 +298,7 @@ class CausalLM(Model):
         next_batch_input_lengths = []
         next_batch_input_ids = []
         next_batch_all_input_ids = []
+        next_batch_all_logprobs = []
 
         # Metadata
         next_batch_size = 0
@@ -307,6 +315,7 @@ class CausalLM(Model):
             batch.next_token_choosers,
             batch.stopping_criterias,
             batch.all_input_ids,
+            batch.all_logprobs,
         )
 
         # For each member of the batch
@@ -316,34 +325,59 @@ class CausalLM(Model):
             logits,
             next_token_chooser,
             stopping_criteria,
-            all_tokens,
+            all_input_ids,
+            all_logprobs,
         ) in enumerate(iterator):
             # Select next token
-            next_token = next_token_chooser(all_tokens, logits.unsqueeze(0)[:, -1])
+            tokens, logprobs = next_token_chooser(all_input_ids, logits)
+            next_token = tokens[-1].view(1, 1)
 
             # Append next token to all tokens
-            all_tokens = torch.cat([all_tokens, next_token])
+            all_input_ids = torch.cat([all_input_ids, next_token])
+            new_input_length = input_length + 1
+
+            if all_logprobs is None:
+                # logprobs of all prompt tokens (except the first one) and the generated token
+                all_logprobs = logprobs.gather(1, all_input_ids[1:])
+            else:
+                # logprob of the generated token
+                next_token_logprob = logprobs[-1, next_token]
+                all_logprobs = torch.cat([all_logprobs, next_token_logprob])
 
             # Evaluate stopping criteria
-            stop, reason = stopping_criteria(all_tokens)
+            stop, reason = stopping_criteria(all_input_ids)
             if stop:
                 # Decode all tokens
-                output = self.tokenizer.decode(
-                    all_tokens.squeeze(-1), skip_special_tokens=True
+                output_text = self.tokenizer.decode(
+                    all_input_ids.squeeze(-1), skip_special_tokens=True
                 )
+                # Slice with input_length to remove padding
+                token_ids = all_input_ids[-new_input_length:]
+                tokens = self.tokenizer.batch_decode(token_ids)
+                # Add NaN for the first prompt token
+                logprobs = [float("nan")] + all_logprobs[-new_input_length:].squeeze(
+                    1
+                ).tolist()
+
                 # Add to the list of finished generations with the original request
                 generated_texts.append(
                     GeneratedText(
-                        request, output, stopping_criteria.current_tokens, reason
+                        request=request,
+                        output_text=output_text,
+                        generated_tokens=stopping_criteria.current_tokens,
+                        tokens=tokens,
+                        token_ids=token_ids.squeeze(1).tolist(),
+                        logprobs=logprobs,
+                        reason=reason,
                     )
                 )
             # add to the next batch
             else:
                 next_batch_keep_indices.append(i)
                 next_batch_input_ids.append(next_token)
-                next_batch_all_input_ids.append(all_tokens)
+                next_batch_all_input_ids.append(all_input_ids)
+                next_batch_all_logprobs.append(all_logprobs)
                 next_batch_size += 1
-                new_input_length = input_length + 1
                 next_batch_input_lengths.append(new_input_length)
                 next_batch_max_sequence_length = max(
                     next_batch_max_sequence_length, new_input_length
@@ -397,6 +431,7 @@ class CausalLM(Model):
             attention_mask=next_batch_attention_mask,
             past_key_values=next_batch_past_key_values,
             all_input_ids=next_batch_all_input_ids,
+            all_logprobs=next_batch_all_logprobs,
             input_lengths=next_batch_input_lengths,
             next_token_choosers=next_batch_next_token_choosers,
             stopping_criterias=next_batch_stopping_criterias,

@@ -30,6 +30,7 @@ class Seq2SeqLMBatch:
     # Lengths of all generations present in the batch
     input_lengths: List[int]
     decoder_input_lengths: List[int]
+    decoder_logprobs: List[Optional[torch.Tensor]]
 
     # Generation helpers
     next_token_choosers: List[NextTokenChooser]
@@ -60,6 +61,7 @@ class Seq2SeqLMBatch:
 
         decoder_input_ids = []
         decoder_input_lengths = []
+        decoder_logprobs = []
 
         # Parse batch
         for r in pb.requests:
@@ -72,6 +74,7 @@ class Seq2SeqLMBatch:
             stopping_criterias.append(
                 StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
             )
+            decoder_logprobs.append(None)
 
         # Tokenize batch
         pad_to_multiple_of = 8 if "gpu" in str(device) else None
@@ -95,6 +98,7 @@ class Seq2SeqLMBatch:
             past_key_values=None,
             input_lengths=input_lengths,
             decoder_input_lengths=decoder_input_lengths,
+            decoder_logprobs=decoder_logprobs,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=len(pb.requests),
@@ -117,6 +121,7 @@ class Seq2SeqLMBatch:
         requests = []
         input_lengths = []
         decoder_input_lengths = []
+        decoder_logprobs = []
         next_token_choosers = []
         stopping_criterias = []
 
@@ -137,6 +142,7 @@ class Seq2SeqLMBatch:
             requests.extend(batch.requests)
             input_lengths.extend(batch.input_lengths)
             decoder_input_lengths.extend(batch.decoder_input_lengths)
+            decoder_logprobs.extend(batch.decoder_logprobs)
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
 
@@ -286,6 +292,7 @@ class Seq2SeqLMBatch:
             past_key_values=past_key_values,
             input_lengths=input_lengths,
             decoder_input_lengths=decoder_input_lengths,
+            decoder_logprobs=decoder_logprobs,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=total_batch_size,
@@ -385,6 +392,7 @@ class Seq2SeqLM(Model):
         next_batch_input_lengths = []
         next_batch_decoder_input_ids = []
         next_batch_decoder_input_lengths = []
+        next_batch_decoder_logprobs = []
 
         # Metadata
         next_batch_size = 0
@@ -399,6 +407,7 @@ class Seq2SeqLM(Model):
             batch.requests,
             batch.input_lengths,
             batch.decoder_input_lengths,
+            batch.decoder_logprobs,
             logits,
             batch.next_token_choosers,
             batch.stopping_criterias,
@@ -411,38 +420,58 @@ class Seq2SeqLM(Model):
             request,
             input_length,
             decoder_input_length,
+            decoder_logprobs,
             logits,
             next_token_chooser,
             stopping_criteria,
             input_tokens,
-            decoder_tokens,
+            decoder_input_ids,
         ) in enumerate(iterator):
-            all_tokens = torch.cat([input_tokens, decoder_tokens])
             # Select next token
-            next_token = next_token_chooser(all_tokens, logits.unsqueeze(0)[:, -1])
+            next_token, logprobs = next_token_chooser(decoder_input_ids, logits)
 
             # Append next token to decoder tokens
-            decoder_tokens = torch.cat([decoder_tokens, next_token.squeeze(1)])
+            decoder_input_ids = torch.cat([decoder_input_ids, next_token])
+            new_decoder_input_length = decoder_input_length + 1
+
+            next_token_logprob = logprobs[-1, next_token]
+            if decoder_logprobs is None:
+                decoder_logprobs = next_token_logprob
+            else:
+                decoder_logprobs = torch.cat([decoder_logprobs, next_token_logprob])
 
             # Evaluate stopping criteria
-            stop, reason = stopping_criteria(decoder_tokens)
+            stop, reason = stopping_criteria(decoder_input_ids)
             if stop:
-                # Decode tokens
-                output = self.tokenizer.decode(decoder_tokens, skip_special_tokens=True)
+                # Slice with decoder_input_length to remove padding
+                # Decode all tokens
+                token_ids = decoder_input_ids[-new_decoder_input_length:]
+                output_text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
+                tokens = self.tokenizer.batch_decode(token_ids)
+                # Add NaN for the bos token
+                logprobs = [float("nan")] + decoder_logprobs[
+                    -new_decoder_input_length:
+                ].tolist()
                 # Add to the list of finished generations with the original request
                 generated_texts.append(
                     GeneratedText(
-                        request, output, stopping_criteria.current_tokens, reason
+                        request=request,
+                        output_text=output_text,
+                        generated_tokens=stopping_criteria.current_tokens,
+                        tokens=tokens,
+                        token_ids=token_ids.tolist(),
+                        logprobs=logprobs,
+                        reason=reason,
                     )
                 )
             # add to the next batch
             else:
                 next_batch_keep_indices.append(i)
-                next_batch_decoder_input_ids.append(decoder_tokens.unsqueeze(0))
+                next_batch_decoder_input_ids.append(decoder_input_ids.unsqueeze(0))
                 next_batch_size += 1
-                new_decoder_input_length = decoder_input_length + 1
                 next_batch_input_lengths.append(input_length)
                 next_batch_decoder_input_lengths.append(new_decoder_input_length)
+                next_batch_decoder_logprobs.append(decoder_logprobs)
                 next_batch_max_input_length = max(
                     next_batch_max_input_length, input_length
                 )
@@ -515,6 +544,7 @@ class Seq2SeqLM(Model):
             past_key_values=next_batch_past_key_values,
             input_lengths=next_batch_input_lengths,
             decoder_input_lengths=next_batch_decoder_input_lengths,
+            decoder_logprobs=next_batch_decoder_logprobs,
             next_token_choosers=next_batch_next_token_choosers,
             stopping_criterias=next_batch_stopping_criterias,
             size=next_batch_size,

@@ -128,10 +128,12 @@ def test_causal_lm_generate_token_completion(default_bloom, default_bloom_batch)
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "TestTestTestTestTestTestTestTestTestTestTest"
+    assert (
+        generated_texts[0].output_text == "TestTestTestTestTestTestTestTestTestTestTest"
+    )
     assert generated_texts[0].request == default_bloom_batch.requests[0]
     assert (
-        generated_texts[0].tokens
+        generated_texts[0].generated_tokens
         == default_bloom_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -151,10 +153,10 @@ def test_causal_lm_generate_token_completion_multi(
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "TestTestTestTestTestTest"
+    assert generated_texts[0].output_text == "TestTestTestTestTestTest"
     assert generated_texts[0].request == default_multi_requests_bloom_batch.requests[1]
     assert (
-        generated_texts[0].tokens
+        generated_texts[0].generated_tokens
         == default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
     )
 
@@ -170,10 +172,12 @@ def test_causal_lm_generate_token_completion_multi(
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "TestTestTestTestTestTestTestTestTestTestTest"
+    assert (
+        generated_texts[0].output_text == "TestTestTestTestTestTestTestTestTestTestTest"
+    )
     assert generated_texts[0].request == default_multi_requests_bloom_batch.requests[0]
     assert (
-        generated_texts[0].tokens
+        generated_texts[0].generated_tokens
         == default_multi_requests_bloom_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -240,10 +244,10 @@ def test_batch_concatenate(
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "TestTestTestTestTestTest"
+    assert generated_texts[0].output_text == "TestTestTestTestTestTest"
     assert generated_texts[0].request == default_multi_requests_bloom_batch.requests[1]
     assert (
-        generated_texts[0].tokens
+        generated_texts[0].generated_tokens
         == default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
     )
 
@@ -259,10 +263,12 @@ def test_batch_concatenate(
     assert next_batch is not None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "TestTestTestTestTestTestTestTestTestTestTest"
+    assert (
+        generated_texts[0].output_text == "TestTestTestTestTestTestTestTestTestTestTest"
+    )
     assert generated_texts[0].request == default_bloom_batch.requests[0]
     assert (
-        generated_texts[0].tokens
+        generated_texts[0].generated_tokens
         == default_bloom_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -279,9 +285,11 @@ def test_batch_concatenate(
     assert next_batch is None
 
     assert len(generated_texts) == 1
-    assert generated_texts[0].output == "TestTestTestTestTestTestTestTestTestTestTest"
+    assert (
+        generated_texts[0].output_text == "TestTestTestTestTestTestTestTestTestTestTest"
+    )
     assert generated_texts[0].request == default_multi_requests_bloom_batch.requests[0]
     assert (
-        generated_texts[0].tokens
+        generated_texts[0].generated_tokens
         == default_multi_requests_bloom_batch.stopping_criterias[0].max_new_tokens
     )

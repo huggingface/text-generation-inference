@@ -1,5 +1,5 @@
 use crate::{
-    Batcher, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Validation,
+    Batcher, Details, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, StatusCode};
@@ -54,6 +54,7 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
                     do_sample: false,
                     max_new_tokens: 1,
                     stop: vec![],
+                    details: false,
                 },
             },
         )
@@ -89,6 +90,7 @@ async fn generate(
     })?;
 
     // Validate request
+    let details = req.0.parameters.details;
     let (input_length, validated_request) =
         state.validation.validate(req.0).await.map_err(|err| {
             tracing::error!("{}", err.to_string());
@@ -105,12 +107,31 @@ async fn generate(
             err
         })?;
 
+    // Token details
+    let details = match details {
+        true => {
+            let tokens = response
+                .token_ids
+                .into_iter()
+                .zip(response.tokens.into_iter())
+                .zip(response.logprobs.into_iter())
+                .map(|((id, text), logprob)| (id, text, logprob))
+                .collect();
+            Some(Details {
+                finish_reason: response.finish_reason,
+                generated_tokens: response.generated_tokens,
+                tokens,
+            })
+        }
+        false => None,
+    };
+
     // Timings
     let total_time = start_time.elapsed();
     let validation_time = response.queued - start_time;
     let queue_time = response.start - response.queued;
     let inference_time = response.end - response.start;
-    let time_per_token = inference_time / response.tokens;
+    let time_per_token = inference_time / response.generated_tokens;
 
     // Headers
     let mut headers = HeaderMap::new();
@@ -141,12 +162,12 @@ async fn generate(
     tracing::Span::current().record("queue_time", format!("{:?}", queue_time));
     tracing::Span::current().record("inference_time", format!("{:?}", inference_time));
     tracing::Span::current().record("time_per_token", format!("{:?}", time_per_token));
-    tracing::info!("Output: {}", response.output);
+    tracing::info!("Output: {}", response.output_text);
 
     // Send response
     let response = vec![GeneratedText {
-        generated_text: response.output,
-        finish_reason: response.finish_reason,
+        generated_text: response.output_text,
+        details,
     }];
     Ok((headers, Json(response)))
 }

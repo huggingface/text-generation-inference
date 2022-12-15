@@ -1,0 +1,30 @@
+name: Server Tests
+
+on:
+  pull_request:
+    paths:
+      - "server/**"
+      - "proto/**"
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
+      - name: Loading cache.
+        uses: actions/cache@v2
+        id: model_cache
+        with:
+          path: ~/.cache/huggingface/
+          key: models
+      - name: Install server dependencies
+        run: |
+          make install-server
+      - name: Run tests
+        run: |
+          pip install pytest
+          pytest -sv server/tests

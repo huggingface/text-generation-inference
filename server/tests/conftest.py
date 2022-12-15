@@ -7,7 +7,7 @@ from text_generation.pb import generate_pb2
 
 @pytest.fixture
 def default_pb_parameters():
-    return generate_pb2.LogitsWarperParameters(
+    return generate_pb2.NextTokenChooserParameters(
         temperature=1.0,
         top_k=0,
         top_p=1.0,

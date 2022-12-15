@@ -17,6 +17,7 @@ to power Bloom, BloomZ and MT0-XXL api-inference widgets.
 - 45ms per token generation for BLOOM with 8xA100 80GB
 - Logits warpers (temperature scaling, topk ...)
 - Stop sequences
+- Log probabilities
 
 ## Officially supported models
 

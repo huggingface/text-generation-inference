@@ -246,12 +246,8 @@ class BLOOMSharded(BLOOM):
         )
 
         # Logits are sharded, so we need to gather them
-        logits_shard = outputs.logits[:, -1, :].contiguous()
-
-        batch_size, vocab_shard_size = logits_shard.shape
-        vocab_size = self.world_size * vocab_shard_size
-        logits = [torch.empty_like(logits_shard) for _ in range(self.world_size)]
-        torch.distributed.all_gather(logits, logits_shard, group=self.process_group)
-        logits = torch.cat(logits, dim=1).view(batch_size, 1, vocab_size)
+        logits = [torch.empty_like(outputs.logits) for _ in range(self.world_size)]
+        torch.distributed.all_gather(logits, outputs.logits, group=self.process_group)
+        logits = torch.cat(logits, dim=2)
 
         return logits, outputs.past_key_values

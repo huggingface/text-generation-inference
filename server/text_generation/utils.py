@@ -55,12 +55,16 @@ class NextTokenChooser:
         self.choice = Sampling() if sampling else Greedy()
 
     def __call__(self, input_ids, scores):
+        # Warp logits
         scores = self.warpers(input_ids, scores)
+        # Compute logprobs
+        logprobs = torch.log_softmax(scores, -1)
+        # Choose tokens
         next_ids = self.choice(scores)
-        return next_ids.unsqueeze(-1)
+        return next_ids, logprobs
 
     @classmethod
-    def from_pb(cls, pb: generate_pb2.LogitsWarperParameters) -> "NextTokenChooser":
+    def from_pb(cls, pb: generate_pb2.NextTokenChooserParameters) -> "NextTokenChooser":
         return NextTokenChooser(
             temperature=pb.temperature,
             top_k=pb.top_k,

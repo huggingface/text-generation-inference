@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use text_generation_client::{
-    Batch, ClientError, LogitsWarperParameters, Request, StoppingCriteriaParameters,
+    Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
 use tokio::sync::oneshot::Sender;
 use tokio::time::Instant;
@@ -71,7 +71,7 @@ impl State {
                 id: *id,
                 inputs: entry.request.inputs.clone(),
                 input_length: entry.input_length as u32,
-                parameters: Some(LogitsWarperParameters::from(
+                parameters: Some(NextTokenChooserParameters::from(
                     entry.request.parameters.clone(),
                 )),
                 stopping_parameters: Some(StoppingCriteriaParameters::from(
@@ -162,7 +162,7 @@ impl Db {
     }
 }
 
-impl From<GenerateParameters> for LogitsWarperParameters {
+impl From<GenerateParameters> for NextTokenChooserParameters {
     fn from(parameters: GenerateParameters) -> Self {
         Self {
             temperature: parameters.temperature,

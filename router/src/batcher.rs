@@ -187,9 +187,13 @@ fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
         let entry = db
             .remove(&output.request.unwrap().id)
             .expect("ID not found in db. This is a bug.");
+
         let response = InferResponse {
-            output: output.output,
+            output_text: output.output_text,
+            generated_tokens: output.generated_tokens,
+            token_ids: output.token_ids,
             tokens: output.tokens,
+            logprobs: output.logprobs,
             finish_reason: output.finish_reason,
             queued: entry.time,
             start: entry.batch_time.unwrap(), // unwrap is always valid
@@ -202,8 +206,11 @@ fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
 
 #[derive(Debug)]
 pub(crate) struct InferResponse {
-    pub(crate) output: String,
-    pub(crate) tokens: u32,
+    pub(crate) output_text: String,
+    pub(crate) generated_tokens: u32,
+    pub(crate) token_ids: Vec<u32>,
+    pub(crate) tokens: Vec<String>,
+    pub(crate) logprobs: Vec<f32>,
     pub(crate) finish_reason: String,
     pub(crate) queued: Instant,
     pub(crate) start: Instant,
