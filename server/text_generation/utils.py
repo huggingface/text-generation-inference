@@ -61,8 +61,6 @@ class NextTokenChooser:
         logprobs = torch.log_softmax(scores, -1)
         # Choose tokens
         next_ids = self.choice(scores)
-
-        # return next_ids, logprobs.gather(1, next_ids.unsqueeze(1)).squeeze(1)
         return next_ids, logprobs
 
     @classmethod
