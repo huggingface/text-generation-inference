@@ -450,7 +450,9 @@ class Seq2SeqLM(Model):
                 tokens = self.tokenizer.batch_decode(token_ids)
                 print(tokens)
                 # Add NaN for the bos token
-                logprobs = [float('nan')] + decoder_logprobs[-new_decoder_input_length:].tolist()
+                logprobs = [float("nan")] + decoder_logprobs[
+                    -new_decoder_input_length:
+                ].tolist()
                 # Add to the list of finished generations with the original request
                 generated_texts.append(
                     GeneratedText(
@@ -460,7 +462,7 @@ class Seq2SeqLM(Model):
                         tokens=tokens,
                         token_ids=token_ids.tolist(),
                         logprobs=logprobs,
-                        reason=reason
+                        reason=reason,
                     )
                 )
             # add to the next batch

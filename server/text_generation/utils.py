@@ -99,7 +99,7 @@ class StopSequenceCriteria:
 
 class StoppingCriteria:
     def __init__(
-            self, stop_sequence_criterias: List[StopSequenceCriteria], max_new_tokens=20
+        self, stop_sequence_criterias: List[StopSequenceCriteria], max_new_tokens=20
     ):
         self.stop_sequence_criterias = stop_sequence_criterias
         self.max_new_tokens = max_new_tokens
@@ -119,7 +119,7 @@ class StoppingCriteria:
 
     @classmethod
     def from_pb(
-            cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: AutoTokenizer
+        cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: AutoTokenizer
     ) -> "StoppingCriteria":
         stop_sequence_criterias = []
         for stop_sequence in pb.stop_sequences:

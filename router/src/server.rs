@@ -64,14 +64,14 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
 
 /// Generate method
 #[instrument(
-skip(state),
-fields(
-total_time,
-validation_time,
-queue_time,
-inference_time,
-time_per_token
-)
+    skip(state),
+    fields(
+        total_time,
+        validation_time,
+        queue_time,
+        inference_time,
+        time_per_token
+    )
 )]
 async fn generate(
     state: Extension<ServerState>,
@@ -123,7 +123,7 @@ async fn generate(
                 tokens,
             })
         }
-        false => None
+        false => None,
     };
 
     // Timings
@@ -163,7 +163,6 @@ async fn generate(
     tracing::Span::current().record("inference_time", format!("{:?}", inference_time));
     tracing::Span::current().record("time_per_token", format!("{:?}", time_per_token));
     tracing::info!("Output: {}", response.output_text);
-
 
     // Send response
     let response = vec![GeneratedText {
@@ -219,7 +218,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(unix)]
-        let terminate = async {
+    let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -227,7 +226,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(not(unix))]
-        let terminate = std::future::pending::<()>();
+    let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},
