@@ -26,4 +26,5 @@ jobs:
           make install-server
       - name: Run tests
         run: |
+          pip install pytest
           pytest -sv server/tests
