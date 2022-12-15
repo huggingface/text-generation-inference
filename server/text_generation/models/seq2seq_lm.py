@@ -448,7 +448,6 @@ class Seq2SeqLM(Model):
                 token_ids = decoder_input_ids[-new_decoder_input_length:]
                 output_text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
                 tokens = self.tokenizer.batch_decode(token_ids)
-                print(tokens)
                 # Add NaN for the bos token
                 logprobs = [float("nan")] + decoder_logprobs[
                     -new_decoder_input_length:
