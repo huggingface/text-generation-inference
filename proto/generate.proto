@@ -27,7 +27,7 @@ message ClearCacheRequest {}
 /// Empty response
 message ClearCacheResponse {}
 
-message LogitsWarperParameters {
+message NextTokenChooserParameters {
     /// exponential scaling output probability distribution
     float temperature = 1;
     /// restricting to the k highest probability elements
@@ -52,8 +52,8 @@ message Request {
     string inputs = 2;
     /// The number of tokens inside inputs
     uint32 input_length = 3;
-    /// Logits Warper Parameters
-    LogitsWarperParameters parameters = 4;
+    /// Next Token Chooser Parameters
+    NextTokenChooserParameters parameters = 4;
     /// Stopping Criteria Parameters
     StoppingCriteriaParameters stopping_parameters = 5;
 }
@@ -71,11 +71,17 @@ message GeneratedText {
     /// Request
     Request request = 1;
     /// Output
-    string output = 2;
+    string output_text = 2;
     /// Number of generated tokens
-    uint32 tokens = 3;
+    uint32 generated_tokens = 3;
+    /// Tokens
+    repeated string tokens = 4;
+    /// Token IDs
+    repeated uint32 token_ids = 5;
+    /// Logprobs
+    repeated float logprobs = 6;
     /// Finish reason
-    string finish_reason = 4;
+    string finish_reason = 7;
 }
 
 message GenerateRequest {

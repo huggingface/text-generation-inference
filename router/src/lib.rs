@@ -21,7 +21,10 @@ pub(crate) struct GenerateParameters {
     pub do_sample: bool,
     #[serde(default = "default_max_new_tokens")]
     pub max_new_tokens: u32,
+    #[serde(default)]
     pub stop: Vec<String>,
+    #[serde(default)]
+    pub details: bool,
 }
 
 fn default_temperature() -> f32 {
@@ -52,6 +55,7 @@ fn default_parameters() -> GenerateParameters {
         do_sample: default_do_sample(),
         max_new_tokens: default_max_new_tokens(),
         stop: vec![],
+        details: false,
     }
 }
 
@@ -63,9 +67,17 @@ pub(crate) struct GenerateRequest {
 }
 
 #[derive(Serialize)]
+pub(crate) struct Details {
+    pub finish_reason: String,
+    pub generated_tokens: u32,
+    pub tokens: Vec<(u32, String, f32)>,
+}
+
+#[derive(Serialize)]
 pub(crate) struct GeneratedText {
     pub generated_text: String,
-    pub finish_reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Details>,
 }
 
 #[derive(Serialize)]

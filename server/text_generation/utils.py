@@ -55,12 +55,18 @@ class NextTokenChooser:
         self.choice = Sampling() if sampling else Greedy()
 
     def __call__(self, input_ids, scores):
+        # Warp logits
         scores = self.warpers(input_ids, scores)
+        # Compute logprobs
+        logprobs = torch.log_softmax(scores, -1)
+        # Choose tokens
         next_ids = self.choice(scores)
-        return next_ids.unsqueeze(-1)
+
+        # return next_ids, logprobs.gather(1, next_ids.unsqueeze(1)).squeeze(1)
+        return next_ids, logprobs
 
     @classmethod
-    def from_pb(cls, pb: generate_pb2.LogitsWarperParameters) -> "NextTokenChooser":
+    def from_pb(cls, pb: generate_pb2.NextTokenChooserParameters) -> "NextTokenChooser":
         return NextTokenChooser(
             temperature=pb.temperature,
             top_k=pb.top_k,
@@ -93,7 +99,7 @@ class StopSequenceCriteria:
 
 class StoppingCriteria:
     def __init__(
-        self, stop_sequence_criterias: List[StopSequenceCriteria], max_new_tokens=20
+            self, stop_sequence_criterias: List[StopSequenceCriteria], max_new_tokens=20
     ):
         self.stop_sequence_criterias = stop_sequence_criterias
         self.max_new_tokens = max_new_tokens
@@ -113,7 +119,7 @@ class StoppingCriteria:
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: AutoTokenizer
+            cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: AutoTokenizer
     ) -> "StoppingCriteria":
         stop_sequence_criterias = []
         for stop_sequence in pb.stop_sequences:
