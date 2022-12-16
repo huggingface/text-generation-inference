@@ -62,7 +62,7 @@ fn start_launcher(model_name: String, num_shard: usize, port: usize, master_port
         }
     });
 
-    for _ in 0..30 {
+    for _ in 0..60 {
         let health = reqwest::blocking::get(format!("http://localhost:{}/health", port));
         if health.is_ok() {
             return launcher;
