@@ -5,6 +5,8 @@ on:
     paths:
       - "server/**"
       - "proto/**"
+      - "router/**"
+      - "launcher/**"
 
 jobs:
   run_tests:
