@@ -1,5 +1,6 @@
 import concurrent
 import os
+import re
 import torch
 import torch.distributed
 
@@ -74,43 +75,39 @@ class NextTokenChooser:
 
 
 class StopSequenceCriteria:
-    def __init__(self, tokens: List[int]):
-        if not tokens:
-            raise ValueError("tokens cannot be empty")
+    def __init__(self, stop_sequence: str):
+        self.regex = re.compile(f".*{stop_sequence}$")
 
-        self.tokens = tokens
-        self.current_token_idx = 0
-
-    def __call__(self, last_token: int) -> bool:
-        if last_token == self.tokens[self.current_token_idx]:
-            # Increase idx to go to next token
-            self.current_token_idx += 1
-        else:
-            # Reset to first token of the stopping sequence
-            self.current_token_idx = 0
-
-        if self.current_token_idx == len(self.tokens):
-            # We matched the entire sequence without resetting
+    def __call__(self, output: str) -> bool:
+        if self.regex.findall(output):
             return True
         return False
 
 
 class StoppingCriteria:
     def __init__(
-        self, stop_sequence_criterias: List[StopSequenceCriteria], max_new_tokens=20
+        self,
+        eos_token_id: int,
+        stop_sequence_criterias: List[StopSequenceCriteria],
+        max_new_tokens=20,
     ):
+        self.eos_token_id = eos_token_id
         self.stop_sequence_criterias = stop_sequence_criterias
         self.max_new_tokens = max_new_tokens
         self.current_tokens = 0
+        self.current_output = ""
 
-    def __call__(self, all_ids) -> Tuple[bool, Optional[str]]:
+    def __call__(self, last_token: int, last_output: str) -> Tuple[bool, Optional[str]]:
         self.current_tokens += 1
         if self.current_tokens >= self.max_new_tokens:
             return True, "length"
 
-        last_token = all_ids[-1]
+        if last_token == self.eos_token_id:
+            return True, "eos_token"
+
+        self.current_output += last_output
         for stop_sequence_criteria in self.stop_sequence_criterias:
-            if stop_sequence_criteria(last_token):
+            if stop_sequence_criteria(self.current_output):
                 return True, "stop_sequence"
 
         return False, None
@@ -119,16 +116,12 @@ class StoppingCriteria:
     def from_pb(
         cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: AutoTokenizer
     ) -> "StoppingCriteria":
-        stop_sequence_criterias = []
-        for stop_sequence in pb.stop_sequences:
-            tokens = tokenizer(
-                stop_sequence, padding=False, return_attention_mask=False
-            ).input_ids
-            if tokens:
-                stop_sequence_criterias.append(StopSequenceCriteria(tokens))
-        stop_sequence_criterias.append(StopSequenceCriteria([tokenizer.eos_token_id]))
-
-        return StoppingCriteria(stop_sequence_criterias, pb.max_new_tokens)
+        stop_sequence_criterias = [
+            StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
+        ]
+        return StoppingCriteria(
+            tokenizer.eos_token_id, stop_sequence_criterias, pb.max_new_tokens
+        )
 
 
 def initialize_torch_distributed():

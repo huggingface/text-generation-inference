@@ -345,7 +345,12 @@ class CausalLM(Model):
                 all_logprobs = torch.cat([all_logprobs, next_token_logprob])
 
             # Evaluate stopping criteria
-            stop, reason = stopping_criteria(all_input_ids)
+            stop, reason = stopping_criteria(
+                next_token.squeeze(),
+                self.tokenizer.decode(
+                    next_token.squeeze(), clean_up_tokenization_spaces=False
+                ),
+            )
             if stop:
                 # Decode all tokens
                 output_text = self.tokenizer.decode(

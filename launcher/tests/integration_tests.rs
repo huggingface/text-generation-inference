@@ -1,13 +1,13 @@
-use std::fs::File;
+use float_eq::assert_float_eq;
+use serde::Deserialize;
 use serde_json::Value;
+use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
-use float_eq::assert_float_eq;
 use subprocess::{Popen, PopenConfig, Redirection};
-use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct Details {
@@ -21,7 +21,6 @@ struct GeneratedText {
     generated_text: String,
     details: Details,
 }
-
 
 fn start_launcher(model_name: String, num_shard: usize, port: usize, master_port: usize) -> Popen {
     let argv = vec![
@@ -46,7 +45,7 @@ fn start_launcher(model_name: String, num_shard: usize, port: usize, master_port
             ..Default::default()
         },
     )
-        .expect("Could not start launcher");
+    .expect("Could not start launcher");
 
     // Redirect STDOUT and STDERR to the console
     let launcher_stdout = launcher.stdout.take().unwrap();
@@ -63,7 +62,7 @@ fn start_launcher(model_name: String, num_shard: usize, port: usize, master_port
         }
     });
 
-    for _ in 0..30 {
+    for _ in 0..60 {
         let health = reqwest::blocking::get(format!("http://localhost:{}/health", port));
         if health.is_ok() {
             return launcher;
@@ -76,7 +75,12 @@ fn start_launcher(model_name: String, num_shard: usize, port: usize, master_port
     panic!("failed to launch {}", model_name)
 }
 
-fn test_model(model_name: String, num_shard: usize, port: usize, master_port: usize) -> GeneratedText {
+fn test_model(
+    model_name: String,
+    num_shard: usize,
+    port: usize,
+    master_port: usize,
+) -> GeneratedText {
     let mut launcher = start_launcher(model_name, num_shard, port, master_port);
 
     let data = r#"
@@ -101,7 +105,6 @@ fn test_model(model_name: String, num_shard: usize, port: usize, master_port: us
     results.pop().unwrap()
 }
 
-
 fn read_json(name: &str) -> GeneratedText {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     d.push("tests/");
@@ -117,9 +120,17 @@ fn read_json(name: &str) -> GeneratedText {
 fn compare_results(result: GeneratedText, expected: GeneratedText) {
     assert_eq!(result.generated_text, expected.generated_text);
     assert_eq!(result.details.finish_reason, expected.details.finish_reason);
-    assert_eq!(result.details.generated_tokens, expected.details.generated_tokens);
+    assert_eq!(
+        result.details.generated_tokens,
+        expected.details.generated_tokens
+    );
 
-    for (token, expected_token) in result.details.tokens.into_iter().zip(expected.details.tokens.into_iter()) {
+    for (token, expected_token) in result
+        .details
+        .tokens
+        .into_iter()
+        .zip(expected.details.tokens.into_iter())
+    {
         assert_eq!(token.0, expected_token.0);
         assert_eq!(token.1, expected_token.1);
         if let Some(logprob) = token.2 {
