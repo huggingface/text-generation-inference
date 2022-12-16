@@ -441,7 +441,12 @@ class Seq2SeqLM(Model):
                 decoder_logprobs = torch.cat([decoder_logprobs, next_token_logprob])
 
             # Evaluate stopping criteria
-            stop, reason = stopping_criteria(decoder_input_ids)
+            stop, reason = stopping_criteria(
+                next_token.squeeze(),
+                self.tokenizer.decode(
+                    next_token.squeeze(), clean_up_tokenization_spaces=False
+                ),
+            )
             if stop:
                 # Slice with decoder_input_length to remove padding
                 # Decode all tokens
