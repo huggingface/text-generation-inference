@@ -5,6 +5,8 @@ on:
     paths:
       - "server/**"
       - "proto/**"
+      - "router/**"
+      - "launcher/**"
 
 jobs:
   run_tests:
@@ -15,16 +17,25 @@ jobs:
         uses: actions/setup-python@v1
         with:
           python-version: 3.9
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.65.0
+          override: true
+          components: rustfmt, clippy
       - name: Loading cache.
         uses: actions/cache@v2
         id: model_cache
         with:
           path: ~/.cache/huggingface/
           key: models
-      - name: Install server dependencies
+      - name: Install
         run: |
-          make install-server
-      - name: Run tests
+          make install
+      - name: Run server tests
         run: |
           pip install pytest
           pytest -sv server/tests
+      - name: Run Rust tests
+        run: |
+          cargo test
