@@ -354,7 +354,8 @@ class CausalLM(Model):
             if stop:
                 # Decode all tokens
                 output_text = self.tokenizer.decode(
-                    all_input_ids.squeeze(-1), skip_special_tokens=True
+                    all_input_ids.squeeze(-1), skip_special_tokens=True,
+                    cleanup_tokenization_spaces=False
                 )
                 # Slice with input_length to remove padding
                 token_ids = all_input_ids[-new_input_length:]
