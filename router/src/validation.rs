@@ -131,7 +131,7 @@ fn validation_worker(
         }
 
         // Get the number of tokens in the input
-        match tokenizer.encode(request.inputs.clone(), false) {
+        match tokenizer.encode(request.inputs.clone(), true) {
             Ok(inputs) => {
                 let input_length = inputs.len();
 
