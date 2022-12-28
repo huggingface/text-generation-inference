@@ -299,6 +299,10 @@ fn shard_manager(
             "SAFETENSORS_FAST_GPU".parse().unwrap(),
             "1".to_string().parse().unwrap(),
         ),
+        (
+            "PYTHONUNBUFFERED".parse().unwrap(),
+            "1".to_string().parse().unwrap(),
+        ),
     ];
 
     // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
@@ -346,6 +350,12 @@ fn shard_manager(
             return;
         }
     };
+
+    // Redirect STDOUT to the console
+    let shard_stdout = p.stdout.take().unwrap();
+    thread::spawn(move || BufReader::new(shard_stdout).lines().for_each(|line|
+        println!("Shard {}: {}", rank, line.unwrap())
+    ));
 
     let mut ready = false;
     let start_time = Instant::now();

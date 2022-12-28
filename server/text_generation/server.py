@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 
 from grpc import aio
@@ -12,6 +13,16 @@ from text_generation.models import Model, get_model
 from text_generation.pb import generate_pb2_grpc, generate_pb2
 
 
+def log_errs(func):
+    async def func_with_log(*args, **kwargs):
+        try:
+            return await func(*args,**kwargs)
+        except Exception as e:
+            logging.exception(f"{func.__name__} failed")
+            raise e
+    return func_with_log
+
+
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     def __init__(self, model: Model, cache: Cache, server_urls: List[str]):
         self.cache = cache
@@ -21,10 +32,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     async def ServiceDiscovery(self, request, context):
         return generate_pb2.ServiceDiscoveryResponse(urls=self.server_urls)
 
+    @log_errs
     async def ClearCache(self, request, context):
         self.cache.clear()
         return generate_pb2.ClearCacheResponse()
 
+    @log_errs
     async def Generate(self, request, context):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.device
@@ -40,6 +53,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch=next_batch.to_pb() if next_batch else None,
         )
 
+    @log_errs
     async def GenerateWithCache(self, request, context):
         if len(request.batches) == 0:
             raise ValueError("Must provide at least one batch")
