@@ -1,6 +1,11 @@
-FROM rust:1.65 as router-builder
+FROM rust:1.66 as router-builder
 
 WORKDIR /usr/src
+
+# Install protoc, no longer included in prost crate
+RUN cd /tmp && \
+    curl -L -O https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip && \
+    unzip protoc-*.zip -d /usr/local && rm protoc-*.zip
 
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
@@ -10,7 +15,7 @@ WORKDIR /usr/src/router
 
 RUN cargo install --path .
 
-FROM rust:1.65 as launcher-builder
+FROM rust:1.66 as launcher-builder
 
 WORKDIR /usr/src
 

@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-futures = "^0.3"
-prost = "^0.9"
-thiserror = "^1.0"
-tokio = { version = "^1.21", features = ["sync"] }
-tonic = "^0.6"
-tower = "^0.4"
-tracing = "^0.1"
+futures = "^0.3.25"
+prost = "^0.11.5"
+thiserror = "^1.0.38"
+tokio = { version = "^1.23.0", features = ["sync"] }
+tonic = "^0.8.3"
+tower = "^0.4.13"
+tracing = "^0.1.37"
 tracing-error = "^0.2"
 
 [build-dependencies]
-tonic-build = "0.6.2"
+tonic-build = "0.8.4"
