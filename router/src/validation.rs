@@ -6,7 +6,7 @@ use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::{mpsc, oneshot};
 
-const MAX_MAX_NEW_TOKENS: u32 = 512;
+const MAX_MAX_NEW_TOKENS: usize = 512;
 const MAX_STOP_SEQUENCES: usize = 4;
 
 /// Validation
@@ -112,8 +112,8 @@ fn validate(
     if request.parameters.top_k < 0 {
         return Err(ValidationError::TopK);
     }
-    if request.parameters.max_new_tokens > MAX_MAX_NEW_TOKENS {
-        return Err(ValidationError::MaxNewTokens(MAX_MAX_NEW_TOKENS as usize));
+    if request.parameters.max_new_tokens as usize > MAX_MAX_NEW_TOKENS {
+        return Err(ValidationError::MaxNewTokens(MAX_MAX_NEW_TOKENS));
     }
     if request.parameters.stop.len() > MAX_STOP_SEQUENCES {
         return Err(ValidationError::StopSequence(
