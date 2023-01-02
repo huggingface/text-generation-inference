@@ -77,7 +77,7 @@ class Seq2SeqLMBatch:
             decoder_logprobs.append(None)
 
         # Tokenize batch
-        pad_to_multiple_of = 8 if "gpu" in str(device) else None
+        pad_to_multiple_of = 8 if device.type == "cuda" else None
         tokenized_inputs = tokenizer(
             inputs,
             return_tensors="pt",
