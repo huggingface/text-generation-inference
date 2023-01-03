@@ -71,12 +71,8 @@ impl State {
                 id: *id,
                 inputs: entry.request.inputs.clone(),
                 input_length: entry.input_length as u32,
-                parameters: Some(NextTokenChooserParameters::from(
-                    entry.request.parameters.clone(),
-                )),
-                stopping_parameters: Some(StoppingCriteriaParameters::from(
-                    entry.request.parameters.clone(),
-                )),
+                parameters: Some((&entry.request.parameters).into()),
+                stopping_parameters: Some(entry.request.parameters.clone().into()),
             });
 
             ids.push(*id);
@@ -162,8 +158,8 @@ impl Db {
     }
 }
 
-impl From<GenerateParameters> for NextTokenChooserParameters {
-    fn from(parameters: GenerateParameters) -> Self {
+impl From<&GenerateParameters> for NextTokenChooserParameters {
+    fn from(parameters: &GenerateParameters) -> Self {
         Self {
             temperature: parameters.temperature,
             top_k: parameters.top_k as u32,
