@@ -41,23 +41,19 @@ fn start_launcher(model_name: String, num_shard: usize, port: usize, master_port
         &argv,
         PopenConfig {
             stdout: Redirection::Pipe,
-            stderr: Redirection::Pipe,
+            stderr: Redirection::Merge,
             ..Default::default()
         },
     )
     .expect("Could not start launcher");
 
     // Redirect STDOUT and STDERR to the console
+    // (STDERR is merged into STDOUT)
     let launcher_stdout = launcher.stdout.take().unwrap();
-    let launcher_stderr = launcher.stderr.take().unwrap();
 
     thread::spawn(move || {
         let stdout = BufReader::new(launcher_stdout);
-        let stderr = BufReader::new(launcher_stderr);
         for line in stdout.lines() {
-            println!("{}", line.unwrap());
-        }
-        for line in stderr.lines() {
             println!("{}", line.unwrap());
         }
     });

@@ -2,12 +2,14 @@ import asyncio
 import os
 
 from grpc import aio
+from loguru import logger
 
 from grpc_reflection.v1alpha import reflection
 from pathlib import Path
 from typing import List
 
 from text_generation.cache import Cache
+from text_generation.interceptor import ExceptionInterceptor
 from text_generation.models import Model, get_model
 from text_generation.pb import generate_pb2_grpc, generate_pb2
 
@@ -91,7 +93,7 @@ def serve(
 
         model = get_model(model_name, sharded, quantize)
 
-        server = aio.server()
+        server = aio.server(interceptors=[ExceptionInterceptor()])
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
             TextGenerationService(model, Cache(), server_urls), server
         )
@@ -102,11 +104,11 @@ def serve(
         reflection.enable_server_reflection(SERVICE_NAMES, server)
         server.add_insecure_port(local_url)
         await server.start()
-        print("Server started at {}".format(local_url))
+        logger.info("Server started at {}".format(local_url))
         try:
             await server.wait_for_termination()
         except KeyboardInterrupt:
-            print("Signal received. Shutting down")
+            logger.info("Signal received. Shutting down")
             await server.stop(0)
 
     asyncio.run(serve_inner(model_name, sharded, quantize))
