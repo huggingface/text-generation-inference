@@ -188,8 +188,14 @@ fn send_generated(finished: Vec<GeneratedText>, db: &Db) {
             .remove(&output.request.unwrap().id)
             .expect("ID not found in db. This is a bug.");
 
+        let mut output_text = output.output_text;
+        if entry.request.parameters.return_full_text {
+            // Concat prompt and output text
+            output_text = entry.request.inputs + &output_text;
+        }
+
         let response = InferResponse {
-            output_text: output.output_text,
+            output_text,
             generated_tokens: output.generated_tokens,
             token_ids: output.token_ids,
             tokens: output.tokens,

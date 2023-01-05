@@ -25,6 +25,8 @@ pub(crate) struct GenerateParameters {
     pub stop: Vec<String>,
     #[serde(default)]
     pub details: bool,
+    #[serde(default = "default_return_full_text")]
+    pub return_full_text: bool,
 }
 
 fn default_temperature() -> f32 {
@@ -43,6 +45,10 @@ fn default_do_sample() -> bool {
     false
 }
 
+fn default_return_full_text() -> bool {
+    true
+}
+
 fn default_max_new_tokens() -> u32 {
     20
 }
@@ -56,6 +62,7 @@ fn default_parameters() -> GenerateParameters {
         max_new_tokens: default_max_new_tokens(),
         stop: vec![],
         details: false,
+        return_full_text: true,
     }
 }
 
