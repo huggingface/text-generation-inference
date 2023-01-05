@@ -11,6 +11,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
+use serde_json::Value;
 use subprocess::{Popen, PopenConfig, PopenError, Redirection};
 
 /// App Configuration
@@ -274,6 +275,9 @@ fn shard_manager(
         model_name,
         "--uds-path".to_string(),
         uds_path,
+        "--logger-level".to_string(),
+        "ERROR".to_string(),
+        "--json-output".to_string(),
     ];
 
     if world_size > 1 {
@@ -346,6 +350,24 @@ fn shard_manager(
             return;
         }
     };
+
+    // Redirect STDOUT to the console
+    let shard_stdout = p.stdout.take().unwrap();
+
+    thread::spawn(move || {
+        // Enter shard-manager tracing span
+        let stdout = BufReader::new(shard_stdout);
+        let _span = tracing::span!(tracing::Level::INFO, "shard-manager", rank = rank).entered();
+        for line in stdout.lines() {
+            // Parse loguru logs
+            if let Ok(value) = serde_json::from_str::<Value>(&line.unwrap()) {
+                if let Some(text) = value.get("text") {
+                    // Format escaped newlines
+                    tracing::error!("{}", text.to_string().replace("\\n", "\n"));
+                }
+            }
+        }
+    });
 
     let mut ready = false;
     let start_time = Instant::now();

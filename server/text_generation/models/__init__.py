@@ -4,7 +4,7 @@ from text_generation.models.bloom import BLOOM, BLOOMSharded
 from text_generation.models.seq2seq_lm import Seq2SeqLM
 from text_generation.models.galactica import Galactica, GalacticaSharded
 
-__all__ = ["Model", "BLOOM", "BLOOMSharded", "CausalLM", "Seq2SeqLM"]
+__all__ = ["Model", "BLOOM", "BLOOMSharded", "CausalLM", "Seq2SeqLM", "get_model"]
 
 
 def get_model(model_name: str, sharded: bool, quantize: bool) -> Model:

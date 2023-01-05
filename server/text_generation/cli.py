@@ -1,7 +1,9 @@
 import os
+import sys
 import typer
 
 from pathlib import Path
+from loguru import logger
 
 from text_generation import server, utils
 
@@ -14,7 +16,20 @@ def serve(
     sharded: bool = False,
     quantize: bool = False,
     uds_path: Path = "/tmp/text-generation",
+    logger_level: str = "INFO",
+    json_output: bool = False,
 ):
+    # Remove default handler
+    logger.remove()
+    logger.add(
+        sys.stdout,
+        format="{message}",
+        filter="text_generation",
+        level=logger_level,
+        serialize=json_output,
+        backtrace=True,
+        diagnose=False,
+    )
     if sharded:
         assert (
             os.getenv("RANK", None) is not None
