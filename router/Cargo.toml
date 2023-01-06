@@ -13,16 +13,16 @@ name = "text-generation-router"
 path = "src/main.rs"
 
 [dependencies]
-axum = { version = "0.5.16", features = ["json", "serde_json"] }
+axum = { version = "0.5.17", features = ["json", "serde_json"] }
 text-generation-client = { path = "client" }
-clap = { version = "4.0.15", features = ["derive", "env"] }
-futures = "0.3.24"
+clap = { version = "4.0.32", features = ["derive", "env"] }
+futures = "0.3.25"
 parking_lot = "0.12.1"
-serde = "1.0.145"
-serde_json = "1.0.85"
-thiserror = "1.0.37"
-tokenizers = "0.13.0"
-tokio = { version = "1.21.1", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
-tracing = "0.1.36"
-tracing-subscriber = { version = "0.3.15", features = ["json"] }
+serde = "1.0.152"
+serde_json = "1.0.91"
+thiserror = "1.0.38"
+tokenizers = "0.13.2"
+tokio = { version = "1.21.2", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["json"] }
 

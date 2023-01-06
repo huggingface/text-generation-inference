@@ -9,7 +9,7 @@ text-generation-server = 'text_generation.cli:app'
 
 [tool.poetry.dependencies]
 python = "^3.9"
-protobuf = "^4.21.7"
+protobuf = "^4.21.12"
 grpcio = "^1.51.1"
 grpcio-status = "^1.51.1"
 grpcio-reflection = "^1.51.1"
@@ -24,7 +24,7 @@ loguru = "^0.6.0"
 bnb = ["bitsandbytes"]
 
 [tool.poetry.group.dev.dependencies]
-grpcio-tools = "^1.49.1"
+grpcio-tools = "^1.51.1"
 pytest = "^7.2.0"
 
 [build-system]

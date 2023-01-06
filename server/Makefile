@@ -1,6 +1,6 @@
 gen-server:
 	# Compile protos
-	pip install grpcio-tools==1.49.1 --no-cache-dir
+	pip install grpcio-tools==1.51.1 --no-cache-dir
 	mkdir text_generation/pb || true
 	python -m grpc_tools.protoc -I../proto --python_out=text_generation/pb --grpc_python_out=text_generation/pb ../proto/generate.proto
 	find text_generation/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
