@@ -1,17 +1,17 @@
 import torch
 
 from dataclasses import dataclass
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type
 
 from text_generation.models import Model
-from text_generation.models.types import GeneratedText
+from text_generation.models.types import GeneratedText, Batch
 from text_generation.pb import generate_pb2
 from text_generation.utils import NextTokenChooser, StoppingCriteria
 
 
 @dataclass
-class Seq2SeqLMBatch:
+class Seq2SeqLMBatch(Batch):
     batch_id: int
     requests: List[generate_pb2.Request]
 
@@ -41,7 +41,7 @@ class Seq2SeqLMBatch:
     max_input_length: int
     max_decoder_input_length: int
 
-    def to_pb(self):
+    def to_pb(self) -> generate_pb2.Batch:
         """Convert a Seq2SeqLMBatch to a text_generation.v1.Batch protobuf"""
         return generate_pb2.Batch(
             id=self.batch_id,
@@ -51,7 +51,7 @@ class Seq2SeqLMBatch:
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
     ) -> "Seq2SeqLMBatch":
         """Convert a text_generation.v1.Batch protobuf to a Seq2SeqLMBatch"""
         inputs = []
@@ -155,10 +155,8 @@ class Seq2SeqLMBatch:
 
             # Create padded tensor
             if input_ids is None:
-                input_ids = torch.zeros(
+                input_ids = batch.input_ids.new_zeros(
                     (total_batch_size, max_input_length),
-                    dtype=batch.input_ids.dtype,
-                    device=batch.input_ids.device,
                 )
             # Copy to correct indices
             input_ids[
@@ -167,10 +165,8 @@ class Seq2SeqLMBatch:
 
             # Create padded tensor
             if attention_mask is None:
-                attention_mask = torch.zeros(
+                attention_mask = batch.attention_mask.new_zeros(
                     (total_batch_size, max_input_length),
-                    dtype=batch.attention_mask.dtype,
-                    device=batch.attention_mask.device,
                 )
             # Copy to correct indices
             attention_mask[
@@ -179,10 +175,8 @@ class Seq2SeqLMBatch:
 
             # Create padded tensor
             if decoder_input_ids is None:
-                decoder_input_ids = torch.zeros(
+                decoder_input_ids = batch.decoder_input_ids.new_zeros(
                     (total_batch_size, max_decoder_input_length),
-                    dtype=batch.decoder_input_ids.dtype,
-                    device=batch.decoder_input_ids.device,
                 )
             # Copy to correct indices
             decoder_input_ids[
@@ -191,10 +185,9 @@ class Seq2SeqLMBatch:
 
             # Create padded tensor
             if decoder_attention_mask is None:
-                decoder_attention_mask = torch.zeros(
+                # As decoder_attention_mask might not exist, we use `batch.attention_mask` for device here
+                decoder_attention_mask = batch.attention_mask.new_zeros(
                     (total_batch_size, max_decoder_input_length),
-                    dtype=batch.attention_mask.dtype,  # As decoder_attention_mask might not exist,
-                    device=batch.attention_mask.device,  # we use `batch.attention_maks` for device here
                 )
             # If the decoder mask does not exist yet, all generations started at the same time and we never concatenated
             # this batch. All generations are of length `batch.max_decoder_input_length`.
@@ -210,14 +203,12 @@ class Seq2SeqLMBatch:
 
             # Create padded tensor
             if encoder_last_hidden_state is None:
-                encoder_last_hidden_state = torch.zeros(
+                encoder_last_hidden_state = batch.encoder_last_hidden_state.new_zeros(
                     (
                         total_batch_size,
                         max_input_length,
                         batch.encoder_last_hidden_state.shape[-1],
                     ),
-                    dtype=batch.encoder_last_hidden_state.dtype,
-                    device=batch.encoder_last_hidden_state.device,
                 )
 
             # Copy to correct indices
@@ -245,9 +236,7 @@ class Seq2SeqLMBatch:
                     # Initialize tensors
                     # This will run only once per layer and per past tensor
                     if k == len(past_key_values[j]):
-                        past_key_values[j].append(
-                            torch.zeros(padded_t_shape, dtype=t.dtype, device=t.device)
-                        )
+                        past_key_values[j].append(t.new_zeros(padded_t_shape))
 
                     # We slice the past keys and values to remove the padding from previous batches
                     past_key_values[j][k][
@@ -271,9 +260,7 @@ class Seq2SeqLMBatch:
                     # Initialize tensors
                     # This will run only once per layer and per past tensor
                     if idx == len(past_key_values[j]):
-                        past_key_values[j].append(
-                            torch.zeros(padded_t_shape, dtype=t.dtype, device=t.device)
-                        )
+                        past_key_values[j].append(t.new_zeros(padded_t_shape))
 
                     past_key_values[j][idx][
                         start_index:end_index, :, -batch.max_input_length :, :

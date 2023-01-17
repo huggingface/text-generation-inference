@@ -6,7 +6,7 @@ from typing import List, Optional, Type
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig, PreTrainedTokenizerBase
 from transformers.models.opt.parallel_layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
@@ -82,7 +82,7 @@ def escape_custom_split_sequence(text):
 class GalacticaCausalLMBatch(CausalLMBatch):
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
     ) -> "GalacticaCausalLMBatch":
         inputs = []
         next_token_choosers = []
@@ -278,9 +278,7 @@ class GalacticaSharded(Galactica):
                                 def linear(input, weight, bias):
                                     size_out = input.size()[:-1] + (out_features,)
                                     input = input.view(-1, in_features)
-                                    out = torch.empty(
-                                        size_out, device=input.device, dtype=input.dtype
-                                    )
+                                    out = input.new_empty(size_out)
                                     out = bnb.matmul(
                                         input,
                                         weight,
