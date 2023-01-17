@@ -127,7 +127,7 @@ async fn batching_task(
 
                     // Try to get a new batch
                     if let Some((new_request_ids, new_batch)) =
-                        db.next_batch(min_size, max_batch_size)
+                        db.next_batch(min_size, max_batch_size - batch_size as usize)
                     {
                         // Generate one token for this new batch to have the attention past in cache
                         let new_cached_batch =
