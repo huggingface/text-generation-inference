@@ -23,5 +23,5 @@ def get_model(model_name: str, sharded: bool, quantize: bool) -> Model:
             raise ValueError("sharded is not supported for AutoModel")
         try:
             return CausalLM(model_name, quantize=quantize)
-        except Exception as e:
+        except Exception:
             return Seq2SeqLM(model_name, quantize=quantize)

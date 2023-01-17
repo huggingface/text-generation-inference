@@ -289,36 +289,25 @@ fn shard_manager(
     }
 
     let mut env = vec![
-        ("RANK".parse().unwrap(), rank.to_string().parse().unwrap()),
-        (
-            "WORLD_SIZE".parse().unwrap(),
-            world_size.to_string().parse().unwrap(),
-        ),
-        ("MASTER_ADDR".parse().unwrap(), master_addr.parse().unwrap()),
-        (
-            "MASTER_PORT".parse().unwrap(),
-            master_port.to_string().parse().unwrap(),
-        ),
-        (
-            "SAFETENSORS_FAST_GPU".parse().unwrap(),
-            "1".to_string().parse().unwrap(),
-        ),
+        ("RANK".into(), rank.to_string().into()),
+        ("WORLD_SIZE".into(), world_size.to_string().into()),
+        ("MASTER_ADDR".into(), master_addr.into()),
+        ("MASTER_PORT".into(), master_port.to_string().into()),
+        ("SAFETENSORS_FAST_GPU".into(), "1".into()),
     ];
 
     // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
     // Useful when running inside a docker container
     if let Ok(huggingface_hub_cache) = env::var("HUGGINGFACE_HUB_CACHE") {
         env.push((
-            "HUGGINGFACE_HUB_CACHE".parse().unwrap(),
-            huggingface_hub_cache.parse().unwrap(),
+            "HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into(),
         ));
     };
 
     // If the CUDA_VISIBLE_DEVICES env var is set, pass it to the shard
     if let Ok(cuda_visible_devices) = env::var("CUDA_VISIBLE_DEVICES") {
         env.push((
-            "CUDA_VISIBLE_DEVICES".parse().unwrap(),
-            cuda_visible_devices.parse().unwrap(),
+            "CUDA_VISIBLE_DEVICES".into(), cuda_visible_devices.into(),
         ));
     };
 

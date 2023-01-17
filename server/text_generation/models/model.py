@@ -2,7 +2,7 @@ import torch
 
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, TypeVar, Type
-from tokenizers import Tokenizer
+from transformers import PreTrainedTokenizerBase
 
 from text_generation.models.types import Batch, GeneratedText
 
@@ -10,7 +10,7 @@ B = TypeVar("B", bound=Batch)
 
 
 class Model(ABC):
-    def __init__(self, tokenizer: Tokenizer, device: torch.device):
+    def __init__(self, tokenizer: PreTrainedTokenizerBase, device: torch.device):
         self.tokenizer = tokenizer
         self.device = device
 

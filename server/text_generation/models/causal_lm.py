@@ -1,17 +1,17 @@
 import torch
 
 from dataclasses import dataclass
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type
 
 from text_generation.models import Model
-from text_generation.models.types import GeneratedText
+from text_generation.models.types import GeneratedText, Batch
 from text_generation.pb import generate_pb2
 from text_generation.utils import NextTokenChooser, StoppingCriteria
 
 
 @dataclass
-class CausalLMBatch:
+class CausalLMBatch(Batch):
     batch_id: int
     requests: List[generate_pb2.Request]
 
@@ -38,7 +38,7 @@ class CausalLMBatch:
     # Past metadata
     keys_head_dim_last: bool = True
 
-    def to_pb(self):
+    def to_pb(self) -> generate_pb2.Batch:
         return generate_pb2.Batch(
             id=self.batch_id,
             requests=self.requests,
@@ -47,7 +47,7 @@ class CausalLMBatch:
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
     ) -> "CausalLMBatch":
         inputs = []
         next_token_choosers = []
@@ -130,20 +130,14 @@ class CausalLMBatch:
             # input_ids is always of shape [batch_size, 1]
             # We do not need to pad it
             if input_ids is None:
-                input_ids = torch.empty(
-                    (total_batch_size, 1),
-                    dtype=batch.input_ids.dtype,
-                    device=batch.input_ids.device,
-                )
+                input_ids = batch.input_ids.new_empty((total_batch_size, 1))
             # Copy to correct indices
             input_ids[start_index:end_index] = batch.input_ids
 
             # Create padded tensor
             if attention_mask is None:
-                attention_mask = torch.zeros(
+                attention_mask = batch.attention_mask.new_zeros(
                     (total_batch_size, max_sequence_length),
-                    dtype=batch.attention_mask.dtype,
-                    device=batch.attention_mask.device,
                 )
 
             # We need to slice the attention mask to remove padding from previous steps
@@ -171,8 +165,8 @@ class CausalLMBatch:
 
                 if batch.keys_head_dim_last:
                     padded_past_keys_shape = padded_past_values_shape
-                # seq_length is last for BLOOM
                 else:
+                    # seq_length is last for BLOOM
                     padded_past_keys_shape = (
                         total_batch_size,
                         num_heads,
@@ -182,16 +176,8 @@ class CausalLMBatch:
 
                 # This will run only once per layer
                 if j == len(past_key_values):
-                    padded_past_keys = torch.zeros(
-                        padded_past_keys_shape,
-                        dtype=past_keys.dtype,
-                        device=past_keys.device,
-                    )
-                    padded_past_values = torch.zeros(
-                        padded_past_values_shape,
-                        dtype=past_values.dtype,
-                        device=past_values.device,
-                    )
+                    padded_past_keys = past_keys.new_zeros(padded_past_keys_shape)
+                    padded_past_values = past_values.new_zeros(padded_past_values_shape)
                     past_key_values.append((padded_past_keys, padded_past_values))
 
                 # We slice the past keys and values to remove the padding from previous batches

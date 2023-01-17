@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List
 
-from transformers import AutoTokenizer
+from transformers import PreTrainedTokenizerBase
 
 from text_generation.pb import generate_pb2
 
@@ -17,7 +17,7 @@ class Batch(ABC):
     @classmethod
     @abstractmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: AutoTokenizer, device: torch.device
+        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
     ) -> "Batch":
         raise NotImplementedError
 

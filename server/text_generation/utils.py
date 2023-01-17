@@ -12,7 +12,7 @@ from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
 from huggingface_hub.utils import LocalEntryNotFoundError
 from tqdm import tqdm
 from typing import List, Optional, Tuple
-from transformers import AutoTokenizer
+from transformers import PreTrainedTokenizerBase
 from transformers.generation.logits_process import (
     LogitsProcessorList,
     TemperatureLogitsWarper,
@@ -114,7 +114,7 @@ class StoppingCriteria:
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: AutoTokenizer
+        cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: PreTrainedTokenizerBase
     ) -> "StoppingCriteria":
         stop_sequence_criterias = [
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
