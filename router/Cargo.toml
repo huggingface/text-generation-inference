@@ -17,6 +17,7 @@ axum = { version = "0.5.16", features = ["json", "serde_json"] }
 text-generation-client = { path = "client" }
 clap = { version = "4.0.15", features = ["derive", "env"] }
 futures = "0.3.24"
+nohash-hasher = "0.2.0"
 parking_lot = "0.12.1"
 serde = "1.0.145"
 serde_json = "1.0.85"

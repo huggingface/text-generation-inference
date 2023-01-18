@@ -7,11 +7,9 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use std::net::SocketAddr;
-use std::sync::Arc;
 use text_generation_client::ShardedClient;
 use tokenizers::Tokenizer;
 use tokio::signal;
-use tokio::sync::Semaphore;
 use tokio::time::Instant;
 use tracing::instrument;
 
@@ -20,7 +18,6 @@ use tracing::instrument;
 struct ServerState {
     validation: Validation,
     batcher: Batcher,
-    limit_concurrent_requests: Arc<Semaphore>,
 }
 
 /// Health check method
@@ -30,8 +27,8 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
     //       be a bit too slow for a health check.
     //       What we should do instead if check if the gRPC channels are still healthy.
 
-    // Limit concurrent requests by acquiring a permit from the semaphore
-    let _permit = state.limit_concurrent_requests.try_acquire().map_err(|_| {
+    // Limit concurrent requests by reserving a slot in the queue
+    let sender = state.batcher.reserve_slot().map_err(|_| {
         (
             StatusCode::TOO_MANY_REQUESTS,
             Json(ErrorResponse {
@@ -41,24 +38,22 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
     })?;
 
     // Send a small inference request
-    state
-        .batcher
-        .infer(
-            1,
-            GenerateRequest {
-                inputs: "liveness".to_string(),
-                parameters: GenerateParameters {
-                    temperature: 1.0,
-                    top_k: 0,
-                    top_p: 1.0,
-                    do_sample: false,
-                    max_new_tokens: 1,
-                    stop: vec![],
-                    details: false,
-                },
+    sender.infer(
+        1,
+        GenerateRequest {
+            inputs: "liveness".to_string(),
+            parameters: GenerateParameters {
+                temperature: 1.0,
+                top_k: 0,
+                top_p: 1.0,
+                do_sample: false,
+                max_new_tokens: 1,
+                stop: vec![],
+                details: false,
             },
-        )
-        .await?;
+        },
+    )
+    .await?;
     Ok(())
 }
 
@@ -78,8 +73,8 @@ async fn generate(
     req: Json<GenerateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
-    // Limit concurrent requests by acquiring a permit from the semaphore
-    let _permit = state.limit_concurrent_requests.try_acquire().map_err(|_| {
+    // Limit concurrent requests by reserving a slot in the queue
+    let sender = state.batcher.reserve_slot().map_err(|_| {
         tracing::error!("Model is overloaded");
         (
             StatusCode::TOO_MANY_REQUESTS,
@@ -98,8 +93,7 @@ async fn generate(
         })?;
 
     // Inference
-    let response = state
-        .batcher
+    let response = sender
         .infer(input_length, validated_request)
         .await
         .map_err(|err| {
@@ -185,12 +179,13 @@ pub async fn run(
     addr: SocketAddr,
 ) {
     // Create state
-    let batcher = Batcher::new(client, max_batch_size, max_waiting_tokens);
+    let batcher = Batcher::new(
+        client, max_batch_size, max_waiting_tokens, max_concurrent_requests
+    );
     let validation = Validation::new(validation_workers, tokenizer, max_input_length);
     let shared_state = ServerState {
         validation,
         batcher,
-        limit_concurrent_requests: Arc::new(Semaphore::new(max_concurrent_requests)),
     };
 
     // Create router
