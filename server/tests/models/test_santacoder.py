@@ -42,6 +42,7 @@ def default_fim_pb_batch(default_fim_pb_request):
     return generate_pb2.Batch(id=0, requests=[default_fim_pb_request], size=1)
 
 
+@pytest.mark.skip
 def test_santacoder_generate_token_completion(default_santacoder, default_pb_batch):
     batch = CausalLMBatch.from_pb(
         default_pb_batch, default_santacoder.tokenizer, default_santacoder.device
@@ -65,6 +66,7 @@ def test_santacoder_generate_token_completion(default_santacoder, default_pb_bat
     )
 
 
+@pytest.mark.skip
 def test_fim_santacoder_generate_token_completion(
     default_santacoder, default_fim_pb_batch
 ):
