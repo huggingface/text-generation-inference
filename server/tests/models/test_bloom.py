@@ -2,10 +2,21 @@ import pytest
 import torch
 
 from copy import copy
+from transformers import AutoTokenizer
 
 from text_generation.pb import generate_pb2
 from text_generation.models.causal_lm import CausalLMBatch
 from text_generation.models.bloom import BloomCausalLMBatch, BLOOM
+
+
+@pytest.fixture(scope="session")
+def default_bloom():
+    return BLOOM("bigscience/bloom-560m")
+
+
+@pytest.fixture(scope="session")
+def bloom_560m_tokenizer():
+    return AutoTokenizer.from_pretrained("bigscience/bloom-560m", padding_side="left")
 
 
 @pytest.fixture
@@ -42,11 +53,6 @@ def default_multi_requests_bloom_batch(default_pb_request, bloom_560m_tokenizer)
     return BloomCausalLMBatch.from_pb(
         batch_pb, bloom_560m_tokenizer, torch.device("cpu")
     )
-
-
-@pytest.fixture(scope="session")
-def default_bloom():
-    return BLOOM("bigscience/bloom-560m")
 
 
 def test_batch_from_pb(default_pb_batch, default_bloom_batch):

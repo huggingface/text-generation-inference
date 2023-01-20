@@ -3,8 +3,24 @@ import torch
 
 from copy import copy
 
+from transformers import AutoTokenizer
+
 from text_generation.pb import generate_pb2
 from text_generation.models.seq2seq_lm import Seq2SeqLM, Seq2SeqLMBatch
+
+
+@pytest.fixture(scope="session")
+def mt0_small_tokenizer():
+    tokenizer = AutoTokenizer.from_pretrained(
+        "bigscience/mt0-small", padding_side="left"
+    )
+    tokenizer.bos_token_id = 0
+    return tokenizer
+
+
+@pytest.fixture(scope="session")
+def default_seq2seq_lm():
+    return Seq2SeqLM("bigscience/mt0-small")
 
 
 @pytest.fixture
@@ -39,11 +55,6 @@ def default_multi_requests_seq2seq_lm_batch(default_pb_request, mt0_small_tokeni
 
     batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return Seq2SeqLMBatch.from_pb(batch_pb, mt0_small_tokenizer, torch.device("cpu"))
-
-
-@pytest.fixture(scope="session")
-def default_seq2seq_lm():
-    return Seq2SeqLM("bigscience/mt0-small")
 
 
 def test_batch_from_pb(default_pb_batch, default_seq2seq_lm_batch):

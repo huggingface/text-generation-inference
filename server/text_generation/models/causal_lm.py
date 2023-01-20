@@ -47,7 +47,10 @@ class CausalLMBatch(Batch):
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
     ) -> "CausalLMBatch":
         inputs = []
         next_token_choosers = []
@@ -71,6 +74,7 @@ class CausalLMBatch(Batch):
             return_tensors="pt",
             padding=True,
             pad_to_multiple_of=pad_to_multiple_of,
+            return_token_type_ids=False,
         ).to(device)
         all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
 
@@ -253,6 +257,11 @@ class CausalLM(Model):
     def batch_type(self) -> Type[CausalLMBatch]:
         return CausalLMBatch
 
+    def decode(self, generated_ids: List[int]) -> str:
+        return self.tokenizer.decode(
+            generated_ids, skip_special_tokens=True, cleanup_tokenization_spaces=False
+        )
+
     def forward(
         self, input_ids, attention_mask, past_key_values: Optional = None
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
@@ -338,11 +347,11 @@ class CausalLM(Model):
                 ),
             )
             if stop:
-                # Decode all tokens
-                output_text = self.tokenizer.decode(
-                    all_input_ids.squeeze(-1), skip_special_tokens=True,
-                    cleanup_tokenization_spaces=False
+                # Decode generated tokens
+                generated_text = self.decode(
+                    all_input_ids[-stopping_criteria.current_tokens :, 0]
                 )
+                output_text = request.inputs + generated_text
                 # Slice with input_length to remove padding
                 token_ids = all_input_ids[-new_input_length:]
                 tokens = self.tokenizer.batch_decode(token_ids)

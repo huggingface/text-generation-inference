@@ -1,4 +1,5 @@
 use clap::Parser;
+use serde_json::Value;
 use std::env;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
@@ -11,7 +12,6 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
-use serde_json::Value;
 use subprocess::{Popen, PopenConfig, PopenError, Redirection};
 
 /// App Configuration
@@ -299,16 +299,12 @@ fn shard_manager(
     // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
     // Useful when running inside a docker container
     if let Ok(huggingface_hub_cache) = env::var("HUGGINGFACE_HUB_CACHE") {
-        env.push((
-            "HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into(),
-        ));
+        env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
     };
 
     // If the CUDA_VISIBLE_DEVICES env var is set, pass it to the shard
     if let Ok(cuda_visible_devices) = env::var("CUDA_VISIBLE_DEVICES") {
-        env.push((
-            "CUDA_VISIBLE_DEVICES".into(), cuda_visible_devices.into(),
-        ));
+        env.push(("CUDA_VISIBLE_DEVICES".into(), cuda_visible_devices.into()));
     };
 
     // Start process

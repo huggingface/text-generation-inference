@@ -114,7 +114,9 @@ class StoppingCriteria:
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.StoppingCriteriaParameters, tokenizer: PreTrainedTokenizerBase
+        cls,
+        pb: generate_pb2.StoppingCriteriaParameters,
+        tokenizer: PreTrainedTokenizerBase,
     ) -> "StoppingCriteria":
         stop_sequence_criterias = [
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences

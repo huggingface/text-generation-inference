@@ -5,7 +5,12 @@ from typing import List, Optional, Type
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig, PreTrainedTokenizerBase
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    AutoConfig,
+    PreTrainedTokenizerBase,
+)
 from transformers.models.bloom.parallel_layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
@@ -34,7 +39,10 @@ torch.manual_seed(0)
 class BloomCausalLMBatch(CausalLMBatch):
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
     ) -> "CausalLMBatch":
         batch = super(BloomCausalLMBatch, cls).from_pb(
             pb=pb, tokenizer=tokenizer, device=device
@@ -69,13 +77,6 @@ class BLOOMSharded(BLOOM):
             model_name, slow_but_exact=False, tp_parallel=True
         )
         config.pad_token_id = 3
-
-        # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
-        # in PyTorch 1.12 and later.
-        torch.backends.cuda.matmul.allow_tf32 = True
-
-        # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
-        torch.backends.cudnn.allow_tf32 = True
 
         # Only download weights for small models
         if self.master and model_name == "bigscience/bloom-560m":

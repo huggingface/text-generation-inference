@@ -51,7 +51,10 @@ class Seq2SeqLMBatch(Batch):
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
     ) -> "Seq2SeqLMBatch":
         """Convert a text_generation.v1.Batch protobuf to a Seq2SeqLMBatch"""
         inputs = []
@@ -83,6 +86,7 @@ class Seq2SeqLMBatch(Batch):
             return_tensors="pt",
             padding=True,
             pad_to_multiple_of=pad_to_multiple_of,
+            return_token_type_ids=False,
         ).to(device)
         # Convert decoder_input_ids to torch tensor of size [batch_size, 1]
         decoder_input_ids = torch.tensor(decoder_input_ids, device=device).unsqueeze(-1)
@@ -318,6 +322,9 @@ class Seq2SeqLM(Model):
     def batch_type(self) -> Type[Seq2SeqLMBatch]:
         return Seq2SeqLMBatch
 
+    def decode(self, decoder_ids: List[int]) -> str:
+        return self.tokenizer.decode(decoder_ids, skip_special_tokens=True)
+
     def forward(
         self,
         input_ids,
@@ -438,7 +445,7 @@ class Seq2SeqLM(Model):
                 # Slice with decoder_input_length to remove padding
                 # Decode all tokens
                 token_ids = decoder_input_ids[-new_decoder_input_length:]
-                output_text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
+                output_text = self.decode(token_ids)
                 tokens = self.tokenizer.batch_decode(token_ids)
                 # Add NaN for the bos token
                 logprobs = [float("nan")] + decoder_logprobs[
