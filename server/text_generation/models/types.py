@@ -17,7 +17,10 @@ class Batch(ABC):
     @classmethod
     @abstractmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
     ) -> "Batch":
         raise NotImplementedError
 

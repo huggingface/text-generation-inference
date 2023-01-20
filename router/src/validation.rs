@@ -94,7 +94,9 @@ fn validation_worker(
 ) {
     // Loop over requests
     while let Some((request, response_tx)) = receiver.blocking_recv() {
-        response_tx.send(validate(request, &tokenizer, max_input_length)).unwrap_or(())
+        response_tx
+            .send(validate(request, &tokenizer, max_input_length))
+            .unwrap_or(())
     }
 }
 
@@ -117,8 +119,9 @@ fn validate(
     }
     if request.parameters.stop.len() > MAX_STOP_SEQUENCES {
         return Err(ValidationError::StopSequence(
-            MAX_STOP_SEQUENCES, request.parameters.stop.len(),
-        ))
+            MAX_STOP_SEQUENCES,
+            request.parameters.stop.len(),
+        ));
     }
 
     // Get the number of tokens in the input
@@ -127,14 +130,11 @@ fn validate(
             let input_length = inputs.len();
 
             if input_length > max_input_length {
-                Err(ValidationError::InputLength(
-                    input_length,
-                    max_input_length,
-                ))
+                Err(ValidationError::InputLength(input_length, max_input_length))
             } else {
                 Ok((input_length, request))
             }
-        },
+        }
         Err(err) => Err(ValidationError::Tokenizer(err.to_string())),
     }
 }

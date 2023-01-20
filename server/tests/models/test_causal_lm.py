@@ -2,9 +2,22 @@ import pytest
 import torch
 
 from copy import copy
+from transformers import AutoTokenizer
 
 from text_generation.pb import generate_pb2
 from text_generation.models.causal_lm import CausalLM, CausalLMBatch
+
+
+@pytest.fixture(scope="session")
+def default_causal_lm():
+    return CausalLM("gpt2")
+
+
+@pytest.fixture(scope="session")
+def gpt2_tokenizer():
+    tokenizer = AutoTokenizer.from_pretrained("gpt2", padding_side="left")
+    tokenizer.pad_token_id = 50256
+    return tokenizer
 
 
 @pytest.fixture
@@ -37,11 +50,6 @@ def default_multi_requests_causal_lm_batch(default_pb_request, gpt2_tokenizer):
 
     batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return CausalLMBatch.from_pb(batch_pb, gpt2_tokenizer, torch.device("cpu"))
-
-
-@pytest.fixture(scope="session")
-def default_causal_lm():
-    return CausalLM("gpt2")
 
 
 def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):

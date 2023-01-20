@@ -6,7 +6,12 @@ from typing import List, Optional, Type
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig, PreTrainedTokenizerBase
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    AutoConfig,
+    PreTrainedTokenizerBase,
+)
 from transformers.models.opt.parallel_layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
@@ -82,7 +87,10 @@ def escape_custom_split_sequence(text):
 class GalacticaCausalLMBatch(CausalLMBatch):
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.Batch, tokenizer: PreTrainedTokenizerBase, device: torch.device
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
     ) -> "GalacticaCausalLMBatch":
         inputs = []
         next_token_choosers = []
@@ -99,8 +107,14 @@ class GalacticaCausalLMBatch(CausalLMBatch):
                 StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
             )
 
+        # Tokenize batch
+        pad_to_multiple_of = 8 if device.type == "cuda" else None
         tokenized_inputs = tokenizer(
-            inputs, return_tensors="pt", padding=True, pad_to_multiple_of=8
+            inputs,
+            return_tensors="pt",
+            padding=True,
+            pad_to_multiple_of=pad_to_multiple_of,
+            return_token_type_ids=False,
         ).to(device)
         all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
 
@@ -123,6 +137,12 @@ class Galactica(CausalLM):
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
         return GalacticaCausalLMBatch
+
+    def decode(self, generated_ids: List[int]) -> str:
+        # Do not skip special tokens as they are used for custom parsing rules of the generated text
+        return self.tokenizer.decode(
+            generated_ids, skip_special_tokens=False, cleanup_tokenization_spaces=False
+        )
 
 
 class GalacticaSharded(Galactica):

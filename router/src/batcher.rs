@@ -74,9 +74,10 @@ impl Batcher {
 
         // Await on the response from the background task
         // We can safely unwrap as the background task will never drop the sender
-        response_rx.await.unwrap().map_err(
-            |err| InferError::GenerationError(err.to_string())
-        )
+        response_rx
+            .await
+            .unwrap()
+            .map_err(|err| InferError::GenerationError(err.to_string()))
     }
 }
 
