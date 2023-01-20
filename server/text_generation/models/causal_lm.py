@@ -18,6 +18,7 @@ class CausalLMBatch(Batch):
     # Decoder values
     input_ids: torch.Tensor
     attention_mask: torch.Tensor
+    position_ids: torch.Tensor
     past_key_values: Optional[List[Tuple]]
 
     # All tokens
@@ -76,6 +77,8 @@ class CausalLMBatch(Batch):
             pad_to_multiple_of=pad_to_multiple_of,
             return_token_type_ids=False,
         ).to(device)
+        position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
+        position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
 
         return cls(
@@ -83,6 +86,7 @@ class CausalLMBatch(Batch):
             requests=pb.requests,
             input_ids=tokenized_inputs["input_ids"],
             attention_mask=tokenized_inputs["attention_mask"],
+            position_ids=position_ids,
             past_key_values=None,
             all_input_ids=all_input_ids,
             all_logprobs=all_logprobs,
@@ -110,6 +114,7 @@ class CausalLMBatch(Batch):
         # Batch tensors
         input_ids = None
         attention_mask = None
+        position_ids = None
         past_key_values = []
 
         # Used for slicing correctly inside the tensors
@@ -148,6 +153,12 @@ class CausalLMBatch(Batch):
             attention_mask[
                 start_index:end_index, -batch.max_sequence_length :
             ] = batch.attention_mask[:, -batch.max_sequence_length :]
+
+            # Create empty tensor
+            # position_ids is always of shape [batch_size, 1]
+            if position_ids is None:
+                position_ids = batch.position_ids.new_empty((total_batch_size, 1))
+            position_ids[start_index:end_index] = batch.position_ids
 
             for j, past in enumerate(batch.past_key_values):
                 past_keys, past_values = past
@@ -211,6 +222,7 @@ class CausalLMBatch(Batch):
             requests=requests,
             input_ids=input_ids,
             attention_mask=attention_mask,
+            position_ids=position_ids,
             past_key_values=past_key_values,
             all_input_ids=all_input_ids,
             all_logprobs=all_logprobs,
@@ -263,12 +275,13 @@ class CausalLM(Model):
         )
 
     def forward(
-        self, input_ids, attention_mask, past_key_values: Optional = None
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            position_ids=position_ids,
             past_key_values=past_key_values,
             use_cache=True,
         )
@@ -283,7 +296,7 @@ class CausalLM(Model):
         )
         with context_manager():
             logits, past = self.forward(
-                batch.input_ids, batch.attention_mask, batch.past_key_values
+                batch.input_ids, batch.attention_mask, batch.position_ids, batch.past_key_values
             )
 
         # List of indices to cache
@@ -356,7 +369,7 @@ class CausalLM(Model):
                 token_ids = all_input_ids[-new_input_length:]
                 tokens = self.tokenizer.batch_decode(token_ids)
                 # Add NaN for the first prompt token
-                logprobs = [float("nan")] + all_logprobs[-new_input_length:].squeeze(
+                logprobs = [float("nan")] + all_logprobs[-input_length:].squeeze(
                     1
                 ).tolist()
 
@@ -394,6 +407,7 @@ class CausalLM(Model):
         if generated_texts:
             # Apply indices to attention mask, past key values and other items that need to be cached
             next_batch_attention_mask = batch.attention_mask[next_batch_keep_indices]
+            next_batch_position_ids = batch.position_ids[next_batch_keep_indices]
             # Force past to be of dim [batch_size, num_heads, ...] for easy indexing
             next_batch_past_key_values = [
                 [
@@ -411,6 +425,7 @@ class CausalLM(Model):
             ]
         else:
             next_batch_attention_mask = batch.attention_mask
+            next_batch_position_ids = batch.position_ids
             next_batch_past_key_values = past
             next_batch_requests = batch.requests
             next_batch_next_token_choosers = batch.next_token_choosers
@@ -425,11 +440,15 @@ class CausalLM(Model):
             dim=1,
         )
 
+        # Update position_ids
+        next_batch_position_ids = next_batch_position_ids[:, -1:] + 1
+
         next_batch = CausalLMBatch(
             batch_id=batch.batch_id,
             requests=next_batch_requests,
             input_ids=next_batch_input_ids,
             attention_mask=next_batch_attention_mask,
+            position_ids=next_batch_position_ids,
             past_key_values=next_batch_past_key_values,
             all_input_ids=next_batch_all_input_ids,
             all_logprobs=next_batch_all_logprobs,

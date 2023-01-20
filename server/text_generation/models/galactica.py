@@ -116,6 +116,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             pad_to_multiple_of=pad_to_multiple_of,
             return_token_type_ids=False,
         ).to(device)
+        position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
+        position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
 
         return cls(
@@ -123,6 +125,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             requests=pb.requests,
             input_ids=tokenized_inputs["input_ids"],
             attention_mask=tokenized_inputs["attention_mask"],
+            position_ids=position_ids,
             past_key_values=None,
             all_input_ids=all_input_ids,
             input_lengths=input_lengths,
@@ -330,10 +333,11 @@ class GalacticaSharded(Galactica):
                     if name == "model.decoder.embed_tokens.weight":
                         model.lm_head._parameters["weight"] = tensor
 
-    def forward(self, input_ids, attention_mask, past_key_values: Optional = None):
+    def forward(self, input_ids, attention_mask, position_ids, past_key_values: Optional = None):
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            position_ids=position_ids,
             past_key_values=past_key_values,
             use_cache=True,
         )
