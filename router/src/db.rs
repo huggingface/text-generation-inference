@@ -2,7 +2,7 @@ use crate::InferResponse;
 /// This code is massively inspired by Tokio mini-redis
 use crate::{GenerateParameters, GenerateRequest};
 use parking_lot::Mutex;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use text_generation_client::{
     Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
@@ -112,18 +112,12 @@ impl Db {
         state.entries.insert(id, entry);
     }
 
-    /// Remove an entry from the database if it exists
-    pub(crate) fn remove(&self, id: &u64) -> Option<Entry> {
-        let mut state = self.shared.state.lock();
-        state.entries.remove(id)
-    }
-
     // Get the next batch
     pub(crate) fn next_batch(
         &self,
         min_size: Option<usize>,
         max_size: usize,
-    ) -> Option<(Vec<u64>, Batch)> {
+    ) -> Option<(HashMap<u64, Entry>, Batch)> {
         // Acquire lock
         let mut state = self.shared.state.lock();
 
@@ -135,13 +129,19 @@ impl Db {
                     return None;
                 }
             }
-            ids.iter().for_each(|id| {
-                // Set batch_time for each request
-                state.entries.get_mut(id).unwrap().batch_time = Some(Instant::now());
-            });
-
             // Batch size
             let size = requests.len();
+
+            let mut entries = HashMap::with_capacity(size);
+            ids.iter().for_each(|id| {
+                // Remove entry from db
+                let mut entry = state.entries.remove(id).unwrap();
+                // Set batch_time
+                entry.batch_time = Some(Instant::now());
+                // Insert in entries hashmap
+                entries.insert(*id, entry);
+            });
+
             let batch = Batch {
                 id: state.next_batch_id,
                 requests,
@@ -152,7 +152,7 @@ impl Db {
             // Increment batch id
             state.next_batch_id += 1;
 
-            return Some((ids, batch));
+            return Some((entries, batch));
         }
         None
     }

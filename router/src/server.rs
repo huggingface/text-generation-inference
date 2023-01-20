@@ -7,11 +7,9 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use std::net::SocketAddr;
-use std::sync::Arc;
 use text_generation_client::ShardedClient;
 use tokenizers::Tokenizer;
 use tokio::signal;
-use tokio::sync::Semaphore;
 use tokio::time::Instant;
 use tracing::instrument;
 
@@ -20,7 +18,6 @@ use tracing::instrument;
 struct ServerState {
     validation: Validation,
     batcher: Batcher,
-    limit_concurrent_requests: Arc<Semaphore>,
 }
 
 /// Health check method
@@ -29,16 +26,6 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
     // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
     //       be a bit too slow for a health check.
     //       What we should do instead if check if the gRPC channels are still healthy.
-
-    // Limit concurrent requests by acquiring a permit from the semaphore
-    let _permit = state.limit_concurrent_requests.try_acquire().map_err(|_| {
-        (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(ErrorResponse {
-                error: "Model is overloaded".to_string(),
-            }),
-        )
-    })?;
 
     // Send a small inference request
     state
@@ -78,16 +65,6 @@ async fn generate(
     req: Json<GenerateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
-    // Limit concurrent requests by acquiring a permit from the semaphore
-    let _permit = state.limit_concurrent_requests.try_acquire().map_err(|_| {
-        tracing::error!("Model is overloaded");
-        (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(ErrorResponse {
-                error: "Model is overloaded".to_string(),
-            }),
-        )
-    })?;
 
     // Validate request
     let details = req.0.parameters.details;
@@ -185,12 +162,16 @@ pub async fn run(
     addr: SocketAddr,
 ) {
     // Create state
-    let batcher = Batcher::new(client, max_batch_size, max_waiting_tokens);
+    let batcher = Batcher::new(
+        client,
+        max_batch_size,
+        max_waiting_tokens,
+        max_concurrent_requests,
+    );
     let validation = Validation::new(validation_workers, tokenizer, max_input_length);
     let shared_state = ServerState {
         validation,
         batcher,
-        limit_concurrent_requests: Arc::new(Semaphore::new(max_concurrent_requests)),
     };
 
     // Create router
