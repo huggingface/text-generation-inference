@@ -31,6 +31,7 @@ ENV LANG=C.UTF-8 \
     QUANTIZE=false \
     NUM_GPUS=1 \
     SAFETENSORS_FAST_GPU=1 \
+    PORT=80 \
     CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
     NCCL_ASYNC_ERROR_HANDLING=1 \
     CUDA_HOME=/usr/local/cuda \
@@ -70,4 +71,4 @@ COPY --from=router-builder /usr/local/cargo/bin/text-generation-router /usr/loca
 # Install launcher
 COPY --from=launcher-builder /usr/local/cargo/bin/text-generation-launcher /usr/local/bin/text-generation-launcher
 
-CMD HUGGINGFACE_HUB_CACHE=$MODEL_BASE_PATH text-generation-launcher --num-shard $NUM_GPUS --json-output
+CMD HUGGINGFACE_HUB_CACHE=$MODEL_BASE_PATH text-generation-launcher --num-shard $NUM_GPUS --model-name $MODEL_ID --json-output

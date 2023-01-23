@@ -11,13 +11,13 @@ environment:
   image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:0.3.1
   inference_config:
     liveness_route:
-      port: 3000
+      port: 80
       path: /health
     readiness_route:
-      port: 3000
+      port: 80
       path: /health
     scoring_route:
-      port: 3000
+      port: 80
       path: /generate
 instance_type: Standard_ND96amsr_A100_v4
 request_settings:
