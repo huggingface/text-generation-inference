@@ -26,10 +26,10 @@ FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     DEBIAN_FRONTEND=noninteractive \
-    MODEL_BASE_PATH=/var/azureml-model \
-    MODEL_NAME=bigscience/bloom \
+    MODEL_BASE_PATH=/data \
+    MODEL_ID=bigscience/bloom-560m \
     QUANTIZE=false \
-    NUM_GPUS=8 \
+    NUM_GPUS=1 \
     SAFETENSORS_FAST_GPU=1 \
     CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
     NCCL_ASYNC_ERROR_HANDLING=1 \

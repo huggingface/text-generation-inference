@@ -197,6 +197,7 @@ pub async fn run(
     let app = Router::new()
         .route("/generate", post(generate))
         .layer(Extension(shared_state.clone()))
+        .route("/", get(health))
         .route("/health", get(health))
         .layer(Extension(shared_state.clone()));
 
