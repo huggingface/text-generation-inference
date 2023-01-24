@@ -57,7 +57,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && make install-torch
 
 # Install specific version of transformers
-RUN cd server && make install-transformers
+RUN cd server && BUILD_EXTENSIONS="True" make install-transformers
 
 # Install server
 COPY proto proto
