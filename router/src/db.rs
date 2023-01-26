@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use text_generation_client::{
-    Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+    Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters, Intermediate,
 };
 use tokio::sync::oneshot::Sender;
 use tokio::time::Instant;
@@ -17,6 +17,8 @@ pub(crate) struct Entry {
     pub request: GenerateRequest,
     /// Response sender to communicate between the Batcher and the batching_task
     pub response_tx: Sender<Result<InferResponse, ClientError>>,
+    /// Intermediate sender to communicate between the Batcher and the batching_task
+    pub intermediate_tx: Option<tokio::sync::mpsc::UnboundedSender<Result<Option<Intermediate>, ClientError>>>,
     /// Number of tokens in the input
     pub input_length: usize,
     /// Instant when this entry was created
@@ -39,9 +41,9 @@ pub struct Shared {
 
 /// Database State
 #[derive(Debug)]
-struct State {
+pub(crate) struct State {
     /// Database entries organized in a BTreeMap to be able to iterate over them in order
-    entries: BTreeMap<u64, Entry>,
+    pub(crate) entries: BTreeMap<u64, Entry>,
 
     /// Id of the next entry
     next_id: u64,
@@ -116,6 +118,10 @@ impl Db {
     pub(crate) fn remove(&self, id: &u64) -> Option<Entry> {
         let mut state = self.shared.state.lock();
         state.entries.remove(id)
+    }
+
+    pub(crate) fn get_mutex_guard(&self) -> parking_lot::MutexGuard<State> {
+        self.shared.state.lock()
     }
 
     // Get the next batch

@@ -50,3 +50,19 @@ class GeneratedText:
             logprobs=self.logprobs,
             finish_reason=self.reason,
         )
+
+@dataclass
+class Intermediate:
+    request_id: int
+    token_id: int
+    logprob: float
+    token: str
+
+    def to_pb(self) -> generate_pb2.Intermediate:
+        return generate_pb2.Intermediate(
+            request_id = self.request_id,
+            token_id = self.token_id,
+            logprob = self.logprob,
+            token = self.token,
+        )
+

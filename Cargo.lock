@@ -1795,6 +1795,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "prost",
+ "serde",
  "thiserror",
  "tokio",
  "tonic",
@@ -1823,6 +1824,7 @@ dependencies = [
 name = "text-generation-router"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "axum",
  "clap 4.0.22",
  "futures",

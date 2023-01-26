@@ -73,7 +73,7 @@ impl Client {
     /// Returns a list of generated texts of request that met their stopping criteria
     /// and the next cached batch
     #[instrument(skip(self))]
-    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>)> {
         let request = tonic::Request::new(GenerateRequest { batch: Some(batch) });
         let response = self
             .stub
@@ -81,7 +81,7 @@ impl Client {
             .instrument(info_span!("generate"))
             .await?
             .into_inner();
-        Ok((response.generated_texts, response.batch))
+        Ok((response.generated_texts, response.batch, response.intermediates))
     }
 
     /// Generate one token for each request in the given cached batch
@@ -92,7 +92,7 @@ impl Client {
     pub async fn generate_with_cache(
         &mut self,
         batches: Vec<Batch>,
-    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>)> {
         let request = tonic::Request::new(GenerateWithCacheRequest { batches });
         let response = self
             .stub
@@ -100,6 +100,6 @@ impl Client {
             .instrument(info_span!("generate_with_cache"))
             .await?
             .into_inner();
-        Ok((response.generated_texts, response.batch))
+        Ok((response.generated_texts, response.batch, response.intermediates))
     }
 }

@@ -12,6 +12,7 @@ tonic = "^0.6"
 tower = "^0.4"
 tracing = "^0.1"
 tracing-error = "^0.2"
+serde = { version = "1.0", features = ["derive"] }
 
 [build-dependencies]
 tonic-build = "0.6.2"
