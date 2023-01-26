@@ -1,15 +1,14 @@
-use std::collections::HashMap;
 /// Batching and inference logic
 use crate::{Db, Entry};
 use crate::{ErrorResponse, GenerateRequest};
 use axum::http::StatusCode;
 use axum::Json;
+use nohash_hasher::IntMap;
 use std::future::Future;
 use std::sync::Arc;
 use text_generation_client::{Batch, ClientError, GeneratedText, ShardedClient};
 use thiserror::Error;
 use tokio::sync::{oneshot, Notify};
-use tokio::sync::{Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tracing::instrument;
 
@@ -26,8 +25,6 @@ pub struct Batcher {
 struct Shared {
     /// Batching background Tokio task notifier
     batching_task: Notify,
-    /// Inference request limit
-    limit_concurrent_requests: Semaphore,
 }
 
 impl Batcher {
@@ -35,13 +32,11 @@ impl Batcher {
         client: ShardedClient,
         max_batch_size: usize,
         max_waiting_tokens: usize,
-        max_concurrent_requests: usize,
     ) -> Self {
         // Batcher shared state
         let db = Db::new();
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
-            limit_concurrent_requests: Semaphore::new(max_concurrent_requests),
         });
 
         // Spawn batching background task that contains all the inference logic
@@ -62,9 +57,6 @@ impl Batcher {
         input_length: usize,
         request: GenerateRequest,
     ) -> Result<InferResponse, InferError> {
-        // Limit concurrent requests by acquiring a permit from the semaphore
-        let _permit = self.shared.limit_concurrent_requests.try_acquire()?;
-
         // One shot channel to communicate with the background batching task
         let (response_tx, response_rx) = oneshot::channel();
 
@@ -151,8 +143,7 @@ async fn batching_task(
                     }
                 }
 
-                cached_batch =
-                    wrap_future(client.generate_with_cache(batches), &mut entries).await;
+                cached_batch = wrap_future(client.generate_with_cache(batches), &mut entries).await;
                 waiting_tokens += 1;
             }
         }
@@ -162,7 +153,7 @@ async fn batching_task(
 /// Wrap a future inside a match statement to handle errors and send the response to the Batcher
 async fn wrap_future(
     future: impl Future<Output = Result<(Vec<GeneratedText>, Option<Batch>), ClientError>>,
-    entries: &mut HashMap<u64, Entry>,
+    entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     match future.await {
         Ok((generated_texts, next_batch)) => {
@@ -178,7 +169,7 @@ async fn wrap_future(
 }
 
 /// Send errors to the Batcher for all `entries`
-fn send_error(error: ClientError, entries: &mut HashMap<u64, Entry>) {
+fn send_error(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     entries.drain().for_each(|(_, entry)| {
         // unwrap_or is valid here as we don't care if the receiver is gone.
         entry.response_tx.send(Err(error.clone())).unwrap_or(());
@@ -186,7 +177,7 @@ fn send_error(error: ClientError, entries: &mut HashMap<u64, Entry>) {
 }
 
 /// Send `generated_text` to the Batcher for all `finished`
-fn send_generated(finished: Vec<GeneratedText>, entries: &mut HashMap<u64, Entry>) {
+fn send_generated(finished: Vec<GeneratedText>, entries: &mut IntMap<u64, Entry>) {
     finished.into_iter().for_each(|output| {
         // We can `expect` here as the request id should always be in the entries
         let entry = entries
@@ -226,30 +217,18 @@ pub(crate) struct InferResponse {
 pub enum InferError {
     #[error("Request failed during generation: {0}")]
     GenerationError(String),
-    #[error("Model is overloaded")]
-    Overloaded,
-}
-
-/// Convert semaphore error
-impl From<TryAcquireError> for InferError {
-    fn from(_: TryAcquireError) -> Self {
-        InferError::Overloaded
-    }
 }
 
 /// Convert to Axum supported format
 impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
     fn from(err: InferError) -> Self {
-        let status_code = match err {
-            InferError::GenerationError(_) => StatusCode::FAILED_DEPENDENCY,
-            InferError::Overloaded => StatusCode::TOO_MANY_REQUESTS,
-        };
-
-        (
-            status_code,
-            Json(ErrorResponse {
-                error: err.to_string(),
-            }),
-        )
+        match err {
+            InferError::GenerationError(_) => (
+                StatusCode::FAILED_DEPENDENCY,
+                Json(ErrorResponse {
+                    error: err.to_string(),
+                }),
+            ),
+        }
     }
 }

@@ -1,8 +1,9 @@
-use crate::InferResponse;
 /// This code is massively inspired by Tokio mini-redis
+use crate::InferResponse;
 use crate::{GenerateParameters, GenerateRequest};
+use nohash_hasher::{BuildNoHashHasher, IntMap};
 use parking_lot::Mutex;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use text_generation_client::{
     Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
@@ -117,7 +118,7 @@ impl Db {
         &self,
         min_size: Option<usize>,
         max_size: usize,
-    ) -> Option<(HashMap<u64, Entry>, Batch)> {
+    ) -> Option<(IntMap<u64, Entry>, Batch)> {
         // Acquire lock
         let mut state = self.shared.state.lock();
 
@@ -132,13 +133,13 @@ impl Db {
             // Batch size
             let size = requests.len();
 
-            let mut entries = HashMap::with_capacity(size);
+            let mut entries = IntMap::with_capacity_and_hasher(size, BuildNoHashHasher::default());
             ids.iter().for_each(|id| {
                 // Remove entry from db
                 let mut entry = state.entries.remove(id).unwrap();
                 // Set batch_time
                 entry.batch_time = Some(Instant::now());
-                // Insert in entries hashmap
+                // Insert in entries IntMap
                 entries.insert(*id, entry);
             });
 
