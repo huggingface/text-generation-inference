@@ -41,7 +41,10 @@ impl ShardedClient {
     ///
     /// Returns a list of generated texts of request that met their stopping criteria
     /// and the next cached batch
-    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>)> {
+    pub async fn generate(
+        &mut self,
+        batch: Batch,
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
