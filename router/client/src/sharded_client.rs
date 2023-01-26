@@ -1,6 +1,6 @@
 /// Multi shard Client
 use crate::Result;
-use crate::{Batch, Client, GeneratedText};
+use crate::{Batch, Client, GeneratedText, Intermediate};
 use futures::future::join_all;
 use futures::future::select_all;
 use tonic::transport::Uri;
@@ -41,7 +41,7 @@ impl ShardedClient {
     ///
     /// Returns a list of generated texts of request that met their stopping criteria
     /// and the next cached batch
-    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
@@ -59,7 +59,7 @@ impl ShardedClient {
     pub async fn generate_with_cache(
         &mut self,
         batches: Vec<Batch>,
-    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()

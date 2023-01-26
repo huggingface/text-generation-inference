@@ -84,6 +84,13 @@ message GeneratedText {
     string finish_reason = 7;
 }
 
+message Intermediate {
+    uint64 request_id = 1;
+    uint32 token_id = 2;
+    float logprob = 3;
+    string token = 4;
+}
+
 message GenerateRequest {
     /// Batch
     Batch batch = 1;
@@ -94,6 +101,8 @@ message GenerateResponse {
     repeated GeneratedText generated_texts = 1;
     /// Next batch (cached)
     optional Batch batch = 2;
+
+    repeated Intermediate intermediates = 3;
 }
 
 message GenerateWithCacheRequest {
@@ -106,4 +115,6 @@ message GenerateWithCacheResponse {
     repeated GeneratedText generated_texts = 1;
     /// Next batch (cached)
     optional Batch batch = 2;
+
+    repeated Intermediate intermediates = 3;
 }

@@ -7,7 +7,7 @@ mod sharded_client;
 
 pub use client::Client;
 pub use pb::generate::v1::{
-    Batch, GeneratedText, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+    Batch, GeneratedText, NextTokenChooserParameters, Request, StoppingCriteriaParameters, Intermediate,
 };
 pub use sharded_client::ShardedClient;
 use thiserror::Error;
@@ -35,3 +35,10 @@ impl From<transport::Error> for ClientError {
 }
 
 pub type Result<T> = std::result::Result<T, ClientError>;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct IntermediateEvent {
+    pub token: String,
+    pub token_id: u32,
+    pub logprob: f32,
+}

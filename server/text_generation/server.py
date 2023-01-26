@@ -32,7 +32,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             request.batch, self.model.tokenizer, self.model.device
         )
 
-        generated_texts, next_batch = self.model.generate_token(batch)
+        generated_texts, next_batch, intermediates = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
         return generate_pb2.GenerateResponse(
@@ -40,6 +40,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 generated_text.to_pb() for generated_text in generated_texts
             ],
             batch=next_batch.to_pb() if next_batch else None,
+            intermediates=intermediates,
         )
 
     async def GenerateWithCache(self, request, context):
@@ -58,7 +59,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         else:
             batch = batches[0]
 
-        generated_texts, next_batch = self.model.generate_token(batch)
+        generated_texts, next_batch, intermediates = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
         return generate_pb2.GenerateWithCacheResponse(
@@ -66,6 +67,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 generated_text.to_pb() for generated_text in generated_texts
             ],
             batch=next_batch.to_pb() if next_batch else None,
+            intermediates=intermediates,
         )
 
 

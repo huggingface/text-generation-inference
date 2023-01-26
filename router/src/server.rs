@@ -8,12 +8,17 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use text_generation_client::ShardedClient;
+use text_generation_client::{ShardedClient, IntermediateEvent};
 use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::sync::Semaphore;
 use tokio::time::Instant;
 use tracing::instrument;
+use tokio::sync::{oneshot, mpsc};
+
+use axum::response::sse::{Event, KeepAlive, Sse};
+use std::convert::Infallible;
+use futures::stream::Stream;
 
 // Server shared state
 #[derive(Clone)]
@@ -60,6 +65,80 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
         )
         .await?;
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct StreamEvent {
+    is_end: bool,
+    event: Option<IntermediateEvent>,
+    generated_text: Option<GeneratedText>,
+}
+
+async fn generate_stream(
+    state: Extension<ServerState>,
+    req: Json<GenerateRequest>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let (intermediate_tx, mut intermediate_rx) = mpsc::unbounded_channel();
+    let (response_tx, response_rx) = oneshot::channel();
+
+    let (input_length, validated_request) =
+        state.validation.validate(req.0).await.map_err(|err| {
+            tracing::error!("{}", err.to_string());
+            err
+        }).unwrap();
+
+    // Inference
+    state.batcher.infer_stream(input_length, validated_request, intermediate_tx, response_tx);
+        
+        let stream = async_stream::stream! {
+            while let Some(item) = intermediate_rx.recv().await {
+                match item {
+                    Ok(item) => {
+                        match item {
+                            Some(item) => {
+                                let event_data = IntermediateEvent {
+                                    token: item.token,
+                                    token_id: item.token_id,
+                                    logprob: item.logprob,
+                                };
+                                let stream_event = StreamEvent {
+                                    is_end: false,
+                                    event: Some(event_data),
+                                    generated_text: None,
+                                };
+                                yield Ok(Event::default().data(serde_json::to_string(&stream_event).unwrap()));
+                            }
+                            None => {
+                                break
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        yield Ok(Event::default().data(err.to_string()));
+                    }
+                }
+            }
+            let response = response_rx.await.unwrap();
+            match response {
+                Ok(response) => {
+                    let response = GeneratedText {
+                        generated_text: response.output_text,
+                        details: None,
+                    };
+                    let stream_event = StreamEvent {
+                        is_end: true,
+                        event: None,
+                        generated_text: Some(response),
+                    };
+                    yield Ok(Event::default().data(serde_json::to_string(&stream_event).unwrap()));
+                }
+                Err(err) => {
+                    yield Ok(Event::default().data(err.to_string()));
+                }
+            }
+        };
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 /// Generate method
@@ -197,6 +276,7 @@ pub async fn run(
     let app = Router::new()
         .route("/", post(generate))
         .route("/generate", post(generate))
+        .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
         .route("/health", get(health))
         .layer(Extension(shared_state.clone()));

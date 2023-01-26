@@ -4,11 +4,13 @@ use crate::{ErrorResponse, GenerateRequest};
 use axum::http::StatusCode;
 use axum::Json;
 use nohash_hasher::IntMap;
+
+
 use std::future::Future;
 use std::sync::Arc;
-use text_generation_client::{Batch, ClientError, GeneratedText, ShardedClient};
+use text_generation_client::{Batch, ClientError, GeneratedText, ShardedClient, Intermediate};
 use thiserror::Error;
-use tokio::sync::{oneshot, Notify};
+use tokio::sync::{oneshot, Notify, mpsc};
 use tokio::time::Instant;
 use tracing::instrument;
 
@@ -52,6 +54,36 @@ impl Batcher {
     }
 
     /// Add a new request to the database and return a future that will generate the text
+    pub(crate) fn infer_stream(
+        &self,
+        input_length: usize,
+        request: GenerateRequest,
+        intermediate_tx: mpsc::UnboundedSender<Result<Option<Intermediate>, ClientError>>,
+        response_tx: oneshot::Sender<Result<InferResponse, ClientError>>,
+    ) {
+        // Try to append the request to the database
+        self.db.append(Entry {
+            request,
+            response_tx,
+            intermediate_tx: Some(intermediate_tx),
+            input_length,
+            time: Instant::now(),
+            batch_time: None,
+        });
+
+        // Notify the background task that we have a new entry in the database that needs
+        // to be batched
+        self.shared.batching_task.notify_one();
+
+        // // Await on the response from the background task
+        // // We can safely unwrap as the background task will never drop the sender
+        // response_rx
+        //     .await
+        //     .unwrap()
+        //     .map_err(|err| InferError::GenerationError(err.to_string()))
+    }
+
+    /// Add a new request to the database and return a future that will generate the text
     pub(crate) async fn infer(
         &self,
         input_length: usize,
@@ -64,6 +96,7 @@ impl Batcher {
         self.db.append(Entry {
             request,
             response_tx,
+            intermediate_tx: None,
             input_length,
             time: Instant::now(),
             batch_time: None,
@@ -152,12 +185,12 @@ async fn batching_task(
 
 /// Wrap a future inside a match statement to handle errors and send the response to the Batcher
 async fn wrap_future(
-    future: impl Future<Output = Result<(Vec<GeneratedText>, Option<Batch>), ClientError>>,
+    future: impl Future<Output = Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>), ClientError>>,
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     match future.await {
-        Ok((generated_texts, next_batch)) => {
-            send_generated(generated_texts, entries);
+        Ok((generated_texts, next_batch, intermediates)) => {
+            send_generated(generated_texts, intermediates, entries);
             next_batch
         }
         // If we have an error, we discard the whole batch
@@ -177,12 +210,26 @@ fn send_error(error: ClientError, entries: &mut IntMap<u64, Entry>) {
 }
 
 /// Send `generated_text` to the Batcher for all `finished`
-fn send_generated(finished: Vec<GeneratedText>, entries: &mut IntMap<u64, Entry>) {
+fn send_generated(finished: Vec<GeneratedText>, intermediates: Vec<Intermediate>, entries: &mut IntMap<u64, Entry>) {
+    intermediates.into_iter().for_each(|intermediate| {
+        // We can `expect` here as the request id should always be in the DB
+        let entry = entries.get(&intermediate.request_id).expect("ID not found in db. This is a bug.");
+
+
+        if let Some(tx) = &entry.intermediate_tx {
+                // unwrap_or is valid here as we don't care if the receiver is gone.
+                tx.send(Ok(Some(intermediate))).unwrap_or(());
+            }
+    });
+
     finished.into_iter().for_each(|output| {
         // We can `expect` here as the request id should always be in the entries
         let entry = entries
             .remove(&output.request.unwrap().id)
             .expect("ID not found in entries. This is a bug.");
+        if let Some(tx) = &entry.intermediate_tx {
+            tx.send(Ok(None)).unwrap_or(());
+        }
 
         let response = InferResponse {
             output_text: output.output_text,

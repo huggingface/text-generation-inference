@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use text_generation_client::{
-    Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+    Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters, Intermediate,
 };
 use tokio::sync::oneshot::Sender;
 use tokio::time::Instant;
@@ -18,6 +18,8 @@ pub(crate) struct Entry {
     pub request: GenerateRequest,
     /// Response sender to communicate between the Batcher and the batching_task
     pub response_tx: Sender<Result<InferResponse, ClientError>>,
+    /// Intermediate sender to communicate between the Batcher and the batching_task
+    pub intermediate_tx: Option<tokio::sync::mpsc::UnboundedSender<Result<Option<Intermediate>, ClientError>>>,
     /// Number of tokens in the input
     pub input_length: usize,
     /// Instant when this entry was created
