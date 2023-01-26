@@ -5,9 +5,9 @@ use axum::http::StatusCode;
 use axum::Json;
 use std::future::Future;
 use std::sync::Arc;
-use text_generation_client::{Batch, ClientError, GeneratedText, ShardedClient, Intermediate};
+use text_generation_client::{Batch, ClientError, GeneratedText, Intermediate, ShardedClient};
 use thiserror::Error;
-use tokio::sync::{oneshot, Notify, mpsc};
+use tokio::sync::{mpsc, oneshot, Notify};
 use tokio::time::Instant;
 use tracing::instrument;
 
@@ -71,13 +71,6 @@ impl Batcher {
         // Notify the background task that we have a new entry in the database that needs
         // to be batched
         self.shared.batching_task.notify_one();
-
-        // // Await on the response from the background task
-        // // We can safely unwrap as the background task will never drop the sender
-        // response_rx
-        //     .await
-        //     .unwrap()
-        //     .map_err(|err| InferError::GenerationError(err.to_string()))
     }
 
     /// Add a new request to the database and return a future that will generate the text
@@ -184,7 +177,9 @@ async fn batching_task(
 
 /// Wrap a future inside a match statement to handle errors and send the response to the Batcher
 async fn wrap_future(
-    future: impl Future<Output = Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>), ClientError>>,
+    future: impl Future<
+        Output = Result<(Vec<GeneratedText>, Option<Batch>, Vec<Intermediate>), ClientError>,
+    >,
     request_ids: Vec<u64>,
     db: &Db,
 ) -> Option<Batch> {
@@ -217,13 +212,15 @@ fn send_generated(finished: Vec<GeneratedText>, intermediates: Vec<Intermediate>
     intermediates.into_iter().for_each(|intermediate| {
         // We can `expect` here as the request id should always be in the DB
         let guard = db.get_mutex_guard();
-        let entry = guard.entries.get(&intermediate.request_id).expect("ID not found in db. This is a bug.");
-
+        let entry = guard
+            .entries
+            .get(&intermediate.request_id)
+            .expect("ID not found in db. This is a bug.");
 
         if let Some(tx) = &entry.intermediate_tx {
-                // unwrap_or is valid here as we don't care if the receiver is gone.
-                tx.send(Ok(Some(intermediate))).unwrap_or(());
-            }
+            // unwrap_or is valid here as we don't care if the receiver is gone.
+            tx.send(Ok(Some(intermediate))).unwrap_or(());
+        }
     });
 
     finished.into_iter().for_each(|output| {
@@ -231,7 +228,7 @@ fn send_generated(finished: Vec<GeneratedText>, intermediates: Vec<Intermediate>
         let entry = db
             .remove(&output.request.unwrap().id)
             .expect("ID not found in db. This is a bug.");
-        
+
         if let Some(tx) = &entry.intermediate_tx {
             tx.send(Ok(None)).unwrap_or(());
         }

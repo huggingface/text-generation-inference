@@ -8,17 +8,17 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use text_generation_client::{ShardedClient, IntermediateEvent};
+use text_generation_client::{IntermediateEvent, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::sync::Semaphore;
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::instrument;
-use tokio::sync::{oneshot, mpsc};
 
 use axum::response::sse::{Event, KeepAlive, Sse};
-use std::convert::Infallible;
 use futures::stream::Stream;
+use std::convert::Infallible;
 
 // Server shared state
 #[derive(Clone)]
@@ -81,62 +81,71 @@ async fn generate_stream(
     let (intermediate_tx, mut intermediate_rx) = mpsc::unbounded_channel();
     let (response_tx, response_rx) = oneshot::channel();
 
-    let (input_length, validated_request) =
-        state.validation.validate(req.0).await.map_err(|err| {
+    let (input_length, validated_request) = state
+        .validation
+        .validate(req.0)
+        .await
+        .map_err(|err| {
             tracing::error!("{}", err.to_string());
             err
-        }).unwrap();
+        })
+        .unwrap();
 
     // Inference
-    state.batcher.infer_stream(input_length, validated_request, intermediate_tx, response_tx);
-        
-        let stream = async_stream::stream! {
-            while let Some(item) = intermediate_rx.recv().await {
-                match item {
-                    Ok(item) => {
-                        match item {
-                            Some(item) => {
-                                let event_data = IntermediateEvent {
-                                    token: item.token,
-                                    token_id: item.token_id,
-                                    logprob: item.logprob,
-                                };
-                                let stream_event = StreamEvent {
-                                    is_end: false,
-                                    event: Some(event_data),
-                                    generated_text: None,
-                                };
-                                yield Ok(Event::default().data(serde_json::to_string(&stream_event).unwrap()));
-                            }
-                            None => {
-                                break
-                            }
+    state.batcher.infer_stream(
+        input_length,
+        validated_request,
+        intermediate_tx,
+        response_tx,
+    );
+
+    let stream = async_stream::stream! {
+        while let Some(item) = intermediate_rx.recv().await {
+            match item {
+                Ok(item) => {
+                    match item {
+                        Some(item) => {
+                            let event_data = IntermediateEvent {
+                                token: item.token,
+                                token_id: item.token_id,
+                                logprob: item.logprob,
+                            };
+                            let stream_event = StreamEvent {
+                                is_end: false,
+                                event: Some(event_data),
+                                generated_text: None,
+                            };
+                            yield Ok(Event::default().data(serde_json::to_string(&stream_event).unwrap()));
+                        }
+                        None => {
+                            break
                         }
                     }
-                    Err(err) => {
-                        yield Ok(Event::default().data(err.to_string()));
-                    }
-                }
-            }
-            let response = response_rx.await.unwrap();
-            match response {
-                Ok(response) => {
-                    let response = GeneratedText {
-                        generated_text: response.output_text,
-                        details: None,
-                    };
-                    let stream_event = StreamEvent {
-                        is_end: true,
-                        event: None,
-                        generated_text: Some(response),
-                    };
-                    yield Ok(Event::default().data(serde_json::to_string(&stream_event).unwrap()));
                 }
                 Err(err) => {
                     yield Ok(Event::default().data(err.to_string()));
                 }
             }
-        };
+        }
+        let response = response_rx.await.unwrap();
+        match response {
+            Ok(response) => {
+                let response = GeneratedText {
+                    generated_text: response.output_text,
+                    details: None,
+                };
+                let stream_event = StreamEvent {
+                    is_end: true,
+                    event: None,
+                    generated_text: Some(response),
+                };
+                yield Ok(Event::default().data(serde_json::to_string(&stream_event).unwrap()));
+            }
+            Err(err) => {
+                yield Ok(Event::default().data(err.to_string()));
+            }
+        }
+    };
 
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
