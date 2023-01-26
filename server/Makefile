@@ -19,7 +19,7 @@ install-transformers:
 
 install-torch:
 	# Install specific version of torch
-	pip install torch --extra-index-url https://download.pytorch.org/whl/cu116 --no-cache-dir
+	pip install torch --extra-index-url https://download.pytorch.org/whl/cu118 --no-cache-dir
 
 install: gen-server install-torch install-transformers
 	pip install pip --upgrade
