@@ -136,7 +136,6 @@ class BLOOMSharded(BLOOM):
                             start = rank * block_size
                             stop = (rank + 1) * block_size
                             tensor = slice_[start:stop]
-                            tensor = tensor.transpose(1, 0)
                         else:
                             size = slice_.get_shape()[0]
                             block_size = size // world_size
@@ -150,7 +149,6 @@ class BLOOMSharded(BLOOM):
                             start = rank * block_size
                             stop = (rank + 1) * block_size
                             tensor = slice_[:, start:stop]
-                            tensor = tensor.transpose(1, 0)
                         else:
                             tensor = slice_[:]
                             # XXX: Hack for Rowlinear to add the bias only once.
@@ -186,7 +184,7 @@ class BLOOMSharded(BLOOM):
                             and param_name == "weight"
                         ):
                             tensor = Int8Params(
-                                tensor.transpose(1, 0),
+                                tensor,
                                 has_fp16_weights=False,
                                 requires_grad=False,
                             ).to(device)
