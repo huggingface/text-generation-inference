@@ -7,7 +7,8 @@ mod sharded_client;
 
 pub use client::Client;
 pub use pb::generate::v1::{
-    Batch, GeneratedText, NextTokenChooserParameters, Request, StoppingCriteriaParameters, Intermediate,
+    Batch, GeneratedText, Intermediate, NextTokenChooserParameters, Request,
+    StoppingCriteriaParameters,
 };
 pub use sharded_client::ShardedClient;
 use thiserror::Error;
