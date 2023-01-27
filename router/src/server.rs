@@ -1,11 +1,14 @@
+use crate::batcher::InferStreamResponse;
 use crate::{
     Batcher, Details, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{BoxError, Json, Router};
+use futures::Stream;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use text_generation_client::ShardedClient;
@@ -13,6 +16,7 @@ use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::sync::Semaphore;
 use tokio::time::Instant;
+use tokio_stream::StreamExt;
 use tracing::instrument;
 
 // Server shared state
@@ -111,21 +115,12 @@ async fn generate(
 
     // Token details
     let details = match details {
-        true => {
-            let tokens = response
-                .token_ids
-                .into_iter()
-                .zip(response.tokens.into_iter())
-                .zip(response.logprobs.into_iter())
-                .map(|((id, text), logprob)| (id, text, logprob))
-                .collect();
-            Some(Details {
-                seed: response.seed,
-                finish_reason: response.finish_reason,
-                generated_tokens: response.generated_tokens,
-                tokens,
-            })
-        }
+        true => Some(Details {
+            finish_reason: response.generated_text.finish_reason,
+            generated_tokens: response.generated_text.generated_tokens,
+            tokens: response.tokens,
+            seed: response.seed,
+        }),
         false => None,
     };
 
@@ -133,8 +128,8 @@ async fn generate(
     let total_time = start_time.elapsed();
     let validation_time = response.queued - start_time;
     let queue_time = response.start - response.queued;
-    let inference_time = response.end - response.start;
-    let time_per_token = inference_time / response.generated_tokens;
+    let inference_time = Instant::now() - response.start;
+    let time_per_token = inference_time / response.generated_text.generated_tokens;
 
     // Headers
     let mut headers = HeaderMap::new();
@@ -166,14 +161,55 @@ async fn generate(
     tracing::Span::current().record("inference_time", format!("{:?}", inference_time));
     tracing::Span::current().record("time_per_token", format!("{:?}", time_per_token));
     tracing::Span::current().record("seed", format!("{:?}", response.seed));
-    tracing::info!("Output: {}", response.output_text);
+    tracing::info!("Output: {}", response.generated_text.text);
 
     // Send response
     let response = vec![GeneratedText {
-        generated_text: response.output_text,
+        generated_text: response.generated_text.text,
         details,
     }];
     Ok((headers, Json(response)))
+}
+
+async fn generate_stream(
+    state: Extension<ServerState>,
+    req: Json<GenerateRequest>,
+) -> Sse<impl Stream<Item = Result<Event, BoxError>>> {
+    let stream = async_stream::stream! {
+        // Limit concurrent requests by acquiring a permit from the semaphore
+        let _permit = state.limit_concurrent_requests.try_acquire().map_err(| err | {
+            tracing::error!("Model is overloaded");
+            err
+        })?;
+
+        // Validate request
+        let (input_length, validated_request) =
+            state.validation.validate(req.0).await.map_err(|err| {
+                tracing::error!("{}", err);
+                err
+            })?;
+
+        // Inference
+        let mut response_stream = state
+            .batcher
+            .infer_stream(input_length, validated_request);
+
+        while let Some(response) = response_stream.next().await {
+            match response {
+                Ok(response) => {
+                    if let InferStreamResponse::Token(token) = response {
+                        yield Ok(Event::default().json_data(token).unwrap());
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("{}", err.to_string());
+                    yield Ok(Event::default().data(err.to_string()));
+                }
+            }
+        }
+    };
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 /// Serving method
@@ -201,6 +237,7 @@ pub async fn run(
     let app = Router::new()
         .route("/", post(generate))
         .route("/generate", post(generate))
+        .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
         .route("/health", get(health))
         .layer(Extension(shared_state.clone()));

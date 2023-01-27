@@ -1829,6 +1829,7 @@ dependencies = [
 name = "text-generation-router"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "axum",
  "clap 4.0.22",
  "futures",
@@ -1840,6 +1841,7 @@ dependencies = [
  "thiserror",
  "tokenizers",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-subscriber",
 ]

@@ -1,14 +1,15 @@
+use crate::batcher::InferError;
 /// This code is massively inspired by Tokio mini-redis
-use crate::InferResponse;
+use crate::batcher::InferStreamResponse;
 use crate::{GenerateParameters, GenerateRequest};
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use text_generation_client::{
-    Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+    Batch, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
-use tokio::sync::oneshot::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Instant;
 
 /// Database entry
@@ -17,7 +18,7 @@ pub(crate) struct Entry {
     /// Request
     pub request: GenerateRequest,
     /// Response sender to communicate between the Batcher and the batching_task
-    pub response_tx: Sender<Result<InferResponse, ClientError>>,
+    pub response_tx: UnboundedSender<Result<InferStreamResponse, InferError>>,
     /// Number of tokens in the input
     pub input_length: usize,
     /// Instant when this entry was created

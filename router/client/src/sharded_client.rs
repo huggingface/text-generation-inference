@@ -1,6 +1,6 @@
 /// Multi shard Client
 use crate::Result;
-use crate::{Batch, Client, GeneratedText};
+use crate::{Batch, Client, Generation};
 use futures::future::join_all;
 use futures::future::select_all;
 use tonic::transport::Uri;
@@ -41,11 +41,11 @@ impl ShardedClient {
     ///
     /// Returns a list of generated texts of request that met their stopping criteria
     /// and the next cached batch
-    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+    pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.generate(batch.clone())))
+            .map(|client| Box::pin(client.prefill(batch.clone())))
             .collect();
         // As soon as we receive one response, we can return as all shards will return the same
         let (result, _, _) = select_all(futures).await;
@@ -56,14 +56,14 @@ impl ShardedClient {
     ///
     /// Returns a list of generated texts of request that met their stopping criteria
     /// and the next cached batch
-    pub async fn generate_with_cache(
+    pub async fn decode(
         &mut self,
         batches: Vec<Batch>,
-    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+    ) -> Result<(Vec<Generation>, Option<Batch>)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.generate_with_cache(batches.clone())))
+            .map(|client| Box::pin(client.decode(batches.clone())))
             .collect();
         // As soon as we receive one response, we can return as all shards will return the same
         let (result, _, _) = select_all(futures).await;
