@@ -4,7 +4,7 @@ mod db;
 pub mod server;
 mod validation;
 
-use batcher::{Batcher, InferResponse};
+use batcher::Batcher;
 use db::{Db, Entry};
 use serde::{Deserialize, Serialize};
 use validation::Validation;
@@ -69,12 +69,15 @@ pub(crate) struct GenerateRequest {
     pub parameters: GenerateParameters,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Token(u32, String, f32);
+
 #[derive(Serialize)]
 pub(crate) struct Details {
     pub finish_reason: String,
     pub generated_tokens: u32,
     pub seed: Option<u64>,
-    pub tokens: Vec<(u32, String, f32)>,
+    pub tokens: Vec<Token>,
 }
 
 #[derive(Serialize)]
