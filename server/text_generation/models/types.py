@@ -17,10 +17,10 @@ class Batch(ABC):
     @classmethod
     @abstractmethod
     def from_pb(
-            cls,
-            pb: generate_pb2.Batch,
-            tokenizer: PreTrainedTokenizerBase,
-            device: torch.device,
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
     ) -> "Batch":
         raise NotImplementedError
 
@@ -41,8 +41,8 @@ class GeneratedText:
         return generate_pb2.GeneratedText(
             text=self.text,
             generated_tokens=self.generated_tokens,
-            finish_reason=self.finish_reason
-            seed=self.seed
+            finish_reason=self.finish_reason,
+            seed=self.seed,
         )
 
 
@@ -54,9 +54,7 @@ class PrefillTokens:
 
     def to_pb(self) -> generate_pb2.PrefillTokens:
         return generate_pb2.PrefillTokens(
-            ids=self.token_ids,
-            logprobs=self.logprobs,
-            texts=self.texts
+            ids=self.token_ids, logprobs=self.logprobs, texts=self.texts
         )
 
 
@@ -72,9 +70,13 @@ class Generation:
     def to_pb(self) -> generate_pb2.Generation:
         return generate_pb2.Generation(
             request_id=self.request_id,
-            prefill_tokens=self.prefill_tokens.to_pb() if self.prefill_tokens is not None else None,
+            prefill_tokens=self.prefill_tokens.to_pb()
+            if self.prefill_tokens is not None
+            else None,
             token_id=self.token_id,
             token_logprob=self.token_logprob,
             token_text=self.token_text,
-            generated_text=self.generated_text.to_pb() if self.generated_text is not None else None,
+            generated_text=self.generated_text.to_pb()
+            if self.generated_text is not None
+            else None,
         )

@@ -36,9 +36,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         self.cache.set(next_batch)
 
         return generate_pb2.PrefillResponse(
-            generations=[
-                generation.to_pb() for generation in generations
-            ],
+            generations=[generation.to_pb() for generation in generations],
             batch=next_batch.to_pb() if next_batch else None,
         )
 
@@ -62,9 +60,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         self.cache.set(next_batch)
 
         return generate_pb2.DecodeResponse(
-            generations=[
-                generation.to_pb() for generation in generations
-            ],
+            generations=[generation.to_pb() for generation in generations],
             batch=next_batch.to_pb() if next_batch else None,
         )
 
