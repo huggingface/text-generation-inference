@@ -1,6 +1,6 @@
-use crate::batcher::InferError;
 /// This code is massively inspired by Tokio mini-redis
-use crate::batcher::InferStreamResponse;
+use crate::infer::InferError;
+use crate::infer::InferStreamResponse;
 use crate::{GenerateParameters, GenerateRequest};
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use parking_lot::Mutex;
@@ -17,7 +17,7 @@ use tokio::time::Instant;
 pub(crate) struct Entry {
     /// Request
     pub request: GenerateRequest,
-    /// Response sender to communicate between the Batcher and the batching_task
+    /// Response sender to communicate between the Infer struct and the batching_task
     pub response_tx: UnboundedSender<Result<InferStreamResponse, InferError>>,
     /// Number of tokens in the input
     pub input_length: usize,

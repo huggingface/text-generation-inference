@@ -70,7 +70,7 @@ impl Client {
 
     /// Generate one token for each request in the given batch
     ///
-    /// Returns a list of generated texts of request that met their stopping criteria
+    /// Returns Generation for each request in batch
     /// and the next cached batch
     #[instrument(skip(self))]
     pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
@@ -84,9 +84,9 @@ impl Client {
         Ok((response.generations, response.batch))
     }
 
-    /// Generate one token for each request in the given cached batch
+    /// Generate one token for each request in the given cached batches
     ///
-    /// Returns a list of generated texts of request that met their stopping criteria
+    /// Returns Generation for each request in batches
     /// and the next cached batch
     #[instrument(skip(self))]
     pub async fn decode(

@@ -37,9 +37,19 @@ impl ShardedClient {
         Self::from_master_client(master_client).await
     }
 
+    /// Clear the past generations cache
+    pub async fn clear_cache(&mut self) -> Result<()> {
+        let futures: Vec<_> = self
+            .clients
+            .iter_mut()
+            .map(|client| client.clear_cache())
+            .collect();
+        join_all(futures).await.into_iter().collect()
+    }
+
     /// Generate one token for each request in the given batch
     ///
-    /// Returns a list of generated texts of request that met their stopping criteria
+    /// Returns Generation for each request in batch
     /// and the next cached batch
     pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
         let futures: Vec<_> = self
@@ -52,9 +62,9 @@ impl ShardedClient {
         result
     }
 
-    /// Generate one token for each request in the given cached batch
+    /// Generate one token for each request in the given cached batches
     ///
-    /// Returns a list of generated texts of request that met their stopping criteria
+    /// Returns Generation for each request in batches
     /// and the next cached batch
     pub async fn decode(
         &mut self,
@@ -68,15 +78,5 @@ impl ShardedClient {
         // As soon as we receive one response, we can return as all shards will return the same
         let (result, _, _) = select_all(futures).await;
         result
-    }
-
-    /// Clear the past generations cache
-    pub async fn clear_cache(&mut self) -> Result<()> {
-        let futures: Vec<_> = self
-            .clients
-            .iter_mut()
-            .map(|client| client.clear_cache())
-            .collect();
-        join_all(futures).await.into_iter().collect()
     }
 }
