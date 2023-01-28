@@ -1,75 +1,52 @@
-use crate::batcher::InferStreamResponse;
+/// HTTP Server logic
+use crate::infer::{InferError, InferStreamResponse};
 use crate::{
-    Batcher, Details, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Validation,
+    Details, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Infer, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
-use axum::{BoxError, Json, Router};
+use axum::{Json, Router};
 use futures::Stream;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use text_generation_client::ShardedClient;
 use tokenizers::Tokenizer;
 use tokio::signal;
-use tokio::sync::Semaphore;
 use tokio::time::Instant;
 use tokio_stream::StreamExt;
 use tracing::instrument;
 
-// Server shared state
-#[derive(Clone)]
-struct ServerState {
-    validation: Validation,
-    batcher: Batcher,
-    limit_concurrent_requests: Arc<Semaphore>,
-}
-
 /// Health check method
-#[instrument(skip(state), fields(time, time_per_token))]
-async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+#[instrument(skip(infer))]
+async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
     // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
     //       be a bit too slow for a health check.
     //       What we should do instead if check if the gRPC channels are still healthy.
 
-    // Limit concurrent requests by acquiring a permit from the semaphore
-    let _permit = state.limit_concurrent_requests.try_acquire().map_err(|_| {
-        (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(ErrorResponse {
-                error: "Model is overloaded".to_string(),
-            }),
-        )
-    })?;
-
     // Send a small inference request
-    state
-        .batcher
-        .infer(
-            1,
-            GenerateRequest {
-                inputs: "liveness".to_string(),
-                parameters: GenerateParameters {
-                    temperature: 1.0,
-                    top_k: 0,
-                    top_p: 1.0,
-                    do_sample: false,
-                    max_new_tokens: 1,
-                    stop: vec![],
-                    details: false,
-                    seed: None,
-                },
+    infer
+        .generate(GenerateRequest {
+            inputs: "liveness".to_string(),
+            parameters: GenerateParameters {
+                temperature: 1.0,
+                top_k: 0,
+                top_p: 1.0,
+                do_sample: false,
+                max_new_tokens: 1,
+                stop: vec![],
+                details: false,
+                seed: None,
             },
-        )
+        })
         .await?;
     Ok(())
 }
 
 /// Generate method
 #[instrument(
-    skip(state),
+    skip(infer),
     fields(
         total_time,
         validation_time,
@@ -80,38 +57,17 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
     )
 )]
 async fn generate(
-    state: Extension<ServerState>,
+    infer: Extension<Infer>,
     req: Json<GenerateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
-    // Limit concurrent requests by acquiring a permit from the semaphore
-    let _permit = state.limit_concurrent_requests.try_acquire().map_err(|_| {
-        tracing::error!("Model is overloaded");
-        (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(ErrorResponse {
-                error: "Model is overloaded".to_string(),
-            }),
-        )
-    })?;
-
-    // Validate request
-    let details = req.0.parameters.details;
-    let (input_length, validated_request) =
-        state.validation.validate(req.0).await.map_err(|err| {
-            tracing::error!("{}", err.to_string());
-            err
-        })?;
 
     // Inference
-    let response = state
-        .batcher
-        .infer(input_length, validated_request)
-        .await
-        .map_err(|err| {
-            tracing::error!("{}", err.to_string());
-            err
-        })?;
+    let details = req.0.parameters.details;
+    let response = infer.generate(req.0).await.map_err(|err| {
+        tracing::error!("{}", err.to_string());
+        err
+    })?;
 
     // Token details
     let details = match details {
@@ -171,39 +127,68 @@ async fn generate(
     Ok((headers, Json(response)))
 }
 
+/// Generate stream method
+#[instrument(
+    skip(infer),
+    fields(
+        total_time,
+        validation_time,
+        queue_time,
+        inference_time,
+        time_per_token
+    )
+)]
 async fn generate_stream(
-    state: Extension<ServerState>,
+    infer: Extension<Infer>,
     req: Json<GenerateRequest>,
-) -> Sse<impl Stream<Item = Result<Event, BoxError>>> {
+) -> Sse<impl Stream<Item = Result<Event, InferError>>> {
     let stream = async_stream::stream! {
-        // Limit concurrent requests by acquiring a permit from the semaphore
-        let _permit = state.limit_concurrent_requests.try_acquire().map_err(| err | {
-            tracing::error!("Model is overloaded");
-            err
-        })?;
-
-        // Validate request
-        let (input_length, validated_request) =
-            state.validation.validate(req.0).await.map_err(|err| {
-                tracing::error!("{}", err);
-                err
-            })?;
+        let start_time = Instant::now();
 
         // Inference
-        let mut response_stream = state
-            .batcher
-            .infer_stream(input_length, validated_request);
+        let mut response_stream = infer.generate_stream(req.0).await?;
 
+        // Server Side Event stream
         while let Some(response) = response_stream.next().await {
             match response {
                 Ok(response) => {
-                    if let InferStreamResponse::Token(token) = response {
-                        yield Ok(Event::default().json_data(token).unwrap());
+                    match response {
+                        // Prefill is ignored
+                        InferStreamResponse::Prefill(_) => {}
+                        // Yield event for every new token
+                        InferStreamResponse::Token(token) => {
+                            yield Ok(Event::default().json_data(token).unwrap())
+                        }
+                        // End is used for timings metadata and logging
+                        InferStreamResponse::End {
+                            generated_text,
+                            start,
+                            queued,
+                        } => {
+                            // Timings
+                            let total_time = start_time.elapsed();
+                            let validation_time = queued - start_time;
+                            let queue_time = start - queued;
+                            let inference_time = Instant::now() - start;
+                            let time_per_token = inference_time / generated_text.generated_tokens;
+
+                            // Tracing metadata
+                            tracing::Span::current().record("total_time", format!("{:?}", total_time));
+                            tracing::Span::current()
+                                .record("validation_time", format!("{:?}", validation_time));
+                            tracing::Span::current().record("queue_time", format!("{:?}", queue_time));
+                            tracing::Span::current()
+                                .record("inference_time", format!("{:?}", inference_time));
+                            tracing::Span::current()
+                                .record("time_per_token", format!("{:?}", time_per_token));
+                            tracing::info!("Output: {}", generated_text.text);
+                        }
                     }
                 }
+                // Trace and yield error
                 Err(err) => {
                     tracing::error!("{}", err.to_string());
-                    yield Ok(Event::default().data(err.to_string()));
+                    yield Err(err);
                 }
             }
         }
@@ -225,13 +210,14 @@ pub async fn run(
     addr: SocketAddr,
 ) {
     // Create state
-    let batcher = Batcher::new(client, max_batch_size, max_waiting_tokens);
     let validation = Validation::new(validation_workers, tokenizer, max_input_length);
-    let shared_state = ServerState {
+    let infer = Infer::new(
+        client,
         validation,
-        batcher,
-        limit_concurrent_requests: Arc::new(Semaphore::new(max_concurrent_requests)),
-    };
+        max_batch_size,
+        max_waiting_tokens,
+        max_concurrent_requests,
+    );
 
     // Create router
     let app = Router::new()
@@ -240,7 +226,7 @@ pub async fn run(
         .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
         .route("/health", get(health))
-        .layer(Extension(shared_state.clone()));
+        .layer(Extension(infer));
 
     // Run server
     axum::Server::bind(&addr)
@@ -276,4 +262,22 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("signal received, starting graceful shutdown");
+}
+
+/// Convert to Axum supported format
+impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
+    fn from(err: InferError) -> Self {
+        let status_code = match err {
+            InferError::GenerationError(_) => StatusCode::FAILED_DEPENDENCY,
+            InferError::Overloaded(_) => StatusCode::TOO_MANY_REQUESTS,
+            InferError::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+        };
+
+        (
+            status_code,
+            Json(ErrorResponse {
+                error: err.to_string(),
+            }),
+        )
+    }
 }

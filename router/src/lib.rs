@@ -1,11 +1,11 @@
 /// Text Generation Inference Webserver
-mod batcher;
 mod db;
+mod infer;
 pub mod server;
 mod validation;
 
-use batcher::Batcher;
 use db::{Db, Entry};
+use infer::Infer;
 use serde::{Deserialize, Serialize};
 use validation::Validation;
 

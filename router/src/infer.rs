@@ -1,43 +1,49 @@
 /// Batching and inference logic
+use crate::validation::{Validation, ValidationError};
+use crate::GenerateRequest;
 use crate::{Db, Entry, Token};
-use crate::{ErrorResponse, GenerateRequest};
-use axum::http::StatusCode;
-use axum::Json;
 use nohash_hasher::IntMap;
 use std::future::Future;
 use std::sync::Arc;
 use text_generation_client::{Batch, ClientError, GeneratedText, Generation, ShardedClient};
 use thiserror::Error;
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::instrument;
 
-/// Batcher
+/// Inference struct
 #[derive(Clone)]
-pub struct Batcher {
+pub struct Infer {
+    /// Validation
+    validation: Validation,
     /// Request database
     db: Db,
     /// Shared state
     shared: Arc<Shared>,
 }
 
-/// Batcher shared state
+/// Infer shared state
 struct Shared {
+    /// Inference limit
+    limit_concurrent_requests: Semaphore,
     /// Batching background Tokio task notifier
     batching_task: Notify,
 }
 
-impl Batcher {
+impl Infer {
     pub(crate) fn new(
         client: ShardedClient,
+        validation: Validation,
         max_batch_size: usize,
         max_waiting_tokens: usize,
+        max_concurrent_requests: usize,
     ) -> Self {
-        // Batcher shared state
+        // Infer shared state
         let db = Db::new();
         let shared = Arc::new(Shared {
+            limit_concurrent_requests: Semaphore::new(max_concurrent_requests),
             batching_task: Notify::new(),
         });
 
@@ -50,21 +56,30 @@ impl Batcher {
             shared.clone(),
         ));
 
-        Self { db, shared }
+        Self {
+            validation,
+            db,
+            shared,
+        }
     }
 
-    /// Add a new request to the database and return a stream of tokens
-    pub(crate) fn infer_stream(
+    /// Add a new request to the database and return a stream of InferStreamResponse
+    pub(crate) async fn generate_stream(
         &self,
-        input_length: usize,
         request: GenerateRequest,
-    ) -> UnboundedReceiverStream<Result<InferStreamResponse, InferError>> {
+    ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError> {
+        // Limit concurrent requests by acquiring a permit from the semaphore
+        let _permit = self.shared.limit_concurrent_requests.try_acquire()?;
+
+        // Validate request
+        let (input_length, validated_request) = self.validation.validate(request).await?;
+
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
 
         // Try to append the request to the database
         self.db.append(Entry {
-            request,
+            request: validated_request,
             response_tx,
             input_length,
             time: Instant::now(),
@@ -76,27 +91,34 @@ impl Batcher {
         self.shared.batching_task.notify_one();
 
         // Return stream
-        UnboundedReceiverStream::new(response_rx)
+        Ok(UnboundedReceiverStream::new(response_rx))
     }
 
-    pub(crate) async fn infer(
+    /// Add a new request to the database and return a InferResponse
+    pub(crate) async fn generate(
         &self,
-        input_length: usize,
         request: GenerateRequest,
     ) -> Result<InferResponse, InferError> {
-        let mut stream = self.infer_stream(input_length, request);
+        // Create stream
+        let mut stream = self.generate_stream(request).await?;
 
+        // Return values
         let mut result_tokens = Vec::new();
         let mut result_generated_text = None;
         let mut result_start = None;
         let mut result_queued = None;
 
+        // Iterate on stream
         while let Some(response) = stream.next().await {
             match response? {
+                // Add prefill tokens
                 InferStreamResponse::Prefill(prefill_tokens) => {
                     result_tokens.extend(prefill_tokens)
                 }
+                // Push last token
                 InferStreamResponse::Token(token) => result_tokens.push(token),
+                // Final message
+                // Set return values
                 InferStreamResponse::End {
                     generated_text,
                     start,
@@ -108,6 +130,7 @@ impl Batcher {
                 }
             }
         }
+        // Unwrap is safe here
         Ok(InferResponse {
             tokens: result_tokens,
             generated_text: result_generated_text.unwrap(),
@@ -134,7 +157,7 @@ async fn batching_task(
 
     // Infinite loop
     loop {
-        // Wait for a notification from the Batcher struct
+        // Wait for a notification from the Infer struct
         shared.batching_task.notified().await;
 
         // Get the next batch from the DB
@@ -185,14 +208,14 @@ async fn batching_task(
     }
 }
 
-/// Wrap a future inside a match statement to handle errors and send the response to the Batcher
+/// Wrap a future inside a match statement to handle errors and send the responses to Infer
 async fn wrap_future(
     future: impl Future<Output = Result<(Vec<Generation>, Option<Batch>), ClientError>>,
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     match future.await {
         Ok((generations, next_batch)) => {
-            send_generated(generations, entries);
+            send_generations(generations, entries);
             next_batch
         }
         // If we have an error, we discard the whole batch
@@ -203,7 +226,7 @@ async fn wrap_future(
     }
 }
 
-/// Send errors to the Batcher for all `entries`
+/// Send errors to Infer for all `entries`
 fn send_error(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     entries.drain().for_each(|(_, entry)| {
         // unwrap_or is valid here as we don't care if the receiver is gone.
@@ -214,14 +237,18 @@ fn send_error(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     });
 }
 
-/// Send `generated_text` to the Batcher for all `finished`
-fn send_generated(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
+/// Send one or multiple `InferStreamResponse` to Infer for all `entries`
+fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
     generations.into_iter().for_each(|generation| {
+        // Get entry
+        // We can `expect` here as the request id should always be in the entries
         let entry = entries
             .get(&generation.request_id)
             .expect("ID not found in entries. This is a bug.");
 
         if let Some(prefill_tokens) = generation.prefill_tokens {
+            // Create Token objects
+            // We do that here instead of in the Python code as Rust for loops are faster
             let tokens = prefill_tokens
                 .ids
                 .into_iter()
@@ -229,27 +256,37 @@ fn send_generated(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>
                 .zip(prefill_tokens.texts.into_iter())
                 .map(|((id, logprob), text)| Token(id, text, logprob))
                 .collect();
+            // Send message
+            // unwrap_or is valid here as we don't care if the receiver is gone.
             entry
                 .response_tx
                 .send(Ok(InferStreamResponse::Prefill(tokens)))
                 .unwrap_or(());
         }
 
+        // Create last Token
         let token = Token(
             generation.token_id,
             generation.token_text,
             generation.token_logprob,
         );
+
+        // Send message
+        // unwrap_or is valid here as we don't care if the receiver is gone.
         entry
             .response_tx
             .send(Ok(InferStreamResponse::Token(token)))
             .unwrap_or(());
 
         if let Some(generated_text) = generation.generated_text {
+            // Remove entry as this is the last message
+            // We can `expect` here as the request id should always be in the entries
             let entry = entries
                 .remove(&generation.request_id)
                 .expect("ID not found in entries. This is a bug.");
 
+            // Send message
+            // unwrap_or is valid here as we don't care if the receiver is gone.
             entry
                 .response_tx
                 .send(Ok(InferStreamResponse::End {
@@ -264,8 +301,11 @@ fn send_generated(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>
 
 #[derive(Debug)]
 pub(crate) enum InferStreamResponse {
+    // Optional first message
     Prefill(Vec<Token>),
+    // Intermediate messages
     Token(Token),
+    // Last message
     End {
         generated_text: GeneratedText,
         start: Instant,
@@ -286,18 +326,8 @@ pub(crate) struct InferResponse {
 pub enum InferError {
     #[error("Request failed during generation: {0}")]
     GenerationError(String),
-}
-
-/// Convert to Axum supported format
-impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
-    fn from(err: InferError) -> Self {
-        match err {
-            InferError::GenerationError(_) => (
-                StatusCode::FAILED_DEPENDENCY,
-                Json(ErrorResponse {
-                    error: err.to_string(),
-                }),
-            ),
-        }
-    }
+    #[error("Model is overloaded")]
+    Overloaded(#[from] TryAcquireError),
+    #[error("Input validation error: {0}")]
+    ValidationError(#[from] ValidationError),
 }
