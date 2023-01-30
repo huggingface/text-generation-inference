@@ -61,6 +61,9 @@ class PrefillTokens:
             ids=self.token_ids, logprobs=self.logprobs, texts=self.texts
         )
 
+    def __len__(self):
+        return len(self.token_ids)
+
 
 @dataclass
 class Generation:
