@@ -5,7 +5,7 @@ use crate::{Db, Entry, Token};
 use nohash_hasher::IntMap;
 use std::future::Future;
 use std::sync::Arc;
-use text_generation_client::{Batch, ClientError, GeneratedText, Generation, ShardedClient};
+use text_generation_client::{Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient};
 use thiserror::Error;
 use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
@@ -22,12 +22,12 @@ pub struct Infer {
     db: Db,
     /// Shared state
     shared: Arc<Shared>,
+    /// Inference limit
+    limit_concurrent_requests: Arc<Semaphore>,
 }
 
 /// Infer shared state
 struct Shared {
-    /// Inference limit
-    limit_concurrent_requests: Semaphore,
     /// Batching background Tokio task notifier
     batching_task: Notify,
 }
@@ -43,7 +43,6 @@ impl Infer {
         // Infer shared state
         let db = Db::new();
         let shared = Arc::new(Shared {
-            limit_concurrent_requests: Semaphore::new(max_concurrent_requests),
             batching_task: Notify::new(),
         });
 
@@ -56,10 +55,14 @@ impl Infer {
             shared.clone(),
         ));
 
+        // Inference limit with a semaphore
+        let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
+
         Self {
             validation,
             db,
             shared,
+            limit_concurrent_requests: semaphore,
         }
     }
 
@@ -69,7 +72,8 @@ impl Infer {
         request: GenerateRequest,
     ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
-        let _permit = self.shared.limit_concurrent_requests.try_acquire()?;
+        // This permit will live as long as Entry
+        let permit = self.clone().limit_concurrent_requests.try_acquire_owned()?;
 
         // Validate request
         let (input_length, validated_request) = self.validation.validate(request).await?;
@@ -84,6 +88,7 @@ impl Infer {
             input_length,
             time: Instant::now(),
             batch_time: None,
+            _permit: permit
         });
 
         // Notify the background task that we have a new entry in the database that needs
@@ -113,30 +118,48 @@ impl Infer {
             match response? {
                 // Add prefill tokens
                 InferStreamResponse::Prefill(prefill_tokens) => {
-                    result_tokens.extend(prefill_tokens)
+                    // Create Token objects
+                    // We do that here instead of in the Python code as Rust for loops are faster
+                    let prefill_tokens = prefill_tokens
+                        .ids
+                        .into_iter()
+                        .zip(prefill_tokens.logprobs.into_iter())
+                        .zip(prefill_tokens.texts.into_iter())
+                        .map(|((id, logprob), text)| Token(id, text, logprob))
+                        .collect();
+                    result_tokens = prefill_tokens;
                 }
                 // Push last token
                 InferStreamResponse::Token(token) => result_tokens.push(token),
                 // Final message
                 // Set return values
                 InferStreamResponse::End {
+                    token,
                     generated_text,
                     start,
                     queued,
                 } => {
+                    result_tokens.push(token);
                     result_generated_text = Some(generated_text);
                     result_start = Some(start);
                     result_queued = Some(queued)
                 }
             }
         }
-        // Unwrap is safe here
-        Ok(InferResponse {
-            tokens: result_tokens,
-            generated_text: result_generated_text.unwrap(),
-            queued: result_queued.unwrap(),
-            start: result_start.unwrap(),
-        })
+
+        // Check that we received a `InferStreamResponse::End` message
+        if let (Some(generated_text), Some(queued), Some(start)) =
+            (result_generated_text, result_queued, result_start)
+        {
+            Ok(InferResponse {
+                tokens: result_tokens,
+                generated_text,
+                queued,
+                start,
+            })
+        } else {
+            Err(InferError::IncompleteGeneration)
+        }
     }
 }
 
@@ -210,7 +233,7 @@ async fn batching_task(
 
 /// Wrap a future inside a match statement to handle errors and send the responses to Infer
 async fn wrap_future(
-    future: impl Future<Output = Result<(Vec<Generation>, Option<Batch>), ClientError>>,
+    future: impl Future<Output=Result<(Vec<Generation>, Option<Batch>), ClientError>>,
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     match future.await {
@@ -247,20 +270,11 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
             .expect("ID not found in entries. This is a bug.");
 
         if let Some(prefill_tokens) = generation.prefill_tokens {
-            // Create Token objects
-            // We do that here instead of in the Python code as Rust for loops are faster
-            let tokens = prefill_tokens
-                .ids
-                .into_iter()
-                .zip(prefill_tokens.logprobs.into_iter())
-                .zip(prefill_tokens.texts.into_iter())
-                .map(|((id, logprob), text)| Token(id, text, logprob))
-                .collect();
             // Send message
             // unwrap_or is valid here as we don't care if the receiver is gone.
             entry
                 .response_tx
-                .send(Ok(InferStreamResponse::Prefill(tokens)))
+                .send(Ok(InferStreamResponse::Prefill(prefill_tokens)))
                 .unwrap_or(());
         }
 
@@ -270,13 +284,6 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
             generation.token_text,
             generation.token_logprob,
         );
-
-        // Send message
-        // unwrap_or is valid here as we don't care if the receiver is gone.
-        entry
-            .response_tx
-            .send(Ok(InferStreamResponse::Token(token)))
-            .unwrap_or(());
 
         if let Some(generated_text) = generation.generated_text {
             // Remove entry as this is the last message
@@ -290,10 +297,18 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
             entry
                 .response_tx
                 .send(Ok(InferStreamResponse::End {
+                    token,
                     generated_text,
                     queued: entry.time,
                     start: entry.batch_time.unwrap(),
                 }))
+                .unwrap_or(());
+        } else {
+            // Send message
+            // unwrap_or is valid here as we don't care if the receiver is gone.
+            entry
+                .response_tx
+                .send(Ok(InferStreamResponse::Token(token)))
                 .unwrap_or(());
         }
     });
@@ -302,11 +317,12 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
 #[derive(Debug)]
 pub(crate) enum InferStreamResponse {
     // Optional first message
-    Prefill(Vec<Token>),
+    Prefill(PrefillTokens),
     // Intermediate messages
     Token(Token),
     // Last message
     End {
+        token: Token,
         generated_text: GeneratedText,
         start: Instant,
         queued: Instant,
@@ -330,4 +346,6 @@ pub enum InferError {
     Overloaded(#[from] TryAcquireError),
     #[error("Input validation error: {0}")]
     ValidationError(#[from] ValidationError),
+    #[error("Incomplete generation")]
+    IncompleteGeneration,
 }

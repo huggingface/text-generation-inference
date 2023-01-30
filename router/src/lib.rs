@@ -88,6 +88,14 @@ pub(crate) struct GeneratedText {
 }
 
 #[derive(Serialize)]
+pub(crate) struct StreamToken {
+    pub token: Token,
+    pub end: bool,
+    pub finish_reason: Option<String>,
+    pub generated_text: Option<String>,
+}
+
+#[derive(Serialize)]
 pub(crate) struct ErrorResponse {
     pub error: String,
 }
