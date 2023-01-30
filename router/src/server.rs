@@ -1,7 +1,7 @@
 /// HTTP Server logic
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
-    Details, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Infer, StreamToken,
+    Details, ErrorResponse, GenerateParameters, GenerateRequest, GenerateResponse, Infer, StreamResponse,
     Validation,
 };
 use axum::extract::Extension;
@@ -77,8 +77,9 @@ async fn generate(
         true => Some(Details {
             finish_reason: response.generated_text.finish_reason,
             generated_tokens: response.generated_text.generated_tokens,
-            tokens: response.tokens,
-            seed: response.seed,
+            prefill: Some(response.prefill),
+            tokens: Some(response.tokens),
+            seed: response.generated_text.seed,
         }),
         false => None,
     };
@@ -119,11 +120,11 @@ async fn generate(
     span.record("queue_time", format!("{:?}", queue_time));
     span.record("inference_time", format!("{:?}", inference_time));
     span.record("time_per_token", format!("{:?}", time_per_token));
-    span.record("seed", format!("{:?}", response.seed));
+    span.record("seed", format!("{:?}", response.generated_text.seed));
     tracing::info!("Output: {}", response.generated_text.text);
 
     // Send response
-    let response = vec![GeneratedText {
+    let response = vec![GenerateResponse {
         generated_text: response.generated_text.text,
         details,
     }];
@@ -152,6 +153,7 @@ async fn generate_stream(
         // Inference
         let mut end_reached = false;
         let mut error = false;
+        let details = req.0.parameters.details;
 
         match infer.generate_stream(req.0).await {
             Ok(mut response_stream) => {
@@ -164,12 +166,11 @@ async fn generate_stream(
                                 InferStreamResponse::Prefill(_) => {}
                                 // Yield event for every new token
                                 InferStreamResponse::Token(token) => {
-                                    // StreamToken
-                                    let stream_token = StreamToken {
+                                    // StreamResponse
+                                    let stream_token = StreamResponse {
                                         token,
-                                        end: end_reached,
-                                        finish_reason: None,
                                         generated_text: None,
+                                        details: None,
                                     };
 
                                     yield Ok(Event::default().json_data(stream_token).unwrap())
@@ -181,6 +182,18 @@ async fn generate_stream(
                                     start,
                                     queued,
                                 } => {
+                                    // Token details
+                                    let details = match details {
+                                        true => Some(Details {
+                                            finish_reason: generated_text.finish_reason,
+                                            generated_tokens: generated_text.generated_tokens,
+                                            prefill: None,
+                                            tokens: None,
+                                            seed: generated_text.seed,
+                                        }),
+                                        false => None,
+                                    };
+
                                     // Timings
                                     let total_time = start_time.elapsed();
                                     let validation_time = queued - start_time;
@@ -199,13 +212,12 @@ async fn generate_stream(
                                         .record("time_per_token", format!("{:?}", time_per_token));
                                     tracing::info!(parent: &span, "Output: {}", generated_text.text);
 
-                                    // StreamToken
+                                    // StreamResponse
                                     end_reached = true;
-                                    let stream_token = StreamToken {
+                                    let stream_token = StreamResponse {
                                         token,
-                                        end: end_reached,
-                                        finish_reason: Some(generated_text.finish_reason),
                                         generated_text: Some(generated_text.text),
+                                        details
                                     };
 
                                     yield Ok(Event::default().json_data(stream_token).unwrap())

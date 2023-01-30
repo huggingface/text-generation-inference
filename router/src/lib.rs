@@ -77,22 +77,24 @@ pub(crate) struct Details {
     pub finish_reason: String,
     pub generated_tokens: u32,
     pub seed: Option<u64>,
-    pub tokens: Vec<Token>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefill: Option<Vec<Token>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens: Option<Vec<Token>>,
 }
 
 #[derive(Serialize)]
-pub(crate) struct GeneratedText {
+pub(crate) struct GenerateResponse {
     pub generated_text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<Details>,
 }
 
 #[derive(Serialize)]
-pub(crate) struct StreamToken {
+pub(crate) struct StreamResponse {
     pub token: Token,
-    pub end: bool,
-    pub finish_reason: Option<String>,
     pub generated_text: Option<String>,
+    pub details: Option<Details>,
 }
 
 #[derive(Serialize)]

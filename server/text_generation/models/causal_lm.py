@@ -361,9 +361,6 @@ class CausalLM(Model):
                     all_input_ids[-stopping_criteria.current_tokens :, 0]
                 )
                 output_text = request.inputs + generated_text
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason
-                )
 
                 # Get seed
                 if isinstance(next_token_chooser.choice, Sampling):

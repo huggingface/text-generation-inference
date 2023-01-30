@@ -110,6 +110,7 @@ impl Infer {
         let mut stream = self.generate_stream(request).await?;
 
         // Return values
+        let mut result_prefill = Vec::new();
         let mut result_tokens = Vec::new();
         let mut result_generated_text = None;
         let mut result_start = None;
@@ -119,17 +120,16 @@ impl Infer {
         while let Some(response) = stream.next().await {
             match response? {
                 // Add prefill tokens
-                InferStreamResponse::Prefill(prefill_tokens) => {
+                InferStreamResponse::Prefill(tokens) => {
                     // Create Token objects
                     // We do that here instead of in the Python code as Rust for loops are faster
-                    let prefill_tokens = prefill_tokens
+                    result_prefill = tokens
                         .ids
                         .into_iter()
-                        .zip(prefill_tokens.logprobs.into_iter())
-                        .zip(prefill_tokens.texts.into_iter())
+                        .zip(tokens.logprobs.into_iter())
+                        .zip(tokens.texts.into_iter())
                         .map(|((id, logprob), text)| Token(id, text, logprob))
                         .collect();
-                    result_tokens = prefill_tokens;
                 }
                 // Push last token
                 InferStreamResponse::Token(token) => result_tokens.push(token),
@@ -154,6 +154,7 @@ impl Infer {
             (result_generated_text, result_queued, result_start)
         {
             Ok(InferResponse {
+                prefill: result_prefill,
                 tokens: result_tokens,
                 generated_text,
                 queued,
@@ -333,9 +334,9 @@ pub(crate) enum InferStreamResponse {
 
 #[derive(Debug)]
 pub(crate) struct InferResponse {
+    pub(crate) prefill: Vec<Token>,
     pub(crate) tokens: Vec<Token>,
     pub(crate) generated_text: GeneratedText,
-    pub(crate) seed: Option<u64>
     pub(crate) queued: Instant,
     pub(crate) start: Instant,
 }
