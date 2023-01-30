@@ -174,7 +174,7 @@ async fn generate_stream(
 
                                     yield Ok(Event::default().json_data(stream_token).unwrap())
                                 }
-                                // End is used for timings metadata and logging
+                                // Yield event for last token and compute timings
                                 InferStreamResponse::End {
                                     token,
                                     generated_text,
