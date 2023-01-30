@@ -50,10 +50,10 @@ class Seq2SeqLMBatch(Batch):
 
     @classmethod
     def from_pb(
-            cls,
-            pb: generate_pb2.Batch,
-            tokenizer: PreTrainedTokenizerBase,
-            device: torch.device,
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
     ) -> "Seq2SeqLMBatch":
         """Convert a text_generation.v1.Batch protobuf to a Seq2SeqLMBatch"""
         inputs = []
@@ -158,8 +158,8 @@ class Seq2SeqLMBatch(Batch):
                 )
             # Copy to correct indices
             input_ids[
-            start_index:end_index, -batch.max_input_length:
-            ] = batch.input_ids[:, -batch.max_input_length:]
+                start_index:end_index, -batch.max_input_length :
+            ] = batch.input_ids[:, -batch.max_input_length :]
 
             # Create padded tensor
             if attention_mask is None:
@@ -168,8 +168,8 @@ class Seq2SeqLMBatch(Batch):
                 )
             # Copy to correct indices
             attention_mask[
-            start_index:end_index, -batch.max_input_length:
-            ] = batch.attention_mask[:, -batch.max_input_length:]
+                start_index:end_index, -batch.max_input_length :
+            ] = batch.attention_mask[:, -batch.max_input_length :]
 
             # Create padded tensor
             if decoder_input_ids is None:
@@ -178,8 +178,8 @@ class Seq2SeqLMBatch(Batch):
                 )
             # Copy to correct indices
             decoder_input_ids[
-            start_index:end_index, -batch.max_decoder_input_length:
-            ] = batch.decoder_input_ids[:, -batch.max_decoder_input_length:]
+                start_index:end_index, -batch.max_decoder_input_length :
+            ] = batch.decoder_input_ids[:, -batch.max_decoder_input_length :]
 
             # Create padded tensor
             if decoder_attention_mask is None:
@@ -191,13 +191,13 @@ class Seq2SeqLMBatch(Batch):
             # this batch. All generations are of length `batch.max_decoder_input_length`.
             if batch.decoder_attention_mask is None:
                 decoder_attention_mask[
-                start_index:end_index, -batch.max_decoder_input_length:
+                    start_index:end_index, -batch.max_decoder_input_length :
                 ] = 1
             # If it exists, we need to index
             else:
                 decoder_attention_mask[
-                start_index:end_index, -batch.max_decoder_input_length:
-                ] = batch.decoder_attention_mask[:, -batch.max_decoder_input_length:]
+                    start_index:end_index, -batch.max_decoder_input_length :
+                ] = batch.decoder_attention_mask[:, -batch.max_decoder_input_length :]
 
             # Create padded tensor
             if encoder_last_hidden_state is None:
@@ -211,8 +211,8 @@ class Seq2SeqLMBatch(Batch):
 
             # Copy to correct indices
             encoder_last_hidden_state[
-            start_index:end_index, -batch.max_input_length:, :
-            ] = batch.encoder_last_hidden_state[:, -batch.max_input_length:, :]
+                start_index:end_index, -batch.max_input_length :, :
+            ] = batch.encoder_last_hidden_state[:, -batch.max_input_length :, :]
 
             # Iterate over attention layers
             for j, past in enumerate(batch.past_key_values):
@@ -238,11 +238,11 @@ class Seq2SeqLMBatch(Batch):
 
                     # We slice the past keys and values to remove the padding from previous batches
                     past_key_values[j][k][
-                    start_index:end_index,
-                    :,
-                    -(batch.max_decoder_input_length - 1):,
-                    :,
-                    ] = t[:, :, -(batch.max_decoder_input_length - 1):, :]
+                        start_index:end_index,
+                        :,
+                        -(batch.max_decoder_input_length - 1) :,
+                        :,
+                    ] = t[:, :, -(batch.max_decoder_input_length - 1) :, :]
 
                 # encoder past
                 for k, t in enumerate(past[2:]):
@@ -261,8 +261,8 @@ class Seq2SeqLMBatch(Batch):
                         past_key_values[j].append(t.new_zeros(padded_t_shape))
 
                     past_key_values[j][idx][
-                    start_index:end_index, :, -batch.max_input_length:, :
-                    ] = t[:, :, -batch.max_input_length:, :]
+                        start_index:end_index, :, -batch.max_input_length :, :
+                    ] = t[:, :, -batch.max_input_length :, :]
 
             start_index += batch.size
 
@@ -322,13 +322,13 @@ class Seq2SeqLM(Model):
         return self.tokenizer.decode(decoder_ids, skip_special_tokens=True)
 
     def forward(
-            self,
-            input_ids,
-            attention_mask,
-            decoder_input_ids,
-            decoder_attention_mask: Optional,
-            encoder_last_hidden_state: Optional,
-            past_key_values: Optional = None,
+        self,
+        input_ids,
+        attention_mask,
+        decoder_input_ids,
+        decoder_attention_mask: Optional,
+        encoder_last_hidden_state: Optional,
+        past_key_values: Optional = None,
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
@@ -359,7 +359,7 @@ class Seq2SeqLM(Model):
         )
 
     def generate_token(
-            self, batch: Seq2SeqLMBatch
+        self, batch: Seq2SeqLMBatch
     ) -> Tuple[List[Generation], Optional[Seq2SeqLMBatch]]:
         # For some reason, inference_mode does not work well with GLOO which we use on CPU
         context_manager = (
@@ -405,14 +405,14 @@ class Seq2SeqLM(Model):
 
         # For each member of the batch
         for i, (
-                request,
-                input_length,
-                decoder_input_length,
-                logits,
-                next_token_chooser,
-                stopping_criteria,
-                input_tokens,
-                decoder_input_ids,
+            request,
+            input_length,
+            decoder_input_length,
+            logits,
+            next_token_chooser,
+            stopping_criteria,
+            input_tokens,
+            decoder_input_ids,
         ) in enumerate(iterator):
             # Select next token
             next_token_id, logprobs = next_token_chooser(decoder_input_ids, logits)
@@ -424,15 +424,14 @@ class Seq2SeqLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.tokenizer.decode(next_token_id_squeezed,
-                                                    clean_up_tokenization_spaces=False,
-                                                    skip_special_tokens=False)
+            next_token_text = self.tokenizer.decode(
+                next_token_id_squeezed,
+                clean_up_tokenization_spaces=False,
+                skip_special_tokens=False,
+            )
 
             # Evaluate stopping criteria
-            stop, reason = stopping_criteria(
-                next_token_id,
-                next_token_text
-            )
+            stop, reason = stopping_criteria(next_token_id, next_token_text)
 
             if stop:
                 # Slice with decoder_input_length to remove padding

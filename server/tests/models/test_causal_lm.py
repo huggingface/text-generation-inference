@@ -88,11 +88,9 @@ def test_causal_lm_batch_type(default_causal_lm):
 
 def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     sequence_length = len(default_causal_lm_batch.all_input_ids[0])
-    generated_texts, next_batch = default_causal_lm.generate_token(
-        default_causal_lm_batch
-    )
+    generations, next_batch = default_causal_lm.generate_token(default_causal_lm_batch)
 
-    assert generated_texts == []
+    assert len(generations) == len(next_batch)
     assert isinstance(next_batch, CausalLMBatch)
 
     assert len(next_batch.all_input_ids) == next_batch.size
@@ -121,6 +119,11 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     assert all(
         [p[1].shape == (1, 12, sequence_length, 64) for p in next_batch.past_key_values]
     )
+    assert all([generation.generated_text is None for generation in generations])
+    assert all([len(generation.prefill_tokens) == 1 for generation in generations])
+    assert all([generation.token_id.item() == 13 for generation in generations])
+    assert all([generation.token_text == "." for generation in generations])
+    assert generations[0].request_id == 0
 
 
 def test_causal_lm_generate_token_completion(
@@ -128,18 +131,17 @@ def test_causal_lm_generate_token_completion(
 ):
     next_batch = default_causal_lm_batch
     for _ in range(default_causal_lm_batch.stopping_criterias[0].max_new_tokens - 1):
-        generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
-        assert generated_texts == []
+        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        assert len(generations) == len(next_batch)
 
-    generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch = default_causal_lm.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generated_texts) == 1
-    assert generated_texts[0].output_text == "Test.java:784) at net.minecraft."
-    assert generated_texts[0].request == default_causal_lm_batch.requests[0]
-    assert len(generated_texts[0].tokens) == len(generated_texts[0].logprobs)
+    assert len(generations) == 1
+    assert generations[0].generated_text.text == "Test.java:784) at net.minecraft."
+    assert generations[0].request_id == default_causal_lm_batch.requests[0].id
     assert (
-        generated_texts[0].generated_tokens
+        generations[0].generated_text.generated_tokens
         == default_causal_lm_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -152,19 +154,20 @@ def test_causal_lm_generate_token_completion_multi(
     for i in range(
         default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 1
     ):
-        generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
-        assert generated_texts == []
+        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        assert len(generations) == len(next_batch)
 
-    generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch = default_causal_lm.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generated_texts) == 1
-    assert generated_texts[0].output_text == "Test.java:784)"
+    assert len(generations) == 2
+    assert generations[1].generated_text.text == "Test.java:784)"
     assert (
-        generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[1]
+        generations[1].request_id
+        == default_multi_requests_causal_lm_batch.requests[1].id
     )
     assert (
-        generated_texts[0].generated_tokens
+        generations[1].generated_text.generated_tokens
         == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
     )
 
@@ -173,19 +176,20 @@ def test_causal_lm_generate_token_completion_multi(
         - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
         - 1
     ):
-        generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
-        assert generated_texts == []
+        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        assert len(generations) == len(next_batch)
 
-    generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch = default_causal_lm.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generated_texts) == 1
-    assert generated_texts[0].output_text == "Test.java:784) at net.minecraft."
+    assert len(generations) == 1
+    assert generations[0].generated_text.text == "Test.java:784) at net.minecraft."
     assert (
-        generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[0]
+        generations[0].request_id
+        == default_multi_requests_causal_lm_batch.requests[0].id
     )
     assert (
-        generated_texts[0].generated_tokens
+        generations[0].generated_text.generated_tokens
         == default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -244,19 +248,20 @@ def test_batch_concatenate(
     for _ in range(
         default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 2
     ):
-        generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
-        assert generated_texts == []
+        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        assert len(generations) == len(next_batch)
 
-    generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch = default_causal_lm.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generated_texts) == 1
-    assert generated_texts[0].output_text == "Test.java:784)"
+    assert len(generations) == 3
+    assert generations[2].generated_text.text == "Test.java:784)"
     assert (
-        generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[1]
+        generations[2].request_id
+        == default_multi_requests_causal_lm_batch.requests[1].id
     )
     assert (
-        generated_texts[0].generated_tokens
+        generations[2].generated_text.generated_tokens
         == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
     )
 
@@ -265,17 +270,17 @@ def test_batch_concatenate(
         - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
         - 2
     ):
-        generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
-        assert generated_texts == []
+        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        assert len(generations) == len(next_batch)
 
-    generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch = default_causal_lm.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generated_texts) == 1
-    assert generated_texts[0].output_text == "Test.java:784) at net.minecraft."
-    assert generated_texts[0].request == default_causal_lm_batch.requests[0]
+    assert len(generations) == 2
+    assert generations[0].generated_text.text == "Test.java:784) at net.minecraft."
+    assert generations[0].request_id == default_causal_lm_batch.requests[0].id
     assert (
-        generated_texts[0].generated_tokens
+        generations[0].generated_text.generated_tokens
         == default_causal_lm_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -285,18 +290,19 @@ def test_batch_concatenate(
         - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
         - 4
     ):
-        generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
-        assert generated_texts == []
+        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        assert len(generations) == len(next_batch)
 
-    generated_texts, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch = default_causal_lm.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generated_texts) == 1
-    assert generated_texts[0].output_text == "Test.java:784) at net.minecraft."
+    assert len(generations) == 1
+    assert generations[0].generated_text.text == "Test.java:784) at net.minecraft."
     assert (
-        generated_texts[0].request == default_multi_requests_causal_lm_batch.requests[0]
+        generations[0].request_id
+        == default_multi_requests_causal_lm_batch.requests[0].id
     )
     assert (
-        generated_texts[0].generated_tokens
+        generations[0].generated_text.generated_tokens
         == default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
     )

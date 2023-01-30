@@ -343,9 +343,11 @@ class CausalLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.tokenizer.decode(next_token_id_squeezed,
-                                                    clean_up_tokenization_spaces=False,
-                                                    skip_special_tokens=False)
+            next_token_text = self.tokenizer.decode(
+                next_token_id_squeezed,
+                clean_up_tokenization_spaces=False,
+                skip_special_tokens=False,
+            )
 
             # Evaluate stopping criteria
             stop, reason = stopping_criteria(
@@ -385,7 +387,9 @@ class CausalLM(Model):
             # Prefill
             if stopping_criteria.current_tokens == 1:
                 # Remove generated token to only have prefill and add nan for first prompt token
-                prefill_logprobs = [float("nan")] + logprobs.gather(1, all_input_ids[1:]).squeeze(1)[-new_input_length:-1].tolist()
+                prefill_logprobs = [float("nan")] + logprobs.gather(
+                    1, all_input_ids[1:]
+                ).squeeze(1)[-new_input_length:-1].tolist()
                 prefill_token_ids = all_input_ids[-new_input_length:-1]
                 prefill_texts = self.tokenizer.batch_decode(
                     prefill_token_ids,

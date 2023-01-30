@@ -5,7 +5,9 @@ use crate::{Db, Entry, Token};
 use nohash_hasher::IntMap;
 use std::future::Future;
 use std::sync::Arc;
-use text_generation_client::{Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient};
+use text_generation_client::{
+    Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
+};
 use thiserror::Error;
 use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
@@ -88,7 +90,7 @@ impl Infer {
             input_length,
             time: Instant::now(),
             batch_time: None,
-            _permit: permit
+            _permit: permit,
         });
 
         // Notify the background task that we have a new entry in the database that needs
@@ -233,7 +235,7 @@ async fn batching_task(
 
 /// Wrap a future inside a match statement to handle errors and send the responses to Infer
 async fn wrap_future(
-    future: impl Future<Output=Result<(Vec<Generation>, Option<Batch>), ClientError>>,
+    future: impl Future<Output = Result<(Vec<Generation>, Option<Batch>), ClientError>>,
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     match future.await {
