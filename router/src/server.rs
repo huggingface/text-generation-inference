@@ -55,6 +55,7 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
                     max_new_tokens: 1,
                     stop: vec![],
                     details: false,
+                    seed: None,
                 },
             },
         )
@@ -70,7 +71,8 @@ async fn health(state: Extension<ServerState>) -> Result<(), (StatusCode, Json<E
         validation_time,
         queue_time,
         inference_time,
-        time_per_token
+        time_per_token,
+        seed
     )
 )]
 async fn generate(
@@ -118,6 +120,7 @@ async fn generate(
                 .map(|((id, text), logprob)| (id, text, logprob))
                 .collect();
             Some(Details {
+                seed: response.seed,
                 finish_reason: response.finish_reason,
                 generated_tokens: response.generated_tokens,
                 tokens,
@@ -162,6 +165,7 @@ async fn generate(
     tracing::Span::current().record("queue_time", format!("{:?}", queue_time));
     tracing::Span::current().record("inference_time", format!("{:?}", inference_time));
     tracing::Span::current().record("time_per_token", format!("{:?}", time_per_token));
+    tracing::Span::current().record("seed", format!("{:?}", response.seed));
     tracing::info!("Output: {}", response.output_text);
 
     // Send response

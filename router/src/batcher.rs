@@ -191,6 +191,7 @@ fn send_generated(finished: Vec<GeneratedText>, entries: &mut IntMap<u64, Entry>
             tokens: output.tokens,
             logprobs: output.logprobs,
             finish_reason: output.finish_reason,
+            seed: output.seed,
             queued: entry.time,
             start: entry.batch_time.unwrap(), // unwrap is always valid
             end: Instant::now(),
@@ -208,6 +209,7 @@ pub(crate) struct InferResponse {
     pub(crate) tokens: Vec<String>,
     pub(crate) logprobs: Vec<f32>,
     pub(crate) finish_reason: String,
+    pub(crate) seed: Option<u64>,
     pub(crate) queued: Instant,
     pub(crate) start: Instant,
     pub(crate) end: Instant,
