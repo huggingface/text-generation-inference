@@ -311,7 +311,7 @@ class CausalLM(Model):
         next_batch_max_sequence_length = 0
 
         # Results
-        results = []
+        generations: List[Generation] = []
 
         # Zipped iterator
         iterator = zip(
@@ -343,7 +343,9 @@ class CausalLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.decode(next_token_id.squeeze())
+            next_token_text = self.tokenizer.decode(next_token_id_squeezed,
+                                                    clean_up_tokenization_spaces=False,
+                                                    skip_special_tokens=False)
 
             # Evaluate stopping criteria
             stop, reason = stopping_criteria(
@@ -381,11 +383,9 @@ class CausalLM(Model):
                 )
 
             # Prefill
-            if stopping_criteria.current_tokens == 0:
+            if stopping_criteria.current_tokens == 1:
                 # Remove generated token to only have prefill and add nan for first prompt token
-                prefill_logprobs = [float("nan")] + logprobs[
-                    -new_input_length:-1
-                ].gather(1, all_input_ids[-new_input_length:-1]).squeeze(1).tolist()
+                prefill_logprobs = [float("nan")] + logprobs.gather(1, all_input_ids[1:]).squeeze(1)[-new_input_length:-1].tolist()
                 prefill_token_ids = all_input_ids[-new_input_length:-1]
                 prefill_texts = self.tokenizer.batch_decode(
                     prefill_token_ids,
@@ -398,7 +398,7 @@ class CausalLM(Model):
             else:
                 prefill_tokens = None
 
-            result = Generation(
+            generation = Generation(
                 request.id,
                 prefill_tokens,
                 next_token_id_squeezed,
@@ -407,11 +407,11 @@ class CausalLM(Model):
                 generated_text,
             )
 
-            results.append(result)
+            generations.append(generation)
 
         # We finished all generations in the batch; there is no next batch
         if not next_batch_keep_indices:
-            return results, None
+            return generations, None
 
         next_batch_input_ids = torch.cat(next_batch_input_ids, dim=0)
         # If we finished at least one generation, we need to evict the indices of the generations that finished
@@ -470,4 +470,4 @@ class CausalLM(Model):
             max_sequence_length=next_batch_max_sequence_length,
             keys_head_dim_last=batch.keys_head_dim_last,
         )
-        return results, next_batch
+        return generations, next_batch
