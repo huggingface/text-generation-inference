@@ -16,4 +16,4 @@ tracing-subscriber = { version = "0.3.16", features = ["json"] }
 [dev-dependencies]
 float_eq = "1.0.1"
 reqwest = { version = "0.11.13", features = ["blocking", "json"] }
-serde = "1.0.150"
+serde = { version = "1.0.150", features = ["derive"]  }

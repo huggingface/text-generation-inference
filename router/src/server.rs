@@ -1,7 +1,8 @@
 /// HTTP Server logic
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
-    Details, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Infer, Validation,
+    Details, ErrorResponse, GenerateParameters, GenerateRequest, GeneratedText, Infer, StreamToken,
+    Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, StatusCode};
@@ -10,6 +11,7 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures::Stream;
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use text_generation_client::ShardedClient;
 use tokenizers::Tokenizer;
@@ -60,6 +62,7 @@ async fn generate(
     infer: Extension<Infer>,
     req: Json<GenerateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let span = tracing::Span::current();
     let start_time = Instant::now();
 
     // Inference
@@ -111,12 +114,12 @@ async fn generate(
     );
 
     // Tracing metadata
-    tracing::Span::current().record("total_time", format!("{:?}", total_time));
-    tracing::Span::current().record("validation_time", format!("{:?}", validation_time));
-    tracing::Span::current().record("queue_time", format!("{:?}", queue_time));
-    tracing::Span::current().record("inference_time", format!("{:?}", inference_time));
-    tracing::Span::current().record("time_per_token", format!("{:?}", time_per_token));
-    tracing::Span::current().record("seed", format!("{:?}", response.seed));
+    span.record("total_time", format!("{:?}", total_time));
+    span.record("validation_time", format!("{:?}", validation_time));
+    span.record("queue_time", format!("{:?}", queue_time));
+    span.record("inference_time", format!("{:?}", inference_time));
+    span.record("time_per_token", format!("{:?}", time_per_token));
+    span.record("seed", format!("{:?}", response.seed));
     tracing::info!("Output: {}", response.generated_text.text);
 
     // Send response
@@ -141,56 +144,96 @@ async fn generate(
 async fn generate_stream(
     infer: Extension<Infer>,
     req: Json<GenerateRequest>,
-) -> Sse<impl Stream<Item = Result<Event, InferError>>> {
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let span = tracing::Span::current();
+    let start_time = Instant::now();
+
     let stream = async_stream::stream! {
-        let start_time = Instant::now();
-
         // Inference
-        let mut response_stream = infer.generate_stream(req.0).await?;
+        let mut end_reached = false;
+        let mut error = false;
 
-        // Server Side Event stream
-        while let Some(response) = response_stream.next().await {
-            match response {
-                Ok(response) => {
+        match infer.generate_stream(req.0).await {
+            Ok(mut response_stream) => {
+                // Server Side Event stream
+                while let Some(response) = response_stream.next().await {
                     match response {
-                        // Prefill is ignored
-                        InferStreamResponse::Prefill(_) => {}
-                        // Yield event for every new token
-                        InferStreamResponse::Token(token) => {
-                            yield Ok(Event::default().json_data(token).unwrap())
-                        }
-                        // End is used for timings metadata and logging
-                        InferStreamResponse::End {
-                            generated_text,
-                            start,
-                            queued,
-                        } => {
-                            // Timings
-                            let total_time = start_time.elapsed();
-                            let validation_time = queued - start_time;
-                            let queue_time = start - queued;
-                            let inference_time = Instant::now() - start;
-                            let time_per_token = inference_time / generated_text.generated_tokens;
+                        Ok(response) => {
+                            match response {
+                                // Prefill is ignored
+                                InferStreamResponse::Prefill(_) => {}
+                                // Yield event for every new token
+                                InferStreamResponse::Token(token) => {
+                                    // StreamToken
+                                    let stream_token = StreamToken {
+                                        token,
+                                        end: end_reached,
+                                        finish_reason: None,
+                                        generated_text: None,
+                                    };
 
-                            // Tracing metadata
-                            tracing::Span::current().record("total_time", format!("{:?}", total_time));
-                            tracing::Span::current()
-                                .record("validation_time", format!("{:?}", validation_time));
-                            tracing::Span::current().record("queue_time", format!("{:?}", queue_time));
-                            tracing::Span::current()
-                                .record("inference_time", format!("{:?}", inference_time));
-                            tracing::Span::current()
-                                .record("time_per_token", format!("{:?}", time_per_token));
-                            tracing::info!("Output: {}", generated_text.text);
+                                    yield Ok(Event::default().json_data(stream_token).unwrap())
+                                }
+                                // End is used for timings metadata and logging
+                                InferStreamResponse::End {
+                                    token,
+                                    generated_text,
+                                    start,
+                                    queued,
+                                } => {
+                                    // Timings
+                                    let total_time = start_time.elapsed();
+                                    let validation_time = queued - start_time;
+                                    let queue_time = start - queued;
+                                    let inference_time = Instant::now() - start;
+                                    let time_per_token = inference_time / generated_text.generated_tokens;
+
+                                    // Tracing metadata
+                                    span.record("total_time", format!("{:?}", total_time));
+                                    span
+                                        .record("validation_time", format!("{:?}", validation_time));
+                                    span.record("queue_time", format!("{:?}", queue_time));
+                                    span
+                                        .record("inference_time", format!("{:?}", inference_time));
+                                    span
+                                        .record("time_per_token", format!("{:?}", time_per_token));
+                                    tracing::info!(parent: &span, "Output: {}", generated_text.text);
+
+                                    // StreamToken
+                                    end_reached = true;
+                                    let stream_token = StreamToken {
+                                        token,
+                                        end: end_reached,
+                                        finish_reason: Some(generated_text.finish_reason),
+                                        generated_text: Some(generated_text.text),
+                                    };
+
+                                    yield Ok(Event::default().json_data(stream_token).unwrap())
+                                }
+                            }
+                        }
+                        // Trace and yield error
+                        Err(err) => {
+                            error = true;
+                            tracing::error!("{}", err.to_string());
+                            yield Ok(Event::from(err))
                         }
                     }
                 }
-                // Trace and yield error
-                Err(err) => {
-                    tracing::error!("{}", err.to_string());
-                    yield Err(err);
-                }
+            },
+            // Trace and yield error
+            Err(err) => {
+                error = true;
+                tracing::error!("{}", err.to_string());
+                yield Ok(Event::from(err))
             }
+        }
+        // Check if generation reached the end
+        // Skip if we already sent an error
+        if !end_reached && !error {
+            let err = InferError::IncompleteGeneration;
+            tracing::error!("{}", err.to_string());
+            yield Ok(Event::from(err))
         }
     };
 
@@ -264,13 +307,14 @@ async fn shutdown_signal() {
     tracing::info!("signal received, starting graceful shutdown");
 }
 
-/// Convert to Axum supported format
+/// Convert to Axum supported formats
 impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
     fn from(err: InferError) -> Self {
         let status_code = match err {
             InferError::GenerationError(_) => StatusCode::FAILED_DEPENDENCY,
             InferError::Overloaded(_) => StatusCode::TOO_MANY_REQUESTS,
             InferError::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (
@@ -279,5 +323,15 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
                 error: err.to_string(),
             }),
         )
+    }
+}
+
+impl From<InferError> for Event {
+    fn from(err: InferError) -> Self {
+        Event::default()
+            .json_data(ErrorResponse {
+                error: err.to_string(),
+            })
+            .unwrap()
     }
 }

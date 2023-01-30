@@ -10,6 +10,7 @@ use text_generation_client::{
     Batch, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::OwnedSemaphorePermit;
 use tokio::time::Instant;
 
 /// Database entry
@@ -25,6 +26,8 @@ pub(crate) struct Entry {
     pub time: Instant,
     /// Instant when this entry was added to a batch
     pub batch_time: Option<Instant>,
+    /// Permit
+    pub _permit: OwnedSemaphorePermit,
 }
 
 /// Request Database
