@@ -29,6 +29,10 @@ class Batch(ABC):
     def concatenate(cls, batches: List["Batch"]) -> "Batch":
         raise NotImplementedError
 
+    @abstractmethod
+    def __len__(self):
+        raise NotImplementedError
+
 
 @dataclass
 class GeneratedText:
