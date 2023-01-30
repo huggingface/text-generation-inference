@@ -1,8 +1,8 @@
 /// HTTP Server logic
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
-    Details, ErrorResponse, GenerateParameters, GenerateRequest, GenerateResponse, Infer, StreamResponse,
-    Validation,
+    Details, ErrorResponse, GenerateParameters, GenerateRequest, GenerateResponse, Infer,
+    StreamResponse, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, StatusCode};
