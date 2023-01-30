@@ -368,7 +368,9 @@ class CausalLM(Model):
                 else:
                     seed = None
 
-                generated_text = GeneratedText(output_text, stopping_criteria.current_tokens, reason, seed)
+                generated_text = GeneratedText(
+                    output_text, stopping_criteria.current_tokens, reason, seed
+                )
             else:
                 # Keep request in the batch
                 generated_text = None
