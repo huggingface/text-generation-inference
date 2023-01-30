@@ -296,7 +296,10 @@ class CausalLM(Model):
         )
         with context_manager():
             logits, past = self.forward(
-                batch.input_ids, batch.attention_mask, batch.position_ids, batch.past_key_values
+                batch.input_ids,
+                batch.attention_mask,
+                batch.position_ids,
+                batch.past_key_values,
             )
 
         # List of indices to cache
@@ -389,7 +392,7 @@ class CausalLM(Model):
                         token_ids=token_ids.squeeze(1).tolist(),
                         logprobs=logprobs,
                         reason=reason,
-                        seed=seed
+                        seed=seed,
                     )
                 )
             # add to the next batch

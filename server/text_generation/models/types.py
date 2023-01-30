@@ -50,5 +50,5 @@ class GeneratedText:
             token_ids=self.token_ids,
             logprobs=self.logprobs,
             finish_reason=self.reason,
-            seed=self.seed
+            seed=self.seed,
         )

@@ -468,7 +468,7 @@ class Seq2SeqLM(Model):
                         token_ids=token_ids.tolist(),
                         logprobs=logprobs,
                         reason=reason,
-                        seed=seed
+                        seed=seed,
                     )
                 )
             # add to the next batch
