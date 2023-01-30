@@ -3,12 +3,14 @@
     "details": {
       "finish_reason": "length",
       "generated_tokens": 20,
-      "tokens": [
+      "prefill": [
         [
           0,
           "<pad>",
           null
-        ],
+        ]
+      ],
+      "tokens": [
         [
           259,
           "",
