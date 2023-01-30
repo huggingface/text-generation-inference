@@ -1,5 +1,7 @@
 import pytest
 
+from huggingface_hub.utils import RevisionNotFoundError
+
 from text_generation.utils import (
     weight_hub_files,
     download_weights,
@@ -51,7 +53,7 @@ def test_weight_hub_files_llm():
 
 
 def test_weight_hub_files_empty():
-    filenames = weight_hub_files("bigscience/bloom", ".errors")
+    filenames = weight_hub_files("bigscience/bloom", extension=".errors")
     assert filenames == []
 
 
@@ -62,5 +64,7 @@ def test_download_weights():
 
 
 def test_weight_files_error():
+    with pytest.raises(RevisionNotFoundError):
+        weight_files("bigscience/bloom-560m", revision="error")
     with pytest.raises(LocalEntryNotFoundError):
         weight_files("bert-base-uncased")

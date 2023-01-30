@@ -148,7 +148,9 @@ class Galactica(CausalLM):
 
 
 class GalacticaSharded(Galactica):
-    def __init__(self, model_name: str, quantize: bool = False):
+    def __init__(
+        self, model_name: str, revision: Optional[str] = None, quantize: bool = False
+    ):
         if not model_name.startswith("facebook/galactica"):
             raise ValueError(f"Model {model_name} is not supported")
 
@@ -161,24 +163,23 @@ class GalacticaSharded(Galactica):
             device = torch.device("cpu")
             dtype = torch.float32
 
-        tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name, revision=revision, padding_side="left"
+        )
 
-        config = AutoConfig.from_pretrained(model_name, tp_parallel=True)
+        config = AutoConfig.from_pretrained(
+            model_name, revision=revision, tp_parallel=True
+        )
         tokenizer.pad_token_id = config.pad_token_id
-
-        # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
-        # in PyTorch 1.12 and later.
-        torch.backends.cuda.matmul.allow_tf32 = True
-
-        # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
-        torch.backends.cudnn.allow_tf32 = True
 
         # Only download weights for small models
         if self.master and model_name == "facebook/galactica-125m":
-            download_weights(model_name, extension=".safetensors")
+            download_weights(model_name, revision=revision, extension=".safetensors")
 
         torch.distributed.barrier(group=self.process_group)
-        filenames = weight_files(model_name, extension=".safetensors")
+        filenames = weight_files(
+            model_name, revision=revision, extension=".safetensors"
+        )
         if not filenames:
             raise ValueError("No safetensors weights found")
 
