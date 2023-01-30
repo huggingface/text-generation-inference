@@ -83,7 +83,7 @@ impl Infer {
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
 
-        // Try to append the request to the database
+        // Append the request to the database
         self.db.append(Entry {
             request: validated_request,
             response_tx,
