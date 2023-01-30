@@ -39,12 +39,16 @@ class SantaCoder(CausalLM):
             }
         )
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=dtype,
-            load_in_8bit=quantize,
-            trust_remote_code=True,  # required
-        ).to(device).eval()
+        self.model = (
+            AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=dtype,
+                load_in_8bit=quantize,
+                trust_remote_code=True,  # required
+            )
+            .to(device)
+            .eval()
+        )
 
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,

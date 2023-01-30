@@ -234,7 +234,9 @@ class BLOOMSharded(BLOOM):
                     if name == "word_embeddings.weight":
                         model.lm_head._parameters["weight"] = tensor
 
-    def forward(self, input_ids, attention_mask, position_ids, past_key_values: Optional = None):
+    def forward(
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+    ):
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,

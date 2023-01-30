@@ -7,7 +7,7 @@ from typing import Optional, Tuple, List, Type
 from text_generation.models import Model
 from text_generation.models.types import GeneratedText, Batch
 from text_generation.pb import generate_pb2
-from text_generation.utils import NextTokenChooser, StoppingCriteria
+from text_generation.utils import NextTokenChooser, StoppingCriteria, Sampling
 
 
 @dataclass
@@ -296,7 +296,10 @@ class CausalLM(Model):
         )
         with context_manager():
             logits, past = self.forward(
-                batch.input_ids, batch.attention_mask, batch.position_ids, batch.past_key_values
+                batch.input_ids,
+                batch.attention_mask,
+                batch.position_ids,
+                batch.past_key_values,
             )
 
         # List of indices to cache
@@ -373,6 +376,12 @@ class CausalLM(Model):
                     1
                 ).tolist()
 
+                # Get seed
+                if isinstance(next_token_chooser.choice, Sampling):
+                    seed = next_token_chooser.choice.seed
+                else:
+                    seed = None
+
                 # Add to the list of finished generations with the original request
                 generated_texts.append(
                     GeneratedText(
@@ -383,6 +392,7 @@ class CausalLM(Model):
                         token_ids=token_ids.squeeze(1).tolist(),
                         logprobs=logprobs,
                         reason=reason,
+                        seed=seed,
                     )
                 )
             # add to the next batch

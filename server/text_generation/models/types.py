@@ -2,7 +2,7 @@ import torch
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from transformers import PreTrainedTokenizerBase
 
@@ -39,6 +39,7 @@ class GeneratedText:
     token_ids: List[int]
     logprobs: List[float]
     reason: str
+    seed: Optional[int]
 
     def to_pb(self) -> generate_pb2.GeneratedText:
         return generate_pb2.GeneratedText(
@@ -49,4 +50,5 @@ class GeneratedText:
             token_ids=self.token_ids,
             logprobs=self.logprobs,
             finish_reason=self.reason,
+            seed=self.seed,
         )

@@ -36,6 +36,8 @@ message NextTokenChooserParameters {
     float top_p = 3;
     /// apply sampling on the logits
     bool do_sample = 4;
+    /// random seed for sampling
+    optional uint64 seed = 5;
 }
 
 message StoppingCriteriaParameters {
@@ -82,6 +84,8 @@ message GeneratedText {
     repeated float logprobs = 6;
     /// Finish reason
     string finish_reason = 7;
+    /// Seed
+    optional uint64 seed = 8;
 }
 
 message GenerateRequest {

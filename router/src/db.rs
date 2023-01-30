@@ -166,6 +166,7 @@ impl From<&GenerateParameters> for NextTokenChooserParameters {
             top_k: parameters.top_k as u32,
             top_p: parameters.top_p,
             do_sample: parameters.do_sample,
+            seed: parameters.seed,
         }
     }
 }
