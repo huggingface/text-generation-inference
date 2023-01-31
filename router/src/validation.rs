@@ -113,6 +113,9 @@ fn validate(
     if request.parameters.temperature <= 0.0 {
         return Err(ValidationError::Temperature);
     }
+    if request.parameters.repetition_penalty <= 0.0 {
+        return Err(ValidationError::RepetitionPenalty);
+    }
     if request.parameters.top_p <= 0.0 || request.parameters.top_p > 1.0 {
         return Err(ValidationError::TopP);
     }
@@ -146,6 +149,7 @@ fn validate(
                 // Return ValidGenerateRequest
                 let GenerateParameters {
                     temperature,
+                    repetition_penalty,
                     top_k,
                     top_p,
                     do_sample,
@@ -156,6 +160,7 @@ fn validate(
 
                 let parameters = NextTokenChooserParameters {
                     temperature,
+                    repetition_penalty,
                     top_k: top_k as u32,
                     top_p,
                     do_sample,
@@ -195,6 +200,8 @@ pub(crate) struct ValidGenerateRequest {
 pub enum ValidationError {
     #[error("temperature must be strictly positive")]
     Temperature,
+    #[error("repetition_penalty must be strictly positive")]
+    RepetitionPenalty,
     #[error("top_p must be > 0.0 and <= 1.0")]
     TopP,
     #[error("top_k must be strictly positive")]
