@@ -196,15 +196,11 @@ class BLOOMSharded(BLOOM):
                             tensor.CB = None
                             tensor.SCB = None
 
-                            def replace_linear(state, in_features, out_features):
+                            def replace_linear(state):
                                 def linear(input, weight, bias):
-                                    size_out = input.size()[:-1] + (out_features,)
-                                    input = input.view(-1, in_features)
-                                    out = input.new_empty(size_out)
                                     out = bnb.matmul(
                                         input,
                                         weight,
-                                        out=out.view(-1, out_features),
                                         state=state,
                                         threshold=state.threshold,
                                         bias=bias,
@@ -217,13 +213,11 @@ class BLOOMSharded(BLOOM):
                                         del state.CB
                                         weight.data = state.CxB
 
-                                    return out.view(size_out)
+                                    return out
 
                                 return linear
 
-                            module.linear = replace_linear(
-                                state, module.in_features, module.out_features
-                            )
+                            module.linear = replace_linear(state)
 
                         else:
                             tensor = tensor.to(device)
