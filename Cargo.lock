@@ -1834,6 +1834,7 @@ dependencies = [
  "futures",
  "nohash-hasher",
  "parking_lot",
+ "rand",
  "serde",
  "serde_json",
  "text-generation-client",

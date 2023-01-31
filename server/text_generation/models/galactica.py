@@ -36,7 +36,6 @@ try:
 except Exception as e:
     HAS_BITS_AND_BYTES = False
 
-torch.manual_seed(0)
 
 # CREDIT: Papers with code => https://github.com/paperswithcode/galai/blob/main/galai/utils.py
 
