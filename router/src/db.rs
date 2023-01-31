@@ -1,29 +1,29 @@
 /// This code is massively inspired by Tokio mini-redis
-use crate::InferResponse;
-use crate::{GenerateParameters, GenerateRequest};
+use crate::infer::InferError;
+use crate::infer::InferStreamResponse;
+use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use text_generation_client::{
-    Batch, ClientError, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
-};
-use tokio::sync::oneshot::Sender;
+use text_generation_client::{Batch, Request};
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::OwnedSemaphorePermit;
 use tokio::time::Instant;
 
 /// Database entry
 #[derive(Debug)]
 pub(crate) struct Entry {
     /// Request
-    pub request: GenerateRequest,
-    /// Response sender to communicate between the Batcher and the batching_task
-    pub response_tx: Sender<Result<InferResponse, ClientError>>,
-    /// Number of tokens in the input
-    pub input_length: usize,
+    pub request: ValidGenerateRequest,
+    /// Response sender to communicate between the Infer struct and the batching_task
+    pub response_tx: UnboundedSender<Result<InferStreamResponse, InferError>>,
     /// Instant when this entry was created
     pub time: Instant,
     /// Instant when this entry was added to a batch
     pub batch_time: Option<Instant>,
+    /// Permit
+    pub _permit: OwnedSemaphorePermit,
 }
 
 /// Request Database
@@ -71,9 +71,9 @@ impl State {
             requests.push(Request {
                 id: *id,
                 inputs: entry.request.inputs.clone(),
-                input_length: entry.input_length as u32,
-                parameters: Some((&entry.request.parameters).into()),
-                stopping_parameters: Some(entry.request.parameters.clone().into()),
+                input_length: entry.request.input_length,
+                parameters: Some(entry.request.parameters.clone()),
+                stopping_parameters: Some(entry.request.stopping_parameters.clone()),
             });
 
             ids.push(*id);
@@ -156,27 +156,5 @@ impl Db {
             return Some((entries, batch));
         }
         None
-    }
-}
-
-impl From<&GenerateParameters> for NextTokenChooserParameters {
-    fn from(parameters: &GenerateParameters) -> Self {
-        Self {
-            temperature: parameters.temperature,
-            top_k: parameters.top_k as u32,
-            top_p: parameters.top_p,
-            do_sample: parameters.do_sample,
-            // FIXME: remove unwrap
-            seed: parameters.seed.unwrap(),
-        }
-    }
-}
-
-impl From<GenerateParameters> for StoppingCriteriaParameters {
-    fn from(parameters: GenerateParameters) -> Self {
-        Self {
-            stop_sequences: parameters.stop,
-            max_new_tokens: parameters.max_new_tokens,
-        }
     }
 }

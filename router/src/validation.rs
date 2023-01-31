@@ -1,9 +1,8 @@
 /// Payload validation logic
-use crate::{ErrorResponse, GenerateRequest};
-use axum::http::StatusCode;
-use axum::Json;
+use crate::{GenerateParameters, GenerateRequest};
 use rand::rngs::ThreadRng;
 use rand::Rng;
+use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::{mpsc, oneshot};
@@ -40,7 +39,7 @@ impl Validation {
     pub(crate) async fn validate(
         &self,
         request: GenerateRequest,
-    ) -> Result<(usize, GenerateRequest), ValidationError> {
+    ) -> Result<ValidGenerateRequest, ValidationError> {
         // Create response channel
         let (sender, receiver) = oneshot::channel();
         // Send request to the background validation task
@@ -106,11 +105,11 @@ fn validation_worker(
 }
 
 fn validate(
-    mut request: GenerateRequest,
+    request: GenerateRequest,
     tokenizer: &Tokenizer,
     max_input_length: usize,
     rng: &mut ThreadRng,
-) -> Result<(usize, GenerateRequest), ValidationError> {
+) -> Result<ValidGenerateRequest, ValidationError> {
     if request.parameters.temperature <= 0.0 {
         return Err(ValidationError::Temperature);
     }
@@ -131,19 +130,48 @@ fn validate(
     }
 
     // If seed is None, assign a random one
-    if request.parameters.seed.is_none() {
-        request.parameters.seed = Some(rng.gen());
-    }
+    let seed = match request.parameters.seed {
+        None => rng.gen(),
+        Some(seed) => seed,
+    };
 
     // Get the number of tokens in the input
     match tokenizer.encode(request.inputs.clone(), true) {
-        Ok(inputs) => {
-            let input_length = inputs.len();
+        Ok(encoding) => {
+            let input_length = encoding.len();
 
             if input_length > max_input_length {
                 Err(ValidationError::InputLength(input_length, max_input_length))
             } else {
-                Ok((input_length, request))
+                // Return ValidGenerateRequest
+                let GenerateParameters {
+                    temperature,
+                    top_k,
+                    top_p,
+                    do_sample,
+                    max_new_tokens,
+                    stop: stop_sequences,
+                    ..
+                } = request.parameters;
+
+                let parameters = NextTokenChooserParameters {
+                    temperature,
+                    top_k: top_k as u32,
+                    top_p,
+                    do_sample,
+                    seed,
+                };
+                let stopping_parameters = StoppingCriteriaParameters {
+                    max_new_tokens,
+                    stop_sequences,
+                };
+
+                Ok(ValidGenerateRequest {
+                    inputs: request.inputs,
+                    input_length: input_length as u32,
+                    parameters,
+                    stopping_parameters,
+                })
             }
         }
         Err(err) => Err(ValidationError::Tokenizer(err.to_string())),
@@ -152,8 +180,16 @@ fn validate(
 
 type ValidationRequest = (
     GenerateRequest,
-    oneshot::Sender<Result<(usize, GenerateRequest), ValidationError>>,
+    oneshot::Sender<Result<ValidGenerateRequest, ValidationError>>,
 );
+
+#[derive(Debug)]
+pub(crate) struct ValidGenerateRequest {
+    pub inputs: String,
+    pub input_length: u32,
+    pub parameters: NextTokenChooserParameters,
+    pub stopping_parameters: StoppingCriteriaParameters,
+}
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
@@ -171,15 +207,4 @@ pub enum ValidationError {
     StopSequence(usize, usize),
     #[error("tokenizer error {0}")]
     Tokenizer(String),
-}
-
-impl From<ValidationError> for (StatusCode, Json<ErrorResponse>) {
-    fn from(err: ValidationError) -> Self {
-        (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse {
-                error: err.to_string(),
-            }),
-        )
-    }
 }

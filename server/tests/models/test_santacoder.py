@@ -50,18 +50,17 @@ def test_santacoder_generate_token_completion(default_santacoder, default_pb_bat
     next_batch = batch
 
     for _ in range(batch.stopping_criterias[0].max_new_tokens - 1):
-        generated_texts, next_batch = default_santacoder.generate_token(next_batch)
-        assert generated_texts == []
+        generations, next_batch = default_santacoder.generate_token(next_batch)
+        assert len(generations) == len(next_batch)
 
-    generated_texts, next_batch = default_santacoder.generate_token(next_batch)
+    generations, next_batch = default_santacoder.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generated_texts) == 1
-    assert generated_texts[0].output_text == "def test_get_all_users_with_"
-    assert generated_texts[0].request == batch.requests[0]
-    assert len(generated_texts[0].tokens) == len(generated_texts[0].logprobs)
+    assert len(generations) == 1
+    assert generations[0].generated_text.text == "def test_get_all_users_with_"
+    assert generations[0].request_id == batch.requests[0].id
     assert (
-        generated_texts[0].generated_tokens
+        generations[0].generated_text.generated_tokens
         == batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -76,20 +75,19 @@ def test_fim_santacoder_generate_token_completion(
     next_batch = batch
 
     for _ in range(batch.stopping_criterias[0].max_new_tokens - 1):
-        generated_texts, next_batch = default_santacoder.generate_token(next_batch)
-        assert generated_texts == []
+        generations, next_batch = default_santacoder.generate_token(next_batch)
+        assert len(generations) == len(next_batch)
 
-    generated_texts, next_batch = default_santacoder.generate_token(next_batch)
+    generations, next_batch = default_santacoder.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generated_texts) == 1
+    assert len(generations) == 1
     assert (
-        generated_texts[0].output_text
+        generations[0].generated_text.text
         == """<fim-prefix>def<fim-suffix>world<fim-middle>ineProperty(exports, "__esModule", { value"""
     )
-    assert generated_texts[0].request == batch.requests[0]
-    assert len(generated_texts[0].tokens) == len(generated_texts[0].logprobs)
+    assert generations[0].request_id == batch.requests[0].id
     assert (
-        generated_texts[0].generated_tokens
+        generations[0].generated_text.generated_tokens
         == batch.stopping_criterias[0].max_new_tokens
     )
