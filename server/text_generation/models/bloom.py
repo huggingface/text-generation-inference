@@ -217,9 +217,7 @@ class BLOOMSharded(BLOOM):
 
                                 return linear
 
-                            module.linear = replace_linear(
-                                state
-                            )
+                            module.linear = replace_linear(state)
 
                         else:
                             tensor = tensor.to(device)
