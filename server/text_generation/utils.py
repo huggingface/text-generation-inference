@@ -24,8 +24,8 @@ from text_generation.pb import generate_pb2
 
 
 class Sampling:
-    def __init__(self, seed: Optional[int] = None):
-        self.generator = torch.Generator()
+    def __init__(self, seed: Optional[int] = None, device: str = "cpu"):
+        self.generator = torch.Generator(device)
         if seed is not None:
             self.generator.manual_seed(seed)
         else:
@@ -50,7 +50,13 @@ class Greedy:
 
 class NextTokenChooser:
     def __init__(
-        self, temperature=1.0, top_k=None, top_p=None, do_sample=False, seed=None
+        self,
+        temperature=1.0,
+        top_k=None,
+        top_p=None,
+        do_sample=False,
+        seed=None,
+        device="cpu",
     ):
         warpers = LogitsProcessorList()
         # the following idea is largely copied from this PR: https://github.com/huggingface/transformers/pull/5420/files
@@ -68,7 +74,7 @@ class NextTokenChooser:
             sampling = True
 
         self.warpers = warpers
-        self.choice = Sampling(seed) if sampling else Greedy()
+        self.choice = Sampling(seed, device) if sampling else Greedy()
 
     def __call__(self, input_ids, scores):
         # Warp logits
@@ -80,7 +86,9 @@ class NextTokenChooser:
         return next_ids, logprobs
 
     @classmethod
-    def from_pb(cls, pb: generate_pb2.NextTokenChooserParameters) -> "NextTokenChooser":
+    def from_pb(
+        cls, pb: generate_pb2.NextTokenChooserParameters, device: torch.device
+    ) -> "NextTokenChooser":
         # handle protobuf making default values 0
         seed = pb.seed if pb.HasField("seed") else None
         return NextTokenChooser(
@@ -89,6 +97,7 @@ class NextTokenChooser:
             top_p=pb.top_p,
             do_sample=pb.do_sample,
             seed=seed,
+            device=str(device),
         )
 
 
