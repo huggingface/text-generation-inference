@@ -78,16 +78,15 @@ impl Infer {
         let permit = self.clone().limit_concurrent_requests.try_acquire_owned()?;
 
         // Validate request
-        let (input_length, validated_request) = self.validation.validate(request).await?;
+        let valid_request = self.validation.validate(request).await?;
 
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
 
         // Append the request to the database
         self.db.append(Entry {
-            request: validated_request,
+            request: valid_request,
             response_tx,
-            input_length,
             time: Instant::now(),
             batch_time: None,
             _permit: permit,
