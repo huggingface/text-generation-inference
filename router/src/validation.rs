@@ -156,7 +156,7 @@ fn validate(
 
                 let parameters = NextTokenChooserParameters {
                     temperature,
-                    top_k,
+                    top_k: top_k as u32,
                     top_p,
                     do_sample,
                     seed,

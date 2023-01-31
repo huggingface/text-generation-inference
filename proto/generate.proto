@@ -31,7 +31,7 @@ message NextTokenChooserParameters {
     /// exponential scaling output probability distribution
     float temperature = 1;
     /// restricting to the k highest probability elements
-    int32 top_k = 2;
+    uint32 top_k = 2;
     /// restricting to top tokens summing to prob_cut_off <= prob_cut_off
     float top_p = 3;
     /// apply sampling on the logits
