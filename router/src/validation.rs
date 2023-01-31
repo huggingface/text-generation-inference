@@ -1,5 +1,7 @@
 /// Payload validation logic
-use crate::GenerateRequest;
+use crate::{ErrorResponse, GenerateRequest};
+use axum::http::StatusCode;
+use axum::Json;
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::{mpsc, oneshot};
@@ -158,4 +160,15 @@ pub enum ValidationError {
     StopSequence(usize, usize),
     #[error("tokenizer error {0}")]
     Tokenizer(String),
+}
+
+impl From<ValidationError> for (StatusCode, Json<ErrorResponse>) {
+    fn from(err: ValidationError) -> Self {
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: err.to_string(),
+            }),
+        )
+    }
 }

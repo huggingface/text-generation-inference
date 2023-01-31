@@ -91,9 +91,9 @@ def test_causal_lm_batch_type(default_bloom):
 
 def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     sequence_length = len(default_bloom_batch.all_input_ids[0])
-    generations, next_batch = default_bloom.generate_token(default_bloom_batch)
+    generated_texts, next_batch = default_bloom.generate_token(default_bloom_batch)
 
-    assert len(generations) == len(default_bloom_batch)
+    assert generated_texts == []
     assert isinstance(next_batch, CausalLMBatch)
     assert not next_batch.keys_head_dim_last
 
@@ -122,30 +122,24 @@ def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     assert all(
         [p[1].shape == (16, sequence_length, 64) for p in next_batch.past_key_values]
     )
-    assert all([generation.generated_text is None for generation in generations])
-    assert all([len(generation.prefill_tokens) == 1 for generation in generations])
-    assert all([generation.token_id.item() == 10264 for generation in generations])
-    assert all([generation.token_text == "Test" for generation in generations])
-    assert generations[0].request_id == 0
 
 
 def test_causal_lm_generate_token_completion(default_bloom, default_bloom_batch):
     next_batch = default_bloom_batch
     for _ in range(default_bloom_batch.stopping_criterias[0].max_new_tokens - 1):
-        generations, next_batch = default_bloom.generate_token(next_batch)
-        assert len(generations) == len(default_bloom_batch)
+        generated_texts, next_batch = default_bloom.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generated_texts, next_batch = default_bloom.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generations) == 1
+    assert len(generated_texts) == 1
     assert (
-        generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTestTest"
+        generated_texts[0].output_text == "TestTestTestTestTestTestTestTestTestTestTest"
     )
-    assert generations[0].request_id == default_bloom_batch.requests[0].id
+    assert generated_texts[0].request == default_bloom_batch.requests[0]
     assert (
-        generations[0].generated_text.generated_tokens
+        generated_texts[0].generated_tokens
         == default_bloom_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -158,19 +152,17 @@ def test_causal_lm_generate_token_completion_multi(
     for i in range(
         default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens - 1
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
-        assert len(generations) == len(default_multi_requests_bloom_batch)
+        generated_texts, next_batch = default_bloom.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generated_texts, next_batch = default_bloom.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generations) == 2
-    assert generations[1].generated_text.text == "TestTestTestTestTestTest"
+    assert len(generated_texts) == 1
+    assert generated_texts[0].output_text == "TestTestTestTestTestTest"
+    assert generated_texts[0].request == default_multi_requests_bloom_batch.requests[1]
     assert (
-        generations[1].request_id == default_multi_requests_bloom_batch.requests[1].id
-    )
-    assert (
-        generations[1].generated_text.generated_tokens
+        generated_texts[0].generated_tokens
         == default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
     )
 
@@ -179,22 +171,19 @@ def test_causal_lm_generate_token_completion_multi(
         - default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
         - 1
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
-        assert len(generations) == len(next_batch)
+        generated_texts, next_batch = default_bloom.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generated_texts, next_batch = default_bloom.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generations) == 1
+    assert len(generated_texts) == 1
     assert (
-        generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTestTest"
+        generated_texts[0].output_text == "TestTestTestTestTestTestTestTestTestTestTest"
     )
+    assert generated_texts[0].request == default_multi_requests_bloom_batch.requests[0]
     assert (
-        generations[0].request_id == default_multi_requests_bloom_batch.requests[0].id
-    )
-    assert (
-        generations[0].generated_text.generated_tokens
+        generated_texts[0].generated_tokens
         == default_multi_requests_bloom_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -254,19 +243,17 @@ def test_batch_concatenate(
     for _ in range(
         default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens - 2
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
-        assert len(generations) == len(next_batch)
+        generated_texts, next_batch = default_bloom.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generated_texts, next_batch = default_bloom.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generations) == 3
-    assert generations[2].generated_text.text == "TestTestTestTestTestTest"
+    assert len(generated_texts) == 1
+    assert generated_texts[0].output_text == "TestTestTestTestTestTest"
+    assert generated_texts[0].request == default_multi_requests_bloom_batch.requests[1]
     assert (
-        generations[2].request_id == default_multi_requests_bloom_batch.requests[1].id
-    )
-    assert (
-        generations[2].generated_text.generated_tokens
+        generated_texts[0].generated_tokens
         == default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
     )
 
@@ -275,20 +262,19 @@ def test_batch_concatenate(
         - default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
         - 2
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
-        assert len(generations) == len(next_batch)
+        generated_texts, next_batch = default_bloom.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generated_texts, next_batch = default_bloom.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generations) == 2
+    assert len(generated_texts) == 1
     assert (
-        generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTestTest"
+        generated_texts[0].output_text == "TestTestTestTestTestTestTestTestTestTestTest"
     )
-    assert generations[0].request_id == default_bloom_batch.requests[0].id
+    assert generated_texts[0].request == default_bloom_batch.requests[0]
     assert (
-        generations[0].generated_text.generated_tokens
+        generated_texts[0].generated_tokens
         == default_bloom_batch.stopping_criterias[0].max_new_tokens
     )
 
@@ -298,21 +284,18 @@ def test_batch_concatenate(
         - default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
         - 4
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
-        assert len(generations) == len(next_batch)
+        generated_texts, next_batch = default_bloom.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generated_texts, next_batch = default_bloom.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generations) == 1
+    assert len(generated_texts) == 1
     assert (
-        generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTestTest"
+        generated_texts[0].output_text == "TestTestTestTestTestTestTestTestTestTestTest"
     )
+    assert generated_texts[0].request == default_multi_requests_bloom_batch.requests[0]
     assert (
-        generations[0].request_id == default_multi_requests_bloom_batch.requests[0].id
-    )
-    assert (
-        generations[0].generated_text.generated_tokens
+        generated_texts[0].generated_tokens
         == default_multi_requests_bloom_batch.stopping_criterias[0].max_new_tokens
     )

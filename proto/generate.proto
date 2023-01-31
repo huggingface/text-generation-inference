@@ -7,10 +7,10 @@ service TextGenerationService {
     rpc ServiceDiscovery (ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse) {}
     /// Empties batch cache
     rpc ClearCache (ClearCacheRequest) returns (ClearCacheResponse);
-    /// Prefill batch and decode first token
-    rpc Prefill (PrefillRequest) returns (PrefillResponse);
-    /// Decode token for a list of prefilled batches
-    rpc Decode (DecodeRequest) returns (DecodeResponse);
+    /// Generate tokens for a batch
+    rpc Generate (GenerateRequest) returns (GenerateResponse);
+    /// Generate tokens for a list of cached batches
+    rpc GenerateWithCache (GenerateWithCacheRequest) returns (GenerateWithCacheResponse);
 }
 
 /// Empty request
@@ -70,60 +70,44 @@ message Batch {
 }
 
 message GeneratedText {
+    /// Request
+    Request request = 1;
     /// Output
-    string text = 1;
+    string output_text = 2;
     /// Number of generated tokens
-    uint32 generated_tokens = 2;
+    uint32 generated_tokens = 3;
+    /// Tokens
+    repeated string tokens = 4;
+    /// Token IDs
+    repeated uint32 token_ids = 5;
+    /// Logprobs
+    repeated float logprobs = 6;
     /// Finish reason
-    string finish_reason = 3;
+    string finish_reason = 7;
     /// Seed
-    optional uint64 seed = 4;
+    optional uint64 seed = 8;
 }
 
-message PrefillTokens {
-    /// Prefill Token IDs
-    repeated uint32 ids = 1;
-    /// Prefill Logprobs
-    repeated float logprobs = 2;
-    /// Prefill tokens
-    repeated string texts = 3;
-}
-
-message Generation {
-    /// Request ID
-    uint64 request_id = 1;
-    /// Prefill tokens (optional)
-    PrefillTokens prefill_tokens = 2;
-    /// Token ID
-    uint32 token_id = 3;
-    /// Logprob
-    float token_logprob = 4;
-    /// Text
-    string token_text = 5;
-    /// Complete generated text
-    GeneratedText generated_text = 6;
-}
-
-message PrefillRequest {
+message GenerateRequest {
     /// Batch
     Batch batch = 1;
 }
 
-message PrefillResponse {
-    /// Generation
-    repeated Generation generations = 1;
+message GenerateResponse {
+    /// Finished requests
+    repeated GeneratedText generated_texts = 1;
     /// Next batch (cached)
     optional Batch batch = 2;
 }
 
-message DecodeRequest {
+message GenerateWithCacheRequest {
     /// Cached batches
     repeated Batch batches = 1;
 }
 
-message DecodeResponse {
-    /// Decodes
-    repeated Generation generations = 1;
+message GenerateWithCacheResponse {
+    /// Finished requests
+    repeated GeneratedText generated_texts = 1;
     /// Next batch (cached)
     optional Batch batch = 2;
 }

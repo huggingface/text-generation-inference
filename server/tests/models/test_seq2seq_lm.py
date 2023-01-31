@@ -99,11 +99,11 @@ def test_seq2seq_lm_batch_type(default_seq2seq_lm):
 
 def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch):
     sequence_length = len(default_seq2seq_lm_batch.input_ids[0])
-    generations, next_batch = default_seq2seq_lm.generate_token(
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(
         default_seq2seq_lm_batch
     )
 
-    assert len(generations) == len(next_batch)
+    assert generated_texts == []
     assert isinstance(next_batch, Seq2SeqLMBatch)
 
     assert torch.equal(next_batch.input_ids, default_seq2seq_lm_batch.input_ids)
@@ -145,11 +145,6 @@ def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch)
             for p in next_batch.past_key_values
         ]
     )
-    assert all([generation.generated_text is None for generation in generations])
-    assert all([len(generation.prefill_tokens) == 1 for generation in generations])
-    assert all([generation.token_id.item() == 259 for generation in generations])
-    assert all([generation.token_text == "" for generation in generations])
-    assert generations[0].request_id == 0
 
 
 def test_seq2seq_lm_generate_token_completion(
@@ -157,16 +152,16 @@ def test_seq2seq_lm_generate_token_completion(
 ):
     next_batch = default_seq2seq_lm_batch
     for _ in range(6):
-        generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
-        assert len(generations) == len(next_batch)
+        generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generations) == 1
-    assert generations[0].generated_text.text == "a few weeks"
-    assert generations[0].request_id == default_seq2seq_lm_batch.requests[0].id
-    assert generations[0].generated_text.generated_tokens == 7
+    assert len(generated_texts) == 1
+    assert generated_texts[0].output_text == "a few weeks"
+    assert generated_texts[0].request == default_seq2seq_lm_batch.requests[0]
+    assert generated_texts[0].generated_tokens == 7
 
 
 def test_seq2seq_lm_generate_token_completion_multi(
@@ -175,33 +170,33 @@ def test_seq2seq_lm_generate_token_completion_multi(
     next_batch = default_multi_requests_seq2seq_lm_batch
 
     for i in range(4):
-        generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
-        assert len(generations) == len(next_batch)
+        generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generations) == 2
-    assert generations[1].generated_text.text == "a few "
+    assert len(generated_texts) == 1
+    assert generated_texts[0].output_text == "a few "
     assert (
-        generations[1].request_id
-        == default_multi_requests_seq2seq_lm_batch.requests[1].id
+        generated_texts[0].request
+        == default_multi_requests_seq2seq_lm_batch.requests[1]
     )
-    assert generations[1].generated_text.generated_tokens == 5
+    assert generated_texts[0].generated_tokens == 5
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
-    assert len(generations) == len(next_batch)
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    assert generated_texts == []
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generations) == 1
-    assert generations[0].generated_text.text == "a few weeks"
+    assert len(generated_texts) == 1
+    assert generated_texts[0].output_text == "a few weeks"
     assert (
-        generations[0].request_id
-        == default_multi_requests_seq2seq_lm_batch.requests[0].id
+        generated_texts[0].request
+        == default_multi_requests_seq2seq_lm_batch.requests[0]
     )
-    assert generations[0].generated_text.generated_tokens == 7
+    assert generated_texts[0].generated_tokens == 7
 
 
 def test_batch_concatenate(
@@ -296,35 +291,35 @@ def test_batch_concatenate(
         )
 
     for _ in range(3):
-        generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
-        assert len(generations) == len(next_batch)
+        generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
+        assert generated_texts == []
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generations) == 3
-    assert generations[2].generated_text.text == "a few "
+    assert len(generated_texts) == 1
+    assert generated_texts[0].output_text == "a few "
     assert (
-        generations[2].request_id
-        == default_multi_requests_seq2seq_lm_batch.requests[1].id
+        generated_texts[0].request
+        == default_multi_requests_seq2seq_lm_batch.requests[1]
     )
-    assert generations[2].generated_text.generated_tokens == 5
+    assert generated_texts[0].generated_tokens == 5
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None
 
-    assert len(generations) == 2
-    assert generations[0].generated_text.text == "a few weeks"
-    assert generations[0].request_id == default_seq2seq_lm_batch.requests[0].id
-    assert generations[0].generated_text.generated_tokens == 7
+    assert len(generated_texts) == 1
+    assert generated_texts[0].output_text == "a few weeks"
+    assert generated_texts[0].request == default_seq2seq_lm_batch.requests[0]
+    assert generated_texts[0].generated_tokens == 7
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generated_texts, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is None
 
-    assert len(generations) == 1
-    assert generations[0].generated_text.text == "a few weeks"
+    assert len(generated_texts) == 1
+    assert generated_texts[0].output_text == "a few weeks"
     assert (
-        generations[0].request_id
-        == default_multi_requests_seq2seq_lm_batch.requests[0].id
+        generated_texts[0].request
+        == default_multi_requests_seq2seq_lm_batch.requests[0]
     )
-    assert generations[0].generated_text.generated_tokens == 7
+    assert generated_texts[0].generated_tokens == 7

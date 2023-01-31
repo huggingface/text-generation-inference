@@ -5,7 +5,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenize
 from typing import Optional, Tuple, List, Type
 
 from text_generation.models import Model
-from text_generation.models.types import Batch, PrefillTokens, Generation, GeneratedText
+from text_generation.models.types import GeneratedText, Batch
 from text_generation.pb import generate_pb2
 from text_generation.utils import NextTokenChooser, StoppingCriteria, Sampling
 
@@ -23,6 +23,7 @@ class CausalLMBatch(Batch):
 
     # All tokens
     all_input_ids: List[torch.Tensor]
+    all_logprobs: List[Optional[torch.Tensor]]
 
     # Lengths of all generations present in the batch
     input_lengths: List[int]
@@ -56,6 +57,7 @@ class CausalLMBatch(Batch):
         next_token_choosers = []
         stopping_criterias = []
         input_lengths = []
+        all_logprobs = []
 
         # Parse batch
         for r in pb.requests:
@@ -65,6 +67,7 @@ class CausalLMBatch(Batch):
             stopping_criterias.append(
                 StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
             )
+            all_logprobs.append(None)
 
         pad_to_multiple_of = 8 if device.type == "cuda" else None
         tokenized_inputs = tokenizer(
@@ -86,6 +89,7 @@ class CausalLMBatch(Batch):
             position_ids=position_ids,
             past_key_values=None,
             all_input_ids=all_input_ids,
+            all_logprobs=all_logprobs,
             input_lengths=input_lengths,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
@@ -103,6 +107,7 @@ class CausalLMBatch(Batch):
         requests = []
         input_lengths = []
         all_input_ids = []
+        all_logprobs = []
         next_token_choosers = []
         stopping_criterias = []
 
@@ -119,6 +124,7 @@ class CausalLMBatch(Batch):
             requests.extend(batch.requests)
             input_lengths.extend(batch.input_lengths)
             all_input_ids.extend(batch.all_input_ids)
+            all_logprobs.extend(batch.all_logprobs)
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
 
@@ -219,6 +225,7 @@ class CausalLMBatch(Batch):
             position_ids=position_ids,
             past_key_values=past_key_values,
             all_input_ids=all_input_ids,
+            all_logprobs=all_logprobs,
             input_lengths=input_lengths,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
@@ -226,9 +233,6 @@ class CausalLMBatch(Batch):
             max_sequence_length=max_sequence_length,
             keys_head_dim_last=batches[0].keys_head_dim_last,
         )
-
-    def __len__(self):
-        return len(self.requests)
 
 
 class CausalLM(Model):
@@ -285,7 +289,7 @@ class CausalLM(Model):
 
     def generate_token(
         self, batch: CausalLMBatch
-    ) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
+    ) -> Tuple[List[GeneratedText], Optional[CausalLMBatch]]:
         # For some reason, inference_mode does not work well with GLOO which we use on CPU
         context_manager = (
             torch.no_grad if self.device.type == "cpu" else torch.inference_mode
@@ -305,13 +309,14 @@ class CausalLM(Model):
         next_batch_input_lengths = []
         next_batch_input_ids = []
         next_batch_all_input_ids = []
+        next_batch_all_logprobs = []
 
         # Metadata
         next_batch_size = 0
         next_batch_max_sequence_length = 0
 
-        # Results
-        generations: List[Generation] = []
+        # Finished requests
+        generated_texts: List[GeneratedText] = []
 
         # Zipped iterator
         iterator = zip(
@@ -321,6 +326,7 @@ class CausalLM(Model):
             batch.next_token_choosers,
             batch.stopping_criterias,
             batch.all_input_ids,
+            batch.all_logprobs,
         )
 
         # For each member of the batch
@@ -331,36 +337,44 @@ class CausalLM(Model):
             next_token_chooser,
             stopping_criteria,
             all_input_ids,
+            all_logprobs,
         ) in enumerate(iterator):
             # Select next token
             tokens, logprobs = next_token_chooser(all_input_ids, logits)
-            next_token_id = tokens[-1].view(1, 1)
+            next_token = tokens[-1].view(1, 1)
 
             # Append next token to all tokens
-            all_input_ids = torch.cat([all_input_ids, next_token_id])
+            all_input_ids = torch.cat([all_input_ids, next_token])
             new_input_length = input_length + 1
 
-            # Generated token
-            next_token_logprob = logprobs[-1, next_token_id]
-            next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.tokenizer.decode(
-                next_token_id_squeezed,
-                clean_up_tokenization_spaces=False,
-                skip_special_tokens=False,
-            )
+            if all_logprobs is None:
+                # logprobs of all prompt tokens (except the first one) and the generated token
+                all_logprobs = logprobs.gather(1, all_input_ids[1:])
+            else:
+                # logprob of the generated token
+                next_token_logprob = logprobs[-1, next_token]
+                all_logprobs = torch.cat([all_logprobs, next_token_logprob])
 
             # Evaluate stopping criteria
             stop, reason = stopping_criteria(
-                next_token_id_squeezed,
-                next_token_text,
+                next_token.squeeze(),
+                self.tokenizer.decode(
+                    next_token.squeeze(), clean_up_tokenization_spaces=False
+                ),
             )
-
             if stop:
                 # Decode generated tokens
                 generated_text = self.decode(
                     all_input_ids[-stopping_criteria.current_tokens :, 0]
                 )
                 output_text = request.inputs + generated_text
+                # Slice with input_length to remove padding
+                token_ids = all_input_ids[-new_input_length:]
+                tokens = self.tokenizer.batch_decode(token_ids)
+                # Add NaN for the first prompt token
+                logprobs = [float("nan")] + all_logprobs[-input_length:].squeeze(
+                    1
+                ).tolist()
 
                 # Get seed
                 if isinstance(next_token_chooser.choice, Sampling):
@@ -368,58 +382,39 @@ class CausalLM(Model):
                 else:
                     seed = None
 
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
+                # Add to the list of finished generations with the original request
+                generated_texts.append(
+                    GeneratedText(
+                        request=request,
+                        output_text=output_text,
+                        generated_tokens=stopping_criteria.current_tokens,
+                        tokens=tokens,
+                        token_ids=token_ids.squeeze(1).tolist(),
+                        logprobs=logprobs,
+                        reason=reason,
+                        seed=seed,
+                    )
                 )
+            # add to the next batch
             else:
-                # Keep request in the batch
-                generated_text = None
                 next_batch_keep_indices.append(i)
-                next_batch_input_ids.append(next_token_id)
+                next_batch_input_ids.append(next_token)
                 next_batch_all_input_ids.append(all_input_ids)
+                next_batch_all_logprobs.append(all_logprobs)
                 next_batch_size += 1
                 next_batch_input_lengths.append(new_input_length)
                 next_batch_max_sequence_length = max(
                     next_batch_max_sequence_length, new_input_length
                 )
 
-            # Prefill
-            if stopping_criteria.current_tokens == 1:
-                # Remove generated token to only have prefill and add nan for first prompt token
-                prefill_logprobs = [float("nan")] + logprobs.gather(
-                    1, all_input_ids[1:]
-                ).squeeze(1)[-new_input_length:-1].tolist()
-                prefill_token_ids = all_input_ids[-new_input_length:-1]
-                prefill_texts = self.tokenizer.batch_decode(
-                    prefill_token_ids,
-                    clean_up_tokenization_spaces=False,
-                    skip_special_tokens=False,
-                )
-                prefill_tokens = PrefillTokens(
-                    prefill_token_ids, prefill_logprobs, prefill_texts
-                )
-            else:
-                prefill_tokens = None
-
-            generation = Generation(
-                request.id,
-                prefill_tokens,
-                next_token_id_squeezed,
-                next_token_logprob,
-                next_token_text,
-                generated_text,
-            )
-
-            generations.append(generation)
-
         # We finished all generations in the batch; there is no next batch
         if not next_batch_keep_indices:
-            return generations, None
+            return generated_texts, None
 
         next_batch_input_ids = torch.cat(next_batch_input_ids, dim=0)
         # If we finished at least one generation, we need to evict the indices of the generations that finished
         # from the values of the next batch
-        if len(next_batch_keep_indices) != len(batch):
+        if generated_texts:
             # Apply indices to attention mask, past key values and other items that need to be cached
             next_batch_attention_mask = batch.attention_mask[next_batch_keep_indices]
             next_batch_position_ids = batch.position_ids[next_batch_keep_indices]
@@ -466,6 +461,7 @@ class CausalLM(Model):
             position_ids=next_batch_position_ids,
             past_key_values=next_batch_past_key_values,
             all_input_ids=next_batch_all_input_ids,
+            all_logprobs=next_batch_all_logprobs,
             input_lengths=next_batch_input_lengths,
             next_token_choosers=next_batch_next_token_choosers,
             stopping_criterias=next_batch_stopping_criterias,
@@ -473,4 +469,4 @@ class CausalLM(Model):
             max_sequence_length=next_batch_max_sequence_length,
             keys_head_dim_last=batch.keys_head_dim_last,
         )
-        return generations, next_batch
+        return generated_texts, next_batch
