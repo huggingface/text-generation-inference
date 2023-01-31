@@ -2,6 +2,8 @@
 use crate::{ErrorResponse, GenerateRequest};
 use axum::http::StatusCode;
 use axum::Json;
+use rand::rngs::ThreadRng;
+use rand::Rng;
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::{mpsc, oneshot};
@@ -92,18 +94,22 @@ fn validation_worker(
     max_input_length: usize,
     mut receiver: mpsc::Receiver<ValidationRequest>,
 ) {
+    // Seed rng
+    let mut rng = rand::thread_rng();
+
     // Loop over requests
     while let Some((request, response_tx)) = receiver.blocking_recv() {
         response_tx
-            .send(validate(request, &tokenizer, max_input_length))
+            .send(validate(request, &tokenizer, max_input_length, &mut rng))
             .unwrap_or(())
     }
 }
 
 fn validate(
-    request: GenerateRequest,
+    mut request: GenerateRequest,
     tokenizer: &Tokenizer,
     max_input_length: usize,
+    rng: &mut ThreadRng,
 ) -> Result<(usize, GenerateRequest), ValidationError> {
     if request.parameters.temperature <= 0.0 {
         return Err(ValidationError::Temperature);
@@ -122,6 +128,11 @@ fn validate(
             MAX_STOP_SEQUENCES,
             request.parameters.stop.len(),
         ));
+    }
+
+    // If seed is None, assign a random one
+    if request.parameters.seed.is_none() {
+        request.parameters.seed = Some(rng.gen());
     }
 
     // Get the number of tokens in the input

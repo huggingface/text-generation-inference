@@ -24,12 +24,10 @@ from text_generation.pb import generate_pb2
 
 
 class Sampling:
-    def __init__(self, seed: Optional[int] = None, device: str = "cpu"):
+    def __init__(self, seed: int, device: str = "cpu"):
         self.generator = torch.Generator(device)
-        if seed is not None:
-            self.generator.manual_seed(seed)
-        else:
-            self.generator.seed()
+        self.generator.manual_seed(seed)
+        self.seed = seed
 
     def __call__(self, logits):
         probs = torch.nn.functional.softmax(logits, dim=-1)
@@ -37,10 +35,6 @@ class Sampling:
             probs, num_samples=1, generator=self.generator
         ).squeeze(1)
         return next_tokens
-
-    @property
-    def seed(self) -> int:
-        return self.generator.initial_seed()
 
 
 class Greedy:
@@ -55,7 +49,7 @@ class NextTokenChooser:
         top_k=None,
         top_p=None,
         do_sample=False,
-        seed=None,
+        seed=0,
         device="cpu",
     ):
         warpers = LogitsProcessorList()
@@ -89,14 +83,12 @@ class NextTokenChooser:
     def from_pb(
         cls, pb: generate_pb2.NextTokenChooserParameters, device: torch.device
     ) -> "NextTokenChooser":
-        # handle protobuf making default values 0
-        seed = pb.seed if pb.HasField("seed") else None
         return NextTokenChooser(
             temperature=pb.temperature,
             top_k=pb.top_k,
             top_p=pb.top_p,
             do_sample=pb.do_sample,
-            seed=seed,
+            seed=pb.seed,
             device=str(device),
         )
 

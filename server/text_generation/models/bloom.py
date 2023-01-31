@@ -33,8 +33,6 @@ try:
 except Exception as e:
     HAS_BITS_AND_BYTES = False
 
-torch.manual_seed(0)
-
 
 class BloomCausalLMBatch(CausalLMBatch):
     @classmethod

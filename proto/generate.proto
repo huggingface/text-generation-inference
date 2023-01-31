@@ -37,7 +37,7 @@ message NextTokenChooserParameters {
     /// apply sampling on the logits
     bool do_sample = 4;
     /// random seed for sampling
-    optional uint64 seed = 5;
+    uint64 seed = 5;
 }
 
 message StoppingCriteriaParameters {
