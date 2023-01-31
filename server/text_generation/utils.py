@@ -8,7 +8,9 @@ from datetime import timedelta
 
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
+from pathlib import Path
+from huggingface_hub import HfApi, hf_hub_download, _CACHED_NO_EXIST
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.utils import LocalEntryNotFoundError
 from tqdm import tqdm
 from typing import List, Optional, Tuple
@@ -170,20 +172,62 @@ def initialize_torch_distributed():
     return torch.distributed.distributed_c10d._get_default_group(), rank, world_size
 
 
-def weight_hub_files(model_name, extension=".safetensors"):
+def weight_hub_files(model_name, revision=None, extension=".safetensors"):
     """Get the safetensors filenames on the hub"""
     api = HfApi()
-    info = api.model_info(model_name)
+    info = api.model_info(model_name, revision=revision)
     filenames = [s.rfilename for s in info.siblings if s.rfilename.endswith(extension)]
     return filenames
 
 
-def weight_files(model_name, extension=".safetensors"):
+def try_to_load_from_cache(model_name, revision, filename):
+    """Try to load a file from the Hugging Face cache"""
+    if revision is None:
+        revision = "main"
+
+    object_id = model_name.replace("/", "--")
+    repo_cache = Path(HUGGINGFACE_HUB_CACHE) / f"models--{object_id}"
+
+    if not repo_cache.is_dir():
+        # No cache for this model
+        return None
+
+    refs_dir = repo_cache / "refs"
+    snapshots_dir = repo_cache / "snapshots"
+    no_exist_dir = repo_cache / ".no_exist"
+
+    # Resolve refs (for instance to convert main to the associated commit sha)
+    if refs_dir.is_dir():
+        revision_file = refs_dir / revision
+        if revision_file.exists():
+            with revision_file.open() as f:
+                revision = f.read()
+
+    # Check if file is cached as "no_exist"
+    if (no_exist_dir / revision / filename).is_file():
+        return _CACHED_NO_EXIST
+
+    # Check if revision folder exists
+    if not snapshots_dir.exists():
+        return None
+    cached_shas = os.listdir(snapshots_dir)
+    if revision not in cached_shas:
+        # No cache for this revision and we won't try to return a random revision
+        return None
+
+    # Check if file exists in cache
+    cached_file = snapshots_dir / revision / filename
+    return str(cached_file) if cached_file.is_file() else None
+
+
+def weight_files(model_name, revision=None, extension=".safetensors"):
     """Get the local safetensors filenames"""
-    filenames = weight_hub_files(model_name, extension)
+    filenames = weight_hub_files(model_name, revision, extension)
     files = []
     for filename in filenames:
-        cache_file = try_to_load_from_cache(model_name, filename=filename)
+        cache_file = try_to_load_from_cache(
+            model_name, revision=revision, filename=filename
+        )
         if cache_file is None:
             raise LocalEntryNotFoundError(
                 f"File {filename} of model {model_name} not found in "
@@ -195,9 +239,9 @@ def weight_files(model_name, extension=".safetensors"):
     return files
 
 
-def download_weights(model_name, extension=".safetensors"):
+def download_weights(model_name, revision=None, extension=".safetensors"):
     """Download the safetensors files from the hub"""
-    filenames = weight_hub_files(model_name, extension)
+    filenames = weight_hub_files(model_name, revision, extension)
 
     download_function = partial(
         hf_hub_download,
@@ -207,7 +251,8 @@ def download_weights(model_name, extension=".safetensors"):
 
     executor = ThreadPoolExecutor(max_workers=5)
     futures = [
-        executor.submit(download_function, filename=filename) for filename in filenames
+        executor.submit(download_function, filename=filename, revision=revision)
+        for filename in filenames
     ]
     files = [
         future.result()

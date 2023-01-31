@@ -21,6 +21,8 @@ struct Args {
     #[clap(default_value = "bigscience/bloom-560m", long, env)]
     model_name: String,
     #[clap(long, env)]
+    revision: Option<String>,
+    #[clap(long, env)]
     num_shard: Option<usize>,
     #[clap(long, env)]
     quantize: bool,
@@ -48,6 +50,7 @@ fn main() -> ExitCode {
     // Pattern match configuration
     let Args {
         model_name,
+        revision,
         num_shard,
         quantize,
         max_concurrent_requests,
@@ -90,6 +93,7 @@ fn main() -> ExitCode {
     // Start shard processes
     for rank in 0..num_shard {
         let model_name = model_name.clone();
+        let revision = revision.clone();
         let uds_path = shard_uds_path.clone();
         let master_addr = master_addr.clone();
         let status_sender = status_sender.clone();
@@ -98,6 +102,7 @@ fn main() -> ExitCode {
         thread::spawn(move || {
             shard_manager(
                 model_name,
+                revision,
                 quantize,
                 uds_path,
                 rank,
@@ -252,6 +257,7 @@ enum ShardStatus {
 #[allow(clippy::too_many_arguments)]
 fn shard_manager(
     model_name: String,
+    revision: Option<String>,
     quantize: bool,
     uds_path: String,
     rank: usize,
@@ -286,6 +292,11 @@ fn shard_manager(
 
     if quantize {
         shard_argv.push("--quantize".to_string())
+    }
+
+    if let Some(revision) = revision {
+        shard_argv.push("--revision".to_string());
+        shard_argv.push(revision)
     }
 
     let mut env = vec![
