@@ -70,36 +70,36 @@ impl Client {
 
     /// Generate one token for each request in the given batch
     ///
-    /// Returns a list of generated texts of request that met their stopping criteria
+    /// Returns Generation for each request in batch
     /// and the next cached batch
     #[instrument(skip(self))]
-    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
-        let request = tonic::Request::new(GenerateRequest { batch: Some(batch) });
+    pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
+        let request = tonic::Request::new(PrefillRequest { batch: Some(batch) });
         let response = self
             .stub
-            .generate(request)
-            .instrument(info_span!("generate"))
+            .prefill(request)
+            .instrument(info_span!("prefill"))
             .await?
             .into_inner();
-        Ok((response.generated_texts, response.batch))
+        Ok((response.generations, response.batch))
     }
 
-    /// Generate one token for each request in the given cached batch
+    /// Generate one token for each request in the given cached batches
     ///
-    /// Returns a list of generated texts of request that met their stopping criteria
+    /// Returns Generation for each request in batches
     /// and the next cached batch
     #[instrument(skip(self))]
-    pub async fn generate_with_cache(
+    pub async fn decode(
         &mut self,
         batches: Vec<Batch>,
-    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
-        let request = tonic::Request::new(GenerateWithCacheRequest { batches });
+    ) -> Result<(Vec<Generation>, Option<Batch>)> {
+        let request = tonic::Request::new(DecodeRequest { batches });
         let response = self
             .stub
-            .generate_with_cache(request)
-            .instrument(info_span!("generate_with_cache"))
+            .decode(request)
+            .instrument(info_span!("decode"))
             .await?
             .into_inner();
-        Ok((response.generated_texts, response.batch))
+        Ok((response.generations, response.batch))
     }
 }

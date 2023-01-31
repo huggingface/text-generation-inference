@@ -29,26 +29,61 @@ class Batch(ABC):
     def concatenate(cls, batches: List["Batch"]) -> "Batch":
         raise NotImplementedError
 
+    @abstractmethod
+    def __len__(self):
+        raise NotImplementedError
+
 
 @dataclass
 class GeneratedText:
-    request: generate_pb2.Request
-    output_text: str
+    text: str
     generated_tokens: int
-    tokens: List[str]
-    token_ids: List[int]
-    logprobs: List[float]
-    reason: str
+    finish_reason: str
     seed: Optional[int]
 
     def to_pb(self) -> generate_pb2.GeneratedText:
         return generate_pb2.GeneratedText(
-            request=self.request,
-            output_text=self.output_text,
+            text=self.text,
             generated_tokens=self.generated_tokens,
-            tokens=self.tokens,
-            token_ids=self.token_ids,
-            logprobs=self.logprobs,
-            finish_reason=self.reason,
+            finish_reason=self.finish_reason,
             seed=self.seed,
+        )
+
+
+@dataclass
+class PrefillTokens:
+    token_ids: List[int]
+    logprobs: List[float]
+    texts: List[str]
+
+    def to_pb(self) -> generate_pb2.PrefillTokens:
+        return generate_pb2.PrefillTokens(
+            ids=self.token_ids, logprobs=self.logprobs, texts=self.texts
+        )
+
+    def __len__(self):
+        return len(self.token_ids)
+
+
+@dataclass
+class Generation:
+    request_id: int
+    prefill_tokens: Optional[PrefillTokens]
+    token_id: int
+    token_logprob: float
+    token_text: str
+    generated_text: Optional[GeneratedText]
+
+    def to_pb(self) -> generate_pb2.Generation:
+        return generate_pb2.Generation(
+            request_id=self.request_id,
+            prefill_tokens=self.prefill_tokens.to_pb()
+            if self.prefill_tokens is not None
+            else None,
+            token_id=self.token_id,
+            token_logprob=self.token_logprob,
+            token_text=self.token_text,
+            generated_text=self.generated_text.to_pb()
+            if self.generated_text is not None
+            else None,
         )
