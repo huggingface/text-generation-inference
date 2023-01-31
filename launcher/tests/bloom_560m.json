@@ -3,7 +3,7 @@
     "details": {
       "finish_reason": "length",
       "generated_tokens": 20,
-      "prefill": [
+      "tokens": [
         [
           10264,
           "Test",
@@ -13,9 +13,7 @@
           8821,
           " request",
           -11.895094
-        ]
-      ],
-      "tokens": [
+        ],
         [
           17,
           ".",

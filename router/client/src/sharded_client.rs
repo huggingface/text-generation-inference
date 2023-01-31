@@ -1,6 +1,6 @@
 /// Multi shard Client
 use crate::Result;
-use crate::{Batch, Client, Generation};
+use crate::{Batch, Client, GeneratedText};
 use futures::future::join_all;
 use futures::future::select_all;
 use tonic::transport::Uri;
@@ -37,6 +37,39 @@ impl ShardedClient {
         Self::from_master_client(master_client).await
     }
 
+    /// Generate one token for each request in the given batch
+    ///
+    /// Returns a list of generated texts of request that met their stopping criteria
+    /// and the next cached batch
+    pub async fn generate(&mut self, batch: Batch) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+        let futures: Vec<_> = self
+            .clients
+            .iter_mut()
+            .map(|client| Box::pin(client.generate(batch.clone())))
+            .collect();
+        // As soon as we receive one response, we can return as all shards will return the same
+        let (result, _, _) = select_all(futures).await;
+        result
+    }
+
+    /// Generate one token for each request in the given cached batch
+    ///
+    /// Returns a list of generated texts of request that met their stopping criteria
+    /// and the next cached batch
+    pub async fn generate_with_cache(
+        &mut self,
+        batches: Vec<Batch>,
+    ) -> Result<(Vec<GeneratedText>, Option<Batch>)> {
+        let futures: Vec<_> = self
+            .clients
+            .iter_mut()
+            .map(|client| Box::pin(client.generate_with_cache(batches.clone())))
+            .collect();
+        // As soon as we receive one response, we can return as all shards will return the same
+        let (result, _, _) = select_all(futures).await;
+        result
+    }
+
     /// Clear the past generations cache
     pub async fn clear_cache(&mut self) -> Result<()> {
         let futures: Vec<_> = self
@@ -45,38 +78,5 @@ impl ShardedClient {
             .map(|client| client.clear_cache())
             .collect();
         join_all(futures).await.into_iter().collect()
-    }
-
-    /// Generate one token for each request in the given batch
-    ///
-    /// Returns Generation for each request in batch
-    /// and the next cached batch
-    pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
-        let futures: Vec<_> = self
-            .clients
-            .iter_mut()
-            .map(|client| Box::pin(client.prefill(batch.clone())))
-            .collect();
-        // As soon as we receive one response, we can return as all shards will return the same
-        let (result, _, _) = select_all(futures).await;
-        result
-    }
-
-    /// Generate one token for each request in the given cached batches
-    ///
-    /// Returns Generation for each request in batches
-    /// and the next cached batch
-    pub async fn decode(
-        &mut self,
-        batches: Vec<Batch>,
-    ) -> Result<(Vec<Generation>, Option<Batch>)> {
-        let futures: Vec<_> = self
-            .clients
-            .iter_mut()
-            .map(|client| Box::pin(client.decode(batches.clone())))
-            .collect();
-        // As soon as we receive one response, we can return as all shards will return the same
-        let (result, _, _) = select_all(futures).await;
-        result
     }
 }

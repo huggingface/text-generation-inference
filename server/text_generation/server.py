@@ -27,20 +27,22 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         self.cache.clear()
         return generate_pb2.ClearCacheResponse()
 
-    async def Prefill(self, request, context):
+    async def Generate(self, request, context):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.device
         )
 
-        generations, next_batch = self.model.generate_token(batch)
+        generated_texts, next_batch = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
-        return generate_pb2.PrefillResponse(
-            generations=[generation.to_pb() for generation in generations],
+        return generate_pb2.GenerateResponse(
+            generated_texts=[
+                generated_text.to_pb() for generated_text in generated_texts
+            ],
             batch=next_batch.to_pb() if next_batch else None,
         )
 
-    async def Decode(self, request, context):
+    async def GenerateWithCache(self, request, context):
         if len(request.batches) == 0:
             raise ValueError("Must provide at least one batch")
 
@@ -56,11 +58,13 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         else:
             batch = batches[0]
 
-        generations, next_batch = self.model.generate_token(batch)
+        generated_texts, next_batch = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
-        return generate_pb2.DecodeResponse(
-            generations=[generation.to_pb() for generation in generations],
+        return generate_pb2.GenerateWithCacheResponse(
+            generated_texts=[
+                generated_text.to_pb() for generated_text in generated_texts
+            ],
             batch=next_batch.to_pb() if next_batch else None,
         )
 
