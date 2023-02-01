@@ -17,6 +17,7 @@ from typing import List, Optional, Tuple
 from transformers import PreTrainedTokenizerBase
 from transformers.generation.logits_process import (
     LogitsProcessorList,
+    RepetitionPenaltyLogitsProcessor,
     TemperatureLogitsWarper,
     TopPLogitsWarper,
     TopKLogitsWarper,
@@ -48,6 +49,7 @@ class NextTokenChooser:
     def __init__(
         self,
         temperature=1.0,
+        repetition_penalty=1.0,
         top_k=None,
         top_p=None,
         do_sample=False,
@@ -68,6 +70,9 @@ class NextTokenChooser:
         if top_p is not None and top_p < 1.0:
             warpers.append(TopPLogitsWarper(top_p=top_p))
             sampling = True
+        if repetition_penalty is not None and repetition_penalty != 1.0:
+            warpers.append(RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty))
+            sampling = True
 
         self.warpers = warpers
         self.choice = Sampling(seed, device) if sampling else Greedy()
@@ -75,8 +80,10 @@ class NextTokenChooser:
     def __call__(self, input_ids, scores):
         # Warp logits
         scores = self.warpers(input_ids, scores)
+
         # Compute logprobs
         logprobs = torch.log_softmax(scores, -1)
+
         # Choose tokens
         next_ids = self.choice(scores)
         return next_ids, logprobs
@@ -87,6 +94,7 @@ class NextTokenChooser:
     ) -> "NextTokenChooser":
         return NextTokenChooser(
             temperature=pb.temperature,
+            repetition_penalty=pb.repetition_penalty,
             top_k=pb.top_k,
             top_p=pb.top_p,
             do_sample=pb.do_sample,

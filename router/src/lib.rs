@@ -13,6 +13,8 @@ use validation::Validation;
 pub(crate) struct GenerateParameters {
     #[serde(default = "default_temperature")]
     pub temperature: f32,
+    #[serde(default = "default_repetition_penalty")]
+    pub repetition_penalty: f32,
     #[serde(default = "default_top_k")]
     pub top_k: i32,
     #[serde(default = "default_top_p")]
@@ -30,6 +32,9 @@ pub(crate) struct GenerateParameters {
 }
 
 fn default_temperature() -> f32 {
+    1.0
+}
+fn default_repetition_penalty() -> f32 {
     1.0
 }
 
@@ -52,6 +57,7 @@ fn default_max_new_tokens() -> u32 {
 fn default_parameters() -> GenerateParameters {
     GenerateParameters {
         temperature: default_temperature(),
+        repetition_penalty: default_repetition_penalty(),
         top_k: default_top_k(),
         top_p: default_top_p(),
         do_sample: default_do_sample(),

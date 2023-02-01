@@ -33,6 +33,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
             inputs: "liveness".to_string(),
             parameters: GenerateParameters {
                 temperature: 1.0,
+                repetition_penalty: 1.0,
                 top_k: 0,
                 top_p: 1.0,
                 do_sample: false,

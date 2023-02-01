@@ -418,7 +418,9 @@ class Seq2SeqLM(Model):
             decoder_input_ids,
         ) in enumerate(iterator):
             # Select next token
-            next_token_id, logprobs = next_token_chooser(decoder_input_ids, logits)
+            next_token_id, logprobs = next_token_chooser(
+                decoder_input_ids.view(1, -1), logits
+            )
 
             # Append next token to decoder tokens
             decoder_input_ids = torch.cat([decoder_input_ids, next_token_id])

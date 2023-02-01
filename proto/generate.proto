@@ -38,6 +38,8 @@ message NextTokenChooserParameters {
     bool do_sample = 4;
     /// random seed for sampling
     uint64 seed = 5;
+    /// repetition penalty
+    float repetition_penalty = 6;
 }
 
 message StoppingCriteriaParameters {
