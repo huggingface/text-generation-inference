@@ -336,7 +336,7 @@ class CausalLM(Model):
             all_input_ids,
         ) in enumerate(iterator):
             # Select next token
-            tokens, logprobs = next_token_chooser(all_input_ids, logits)
+            tokens, logprobs = next_token_chooser(all_input_ids.view(1, -1), logits)
             next_token_id = tokens[-1].view(1, 1)
 
             # Append next token to all tokens

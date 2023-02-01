@@ -78,12 +78,8 @@ class NextTokenChooser:
         self.choice = Sampling(seed, device) if sampling else Greedy()
 
     def __call__(self, input_ids, scores):
-        input_ids = input_ids.unsqueeze(0)
-        scores = scores.unsqueeze(-1)
-
         # Warp logits
         scores = self.warpers(input_ids, scores)
-        scores = scores.squeeze(-1)
 
         # Compute logprobs
         logprobs = torch.log_softmax(scores, -1)
