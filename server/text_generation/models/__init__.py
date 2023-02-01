@@ -32,7 +32,7 @@ torch.backends.cudnn.allow_tf32 = True
 def get_model(
     model_name: str, revision: Optional[str], sharded: bool, quantize: bool
 ) -> Model:
-    config = AutoConfig.from_pretrained(model_name)
+    config = AutoConfig.from_pretrained(model_name, revision=revision)
 
     if config.model_type == "bloom":
         if sharded:
