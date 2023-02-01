@@ -91,7 +91,7 @@ class NextTokenChooser:
             top_p=pb.top_p,
             do_sample=pb.do_sample,
             seed=pb.seed,
-            device=str(device),
+            device=device,
         )
 
 
