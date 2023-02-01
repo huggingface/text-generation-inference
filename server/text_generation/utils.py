@@ -25,6 +25,7 @@ from transformers.generation.logits_process import (
 
 from text_generation.pb import generate_pb2
 
+WEIGHTS_CACHE_OVERRIDE = os.getenv("WEIGHTS_CACHE_OVERRIDE", None)
 
 class Sampling:
     def __init__(self, seed: int, device: str = "cpu"):
@@ -230,6 +231,9 @@ def try_to_load_from_cache(model_name, revision, filename):
 
 def weight_files(model_name, revision=None, extension=".safetensors"):
     """Get the local safetensors filenames"""
+    if WEIGHTS_CACHE_OVERRIDE is not None:
+        return list(Path(WEIGHTS_CACHE_OVERRIDE).glob(f"*{extension}"))
+
     filenames = weight_hub_files(model_name, revision, extension)
     files = []
     for filename in filenames:
@@ -249,6 +253,9 @@ def weight_files(model_name, revision=None, extension=".safetensors"):
 
 def download_weights(model_name, revision=None, extension=".safetensors"):
     """Download the safetensors files from the hub"""
+    if WEIGHTS_CACHE_OVERRIDE is not None:
+        return list(Path(WEIGHTS_CACHE_OVERRIDE).glob(f"*{extension}"))
+
     filenames = weight_hub_files(model_name, revision, extension)
 
     download_function = partial(

@@ -313,6 +313,12 @@ fn shard_manager(
         env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
     };
 
+    // If the WEIGHTS_CACHE_OVERRIDE env var is set, pass it to the shard
+    // Useful when running inside a HuggingFace Inference Endpoint
+    if let Ok(weights_cache_override) = env::var("WEIGHTS_CACHE_OVERRIDE") {
+        env.push(("WEIGHTS_CACHE_OVERRIDE".into(), weights_cache_override.into()));
+    };
+
     // If the CUDA_VISIBLE_DEVICES env var is set, pass it to the shard
     if let Ok(cuda_visible_devices) = env::var("CUDA_VISIBLE_DEVICES") {
         env.push(("CUDA_VISIBLE_DEVICES".into(), cuda_visible_devices.into()));
