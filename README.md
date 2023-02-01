@@ -26,7 +26,7 @@ to power Bloom, BloomZ and MT0-XXL api-inference widgets.
 - [MT0-XXL](https://huggingface.co/bigscience/mt0-xxl)
 - ~~[Galactica](https://huggingface.co/facebook/galactica-120b)~~ (deactivated)
 - [SantaCoder](https://huggingface.co/bigcode/santacoder)
-- [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b): use `--revision refs/pr/13`
+- [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b): use `--revision pr/13`
 
 Other models are supported on a best effort basis using:
 
