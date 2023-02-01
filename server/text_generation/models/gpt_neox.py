@@ -176,9 +176,9 @@ class GPTNeoxSharded(GPTNeox):
                             )
 
                         if (
-                                type(module)
-                                in [TensorParallelRowLinear, TensorParallelColumnLinear]
-                                and param_name == "weight"
+                            type(module)
+                            in [TensorParallelRowLinear, TensorParallelColumnLinear]
+                            and param_name == "weight"
                         ):
                             tensor = Int8Params(
                                 tensor,
