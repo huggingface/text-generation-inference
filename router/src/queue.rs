@@ -1,4 +1,3 @@
-/// This code is massively inspired by Tokio mini-redis
 use crate::infer::InferError;
 use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;
@@ -9,7 +8,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit};
 use tokio::time::Instant;
 
-/// Database entry
+/// Queue entry
 #[derive(Debug)]
 pub(crate) struct Entry {
     /// Request
@@ -24,29 +23,29 @@ pub(crate) struct Entry {
     pub _permit: OwnedSemaphorePermit,
 }
 
-/// Request Database
+/// Request Queue
 #[derive(Debug, Clone)]
-pub(crate) struct Db {
-    /// Channel to communicate with the background database task
-    db_sender: UnboundedSender<DatabaseCommand>,
+pub(crate) struct Queue {
+    /// Channel to communicate with the background queue task
+    queue_sender: UnboundedSender<QueueCommand>,
 }
 
-impl Db {
+impl Queue {
     pub(crate) fn new() -> Self {
         // Create channel
-        let (db_sender, db_receiver) = mpsc::unbounded_channel();
+        let (queue_sender, queue_receiver) = mpsc::unbounded_channel();
 
-        // Launch background database task
-        tokio::spawn(database_task(db_receiver));
+        // Launch background queue task
+        tokio::spawn(queue_task(queue_receiver));
 
-        Self { db_sender }
+        Self { queue_sender }
     }
 
-    /// Append an entry to the database
+    /// Append an entry to the queue
     pub(crate) fn append(&self, entry: Entry) {
         // Send append command to the background task managing the state
         // Unwrap is safe here
-        self.db_sender.send(DatabaseCommand::Append(entry)).unwrap();
+        self.queue_sender.send(QueueCommand::Append(entry)).unwrap();
     }
 
     // Get the next batch
@@ -59,8 +58,8 @@ impl Db {
         let (response_sender, response_receiver) = oneshot::channel();
         // Send next batch command to the background task managing the state
         // Unwrap is safe here
-        self.db_sender
-            .send(DatabaseCommand::NextBatch {
+        self.queue_sender
+            .send(QueueCommand::NextBatch {
                 min_size,
                 max_size,
                 response_sender,
@@ -72,14 +71,14 @@ impl Db {
     }
 }
 
-// Background task responsible of the database state
-async fn database_task(mut receiver: UnboundedReceiver<DatabaseCommand>) {
+// Background task responsible of the queue state
+async fn queue_task(mut receiver: UnboundedReceiver<QueueCommand>) {
     let mut state = State::new();
 
     while let Some(cmd) = receiver.recv().await {
         match cmd {
-            DatabaseCommand::Append(entry) => state.append(entry),
-            DatabaseCommand::NextBatch {
+            QueueCommand::Append(entry) => state.append(entry),
+            QueueCommand::NextBatch {
                 min_size,
                 max_size,
                 response_sender,
@@ -91,10 +90,10 @@ async fn database_task(mut receiver: UnboundedReceiver<DatabaseCommand>) {
     }
 }
 
-/// Database State
+/// Queue State
 #[derive(Debug)]
 struct State {
-    /// Database entries organized in a Vec
+    /// Queue entries organized in a Vec
     entries: Vec<(u64, Entry)>,
 
     /// Id of the next entry
@@ -113,7 +112,7 @@ impl State {
         }
     }
 
-    /// Append an entry to the database
+    /// Append an entry to the queue
     fn append(&mut self, entry: Entry) {
         self.entries.push((self.next_id, entry));
         self.next_id += 1;
@@ -125,7 +124,7 @@ impl State {
             return None;
         }
 
-        // Check if we have enough entries in DB
+        // Check if we have enough entries
         if let Some(min_size) = min_size {
             if self.entries.len() < min_size {
                 return None;
@@ -170,7 +169,7 @@ impl State {
 type NextBatch = (IntMap<u64, Entry>, Batch);
 
 #[derive(Debug)]
-enum DatabaseCommand {
+enum QueueCommand {
     Append(Entry),
     NextBatch {
         min_size: Option<usize>,
@@ -299,26 +298,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_db_append() {
-        let db = Db::new();
-        db.append(default_entry());
+    async fn test_queue_append() {
+        let queue = Queue::new();
+        queue.append(default_entry());
     }
 
     #[tokio::test]
-    async fn test_db_next_batch_empty() {
-        let db = Db::new();
+    async fn test_queue_next_batch_empty() {
+        let queue = Queue::new();
 
-        assert!(db.next_batch(None, 1).await.is_none());
-        assert!(db.next_batch(Some(1), 1).await.is_none());
+        assert!(queue.next_batch(None, 1).await.is_none());
+        assert!(queue.next_batch(Some(1), 1).await.is_none());
     }
 
     #[tokio::test]
-    async fn test_db_next_batch_min_size() {
-        let db = Db::new();
-        db.append(default_entry());
-        db.append(default_entry());
+    async fn test_queue_next_batch_min_size() {
+        let queue = Queue::new();
+        queue.append(default_entry());
+        queue.append(default_entry());
 
-        let (entries, batch) = db.next_batch(None, 2).await.unwrap();
+        let (entries, batch) = queue.next_batch(None, 2).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -327,26 +326,26 @@ mod tests {
         assert_eq!(batch.id, 0);
         assert_eq!(batch.size, 2);
 
-        db.append(default_entry());
+        queue.append(default_entry());
 
-        assert!(db.next_batch(Some(2), 2).await.is_none());
+        assert!(queue.next_batch(Some(2), 2).await.is_none());
     }
 
     #[tokio::test]
-    async fn test_db_next_batch_max_size() {
-        let db = Db::new();
-        db.append(default_entry());
-        db.append(default_entry());
+    async fn test_queue_next_batch_max_size() {
+        let queue = Queue::new();
+        queue.append(default_entry());
+        queue.append(default_entry());
 
-        let (entries, batch) = db.next_batch(None, 1).await.unwrap();
+        let (entries, batch) = queue.next_batch(None, 1).await.unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
         assert_eq!(batch.size, 1);
 
-        db.append(default_entry());
+        queue.append(default_entry());
 
-        let (entries, batch) = db.next_batch(None, 3).await.unwrap();
+        let (entries, batch) = queue.next_batch(None, 3).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));

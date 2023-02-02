@@ -1,10 +1,10 @@
 /// Text Generation Inference Webserver
-mod db;
+mod queue;
 mod infer;
 pub mod server;
 mod validation;
 
-use db::{Db, Entry};
+use queue::{Queue, Entry};
 use infer::Infer;
 use serde::{Deserialize, Serialize};
 use validation::Validation;
