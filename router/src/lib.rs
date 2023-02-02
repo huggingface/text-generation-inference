@@ -13,10 +13,20 @@ use validation::Validation;
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 pub(crate) struct GenerateParameters {
     #[serde(default)]
-    #[schema(exclusive_minimum = 0.0, nullable = true, default = "null", example = 0.5)]
+    #[schema(
+        exclusive_minimum = 0.0,
+        nullable = true,
+        default = "null",
+        example = 0.5
+    )]
     pub temperature: Option<f32>,
     #[serde(default)]
-    #[schema(exclusive_minimum = 0.0, nullable = true, default = "null", example = 1.03)]
+    #[schema(
+        exclusive_minimum = 0.0,
+        nullable = true,
+        default = "null",
+        example = 1.03
+    )]
     pub repetition_penalty: Option<f32>,
     #[serde(default)]
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 10)]

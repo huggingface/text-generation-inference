@@ -28,6 +28,7 @@ from text_generation.pb.generate_pb2 import FinishReason
 
 WEIGHTS_CACHE_OVERRIDE = os.getenv("WEIGHTS_CACHE_OVERRIDE", None)
 
+
 class Sampling:
     def __init__(self, seed: int, device: str = "cpu"):
         self.generator = torch.Generator(device)

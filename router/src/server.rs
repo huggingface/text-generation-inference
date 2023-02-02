@@ -1,8 +1,8 @@
 /// HTTP Server logic
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
-    Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
-    GenerateResponse, Infer, StreamDetails, StreamResponse, Token, Validation,
+    Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
+    Infer, StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, StatusCode};
@@ -173,7 +173,8 @@ async fn generate(
             example = json!({"error": "Incomplete generation"}),
             content_type="text/event-stream "),
     )
-)]#[instrument(
+)]
+#[instrument(
     skip(infer),
     fields(
         total_time,
@@ -413,14 +414,21 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        (status_code, Json(ErrorResponse{error: err.to_string()}))
+        (
+            status_code,
+            Json(ErrorResponse {
+                error: err.to_string(),
+            }),
+        )
     }
 }
 
 impl From<InferError> for Event {
     fn from(err: InferError) -> Self {
         Event::default()
-            .json_data(ErrorResponse{error: err.to_string()})
+            .json_data(ErrorResponse {
+                error: err.to_string(),
+            })
             .unwrap()
     }
 }

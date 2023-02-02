@@ -149,7 +149,7 @@ fn validate(
         }
     }?;
 
-    if max_new_tokens <= 0 || max_new_tokens > MAX_MAX_NEW_TOKENS {
+    if max_new_tokens == 0 || max_new_tokens > MAX_MAX_NEW_TOKENS {
         return Err(ValidationError::MaxNewTokens(MAX_MAX_NEW_TOKENS));
     }
 

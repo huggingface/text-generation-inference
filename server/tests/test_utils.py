@@ -9,7 +9,7 @@ from text_generation.utils import (
     StopSequenceCriteria,
     StoppingCriteria,
     LocalEntryNotFoundError,
-    FinishReason
+    FinishReason,
 )
 
 
