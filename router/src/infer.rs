@@ -1,7 +1,7 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::GenerateRequest;
-use crate::{Queue, Entry, Token};
+use crate::{Entry, Queue, Token};
 use nohash_hasher::IntMap;
 use std::future::Future;
 use std::sync::Arc;
