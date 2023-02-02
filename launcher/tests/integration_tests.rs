@@ -10,10 +10,17 @@ use std::time::Duration;
 use subprocess::{Popen, PopenConfig, Redirection};
 
 #[derive(Deserialize)]
+pub struct Token {
+    id: u32,
+    text: String,
+    logprob: Option<f32>,
+}
+
+#[derive(Deserialize)]
 struct Details {
     finish_reason: String,
     generated_tokens: u32,
-    tokens: Vec<(u32, String, Option<f32>)>,
+    tokens: Vec<Token>,
 }
 
 #[derive(Deserialize)]
@@ -109,8 +116,8 @@ fn read_json(name: &str) -> GeneratedText {
     let file = File::open(d).unwrap();
     let reader = BufReader::new(file);
 
-    let mut results: Vec<GeneratedText> = serde_json::from_reader(reader).unwrap();
-    results.pop().unwrap()
+    let result: GeneratedText = serde_json::from_reader(reader).unwrap();
+    result
 }
 
 fn compare_results(result: GeneratedText, expected: GeneratedText) {
@@ -127,13 +134,13 @@ fn compare_results(result: GeneratedText, expected: GeneratedText) {
         .into_iter()
         .zip(expected.details.tokens.into_iter())
     {
-        assert_eq!(token.0, expected_token.0);
-        assert_eq!(token.1, expected_token.1);
-        if let Some(logprob) = token.2 {
-            let expected_logprob = expected_token.2.unwrap();
+        assert_eq!(token.id, expected_token.id);
+        assert_eq!(token.text, expected_token.text);
+        if let Some(logprob) = token.logprob {
+            let expected_logprob = expected_token.logprob.unwrap();
             assert_float_eq!(logprob, expected_logprob, abs <= 0.001);
         } else {
-            assert_eq!(token.2, expected_token.2);
+            assert_eq!(token.logprob, expected_token.logprob);
         }
     }
 }

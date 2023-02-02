@@ -1,123 +1,122 @@
-[
-  {
-    "details": {
-      "finish_reason": "length",
-      "generated_tokens": 20,
-      "prefill": [
-        [
-          10264,
-          "Test",
-          null
-        ],
-        [
-          8821,
-          " request",
-          -11.895094
-        ]
-      ],
-      "tokens": [
-        [
-          17,
-          ".",
-          -1.8267941
-        ],
-        [
-          1587,
-          "get",
-          -2.4674964
-        ],
-        [
-          11,
-          "(",
-          -1.9060438
-        ],
-        [
-          5,
-          "\"",
-          -1.2279553
-        ],
-        [
-          4899,
-          "action",
-          -4.170306
-        ],
-        [
-          5,
-          "\"",
-          -0.3247902
-        ],
-        [
-          12,
-          ")",
-          -1.0773602
-        ],
-        [
-          30,
-          ";",
-          -0.27640444
-        ],
-        [
-          837,
-          "\n       ",
-          -1.6970599
-        ],
-        [
-          1320,
-          " if",
-          -1.4495552
-        ],
-        [
-          375,
-          " (",
-          -0.2360998
-        ],
-        [
-          4899,
-          "action",
-          -1.1916926
-        ],
-        [
-          3535,
-          " ==",
-          -0.8918663
-        ],
-        [
-          5109,
-          " null",
-          -0.39334255
-        ],
-        [
-          12,
-          ")",
-          -0.4321134
-        ],
-        [
-          731,
-          " {",
-          -0.17701954
-        ],
-        [
-          1260,
-          "\n           ",
-          -0.07027287
-        ],
-        [
-          10519,
-          " throw",
-          -1.3915133
-        ],
-        [
-          2084,
-          " new",
-          -0.042013377
-        ],
-        [
-          150858,
-          " RuntimeException",
-          -1.7330077
-        ]
-      ]
-    },
-    "generated_text": ".get(\"action\");\n        if (action == null) {\n            throw new RuntimeException"
-  }
-]
+{
+  "details": {
+    "finish_reason": "length",
+    "generated_tokens": 20,
+    "prefill": [
+      {
+        "id": 10264,
+        "logprob": null,
+        "text": "Test"
+      },
+      {
+        "id": 8821,
+        "logprob": -11.894989,
+        "text": " request"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 17,
+        "logprob": -1.8267672,
+        "text": "."
+      },
+      {
+        "id": 1587,
+        "logprob": -2.4674969,
+        "text": "get"
+      },
+      {
+        "id": 11,
+        "logprob": -1.906001,
+        "text": "("
+      },
+      {
+        "id": 5,
+        "logprob": -1.2279545,
+        "text": "\""
+      },
+      {
+        "id": 4899,
+        "logprob": -4.170299,
+        "text": "action"
+      },
+      {
+        "id": 5,
+        "logprob": -0.32478866,
+        "text": "\""
+      },
+      {
+        "id": 12,
+        "logprob": -1.0773665,
+        "text": ")"
+      },
+      {
+        "id": 30,
+        "logprob": -0.27640742,
+        "text": ";"
+      },
+      {
+        "id": 837,
+        "logprob": -1.6970354,
+        "text": "\n       "
+      },
+      {
+        "id": 1320,
+        "logprob": -1.4495516,
+        "text": " if"
+      },
+      {
+        "id": 375,
+        "logprob": -0.23609057,
+        "text": " ("
+      },
+      {
+        "id": 4899,
+        "logprob": -1.1916996,
+        "text": "action"
+      },
+      {
+        "id": 3535,
+        "logprob": -0.8918753,
+        "text": " =="
+      },
+      {
+        "id": 5109,
+        "logprob": -0.3933342,
+        "text": " null"
+      },
+      {
+        "id": 12,
+        "logprob": -0.43212673,
+        "text": ")"
+      },
+      {
+        "id": 731,
+        "logprob": -0.17702064,
+        "text": " {"
+      },
+      {
+        "id": 1260,
+        "logprob": -0.07027565,
+        "text": "\n           "
+      },
+      {
+        "id": 10519,
+        "logprob": -1.3915029,
+        "text": " throw"
+      },
+      {
+        "id": 2084,
+        "logprob": -0.04201372,
+        "text": " new"
+      },
+      {
+        "id": 150858,
+        "logprob": -1.7329919,
+        "text": " RuntimeException"
+      }
+    ]
+  },
+  "generated_text": ".get(\"action\");\n        if (action == null) {\n            throw new RuntimeException"
+}

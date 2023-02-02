@@ -1,7 +1,7 @@
 /// HTTP Server logic
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
-    Details, ErrorResponse, ErrorType, FinishReason, GenerateParameters, GenerateRequest,
+    Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
     GenerateResponse, Infer, StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
@@ -49,8 +49,24 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
     Ok(())
 }
 
-/// Generate method
-#[utoipa::path(post, path = "/generate", request_body = GenerateRequest)]
+/// Generate tokens
+#[utoipa::path(
+    post,
+    tag = "Text Generation Inference",
+    path = "/generate",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Generated Text", body = [GenerateResponse]),
+        (status = 424, description = "Generation Error", body = [ErrorResponse],
+            example = json!({"error": "Request failed during generation"})),
+        (status = 429, description = "Model is overloaded", body = [ErrorResponse],
+            example = json!({"error": "Model is overloaded"})),
+        (status = 422, description = "Input validation error", body = [ErrorResponse],
+            example = json!({"error": "Input validation error"})),
+        (status = 500, description = "Incomplete generation", body = [ErrorResponse],
+            example = json!({"error": "Incomplete generation"})),
+    )
+)]
 #[instrument(
     skip(infer),
     fields(
@@ -135,9 +151,29 @@ async fn generate(
     Ok((headers, Json(response)))
 }
 
-/// Generate stream method
-#[utoipa::path(post, path = "/generate_stream")]
-#[instrument(
+/// Generate a stream of token using Server Side Events
+#[utoipa::path(
+    post,
+    tag = "Text Generation Inference",
+    path = "/generate_stream",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Generated Text", body = [StreamResponse],
+            content_type="text/event-stream "),
+        (status = 424, description = "Generation Error", body = [ErrorResponse],
+            example = json!({"error": "Request failed during generation"}),
+            content_type="text/event-stream "),
+        (status = 429, description = "Model is overloaded", body = [ErrorResponse],
+            example = json!({"error": "Model is overloaded"}),
+            content_type="text/event-stream "),
+        (status = 422, description = "Input validation error", body = [ErrorResponse],
+            example = json!({"error": "Input validation error"}),
+            content_type="text/event-stream "),
+        (status = 500, description = "Incomplete generation", body = [ErrorResponse],
+            example = json!({"error": "Incomplete generation"}),
+            content_type="text/event-stream "),
+    )
+)]#[instrument(
     skip(infer),
     fields(
         total_time,
@@ -285,11 +321,17 @@ pub async fn run(
                 StreamResponse,
                 StreamDetails,
                 ErrorResponse,
-                ErrorType
             )
         ),
         tags(
             (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
+        ),
+        info(
+            title = "Text Generation Inference",
+            license(
+                name = "Apache 2.0",
+                url = "https://www.apache.org/licenses/LICENSE-2.0"
+            )
         )
     )]
     struct ApiDoc;
@@ -361,19 +403,6 @@ impl From<i32> for FinishReason {
     }
 }
 
-impl From<InferError> for ErrorResponse {
-    fn from(err: InferError) -> Self {
-        let err_string = err.to_string();
-        let error = match err {
-            InferError::GenerationError(_) => ErrorType::GenerationError(err_string),
-            InferError::Overloaded(_) => ErrorType::Overloaded(err_string),
-            InferError::ValidationError(_) => ErrorType::ValidationError(err_string),
-            InferError::IncompleteGeneration => ErrorType::IncompleteGeneration(err_string),
-        };
-        ErrorResponse { error }
-    }
-}
-
 /// Convert to Axum supported formats
 impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
     fn from(err: InferError) -> Self {
@@ -384,14 +413,14 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        (status_code, Json(ErrorResponse::from(err)))
+        (status_code, Json(ErrorResponse{error: err.to_string()}))
     }
 }
 
 impl From<InferError> for Event {
     fn from(err: InferError) -> Self {
         Event::default()
-            .json_data(ErrorResponse::from(err))
+            .json_data(ErrorResponse{error: err.to_string()})
             .unwrap()
     }
 }

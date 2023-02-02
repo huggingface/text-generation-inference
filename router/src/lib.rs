@@ -22,7 +22,12 @@ pub(crate) struct GenerateParameters {
     #[schema(exclusive_minimum = 0, nullable = true, default = "null")]
     pub top_k: Option<i32>,
     #[serde(default)]
-    #[schema(exclusive_minimum = 0.0, maximum = 1.0, nullable = true, default = "null")]
+    #[schema(
+        exclusive_minimum = 0.0,
+        maximum = 1.0,
+        nullable = true,
+        default = "null"
+    )]
     pub top_p: Option<f32>,
     #[serde(default = "default_do_sample")]
     #[schema(default = "false")]
@@ -31,7 +36,7 @@ pub(crate) struct GenerateParameters {
     #[schema(exclusive_minimum = 0, exclusive_maximum = 512, default = "20")]
     pub max_new_tokens: u32,
     #[serde(default)]
-    #[schema(max_items = 4, default = "null")]
+    #[schema(inline, max_items = 4, example = json!(["photographer"]))]
     pub stop: Vec<String>,
     #[serde(default)]
     #[schema(default = "true")]
@@ -72,22 +77,33 @@ pub(crate) struct GenerateRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Token {
+    #[schema(example = 0)]
     id: u32,
+    #[schema(example = "test")]
     text: String,
+    #[schema(nullable = true, example = -0.34)]
     logprob: f32,
 }
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all(serialize = "snake_case"))]
 pub(crate) enum FinishReason {
+    #[schema(rename = "length")]
     Length,
+    #[serde(rename = "eos_token")]
+    #[schema(rename = "eos_token")]
     EndOfSequenceToken,
+    #[schema(rename = "stop_sequence")]
     StopSequence,
 }
 
 #[derive(Serialize, ToSchema)]
 pub(crate) struct Details {
+    #[schema(example = "length")]
     pub finish_reason: FinishReason,
+    #[schema(example = 1)]
     pub generated_tokens: u32,
+    #[schema(example = 42)]
     pub seed: Option<u64>,
     pub prefill: Option<Vec<Token>>,
     pub tokens: Option<Vec<Token>>,
@@ -95,6 +111,7 @@ pub(crate) struct Details {
 
 #[derive(Serialize, ToSchema)]
 pub(crate) struct GenerateResponse {
+    #[schema(example = "test")]
     pub generated_text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<Details>,
@@ -102,31 +119,25 @@ pub(crate) struct GenerateResponse {
 
 #[derive(Serialize, ToSchema)]
 pub(crate) struct StreamDetails {
+    #[schema(example = "length")]
     pub finish_reason: FinishReason,
+    #[schema(example = 1)]
     pub generated_tokens: u32,
+    #[schema(example = 42)]
     pub seed: Option<u64>,
 }
 
 #[derive(Serialize, ToSchema)]
 pub(crate) struct StreamResponse {
     pub token: Token,
+    #[schema(nullable = true, default = "null", example = "test")]
     pub generated_text: Option<String>,
+    #[schema(nullable = true, default = "null")]
     pub details: Option<StreamDetails>,
 }
 
 #[derive(Serialize, ToSchema)]
-pub(crate) enum ErrorType {
-    #[schema(example = "Request failed during generation")]
-    GenerationError(String),
-    #[schema(example = "Model is overloaded")]
-    Overloaded(String),
-    #[schema(example = "Input validation error")]
-    ValidationError(String),
-    #[schema(example = "Incomplete generation")]
-    IncompleteGeneration(String),
-}
-
-#[derive(Serialize, ToSchema)]
 pub(crate) struct ErrorResponse {
-    pub error: ErrorType,
+    #[schema(inline)]
+    pub error: String,
 }
