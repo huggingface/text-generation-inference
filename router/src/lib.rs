@@ -13,24 +13,25 @@ use validation::Validation;
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 pub(crate) struct GenerateParameters {
     #[serde(default)]
-    #[schema(exclusive_minimum = 0.0, nullable = true, default = "null")]
+    #[schema(exclusive_minimum = 0.0, nullable = true, default = "null", example = 0.5)]
     pub temperature: Option<f32>,
     #[serde(default)]
-    #[schema(exclusive_minimum = 0.0, nullable = true, default = "null")]
+    #[schema(exclusive_minimum = 0.0, nullable = true, default = "null", example = 1.03)]
     pub repetition_penalty: Option<f32>,
     #[serde(default)]
-    #[schema(exclusive_minimum = 0, nullable = true, default = "null")]
+    #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 10)]
     pub top_k: Option<i32>,
     #[serde(default)]
     #[schema(
         exclusive_minimum = 0.0,
         maximum = 1.0,
         nullable = true,
-        default = "null"
+        default = "null",
+        example = 0.95
     )]
     pub top_p: Option<f32>,
     #[serde(default = "default_do_sample")]
-    #[schema(default = "false")]
+    #[schema(default = "false", example = true)]
     pub do_sample: bool,
     #[serde(default = "default_max_new_tokens")]
     #[schema(exclusive_minimum = 0, exclusive_maximum = 512, default = "20")]
