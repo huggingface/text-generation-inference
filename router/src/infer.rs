@@ -188,7 +188,7 @@ async fn batching_task(
         // Get the next batch from the DB
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the DB
-        while let Some((mut entries, batch)) = db.next_batch(None, max_batch_size) {
+        while let Some((mut entries, batch)) = db.next_batch(None, max_batch_size).await {
             let mut cached_batch = wrap_future(client.prefill(batch), &mut entries).await;
             let mut waiting_tokens = 1;
 
@@ -210,8 +210,9 @@ async fn batching_task(
                     };
 
                     // Try to get a new batch
-                    if let Some((mut new_entries, new_batch)) =
-                        db.next_batch(min_size, max_batch_size - batch_size as usize)
+                    if let Some((mut new_entries, new_batch)) = db
+                        .next_batch(min_size, max_batch_size - batch_size as usize)
+                        .await
                     {
                         // Generate one token for this new batch to have the attention past in cache
                         let new_cached_batch =

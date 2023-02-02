@@ -19,7 +19,7 @@ pub struct Validation {
 
 impl Validation {
     pub(crate) fn new(workers: usize, tokenizer: Tokenizer, max_input_length: usize) -> Self {
-        // Crate channel
+        // Create channel
         let (validation_sender, validation_receiver) = mpsc::channel(128);
 
         // Launch background validation task
