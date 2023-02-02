@@ -24,6 +24,7 @@ from transformers.generation.logits_process import (
 )
 
 from text_generation.pb import generate_pb2
+from text_generation.pb.generate_pb2 import FinishReason
 
 WEIGHTS_CACHE_OVERRIDE = os.getenv("WEIGHTS_CACHE_OVERRIDE", None)
 
@@ -129,15 +130,15 @@ class StoppingCriteria:
     def __call__(self, last_token: int, last_output: str) -> Tuple[bool, Optional[str]]:
         self.current_tokens += 1
         if self.current_tokens >= self.max_new_tokens:
-            return True, "length"
+            return True, FinishReason.FINISH_REASON_LENGTH
 
         if last_token == self.eos_token_id:
-            return True, "eos_token"
+            return True, FinishReason.FINISH_REASON_EOS_TOKEN
 
         self.current_output += last_output
         for stop_sequence_criteria in self.stop_sequence_criterias:
             if stop_sequence_criteria(self.current_output):
-                return True, "stop_sequence"
+                return True, FinishReason.FINISH_REASON_STOP_SEQUENCE
 
         return False, None
 
