@@ -1,5 +1,6 @@
-mod infer;
 /// Text Generation Inference Webserver
+
+mod infer;
 mod queue;
 pub mod server;
 mod validation;
