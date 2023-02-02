@@ -138,7 +138,7 @@ def test_causal_lm_generate_token_completion(
     assert next_batch is None
 
     assert len(generations) == 1
-    assert generations[0].generated_text.text == "Test.java:784) at net.minecraft."
+    assert generations[0].generated_text.text == ".java:784) at net.minecraft."
     assert generations[0].request_id == default_causal_lm_batch.requests[0].id
     assert (
         generations[0].generated_text.generated_tokens
@@ -161,7 +161,7 @@ def test_causal_lm_generate_token_completion_multi(
     assert next_batch is not None
 
     assert len(generations) == 2
-    assert generations[1].generated_text.text == "Test.java:784)"
+    assert generations[1].generated_text.text == ".java:784)"
     assert (
         generations[1].request_id
         == default_multi_requests_causal_lm_batch.requests[1].id
@@ -183,7 +183,7 @@ def test_causal_lm_generate_token_completion_multi(
     assert next_batch is None
 
     assert len(generations) == 1
-    assert generations[0].generated_text.text == "Test.java:784) at net.minecraft."
+    assert generations[0].generated_text.text == ".java:784) at net.minecraft."
     assert (
         generations[0].request_id
         == default_multi_requests_causal_lm_batch.requests[0].id
@@ -255,7 +255,7 @@ def test_batch_concatenate(
     assert next_batch is not None
 
     assert len(generations) == 3
-    assert generations[2].generated_text.text == "Test.java:784)"
+    assert generations[2].generated_text.text == ".java:784)"
     assert (
         generations[2].request_id
         == default_multi_requests_causal_lm_batch.requests[1].id
@@ -277,7 +277,7 @@ def test_batch_concatenate(
     assert next_batch is not None
 
     assert len(generations) == 2
-    assert generations[0].generated_text.text == "Test.java:784) at net.minecraft."
+    assert generations[0].generated_text.text == ".java:784) at net.minecraft."
     assert generations[0].request_id == default_causal_lm_batch.requests[0].id
     assert (
         generations[0].generated_text.generated_tokens
@@ -297,7 +297,7 @@ def test_batch_concatenate(
     assert next_batch is None
 
     assert len(generations) == 1
-    assert generations[0].generated_text.text == "Test.java:784) at net.minecraft."
+    assert generations[0].generated_text.text == ".java:784) at net.minecraft."
     assert (
         generations[0].request_id
         == default_multi_requests_causal_lm_batch.requests[0].id

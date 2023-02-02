@@ -97,8 +97,8 @@ fn test_model(
     launcher.terminate().unwrap();
     launcher.wait().unwrap();
 
-    let mut results: Vec<GeneratedText> = res.unwrap().json().unwrap();
-    results.pop().unwrap()
+    let result: GeneratedText = res.unwrap().json().unwrap();
+    result
 }
 
 fn read_json(name: &str) -> GeneratedText {

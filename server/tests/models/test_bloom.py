@@ -141,7 +141,7 @@ def test_causal_lm_generate_token_completion(default_bloom, default_bloom_batch)
     assert len(generations) == 1
     assert (
         generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTestTest"
+        == "TestTestTestTestTestTestTestTestTestTest"
     )
     assert generations[0].request_id == default_bloom_batch.requests[0].id
     assert (
@@ -165,7 +165,7 @@ def test_causal_lm_generate_token_completion_multi(
     assert next_batch is not None
 
     assert len(generations) == 2
-    assert generations[1].generated_text.text == "TestTestTestTestTestTest"
+    assert generations[1].generated_text.text == "TestTestTestTestTest"
     assert (
         generations[1].request_id == default_multi_requests_bloom_batch.requests[1].id
     )
@@ -188,7 +188,7 @@ def test_causal_lm_generate_token_completion_multi(
     assert len(generations) == 1
     assert (
         generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTestTest"
+        == "TestTestTestTestTestTestTestTestTestTest"
     )
     assert (
         generations[0].request_id == default_multi_requests_bloom_batch.requests[0].id
@@ -261,7 +261,7 @@ def test_batch_concatenate(
     assert next_batch is not None
 
     assert len(generations) == 3
-    assert generations[2].generated_text.text == "TestTestTestTestTestTest"
+    assert generations[2].generated_text.text == "TestTestTestTestTest"
     assert (
         generations[2].request_id == default_multi_requests_bloom_batch.requests[1].id
     )
@@ -284,7 +284,7 @@ def test_batch_concatenate(
     assert len(generations) == 2
     assert (
         generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTestTest"
+        == "TestTestTestTestTestTestTestTestTestTest"
     )
     assert generations[0].request_id == default_bloom_batch.requests[0].id
     assert (
@@ -307,7 +307,7 @@ def test_batch_concatenate(
     assert len(generations) == 1
     assert (
         generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTestTest"
+        == "TestTestTestTestTestTestTestTestTestTest"
     )
     assert (
         generations[0].request_id == default_multi_requests_bloom_batch.requests[0].id

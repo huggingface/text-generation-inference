@@ -57,7 +57,7 @@ def test_santacoder_generate_token_completion(default_santacoder, default_pb_bat
     assert next_batch is None
 
     assert len(generations) == 1
-    assert generations[0].generated_text.text == "def test_get_all_users_with_"
+    assert generations[0].generated_text.text == " test_get_all_users_with_"
     assert generations[0].request_id == batch.requests[0].id
     assert (
         generations[0].generated_text.generated_tokens
@@ -84,7 +84,7 @@ def test_fim_santacoder_generate_token_completion(
     assert len(generations) == 1
     assert (
         generations[0].generated_text.text
-        == """<fim-prefix>def<fim-suffix>world<fim-middle>ineProperty(exports, "__esModule", { value"""
+        == """ineProperty(exports, "__esModule", { value"""
     )
     assert generations[0].request_id == batch.requests[0].id
     assert (

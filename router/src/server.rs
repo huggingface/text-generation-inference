@@ -125,10 +125,10 @@ async fn generate(
     tracing::info!("Output: {}", response.generated_text.text);
 
     // Send response
-    let response = vec![GenerateResponse {
+    let response = GenerateResponse {
         generated_text: response.generated_text.text,
         details,
-    }];
+    };
     Ok((headers, Json(response)))
 }
 

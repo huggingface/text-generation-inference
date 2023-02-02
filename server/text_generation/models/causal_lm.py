@@ -360,11 +360,9 @@ class CausalLM(Model):
 
             if stop:
                 # Decode generated tokens
-                generated_text = self.decode(
+                output_text = self.decode(
                     all_input_ids[-stopping_criteria.current_tokens :, 0]
                 )
-                output_text = request.inputs + generated_text
-
                 # Get seed
                 if isinstance(next_token_chooser.choice, Sampling):
                     seed = next_token_chooser.choice.seed

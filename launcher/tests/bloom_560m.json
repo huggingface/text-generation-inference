@@ -118,6 +118,6 @@
         ]
       ]
     },
-    "generated_text": "Test request.get(\"action\");\n        if (action == null) {\n            throw new RuntimeException"
+    "generated_text": ".get(\"action\");\n        if (action == null) {\n            throw new RuntimeException"
   }
 ]
