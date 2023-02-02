@@ -73,7 +73,6 @@ class NextTokenChooser:
             sampling = True
         if repetition_penalty is not None and repetition_penalty != 1.0:
             warpers.append(RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty))
-            sampling = True
 
         self.warpers = warpers
         self.choice = Sampling(seed, device) if sampling else Greedy()
