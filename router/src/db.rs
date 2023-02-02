@@ -4,7 +4,6 @@ use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
-use async_stream::reexport::next;
 use text_generation_client::{Batch, Request};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit};
@@ -29,7 +28,7 @@ pub(crate) struct Entry {
 #[derive(Debug, Clone)]
 pub(crate) struct Db {
     /// Channel to communicate with the background database task
-    sender: UnboundedSender<DatabaseCommand>,
+    db_sender: UnboundedSender<DatabaseCommand>,
 }
 
 impl Db {
@@ -40,14 +39,14 @@ impl Db {
         // Launch background database task
         tokio::spawn(database_task(db_receiver));
 
-        Self { sender: db_sender }
+        Self { db_sender }
     }
 
     /// Append an entry to the database
     pub(crate) fn append(&self, entry: Entry) {
         // Send append command to the background task managing the state
         // Unwrap is safe here
-        self.sender.send(DatabaseCommand::Append(entry)).unwrap();
+        self.db_sender.send(DatabaseCommand::Append(entry)).unwrap();
     }
 
     // Get the next batch
@@ -57,19 +56,19 @@ impl Db {
         max_size: usize,
     ) -> Option<NextBatch> {
         // Create response channel
-        let (sender, receiver) = oneshot::channel();
+        let (response_sender, response_receiver) = oneshot::channel();
         // Send next batch command to the background task managing the state
         // Unwrap is safe here
-        self.sender
+        self.db_sender
             .send(DatabaseCommand::NextBatch {
                 min_size,
                 max_size,
-                response_rx: sender,
+                response_sender,
             })
             .unwrap();
         // Await on response channel
         // Unwrap is safe here
-        receiver.await.unwrap()
+        response_receiver.await.unwrap()
     }
 }
 
@@ -83,10 +82,10 @@ async fn database_task(mut receiver: UnboundedReceiver<DatabaseCommand>) {
             DatabaseCommand::NextBatch {
                 min_size,
                 max_size,
-                response_rx,
+                response_sender,
             } => {
                 let next_batch = state.next_batch(min_size, max_size);
-                response_rx.send(next_batch).unwrap_or(());
+                response_sender.send(next_batch).unwrap_or(());
             }
         }
     }
@@ -176,7 +175,7 @@ enum DatabaseCommand {
     NextBatch {
         min_size: Option<usize>,
         max_size: usize,
-        response_rx: oneshot::Sender<Option<NextBatch>>,
+        response_sender: oneshot::Sender<Option<NextBatch>>,
     },
 }
 
