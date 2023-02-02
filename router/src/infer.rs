@@ -1,7 +1,7 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::GenerateRequest;
-use crate::{Db, Entry, Token};
+use crate::{Entry, Queue, Token};
 use nohash_hasher::IntMap;
 use std::future::Future;
 use std::sync::Arc;
@@ -20,8 +20,8 @@ use tracing::instrument;
 pub struct Infer {
     /// Validation
     validation: Validation,
-    /// Request database
-    db: Db,
+    /// Request queue
+    queue: Queue,
     /// Shared state
     shared: Arc<Shared>,
     /// Inference limit
@@ -43,7 +43,7 @@ impl Infer {
         max_concurrent_requests: usize,
     ) -> Self {
         // Infer shared state
-        let db = Db::new();
+        let queue = Queue::new();
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });
@@ -53,7 +53,7 @@ impl Infer {
             client,
             max_batch_size,
             max_waiting_tokens,
-            db.clone(),
+            queue.clone(),
             shared.clone(),
         ));
 
@@ -62,13 +62,13 @@ impl Infer {
 
         Self {
             validation,
-            db,
+            queue,
             shared,
             limit_concurrent_requests: semaphore,
         }
     }
 
-    /// Add a new request to the database and return a stream of InferStreamResponse
+    /// Add a new request to the queue and return a stream of InferStreamResponse
     pub(crate) async fn generate_stream(
         &self,
         request: GenerateRequest,
@@ -83,8 +83,8 @@ impl Infer {
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
 
-        // Append the request to the database
-        self.db.append(Entry {
+        // Append the request to the queue
+        self.queue.append(Entry {
             request: valid_request,
             response_tx,
             time: Instant::now(),
@@ -92,7 +92,7 @@ impl Infer {
             _permit: permit,
         });
 
-        // Notify the background task that we have a new entry in the database that needs
+        // Notify the background task that we have a new entry in the queue that needs
         // to be batched
         self.shared.batching_task.notify_one();
 
@@ -100,7 +100,7 @@ impl Infer {
         Ok(UnboundedReceiverStream::new(response_rx))
     }
 
-    /// Add a new request to the database and return a InferResponse
+    /// Add a new request to the queue and return a InferResponse
     pub(crate) async fn generate(
         &self,
         request: GenerateRequest,
@@ -169,12 +169,12 @@ impl Infer {
 /// Will be launched in a background Tokio task
 ///
 /// Batches requests and sends them to the inference server
-#[instrument(skip(client, db, shared))]
+#[instrument(skip(client, queue, shared))]
 async fn batching_task(
     mut client: ShardedClient,
     max_batch_size: usize,
     max_waiting_tokens: usize,
-    db: Db,
+    queue: Queue,
     shared: Arc<Shared>,
 ) {
     // Minimum batch size after which we try to add more requests
@@ -185,10 +185,10 @@ async fn batching_task(
         // Wait for a notification from the Infer struct
         shared.batching_task.notified().await;
 
-        // Get the next batch from the DB
+        // Get the next batch from the queue
         // This batch might be smaller than the maximum batch size if there are not enough requests
-        // waiting in the DB
-        while let Some((mut entries, batch)) = db.next_batch(None, max_batch_size) {
+        // waiting in the queue
+        while let Some((mut entries, batch)) = queue.next_batch(None, max_batch_size).await {
             let mut cached_batch = wrap_future(client.prefill(batch), &mut entries).await;
             let mut waiting_tokens = 1;
 
@@ -210,8 +210,9 @@ async fn batching_task(
                     };
 
                     // Try to get a new batch
-                    if let Some((mut new_entries, new_batch)) =
-                        db.next_batch(min_size, max_batch_size - batch_size as usize)
+                    if let Some((mut new_entries, new_batch)) = queue
+                        .next_batch(min_size, max_batch_size - batch_size as usize)
+                        .await
                     {
                         // Generate one token for this new batch to have the attention past in cache
                         let new_cached_batch =
