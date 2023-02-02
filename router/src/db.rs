@@ -185,6 +185,7 @@ mod tests {
     use super::*;
     use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
     use tokio::sync::{mpsc, Semaphore};
+    use std::sync::Arc;
 
     fn default_entry() -> Entry {
         let semaphore = Arc::new(Semaphore::new(1));
