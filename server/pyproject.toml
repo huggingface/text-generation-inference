@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "text-generation"
-version = "0.1.0"
-description = "BLOOM Inference Python gRPC Server"
+version = "0.2.0"
+description = "Text Generation Inference Python gRPC Server"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
 
 [tool.poetry.scripts]

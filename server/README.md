@@ -1,6 +1,6 @@
-# BLOOM Inference Python gRPC Server
+# Text Generation Inference Python gRPC Server
 
-A Python gRPC server for BLOOM Inference
+A Python gRPC server for Text Generation Inference
 
 ## Install
 

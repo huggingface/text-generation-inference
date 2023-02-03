@@ -4,9 +4,6 @@ members = [
     "router/client",
     "launcher"
 ]
-exclude = [
-    "server/safetensors",
-]
 
 [profile.release]
 debug = 1

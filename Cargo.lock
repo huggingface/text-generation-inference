@@ -1888,7 +1888,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "futures",
  "prost",
@@ -1903,7 +1903,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap 4.0.22",
  "ctrlc",
@@ -1918,7 +1918,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "axum",

@@ -33,6 +33,7 @@ to power LLMs api-inference widgets.
   - [Run](#run)
   - [Quantization](#quantization)
 - [Develop](#develop)
+- [Testing](#testing)
   
 ## Features
 
@@ -145,4 +146,11 @@ make run-bloom-quantize # Requires 8xA100 40GB
 ```shell
 make server-dev
 make router-dev
+```
+
+## Testing
+
+```shell
+make python-tests
+make integration-tests
 ```

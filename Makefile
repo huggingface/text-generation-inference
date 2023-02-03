@@ -15,6 +15,12 @@ server-dev:
 router-dev:
 	cd router && cargo run
 
+integration-tests: install-router install-launcher
+	cargo test
+
+python-tests:
+	cd server && pytest tests
+
 run-bloom-560m:
 	text-generation-launcher --model-id bigscience/bloom-560m --num-shard 2
 
