@@ -127,7 +127,7 @@ impl Infer {
                         .into_iter()
                         .zip(tokens.logprobs.into_iter())
                         .zip(tokens.texts.into_iter())
-                        .map(|((id, logprob), text)| Token(id, text, logprob))
+                        .map(|((id, logprob), text)| Token { id, text, logprob })
                         .collect();
                 }
                 // Push last token
@@ -282,11 +282,11 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
         }
 
         // Create last Token
-        let token = Token(
-            generation.token_id,
-            generation.token_text,
-            generation.token_logprob,
-        );
+        let token = Token {
+            id: generation.token_id,
+            text: generation.token_text,
+            logprob: generation.token_logprob,
+        };
 
         if let Some(generated_text) = generation.generated_text {
             // Remove entry as this is the last message

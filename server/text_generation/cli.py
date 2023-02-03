@@ -13,7 +13,7 @@ app = typer.Typer()
 
 @app.command()
 def serve(
-    model_name: str,
+    model_id: str,
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: bool = False,
@@ -46,16 +46,16 @@ def serve(
             os.getenv("MASTER_PORT", None) is not None
         ), "MASTER_PORT must be set when sharded is True"
 
-    server.serve(model_name, revision, sharded, quantize, uds_path)
+    server.serve(model_id, revision, sharded, quantize, uds_path)
 
 
 @app.command()
 def download_weights(
-    model_name: str,
+    model_id: str,
     revision: Optional[str] = None,
     extension: str = ".safetensors",
 ):
-    utils.download_weights(model_name, revision, extension)
+    utils.download_weights(model_id, revision, extension)
 
 
 if __name__ == "__main__":

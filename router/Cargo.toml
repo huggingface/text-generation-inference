@@ -1,6 +1,6 @@
 [package]
 name = "text-generation-router"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 description = "Text Generation Webserver"
@@ -14,7 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 async-stream = "0.3.3"
-axum = { version = "0.5.16", features = ["json", "serde_json"] }
+axum = { version = "0.6.4", features = ["json"] }
 text-generation-client = { path = "client" }
 clap = { version = "4.0.15", features = ["derive", "env"] }
 futures = "0.3.24"
@@ -29,4 +29,6 @@ tokio = { version = "1.21.1", features = ["rt", "rt-multi-thread", "parking_lot"
 tokio-stream = "0.1.11"
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.15", features = ["json"] }
+utoipa = { version = "3.0.1", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "3.0.2", features = ["axum"] }
 

@@ -1,0 +1,446 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Text Generation Inference",
+    "description": "Text Generation Webserver",
+    "contact": {
+      "name": "Olivier Dehaene",
+      "email": ""
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/generate": {
+      "post": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Generate tokens",
+        "description": "Generate tokens",
+        "operationId": "generate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Generated Text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenerateResponse"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                },
+                "example": {
+                  "error": "Input validation error"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Generation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                },
+                "example": {
+                  "error": "Request failed during generation"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Model is overloaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                },
+                "example": {
+                  "error": "Model is overloaded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Incomplete generation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                },
+                "example": {
+                  "error": "Incomplete generation"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/generate_stream": {
+      "post": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Generate a stream of token using Server Side Events",
+        "description": "Generate a stream of token using Server Side Events",
+        "operationId": "generate_stream",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Generated Text",
+            "content": {
+              "text/event-stream ": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StreamResponse"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input validation error",
+            "content": {
+              "text/event-stream ": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                },
+                "example": {
+                  "error": "Input validation error"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Generation Error",
+            "content": {
+              "text/event-stream ": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                },
+                "example": {
+                  "error": "Request failed during generation"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Model is overloaded",
+            "content": {
+              "text/event-stream ": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                },
+                "example": {
+                  "error": "Model is overloaded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Incomplete generation",
+            "content": {
+              "text/event-stream ": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                },
+                "example": {
+                  "error": "Incomplete generation"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Details": {
+        "type": "object",
+        "required": [
+          "finish_reason",
+          "generated_tokens"
+        ],
+        "properties": {
+          "finish_reason": {
+            "$ref": "#/components/schemas/FinishReason"
+          },
+          "generated_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "example": 1
+          },
+          "prefill": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Token"
+            }
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64",
+            "example": 42
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Token"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "FinishReason": {
+        "type": "string",
+        "enum": [
+          "length",
+          "eos_token",
+          "stop_sequence"
+        ]
+      },
+      "GenerateParameters": {
+        "type": "object",
+        "properties": {
+          "details": {
+            "type": "boolean",
+            "default": "true"
+          },
+          "do_sample": {
+            "type": "boolean",
+            "default": "false",
+            "example": true
+          },
+          "max_new_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "default": "20",
+            "exclusiveMaximum": 512.0,
+            "exclusiveMinimum": 0.0
+          },
+          "repetition_penalty": {
+            "type": "number",
+            "format": "float",
+            "default": "null",
+            "example": 1.03,
+            "nullable": true,
+            "exclusiveMinimum": 0.0
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stop": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "photographer"
+            ],
+            "maxItems": 4
+          },
+          "temperature": {
+            "type": "number",
+            "format": "float",
+            "default": "null",
+            "example": 0.5,
+            "nullable": true,
+            "exclusiveMinimum": 0.0
+          },
+          "top_k": {
+            "type": "integer",
+            "format": "int32",
+            "default": "null",
+            "example": 10,
+            "nullable": true,
+            "exclusiveMinimum": 0.0
+          },
+          "top_p": {
+            "type": "number",
+            "format": "float",
+            "default": "null",
+            "example": 0.95,
+            "nullable": true,
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0
+          }
+        }
+      },
+      "GenerateRequest": {
+        "type": "object",
+        "required": [
+          "inputs"
+        ],
+        "properties": {
+          "inputs": {
+            "type": "string",
+            "example": "My name is Olivier and I"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/GenerateParameters"
+          }
+        }
+      },
+      "GenerateResponse": {
+        "type": "object",
+        "required": [
+          "generated_text"
+        ],
+        "properties": {
+          "details": {
+            "$ref": "#/components/schemas/Details"
+          },
+          "generated_text": {
+            "type": "string",
+            "example": "test"
+          }
+        }
+      },
+      "StreamDetails": {
+        "type": "object",
+        "required": [
+          "finish_reason",
+          "generated_tokens"
+        ],
+        "properties": {
+          "finish_reason": {
+            "$ref": "#/components/schemas/FinishReason"
+          },
+          "generated_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "example": 1
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64",
+            "example": 42
+          }
+        }
+      },
+      "StreamResponse": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "details": {
+            "$ref": "#/components/schemas/StreamDetails"
+          },
+          "generated_text": {
+            "type": "string",
+            "default": "null",
+            "example": "test",
+            "nullable": true
+          },
+          "token": {
+            "$ref": "#/components/schemas/Token"
+          }
+        }
+      },
+      "Token": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "logprob"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "example": 0
+          },
+          "logprob": {
+            "type": "number",
+            "format": "float",
+            "example": -0.34,
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "example": "test"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Text Generation Inference",
+      "description": "Hugging Face Text Generation Inference API"
+    }
+  ]
+}

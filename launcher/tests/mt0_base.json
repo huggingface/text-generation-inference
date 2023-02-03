@@ -1,118 +1,117 @@
-[
-  {
-    "details": {
-      "finish_reason": "length",
-      "generated_tokens": 20,
-      "prefill": [
-        [
-          0,
-          "<pad>",
-          null
-        ]
-      ],
-      "tokens": [
-        [
-          259,
-          "",
-          -1.3656927
-        ],
-        [
-          215100,
-          "\"\"\"",
-          -2.6551573
-        ],
-        [
-          46138,
-          "Test",
-          -1.8059857
-        ],
-        [
-          287,
-          "the",
-          -1.2102449
-        ],
-        [
-          259,
-          "",
-          -1.6057279
-        ],
-        [
-          49076,
-          "contents",
-          -3.6060903
-        ],
-        [
-          304,
-          "of",
-          -0.5270343
-        ],
-        [
-          287,
-          "the",
-          -0.62522805
-        ],
-        [
-          259,
-          "",
-          -1.4069618
-        ],
-        [
-          49076,
-          "contents",
-          -2.621994
-        ],
-        [
-          304,
-          "of",
-          -1.3172221
-        ],
-        [
-          287,
-          "the",
-          -0.3501925
-        ],
-        [
-          259,
-          "",
-          -0.7219573
-        ],
-        [
-          49076,
-          "contents",
-          -1.0494149
-        ],
-        [
-          260,
-          ".",
-          -1.0803378
-        ],
-        [
-          259,
-          "",
-          -0.32933083
-        ],
-        [
-          215100,
-          "\"\"\"",
-          -0.11268901
-        ],
-        [
-          2978,
-          "test",
-          -1.5846587
-        ],
-        [
-          290,
-          "_",
-          -0.49796978
-        ],
-        [
-          4125,
-          "test",
-          -2.0026445
-        ]
-      ]
-    },
-    "generated_text": "\"\"\"Test the contents of the contents of the contents. \"\"\" test_test"
-  }
-]
+{
+  "details": {
+    "finish_reason": "length",
+    "generated_tokens": 20,
+    "prefill": [
+      {
+        "id": 0,
+        "logprob": null,
+        "text": "<pad>"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 259,
+        "logprob": -1.3656927,
+        "text": ""
+      },
+      {
+        "id": 215100,
+        "logprob": -2.6551573,
+        "text": "\"\"\""
+      },
+      {
+        "id": 46138,
+        "logprob": -1.8059857,
+        "text": "Test"
+      },
+      {
+        "id": 287,
+        "logprob": -1.2102449,
+        "text": "the"
+      },
+      {
+        "id": 259,
+        "logprob": -1.6057279,
+        "text": ""
+      },
+      {
+        "id": 49076,
+        "logprob": -3.6060903,
+        "text": "contents"
+      },
+      {
+        "id": 304,
+        "logprob": -0.5270343,
+        "text": "of"
+      },
+      {
+        "id": 287,
+        "logprob": -0.62522805,
+        "text": "the"
+      },
+      {
+        "id": 259,
+        "logprob": -1.4069618,
+        "text": ""
+      },
+      {
+        "id": 49076,
+        "logprob": -2.621994,
+        "text": "contents"
+      },
+      {
+        "id": 304,
+        "logprob": -1.3172221,
+        "text": "of"
+      },
+      {
+        "id": 287,
+        "logprob": -0.3501925,
+        "text": "the"
+      },
+      {
+        "id": 259,
+        "logprob": -0.7219573,
+        "text": ""
+      },
+      {
+        "id": 49076,
+        "logprob": -1.0494149,
+        "text": "contents"
+      },
+      {
+        "id": 260,
+        "logprob": -1.0803378,
+        "text": "."
+      },
+      {
+        "id": 259,
+        "logprob": -0.32933083,
+        "text": ""
+      },
+      {
+        "id": 215100,
+        "logprob": -0.11268901,
+        "text": "\"\"\""
+      },
+      {
+        "id": 2978,
+        "logprob": -1.5846587,
+        "text": "test"
+      },
+      {
+        "id": 290,
+        "logprob": -0.49796978,
+        "text": "_"
+      },
+      {
+        "id": 4125,
+        "logprob": -2.0026445,
+        "text": "test"
+      }
+    ]
+  },
+  "generated_text": "\"\"\"Test the contents of the contents of the contents. \"\"\" test_test"
+}

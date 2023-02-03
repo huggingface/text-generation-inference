@@ -30,31 +30,31 @@ torch.backends.cudnn.allow_tf32 = True
 
 
 def get_model(
-    model_name: str, revision: Optional[str], sharded: bool, quantize: bool
+    model_id: str, revision: Optional[str], sharded: bool, quantize: bool
 ) -> Model:
-    config = AutoConfig.from_pretrained(model_name, revision=revision)
+    config = AutoConfig.from_pretrained(model_id, revision=revision)
 
     if config.model_type == "bloom":
         if sharded:
-            return BLOOMSharded(model_name, revision, quantize=quantize)
+            return BLOOMSharded(model_id, revision, quantize=quantize)
         else:
-            return BLOOM(model_name, revision, quantize=quantize)
+            return BLOOM(model_id, revision, quantize=quantize)
     elif config.model_type == "gpt_neox":
         if sharded:
-            return GPTNeoxSharded(model_name, revision, quantize=quantize)
+            return GPTNeoxSharded(model_id, revision, quantize=quantize)
         else:
-            return GPTNeox(model_name, revision, quantize=quantize)
-    elif model_name.startswith("facebook/galactica"):
+            return GPTNeox(model_id, revision, quantize=quantize)
+    elif model_id.startswith("facebook/galactica"):
         if sharded:
-            return GalacticaSharded(model_name, revision, quantize=quantize)
+            return GalacticaSharded(model_id, revision, quantize=quantize)
         else:
-            return Galactica(model_name, revision, quantize=quantize)
-    elif "santacoder" in model_name:
-        return SantaCoder(model_name, revision, quantize)
+            return Galactica(model_id, revision, quantize=quantize)
+    elif "santacoder" in model_id:
+        return SantaCoder(model_id, revision, quantize)
     else:
         if sharded:
             raise ValueError("sharded is not supported for AutoModel")
         try:
-            return CausalLM(model_name, revision, quantize=quantize)
+            return CausalLM(model_id, revision, quantize=quantize)
         except Exception:
-            return Seq2SeqLM(model_name, revision, quantize=quantize)
+            return Seq2SeqLM(model_id, revision, quantize=quantize)

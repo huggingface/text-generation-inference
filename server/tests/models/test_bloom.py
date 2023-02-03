@@ -140,8 +140,7 @@ def test_causal_lm_generate_token_completion(default_bloom, default_bloom_batch)
 
     assert len(generations) == 1
     assert (
-        generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTest"
+        generations[0].generated_text.text == "TestTestTestTestTestTestTestTestTestTest"
     )
     assert generations[0].request_id == default_bloom_batch.requests[0].id
     assert (
@@ -187,8 +186,7 @@ def test_causal_lm_generate_token_completion_multi(
 
     assert len(generations) == 1
     assert (
-        generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTest"
+        generations[0].generated_text.text == "TestTestTestTestTestTestTestTestTestTest"
     )
     assert (
         generations[0].request_id == default_multi_requests_bloom_batch.requests[0].id
@@ -283,8 +281,7 @@ def test_batch_concatenate(
 
     assert len(generations) == 2
     assert (
-        generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTest"
+        generations[0].generated_text.text == "TestTestTestTestTestTestTestTestTestTest"
     )
     assert generations[0].request_id == default_bloom_batch.requests[0].id
     assert (
@@ -306,8 +303,7 @@ def test_batch_concatenate(
 
     assert len(generations) == 1
     assert (
-        generations[0].generated_text.text
-        == "TestTestTestTestTestTestTestTestTestTest"
+        generations[0].generated_text.text == "TestTestTestTestTestTestTestTestTestTest"
     )
     assert (
         generations[0].request_id == default_multi_requests_bloom_batch.requests[0].id

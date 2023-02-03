@@ -110,30 +110,58 @@ fn validate(
     max_input_length: usize,
     rng: &mut ThreadRng,
 ) -> Result<ValidGenerateRequest, ValidationError> {
-    if request.parameters.temperature <= 0.0 {
+    let GenerateParameters {
+        temperature,
+        repetition_penalty,
+        top_k,
+        top_p,
+        do_sample,
+        max_new_tokens,
+        stop: stop_sequences,
+        seed,
+        ..
+    } = request.parameters;
+
+    let temperature = temperature.unwrap_or(1.0);
+    if temperature <= 0.0 {
         return Err(ValidationError::Temperature);
     }
-    if request.parameters.repetition_penalty <= 0.0 {
+
+    let repetition_penalty = repetition_penalty.unwrap_or(1.0);
+    if repetition_penalty <= 0.0 {
         return Err(ValidationError::RepetitionPenalty);
     }
-    if request.parameters.top_p <= 0.0 || request.parameters.top_p > 1.0 {
+
+    let top_p = top_p.unwrap_or(1.0);
+    if top_p <= 0.0 || top_p > 1.0 {
         return Err(ValidationError::TopP);
     }
-    if request.parameters.top_k < 0 {
-        return Err(ValidationError::TopK);
-    }
-    if request.parameters.max_new_tokens > MAX_MAX_NEW_TOKENS {
+
+    // Different because the proto default value is 0 while it is not a valid value
+    // for the user
+    let top_k: u32 = match top_k {
+        None => Ok(0),
+        Some(top_k) => {
+            if top_k <= 0 {
+                return Err(ValidationError::TopK);
+            }
+            Ok(top_k as u32)
+        }
+    }?;
+
+    if max_new_tokens == 0 || max_new_tokens > MAX_MAX_NEW_TOKENS {
         return Err(ValidationError::MaxNewTokens(MAX_MAX_NEW_TOKENS));
     }
-    if request.parameters.stop.len() > MAX_STOP_SEQUENCES {
+
+    if stop_sequences.len() > MAX_STOP_SEQUENCES {
         return Err(ValidationError::StopSequence(
             MAX_STOP_SEQUENCES,
-            request.parameters.stop.len(),
+            stop_sequences.len(),
         ));
     }
 
     // If seed is None, assign a random one
-    let seed = match request.parameters.seed {
+    let seed = match seed {
         None => rng.gen(),
         Some(seed) => seed,
     };
@@ -147,21 +175,10 @@ fn validate(
                 Err(ValidationError::InputLength(input_length, max_input_length))
             } else {
                 // Return ValidGenerateRequest
-                let GenerateParameters {
-                    temperature,
-                    repetition_penalty,
-                    top_k,
-                    top_p,
-                    do_sample,
-                    max_new_tokens,
-                    stop: stop_sequences,
-                    ..
-                } = request.parameters;
-
                 let parameters = NextTokenChooserParameters {
                     temperature,
                     repetition_penalty,
-                    top_k: top_k as u32,
+                    top_k,
                     top_p,
                     do_sample,
                     seed,
@@ -206,7 +223,7 @@ pub enum ValidationError {
     TopP,
     #[error("top_k must be strictly positive")]
     TopK,
-    #[error("max_new_tokens must be <= {0}")]
+    #[error("max_new_tokens must be strictly positive and <= {0}")]
     MaxNewTokens(u32),
     #[error("inputs must have less than {1} tokens. Given: {0}")]
     InputLength(usize, usize),

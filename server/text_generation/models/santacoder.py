@@ -14,7 +14,7 @@ EOD = "<|endoftext|>"
 
 
 class SantaCoder(CausalLM):
-    def __init__(self, model_name: str, revision: Optional[str] = None, quantize=False):
+    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
@@ -26,7 +26,7 @@ class SantaCoder(CausalLM):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_name, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left"
         )
         tokenizer.add_special_tokens(
             {
@@ -43,7 +43,7 @@ class SantaCoder(CausalLM):
 
         self.model = (
             AutoModelForCausalLM.from_pretrained(
-                model_name,
+                model_id,
                 revision=revision,
                 torch_dtype=dtype,
                 load_in_8bit=quantize,

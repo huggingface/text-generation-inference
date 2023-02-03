@@ -24,8 +24,10 @@ from transformers.generation.logits_process import (
 )
 
 from text_generation.pb import generate_pb2
+from text_generation.pb.generate_pb2 import FinishReason
 
 WEIGHTS_CACHE_OVERRIDE = os.getenv("WEIGHTS_CACHE_OVERRIDE", None)
+
 
 class Sampling:
     def __init__(self, seed: int, device: str = "cpu"):
@@ -129,15 +131,15 @@ class StoppingCriteria:
     def __call__(self, last_token: int, last_output: str) -> Tuple[bool, Optional[str]]:
         self.current_tokens += 1
         if self.current_tokens >= self.max_new_tokens:
-            return True, "length"
+            return True, FinishReason.FINISH_REASON_LENGTH
 
         if last_token == self.eos_token_id:
-            return True, "eos_token"
+            return True, FinishReason.FINISH_REASON_EOS_TOKEN
 
         self.current_output += last_output
         for stop_sequence_criteria in self.stop_sequence_criterias:
             if stop_sequence_criteria(self.current_output):
-                return True, "stop_sequence"
+                return True, FinishReason.FINISH_REASON_STOP_SEQUENCE
 
         return False, None
 
@@ -180,20 +182,20 @@ def initialize_torch_distributed():
     return torch.distributed.distributed_c10d._get_default_group(), rank, world_size
 
 
-def weight_hub_files(model_name, revision=None, extension=".safetensors"):
+def weight_hub_files(model_id, revision=None, extension=".safetensors"):
     """Get the safetensors filenames on the hub"""
     api = HfApi()
-    info = api.model_info(model_name, revision=revision)
+    info = api.model_info(model_id, revision=revision)
     filenames = [s.rfilename for s in info.siblings if s.rfilename.endswith(extension)]
     return filenames
 
 
-def try_to_load_from_cache(model_name, revision, filename):
+def try_to_load_from_cache(model_id, revision, filename):
     """Try to load a file from the Hugging Face cache"""
     if revision is None:
         revision = "main"
 
-    object_id = model_name.replace("/", "--")
+    object_id = model_id.replace("/", "--")
     repo_cache = Path(HUGGINGFACE_HUB_CACHE) / f"models--{object_id}"
 
     if not repo_cache.is_dir():
@@ -228,38 +230,38 @@ def try_to_load_from_cache(model_name, revision, filename):
     return str(cached_file) if cached_file.is_file() else None
 
 
-def weight_files(model_name, revision=None, extension=".safetensors"):
+def weight_files(model_id, revision=None, extension=".safetensors"):
     """Get the local safetensors filenames"""
     if WEIGHTS_CACHE_OVERRIDE is not None:
         return list(Path(WEIGHTS_CACHE_OVERRIDE).glob(f"*{extension}"))
 
-    filenames = weight_hub_files(model_name, revision, extension)
+    filenames = weight_hub_files(model_id, revision, extension)
     files = []
     for filename in filenames:
         cache_file = try_to_load_from_cache(
-            model_name, revision=revision, filename=filename
+            model_id, revision=revision, filename=filename
         )
         if cache_file is None:
             raise LocalEntryNotFoundError(
-                f"File {filename} of model {model_name} not found in "
+                f"File {filename} of model {model_id} not found in "
                 f"{os.getenv('HUGGINGFACE_HUB_CACHE', 'the local cache')}. "
-                f"Please run `text-generation-server download-weights {model_name}` first."
+                f"Please run `text-generation-server download-weights {model_id}` first."
             )
         files.append(cache_file)
 
     return files
 
 
-def download_weights(model_name, revision=None, extension=".safetensors"):
+def download_weights(model_id, revision=None, extension=".safetensors"):
     """Download the safetensors files from the hub"""
     if WEIGHTS_CACHE_OVERRIDE is not None:
         return list(Path(WEIGHTS_CACHE_OVERRIDE).glob(f"*{extension}"))
 
-    filenames = weight_hub_files(model_name, revision, extension)
+    filenames = weight_hub_files(model_id, revision, extension)
 
     download_function = partial(
         hf_hub_download,
-        repo_id=model_name,
+        repo_id=model_id,
         local_files_only=False,
     )
 

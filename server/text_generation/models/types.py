@@ -7,6 +7,7 @@ from typing import List, Optional
 from transformers import PreTrainedTokenizerBase
 
 from text_generation.pb import generate_pb2
+from text_generation.pb.generate_pb2 import FinishReason
 
 
 class Batch(ABC):
@@ -38,7 +39,7 @@ class Batch(ABC):
 class GeneratedText:
     text: str
     generated_tokens: int
-    finish_reason: str
+    finish_reason: FinishReason
     seed: Optional[int]
 
     def to_pb(self) -> generate_pb2.GeneratedText:

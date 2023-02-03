@@ -49,7 +49,7 @@ class GPTNeox(CausalLM):
 
 class GPTNeoxSharded(GPTNeox):
     def __init__(
-        self, model_name: str, revision: Optional[str] = None, quantize: bool = False
+        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
         self.process_group, self.rank, self.world_size = initialize_torch_distributed()
         self.master = self.rank == 0
@@ -61,22 +61,20 @@ class GPTNeoxSharded(GPTNeox):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_name, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left"
         )
         tokenizer.pad_token = tokenizer.eos_token
 
         config = AutoConfig.from_pretrained(
-            model_name, revision=revision, tp_parallel=True
+            model_id, revision=revision, tp_parallel=True
         )
 
         # Only master download weights
         if self.master:
-            download_weights(model_name, revision=revision, extension=".safetensors")
+            download_weights(model_id, revision=revision, extension=".safetensors")
 
         torch.distributed.barrier(group=self.process_group)
-        filenames = weight_files(
-            model_name, revision=revision, extension=".safetensors"
-        )
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         if not filenames:
             raise ValueError("No safetensors weights found")
 

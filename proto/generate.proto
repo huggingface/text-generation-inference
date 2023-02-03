@@ -71,13 +71,19 @@ message Batch {
     uint32 size = 3;
 }
 
+enum FinishReason {
+    FINISH_REASON_LENGTH = 0;
+    FINISH_REASON_EOS_TOKEN = 1;
+    FINISH_REASON_STOP_SEQUENCE = 2;
+}
+
 message GeneratedText {
     /// Output
     string text = 1;
     /// Number of generated tokens
     uint32 generated_tokens = 2;
     /// Finish reason
-    string finish_reason = 3;
+    FinishReason finish_reason = 3;
     /// Seed
     optional uint64 seed = 4;
 }

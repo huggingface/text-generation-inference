@@ -57,10 +57,10 @@ class BLOOM(CausalLM):
 
 class BLOOMSharded(BLOOM):
     def __init__(
-        self, model_name: str, revision: Optional[str] = None, quantize: bool = False
+        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
-        if not model_name.startswith("bigscience/bloom"):
-            raise ValueError(f"Model {model_name} is not supported")
+        if not model_id.startswith("bigscience/bloom"):
+            raise ValueError(f"Model {model_id} is not supported")
 
         self.process_group, self.rank, self.world_size = initialize_torch_distributed()
         self.master = self.rank == 0
@@ -72,22 +72,20 @@ class BLOOMSharded(BLOOM):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_name, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left"
         )
 
         config = AutoConfig.from_pretrained(
-            model_name, revision=revision, slow_but_exact=False, tp_parallel=True
+            model_id, revision=revision, slow_but_exact=False, tp_parallel=True
         )
         config.pad_token_id = 3
 
         # Only download weights for small models
-        if self.master and model_name == "bigscience/bloom-560m":
-            download_weights(model_name, revision=revision, extension=".safetensors")
+        if self.master and model_id == "bigscience/bloom-560m":
+            download_weights(model_id, revision=revision, extension=".safetensors")
 
         torch.distributed.barrier(group=self.process_group)
-        filenames = weight_files(
-            model_name, revision=revision, extension=".safetensors"
-        )
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         if not filenames:
             raise ValueError("No safetensors weights found")
 

@@ -1,8 +1,8 @@
 /// HTTP Server logic
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
-    Details, ErrorResponse, GenerateParameters, GenerateRequest, GenerateResponse, Infer,
-    StreamResponse, Validation,
+    Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
+    Infer, StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, StatusCode};
@@ -19,6 +19,8 @@ use tokio::signal;
 use tokio::time::Instant;
 use tokio_stream::StreamExt;
 use tracing::instrument;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 /// Health check method
 #[instrument(skip(infer))]
@@ -32,13 +34,13 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
         .generate(GenerateRequest {
             inputs: "liveness".to_string(),
             parameters: GenerateParameters {
-                temperature: 1.0,
-                repetition_penalty: 1.0,
-                top_k: 0,
-                top_p: 1.0,
+                temperature: None,
+                repetition_penalty: None,
+                top_k: None,
+                top_p: None,
                 do_sample: false,
                 max_new_tokens: 1,
-                stop: vec![],
+                stop: Vec::new(),
                 details: false,
                 seed: None,
             },
@@ -47,7 +49,24 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
     Ok(())
 }
 
-/// Generate method
+/// Generate tokens
+#[utoipa::path(
+    post,
+    tag = "Text Generation Inference",
+    path = "/generate",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Generated Text", body = [GenerateResponse]),
+        (status = 424, description = "Generation Error", body = [ErrorResponse],
+            example = json!({"error": "Request failed during generation"})),
+        (status = 429, description = "Model is overloaded", body = [ErrorResponse],
+            example = json!({"error": "Model is overloaded"})),
+        (status = 422, description = "Input validation error", body = [ErrorResponse],
+            example = json!({"error": "Input validation error"})),
+        (status = 500, description = "Incomplete generation", body = [ErrorResponse],
+            example = json!({"error": "Incomplete generation"})),
+    )
+)]
 #[instrument(
     skip(infer),
     fields(
@@ -76,7 +95,7 @@ async fn generate(
     // Token details
     let details = match details {
         true => Some(Details {
-            finish_reason: response.generated_text.finish_reason,
+            finish_reason: FinishReason::from(response.generated_text.finish_reason),
             generated_tokens: response.generated_text.generated_tokens,
             prefill: Some(response.prefill),
             tokens: Some(response.tokens),
@@ -132,7 +151,29 @@ async fn generate(
     Ok((headers, Json(response)))
 }
 
-/// Generate stream method
+/// Generate a stream of token using Server Side Events
+#[utoipa::path(
+    post,
+    tag = "Text Generation Inference",
+    path = "/generate_stream",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Generated Text", body = [StreamResponse],
+            content_type="text/event-stream "),
+        (status = 424, description = "Generation Error", body = [ErrorResponse],
+            example = json!({"error": "Request failed during generation"}),
+            content_type="text/event-stream "),
+        (status = 429, description = "Model is overloaded", body = [ErrorResponse],
+            example = json!({"error": "Model is overloaded"}),
+            content_type="text/event-stream "),
+        (status = 422, description = "Input validation error", body = [ErrorResponse],
+            example = json!({"error": "Input validation error"}),
+            content_type="text/event-stream "),
+        (status = 500, description = "Incomplete generation", body = [ErrorResponse],
+            example = json!({"error": "Incomplete generation"}),
+            content_type="text/event-stream "),
+    )
+)]
 #[instrument(
     skip(infer),
     fields(
@@ -185,11 +226,9 @@ async fn generate_stream(
                                 } => {
                                     // Token details
                                     let details = match details {
-                                        true => Some(Details {
-                                            finish_reason: generated_text.finish_reason,
+                                        true => Some(StreamDetails {
+                                            finish_reason: FinishReason::from(generated_text.finish_reason),
                                             generated_tokens: generated_text.generated_tokens,
-                                            prefill: None,
-                                            tokens: None,
                                             seed: generated_text.seed,
                                         }),
                                         false => None,
@@ -265,6 +304,39 @@ pub async fn run(
     validation_workers: usize,
     addr: SocketAddr,
 ) {
+    // OpenAPI documentation
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(
+            generate,
+            generate_stream,
+        ),
+        components(
+            schemas(
+                GenerateRequest,
+                GenerateParameters,
+                Token,
+                GenerateResponse,
+                Details,
+                FinishReason,
+                StreamResponse,
+                StreamDetails,
+                ErrorResponse,
+            )
+        ),
+        tags(
+            (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
+        ),
+        info(
+            title = "Text Generation Inference",
+            license(
+                name = "Apache 2.0",
+                url = "https://www.apache.org/licenses/LICENSE-2.0"
+            )
+        )
+    )]
+    struct ApiDoc;
+
     // Create state
     let validation = Validation::new(validation_workers, tokenizer, max_input_length);
     let infer = Infer::new(
@@ -277,6 +349,7 @@ pub async fn run(
 
     // Create router
     let app = Router::new()
+        .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .route("/", post(generate))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
@@ -318,6 +391,17 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("signal received, starting graceful shutdown");
+}
+
+impl From<i32> for FinishReason {
+    fn from(finish_reason: i32) -> Self {
+        let finish_reason = text_generation_client::FinishReason::from_i32(finish_reason).unwrap();
+        match finish_reason {
+            text_generation_client::FinishReason::Length => FinishReason::Length,
+            text_generation_client::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
+            text_generation_client::FinishReason::StopSequence => FinishReason::StopSequence,
+        }
+    }
 }
 
 /// Convert to Axum supported formats
