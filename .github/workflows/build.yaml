@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - 'main'
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - 'main'
@@ -43,6 +45,8 @@ jobs:
             ghcr.io/huggingface/text-generation-inference
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
           tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}
       - name: Build and push Docker image
