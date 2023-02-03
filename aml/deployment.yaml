@@ -4,9 +4,9 @@ endpoint_name: bloom-inference
 model: azureml:bloom:1
 model_mount_path: /var/azureml-model
 environment_variables:
-  MODEL_BASE_PATH: /var/azureml-model/bloom
+  HUGGINGFACE_HUB_CACHE: /var/azureml-model/bloom
   MODEL_ID: bigscience/bloom
-  NUM_GPUS: 8
+  NUM_SHARD: 8
 environment:
   image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:0.3.1
   inference_config:

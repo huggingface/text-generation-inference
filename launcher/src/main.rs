@@ -19,7 +19,7 @@ use subprocess::{Popen, PopenConfig, PopenError, Redirection};
 #[clap(author, version, about, long_about = None)]
 struct Args {
     #[clap(default_value = "bigscience/bloom-560m", long, env)]
-    model_name: String,
+    model_id: String,
     #[clap(long, env)]
     revision: Option<String>,
     #[clap(long, env)]
@@ -49,7 +49,7 @@ struct Args {
 fn main() -> ExitCode {
     // Pattern match configuration
     let Args {
-        model_name,
+        model_id,
         revision,
         num_shard,
         quantize,
@@ -92,7 +92,7 @@ fn main() -> ExitCode {
 
     // Start shard processes
     for rank in 0..num_shard {
-        let model_name = model_name.clone();
+        let model_id = model_id.clone();
         let revision = revision.clone();
         let uds_path = shard_uds_path.clone();
         let master_addr = master_addr.clone();
@@ -101,7 +101,7 @@ fn main() -> ExitCode {
         let shutdown_sender = shutdown_sender.clone();
         thread::spawn(move || {
             shard_manager(
-                model_name,
+                model_id,
                 revision,
                 quantize,
                 uds_path,
@@ -167,7 +167,7 @@ fn main() -> ExitCode {
         "--master-shard-uds-path".to_string(),
         format!("{}-0", shard_uds_path),
         "--tokenizer-name".to_string(),
-        model_name,
+        model_id,
     ];
 
     if json_output {
@@ -256,7 +256,7 @@ enum ShardStatus {
 
 #[allow(clippy::too_many_arguments)]
 fn shard_manager(
-    model_name: String,
+    model_id: String,
     revision: Option<String>,
     quantize: bool,
     uds_path: String,
@@ -278,7 +278,7 @@ fn shard_manager(
     let mut shard_argv = vec![
         "text-generation-server".to_string(),
         "serve".to_string(),
-        model_name,
+        model_id,
         "--uds-path".to_string(),
         uds_path,
         "--logger-level".to_string(),

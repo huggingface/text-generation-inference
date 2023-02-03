@@ -289,7 +289,7 @@ class Seq2SeqLMBatch(Batch):
 
 
 class Seq2SeqLM(Model):
-    def __init__(self, model_name: str, revision: Optional[str] = None, quantize=False):
+    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
@@ -301,14 +301,14 @@ class Seq2SeqLM(Model):
             dtype = torch.float32
 
         self.model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_name,
+            model_id,
             revision=revision,
             torch_dtype=dtype,
             device_map="auto" if torch.cuda.is_available() else None,
             load_in_8bit=quantize,
         ).eval()
         tokenizer = AutoTokenizer.from_pretrained(
-            model_name, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left"
         )
         tokenizer.bos_token_id = self.model.config.decoder_start_token_id
 

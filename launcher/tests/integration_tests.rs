@@ -29,11 +29,11 @@ struct GeneratedText {
     details: Details,
 }
 
-fn start_launcher(model_name: String, num_shard: usize, port: usize, master_port: usize) -> Popen {
+fn start_launcher(model_id: String, num_shard: usize, port: usize, master_port: usize) -> Popen {
     let argv = vec![
         "text-generation-launcher".to_string(),
-        "--model-name".to_string(),
-        model_name.clone(),
+        "--model-id".to_string(),
+        model_id.clone(),
         "--num-shard".to_string(),
         num_shard.to_string(),
         "--port".to_string(),
@@ -75,16 +75,16 @@ fn start_launcher(model_name: String, num_shard: usize, port: usize, master_port
 
     launcher.terminate().unwrap();
     launcher.wait().unwrap();
-    panic!("failed to launch {}", model_name)
+    panic!("failed to launch {}", model_id)
 }
 
 fn test_model(
-    model_name: String,
+    model_id: String,
     num_shard: usize,
     port: usize,
     master_port: usize,
 ) -> GeneratedText {
-    let mut launcher = start_launcher(model_name, num_shard, port, master_port);
+    let mut launcher = start_launcher(model_id, num_shard, port, master_port);
 
     let data = r#"
         {
