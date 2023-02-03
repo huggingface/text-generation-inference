@@ -93,7 +93,7 @@ curl 127.0.0.1:8080/generate_stream \
     -H 'Content-Type: application/json'
 ```
 
-To use GPUs, you will need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+**Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
 ### API documentation
 
@@ -102,12 +102,29 @@ The Swagger UI is also available at: [https://huggingface.github.io/text-generat
 
 ### Local install
 
-You can also opt to install `text-generation-inference` locally. You will need to have cargo and Python installed on your
-machine
+You can also opt to install `text-generation-inference` locally. 
+
+First [install Rust](https://rustup.rs/) and create a Python virtual environment with at least 
+Python 3.9, e.g. using `conda`:
+
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+conda create -n text-generation-inference python=3.9 
+conda activate text-generation-inference
+```
+
+Then run:
 
 ```shell
 BUILD_EXTENSIONS=True make install # Install repository and HF/transformer fork with CUDA kernels
 make run-bloom-560m
+```
+
+**Note:** on some machines, you may also need the OpenSSL libraries. On Linux machines, run:
+
+```shell
+sudo apt-get install libssl-dev
 ```
 
 ### CUDA Kernels
