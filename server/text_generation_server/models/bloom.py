@@ -122,18 +122,11 @@ class BLOOMSharded(BLOOM):
                     slice_ = f.get_slice(name)
 
                     if isinstance(module, TensorParallelColumnLinear):
-                        if param_name == "weight":
-                            size = slice_.get_shape()[0]
-                            block_size = size // world_size
-                            start = rank * block_size
-                            stop = (rank + 1) * block_size
-                            tensor = slice_[start:stop]
-                        else:
-                            size = slice_.get_shape()[0]
-                            block_size = size // world_size
-                            start = rank * block_size
-                            stop = (rank + 1) * block_size
-                            tensor = slice_[start:stop]
+                        size = slice_.get_shape()[0]
+                        block_size = size // world_size
+                        start = rank * block_size
+                        stop = (rank + 1) * block_size
+                        tensor = slice_[start:stop]
                     elif isinstance(module, TensorParallelRowLinear):
                         if param_name == "weight":
                             size = slice_.get_shape()[1]
