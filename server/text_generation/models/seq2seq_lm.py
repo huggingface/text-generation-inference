@@ -364,19 +364,14 @@ class Seq2SeqLM(Model):
     def generate_token(
         self, batch: Seq2SeqLMBatch
     ) -> Tuple[List[Generation], Optional[Seq2SeqLMBatch]]:
-        # For some reason, inference_mode does not work well with GLOO which we use on CPU
-        context_manager = (
-            torch.no_grad if self.device.type == "cpu" else torch.inference_mode
+        logits, encoder_last_hidden_state, past = self.forward(
+            batch.input_ids,
+            batch.attention_mask,
+            batch.decoder_input_ids,
+            batch.decoder_attention_mask,
+            batch.encoder_last_hidden_state,
+            batch.past_key_values,
         )
-        with context_manager():
-            logits, encoder_last_hidden_state, past = self.forward(
-                batch.input_ids,
-                batch.attention_mask,
-                batch.decoder_input_ids,
-                batch.decoder_attention_mask,
-                batch.encoder_last_hidden_state,
-                batch.past_key_values,
-            )
 
         # List of indices to cache
         next_batch_keep_indices = []

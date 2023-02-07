@@ -289,17 +289,12 @@ class CausalLM(Model):
     def generate_token(
         self, batch: CausalLMBatch
     ) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
-        # For some reason, inference_mode does not work well with GLOO which we use on CPU
-        context_manager = (
-            torch.no_grad if self.device.type == "cpu" else torch.inference_mode
+        logits, past = self.forward(
+            batch.input_ids,
+            batch.attention_mask,
+            batch.position_ids,
+            batch.past_key_values,
         )
-        with context_manager():
-            logits, past = self.forward(
-                batch.input_ids,
-                batch.attention_mask,
-                batch.position_ids,
-                batch.past_key_values,
-            )
 
         # List of indices to cache
         next_batch_keep_indices = []

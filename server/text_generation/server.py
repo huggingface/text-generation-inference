@@ -1,5 +1,6 @@
 import asyncio
 import os
+import torch
 
 from grpc import aio
 from loguru import logger
@@ -19,6 +20,10 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         self.cache = cache
         self.model = model
         self.server_urls = server_urls
+        # For some reason, inference_mode does not work well with GLOO which we use on CPU
+        if model.device.type == "cuda":
+            # Force inference mode for the lifetime of TextGenerationService
+            self._inference_mode_raii_guard = torch._C._InferenceMode(True)
 
     async def ServiceDiscovery(self, request, context):
         return generate_pb2.ServiceDiscoveryResponse(urls=self.server_urls)

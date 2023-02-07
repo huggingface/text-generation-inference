@@ -28,6 +28,9 @@ torch.backends.cuda.matmul.allow_tf32 = True
 # The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
+# Disable gradients
+torch.set_grad_enabled(False)
+
 
 def get_model(
     model_id: str, revision: Optional[str], sharded: bool, quantize: bool
