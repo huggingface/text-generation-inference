@@ -10,14 +10,20 @@ from text_generation.models.seq2seq_lm import Seq2SeqLM
 from text_generation.models.galactica import Galactica, GalacticaSharded
 from text_generation.models.santacoder import SantaCoder
 from text_generation.models.gpt_neox import GPTNeox, GPTNeoxSharded
+from text_generation.models.t5 import T5Sharded
 
 __all__ = [
     "Model",
     "BLOOM",
     "BLOOMSharded",
     "CausalLM",
+    "Galactica",
+    "GalacticaSharded",
+    "GPTNeox",
+    "GPTNeoxSharded",
     "Seq2SeqLM",
     "SantaCoder",
+    "T5Sharded",
     "get_model",
 ]
 
@@ -47,6 +53,11 @@ def get_model(
             return GPTNeoxSharded(model_id, revision, quantize=quantize)
         else:
             return GPTNeox(model_id, revision, quantize=quantize)
+    elif config.model_type == "t5":
+        if sharded:
+            return T5Sharded(model_id, revision, quantize=quantize)
+        else:
+            return Seq2SeqLM(model_id, revision, quantize=quantize)
     elif model_id.startswith("facebook/galactica"):
         if sharded:
             return GalacticaSharded(model_id, revision, quantize=quantize)
