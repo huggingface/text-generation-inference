@@ -53,7 +53,8 @@ to power LLMs api-inference widgets.
 - [MT0-XXL](https://huggingface.co/bigscience/mt0-xxl)
 - ~~[Galactica](https://huggingface.co/facebook/galactica-120b)~~ (deactivated)
 - [SantaCoder](https://huggingface.co/bigcode/santacoder)
-- [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b): use `--revision pr/13`
+- [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
+- [FLAN-T5-XXL](https://huggingface.co/google/flan-t5-xxl): use `--revision pr/26`
 
 Other models are supported on a best effort basis using:
 
