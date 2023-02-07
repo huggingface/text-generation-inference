@@ -171,9 +171,14 @@ def initialize_torch_distributed():
     else:
         backend = "gloo"
 
+    master_ip = os.getenv("MASTER_ADDR", "0.0.0.0")
+    master_port = os.getenv("MASTER_PORT", "6000")
+    init_method = f"tcp://{master_ip}:{master_port}"
+
     # Call the init process.
     torch.distributed.init_process_group(
         backend=backend,
+        init_method=init_method,
         world_size=world_size,
         rank=rank,
         timeout=timedelta(seconds=60),

@@ -38,9 +38,9 @@ struct Args {
     port: u16,
     #[clap(default_value = "/tmp/text-generation-server", long, env)]
     shard_uds_path: String,
-    #[clap(default_value = "localhost", long, env)]
+    #[clap(default_value = "0.0.0.0", long, env)]
     master_addr: String,
-    #[clap(default_value = "29500", long, env)]
+    #[clap(default_value = "6000", long, env)]
     master_port: usize,
     #[clap(long, env)]
     json_output: bool,

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import torch
 
 from grpc import aio
 from loguru import logger
@@ -19,6 +20,10 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         self.cache = cache
         self.model = model
         self.server_urls = server_urls
+        # For some reason, inference_mode does not work well with GLOO which we use on CPU
+        if model.device.type == "cuda":
+            # Force inference mode for the lifetime of TextGenerationService
+            self._inference_mode_raii_guard = torch._C._InferenceMode(True)
 
     async def ServiceDiscovery(self, request, context):
         return generate_pb2.ServiceDiscoveryResponse(urls=self.server_urls)
@@ -89,7 +94,11 @@ def serve(
             local_url = unix_socket_template.format(uds_path, 0)
             server_urls = [local_url]
 
-        model = get_model(model_id, revision, sharded, quantize)
+        try:
+            model = get_model(model_id, revision, sharded, quantize)
+        except Exception:
+            logger.exception("Error when initializing model")
+            raise
 
         server = aio.server(interceptors=[ExceptionInterceptor()])
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
@@ -101,8 +110,11 @@ def serve(
         )
         reflection.enable_server_reflection(SERVICE_NAMES, server)
         server.add_insecure_port(local_url)
+
         await server.start()
+
         logger.info("Server started at {}".format(local_url))
+
         try:
             await server.wait_for_termination()
         except KeyboardInterrupt:
