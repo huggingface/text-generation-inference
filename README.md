@@ -38,7 +38,7 @@ to power LLMs api-inference widgets.
   
 ## Features
 
-- Token streaming using Server Side Events (SSE)
+- Token streaming using Server-Sent Events (SSE)
 - [Dynamic batching of incoming requests](https://github.com/huggingface/text-generation-inference/blob/main/router/src/batcher.rs#L88) for increased total throughput
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
