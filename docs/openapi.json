@@ -119,8 +119,8 @@
         "tags": [
           "Text Generation Inference"
         ],
-        "summary": "Generate a stream of token using Server Side Events",
-        "description": "Generate a stream of token using Server Side Events",
+        "summary": "Generate a stream of token using Server-Sent Events",
+        "description": "Generate a stream of token using Server-Sent Events",
         "operationId": "generate_stream",
         "requestBody": {
           "content": {

@@ -151,7 +151,7 @@ async fn generate(
     Ok((headers, Json(response)))
 }
 
-/// Generate a stream of token using Server Side Events
+/// Generate a stream of token using Server-Sent Events
 #[utoipa::path(
     post,
     tag = "Text Generation Inference",
@@ -199,7 +199,7 @@ async fn generate_stream(
 
         match infer.generate_stream(req.0).await {
             Ok(mut response_stream) => {
-                // Server Side Event stream
+                // Server-Sent Event stream
                 while let Some(response) = response_stream.next().await {
                     match response {
                         Ok(response) => {
