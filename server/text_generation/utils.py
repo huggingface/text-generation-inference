@@ -162,29 +162,29 @@ def initialize_torch_distributed():
     world_size = int(os.getenv("WORLD_SIZE", "1"))
 
     if torch.cuda.is_available():
-        # initialized `torch.distributed`
+        from torch.distributed import ProcessGroupNCCL
         # Set the device id.
         assert world_size <= torch.cuda.device_count(), "Each process is one gpu"
         device = rank % torch.cuda.device_count()
         torch.cuda.set_device(device)
         backend = "nccl"
+        options = ProcessGroupNCCL.Options()
+        options.is_high_priority_stream = True
+        options._timeout = timedelta(seconds=60)
     else:
         backend = "gloo"
-
-    master_ip = os.getenv("MASTER_ADDR", "0.0.0.0")
-    master_port = os.getenv("MASTER_PORT", "6000")
-    init_method = f"tcp://{master_ip}:{master_port}"
+        options = None
 
     # Call the init process.
     torch.distributed.init_process_group(
         backend=backend,
-        init_method=init_method,
         world_size=world_size,
         rank=rank,
         timeout=timedelta(seconds=60),
+        pg_options=options
     )
 
-    return torch.distributed.distributed_c10d._get_default_group(), rank, world_size
+    return torch.distributed.group.WORLD, rank, world_size
 
 
 def weight_hub_files(model_id, revision=None, extension=".safetensors"):

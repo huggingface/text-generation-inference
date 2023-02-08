@@ -38,9 +38,9 @@ struct Args {
     port: u16,
     #[clap(default_value = "/tmp/text-generation-server", long, env)]
     shard_uds_path: String,
-    #[clap(default_value = "0.0.0.0", long, env)]
+    #[clap(default_value = "localhost", long, env)]
     master_addr: String,
-    #[clap(default_value = "6000", long, env)]
+    #[clap(default_value = "29500", long, env)]
     master_port: usize,
     #[clap(long, env)]
     json_output: bool,
@@ -305,6 +305,7 @@ fn shard_manager(
         ("MASTER_ADDR".into(), master_addr.into()),
         ("MASTER_PORT".into(), master_port.to_string().into()),
         ("SAFETENSORS_FAST_GPU".into(), "1".into()),
+        ("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()),
     ];
 
     // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
@@ -320,6 +321,12 @@ fn shard_manager(
             "WEIGHTS_CACHE_OVERRIDE".into(),
             weights_cache_override.into(),
         ));
+    };
+
+    // If the NCCL_SHM_DISABLE env var is set, pass it to the shard
+    // needed when running NCCL inside a docker container and when you can't increase shm size
+    if let Ok(nccl_shm_disalbe) = env::var("NCCL_SHM_DISABLE") {
+        env.push(("NCCL_SHM_DISABLE".into(), nccl_shm_disalbe.into()));
     };
 
     // If the CUDA_VISIBLE_DEVICES env var is set, pass it to the shard

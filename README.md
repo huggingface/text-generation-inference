@@ -25,8 +25,9 @@ to power LLMs api-inference widgets.
 - [Officially Supported Models](#officially-supported-models)
 - [Get Started](#get-started)
   - [Docker](#docker)
+  - [API Documentation](#api-documentation)
+  - [A note on Shared Memory](#a-note-on-shared-memory-shm)
   - [Local Install](#local-install)
-  - [OpenAPI](#api-documentation)
   - [CUDA Kernels](#cuda-kernels)
 - [Run BLOOM](#run-bloom)
   - [Download](#download)
@@ -54,7 +55,7 @@ to power LLMs api-inference widgets.
 - ~~[Galactica](https://huggingface.co/facebook/galactica-120b)~~ (deactivated)
 - [SantaCoder](https://huggingface.co/bigcode/santacoder)
 - [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
-- [FLAN-T5-XXL](https://huggingface.co/google/flan-t5-xxl): use `--revision pr/26`
+- [FLAN-T5-XXL](https://huggingface.co/google/flan-t5-xxl)
 
 Other models are supported on a best effort basis using:
 
@@ -75,7 +76,7 @@ model=bigscience/bloom-560m
 num_shard=2
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-docker run --gpus all -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --num-shard $num_shard
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --num-shard $num_shard
 ```
 
 You can then query the model using either the `/generate` or `/generate_stream` routes:
@@ -101,6 +102,32 @@ curl 127.0.0.1:8080/generate_stream \
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route.
 The Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
 
+### A note on Shared Memory (shm)
+
+[`NCCL`](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html) is a communication framework used by 
+`PyTorch` to do distributed training/inference. `text-generation-inference` make
+use of `NCCL` to enable Tensor Parallelism to dramatically speed up inference for large language models.
+
+In order to share data between the different devices of a `NCCL` group, `NCCL` might fall back to using the host memory if
+peer-to-peer using NVLink or PCI is not possible.
+
+To allow the container to use 1G of Shared Memory and support SHM sharing, we add `--shm-size 1g` on the above command.
+
+If you are running `text-generation-inference` inside `Kubernetes`. You can also add Shared Memory to the container by
+creating a volume with:
+
+```yaml
+- name: shm
+  emptyDir:
+   medium: Memory
+   sizeLimit: 1Gi
+```
+
+and mounting it to `/dev/shm`.
+
+Finally, you can also disable SHM sharing by using the `NCCL_SHM_DISABLE=1` environment variable. However, note that 
+this will impact performance.
+
 ### Local install
 
 You can also opt to install `text-generation-inference` locally. 
@@ -122,10 +149,10 @@ BUILD_EXTENSIONS=True make install # Install repository and HF/transformer fork 
 make run-bloom-560m
 ```
 
-**Note:** on some machines, you may also need the OpenSSL libraries. On Linux machines, run:
+**Note:** on some machines, you may also need the OpenSSL libraries and gcc. On Linux machines, run:
 
 ```shell
-sudo apt-get install libssl-dev
+sudo apt-get install libssl-dev gcc -y
 ```
 
 ### CUDA Kernels
