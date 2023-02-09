@@ -1,6 +1,7 @@
 import torch
 
 from dataclasses import dataclass
+from opentelemetry import trace
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type
 
@@ -8,6 +9,8 @@ from text_generation.models import Model
 from text_generation.models.types import GeneratedText, Batch, Generation, PrefillTokens
 from text_generation.pb import generate_pb2
 from text_generation.utils import NextTokenChooser, StoppingCriteria, Sampling
+
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -107,6 +110,7 @@ class Seq2SeqLMBatch(Batch):
         )
 
     @classmethod
+    @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["Seq2SeqLMBatch"]) -> "Seq2SeqLMBatch":
         """Concatenate multiple batches together by padding internal torch tensors"""
 
@@ -324,6 +328,7 @@ class Seq2SeqLM(Model):
     def decode(self, decoder_ids: List[int]) -> str:
         return self.tokenizer.decode(decoder_ids, skip_special_tokens=True)
 
+    @tracer.start_as_current_span("forward")
     def forward(
         self,
         input_ids,
@@ -361,6 +366,7 @@ class Seq2SeqLM(Model):
             outputs.past_key_values,
         )
 
+    @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: Seq2SeqLMBatch
     ) -> Tuple[List[Generation], Optional[Seq2SeqLMBatch]]:
@@ -401,91 +407,94 @@ class Seq2SeqLM(Model):
             batch.decoder_input_ids,
         )
 
-        # For each member of the batch
-        for i, (
-            request,
-            input_length,
-            decoder_input_length,
-            logits,
-            next_token_chooser,
-            stopping_criteria,
-            input_tokens,
-            decoder_input_ids,
-        ) in enumerate(iterator):
-            # Select next token
-            next_token_id, logprobs = next_token_chooser(
-                decoder_input_ids.view(1, -1), logits
-            )
-
-            # Append next token to decoder tokens
-            decoder_input_ids = torch.cat([decoder_input_ids, next_token_id])
-            new_decoder_input_length = decoder_input_length + 1
-
-            # Generated token
-            next_token_logprob = logprobs[-1, next_token_id]
-            next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.tokenizer.decode(
-                next_token_id_squeezed,
-                clean_up_tokenization_spaces=False,
-                skip_special_tokens=False,
-            )
-
-            # Evaluate stopping criteria
-            stop, reason = stopping_criteria(next_token_id, next_token_text)
-
-            if stop:
-                # Slice with decoder_input_length to remove padding
-                # Decode all tokens
-                output_text = self.decode(decoder_input_ids[-new_decoder_input_length:])
-
-                # Get seed
-                if isinstance(next_token_chooser.choice, Sampling):
-                    seed = next_token_chooser.choice.seed
-                else:
-                    seed = None
-
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
-                )
-            else:
-                # Keep request in the batch
-                generated_text = None
-                next_batch_keep_indices.append(i)
-                next_batch_decoder_input_ids.append(decoder_input_ids.unsqueeze(0))
-                next_batch_size += 1
-                next_batch_input_lengths.append(input_length)
-                next_batch_decoder_input_lengths.append(new_decoder_input_length)
-                next_batch_max_input_length = max(
-                    next_batch_max_input_length, input_length
-                )
-                next_batch_max_decoder_input_length = max(
-                    next_batch_max_decoder_input_length, new_decoder_input_length
+        with tracer.start_as_current_span("post_processing"):
+            # For each member of the batch
+            for i, (
+                request,
+                input_length,
+                decoder_input_length,
+                logits,
+                next_token_chooser,
+                stopping_criteria,
+                input_tokens,
+                decoder_input_ids,
+            ) in enumerate(iterator):
+                # Select next token
+                next_token_id, logprobs = next_token_chooser(
+                    decoder_input_ids.view(1, -1), logits
                 )
 
-            # Prefill
-            if stopping_criteria.current_tokens == 1:
-                prefill_token_ids = decoder_input_ids[-new_decoder_input_length:-1]
-                prefill_texts = self.tokenizer.batch_decode(
-                    prefill_token_ids,
+                # Append next token to decoder tokens
+                decoder_input_ids = torch.cat([decoder_input_ids, next_token_id])
+                new_decoder_input_length = decoder_input_length + 1
+
+                # Generated token
+                next_token_logprob = logprobs[-1, next_token_id]
+                next_token_id_squeezed = next_token_id.squeeze()
+                next_token_text = self.tokenizer.decode(
+                    next_token_id_squeezed,
                     clean_up_tokenization_spaces=False,
                     skip_special_tokens=False,
                 )
-                prefill_tokens = PrefillTokens(
-                    prefill_token_ids, [float("nan")], prefill_texts
+
+                # Evaluate stopping criteria
+                stop, reason = stopping_criteria(next_token_id, next_token_text)
+
+                if stop:
+                    # Slice with decoder_input_length to remove padding
+                    # Decode all tokens
+                    output_text = self.decode(
+                        decoder_input_ids[-new_decoder_input_length:]
+                    )
+
+                    # Get seed
+                    if isinstance(next_token_chooser.choice, Sampling):
+                        seed = next_token_chooser.choice.seed
+                    else:
+                        seed = None
+
+                    generated_text = GeneratedText(
+                        output_text, stopping_criteria.current_tokens, reason, seed
+                    )
+                else:
+                    # Keep request in the batch
+                    generated_text = None
+                    next_batch_keep_indices.append(i)
+                    next_batch_decoder_input_ids.append(decoder_input_ids.unsqueeze(0))
+                    next_batch_size += 1
+                    next_batch_input_lengths.append(input_length)
+                    next_batch_decoder_input_lengths.append(new_decoder_input_length)
+                    next_batch_max_input_length = max(
+                        next_batch_max_input_length, input_length
+                    )
+                    next_batch_max_decoder_input_length = max(
+                        next_batch_max_decoder_input_length, new_decoder_input_length
+                    )
+
+                # Prefill
+                if stopping_criteria.current_tokens == 1:
+                    prefill_token_ids = decoder_input_ids[-new_decoder_input_length:-1]
+                    prefill_texts = self.tokenizer.batch_decode(
+                        prefill_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    prefill_tokens = PrefillTokens(
+                        prefill_token_ids, [float("nan")], prefill_texts
+                    )
+                else:
+                    prefill_tokens = None
+
+                generation = Generation(
+                    request.id,
+                    prefill_tokens,
+                    next_token_id_squeezed,
+                    next_token_logprob,
+                    next_token_text,
+                    generated_text,
                 )
-            else:
-                prefill_tokens = None
 
-            generation = Generation(
-                request.id,
-                prefill_tokens,
-                next_token_id_squeezed,
-                next_token_logprob,
-                next_token_text,
-                generated_text,
-            )
-
-            generations.append(generation)
+                generations.append(generation)
 
         # We finished all generations in the batch; there is no next batch
         if not next_batch_keep_indices:

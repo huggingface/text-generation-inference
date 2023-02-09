@@ -2,11 +2,14 @@ use crate::infer::InferError;
 use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
+use opentelemetry::trace::TraceContextExt;
 use std::cmp::min;
 use text_generation_client::{Batch, Request};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit};
 use tokio::time::Instant;
+use tracing::{info_span, instrument, Span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// Queue entry
 #[derive(Debug)]
@@ -15,6 +18,10 @@ pub(crate) struct Entry {
     pub request: ValidGenerateRequest,
     /// Response sender to communicate between the Infer struct and the batching_task
     pub response_tx: UnboundedSender<Result<InferStreamResponse, InferError>>,
+    /// Request Span
+    pub parent_span: Span,
+    /// Batch Span
+    pub batch_span: Option<Span>,
     /// Instant when this entry was created
     pub time: Instant,
     /// Instant when this entry was added to a batch
@@ -42,13 +49,17 @@ impl Queue {
     }
 
     /// Append an entry to the queue
+    #[instrument(skip(self))]
     pub(crate) fn append(&self, entry: Entry) {
         // Send append command to the background task managing the state
         // Unwrap is safe here
-        self.queue_sender.send(QueueCommand::Append(entry)).unwrap();
+        self.queue_sender
+            .send(QueueCommand::Append(entry, Span::current()))
+            .unwrap();
     }
 
     // Get the next batch
+    #[instrument(skip(self))]
     pub(crate) async fn next_batch(
         &self,
         min_size: Option<usize>,
@@ -63,6 +74,7 @@ impl Queue {
                 min_size,
                 max_size,
                 response_sender,
+                span: Span::current(),
             })
             .unwrap();
         // Await on response channel
@@ -77,15 +89,16 @@ async fn queue_task(mut receiver: UnboundedReceiver<QueueCommand>) {
 
     while let Some(cmd) = receiver.recv().await {
         match cmd {
-            QueueCommand::Append(entry) => state.append(entry),
+            QueueCommand::Append(entry, span) => span.in_scope(|| state.append(entry)),
             QueueCommand::NextBatch {
                 min_size,
                 max_size,
                 response_sender,
-            } => {
+                span,
+            } => span.in_scope(|| {
                 let next_batch = state.next_batch(min_size, max_size);
                 response_sender.send(next_batch).unwrap_or(());
-            }
+            }),
         }
     }
 }
@@ -131,6 +144,7 @@ impl State {
             }
         }
 
+        let next_batch_span = info_span!("batch");
         let next_batch_size = min(self.entries.len(), max_size);
 
         let mut batch_requests = Vec::with_capacity(next_batch_size);
@@ -141,6 +155,13 @@ impl State {
         self.entries
             .drain(..next_batch_size)
             .for_each(|(id, mut entry)| {
+                // Create a new span for this entry/batch tuple
+                let entry_batch_span = info_span!(parent: &entry.parent_span, "infer");
+                // Add link to  span
+                entry_batch_span.add_link(next_batch_span.context().span().span_context().clone());
+                // Update entry
+                entry.batch_span = Some(entry_batch_span);
+
                 batch_requests.push(Request {
                     id,
                     inputs: entry.request.inputs.clone(),
@@ -162,19 +183,20 @@ impl State {
         // Increment batch id
         self.next_batch_id += 1;
 
-        Some((batch_entries, batch))
+        Some((batch_entries, batch, next_batch_span))
     }
 }
 
-type NextBatch = (IntMap<u64, Entry>, Batch);
+type NextBatch = (IntMap<u64, Entry>, Batch, Span);
 
 #[derive(Debug)]
 enum QueueCommand {
-    Append(Entry),
+    Append(Entry, Span),
     NextBatch {
         min_size: Option<usize>,
         max_size: usize,
         response_sender: oneshot::Sender<Option<NextBatch>>,
+        span: Span,
     },
 }
 
@@ -184,6 +206,7 @@ mod tests {
     use std::sync::Arc;
     use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
     use tokio::sync::{mpsc, Semaphore};
+    use tracing::info_span;
 
     fn default_entry() -> Entry {
         let semaphore = Arc::new(Semaphore::new(1));
@@ -208,6 +231,8 @@ mod tests {
                 },
             },
             response_tx,
+            parent_span: info_span!("entry"),
+            batch_span: None,
             time: Instant::now(),
             batch_time: None,
             _permit: permit,

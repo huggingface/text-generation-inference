@@ -2,7 +2,9 @@ import grpc
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.grpc._aio_server import OpenTelemetryAioServerInterceptor
+from opentelemetry.instrumentation.grpc._aio_server import (
+    OpenTelemetryAioServerInterceptor,
+)
 from opentelemetry.semconv.trace import SpanAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -14,15 +16,13 @@ from opentelemetry.sdk.trace.export import (
 from typing import Optional
 
 
-class OpenTelemetryAioServerInterceptorUnix(OpenTelemetryAioServerInterceptor):
+class UDSOpenTelemetryAioServerInterceptor(OpenTelemetryAioServerInterceptor):
     def __init__(self):
         super().__init__(trace.get_tracer(__name__))
 
-    def _start_span(
-            self, handler_call_details, context, set_status_on_exception=False
-    ):
+    def _start_span(self, handler_call_details, context, set_status_on_exception=False):
         """
-        Rewrite _start_span method to support Unix socket gRPC context
+        Rewrite _start_span method to support Unix Domain Socket gRPC contexts
         """
 
         # standard attributes
@@ -33,9 +33,7 @@ class OpenTelemetryAioServerInterceptorUnix(OpenTelemetryAioServerInterceptor):
 
         # if we have details about the call, split into service and method
         if handler_call_details.method:
-            service, method = handler_call_details.method.lstrip("/").split(
-                "/", 1
-            )
+            service, method = handler_call_details.method.lstrip("/").split("/", 1)
             attributes.update(
                 {
                     SpanAttributes.RPC_METHOD: method,
@@ -59,17 +57,12 @@ class OpenTelemetryAioServerInterceptorUnix(OpenTelemetryAioServerInterceptor):
         )
 
 
-def setup_tracing(shard: int, otlp_endpoint: Optional[str]):
-    resource = Resource.create(attributes={"service.name": f"text-generation-server.{shard}"})
+def setup_tracing(shard: int, otlp_endpoint: str):
+    resource = Resource.create(
+        attributes={"service.name": f"text-generation-inference.server-{shard}"}
+    )
+    span_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+    span_processor = BatchSpanProcessor(span_exporter)
 
     trace.set_tracer_provider(TracerProvider(resource=resource))
-
-    if otlp_endpoint is None:
-        # span_exporter = ConsoleSpanExporter(out=open(os.devnull, "w"))
-        span_exporter = ConsoleSpanExporter()
-        span_processor = SimpleSpanProcessor(span_exporter)
-    else:
-        span_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-        span_processor = BatchSpanProcessor(span_exporter)
-
     trace.get_tracer_provider().add_span_processor(span_processor)

@@ -18,7 +18,7 @@ use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::time::Instant;
 use tokio_stream::StreamExt;
-use tracing::instrument;
+use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -197,7 +197,7 @@ async fn generate_stream(
         let mut error = false;
         let details = req.0.parameters.details;
 
-        match infer.generate_stream(req.0).await {
+        match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
             Ok(mut response_stream) => {
                 // Server-Sent Event stream
                 while let Some(response) = response_stream.next().await {

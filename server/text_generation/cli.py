@@ -4,6 +4,7 @@ import typer
 
 from pathlib import Path
 from loguru import logger
+from typer import Argument
 from typing import Optional
 
 from text_generation import server, utils
@@ -19,9 +20,9 @@ def serve(
     sharded: bool = False,
     quantize: bool = False,
     uds_path: Path = "/tmp/text-generation",
-    otlp_endpoint: Optional[str] = None,
     logger_level: str = "INFO",
     json_output: bool = False,
+    otlp_endpoint: Optional[str] = Argument(None, envvar="OTLP_ENDPOINT"),
 ):
     if sharded:
         assert (
@@ -49,7 +50,8 @@ def serve(
         diagnose=False,
     )
     # Setup OpenTelemetry distributed tracing
-    setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
+    if otlp_endpoint is not None:
+        setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
 
     server.serve(model_id, revision, sharded, quantize, uds_path)
 
