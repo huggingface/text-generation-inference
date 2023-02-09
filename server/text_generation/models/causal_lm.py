@@ -1,6 +1,7 @@
 import torch
 
 from dataclasses import dataclass
+from opentelemetry import trace
 from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type
 
@@ -9,6 +10,7 @@ from text_generation.models.types import Batch, PrefillTokens, Generation, Gener
 from text_generation.pb import generate_pb2
 from text_generation.utils import NextTokenChooser, StoppingCriteria, Sampling
 
+tracer = trace.get_tracer(__name__)
 
 @dataclass
 class CausalLMBatch(Batch):
@@ -94,6 +96,7 @@ class CausalLMBatch(Batch):
         )
 
     @classmethod
+    @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["CausalLMBatch"]) -> "CausalLMBatch":
         # Used for padding
         total_batch_size = sum(batch.size for batch in batches)
@@ -273,6 +276,7 @@ class CausalLM(Model):
             generated_ids, skip_special_tokens=True, cleanup_tokenization_spaces=False
         )
 
+    @tracer.start_as_current_span("forward")
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
@@ -286,6 +290,7 @@ class CausalLM(Model):
         )
         return outputs.logits, outputs.past_key_values
 
+    @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: CausalLMBatch
     ) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
@@ -321,92 +326,93 @@ class CausalLM(Model):
             batch.all_input_ids,
         )
 
-        # For each member of the batch
-        for i, (
-            request,
-            input_length,
-            logits,
-            next_token_chooser,
-            stopping_criteria,
-            all_input_ids,
-        ) in enumerate(iterator):
-            # Select next token
-            tokens, logprobs = next_token_chooser(all_input_ids.view(1, -1), logits)
-            next_token_id = tokens[-1].view(1, 1)
+        with tracer.start_as_current_span("post_processing"):
+            # For each member of the batch
+            for i, (
+                request,
+                input_length,
+                logits,
+                next_token_chooser,
+                stopping_criteria,
+                all_input_ids,
+            ) in enumerate(iterator):
+                # Select next token
+                tokens, logprobs = next_token_chooser(all_input_ids.view(1, -1), logits)
+                next_token_id = tokens[-1].view(1, 1)
 
-            # Append next token to all tokens
-            all_input_ids = torch.cat([all_input_ids, next_token_id])
-            new_input_length = input_length + 1
+                # Append next token to all tokens
+                all_input_ids = torch.cat([all_input_ids, next_token_id])
+                new_input_length = input_length + 1
 
-            # Generated token
-            next_token_logprob = logprobs[-1, next_token_id]
-            next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.tokenizer.decode(
-                next_token_id_squeezed,
-                clean_up_tokenization_spaces=False,
-                skip_special_tokens=False,
-            )
-
-            # Evaluate stopping criteria
-            stop, reason = stopping_criteria(
-                next_token_id_squeezed,
-                next_token_text,
-            )
-
-            if stop:
-                # Decode generated tokens
-                output_text = self.decode(
-                    all_input_ids[-stopping_criteria.current_tokens :, 0]
-                )
-                # Get seed
-                if isinstance(next_token_chooser.choice, Sampling):
-                    seed = next_token_chooser.choice.seed
-                else:
-                    seed = None
-
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
-                )
-            else:
-                # Keep request in the batch
-                generated_text = None
-                next_batch_keep_indices.append(i)
-                next_batch_input_ids.append(next_token_id)
-                next_batch_all_input_ids.append(all_input_ids)
-                next_batch_size += 1
-                next_batch_input_lengths.append(new_input_length)
-                next_batch_max_sequence_length = max(
-                    next_batch_max_sequence_length, new_input_length
-                )
-
-            # Prefill
-            if stopping_criteria.current_tokens == 1:
-                # Remove generated token to only have prefill and add nan for first prompt token
-                prefill_logprobs = [float("nan")] + logprobs.gather(
-                    1, all_input_ids[1:]
-                ).squeeze(1)[-new_input_length:-1].tolist()
-                prefill_token_ids = all_input_ids[-new_input_length:-1]
-                prefill_texts = self.tokenizer.batch_decode(
-                    prefill_token_ids,
+                # Generated token
+                next_token_logprob = logprobs[-1, next_token_id]
+                next_token_id_squeezed = next_token_id.squeeze()
+                next_token_text = self.tokenizer.decode(
+                    next_token_id_squeezed,
                     clean_up_tokenization_spaces=False,
                     skip_special_tokens=False,
                 )
-                prefill_tokens = PrefillTokens(
-                    prefill_token_ids, prefill_logprobs, prefill_texts
+
+                # Evaluate stopping criteria
+                stop, reason = stopping_criteria(
+                    next_token_id_squeezed,
+                    next_token_text,
                 )
-            else:
-                prefill_tokens = None
 
-            generation = Generation(
-                request.id,
-                prefill_tokens,
-                next_token_id_squeezed,
-                next_token_logprob,
-                next_token_text,
-                generated_text,
-            )
+                if stop:
+                    # Decode generated tokens
+                    output_text = self.decode(
+                        all_input_ids[-stopping_criteria.current_tokens :, 0]
+                    )
+                    # Get seed
+                    if isinstance(next_token_chooser.choice, Sampling):
+                        seed = next_token_chooser.choice.seed
+                    else:
+                        seed = None
 
-            generations.append(generation)
+                    generated_text = GeneratedText(
+                        output_text, stopping_criteria.current_tokens, reason, seed
+                    )
+                else:
+                    # Keep request in the batch
+                    generated_text = None
+                    next_batch_keep_indices.append(i)
+                    next_batch_input_ids.append(next_token_id)
+                    next_batch_all_input_ids.append(all_input_ids)
+                    next_batch_size += 1
+                    next_batch_input_lengths.append(new_input_length)
+                    next_batch_max_sequence_length = max(
+                        next_batch_max_sequence_length, new_input_length
+                    )
+
+                # Prefill
+                if stopping_criteria.current_tokens == 1:
+                    # Remove generated token to only have prefill and add nan for first prompt token
+                    prefill_logprobs = [float("nan")] + logprobs.gather(
+                        1, all_input_ids[1:]
+                    ).squeeze(1)[-new_input_length:-1].tolist()
+                    prefill_token_ids = all_input_ids[-new_input_length:-1]
+                    prefill_texts = self.tokenizer.batch_decode(
+                        prefill_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    prefill_tokens = PrefillTokens(
+                        prefill_token_ids, prefill_logprobs, prefill_texts
+                    )
+                else:
+                    prefill_tokens = None
+
+                generation = Generation(
+                    request.id,
+                    prefill_tokens,
+                    next_token_id_squeezed,
+                    next_token_logprob,
+                    next_token_text,
+                    generated_text,
+                )
+
+                generations.append(generation)
 
         # We finished all generations in the batch; there is no next batch
         if not next_batch_keep_indices:

@@ -7,6 +7,7 @@ from loguru import logger
 from typing import Optional
 
 from text_generation import server, utils
+from text_generation.tracing import setup_tracing
 
 app = typer.Typer()
 
@@ -18,20 +19,10 @@ def serve(
     sharded: bool = False,
     quantize: bool = False,
     uds_path: Path = "/tmp/text-generation",
+    otlp_endpoint: Optional[str] = None,
     logger_level: str = "INFO",
     json_output: bool = False,
 ):
-    # Remove default handler
-    logger.remove()
-    logger.add(
-        sys.stdout,
-        format="{message}",
-        filter="text_generation",
-        level=logger_level,
-        serialize=json_output,
-        backtrace=True,
-        diagnose=False,
-    )
     if sharded:
         assert (
             os.getenv("RANK", None) is not None
@@ -45,6 +36,20 @@ def serve(
         assert (
             os.getenv("MASTER_PORT", None) is not None
         ), "MASTER_PORT must be set when sharded is True"
+
+    # Remove default handler
+    logger.remove()
+    logger.add(
+        sys.stdout,
+        format="{message}",
+        filter="text_generation",
+        level=logger_level,
+        serialize=json_output,
+        backtrace=True,
+        diagnose=False,
+    )
+    # Setup OpenTelemetry distributed tracing
+    setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
 
     server.serve(model_id, revision, sharded, quantize, uds_path)
 
