@@ -8,7 +8,7 @@ environment_variables:
   MODEL_ID: bigscience/bloom
   NUM_SHARD: 8
 environment:
-  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:0.2.1
+  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:sha-e520d5b
   inference_config:
     liveness_route:
       port: 80
