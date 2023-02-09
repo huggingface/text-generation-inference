@@ -163,6 +163,7 @@ def initialize_torch_distributed():
 
     if torch.cuda.is_available():
         from torch.distributed import ProcessGroupNCCL
+
         # Set the device id.
         assert world_size <= torch.cuda.device_count(), "Each process is one gpu"
         device = rank % torch.cuda.device_count()
@@ -181,7 +182,7 @@ def initialize_torch_distributed():
         world_size=world_size,
         rank=rank,
         timeout=timedelta(seconds=60),
-        pg_options=options
+        pg_options=options,
     )
 
     return torch.distributed.group.WORLD, rank, world_size

@@ -8,7 +8,7 @@ use text_generation_client::{Batch, Request};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit};
 use tokio::time::Instant;
-use tracing::{info_span, instrument, Span};
+use tracing::{info_span, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// Queue entry
@@ -49,7 +49,6 @@ impl Queue {
     }
 
     /// Append an entry to the queue
-    #[instrument(skip(self))]
     pub(crate) fn append(&self, entry: Entry) {
         // Send append command to the background task managing the state
         // Unwrap is safe here
@@ -59,7 +58,6 @@ impl Queue {
     }
 
     // Get the next batch
-    #[instrument(skip(self))]
     pub(crate) async fn next_batch(
         &self,
         min_size: Option<usize>,

@@ -12,6 +12,7 @@ from text_generation.utils import NextTokenChooser, StoppingCriteria, Sampling
 
 tracer = trace.get_tracer(__name__)
 
+
 @dataclass
 class CausalLMBatch(Batch):
     batch_id: int
