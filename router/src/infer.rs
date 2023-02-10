@@ -3,7 +3,6 @@ use crate::validation::{Validation, ValidationError};
 use crate::GenerateRequest;
 use crate::{Entry, Queue, Token};
 use nohash_hasher::IntMap;
-use opentelemetry::trace::TraceContextExt;
 use std::future::Future;
 use std::sync::Arc;
 use text_generation_client::{
@@ -14,8 +13,7 @@ use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
-use tracing::{info_span, instrument, Instrument};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing::{info_span, instrument, Instrument, Span};
 
 /// Inference struct
 #[derive(Clone)]
@@ -78,7 +76,14 @@ impl Infer {
     ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
         // This permit will live as long as Entry
-        let permit = self.clone().limit_concurrent_requests.try_acquire_owned()?;
+        let permit = self
+            .clone()
+            .limit_concurrent_requests
+            .try_acquire_owned()
+            .map_err(|err| {
+                tracing::error!("{err}");
+                err
+            })?;
 
         // Validate request
         let valid_request = self.validation.validate(request).await?;
@@ -90,9 +95,9 @@ impl Infer {
         self.queue.append(Entry {
             request: valid_request,
             response_tx,
-            parent_span: info_span!("entry"),
+            span: Span::current(),
             batch_span: None,
-            time: Instant::now(),
+            queue_time: Instant::now(),
             batch_time: None,
             _permit: permit,
         });
@@ -166,7 +171,9 @@ impl Infer {
                 start,
             })
         } else {
-            Err(InferError::IncompleteGeneration)
+            let err = InferError::IncompleteGeneration;
+            tracing::error!("{err}");
+            Err(err)
         }
     }
 }
@@ -235,13 +242,13 @@ async fn batching_task(
                         }
                     }
                 }
-                let next_batch_span = info_span!("batch");
+                // Create span for this batch to add context to inference calls
+                let next_batch_span = info_span!(parent: None, "batch");
                 entries.iter_mut().for_each(|(_, entry)| {
-                    // Create a new span for this entry/batch tuple
-                    let entry_batch_span = info_span!(parent: &entry.parent_span, "infer");
-                    // Add link to  span
-                    entry_batch_span
-                        .add_link(next_batch_span.context().span().span_context().clone());
+                    // Create a new span to link the batch back to this entry
+                    let entry_batch_span = info_span!(parent: &entry.span, "infer");
+                    // Add relationship
+                    entry_batch_span.follows_from(&next_batch_span);
                     // Update entry
                     entry.batch_span = Some(entry_batch_span);
                 });
@@ -268,7 +275,7 @@ async fn wrap_future(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
-            send_error(err, entries);
+            send_errors(err, entries);
             None
         }
     }
@@ -276,12 +283,17 @@ async fn wrap_future(
 
 /// Send errors to Infer for all `entries`
 #[instrument]
-fn send_error(error: ClientError, entries: &mut IntMap<u64, Entry>) {
+fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     entries.drain().for_each(|(_, entry)| {
+        // Create and enter a span to link this function back to the entry
+        let _send_error_span = info_span!(parent: entry.batch_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
+        let err = InferError::GenerationError(error.to_string());
+        tracing::error!("{err}");
+
         // unwrap_or is valid here as we don't care if the receiver is gone.
         entry
             .response_tx
-            .send(Err(InferError::GenerationError(error.to_string())))
+            .send(Err(err))
             .unwrap_or(());
     });
 }
@@ -296,6 +308,7 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
             .get(&generation.request_id)
             .expect("ID not found in entries. This is a bug.");
 
+        // Create and enter a span to link this function back to the entry
         let _generation_span = info_span!(parent: entry.batch_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation").entered();
 
         if let Some(prefill_tokens) = generation.prefill_tokens {
@@ -328,7 +341,7 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
                 .send(Ok(InferStreamResponse::End {
                     token,
                     generated_text,
-                    queued: entry.time,
+                    queued: entry.queue_time,
                     start: entry.batch_time.unwrap(),
                 }))
                 .unwrap_or(());

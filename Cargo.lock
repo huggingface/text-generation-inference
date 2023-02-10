@@ -2109,6 +2109,7 @@ dependencies = [
  "futures",
  "grpc-metadata",
  "prost",
+ "prost-build",
  "thiserror",
  "tokio",
  "tonic",

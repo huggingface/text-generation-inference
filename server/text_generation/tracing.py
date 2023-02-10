@@ -10,10 +10,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
-    ConsoleSpanExporter,
-    SimpleSpanProcessor,
 )
-from typing import Optional
 
 
 class UDSOpenTelemetryAioServerInterceptor(OpenTelemetryAioServerInterceptor):

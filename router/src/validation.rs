@@ -105,7 +105,12 @@ fn validation_worker(
     while let Some((request, response_tx, parent_span)) = receiver.blocking_recv() {
         parent_span.in_scope(|| {
             response_tx
-                .send(validate(request, &tokenizer, max_input_length, &mut rng))
+                .send(
+                    validate(request, &tokenizer, max_input_length, &mut rng).map_err(|err| {
+                        tracing::error!("{err}");
+                        err
+                    }),
+                )
                 .unwrap_or(())
         })
     }

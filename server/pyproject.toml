@@ -27,7 +27,7 @@ opentelemetry-instrumentation-grpc = "^0.36b0"
 bnb = ["bitsandbytes"]
 
 [tool.poetry.group.dev.dependencies]
-grpcio-tools = "^1.49.1"
+grpcio-tools = "^1.51.1"
 pytest = "^7.2.0"
 
 [build-system]

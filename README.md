@@ -46,6 +46,7 @@ to power LLMs api-inference widgets.
 - Logits warpers (temperature scaling, topk, repetition penalty ...)
 - Stop sequences
 - Log probabilities
+- Distributed tracing with Open Telemetry
 
 ## Officially supported models
 

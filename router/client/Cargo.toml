@@ -15,4 +15,5 @@ tracing = "^0.1"
 tracing-error = "^0.2"
 
 [build-dependencies]
-tonic-build = "^0.8"
+tonic-build = "0.8.4"
+prost-build = "0.11.6"

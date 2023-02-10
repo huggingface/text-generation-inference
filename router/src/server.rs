@@ -88,10 +88,7 @@ async fn generate(
 
     // Inference
     let details = req.0.parameters.details;
-    let response = infer.generate(req.0).await.map_err(|err| {
-        tracing::error!("{}", err.to_string());
-        err
-    })?;
+    let response = infer.generate(req.0).await?;
 
     // Token details
     let details = match details {
@@ -265,19 +262,17 @@ async fn generate_stream(
                                 }
                             }
                         }
-                        // Trace and yield error
+                        // yield error
                         Err(err) => {
                             error = true;
-                            tracing::error!("{}", err.to_string());
                             yield Ok(Event::from(err))
                         }
                     }
                 }
             },
-            // Trace and yield error
+            // yield error
             Err(err) => {
                 error = true;
-                tracing::error!("{}", err.to_string());
                 yield Ok(Event::from(err))
             }
         }
@@ -285,7 +280,7 @@ async fn generate_stream(
         // Skip if we already sent an error
         if !end_reached && !error {
             let err = InferError::IncompleteGeneration;
-            tracing::error!("{}", err.to_string());
+            tracing::error!("{err}");
             yield Ok(Event::from(err))
         }
     };
