@@ -36,16 +36,14 @@ class Sampling:
         self.seed = seed
 
     def __call__(self, logits):
-        probs = torch.nn.functional.softmax(logits, dim=-1)
-        next_tokens = torch.multinomial(
-            probs, num_samples=1, generator=self.generator
-        ).squeeze(1)
+        probs = torch.nn.functional.softmax(logits)
+        next_tokens = torch.multinomial(probs, num_samples=1, generator=self.generator)
         return next_tokens
 
 
 class Greedy:
     def __call__(self, logits):
-        return logits.argmax(dim=-1)
+        return logits.argmax()
 
 
 class NextTokenChooser:
@@ -87,8 +85,9 @@ class NextTokenChooser:
         logprobs = torch.log_softmax(scores, -1)
 
         # Choose tokens
-        next_ids = self.choice(scores)
-        return next_ids, logprobs
+        next_id = self.choice(scores[-1])
+
+        return next_id.view(1, 1), logprobs
 
     @classmethod
     def from_pb(

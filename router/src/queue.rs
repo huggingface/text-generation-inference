@@ -18,9 +18,8 @@ pub(crate) struct Entry {
     pub response_tx: UnboundedSender<Result<InferStreamResponse, InferError>>,
     /// Span that will live as long as entry
     pub span: Span,
-    /// Span for every inference batch
-    /// This span will only live as long as one prefill/decode
-    pub batch_span: Option<Span>,
+    /// Temporary span used as a guard when logging inference, wait times...
+    pub temp_span: Option<Span>,
     /// Instant when this entry was queued
     pub queue_time: Instant,
     /// Instant when this entry was added to a batch
@@ -125,7 +124,12 @@ impl State {
     }
 
     /// Append an entry to the queue
-    fn append(&mut self, entry: Entry) {
+    fn append(&mut self, mut entry: Entry) {
+        // Create a span that will live as long as the entry is in the queue waiting to be batched
+        let queue_span = info_span!(parent: &entry.span, "queued");
+        entry.temp_span = Some(queue_span);
+
+        // Push entry in the queue
         self.entries.push((self.next_id, entry));
         self.next_id += 1;
     }
@@ -163,7 +167,7 @@ impl State {
                 // Add relationship
                 entry_batch_span.follows_from(&next_batch_span);
                 // Update entry
-                entry.batch_span = Some(entry_batch_span);
+                entry.temp_span = Some(entry_batch_span);
 
                 batch_requests.push(Request {
                     id,
@@ -235,7 +239,7 @@ mod tests {
             },
             response_tx,
             span: info_span!("entry"),
-            batch_span: None,
+            temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
             _permit: permit,

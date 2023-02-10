@@ -96,7 +96,7 @@ impl Infer {
             request: valid_request,
             response_tx,
             span: Span::current(),
-            batch_span: None,
+            temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
             _permit: permit,
@@ -228,6 +228,18 @@ async fn batching_task(
                         .next_batch(min_size, max_batch_size - batch_size as usize)
                         .await
                     {
+                        let new_batch_size = new_batch.size;
+                        entries.iter_mut().for_each(|(_, entry)| {
+                            // Create a new span to add the info that this entry is waiting
+                            // because a new batch is being computed
+                            let entry_waiting_span =
+                                info_span!(parent: &entry.span, "waiting", batch_size = new_batch_size);
+                            // Add relationship
+                            entry_waiting_span.follows_from(&span);
+                            // Update entry
+                            entry.temp_span = Some(entry_waiting_span);
+                        });
+
                         // Generate one token for this new batch to have the attention past in cache
                         let new_cached_batch =
                             wrap_future(client.prefill(new_batch), &mut new_entries)
@@ -253,7 +265,7 @@ async fn batching_task(
                     // Add relationship
                     entry_batch_span.follows_from(&next_batch_span);
                     // Update entry
-                    entry.batch_span = Some(entry_batch_span);
+                    entry.temp_span = Some(entry_batch_span);
                 });
 
                 cached_batch = wrap_future(client.decode(batches), &mut entries)
@@ -289,7 +301,7 @@ async fn wrap_future(
 fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     entries.drain().for_each(|(_, entry)| {
         // Create and enter a span to link this function back to the entry
-        let _send_error_span = info_span!(parent: entry.batch_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
+        let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
         let err = InferError::GenerationError(error.to_string());
         tracing::error!("{err}");
 
@@ -312,7 +324,7 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
             .expect("ID not found in entries. This is a bug.");
 
         // Create and enter a span to link this function back to the entry
-        let _generation_span = info_span!(parent: entry.batch_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
+        let _generation_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
 
         if let Some(prefill_tokens) = generation.prefill_tokens {
             // Send message

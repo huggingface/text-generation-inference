@@ -76,7 +76,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
         queue_time,
         inference_time,
         time_per_token,
-        seed
+        seed,
     )
 )]
 async fn generate(
@@ -179,7 +179,8 @@ async fn generate(
         validation_time,
         queue_time,
         inference_time,
-        time_per_token
+        time_per_token,
+        seed,
     )
 )]
 async fn generate_stream(
@@ -241,13 +242,11 @@ async fn generate_stream(
 
                                     // Tracing metadata
                                     span.record("total_time", format!("{:?}", total_time));
-                                    span
-                                        .record("validation_time", format!("{:?}", validation_time));
+                                    span.record("validation_time", format!("{:?}", validation_time));
                                     span.record("queue_time", format!("{:?}", queue_time));
-                                    span
-                                        .record("inference_time", format!("{:?}", inference_time));
-                                    span
-                                        .record("time_per_token", format!("{:?}", time_per_token));
+                                    span.record("inference_time", format!("{:?}", inference_time));
+                                    span.record("time_per_token", format!("{:?}", time_per_token));
+                                    span.record("seed", format!("{:?}", generated_text.seed));
                                     tracing::info!(parent: &span, "Output: {}", generated_text.text);
 
                                     // StreamResponse
