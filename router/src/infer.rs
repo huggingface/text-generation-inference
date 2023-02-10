@@ -244,10 +244,12 @@ async fn batching_task(
                 }
                 // Create span for this batch to add context to inference calls
                 let next_batch_size = entries.len();
-                let next_batch_span = info_span!(parent: None, "batch", batch_size = next_batch_size);
+                let next_batch_span =
+                    info_span!(parent: None, "batch", batch_size = next_batch_size);
                 entries.iter_mut().for_each(|(_, entry)| {
                     // Create a new span to link the batch back to this entry
-                    let entry_batch_span = info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
+                    let entry_batch_span =
+                        info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
                     // Add relationship
                     entry_batch_span.follows_from(&next_batch_span);
                     // Update entry

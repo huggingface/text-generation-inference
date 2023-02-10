@@ -158,7 +158,8 @@ impl State {
             .drain(..next_batch_size)
             .for_each(|(id, mut entry)| {
                 // Create a new span to link the batch back to this entry
-                let entry_batch_span = info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
+                let entry_batch_span =
+                    info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
                 // Add relationship
                 entry_batch_span.follows_from(&next_batch_span);
                 // Update entry

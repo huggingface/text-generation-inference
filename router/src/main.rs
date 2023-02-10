@@ -118,10 +118,7 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
         .with_line_number(true);
 
     let fmt_layer = match json_output {
-        true => fmt_layer
-            .json()
-            .flatten_event(true)
-            .boxed(),
+        true => fmt_layer.json().flatten_event(true).boxed(),
         false => fmt_layer.boxed(),
     };
     layers.push(fmt_layer);
