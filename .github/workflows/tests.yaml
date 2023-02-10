@@ -23,6 +23,8 @@ jobs:
           toolchain: 1.65.0
           override: true
           components: rustfmt, clippy
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
       - name: Loading cache.
         uses: actions/cache@v2
         id: model_cache

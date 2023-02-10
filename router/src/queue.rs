@@ -267,7 +267,7 @@ mod tests {
         state.append(default_entry());
         state.append(default_entry());
 
-        let (entries, batch) = state.next_batch(None, 2).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 2).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -296,7 +296,7 @@ mod tests {
         state.append(default_entry());
         state.append(default_entry());
 
-        let (entries, batch) = state.next_batch(None, 1).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 1).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -308,7 +308,7 @@ mod tests {
 
         state.append(default_entry());
 
-        let (entries, batch) = state.next_batch(None, 3).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 3).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -340,7 +340,7 @@ mod tests {
         queue.append(default_entry());
         queue.append(default_entry());
 
-        let (entries, batch) = queue.next_batch(None, 2).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 2).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -360,7 +360,7 @@ mod tests {
         queue.append(default_entry());
         queue.append(default_entry());
 
-        let (entries, batch) = queue.next_batch(None, 1).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 1).await.unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -368,7 +368,7 @@ mod tests {
 
         queue.append(default_entry());
 
-        let (entries, batch) = queue.next_batch(None, 3).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 3).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));

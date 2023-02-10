@@ -1,4 +1,6 @@
-FROM rust:1.65 as router-builder
+FROM rust:1.67 as router-builder
+
+RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src
 
@@ -10,7 +12,7 @@ WORKDIR /usr/src/router
 
 RUN cargo install --path .
 
-FROM rust:1.65 as launcher-builder
+FROM rust:1.67 as launcher-builder
 
 WORKDIR /usr/src
 

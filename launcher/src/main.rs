@@ -165,7 +165,7 @@ fn main() -> ExitCode {
         "--port".to_string(),
         port.to_string(),
         "--master-shard-uds-path".to_string(),
-        format!("{}-0", shard_uds_path),
+        format!("{shard_uds_path}-0"),
         "--tokenizer-name".to_string(),
         model_id,
     ];
@@ -269,7 +269,7 @@ fn shard_manager(
     _shutdown_sender: mpsc::Sender<()>,
 ) {
     // Get UDS path
-    let uds_string = format!("{}-{}", uds_path, rank);
+    let uds_string = format!("{uds_path}-{rank}");
     let uds = Path::new(&uds_string);
     // Clean previous runs
     fs::remove_file(uds).unwrap_or_default();

@@ -142,6 +142,20 @@ conda create -n text-generation-inference python=3.9
 conda activate text-generation-inference
 ```
 
+You may also need to install Protoc.
+
+On Linux:
+
+```shell
+apt install -y protobuf-compiler
+```
+
+On MacOS, using Homebrew: 
+
+```shell
+brew install protobuf
+```
+
 Then run:
 
 ```shell

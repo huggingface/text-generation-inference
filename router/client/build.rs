@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .out_dir("src/pb")
         .include_file("mod.rs")
         .compile(&["../../proto/generate.proto"], &["../../proto"])
-        .unwrap_or_else(|e| panic!("protobuf compilation failed: {}", e));
+        .unwrap_or_else(|e| panic!("protobuf compilation failed: {e}"));
 
     Ok(())
 }

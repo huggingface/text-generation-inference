@@ -10,6 +10,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum_tracing_opentelemetry::opentelemetry_tracing_layer;
 use futures::Stream;
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -135,11 +136,11 @@ async fn generate(
     );
 
     // Tracing metadata
-    span.record("total_time", format!("{:?}", total_time));
-    span.record("validation_time", format!("{:?}", validation_time));
-    span.record("queue_time", format!("{:?}", queue_time));
-    span.record("inference_time", format!("{:?}", inference_time));
-    span.record("time_per_token", format!("{:?}", time_per_token));
+    span.record("total_time", format!("{total_time:?}"));
+    span.record("validation_time", format!("{validation_time:?}"));
+    span.record("queue_time", format!("{queue_time:?}"));
+    span.record("inference_time", format!("{inference_time:?}"));
+    span.record("time_per_token", format!("{time_per_token:?}"));
     span.record("seed", format!("{:?}", response.generated_text.seed));
     tracing::info!("Output: {}", response.generated_text.text);
 
@@ -355,7 +356,8 @@ pub async fn run(
         .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
         .route("/health", get(health))
-        .layer(Extension(infer));
+        .layer(Extension(infer))
+        .layer(opentelemetry_tracing_layer());
 
     // Run server
     axum::Server::bind(&addr)
