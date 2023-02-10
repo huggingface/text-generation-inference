@@ -27,6 +27,7 @@ to power LLMs api-inference widgets.
   - [Docker](#docker)
   - [API Documentation](#api-documentation)
   - [A note on Shared Memory](#a-note-on-shared-memory-shm)
+  - [Distributed Tracing](#distributed-tracing)
   - [Local Install](#local-install)
   - [CUDA Kernels](#cuda-kernels)
 - [Run BLOOM](#run-bloom)
@@ -102,6 +103,11 @@ curl 127.0.0.1:8080/generate_stream \
 
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route.
 The Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
+
+### Distributed Tracing
+
+`text-generation-inference` is instrumented with distributed tracing using OpenTelemetry. You can use this feature
+by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
 
 ### A note on Shared Memory (shm)
 

@@ -243,10 +243,11 @@ async fn batching_task(
                     }
                 }
                 // Create span for this batch to add context to inference calls
-                let next_batch_span = info_span!(parent: None, "batch");
+                let next_batch_size = entries.len();
+                let next_batch_span = info_span!(parent: None, "batch", batch_size = next_batch_size);
                 entries.iter_mut().for_each(|(_, entry)| {
                     // Create a new span to link the batch back to this entry
-                    let entry_batch_span = info_span!(parent: &entry.span, "infer");
+                    let entry_batch_span = info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
                     // Add relationship
                     entry_batch_span.follows_from(&next_batch_span);
                     // Update entry
@@ -263,7 +264,7 @@ async fn batching_task(
 }
 
 /// Wrap a future inside a match statement to handle errors and send the responses to Infer
-#[instrument(skip(future))]
+#[instrument(skip_all)]
 async fn wrap_future(
     future: impl Future<Output = Result<(Vec<Generation>, Option<Batch>), ClientError>>,
     entries: &mut IntMap<u64, Entry>,
@@ -282,7 +283,7 @@ async fn wrap_future(
 }
 
 /// Send errors to Infer for all `entries`
-#[instrument]
+#[instrument(skip_all)]
 fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     entries.drain().for_each(|(_, entry)| {
         // Create and enter a span to link this function back to the entry
@@ -299,7 +300,7 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
 }
 
 /// Send one or multiple `InferStreamResponse` to Infer for all `entries`
-#[instrument]
+#[instrument(skip_all)]
 fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
     generations.into_iter().for_each(|generation| {
         // Get entry
@@ -309,7 +310,7 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
             .expect("ID not found in entries. This is a bug.");
 
         // Create and enter a span to link this function back to the entry
-        let _generation_span = info_span!(parent: entry.batch_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation").entered();
+        let _generation_span = info_span!(parent: entry.batch_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
 
         if let Some(prefill_tokens) = generation.prefill_tokens {
             // Send message

@@ -121,7 +121,6 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
         true => fmt_layer
             .json()
             .flatten_event(true)
-            .with_span_list(false)
             .boxed(),
         false => fmt_layer.boxed(),
     };

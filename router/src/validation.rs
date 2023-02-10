@@ -37,7 +37,7 @@ impl Validation {
     }
 
     /// Validate a payload and get the number of tokens in the input
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     pub(crate) async fn validate(
         &self,
         request: GenerateRequest,

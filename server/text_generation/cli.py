@@ -4,7 +4,6 @@ import typer
 
 from pathlib import Path
 from loguru import logger
-from typer import Argument
 from typing import Optional
 
 from text_generation import server, utils
@@ -22,7 +21,7 @@ def serve(
     uds_path: Path = "/tmp/text-generation",
     logger_level: str = "INFO",
     json_output: bool = False,
-    otlp_endpoint: Optional[str] = Argument(None, envvar="OTLP_ENDPOINT"),
+    otlp_endpoint: Optional[str] = None,
 ):
     if sharded:
         assert (

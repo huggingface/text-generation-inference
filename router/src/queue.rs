@@ -48,7 +48,7 @@ impl Queue {
     }
 
     /// Append an entry to the queue
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     pub(crate) fn append(&self, entry: Entry) {
         // Send append command to the background task managing the state
         // Unwrap is safe here
@@ -143,11 +143,11 @@ impl State {
             }
         }
 
-        // Create span for this batch to add context to inference calls
-        let next_batch_span = info_span!(parent: None, "batch");
-        next_batch_span.follows_from(&Span::current());
-
         let next_batch_size = min(self.entries.len(), max_size);
+
+        // Create span for this batch to add context to inference calls
+        let next_batch_span = info_span!(parent: None, "batch", batch_size = next_batch_size);
+        next_batch_span.follows_from(&Span::current());
 
         let mut batch_requests = Vec::with_capacity(next_batch_size);
         let mut batch_entries =
@@ -158,7 +158,7 @@ impl State {
             .drain(..next_batch_size)
             .for_each(|(id, mut entry)| {
                 // Create a new span to link the batch back to this entry
-                let entry_batch_span = info_span!(parent: &entry.span, "infer");
+                let entry_batch_span = info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
                 // Add relationship
                 entry_batch_span.follows_from(&next_batch_span);
                 // Update entry
