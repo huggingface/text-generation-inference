@@ -154,7 +154,7 @@ You may also need to install Protoc.
 On Linux:
 
 ```shell
-apt install -y protobuf-compiler
+sudo apt install -y protobuf-compiler
 ```
 
 On MacOS, using Homebrew: 
