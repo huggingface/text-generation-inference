@@ -60,8 +60,24 @@ def download_weights(
     model_id: str,
     revision: Optional[str] = None,
     extension: str = ".safetensors",
+    convert: bool = False,
 ):
-    utils.download_weights(model_id, revision, extension)
+    try:
+        filenames = utils.weight_hub_files(model_id, revision, extension)
+        utils.download_weights(model_id, revision, filenames)
+    except utils.EntryNotFoundError as e:
+        if not convert or not extension == ".safetensors":
+            raise e
+        # Try to see if there are pytorch weights
+        pt_filenames = utils.weight_hub_files(model_id, revision, ".bin")
+        # Download pytorch weights
+        local_pt_files = utils.download_weights(model_id, revision, pt_filenames)
+        local_st_files = [
+            p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors"
+            for p in local_pt_files
+        ]
+        # Convert pytorch weights to safetensors
+        utils.convert_files(local_pt_files, local_st_files)
 
 
 if __name__ == "__main__":

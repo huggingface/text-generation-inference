@@ -1,7 +1,7 @@
 import torch
 import torch.distributed
 
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from text_generation.models import CausalLM

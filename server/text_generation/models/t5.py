@@ -20,7 +20,6 @@ from text_generation.models import Seq2SeqLM
 from text_generation.utils import (
     initialize_torch_distributed,
     weight_files,
-    download_weights,
 )
 
 HAS_BITS_AND_BYTES = True
@@ -53,14 +52,8 @@ class T5Sharded(Seq2SeqLM):
         )
         tokenizer.bos_token_id = config.decoder_start_token_id
 
-        # Only master download weights
-        if self.master:
-            download_weights(model_id, revision=revision, extension=".safetensors")
-
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-        if not filenames:
-            raise ValueError("No safetensors weights found")
 
         with init_empty_weights():
             model = AutoModelForSeq2SeqLM.from_config(config)
