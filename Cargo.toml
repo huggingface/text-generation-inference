@@ -2,6 +2,7 @@
 members = [
     "router",
     "router/client",
+    "router/grpc-metadata",
     "launcher"
 ]
 

@@ -1,6 +1,7 @@
 import torch
 
 from dataclasses import dataclass
+from opentelemetry import trace
 from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type
 
@@ -8,6 +9,8 @@ from text_generation.models import Model
 from text_generation.models.types import Batch, PrefillTokens, Generation, GeneratedText
 from text_generation.pb import generate_pb2
 from text_generation.utils import NextTokenChooser, StoppingCriteria, Sampling
+
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -94,6 +97,7 @@ class CausalLMBatch(Batch):
         )
 
     @classmethod
+    @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["CausalLMBatch"]) -> "CausalLMBatch":
         # Used for padding
         total_batch_size = sum(batch.size for batch in batches)
@@ -286,6 +290,7 @@ class CausalLM(Model):
         )
         return outputs.logits, outputs.past_key_values
 
+    @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: CausalLMBatch
     ) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
@@ -331,8 +336,9 @@ class CausalLM(Model):
             all_input_ids,
         ) in enumerate(iterator):
             # Select next token
-            tokens, logprobs = next_token_chooser(all_input_ids.view(1, -1), logits)
-            next_token_id = tokens[-1].view(1, 1)
+            next_token_id, logprobs = next_token_chooser(
+                all_input_ids.view(1, -1), logits
+            )
 
             # Append next token to all tokens
             all_input_ids = torch.cat([all_input_ids, next_token_id])

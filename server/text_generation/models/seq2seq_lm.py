@@ -1,6 +1,7 @@
 import torch
 
 from dataclasses import dataclass
+from opentelemetry import trace
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type
 
@@ -8,6 +9,8 @@ from text_generation.models import Model
 from text_generation.models.types import GeneratedText, Batch, Generation, PrefillTokens
 from text_generation.pb import generate_pb2
 from text_generation.utils import NextTokenChooser, StoppingCriteria, Sampling
+
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -107,6 +110,7 @@ class Seq2SeqLMBatch(Batch):
         )
 
     @classmethod
+    @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["Seq2SeqLMBatch"]) -> "Seq2SeqLMBatch":
         """Concatenate multiple batches together by padding internal torch tensors"""
 
@@ -361,6 +365,7 @@ class Seq2SeqLM(Model):
             outputs.past_key_values,
         )
 
+    @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: Seq2SeqLMBatch
     ) -> Tuple[List[Generation], Optional[Seq2SeqLMBatch]]:
@@ -418,7 +423,7 @@ class Seq2SeqLM(Model):
             )
 
             # Append next token to decoder tokens
-            decoder_input_ids = torch.cat([decoder_input_ids, next_token_id])
+            decoder_input_ids = torch.cat([decoder_input_ids, next_token_id.squeeze(1)])
             new_decoder_input_length = decoder_input_length + 1
 
             # Generated token

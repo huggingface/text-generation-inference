@@ -27,6 +27,7 @@ to power LLMs api-inference widgets.
   - [Docker](#docker)
   - [API Documentation](#api-documentation)
   - [A note on Shared Memory](#a-note-on-shared-memory-shm)
+  - [Distributed Tracing](#distributed-tracing)
   - [Local Install](#local-install)
   - [CUDA Kernels](#cuda-kernels)
 - [Run BLOOM](#run-bloom)
@@ -46,6 +47,7 @@ to power LLMs api-inference widgets.
 - Logits warpers (temperature scaling, topk, repetition penalty ...)
 - Stop sequences
 - Log probabilities
+- Distributed tracing with Open Telemetry
 
 ## Officially supported models
 
@@ -102,6 +104,11 @@ curl 127.0.0.1:8080/generate_stream \
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route.
 The Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
 
+### Distributed Tracing
+
+`text-generation-inference` is instrumented with distributed tracing using OpenTelemetry. You can use this feature
+by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
+
 ### A note on Shared Memory (shm)
 
 [`NCCL`](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html) is a communication framework used by 
@@ -140,6 +147,24 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 conda create -n text-generation-inference python=3.9 
 conda activate text-generation-inference
+```
+
+You may also need to install Protoc.
+
+On Linux:
+
+```shell
+PROTOC_ZIP=protoc-21.12-linux-x86_64.zip
+curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP
+sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
+sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
+rm -f $PROTOC_ZIP
+```
+
+On MacOS, using Homebrew: 
+
+```shell
+brew install protobuf
 ```
 
 Then run:

@@ -6,6 +6,7 @@ use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParamet
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::{mpsc, oneshot};
+use tracing::{instrument, Span};
 
 const MAX_MAX_NEW_TOKENS: u32 = 512;
 const MAX_STOP_SEQUENCES: usize = 4;
@@ -36,6 +37,7 @@ impl Validation {
     }
 
     /// Validate a payload and get the number of tokens in the input
+    #[instrument(skip_all)]
     pub(crate) async fn validate(
         &self,
         request: GenerateRequest,
@@ -44,7 +46,10 @@ impl Validation {
         let (sender, receiver) = oneshot::channel();
         // Send request to the background validation task
         // Unwrap is safe here
-        self.sender.send((request, sender)).await.unwrap();
+        self.sender
+            .send((request, sender, Span::current()))
+            .await
+            .unwrap();
         // Await on response channel
         // Unwrap is safe here
         receiver.await.unwrap()
@@ -97,10 +102,17 @@ fn validation_worker(
     let mut rng = rand::thread_rng();
 
     // Loop over requests
-    while let Some((request, response_tx)) = receiver.blocking_recv() {
-        response_tx
-            .send(validate(request, &tokenizer, max_input_length, &mut rng))
-            .unwrap_or(())
+    while let Some((request, response_tx, parent_span)) = receiver.blocking_recv() {
+        parent_span.in_scope(|| {
+            response_tx
+                .send(
+                    validate(request, &tokenizer, max_input_length, &mut rng).map_err(|err| {
+                        tracing::error!("{err}");
+                        err
+                    }),
+                )
+                .unwrap_or(())
+        })
     }
 }
 
@@ -203,6 +215,7 @@ fn validate(
 type ValidationRequest = (
     GenerateRequest,
     oneshot::Sender<Result<ValidGenerateRequest, ValidationError>>,
+    Span,
 );
 
 #[derive(Debug)]

@@ -7,6 +7,7 @@ use text_generation_client::{Batch, Request};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit};
 use tokio::time::Instant;
+use tracing::{info_span, instrument, Span};
 
 /// Queue entry
 #[derive(Debug)]
@@ -15,8 +16,12 @@ pub(crate) struct Entry {
     pub request: ValidGenerateRequest,
     /// Response sender to communicate between the Infer struct and the batching_task
     pub response_tx: UnboundedSender<Result<InferStreamResponse, InferError>>,
-    /// Instant when this entry was created
-    pub time: Instant,
+    /// Span that will live as long as entry
+    pub span: Span,
+    /// Temporary span used as a guard when logging inference, wait times...
+    pub temp_span: Option<Span>,
+    /// Instant when this entry was queued
+    pub queue_time: Instant,
     /// Instant when this entry was added to a batch
     pub batch_time: Option<Instant>,
     /// Permit
@@ -42,13 +47,17 @@ impl Queue {
     }
 
     /// Append an entry to the queue
+    #[instrument(skip_all)]
     pub(crate) fn append(&self, entry: Entry) {
         // Send append command to the background task managing the state
         // Unwrap is safe here
-        self.queue_sender.send(QueueCommand::Append(entry)).unwrap();
+        self.queue_sender
+            .send(QueueCommand::Append(entry, Span::current()))
+            .unwrap();
     }
 
     // Get the next batch
+    #[instrument(skip(self))]
     pub(crate) async fn next_batch(
         &self,
         min_size: Option<usize>,
@@ -63,6 +72,7 @@ impl Queue {
                 min_size,
                 max_size,
                 response_sender,
+                span: Span::current(),
             })
             .unwrap();
         // Await on response channel
@@ -77,15 +87,16 @@ async fn queue_task(mut receiver: UnboundedReceiver<QueueCommand>) {
 
     while let Some(cmd) = receiver.recv().await {
         match cmd {
-            QueueCommand::Append(entry) => state.append(entry),
+            QueueCommand::Append(entry, span) => span.in_scope(|| state.append(entry)),
             QueueCommand::NextBatch {
                 min_size,
                 max_size,
                 response_sender,
-            } => {
+                span,
+            } => span.in_scope(|| {
                 let next_batch = state.next_batch(min_size, max_size);
                 response_sender.send(next_batch).unwrap_or(());
-            }
+            }),
         }
     }
 }
@@ -113,7 +124,12 @@ impl State {
     }
 
     /// Append an entry to the queue
-    fn append(&mut self, entry: Entry) {
+    fn append(&mut self, mut entry: Entry) {
+        // Create a span that will live as long as the entry is in the queue waiting to be batched
+        let queue_span = info_span!(parent: &entry.span, "queued");
+        entry.temp_span = Some(queue_span);
+
+        // Push entry in the queue
         self.entries.push((self.next_id, entry));
         self.next_id += 1;
     }
@@ -133,6 +149,10 @@ impl State {
 
         let next_batch_size = min(self.entries.len(), max_size);
 
+        // Create span for this batch to add context to inference calls
+        let next_batch_span = info_span!(parent: None, "batch", batch_size = next_batch_size);
+        next_batch_span.follows_from(&Span::current());
+
         let mut batch_requests = Vec::with_capacity(next_batch_size);
         let mut batch_entries =
             IntMap::with_capacity_and_hasher(next_batch_size, BuildNoHashHasher::default());
@@ -141,6 +161,14 @@ impl State {
         self.entries
             .drain(..next_batch_size)
             .for_each(|(id, mut entry)| {
+                // Create a new span to link the batch back to this entry
+                let entry_batch_span =
+                    info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
+                // Add relationship
+                entry_batch_span.follows_from(&next_batch_span);
+                // Update entry
+                entry.temp_span = Some(entry_batch_span);
+
                 batch_requests.push(Request {
                     id,
                     inputs: entry.request.inputs.clone(),
@@ -162,19 +190,20 @@ impl State {
         // Increment batch id
         self.next_batch_id += 1;
 
-        Some((batch_entries, batch))
+        Some((batch_entries, batch, next_batch_span))
     }
 }
 
-type NextBatch = (IntMap<u64, Entry>, Batch);
+type NextBatch = (IntMap<u64, Entry>, Batch, Span);
 
 #[derive(Debug)]
 enum QueueCommand {
-    Append(Entry),
+    Append(Entry, Span),
     NextBatch {
         min_size: Option<usize>,
         max_size: usize,
         response_sender: oneshot::Sender<Option<NextBatch>>,
+        span: Span,
     },
 }
 
@@ -184,6 +213,7 @@ mod tests {
     use std::sync::Arc;
     use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
     use tokio::sync::{mpsc, Semaphore};
+    use tracing::info_span;
 
     fn default_entry() -> Entry {
         let semaphore = Arc::new(Semaphore::new(1));
@@ -208,7 +238,9 @@ mod tests {
                 },
             },
             response_tx,
-            time: Instant::now(),
+            span: info_span!("entry"),
+            temp_span: None,
+            queue_time: Instant::now(),
             batch_time: None,
             _permit: permit,
         }
@@ -244,7 +276,7 @@ mod tests {
         state.append(default_entry());
         state.append(default_entry());
 
-        let (entries, batch) = state.next_batch(None, 2).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 2).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -273,7 +305,7 @@ mod tests {
         state.append(default_entry());
         state.append(default_entry());
 
-        let (entries, batch) = state.next_batch(None, 1).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 1).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -285,7 +317,7 @@ mod tests {
 
         state.append(default_entry());
 
-        let (entries, batch) = state.next_batch(None, 3).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 3).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -317,7 +349,7 @@ mod tests {
         queue.append(default_entry());
         queue.append(default_entry());
 
-        let (entries, batch) = queue.next_batch(None, 2).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 2).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -337,7 +369,7 @@ mod tests {
         queue.append(default_entry());
         queue.append(default_entry());
 
-        let (entries, batch) = queue.next_batch(None, 1).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 1).await.unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -345,7 +377,7 @@ mod tests {
 
         queue.append(default_entry());
 
-        let (entries, batch) = queue.next_batch(None, 3).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 3).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));

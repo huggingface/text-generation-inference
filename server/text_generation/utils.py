@@ -36,16 +36,14 @@ class Sampling:
         self.seed = seed
 
     def __call__(self, logits):
-        probs = torch.nn.functional.softmax(logits, dim=-1)
-        next_tokens = torch.multinomial(
-            probs, num_samples=1, generator=self.generator
-        ).squeeze(1)
+        probs = torch.nn.functional.softmax(logits)
+        next_tokens = torch.multinomial(probs, num_samples=1, generator=self.generator)
         return next_tokens
 
 
 class Greedy:
     def __call__(self, logits):
-        return logits.argmax(dim=-1)
+        return logits.argmax()
 
 
 class NextTokenChooser:
@@ -87,8 +85,9 @@ class NextTokenChooser:
         logprobs = torch.log_softmax(scores, -1)
 
         # Choose tokens
-        next_ids = self.choice(scores)
-        return next_ids, logprobs
+        next_id = self.choice(scores[-1])
+
+        return next_id.view(1, 1), logprobs
 
     @classmethod
     def from_pb(
@@ -163,6 +162,7 @@ def initialize_torch_distributed():
 
     if torch.cuda.is_available():
         from torch.distributed import ProcessGroupNCCL
+
         # Set the device id.
         assert world_size <= torch.cuda.device_count(), "Each process is one gpu"
         device = rank % torch.cuda.device_count()
@@ -181,7 +181,7 @@ def initialize_torch_distributed():
         world_size=world_size,
         rank=rank,
         timeout=timedelta(seconds=60),
-        pg_options=options
+        pg_options=options,
     )
 
     return torch.distributed.group.WORLD, rank, world_size

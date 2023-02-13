@@ -4,6 +4,7 @@ use crate::{Batch, Client, Generation};
 use futures::future::join_all;
 use futures::future::select_all;
 use tonic::transport::Uri;
+use tracing::instrument;
 
 /// Text Generation Inference gRPC multi client
 pub struct ShardedClient {
@@ -38,6 +39,7 @@ impl ShardedClient {
     }
 
     /// Clear the past generations cache
+    #[instrument(skip(self))]
     pub async fn clear_cache(&mut self) -> Result<()> {
         let futures: Vec<_> = self
             .clients
@@ -51,6 +53,7 @@ impl ShardedClient {
     ///
     /// Returns Generation for each request in batch
     /// and the next cached batch
+    #[instrument(skip_all, fields(id = &batch.id, size = &batch.size))]
     pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
         let futures: Vec<_> = self
             .clients
@@ -66,6 +69,7 @@ impl ShardedClient {
     ///
     /// Returns Generation for each request in batches
     /// and the next cached batch
+    #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>()))]
     pub async fn decode(
         &mut self,
         batches: Vec<Batch>,

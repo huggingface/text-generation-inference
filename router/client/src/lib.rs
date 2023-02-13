@@ -17,21 +17,25 @@ use tonic::Status;
 
 #[derive(Error, Debug, Clone)]
 pub enum ClientError {
-    #[error("Could not connect to Text Generation server: {0:?}")]
+    #[error("Could not connect to Text Generation server: {0}")]
     Connection(String),
-    #[error("Server error: {0:?}")]
+    #[error("Server error: {0}")]
     Generation(String),
 }
 
 impl From<Status> for ClientError {
     fn from(err: Status) -> Self {
-        Self::Generation(err.message().to_string())
+        let err = Self::Generation(err.message().to_string());
+        tracing::error!("{err}");
+        err
     }
 }
 
 impl From<transport::Error> for ClientError {
     fn from(err: transport::Error) -> Self {
-        Self::Connection(err.to_string())
+        let err = Self::Connection(err.to_string());
+        tracing::error!("{err}");
+        err
     }
 }
 

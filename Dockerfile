@@ -1,4 +1,10 @@
-FROM rust:1.65 as router-builder
+FROM rust:1.67 as router-builder
+
+RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
+    curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
+    unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
+    unzip -o $PROTOC_ZIP -d /usr/local 'include/*' && \
+    rm -f $PROTOC_ZIP
 
 WORKDIR /usr/src
 
@@ -10,7 +16,7 @@ WORKDIR /usr/src/router
 
 RUN cargo install --path .
 
-FROM rust:1.65 as launcher-builder
+FROM rust:1.67 as launcher-builder
 
 WORKDIR /usr/src
 

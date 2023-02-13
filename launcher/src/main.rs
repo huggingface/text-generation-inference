@@ -44,6 +44,8 @@ struct Args {
     master_port: usize,
     #[clap(long, env)]
     json_output: bool,
+    #[clap(long, env)]
+    otlp_endpoint: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -62,6 +64,7 @@ fn main() -> ExitCode {
         master_addr,
         master_port,
         json_output,
+        otlp_endpoint,
     } = Args::parse();
 
     if json_output {
@@ -99,6 +102,7 @@ fn main() -> ExitCode {
         let status_sender = status_sender.clone();
         let shutdown = shutdown.clone();
         let shutdown_sender = shutdown_sender.clone();
+        let otlp_endpoint = otlp_endpoint.clone();
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -109,6 +113,7 @@ fn main() -> ExitCode {
                 num_shard,
                 master_addr,
                 master_port,
+                otlp_endpoint,
                 status_sender,
                 shutdown,
                 shutdown_sender,
@@ -165,13 +170,19 @@ fn main() -> ExitCode {
         "--port".to_string(),
         port.to_string(),
         "--master-shard-uds-path".to_string(),
-        format!("{}-0", shard_uds_path),
+        format!("{shard_uds_path}-0"),
         "--tokenizer-name".to_string(),
         model_id,
     ];
 
     if json_output {
         argv.push("--json-output".to_string());
+    }
+
+    // OpenTelemetry
+    if let Some(otlp_endpoint) = otlp_endpoint {
+        argv.push("--otlp-endpoint".to_string());
+        argv.push(otlp_endpoint);
     }
 
     let mut webserver = match Popen::create(
@@ -264,12 +275,13 @@ fn shard_manager(
     world_size: usize,
     master_addr: String,
     master_port: usize,
+    otlp_endpoint: Option<String>,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<Mutex<bool>>,
     _shutdown_sender: mpsc::Sender<()>,
 ) {
     // Get UDS path
-    let uds_string = format!("{}-{}", uds_path, rank);
+    let uds_string = format!("{uds_path}-{rank}");
     let uds = Path::new(&uds_string);
     // Clean previous runs
     fs::remove_file(uds).unwrap_or_default();
@@ -286,6 +298,7 @@ fn shard_manager(
         "--json-output".to_string(),
     ];
 
+    // Activate tensor parallelism
     if world_size > 1 {
         shard_argv.push("--sharded".to_string());
     }
@@ -294,9 +307,16 @@ fn shard_manager(
         shard_argv.push("--quantize".to_string())
     }
 
+    // Model optional revision
     if let Some(revision) = revision {
         shard_argv.push("--revision".to_string());
         shard_argv.push(revision)
+    }
+
+    // OpenTelemetry
+    if let Some(otlp_endpoint) = otlp_endpoint {
+        shard_argv.push("--otlp-endpoint".to_string());
+        shard_argv.push(otlp_endpoint);
     }
 
     let mut env = vec![

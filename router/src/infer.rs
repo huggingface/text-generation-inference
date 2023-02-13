@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
-use tracing::instrument;
+use tracing::{info_span, instrument, Instrument, Span};
 
 /// Inference struct
 #[derive(Clone)]
@@ -69,13 +69,21 @@ impl Infer {
     }
 
     /// Add a new request to the queue and return a stream of InferStreamResponse
+    #[instrument(skip(self))]
     pub(crate) async fn generate_stream(
         &self,
         request: GenerateRequest,
     ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
         // This permit will live as long as Entry
-        let permit = self.clone().limit_concurrent_requests.try_acquire_owned()?;
+        let permit = self
+            .clone()
+            .limit_concurrent_requests
+            .try_acquire_owned()
+            .map_err(|err| {
+                tracing::error!("{err}");
+                err
+            })?;
 
         // Validate request
         let valid_request = self.validation.validate(request).await?;
@@ -87,7 +95,9 @@ impl Infer {
         self.queue.append(Entry {
             request: valid_request,
             response_tx,
-            time: Instant::now(),
+            span: Span::current(),
+            temp_span: None,
+            queue_time: Instant::now(),
             batch_time: None,
             _permit: permit,
         });
@@ -101,6 +111,7 @@ impl Infer {
     }
 
     /// Add a new request to the queue and return a InferResponse
+    #[instrument(skip(self))]
     pub(crate) async fn generate(
         &self,
         request: GenerateRequest,
@@ -160,7 +171,9 @@ impl Infer {
                 start,
             })
         } else {
-            Err(InferError::IncompleteGeneration)
+            let err = InferError::IncompleteGeneration;
+            tracing::error!("{err}");
+            Err(err)
         }
     }
 }
@@ -169,7 +182,6 @@ impl Infer {
 /// Will be launched in a background Tokio task
 ///
 /// Batches requests and sends them to the inference server
-#[instrument(skip(client, queue, shared))]
 async fn batching_task(
     mut client: ShardedClient,
     max_batch_size: usize,
@@ -188,8 +200,10 @@ async fn batching_task(
         // Get the next batch from the queue
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the queue
-        while let Some((mut entries, batch)) = queue.next_batch(None, max_batch_size).await {
-            let mut cached_batch = wrap_future(client.prefill(batch), &mut entries).await;
+        while let Some((mut entries, batch, span)) = queue.next_batch(None, max_batch_size).await {
+            let mut cached_batch = wrap_future(client.prefill(batch), &mut entries)
+                .instrument(span)
+                .await;
             let mut waiting_tokens = 1;
 
             // We loop until we do not receive any cached batch from the inference server (== until
@@ -210,13 +224,27 @@ async fn batching_task(
                     };
 
                     // Try to get a new batch
-                    if let Some((mut new_entries, new_batch)) = queue
+                    if let Some((mut new_entries, new_batch, span)) = queue
                         .next_batch(min_size, max_batch_size - batch_size as usize)
                         .await
                     {
+                        let new_batch_size = new_batch.size;
+                        entries.iter_mut().for_each(|(_, entry)| {
+                            // Create a new span to add the info that this entry is waiting
+                            // because a new batch is being computed
+                            let entry_waiting_span =
+                                info_span!(parent: &entry.span, "waiting", batch_size = new_batch_size);
+                            // Add relationship
+                            entry_waiting_span.follows_from(&span);
+                            // Update entry
+                            entry.temp_span = Some(entry_waiting_span);
+                        });
+
                         // Generate one token for this new batch to have the attention past in cache
                         let new_cached_batch =
-                            wrap_future(client.prefill(new_batch), &mut new_entries).await;
+                            wrap_future(client.prefill(new_batch), &mut new_entries)
+                                .instrument(span)
+                                .await;
                         // Reset waiting counter
                         waiting_tokens = 1;
                         // Extend current batch with the new batch
@@ -226,8 +254,23 @@ async fn batching_task(
                         }
                     }
                 }
+                // Create span for this batch to add context to inference calls
+                let next_batch_size = entries.len();
+                let next_batch_span =
+                    info_span!(parent: None, "batch", batch_size = next_batch_size);
+                entries.iter_mut().for_each(|(_, entry)| {
+                    // Create a new span to link the batch back to this entry
+                    let entry_batch_span =
+                        info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
+                    // Add relationship
+                    entry_batch_span.follows_from(&next_batch_span);
+                    // Update entry
+                    entry.temp_span = Some(entry_batch_span);
+                });
 
-                cached_batch = wrap_future(client.decode(batches), &mut entries).await;
+                cached_batch = wrap_future(client.decode(batches), &mut entries)
+                    .instrument(next_batch_span)
+                    .await;
                 waiting_tokens += 1;
             }
         }
@@ -235,6 +278,7 @@ async fn batching_task(
 }
 
 /// Wrap a future inside a match statement to handle errors and send the responses to Infer
+#[instrument(skip_all)]
 async fn wrap_future(
     future: impl Future<Output = Result<(Vec<Generation>, Option<Batch>), ClientError>>,
     entries: &mut IntMap<u64, Entry>,
@@ -246,24 +290,31 @@ async fn wrap_future(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
-            send_error(err, entries);
+            send_errors(err, entries);
             None
         }
     }
 }
 
 /// Send errors to Infer for all `entries`
-fn send_error(error: ClientError, entries: &mut IntMap<u64, Entry>) {
+#[instrument(skip_all)]
+fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     entries.drain().for_each(|(_, entry)| {
+        // Create and enter a span to link this function back to the entry
+        let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
+        let err = InferError::GenerationError(error.to_string());
+        tracing::error!("{err}");
+
         // unwrap_or is valid here as we don't care if the receiver is gone.
         entry
             .response_tx
-            .send(Err(InferError::GenerationError(error.to_string())))
+            .send(Err(err))
             .unwrap_or(());
     });
 }
 
 /// Send one or multiple `InferStreamResponse` to Infer for all `entries`
+#[instrument(skip_all)]
 fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
     generations.into_iter().for_each(|generation| {
         // Get entry
@@ -271,6 +322,9 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
         let entry = entries
             .get(&generation.request_id)
             .expect("ID not found in entries. This is a bug.");
+
+        // Create and enter a span to link this function back to the entry
+        let _generation_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
 
         if let Some(prefill_tokens) = generation.prefill_tokens {
             // Send message
@@ -302,7 +356,7 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
                 .send(Ok(InferStreamResponse::End {
                     token,
                     generated_text,
-                    queued: entry.time,
+                    queued: entry.queue_time,
                     start: entry.batch_time.unwrap(),
                 }))
                 .unwrap_or(());

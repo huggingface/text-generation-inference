@@ -38,7 +38,8 @@ function sample_example(inputs, max_new_tokens, name) {
         parameters: {
             max_new_tokens: max_new_tokens,
             do_sample: true,
-            top_p: 0.9
+            top_p: 0.9,
+            seed: 0
         }
     });
     let params = {

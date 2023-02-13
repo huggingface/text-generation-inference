@@ -2,8 +2,9 @@
 use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
 use crate::pb::generate::v1::*;
 use crate::Result;
+use grpc_metadata::InjectTelemetryContext;
 use tonic::transport::{Channel, Uri};
-use tracing::*;
+use tracing::instrument;
 
 /// Text Generation Inference gRPC client
 #[derive(Clone)]
@@ -38,12 +39,8 @@ impl Client {
     /// Returns a list of uris or unix sockets of all shards
     #[instrument(skip(self))]
     pub async fn service_discovery(&mut self) -> Result<Vec<String>> {
-        let request = tonic::Request::new(ServiceDiscoveryRequest {});
-        let response = self
-            .stub
-            .service_discovery(request)
-            .instrument(info_span!("service_discovery"))
-            .await?;
+        let request = tonic::Request::new(ServiceDiscoveryRequest {}).inject_context();
+        let response = self.stub.service_discovery(request).await?;
         let urls = response
             .into_inner()
             .urls
@@ -60,11 +57,8 @@ impl Client {
     /// Clear the past generations cache
     #[instrument(skip(self))]
     pub async fn clear_cache(&mut self) -> Result<()> {
-        let request = tonic::Request::new(ClearCacheRequest {});
-        self.stub
-            .clear_cache(request)
-            .instrument(info_span!("clear_cache"))
-            .await?;
+        let request = tonic::Request::new(ClearCacheRequest {}).inject_context();
+        self.stub.clear_cache(request).await?;
         Ok(())
     }
 
@@ -72,15 +66,10 @@ impl Client {
     ///
     /// Returns Generation for each request in batch
     /// and the next cached batch
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(id = &batch.id, size = &batch.size))]
     pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
-        let request = tonic::Request::new(PrefillRequest { batch: Some(batch) });
-        let response = self
-            .stub
-            .prefill(request)
-            .instrument(info_span!("prefill"))
-            .await?
-            .into_inner();
+        let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
+        let response = self.stub.prefill(request).await?.into_inner();
         Ok((response.generations, response.batch))
     }
 
@@ -88,18 +77,13 @@ impl Client {
     ///
     /// Returns Generation for each request in batches
     /// and the next cached batch
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>()))]
     pub async fn decode(
         &mut self,
         batches: Vec<Batch>,
     ) -> Result<(Vec<Generation>, Option<Batch>)> {
-        let request = tonic::Request::new(DecodeRequest { batches });
-        let response = self
-            .stub
-            .decode(request)
-            .instrument(info_span!("decode"))
-            .await?
-            .into_inner();
+        let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
+        let response = self.stub.decode(request).await?.into_inner();
         Ok((response.generations, response.batch))
     }
 }

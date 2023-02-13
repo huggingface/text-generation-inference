@@ -10,6 +10,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum_tracing_opentelemetry::opentelemetry_tracing_layer;
 use futures::Stream;
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -18,7 +19,7 @@ use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::time::Instant;
 use tokio_stream::StreamExt;
-use tracing::instrument;
+use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -75,7 +76,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
         queue_time,
         inference_time,
         time_per_token,
-        seed
+        seed,
     )
 )]
 async fn generate(
@@ -87,10 +88,7 @@ async fn generate(
 
     // Inference
     let details = req.0.parameters.details;
-    let response = infer.generate(req.0).await.map_err(|err| {
-        tracing::error!("{}", err.to_string());
-        err
-    })?;
+    let response = infer.generate(req.0).await?;
 
     // Token details
     let details = match details {
@@ -135,11 +133,11 @@ async fn generate(
     );
 
     // Tracing metadata
-    span.record("total_time", format!("{:?}", total_time));
-    span.record("validation_time", format!("{:?}", validation_time));
-    span.record("queue_time", format!("{:?}", queue_time));
-    span.record("inference_time", format!("{:?}", inference_time));
-    span.record("time_per_token", format!("{:?}", time_per_token));
+    span.record("total_time", format!("{total_time:?}"));
+    span.record("validation_time", format!("{validation_time:?}"));
+    span.record("queue_time", format!("{queue_time:?}"));
+    span.record("inference_time", format!("{inference_time:?}"));
+    span.record("time_per_token", format!("{time_per_token:?}"));
     span.record("seed", format!("{:?}", response.generated_text.seed));
     tracing::info!("Output: {}", response.generated_text.text);
 
@@ -181,7 +179,8 @@ async fn generate(
         validation_time,
         queue_time,
         inference_time,
-        time_per_token
+        time_per_token,
+        seed,
     )
 )]
 async fn generate_stream(
@@ -197,7 +196,7 @@ async fn generate_stream(
         let mut error = false;
         let details = req.0.parameters.details;
 
-        match infer.generate_stream(req.0).await {
+        match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
             Ok(mut response_stream) => {
                 // Server-Sent Event stream
                 while let Some(response) = response_stream.next().await {
@@ -243,13 +242,11 @@ async fn generate_stream(
 
                                     // Tracing metadata
                                     span.record("total_time", format!("{:?}", total_time));
-                                    span
-                                        .record("validation_time", format!("{:?}", validation_time));
+                                    span.record("validation_time", format!("{:?}", validation_time));
                                     span.record("queue_time", format!("{:?}", queue_time));
-                                    span
-                                        .record("inference_time", format!("{:?}", inference_time));
-                                    span
-                                        .record("time_per_token", format!("{:?}", time_per_token));
+                                    span.record("inference_time", format!("{:?}", inference_time));
+                                    span.record("time_per_token", format!("{:?}", time_per_token));
+                                    span.record("seed", format!("{:?}", generated_text.seed));
                                     tracing::info!(parent: &span, "Output: {}", generated_text.text);
 
                                     // StreamResponse
@@ -264,19 +261,17 @@ async fn generate_stream(
                                 }
                             }
                         }
-                        // Trace and yield error
+                        // yield error
                         Err(err) => {
                             error = true;
-                            tracing::error!("{}", err.to_string());
                             yield Ok(Event::from(err))
                         }
                     }
                 }
             },
-            // Trace and yield error
+            // yield error
             Err(err) => {
                 error = true;
-                tracing::error!("{}", err.to_string());
                 yield Ok(Event::from(err))
             }
         }
@@ -284,7 +279,7 @@ async fn generate_stream(
         // Skip if we already sent an error
         if !end_reached && !error {
             let err = InferError::IncompleteGeneration;
-            tracing::error!("{}", err.to_string());
+            tracing::error!("{err}");
             yield Ok(Event::from(err))
         }
     };
@@ -355,7 +350,8 @@ pub async fn run(
         .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
         .route("/health", get(health))
-        .layer(Extension(infer));
+        .layer(Extension(infer))
+        .layer(opentelemetry_tracing_layer());
 
     // Run server
     axum::Server::bind(&addr)
@@ -391,6 +387,7 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("signal received, starting graceful shutdown");
+    opentelemetry::global::shutdown_tracer_provider();
 }
 
 impl From<i32> for FinishReason {

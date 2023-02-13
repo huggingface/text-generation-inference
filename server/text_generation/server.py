@@ -13,6 +13,7 @@ from text_generation.cache import Cache
 from text_generation.interceptor import ExceptionInterceptor
 from text_generation.models import Model, get_model
 from text_generation.pb import generate_pb2_grpc, generate_pb2
+from text_generation.tracing import UDSOpenTelemetryAioServerInterceptor
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
@@ -100,7 +101,12 @@ def serve(
             logger.exception("Error when initializing model")
             raise
 
-        server = aio.server(interceptors=[ExceptionInterceptor()])
+        server = aio.server(
+            interceptors=[
+                ExceptionInterceptor(),
+                UDSOpenTelemetryAioServerInterceptor(),
+            ]
+        )
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
             TextGenerationService(model, Cache(), server_urls), server
         )
