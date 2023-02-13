@@ -66,7 +66,7 @@ impl Client {
     ///
     /// Returns Generation for each request in batch
     /// and the next cached batch
-    #[instrument(skip_all, fields(id = &batch.id, size = &batch.size, max_sequence_length = batch.requests.iter().map(|request| request.input_length).max()))]
+    #[instrument(skip_all, fields(id = &batch.id, size = &batch.size))]
     pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
         let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
@@ -77,7 +77,7 @@ impl Client {
     ///
     /// Returns Generation for each request in batches
     /// and the next cached batch
-    #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>(), max_sequence_length = batches.iter().map(|batch|{batch.requests.iter().map(|request| request.input_length).max()}).max()))]
+    #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>()))]
     pub async fn decode(
         &mut self,
         batches: Vec<Batch>,
