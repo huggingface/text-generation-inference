@@ -49,17 +49,17 @@ to power LLMs api-inference widgets.
 - Log probabilities
 - Distributed tracing with Open Telemetry
 
-## Officially supported models
+## Officially supported architectures
 
 - [BLOOM](https://huggingface.co/bigscience/bloom)
 - [BLOOMZ](https://huggingface.co/bigscience/bloomz)
 - [MT0-XXL](https://huggingface.co/bigscience/mt0-xxl)
-- ~~[Galactica](https://huggingface.co/facebook/galactica-120b)~~ (deactivated)
+- [Galactica](https://huggingface.co/facebook/galactica-120b)
 - [SantaCoder](https://huggingface.co/bigcode/santacoder)
 - [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - [FLAN-T5-XXL](https://huggingface.co/google/flan-t5-xxl)
 
-Other models are supported on a best effort basis using:
+Other architectures are supported on a best effort basis using:
 
 `AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
 
@@ -191,7 +191,7 @@ Be aware that the official Docker image has them enabled by default.
 
 ### Download
 
-First you need to download the weights:
+It is advised to download the weights ahead of time with the following command:
 
 ```shell
 make download-bloom

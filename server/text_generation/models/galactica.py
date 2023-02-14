@@ -26,7 +26,6 @@ from text_generation.utils import (
     StoppingCriteria,
     initialize_torch_distributed,
     weight_files,
-    download_weights,
 )
 
 HAS_BITS_AND_BYTES = True
@@ -172,14 +171,8 @@ class GalacticaSharded(Galactica):
         )
         tokenizer.pad_token_id = config.pad_token_id
 
-        # Only download weights for small models
-        if self.master and model_id == "facebook/galactica-125m":
-            download_weights(model_id, revision=revision, extension=".safetensors")
-
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-        if not filenames:
-            raise ValueError("No safetensors weights found")
 
         with init_empty_weights():
             model = AutoModelForCausalLM.from_config(config)
