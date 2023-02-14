@@ -12,7 +12,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
-use subprocess::{Popen, PopenConfig, PopenError, Redirection};
+use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -83,6 +83,120 @@ fn main() -> ExitCode {
         r.store(false, Ordering::SeqCst);
     })
     .expect("Error setting Ctrl-C handler");
+
+    // Download weights
+    if num_shard > 1 {
+        // Only download weights if in sharded mode
+        let mut download_argv = vec![
+            "text-generation-server".to_string(),
+            "download-weights".to_string(),
+            model_id.clone(),
+            "--logger-level".to_string(),
+            "INFO".to_string(),
+            "--json-output".to_string(),
+        ];
+        // Model optional revision
+        if let Some(revision) = revision.clone() {
+            download_argv.push("--revision".to_string());
+            download_argv.push(revision)
+        }
+
+        let mut env = Vec::new();
+
+        // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
+        // Useful when running inside a docker container
+        if let Ok(huggingface_hub_cache) = env::var("HUGGINGFACE_HUB_CACHE") {
+            env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
+        };
+
+        // If the WEIGHTS_CACHE_OVERRIDE env var is set, pass it to the shard
+        // Useful when running inside a HuggingFace Inference Endpoint
+        if let Ok(weights_cache_override) = env::var("WEIGHTS_CACHE_OVERRIDE") {
+            env.push((
+                "WEIGHTS_CACHE_OVERRIDE".into(),
+                weights_cache_override.into(),
+            ));
+        };
+
+        // Start process
+        tracing::info!("Starting download");
+        let mut download_process = match Popen::create(
+            &download_argv,
+            PopenConfig {
+                stdout: Redirection::Pipe,
+                stderr: Redirection::Pipe,
+                // Needed for the shutdown procedure
+                setpgid: true,
+                env: Some(env),
+                ..Default::default()
+            },
+        ) {
+            Ok(p) => p,
+            Err(err) => {
+                if let PopenError::IoError(ref err) = err {
+                    if err.kind() == io::ErrorKind::NotFound {
+                        tracing::error!("text-generation-server not found in PATH");
+                        tracing::error!("Please install it with `make install-server`")
+                    }
+                }
+                return ExitCode::FAILURE;
+            }
+        };
+
+        // Redirect STDOUT to the console
+        let download_stdout = download_process.stdout.take().unwrap();
+        thread::spawn(move || {
+            // Enter download tracing span
+            let stdout = BufReader::new(download_stdout);
+            let _span = tracing::span!(tracing::Level::INFO, "download").entered();
+            for line in stdout.lines() {
+                // Parse loguru logs
+                if let Ok(value) = serde_json::from_str::<Value>(&line.unwrap()) {
+                    if let Some(text) = value.get("text") {
+                        // Format escaped newlines
+                        tracing::info!("{}", text.to_string().replace("\\n", ""));
+                    }
+                }
+            }
+        });
+
+        loop {
+            if let Some(status) = download_process.poll() {
+                match status {
+                    ExitStatus::Exited(exit_code) => {
+                        if exit_code == 0 {
+                            tracing::info!("Successfully downloaded weights.");
+                            break;
+                        } else {
+                            let mut err = String::new();
+                            download_process
+                                .stderr
+                                .take()
+                                .unwrap()
+                                .read_to_string(&mut err)
+                                .unwrap();
+                            tracing::error!("Download encountered an error: {err}");
+                            return ExitCode::FAILURE;
+                        }
+                    }
+                    _ => {
+                        tracing::error!("Download process exited with an unkown status.");
+                        return ExitCode::FAILURE;
+                    }
+                }
+            }
+            if !running.load(Ordering::SeqCst) {
+                download_process.terminate().unwrap();
+                tracing::info!("Waiting for download process to gracefully shutdown");
+                download_process
+                    .wait_timeout(Duration::from_secs(90))
+                    .unwrap();
+                tracing::info!("Download process terminated");
+                return ExitCode::SUCCESS;
+            }
+            sleep(Duration::from_millis(100));
+        }
+    }
 
     // Shared shutdown bool
     let shutdown = Arc::new(Mutex::new(false));

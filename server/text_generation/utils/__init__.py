@@ -6,12 +6,15 @@ from text_generation.utils.hub import (
     download_weights,
     EntryNotFoundError,
     LocalEntryNotFoundError,
+    RevisionNotFoundError,
 )
 from text_generation.utils.tokens import (
     Greedy,
     NextTokenChooser,
     Sampling,
     StoppingCriteria,
+    StopSequenceCriteria,
+    FinishReason,
 )
 
 __all__ = [
@@ -23,8 +26,11 @@ __all__ = [
     "download_weights",
     "EntryNotFoundError",
     "LocalEntryNotFoundError",
+    "RevisionNotFoundError",
     "Greedy",
     "NextTokenChooser",
     "Sampling",
     "StoppingCriteria",
+    "StopSequenceCriteria",
+    "FinishReason",
 ]

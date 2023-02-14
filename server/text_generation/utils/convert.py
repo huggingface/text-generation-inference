@@ -1,11 +1,13 @@
 import concurrent
+import time
 import torch
 
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
+from datetime import timedelta
+from loguru import logger
 from pathlib import Path
 from safetensors.torch import load_file, save_file
-from tqdm import tqdm
 from typing import Dict, List
 
 
@@ -79,7 +81,16 @@ def convert_files(pt_files: List[Path], st_files: List[Path]):
         executor.submit(convert_file, pt_file=pt_file, st_file=st_file)
         for pt_file, st_file in zip(pt_files, st_files)
     ]
-    [
-        future.result()
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures))
-    ]
+
+    # We do this instead of using tqdm because we want to parse the logs with the launcher
+    logger.info("Converting weights...")
+    start_time = time.time()
+    for i, future in enumerate(concurrent.futures.as_completed(futures)):
+        elapsed = timedelta(seconds=int(time.time() - start_time))
+        remaining = len(futures) - (i + 1)
+        if remaining != 0:
+            eta = (elapsed / (i + 1)) * remaining
+        else:
+            eta = 0
+
+        logger.info(f"Convert: [{i + 1}/{len(futures)}] -- ETA: {eta}")

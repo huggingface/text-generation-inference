@@ -1,21 +1,26 @@
+import time
 import concurrent
 import os
 
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
+from datetime import timedelta
+from loguru import logger
 from pathlib import Path
-from tqdm import tqdm
 from typing import Optional, List
 
-from huggingface_hub import HfApi, _CACHED_NO_EXIST, hf_hub_download
+from huggingface_hub import HfApi, hf_hub_download
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-from huggingface_hub.utils import LocalEntryNotFoundError, EntryNotFoundError
+from huggingface_hub.utils import (
+    LocalEntryNotFoundError,
+    EntryNotFoundError,
+    RevisionNotFoundError,  # Import here to ease try/except in other part of the lib
+)
 
 WEIGHTS_CACHE_OVERRIDE = os.getenv("WEIGHTS_CACHE_OVERRIDE", None)
 
 
 def weight_hub_files(
-    model_id: str, revision: str = None, extension: str = ".safetensors"
+    model_id: str, revision: Optional[str] = None, extension: str = ".safetensors"
 ) -> List[str]:
     """Get the weights filenames on the hub"""
     api = HfApi()
@@ -32,7 +37,7 @@ def weight_hub_files(
 
 
 def try_to_load_from_cache(
-    model_id: str, revision: str, filename: str
+    model_id: str, revision: Optional[str], filename: str
 ) -> Optional[Path]:
     """Try to load a file from the Hugging Face cache"""
     if revision is None:
@@ -58,7 +63,7 @@ def try_to_load_from_cache(
 
     # Check if file is cached as "no_exist"
     if (no_exist_dir / revision / filename).is_file():
-        return _CACHED_NO_EXIST
+        return None
 
     # Check if revision folder exists
     if not snapshots_dir.exists():
@@ -73,7 +78,9 @@ def try_to_load_from_cache(
     return cached_file if cached_file.is_file() else None
 
 
-def weight_files(model_id: str, revision: str, extension: str) -> List[Path]:
+def weight_files(
+    model_id: str, revision: Optional[str] = None, extension: str = ".safetensors"
+) -> List[Path]:
     """Get the local files"""
     try:
         filenames = weight_hub_files(model_id, revision, extension)
@@ -116,22 +123,47 @@ def weight_files(model_id: str, revision: str, extension: str) -> List[Path]:
     return files
 
 
-def download_weights(model_id: str, revision: str, filenames: List[str]) -> List[Path]:
+def download_weights(
+    filenames: List[str], model_id: str, revision: Optional[str] = None
+) -> List[Path]:
     """Download the safetensors files from the hub"""
-    download_function = partial(
-        hf_hub_download,
-        repo_id=model_id,
-        local_files_only=False,
-    )
+
+    def download_file(filename):
+        local_file = try_to_load_from_cache(model_id, revision, filename)
+        if local_file is not None:
+            logger.info(f"File {filename} already present in cache.")
+            return local_file
+
+        start_time = time.time()
+        local_file = hf_hub_download(
+            filename=filename,
+            repo_id=model_id,
+            revision=revision,
+            local_files_only=False,
+        )
+        logger.info(
+            f"Downloaded {filename} at {local_file} in {timedelta(seconds=int(time.time() - start_time))}."
+        )
+        return local_file
 
     executor = ThreadPoolExecutor(max_workers=5)
     futures = [
-        executor.submit(download_function, filename=filename, revision=revision)
-        for filename in filenames
+        executor.submit(download_file, filename=filename) for filename in filenames
     ]
-    files = [
-        future.result()
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures))
-    ]
+
+    # We do this instead of using tqdm because we want to parse the logs with the launcher
+    logger.info("Downloading weights...")
+    start_time = time.time()
+    files = []
+    for i, future in enumerate(concurrent.futures.as_completed(futures)):
+        elapsed = timedelta(seconds=int(time.time() - start_time))
+        remaining = len(futures) - (i + 1)
+        if remaining != 0:
+            eta = (elapsed / (i + 1)) * remaining
+        else:
+            eta = 0
+
+        logger.info(f"Download: [{i + 1}/{len(futures)}] -- ETA: {eta}")
+        files.append(Path(future.result()))
 
     return [Path(p) for p in files]

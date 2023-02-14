@@ -60,18 +60,49 @@ def download_weights(
     model_id: str,
     revision: Optional[str] = None,
     extension: str = ".safetensors",
-    convert: bool = False,
+    logger_level: str = "INFO",
+    json_output: bool = False,
 ):
+    # Remove default handler
+    logger.remove()
+    logger.add(
+        sys.stdout,
+        format="{message}",
+        filter="text_generation",
+        level=logger_level,
+        serialize=json_output,
+        backtrace=True,
+        diagnose=False,
+    )
+
+    # Test if files were already download
+    try:
+        utils.weight_files(model_id, revision, extension)
+        logger.info(
+            "Files are already present in the local cache. " "Skipping download."
+        )
+        return
+    # Local files not found
+    except utils.LocalEntryNotFoundError:
+        pass
+
+    # Download weights directly
     try:
         filenames = utils.weight_hub_files(model_id, revision, extension)
-        utils.download_weights(model_id, revision, filenames)
+        utils.download_weights(filenames, model_id, revision)
     except utils.EntryNotFoundError as e:
-        if not convert or not extension == ".safetensors":
+        if not extension == ".safetensors":
             raise e
+
+        logger.warning(
+            f"No safetensors weights found for model {model_id} at revision {revision}. "
+            f"Converting PyTorch weights instead."
+        )
+
         # Try to see if there are pytorch weights
         pt_filenames = utils.weight_hub_files(model_id, revision, ".bin")
         # Download pytorch weights
-        local_pt_files = utils.download_weights(model_id, revision, pt_filenames)
+        local_pt_files = utils.download_weights(pt_filenames, model_id, revision)
         local_st_files = [
             p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors"
             for p in local_pt_files
