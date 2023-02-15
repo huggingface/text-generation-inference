@@ -28,7 +28,7 @@ use utoipa_swagger_ui::SwaggerUi;
 async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
     // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
     //       be a bit too slow for a health check.
-    //       What we should do instead if check if the gRPC channels are still healthy.
+    //       What we should do instead is check if the gRPC channels are still healthy.
 
     // Send a small inference request
     infer
@@ -291,7 +291,9 @@ async fn generate_stream(
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
     max_concurrent_requests: usize,
+    max_stop_sequences: usize,
     max_input_length: usize,
+    max_total_tokens: usize,
     max_batch_size: usize,
     max_waiting_tokens: usize,
     client: ShardedClient,
@@ -333,7 +335,13 @@ pub async fn run(
     struct ApiDoc;
 
     // Create state
-    let validation = Validation::new(validation_workers, tokenizer, max_input_length);
+    let validation = Validation::new(
+        validation_workers,
+        tokenizer,
+        max_stop_sequences,
+        max_input_length,
+        max_total_tokens,
+    );
     let infer = Infer::new(
         client,
         validation,

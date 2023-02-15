@@ -20,8 +20,12 @@ use tracing_subscriber::{EnvFilter, Layer};
 struct Args {
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
+    #[clap(default_value = "4", long, env)]
+    max_stop_sequences: usize,
     #[clap(default_value = "1000", long, env)]
     max_input_length: usize,
+    #[clap(default_value = "1512", long, env)]
+    max_total_tokens: usize,
     #[clap(default_value = "32", long, env)]
     max_batch_size: usize,
     #[clap(default_value = "20", long, env)]
@@ -46,7 +50,9 @@ fn main() -> Result<(), std::io::Error> {
     // Pattern match configuration
     let Args {
         max_concurrent_requests,
+        max_stop_sequences,
         max_input_length,
+        max_total_tokens,
         max_batch_size,
         max_waiting_tokens,
         port,
@@ -92,7 +98,9 @@ fn main() -> Result<(), std::io::Error> {
             // Run server
             server::run(
                 max_concurrent_requests,
+                max_stop_sequences,
                 max_input_length,
+                max_total_tokens,
                 max_batch_size,
                 max_waiting_tokens,
                 sharded_client,
