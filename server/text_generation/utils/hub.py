@@ -153,17 +153,14 @@ def download_weights(
     ]
 
     # We do this instead of using tqdm because we want to parse the logs with the launcher
-    logger.info(f"Download:  [0/{len(futures)}]")
     start_time = time.time()
     files = []
     for i, future in enumerate(concurrent.futures.as_completed(futures)):
         elapsed = timedelta(seconds=int(time.time() - start_time))
         remaining = len(futures) - (i + 1)
-        eta = (elapsed / (i + 1)) * remaining if remaining > 0 else None
+        eta = (elapsed / (i + 1)) * remaining if remaining > 0 else 0
 
         logger.info(f"Download: [{i + 1}/{len(futures)}] -- ETA: {eta}")
-        if eta is not None:
-            logger.info(f"ETA: {eta}")
         files.append(future.result())
 
     return files
