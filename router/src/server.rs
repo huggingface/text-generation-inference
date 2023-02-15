@@ -291,7 +291,6 @@ async fn generate_stream(
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
     max_concurrent_requests: usize,
-    max_max_new_tokens: u32,
     max_stop_sequences: usize,
     max_input_length: usize,
     max_total_tokens: usize,
@@ -339,7 +338,6 @@ pub async fn run(
     let validation = Validation::new(
         validation_workers,
         tokenizer,
-        max_max_new_tokens,
         max_stop_sequences,
         max_input_length,
         max_total_tokens,
