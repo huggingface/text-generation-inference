@@ -134,6 +134,7 @@ def download_weights(
             logger.info(f"File {filename} already present in cache.")
             return local_file
 
+        logger.info(f"Starting {filename} download.")
         start_time = time.time()
         local_file = hf_hub_download(
             filename=filename,
@@ -144,7 +145,7 @@ def download_weights(
         logger.info(
             f"Downloaded {filename} at {local_file} in {timedelta(seconds=int(time.time() - start_time))}."
         )
-        return local_file
+        return Path(local_file)
 
     executor = ThreadPoolExecutor(max_workers=5)
     futures = [
@@ -152,18 +153,14 @@ def download_weights(
     ]
 
     # We do this instead of using tqdm because we want to parse the logs with the launcher
-    logger.info("Downloading weights...")
     start_time = time.time()
     files = []
     for i, future in enumerate(concurrent.futures.as_completed(futures)):
         elapsed = timedelta(seconds=int(time.time() - start_time))
         remaining = len(futures) - (i + 1)
-        if remaining != 0:
-            eta = (elapsed / (i + 1)) * remaining
-        else:
-            eta = 0
+        eta = (elapsed / (i + 1)) * remaining if remaining > 0 else 0
 
         logger.info(f"Download: [{i + 1}/{len(futures)}] -- ETA: {eta}")
-        files.append(Path(future.result()))
+        files.append(future.result())
 
-    return [Path(p) for p in files]
+    return files

@@ -83,14 +83,10 @@ def convert_files(pt_files: List[Path], st_files: List[Path]):
     ]
 
     # We do this instead of using tqdm because we want to parse the logs with the launcher
-    logger.info("Converting weights...")
     start_time = time.time()
     for i, future in enumerate(concurrent.futures.as_completed(futures)):
         elapsed = timedelta(seconds=int(time.time() - start_time))
         remaining = len(futures) - (i + 1)
-        if remaining != 0:
-            eta = (elapsed / (i + 1)) * remaining
-        else:
-            eta = 0
+        eta = (elapsed / (i + 1)) * remaining if remaining > 0 else 0
 
         logger.info(f"Convert: [{i + 1}/{len(futures)}] -- ETA: {eta}")
