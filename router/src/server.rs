@@ -28,7 +28,7 @@ use utoipa_swagger_ui::SwaggerUi;
 async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
     // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
     //       be a bit too slow for a health check.
-    //       What we should do instead if check if the gRPC channels are still healthy.
+    //       What we should do instead is check if the gRPC channels are still healthy.
 
     // Send a small inference request
     infer
