@@ -47,6 +47,8 @@ struct Args {
     #[clap(long, env)]
     weights_cache_override: Option<String>,
     #[clap(long, env)]
+    disable_custom_kernels: bool,
+    #[clap(long, env)]
     json_output: bool,
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
@@ -79,6 +81,7 @@ fn main() -> ExitCode {
         master_port,
         huggingface_hub_cache,
         weights_cache_override,
+        disable_custom_kernels,
         json_output,
         otlp_endpoint,
     } = args;
@@ -242,6 +245,7 @@ fn main() -> ExitCode {
                 master_port,
                 huggingface_hub_cache,
                 weights_cache_override,
+                disable_custom_kernels,
                 otlp_endpoint,
                 status_sender,
                 shutdown,
@@ -406,6 +410,7 @@ fn shard_manager(
     master_port: usize,
     huggingface_hub_cache: Option<String>,
     weights_cache_override: Option<String>,
+    disable_custom_kernels: bool,
     otlp_endpoint: Option<String>,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<Mutex<bool>>,
@@ -473,6 +478,11 @@ fn shard_manager(
             weights_cache_override.into(),
         ));
     };
+
+    // If disable_custom_kernels is true, pass it to the shard as an env var
+    if disable_custom_kernels {
+        env.push(("DISABLE_CUSTOM_KERNELS".into(), "True".into()))
+    }
 
     // If the NCCL_SHM_DISABLE env var is set, pass it to the shard
     // needed when running NCCL inside a docker container and when you can't increase shm size
