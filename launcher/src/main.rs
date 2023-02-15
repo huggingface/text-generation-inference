@@ -22,8 +22,8 @@ struct Args {
     model_id: String,
     #[clap(long, env)]
     revision: Option<String>,
-    #[clap(long, env)]
-    num_shard: Option<usize>,
+    #[clap(default_value = "1", long, env)]
+    num_shard: usize,
     #[clap(long, env)]
     quantize: bool,
     #[clap(default_value = "128", long, env)]
@@ -54,6 +54,16 @@ struct Args {
 
 fn main() -> ExitCode {
     // Pattern match configuration
+    let args = Args::parse();
+
+    if args.json_output {
+        tracing_subscriber::fmt().json().init();
+    } else {
+        tracing_subscriber::fmt().compact().init();
+    }
+
+    tracing::info!("{:?}", args);
+
     let Args {
         model_id,
         revision,
@@ -71,16 +81,7 @@ fn main() -> ExitCode {
         weights_cache_override,
         json_output,
         otlp_endpoint,
-    } = Args::parse();
-
-    if json_output {
-        tracing_subscriber::fmt().json().init();
-    } else {
-        tracing_subscriber::fmt().compact().init();
-    }
-
-    // By default we only have one master shard
-    let num_shard = num_shard.unwrap_or(1);
+    } = args;
 
     // Signal handler
     let running = Arc::new(AtomicBool::new(true));
@@ -123,7 +124,7 @@ fn main() -> ExitCode {
         };
 
         // Start process
-        tracing::info!("Starting download");
+        tracing::info!("Starting download process.");
         let mut download_process = match Popen::create(
             &download_argv,
             PopenConfig {
@@ -184,7 +185,7 @@ fn main() -> ExitCode {
                         }
                     }
                     _ => {
-                        tracing::error!("Download process exited with an unkown status.");
+                        tracing::error!("Download process exited with an unknown status.");
                         return ExitCode::FAILURE;
                     }
                 }
