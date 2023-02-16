@@ -1,6 +1,7 @@
 use clap::Parser;
 use serde_json::Value;
 use std::env;
+use std::ffi::OsString;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::ExitCode;
@@ -118,9 +119,10 @@ fn main() -> ExitCode {
             download_argv.push(revision.to_string())
         }
 
-        let mut env = Vec::new();
+        // Copy current process env
+        let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
 
-        // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
+        // If huggingface_hub_cache is set, pass it to the shard
         // Useful when running inside a docker container
         if let Some(ref huggingface_hub_cache) = huggingface_hub_cache {
             env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
@@ -455,14 +457,18 @@ fn shard_manager(
         shard_argv.push(otlp_endpoint);
     }
 
-    let mut env = vec![
-        ("RANK".into(), rank.to_string().into()),
-        ("WORLD_SIZE".into(), world_size.to_string().into()),
-        ("MASTER_ADDR".into(), master_addr.into()),
-        ("MASTER_PORT".into(), master_port.to_string().into()),
-        ("SAFETENSORS_FAST_GPU".into(), "1".into()),
-        ("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()),
-    ];
+    // Copy current process env
+    let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
+
+    // Torch Distributed Env vars
+    env.push(("RANK".into(), rank.to_string().into()));
+    env.push(("WORLD_SIZE".into(), world_size.to_string().into()));
+    env.push(("MASTER_ADDR".into(), master_addr.into()));
+    env.push(("MASTER_PORT".into(), master_port.to_string().into()));
+    env.push(("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()));
+
+    // Safetensors load fast
+    env.push(("SAFETENSORS_FAST_GPU".into(), "1".into()));
 
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
@@ -483,17 +489,6 @@ fn shard_manager(
     if disable_custom_kernels {
         env.push(("DISABLE_CUSTOM_KERNELS".into(), "True".into()))
     }
-
-    // If the NCCL_SHM_DISABLE env var is set, pass it to the shard
-    // needed when running NCCL inside a docker container and when you can't increase shm size
-    if let Ok(nccl_shm_disalbe) = env::var("NCCL_SHM_DISABLE") {
-        env.push(("NCCL_SHM_DISABLE".into(), nccl_shm_disalbe.into()));
-    };
-
-    // If the CUDA_VISIBLE_DEVICES env var is set, pass it to the shard
-    if let Ok(cuda_visible_devices) = env::var("CUDA_VISIBLE_DEVICES") {
-        env.push(("CUDA_VISIBLE_DEVICES".into(), cuda_visible_devices.into()));
-    };
 
     // Start process
     tracing::info!("Starting shard {rank}");
