@@ -12,6 +12,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_tracing_opentelemetry::opentelemetry_tracing_layer;
 use futures::Stream;
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use text_generation_client::ShardedClient;
@@ -57,14 +58,14 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
     path = "/generate",
     request_body = GenerateRequest,
     responses(
-        (status = 200, description = "Generated Text", body = [GenerateResponse]),
-        (status = 424, description = "Generation Error", body = [ErrorResponse],
+        (status = 200, description = "Generated Text", body = GenerateResponse),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
             example = json!({"error": "Request failed during generation"})),
-        (status = 429, description = "Model is overloaded", body = [ErrorResponse],
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
             example = json!({"error": "Model is overloaded"})),
-        (status = 422, description = "Input validation error", body = [ErrorResponse],
+        (status = 422, description = "Input validation error", body = ErrorResponse,
             example = json!({"error": "Input validation error"})),
-        (status = 500, description = "Incomplete generation", body = [ErrorResponse],
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
             example = json!({"error": "Incomplete generation"})),
     )
 )]
@@ -141,6 +142,18 @@ async fn generate(
     span.record("seed", format!("{:?}", response.generated_text.seed));
     tracing::info!("Output: {}", response.generated_text.text);
 
+    // Metrics
+    metrics::increment_counter!("tgi_request_success");
+    metrics::histogram!("tgi_request_duration", total_time);
+    metrics::histogram!("tgi_request_validation_duration", validation_time);
+    metrics::histogram!("tgi_request_queue_duration", queue_time);
+    metrics::histogram!("tgi_request_inference_duration", inference_time);
+    metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token);
+    metrics::histogram!(
+        "tgi_request_generated_tokens",
+        response.generated_text.generated_tokens as f64
+    );
+
     // Send response
     let response = GenerateResponse {
         generated_text: response.generated_text.text,
@@ -156,20 +169,20 @@ async fn generate(
     path = "/generate_stream",
     request_body = GenerateRequest,
     responses(
-        (status = 200, description = "Generated Text", body = [StreamResponse],
-            content_type="text/event-stream "),
-        (status = 424, description = "Generation Error", body = [ErrorResponse],
+        (status = 200, description = "Generated Text", body = StreamResponse,
+            content_type="text/event-stream"),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
             example = json!({"error": "Request failed during generation"}),
-            content_type="text/event-stream "),
-        (status = 429, description = "Model is overloaded", body = [ErrorResponse],
+            content_type="text/event-stream"),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
             example = json!({"error": "Model is overloaded"}),
-            content_type="text/event-stream "),
-        (status = 422, description = "Input validation error", body = [ErrorResponse],
+            content_type="text/event-stream"),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
             example = json!({"error": "Input validation error"}),
-            content_type="text/event-stream "),
-        (status = 500, description = "Incomplete generation", body = [ErrorResponse],
+            content_type="text/event-stream"),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
             example = json!({"error": "Incomplete generation"}),
-            content_type="text/event-stream "),
+            content_type="text/event-stream"),
     )
 )]
 #[instrument(
@@ -249,6 +262,15 @@ async fn generate_stream(
                                     span.record("seed", format!("{:?}", generated_text.seed));
                                     tracing::info!(parent: &span, "Output: {}", generated_text.text);
 
+                                    // Metrics
+                                    metrics::increment_counter!("tgi_request_success");
+                                    metrics::histogram!("tgi_request_duration", total_time);
+                                    metrics::histogram!("tgi_request_validation_duration", validation_time);
+                                    metrics::histogram!("tgi_request_queue_duration", queue_time);
+                                    metrics::histogram!("tgi_request_inference_duration", inference_time);
+                                    metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token);
+                                    metrics::histogram!("tgi_request_generated_tokens", generated_text.generated_tokens as f64);
+
                                     // StreamResponse
                                     end_reached = true;
                                     let stream_token = StreamResponse {
@@ -279,12 +301,24 @@ async fn generate_stream(
         // Skip if we already sent an error
         if !end_reached && !error {
             let err = InferError::IncompleteGeneration;
+            metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
             tracing::error!("{err}");
             yield Ok(Event::from(err))
         }
     };
 
     Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+/// Prometheus metrics scrape endpoint
+#[utoipa::path(
+    get,
+    tag = "Text Generation Inference",
+    path = "/metrics",
+    responses((status = 200, description = "Prometheus Metrics", body = String))
+)]
+async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
+    prom_handle.render()
 }
 
 /// Serving method
@@ -307,6 +341,7 @@ pub async fn run(
         paths(
             generate,
             generate_stream,
+            metrics,
         ),
         components(
             schemas(
@@ -350,6 +385,12 @@ pub async fn run(
         max_concurrent_requests,
     );
 
+    // Prometheus handler
+    let builder = PrometheusBuilder::new();
+    let prom_handle = builder
+        .install_recorder()
+        .expect("failed to install metrics recorder");
+
     // Create router
     let app = Router::new()
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
@@ -359,6 +400,8 @@ pub async fn run(
         .route("/", get(health))
         .route("/health", get(health))
         .layer(Extension(infer))
+        .route("/metrics", get(metrics))
+        .layer(Extension(prom_handle))
         .layer(opentelemetry_tracing_layer());
 
     // Run server

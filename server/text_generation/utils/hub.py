@@ -132,9 +132,9 @@ def download_weights(
         local_file = try_to_load_from_cache(model_id, revision, filename)
         if local_file is not None:
             logger.info(f"File {filename} already present in cache.")
-            return local_file
+            return Path(local_file)
 
-        logger.info(f"Starting {filename} download.")
+        logger.info(f"Download file: {filename}")
         start_time = time.time()
         local_file = hf_hub_download(
             filename=filename,
@@ -143,7 +143,7 @@ def download_weights(
             local_files_only=False,
         )
         logger.info(
-            f"Downloaded {filename} at {local_file} in {timedelta(seconds=int(time.time() - start_time))}."
+            f"Downloaded {local_file} in {timedelta(seconds=int(time.time() - start_time))}."
         )
         return Path(local_file)
 

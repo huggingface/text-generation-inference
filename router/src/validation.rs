@@ -13,7 +13,7 @@ use tracing::{instrument, Span};
 #[derive(Debug, Clone)]
 pub struct Validation {
     /// Channel to communicate with the background validation task
-    sender: mpsc::Sender<ValidationRequest>,
+    sender: mpsc::UnboundedSender<ValidationRequest>,
 }
 
 impl Validation {
@@ -25,7 +25,7 @@ impl Validation {
         max_total_tokens: usize,
     ) -> Self {
         // Create channel
-        let (validation_sender, validation_receiver) = mpsc::channel(128);
+        let (validation_sender, validation_receiver) = mpsc::unbounded_channel();
 
         // Launch background validation task
         tokio::spawn(validation_task(
@@ -54,7 +54,6 @@ impl Validation {
         // Unwrap is safe here
         self.sender
             .send((request, sender, Span::current()))
-            .await
             .unwrap();
         // Await on response channel
         // Unwrap is safe here
@@ -70,7 +69,7 @@ async fn validation_task(
     max_stop_sequences: usize,
     max_input_length: usize,
     max_total_tokens: usize,
-    mut receiver: mpsc::Receiver<ValidationRequest>,
+    mut receiver: mpsc::UnboundedReceiver<ValidationRequest>,
 ) {
     let mut workers_senders = Vec::with_capacity(workers);
 
@@ -131,6 +130,7 @@ fn validation_worker(
                         &mut rng,
                     )
                     .map_err(|err| {
+                        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
                         tracing::error!("{err}");
                         err
                     }),
@@ -214,6 +214,7 @@ fn validate(
         Ok(encoding) => {
             let input_length = encoding.len();
             let total_tokens = input_length + max_new_tokens as usize;
+
             if input_length > max_input_length {
                 Err(ValidationError::InputLength(max_input_length, input_length))
             } else if total_tokens > max_total_tokens {
@@ -236,6 +237,9 @@ fn validate(
                     max_new_tokens,
                     stop_sequences,
                 };
+
+                metrics::histogram!("tgi_request_input_length", input_length as f64);
+                metrics::histogram!("tgi_request_max_new_tokens", max_new_tokens as f64);
 
                 Ok(ValidGenerateRequest {
                     inputs: request.inputs,

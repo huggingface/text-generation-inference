@@ -3,7 +3,6 @@ use crate::validation::{Validation, ValidationError};
 use crate::GenerateRequest;
 use crate::{Entry, Queue, Token};
 use nohash_hasher::IntMap;
-use std::future::Future;
 use std::sync::Arc;
 use text_generation_client::{
     Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
@@ -81,6 +80,7 @@ impl Infer {
             .limit_concurrent_requests
             .try_acquire_owned()
             .map_err(|err| {
+                metrics::increment_counter!("tgi_request_failure", "err" => "overloaded");
                 tracing::error!("{err}");
                 err
             })?;
@@ -172,6 +172,7 @@ impl Infer {
             })
         } else {
             let err = InferError::IncompleteGeneration;
+            metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
             tracing::error!("{err}");
             Err(err)
         }
@@ -201,7 +202,7 @@ async fn batching_task(
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the queue
         while let Some((mut entries, batch, span)) = queue.next_batch(None, max_batch_size).await {
-            let mut cached_batch = wrap_future(client.prefill(batch), &mut entries)
+            let mut cached_batch = prefill(&mut client, batch, &mut entries)
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -212,6 +213,7 @@ async fn batching_task(
                 // Get current batch info
                 let batch_size = batch.size;
                 let mut batches = vec![batch];
+                metrics::gauge!("tgi_batch_current_size", batch_size as f64);
 
                 // If the current batch is too small, we try to add more requests to it
                 if batch_size <= limit_min_batch_size {
@@ -241,10 +243,9 @@ async fn batching_task(
                         });
 
                         // Generate one token for this new batch to have the attention past in cache
-                        let new_cached_batch =
-                            wrap_future(client.prefill(new_batch), &mut new_entries)
-                                .instrument(span)
-                                .await;
+                        let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
+                            .instrument(span)
+                            .await;
                         // Reset waiting counter
                         waiting_tokens = 1;
                         // Extend current batch with the new batch
@@ -268,29 +269,59 @@ async fn batching_task(
                     entry.temp_span = Some(entry_batch_span);
                 });
 
-                cached_batch = wrap_future(client.decode(batches), &mut entries)
+                cached_batch = decode(&mut client, batches, &mut entries)
                     .instrument(next_batch_span)
                     .await;
                 waiting_tokens += 1;
             }
+            metrics::gauge!("tgi_batch_current_size", 0.0);
         }
     }
 }
 
-/// Wrap a future inside a match statement to handle errors and send the responses to Infer
 #[instrument(skip_all)]
-async fn wrap_future(
-    future: impl Future<Output = Result<(Vec<Generation>, Option<Batch>), ClientError>>,
+async fn prefill(
+    client: &mut ShardedClient,
+    batch: Batch,
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
-    match future.await {
+    let start_time = Instant::now();
+
+    match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
             send_generations(generations, entries);
+            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed(), "method" => "prefill");
+            metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
             next_batch
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
             send_errors(err, entries);
+            metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
+            None
+        }
+    }
+}
+
+#[instrument(skip_all)]
+async fn decode(
+    client: &mut ShardedClient,
+    batches: Vec<Batch>,
+    entries: &mut IntMap<u64, Entry>,
+) -> Option<Batch> {
+    let start_time = Instant::now();
+
+    match client.decode(batches).await {
+        Ok((generations, next_batch)) => {
+            send_generations(generations, entries);
+            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed(), "method" => "decode");
+            metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
+            next_batch
+        }
+        // If we have an error, we discard the whole batch
+        Err(err) => {
+            send_errors(err, entries);
+            metrics::increment_counter!("tgi_batch_inference_failure", "method" => "decode");
             None
         }
     }
@@ -303,6 +334,7 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
         // Create and enter a span to link this function back to the entry
         let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
         let err = InferError::GenerationError(error.to_string());
+        metrics::increment_counter!("tgi_request_failure", "err" => "generation");
         tracing::error!("{err}");
 
         // unwrap_or is valid here as we don't care if the receiver is gone.

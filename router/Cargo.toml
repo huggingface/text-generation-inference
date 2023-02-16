@@ -19,6 +19,8 @@ axum-tracing-opentelemetry = "0.9.0"
 text-generation-client = { path = "client" }
 clap = { version = "4.1.4", features = ["derive", "env"] }
 futures = "0.3.26"
+metrics = "0.20.1"
+metrics-exporter-prometheus = { version = "0.11.0", features = [] }
 nohash-hasher = "0.2.0"
 opentelemetry = { version = "0.18.0", features = ["rt-tokio"] }
 opentelemetry-otlp = "0.11.0"
