@@ -11,7 +11,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "0.2.1"
+    "version": "0.3.0"
   },
   "paths": {
     "/generate": {
@@ -38,10 +38,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GenerateResponse"
-                  }
+                  "$ref": "#/components/schemas/GenerateResponse"
                 }
               }
             }
@@ -51,10 +48,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Input validation error"
@@ -67,10 +61,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Request failed during generation"
@@ -83,10 +74,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Model is overloaded"
@@ -99,10 +87,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Incomplete generation"
@@ -136,12 +121,9 @@
           "200": {
             "description": "Generated Text",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/StreamResponse"
-                  }
+                  "$ref": "#/components/schemas/StreamResponse"
                 }
               }
             }
@@ -149,12 +131,9 @@
           "422": {
             "description": "Input validation error",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Input validation error"
@@ -165,12 +144,9 @@
           "424": {
             "description": "Generation Error",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Request failed during generation"
@@ -181,12 +157,9 @@
           "429": {
             "description": "Model is overloaded",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Model is overloaded"
@@ -197,15 +170,35 @@
           "500": {
             "description": "Incomplete generation",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Incomplete generation"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Prometheus metrics scrape endpoint",
+        "description": "Prometheus metrics scrape endpoint",
+        "operationId": "metrics",
+        "responses": {
+          "200": {
+            "description": "Prometheus Metrics",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
