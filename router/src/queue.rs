@@ -132,6 +132,7 @@ impl State {
         // Push entry in the queue
         self.entries.push((self.next_id, entry));
         self.next_id += 1;
+        metrics::increment_gauge!("tgi_queue_size", 1.0);
     }
 
     // Get the next batch
@@ -190,6 +191,8 @@ impl State {
         // Increment batch id
         self.next_batch_id += 1;
 
+        metrics::gauge!("tgi_queue_size", self.entries.len() as f64);
+        metrics::histogram!("tgi_batch_next_size", batch.size as f64);
         Some((batch_entries, batch, next_batch_span))
     }
 }

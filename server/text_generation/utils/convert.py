@@ -49,6 +49,8 @@ def convert_file(pt_file: Path, st_file: Path):
     """
     Convert a pytorch file to a safetensors file
     """
+    logger.info(f"Convert {pt_file} to {st_file}.")
+
     pt_state = torch.load(pt_file, map_location="cpu")
     if "state_dict" in pt_state:
         pt_state = pt_state["state_dict"]
