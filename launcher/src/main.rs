@@ -53,6 +53,8 @@ struct Args {
     json_output: bool,
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
+    #[clap(long, env)]
+    cors_allow_origin: Vec<String>,
 }
 
 fn main() -> ExitCode {
@@ -85,6 +87,7 @@ fn main() -> ExitCode {
         disable_custom_kernels,
         json_output,
         otlp_endpoint,
+        cors_allow_origin,
     } = args;
 
     // Signal handler
@@ -318,6 +321,12 @@ fn main() -> ExitCode {
     if let Some(otlp_endpoint) = otlp_endpoint {
         argv.push("--otlp-endpoint".to_string());
         argv.push(otlp_endpoint);
+    }
+
+    // CORS origins
+    for origin in cors_allow_origin.into_iter() {
+        argv.push("--cors-allow-origin".to_string());
+        argv.push(origin);
     }
 
     let mut webserver = match Popen::create(

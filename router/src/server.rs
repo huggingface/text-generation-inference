@@ -5,11 +5,11 @@ use crate::{
     Infer, StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{http, Json, Router};
 use axum_tracing_opentelemetry::opentelemetry_tracing_layer;
 use futures::Stream;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
@@ -20,6 +20,7 @@ use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::time::Instant;
 use tokio_stream::StreamExt;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -334,6 +335,7 @@ pub async fn run(
     tokenizer: Tokenizer,
     validation_workers: usize,
     addr: SocketAddr,
+    allow_origin: Option<AllowOrigin>,
 ) {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -391,6 +393,13 @@ pub async fn run(
         .install_recorder()
         .expect("failed to install metrics recorder");
 
+    // CORS layer
+    let allow_origin = allow_origin.unwrap_or(AllowOrigin::any());
+    let cors_layer = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([http::header::CONTENT_TYPE])
+        .allow_origin(allow_origin);
+
     // Create router
     let app = Router::new()
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
@@ -402,7 +411,8 @@ pub async fn run(
         .layer(Extension(infer))
         .route("/metrics", get(metrics))
         .layer(Extension(prom_handle))
-        .layer(opentelemetry_tracing_layer());
+        .layer(opentelemetry_tracing_layer())
+        .layer(cors_layer);
 
     // Run server
     axum::Server::bind(&addr)
