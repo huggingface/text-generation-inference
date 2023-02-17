@@ -1,4 +1,5 @@
 /// Text Generation Inference webserver entrypoint
+use axum::http::HeaderValue;
 use clap::Parser;
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use opentelemetry::sdk::trace;
@@ -10,6 +11,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use text_generation_client::ShardedClient;
 use text_generation_router::server;
 use tokenizers::Tokenizer;
+use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -42,6 +44,8 @@ struct Args {
     json_output: bool,
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
+    #[clap(long, env)]
+    cors_allow_origin: Option<Vec<String>>,
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -61,11 +65,23 @@ fn main() -> Result<(), std::io::Error> {
         validation_workers,
         json_output,
         otlp_endpoint,
+        cors_allow_origin,
     } = args;
 
     if validation_workers == 0 {
         panic!("validation_workers must be > 0");
     }
+
+    // CORS allowed origins
+    // map to go inside the option and then map to parse from String to HeaderValue
+    // Finally, convert to AllowOrigin
+    let cors_allow_origin: Option<AllowOrigin> = cors_allow_origin.map(|cors_allow_origin| {
+        AllowOrigin::list(
+            cors_allow_origin
+                .iter()
+                .map(|origin| origin.parse::<HeaderValue>().unwrap()),
+        )
+    });
 
     // Download and instantiate tokenizer
     // This will only be used to validate payloads
@@ -107,6 +123,7 @@ fn main() -> Result<(), std::io::Error> {
                 tokenizer,
                 validation_workers,
                 addr,
+                cors_allow_origin,
             )
             .await;
             Ok(())

@@ -32,6 +32,7 @@ thiserror = "1.0.38"
 tokenizers = "0.13.2"
 tokio = { version = "1.25.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tokio-stream = "0.1.11"
+tower-http = { version = "0.3.5", features = ["cors"] }
 tracing = "0.1.37"
 tracing-opentelemetry = "0.18.0"
 tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }

@@ -2275,6 +2275,7 @@ dependencies = [
  "tokenizers",
  "tokio",
  "tokio-stream",
+ "tower-http",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
