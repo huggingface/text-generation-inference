@@ -62,8 +62,8 @@ def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):
     assert batch.input_ids[0][-1] == 14402
     assert torch.all(batch.input_ids[0][:-1] == 50256)
 
-    assert batch.attention_mask[0][-1] == 1
-    assert torch.all(batch.attention_mask[0][:-1] == 0)
+    assert batch.attention_mask[0, 0] == 1
+    assert torch.all(batch.attention_mask[0, 1:] == 0)
 
     assert batch.past_key_values is None
 
@@ -94,17 +94,14 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     assert isinstance(next_batch, CausalLMBatch)
 
     assert len(next_batch.all_input_ids) == next_batch.size
-    assert (
-        len(next_batch.all_input_ids[0])
-        == len(next_batch.attention_mask[0])
-        == sequence_length + 1
-    )
+    assert len(next_batch.all_input_ids[0]) == sequence_length + 1
+    assert len(next_batch.attention_mask[0]) == 11
     assert next_batch.all_input_ids[0][-1] == 13
     assert next_batch.all_input_ids[0][-2] == 14402
     assert torch.all(next_batch.all_input_ids[0][:-2] == 50256)
 
-    assert torch.all(next_batch.attention_mask[0][-2:] == 1)
-    assert torch.all(next_batch.attention_mask[0][:-2] == 0)
+    assert torch.all(next_batch.attention_mask[0][0:2] == 1)
+    assert torch.all(next_batch.attention_mask[0][2:] == 0)
 
     assert next_batch.input_ids.shape == (next_batch.size, 1)
     assert next_batch.input_ids[0, 0] == 13
@@ -210,9 +207,13 @@ def test_batch_concatenate(
     assert torch.equal(next_batch.all_input_ids[1], next_batch_1.all_input_ids[0])
     assert torch.equal(next_batch.all_input_ids[2], next_batch_1.all_input_ids[1])
 
-    assert torch.all(next_batch.attention_mask[0] == 1)
-    assert torch.all(next_batch.attention_mask[1:, -2:] == 1)
-    assert torch.all(next_batch.attention_mask[1:, :-2] == 0)
+    assert torch.all(
+        next_batch.attention_mask[0, : -next_batch.padding_right_offset] == 1
+    )
+    assert torch.all(
+        next_batch.attention_mask[1:, 1 : -next_batch.padding_right_offset] == 1
+    )
+    assert torch.all(next_batch.attention_mask[1:, 3:] == 0)
 
     assert next_batch.batch_id == 0
     assert next_batch.input_ids[0, 0] == 12355

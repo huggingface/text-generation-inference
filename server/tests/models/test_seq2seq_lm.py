@@ -106,7 +106,7 @@ def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch)
     assert len(generations) == len(next_batch)
     assert isinstance(next_batch, Seq2SeqLMBatch)
 
-    assert torch.equal(next_batch.input_ids, default_seq2seq_lm_batch.input_ids)
+    assert next_batch.input_ids is None
     assert torch.equal(
         next_batch.attention_mask, default_seq2seq_lm_batch.attention_mask
     )
@@ -220,11 +220,6 @@ def test_batch_concatenate(
 
     assert next_batch.batch_id == 0
 
-    assert torch.all(next_batch.input_ids[:, 0] == 4268)
-    assert torch.all(next_batch.input_ids[:, 1] == 1)
-
-    assert torch.all(next_batch.attention_mask == 1)
-
     assert torch.equal(
         next_batch.decoder_input_ids[0], next_batch_0.decoder_input_ids[0]
     )
@@ -233,9 +228,10 @@ def test_batch_concatenate(
         next_batch.decoder_input_ids[1:, -2:], next_batch_1.decoder_input_ids
     )
 
-    assert torch.all(next_batch.decoder_attention_mask[0] == 1)
+    assert torch.all(next_batch.decoder_attention_mask[0, :3] == 1)
+    assert torch.all(next_batch.decoder_attention_mask[0, 3:] == 0)
     assert torch.all(next_batch.decoder_attention_mask[1:, 0] == 0)
-    assert torch.all(next_batch.decoder_attention_mask[1:, -2:] == 1)
+    assert torch.all(next_batch.decoder_attention_mask[1:, 1:3] == 1)
 
     assert torch.equal(
         next_batch.encoder_last_hidden_state[0],

@@ -221,14 +221,6 @@ class T5Sharded(Seq2SeqLM):
         List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
     ]:
         # Model Forward
-        if past_key_values is not None:
-            decoder_input_ids = decoder_input_ids[:, -1].unsqueeze(-1)
-
-        # Wrap `encoder_last_hidden_state` because for some reason, Transformers does a `encoder_last_hidden_state[0]`
-        # internally...
-        if encoder_last_hidden_state is not None:
-            encoder_last_hidden_state = [encoder_last_hidden_state]
-
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
