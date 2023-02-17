@@ -1,5 +1,5 @@
-use axum::http::HeaderValue;
 /// Text Generation Inference webserver entrypoint
+use axum::http::HeaderValue;
 use clap::Parser;
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use opentelemetry::sdk::trace;
@@ -73,9 +73,11 @@ fn main() -> Result<(), std::io::Error> {
     }
 
     // CORS allowed origins
-    let cors_allow_origin: Option<AllowOrigin> = cors_allow_origin.map(|cors_value_origin| {
+    // map to go inside the option and then map to parse from String to HeaderValue
+    // Finally, convert to AllowOrigin
+    let cors_allow_origin: Option<AllowOrigin> = cors_allow_origin.map(|cors_allow_origin| {
         AllowOrigin::list(
-            cors_value_origin
+            cors_allow_origin
                 .iter()
                 .map(|origin| origin.parse::<HeaderValue>().unwrap()),
         )
