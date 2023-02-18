@@ -471,6 +471,9 @@ fn shard_manager(
     // Safetensors load fast
     env.push(("SAFETENSORS_FAST_GPU".into(), "1".into()));
 
+    // Enable hf transfer for insane download speeds
+    env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), "1".into()));
+
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
     if let Some(huggingface_hub_cache) = huggingface_hub_cache {
