@@ -106,12 +106,10 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             )
 
         # Tokenize batch
-        pad_to_multiple_of = 8 if device.type == "cuda" else None
         tokenized_inputs = tokenizer(
             inputs,
             return_tensors="pt",
             padding=True,
-            pad_to_multiple_of=pad_to_multiple_of,
             return_token_type_ids=False,
         ).to(device)
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
