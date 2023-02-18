@@ -1,8 +1,6 @@
 import time
-import concurrent
 import os
 
-from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from loguru import logger
 from pathlib import Path
@@ -147,20 +145,17 @@ def download_weights(
         )
         return Path(local_file)
 
-    executor = ThreadPoolExecutor(max_workers=5)
-    futures = [
-        executor.submit(download_file, filename=filename) for filename in filenames
-    ]
-
     # We do this instead of using tqdm because we want to parse the logs with the launcher
     start_time = time.time()
     files = []
-    for i, future in enumerate(concurrent.futures.as_completed(futures)):
+    for i, filename in enumerate(filenames):
+        file = download_file(filename)
+
         elapsed = timedelta(seconds=int(time.time() - start_time))
-        remaining = len(futures) - (i + 1)
+        remaining = len(filenames) - (i + 1)
         eta = (elapsed / (i + 1)) * remaining if remaining > 0 else 0
 
-        logger.info(f"Download: [{i + 1}/{len(futures)}] -- ETA: {eta}")
-        files.append(future.result())
+        logger.info(f"Download: [{i + 1}/{len(filenames)}] -- ETA: {eta}")
+        files.append(file)
 
     return files

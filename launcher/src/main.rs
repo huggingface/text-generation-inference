@@ -98,23 +98,18 @@ fn main() -> ExitCode {
     })
     .expect("Error setting Ctrl-C handler");
 
-    // Download weights
-    if weights_cache_override.is_none() {
+    // Download weights for sharded models
+    if weights_cache_override.is_none() && num_shard > 1 {
         let mut download_argv = vec![
             "text-generation-server".to_string(),
             "download-weights".to_string(),
             model_id.clone(),
+            "--extension".to_string(),
+            ".safetensors".to_string(),
             "--logger-level".to_string(),
             "INFO".to_string(),
             "--json-output".to_string(),
         ];
-        if num_shard == 1 {
-            download_argv.push("--extension".to_string());
-            download_argv.push(".bin".to_string());
-        } else {
-            download_argv.push("--extension".to_string());
-            download_argv.push(".safetensors".to_string());
-        }
 
         // Model optional revision
         if let Some(ref revision) = revision {
@@ -130,6 +125,9 @@ fn main() -> ExitCode {
         if let Some(ref huggingface_hub_cache) = huggingface_hub_cache {
             env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
         };
+
+        // Enable hf transfer for insane download speeds
+        env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), "1".into()));
 
         // Start process
         tracing::info!("Starting download process.");
@@ -209,12 +207,6 @@ fn main() -> ExitCode {
             }
             sleep(Duration::from_millis(100));
         }
-    } else {
-        tracing::info!(
-            "weights_cache_override is set to {:?}.",
-            weights_cache_override
-        );
-        tracing::info!("Skipping download.")
     }
 
     // Shared shutdown bool
@@ -478,6 +470,9 @@ fn shard_manager(
 
     // Safetensors load fast
     env.push(("SAFETENSORS_FAST_GPU".into(), "1".into()));
+
+    // Enable hf transfer for insane download speeds
+    env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), "1".into()));
 
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
