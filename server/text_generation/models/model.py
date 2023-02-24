@@ -12,6 +12,7 @@ B = TypeVar("B", bound=Batch)
 class Model(ABC):
     def __init__(self, tokenizer: PreTrainedTokenizerBase, device: torch.device):
         self.tokenizer = tokenizer
+        self.all_special_ids = set(tokenizer.all_special_ids)
         self.device = device
 
     @property

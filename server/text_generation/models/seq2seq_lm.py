@@ -205,7 +205,8 @@ class Seq2SeqLMBatch(Batch):
             else:
                 batch_left_offset = (
                     batch.decoder_attention_mask.shape[1]
-                    - batch.max_decoder_input_length - batch.padding_right_offset
+                    - batch.max_decoder_input_length
+                    - batch.padding_right_offset
                 )
                 decoder_attention_mask[
                     start_index:end_index,
@@ -495,9 +496,8 @@ class Seq2SeqLM(Model):
             # Prefill
             if stopping_criteria.current_tokens == 1:
                 prefill_token_ids = decoder_input_ids[-new_decoder_input_length:-1]
-                prefill_texts = self.tokenizer.batch_decode(
+                prefill_texts = self.tokenizer.convert_ids_to_tokens(
                     prefill_token_ids,
-                    clean_up_tokenization_spaces=False,
                     skip_special_tokens=False,
                 )
                 prefill_tokens = PrefillTokens(
@@ -512,6 +512,7 @@ class Seq2SeqLM(Model):
                 next_token_id_squeezed,
                 next_token_logprob,
                 next_token_text,
+                next_token_id_squeezed in self.all_special_ids,
                 generated_text,
             )
 

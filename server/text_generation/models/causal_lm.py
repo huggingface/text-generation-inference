@@ -172,7 +172,9 @@ class CausalLMBatch(Batch):
             # and to remove unused allocated space
             left_offset = max_sequence_length - batch.max_sequence_length
             batch_left_offset = (
-                batch.attention_mask.shape[1] - batch.max_sequence_length - batch.padding_right_offset
+                batch.attention_mask.shape[1]
+                - batch.max_sequence_length
+                - batch.padding_right_offset
             )
             attention_mask[
                 start_index:end_index,
@@ -426,9 +428,8 @@ class CausalLM(Model):
                     1, all_input_ids[1:]
                 ).squeeze(1)[-new_input_length:-1].tolist()
                 prefill_token_ids = all_input_ids[-new_input_length:-1]
-                prefill_texts = self.tokenizer.batch_decode(
+                prefill_texts = self.tokenizer.convert_ids_to_tokens(
                     prefill_token_ids,
-                    clean_up_tokenization_spaces=False,
                     skip_special_tokens=False,
                 )
                 prefill_tokens = PrefillTokens(
@@ -443,6 +444,7 @@ class CausalLM(Model):
                 next_token_id_squeezed,
                 next_token_logprob,
                 next_token_text,
+                next_token_id_squeezed in self.all_special_ids,
                 generated_text,
             )
 
