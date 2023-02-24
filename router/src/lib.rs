@@ -87,6 +87,16 @@ pub(crate) struct GenerateRequest {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub struct PrefillToken {
+    #[schema(example = 0)]
+    id: u32,
+    #[schema(example = "test")]
+    text: String,
+    #[schema(nullable = true, example = -0.34)]
+    logprob: f32,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 pub struct Token {
     #[schema(example = 0)]
     id: u32,
@@ -94,6 +104,8 @@ pub struct Token {
     text: String,
     #[schema(nullable = true, example = -0.34)]
     logprob: f32,
+    #[schema(example = "false")]
+    special: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -116,7 +128,7 @@ pub(crate) struct Details {
     pub generated_tokens: u32,
     #[schema(example = 42)]
     pub seed: Option<u64>,
-    pub prefill: Option<Vec<Token>>,
+    pub prefill: Option<Vec<PrefillToken>>,
     pub tokens: Option<Vec<Token>>,
 }
 

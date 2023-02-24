@@ -73,6 +73,7 @@ class Generation:
     token_id: int
     token_logprob: float
     token_text: str
+    token_is_special: bool
     generated_text: Optional[GeneratedText]
 
     def to_pb(self) -> generate_pb2.Generation:
@@ -84,6 +85,7 @@ class Generation:
             token_id=self.token_id,
             token_logprob=self.token_logprob,
             token_text=self.token_text,
+            token_is_special=self.token_is_special,
             generated_text=self.generated_text.to_pb()
             if self.generated_text is not None
             else None,

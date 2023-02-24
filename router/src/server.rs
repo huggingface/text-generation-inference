@@ -2,7 +2,7 @@
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
     Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
-    Infer, StreamDetails, StreamResponse, Token, Validation,
+    Infer, PrefillToken, StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -255,11 +255,11 @@ async fn generate_stream(
                                     let time_per_token = inference_time / generated_text.generated_tokens;
 
                                     // Tracing metadata
-                                    span.record("total_time", format!("{:?}", total_time));
-                                    span.record("validation_time", format!("{:?}", validation_time));
-                                    span.record("queue_time", format!("{:?}", queue_time));
-                                    span.record("inference_time", format!("{:?}", inference_time));
-                                    span.record("time_per_token", format!("{:?}", time_per_token));
+                                    span.record("total_time", format!("{total_time:?}"));
+                                    span.record("validation_time", format!("{validation_time:?}"));
+                                    span.record("queue_time", format!("{queue_time:?}"));
+                                    span.record("inference_time", format!("{inference_time:?}"));
+                                    span.record("time_per_token", format!("{time_per_token:?}"));
                                     span.record("seed", format!("{:?}", generated_text.seed));
                                     tracing::info!(parent: &span, "Output: {}", generated_text.text);
 
@@ -349,6 +349,7 @@ pub async fn run(
             schemas(
                 GenerateRequest,
                 GenerateParameters,
+                PrefillToken,
                 Token,
                 GenerateResponse,
                 Details,

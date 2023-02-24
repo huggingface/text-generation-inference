@@ -108,8 +108,10 @@ message Generation {
     float token_logprob = 4;
     /// Text
     string token_text = 5;
+    /// Is it a special token
+    bool token_is_special = 6;
     /// Complete generated text
-    GeneratedText generated_text = 6;
+    GeneratedText generated_text = 7;
 }
 
 message PrefillRequest {

@@ -172,7 +172,9 @@ class CausalLMBatch(Batch):
             # and to remove unused allocated space
             left_offset = max_sequence_length - batch.max_sequence_length
             batch_left_offset = (
-                batch.attention_mask.shape[1] - batch.max_sequence_length - batch.padding_right_offset
+                batch.attention_mask.shape[1]
+                - batch.max_sequence_length
+                - batch.padding_right_offset
             )
             attention_mask[
                 start_index:end_index,
@@ -443,6 +445,7 @@ class CausalLM(Model):
                 next_token_id_squeezed,
                 next_token_logprob,
                 next_token_text,
+                next_token_id_squeezed in self.all_special_ids,
                 generated_text,
             )
 

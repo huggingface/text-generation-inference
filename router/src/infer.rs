@@ -1,7 +1,7 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
-use crate::GenerateRequest;
 use crate::{Entry, Queue, Token};
+use crate::{GenerateRequest, PrefillToken};
 use nohash_hasher::IntMap;
 use std::sync::Arc;
 use text_generation_client::{
@@ -138,7 +138,7 @@ impl Infer {
                         .into_iter()
                         .zip(tokens.logprobs.into_iter())
                         .zip(tokens.texts.into_iter())
-                        .map(|((id, logprob), text)| Token { id, text, logprob })
+                        .map(|((id, logprob), text)| PrefillToken { id, text, logprob })
                         .collect();
                 }
                 // Push last token
@@ -372,6 +372,7 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
             id: generation.token_id,
             text: generation.token_text,
             logprob: generation.token_logprob,
+            special: generation.token_is_special,
         };
 
         if let Some(generated_text) = generation.generated_text {
@@ -420,7 +421,7 @@ pub(crate) enum InferStreamResponse {
 
 #[derive(Debug)]
 pub(crate) struct InferResponse {
-    pub(crate) prefill: Vec<Token>,
+    pub(crate) prefill: Vec<PrefillToken>,
     pub(crate) tokens: Vec<Token>,
     pub(crate) generated_text: GeneratedText,
     pub(crate) queued: Instant,
