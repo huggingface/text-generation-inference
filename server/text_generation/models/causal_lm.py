@@ -428,8 +428,9 @@ class CausalLM(Model):
                     1, all_input_ids[1:]
                 ).squeeze(1)[-new_input_length:-1].tolist()
                 prefill_token_ids = all_input_ids[-new_input_length:-1]
-                prefill_texts = self.tokenizer.convert_ids_to_tokens(
+                prefill_texts = self.tokenizer.batch_decode(
                     prefill_token_ids,
+                    clean_up_tokenization_spaces=False,
                     skip_special_tokens=False,
                 )
                 prefill_tokens = PrefillTokens(
