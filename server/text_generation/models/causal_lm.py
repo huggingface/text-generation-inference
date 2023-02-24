@@ -445,7 +445,7 @@ class CausalLM(Model):
                 next_token_id_squeezed,
                 next_token_logprob,
                 next_token_text,
-                next_token_id_squeezed in self.all_special_ids,
+                next_token_id_squeezed.item() in self.all_special_ids,
                 generated_text,
             )
 
