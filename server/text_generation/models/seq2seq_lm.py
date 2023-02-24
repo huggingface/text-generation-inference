@@ -42,6 +42,7 @@ class Seq2SeqLMBatch(Batch):
     size: int
     max_input_length: int
     max_decoder_input_length: int
+    padding_right_offset: int
 
     def to_pb(self) -> generate_pb2.Batch:
         """Convert a Seq2SeqLMBatch to a text_generation.v1.Batch protobuf"""
@@ -68,6 +69,8 @@ class Seq2SeqLMBatch(Batch):
         decoder_input_lengths = []
 
         # Parse batch
+        max_input_length = 0
+        padding_right_offset = 0
         for r in pb.requests:
             inputs.append(r.inputs)
             input_lengths.append(r.input_length)
@@ -75,17 +78,20 @@ class Seq2SeqLMBatch(Batch):
             decoder_input_ids.append(tokenizer.bos_token_id)
             decoder_input_lengths.append(1)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
-            stopping_criterias.append(
-                StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
+            stopping_criteria = StoppingCriteria.from_pb(
+                r.stopping_parameters, tokenizer
+            )
+            stopping_criterias.append(stopping_criteria)
+            max_input_length = max(max_input_length, r.input_length)
+            padding_right_offset = max(
+                padding_right_offset, stopping_criteria.max_new_tokens
             )
 
         # Tokenize batch
-        pad_to_multiple_of = 8 if device.type == "cuda" else None
         tokenized_inputs = tokenizer(
             inputs,
             return_tensors="pt",
             padding=True,
-            pad_to_multiple_of=pad_to_multiple_of,
             return_token_type_ids=False,
         ).to(device)
         # Convert decoder_input_ids to torch tensor of size [batch_size, 1]
@@ -107,6 +113,7 @@ class Seq2SeqLMBatch(Batch):
             size=len(pb.requests),
             max_input_length=max(input_lengths),
             max_decoder_input_length=1,
+            padding_right_offset=padding_right_offset,
         )
 
     @classmethod
@@ -115,11 +122,17 @@ class Seq2SeqLMBatch(Batch):
         """Concatenate multiple batches together by padding internal torch tensors"""
 
         # Used for padding
-        total_batch_size = sum(batch.size for batch in batches)
-        max_input_length = max(batch.max_input_length for batch in batches)
-        max_decoder_input_length = max(
-            batch.max_decoder_input_length for batch in batches
-        )
+        total_batch_size = 0
+        max_input_length = 0
+        max_decoder_input_length = 0
+        padding_right_offset = 0
+        for batch in batches:
+            total_batch_size += batch.size
+            max_input_length = max(max_input_length, batch.max_input_length)
+            max_decoder_input_length = max(
+                max_decoder_input_length, batch.max_decoder_input_length
+            )
+            padding_right_offset = max(padding_right_offset, batch.padding_right_offset)
 
         # Batch attributes
         requests = []
@@ -129,7 +142,6 @@ class Seq2SeqLMBatch(Batch):
         stopping_criterias = []
 
         # Batch tensors
-        input_ids = None
         attention_mask = None
         decoder_input_ids = None
         decoder_attention_mask = None
@@ -156,16 +168,6 @@ class Seq2SeqLMBatch(Batch):
                 raise ValueError("Batch encoder_last_hidden_state cannot be None")
 
             # Create padded tensor
-            if input_ids is None:
-                input_ids = batch.input_ids.new_zeros(
-                    (total_batch_size, max_input_length),
-                )
-            # Copy to correct indices
-            input_ids[
-                start_index:end_index, -batch.max_input_length :
-            ] = batch.input_ids[:, -batch.max_input_length :]
-
-            # Create padded tensor
             if attention_mask is None:
                 attention_mask = batch.attention_mask.new_zeros(
                     (total_batch_size, max_input_length),
@@ -189,19 +191,29 @@ class Seq2SeqLMBatch(Batch):
             if decoder_attention_mask is None:
                 # As decoder_attention_mask might not exist, we use `batch.attention_mask` for device here
                 decoder_attention_mask = batch.attention_mask.new_zeros(
-                    (total_batch_size, max_decoder_input_length),
+                    (total_batch_size, max_decoder_input_length + padding_right_offset),
                 )
             # If the decoder mask does not exist yet, all generations started at the same time and we never concatenated
             # this batch. All generations are of length `batch.max_decoder_input_length`.
+            left_offset = max_decoder_input_length - batch.max_decoder_input_length
             if batch.decoder_attention_mask is None:
                 decoder_attention_mask[
-                    start_index:end_index, -batch.max_decoder_input_length :
+                    start_index:end_index,
+                    left_offset:-padding_right_offset,
                 ] = 1
             # If it exists, we need to index
             else:
+                batch_left_offset = (
+                    batch.decoder_attention_mask.shape[1]
+                    - batch.max_decoder_input_length - batch.padding_right_offset
+                )
                 decoder_attention_mask[
-                    start_index:end_index, -batch.max_decoder_input_length :
-                ] = batch.decoder_attention_mask[:, -batch.max_decoder_input_length :]
+                    start_index:end_index,
+                    left_offset:-padding_right_offset,
+                ] = batch.decoder_attention_mask[
+                    :,
+                    batch_left_offset : -batch.padding_right_offset,
+                ]
 
             # Create padded tensor
             if encoder_last_hidden_state is None:
@@ -273,7 +285,7 @@ class Seq2SeqLMBatch(Batch):
         return cls(
             batch_id=batches[0].batch_id,
             requests=requests,
-            input_ids=input_ids,
+            input_ids=None,
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
             decoder_attention_mask=decoder_attention_mask,
@@ -286,6 +298,7 @@ class Seq2SeqLMBatch(Batch):
             size=total_batch_size,
             max_input_length=max_input_length,
             max_decoder_input_length=max_decoder_input_length,
+            padding_right_offset=padding_right_offset,
         )
 
     def __len__(self):
@@ -342,14 +355,6 @@ class Seq2SeqLM(Model):
         List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
     ]:
         # Model Forward
-        if past_key_values is not None:
-            decoder_input_ids = decoder_input_ids[:, -1].unsqueeze(-1)
-
-        # Wrap `encoder_last_hidden_state` because for some reason, Transformers does a `encoder_last_hidden_state[0]`
-        # internally...
-        if encoder_last_hidden_state is not None:
-            encoder_last_hidden_state = [encoder_last_hidden_state]
-
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -369,12 +374,34 @@ class Seq2SeqLM(Model):
     def generate_token(
         self, batch: Seq2SeqLMBatch
     ) -> Tuple[List[Generation], Optional[Seq2SeqLMBatch]]:
+        if batch.decoder_attention_mask is not None:
+            # slice to the correct shape
+            decoder_attention_mask = batch.decoder_attention_mask[
+                :, : -batch.padding_right_offset
+            ]
+        else:
+            decoder_attention_mask = None
+
+        # check if first forward or not
+        if batch.past_key_values is not None:
+            # Only take the last token
+            decoder_input_ids = batch.decoder_input_ids[:, -1].unsqueeze(-1)
+        else:
+            decoder_input_ids = batch.decoder_input_ids
+
+        # Wrap `encoder_last_hidden_state` because for some reason, Transformers does a `encoder_last_hidden_state[0]`
+        # internally...
+        if batch.encoder_last_hidden_state is not None:
+            encoder_last_hidden_state = [batch.encoder_last_hidden_state]
+        else:
+            encoder_last_hidden_state = batch.encoder_last_hidden_state
+
         logits, encoder_last_hidden_state, past = self.forward(
             batch.input_ids,
             batch.attention_mask,
-            batch.decoder_input_ids,
-            batch.decoder_attention_mask,
-            batch.encoder_last_hidden_state,
+            decoder_input_ids,
+            decoder_attention_mask,
+            encoder_last_hidden_state,
             batch.past_key_values,
         )
 
@@ -402,7 +429,6 @@ class Seq2SeqLM(Model):
             logits,
             batch.next_token_choosers,
             batch.stopping_criterias,
-            batch.input_ids,
             batch.decoder_input_ids,
         )
 
@@ -414,7 +440,6 @@ class Seq2SeqLM(Model):
             logits,
             next_token_chooser,
             stopping_criteria,
-            input_tokens,
             decoder_input_ids,
         ) in enumerate(iterator):
             # Select next token
@@ -500,10 +525,8 @@ class Seq2SeqLM(Model):
         # If we finished at least one generation, we need to evict the indices of the generations that finished
         # from the values of the next batch
         if len(next_batch_keep_indices) != len(batch):
-            # Apply indices to attention mask, past key values and other items that need to be cached
-            next_batch_input_ids = batch.input_ids[next_batch_keep_indices]
+            # Apply indices to decoder_attention mask, past key values and other items that need to be cached
             next_batch_attention_mask = batch.attention_mask[next_batch_keep_indices]
-
             if batch.decoder_attention_mask is not None:
                 next_batch_decoder_attention_mask = batch.decoder_attention_mask[
                     next_batch_keep_indices
@@ -526,7 +549,6 @@ class Seq2SeqLM(Model):
                 batch.stopping_criterias[i] for i in next_batch_keep_indices
             ]
         else:
-            next_batch_input_ids = batch.input_ids
             next_batch_attention_mask = batch.attention_mask
             next_batch_decoder_attention_mask = batch.decoder_attention_mask
             next_batch_encoder_last_hidden_state = encoder_last_hidden_state
@@ -536,20 +558,14 @@ class Seq2SeqLM(Model):
             next_batch_next_token_choosers = batch.next_token_choosers
             next_batch_stopping_criterias = batch.stopping_criterias
 
-        # Update decoder_attention_mask with padding as we added a new token to input_ids
+        # Update decoder_attention_mask as we added a new token to input_ids
         if next_batch_decoder_attention_mask is not None:
-            next_batch_decoder_attention_mask = torch.cat(
-                [
-                    next_batch_decoder_attention_mask,
-                    next_batch_decoder_attention_mask.new_ones(next_batch_size, 1),
-                ],
-                dim=1,
-            )
+            next_batch_decoder_attention_mask[:, -batch.padding_right_offset] = 1
 
         next_batch = Seq2SeqLMBatch(
             batch_id=batch.batch_id,
             requests=next_batch_requests,
-            input_ids=next_batch_input_ids,
+            input_ids=None,
             attention_mask=next_batch_attention_mask,
             decoder_input_ids=next_batch_decoder_input_ids,
             decoder_attention_mask=next_batch_decoder_attention_mask,
@@ -562,5 +578,6 @@ class Seq2SeqLM(Model):
             size=next_batch_size,
             max_input_length=next_batch_max_input_length,
             max_decoder_input_length=next_batch_max_decoder_input_length,
+            padding_right_offset=batch.padding_right_offset - 1,
         )
         return generations, next_batch
