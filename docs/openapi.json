@@ -11,7 +11,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "paths": {
     "/generate": {
@@ -228,7 +228,7 @@
           "prefill": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Token"
+              "$ref": "#/components/schemas/PrefillToken"
             }
           },
           "seed": {
@@ -361,6 +361,31 @@
           }
         }
       },
+      "PrefillToken": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "logprob"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "example": 0
+          },
+          "logprob": {
+            "type": "number",
+            "format": "float",
+            "example": -0.34,
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "example": "test"
+          }
+        }
+      },
       "StreamDetails": {
         "type": "object",
         "required": [
@@ -408,7 +433,8 @@
         "required": [
           "id",
           "text",
-          "logprob"
+          "logprob",
+          "special"
         ],
         "properties": {
           "id": {
@@ -421,6 +447,10 @@
             "format": "float",
             "example": -0.34,
             "nullable": true
+          },
+          "special": {
+            "type": "boolean",
+            "example": "false"
           },
           "text": {
             "type": "string",
