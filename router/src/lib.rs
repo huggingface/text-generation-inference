@@ -47,7 +47,7 @@ pub(crate) struct GenerateParameters {
     #[schema(exclusive_minimum = 0, exclusive_maximum = 512, default = "20")]
     pub max_new_tokens: u32,
     #[serde(default)]
-    #[schema(inline, max_items = 4, example = json!(["photographer"]))]
+    #[schema(inline, max_items = 4, example = json ! (["photographer"]))]
     pub stop: Vec<String>,
     #[serde(default)]
     #[schema(default = "true")]
@@ -86,13 +86,33 @@ pub(crate) struct GenerateRequest {
     pub parameters: GenerateParameters,
 }
 
+#[derive(Clone, Debug, Deserialize, ToSchema)]
+pub(crate) struct CompatGenerateRequest {
+    #[schema(example = "My name is Olivier and I")]
+    pub inputs: String,
+    #[serde(default = "default_parameters")]
+    pub parameters: GenerateParameters,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub stream: bool,
+}
+
+impl From<CompatGenerateRequest> for GenerateRequest {
+    fn from(req: CompatGenerateRequest) -> Self {
+        Self {
+            inputs: req.inputs,
+            parameters: req.parameters,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PrefillToken {
     #[schema(example = 0)]
     id: u32,
     #[schema(example = "test")]
     text: String,
-    #[schema(nullable = true, example = -0.34)]
+    #[schema(nullable = true, example = - 0.34)]
     logprob: f32,
 }
 
@@ -102,7 +122,7 @@ pub struct Token {
     id: u32,
     #[schema(example = "test")]
     text: String,
-    #[schema(nullable = true, example = -0.34)]
+    #[schema(nullable = true, example = - 0.34)]
     logprob: f32,
     #[schema(example = "false")]
     special: bool,
