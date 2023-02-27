@@ -109,7 +109,7 @@ fn main() -> Result<(), std::io::Error> {
             let model_info: serde_json::Value =
                 serde_json::from_str(&model_info).expect("unable to parse model info");
 
-            // if pipeline-tag == text-generation we return prompt + generated_text from the / route
+            // if pipeline-tag == text-generation we default to return_full_text = true
             let compat_return_full_text = match model_info.get("pipeline_tag") {
                 None => {
                     tracing::warn!("no pipeline tag found for model {tokenizer_name}");
