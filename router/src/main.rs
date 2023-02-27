@@ -99,7 +99,7 @@ fn main() -> Result<(), std::io::Error> {
 
             // Get pipeline tag
             let model_info = reqwest::get(format!(
-                "https://api-inference.huggingface.co/models/{tokenizer_name}"
+                "https://huggingface.co/api/models/{tokenizer_name}"
             ))
             .await
             .expect("Could not connect to hf.co")
