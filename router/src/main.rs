@@ -87,7 +87,7 @@ fn main() -> Result<(), std::io::Error> {
     // This will only be used to validate payloads
     //
     // We need to download it outside of the Tokio runtime
-    let tokenizer = Tokenizer::from_pretrained(tokenizer_name, None).unwrap();
+    let tokenizer = Tokenizer::from_pretrained(tokenizer_name.clone(), None).unwrap();
 
     // Launch Tokio runtime
     tokio::runtime::Builder::new_multi_thread()
@@ -96,6 +96,36 @@ fn main() -> Result<(), std::io::Error> {
         .unwrap()
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
+
+            // Get pipeline tag
+            let model_info = reqwest::get(format!(
+                "https://api-inference.huggingface.co/models/{tokenizer_name}"
+            ))
+            .await
+            .expect("Could not connect to hf.co")
+            .text()
+            .await
+            .expect("error when retrieving model info from hf.co");
+            let model_info: serde_json::Value =
+                serde_json::from_str(&model_info).expect("unable to parse model info");
+
+            // if pipeline-tag == text-generation we return prompt + generated_text from the / route
+            let compat_return_full_text = match model_info["pipeline_tag"].as_str() {
+                None => {
+                    tracing::warn!("no pipeline tag found for model {tokenizer_name}");
+                    tracing::warn!("returning only generated_text from the compat route");
+                    false
+                }
+                Some(pipeline_tag) => {
+                    if pipeline_tag == "text-generation" {
+                        tracing::info!("returning prompt + generated_text from the compat route");
+                        true
+                    } else {
+                        tracing::info!("returning only generated_text from the compat route");
+                        false
+                    }
+                }
+            };
 
             // Instantiate sharded client from the master unix socket
             let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
@@ -113,6 +143,7 @@ fn main() -> Result<(), std::io::Error> {
 
             // Run server
             server::run(
+                compat_return_full_text,
                 max_concurrent_requests,
                 max_stop_sequences,
                 max_input_length,

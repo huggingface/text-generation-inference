@@ -29,6 +29,7 @@ use utoipa_swagger_ui::SwaggerUi;
 /// Compatibility route with api-inference and AzureML
 #[instrument(skip(infer))]
 async fn compat_generate(
+    return_full_text: Extension<bool>,
     infer: Extension<Infer>,
     req: Json<CompatGenerateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
@@ -39,9 +40,20 @@ async fn compat_generate(
             .await
             .into_response())
     } else {
+        let mut add_prompt = None;
+        if return_full_text.0 {
+            add_prompt = Some(req.inputs.clone());
+        }
+
         let (headers, generation) = generate(infer, Json(req.into())).await?;
+
+        let mut generation = generation.0;
+        if let Some(prompt) = add_prompt {
+            generation.generated_text = prompt + &generation.generated_text;
+        };
+
         // wrap generation inside a Vec to match api-inference
-        Ok((headers, Json(vec![generation.0])).into_response())
+        Ok((headers, Json(vec![generation])).into_response())
     }
 }
 
@@ -345,6 +357,7 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
+    compat_return_full_text: bool,
     max_concurrent_requests: usize,
     max_stop_sequences: usize,
     max_input_length: usize,
@@ -429,8 +442,9 @@ pub async fn run(
         .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
         .route("/health", get(health))
-        .layer(Extension(infer))
         .route("/metrics", get(metrics))
+        .layer(Extension(compat_return_full_text))
+        .layer(Extension(infer))
         .layer(Extension(prom_handle))
         .layer(opentelemetry_tracing_layer())
         .layer(cors_layer);
