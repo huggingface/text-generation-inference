@@ -33,21 +33,20 @@ async fn compat_generate(
     infer: Extension<Infer>,
     req: Json<CompatGenerateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
-    // switch on stream
     let mut req = req.0;
+
+    // default return_full_text given the pipeline_tag
     if req.parameters.return_full_text.is_none() {
         req.parameters.return_full_text = Some(default_return_full_text.0)
     }
 
+    // switch on stream
     if req.stream {
-        Ok(
-            generate_stream(infer, Json(req.into()))
-                .await
-                .into_response(),
-        )
+        Ok(generate_stream(infer, Json(req.into()))
+            .await
+            .into_response())
     } else {
-        let (headers, generation) =
-            generate(infer, Json(req.into())).await?;
+        let (headers, generation) = generate(infer, Json(req.into())).await?;
         // wrap generation inside a Vec to match api-inference
         Ok((headers, Json(vec![generation.0])).into_response())
     }
@@ -100,15 +99,15 @@ example = json ! ({"error": "Incomplete generation"})),
 )
 )]
 #[instrument(
-skip(infer),
-fields(
-total_time,
-validation_time,
-queue_time,
-inference_time,
-time_per_token,
-seed,
-)
+    skip(infer),
+    fields(
+        total_time,
+        validation_time,
+        queue_time,
+        inference_time,
+        time_per_token,
+        seed,
+    )
 )]
 async fn generate(
     infer: Extension<Infer>,
@@ -118,12 +117,7 @@ async fn generate(
     let start_time = Instant::now();
 
     let mut add_prompt = None;
-    if req
-        .0
-        .parameters
-        .return_full_text
-        .unwrap_or(false)
-    {
+    if req.0.parameters.return_full_text.unwrap_or(false) {
         add_prompt = Some(req.0.inputs.clone());
     }
 
@@ -232,20 +226,20 @@ content_type = "text/event-stream"),
 )
 )]
 #[instrument(
-skip(infer),
-fields(
-total_time,
-validation_time,
-queue_time,
-inference_time,
-time_per_token,
-seed,
-)
+    skip(infer),
+    fields(
+        total_time,
+        validation_time,
+        queue_time,
+        inference_time,
+        time_per_token,
+        seed,
+    )
 )]
 async fn generate_stream(
     infer: Extension<Infer>,
     req: Json<GenerateRequest>,
-) -> Sse<impl Stream<Item=Result<Event, Infallible>>> {
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let span = tracing::Span::current();
     let start_time = Instant::now();
 
@@ -493,7 +487,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(unix)]
-        let terminate = async {
+    let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -501,7 +495,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(not(unix))]
-        let terminate = std::future::pending::<()>();
+    let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},

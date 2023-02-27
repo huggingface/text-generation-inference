@@ -110,21 +110,12 @@ fn main() -> Result<(), std::io::Error> {
                 serde_json::from_str(&model_info).expect("unable to parse model info");
 
             // if pipeline-tag == text-generation we return prompt + generated_text from the / route
-            let compat_return_full_text = match model_info["pipeline_tag"].as_str() {
+            let compat_return_full_text = match model_info.get("pipeline_tag") {
                 None => {
                     tracing::warn!("no pipeline tag found for model {tokenizer_name}");
-                    tracing::warn!("returning only generated_text from the compat route");
                     false
                 }
-                Some(pipeline_tag) => {
-                    if pipeline_tag == "text-generation" {
-                        tracing::info!("returning prompt + generated_text from the compat route");
-                        true
-                    } else {
-                        tracing::info!("returning only generated_text from the compat route");
-                        false
-                    }
-                }
+                Some(pipeline_tag) => pipeline_tag.as_str() == Some("text-generation"),
             };
 
             // Instantiate sharded client from the master unix socket
