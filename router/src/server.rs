@@ -2,7 +2,7 @@
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
     Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
-    Infer, PrefillToken, StreamDetails, StreamResponse, Token, Validation,
+    Infer, LegacyGenerateRequest, PrefillToken, StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -24,6 +24,25 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+/// Compatibility route with api-inference and AzureML
+#[instrument(skip(infer))]
+async fn legacy_generate(
+    infer: Extension<Infer>,
+    req: Json<LegacyGenerateRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    // switch on stream
+    let req = req.0;
+    if req.stream {
+        Ok(generate_stream(infer, Json(req.into()))
+            .await
+            .into_response())
+    } else {
+        let (headers, generation) = generate(infer, Json(req.into())).await?;
+        // wrap generation inside a Vec to match api-inference
+        Ok((headers, Json(vec![generation.0])).into_response())
+    }
+}
 
 /// Health check method
 #[instrument(skip(infer))]
@@ -84,7 +103,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
 async fn generate(
     infer: Extension<Infer>,
     req: Json<GenerateRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     let start_time = Instant::now();
 
@@ -404,7 +423,7 @@ pub async fn run(
     // Create router
     let app = Router::new()
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
-        .route("/", post(generate))
+        .route("/", post(legacy_generate))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
