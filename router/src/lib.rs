@@ -87,7 +87,7 @@ pub(crate) struct GenerateRequest {
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
-pub(crate) struct LegacyGenerateRequest {
+pub(crate) struct CompatGenerateRequest {
     #[schema(example = "My name is Olivier and I")]
     pub inputs: String,
     #[serde(default = "default_parameters")]
@@ -97,8 +97,8 @@ pub(crate) struct LegacyGenerateRequest {
     pub stream: bool,
 }
 
-impl From<LegacyGenerateRequest> for GenerateRequest {
-    fn from(req: LegacyGenerateRequest) -> Self {
+impl From<CompatGenerateRequest> for GenerateRequest {
+    fn from(req: CompatGenerateRequest) -> Self {
         Self {
             inputs: req.inputs,
             parameters: req.parameters,

@@ -1,8 +1,9 @@
 /// HTTP Server logic
 use crate::infer::{InferError, InferStreamResponse};
 use crate::{
-    Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
-    Infer, LegacyGenerateRequest, PrefillToken, StreamDetails, StreamResponse, Token, Validation,
+    CompatGenerateRequest, Details, ErrorResponse, FinishReason, GenerateParameters,
+    GenerateRequest, GenerateResponse, Infer, PrefillToken, StreamDetails, StreamResponse, Token,
+    Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -27,9 +28,9 @@ use utoipa_swagger_ui::SwaggerUi;
 
 /// Compatibility route with api-inference and AzureML
 #[instrument(skip(infer))]
-async fn legacy_generate(
+async fn compat_generate(
     infer: Extension<Infer>,
-    req: Json<LegacyGenerateRequest>,
+    req: Json<CompatGenerateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     // switch on stream
     let req = req.0;
@@ -423,7 +424,7 @@ pub async fn run(
     // Create router
     let app = Router::new()
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
-        .route("/", post(legacy_generate))
+        .route("/", post(compat_generate))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
