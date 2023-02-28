@@ -76,5 +76,4 @@ COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bi
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
 
-ENTRYPOINT ["text-generation-launcher"]
-CMD ["--json-output"]
+ENTRYPOINT ["text-generation-launcher", "--json-output"]
