@@ -157,6 +157,7 @@ fn validate(
         max_new_tokens,
         stop: stop_sequences,
         seed,
+        watermark,
         ..
     } = request.parameters;
 
@@ -232,6 +233,7 @@ fn validate(
                     top_p,
                     do_sample,
                     seed,
+                    watermark,
                 };
                 let stopping_parameters = StoppingCriteriaParameters {
                     max_new_tokens,
