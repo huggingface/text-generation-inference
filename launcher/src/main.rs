@@ -19,13 +19,13 @@ use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(default_value = "bigscience/bloom-560m", long, env)]
+    #[clap(default_value = "bigscience/bloom-560m", long, env = "HF_MODEL_ID")]
     model_id: String,
     #[clap(long, env)]
     revision: Option<String>,
     #[clap(long, env)]
     sharded: Option<bool>,
-    #[clap(long, env)]
+    #[clap(long, env = "SM_NUM_GPUS")]
     num_shard: Option<usize>,
     #[clap(long, env)]
     quantize: bool,
