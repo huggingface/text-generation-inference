@@ -87,7 +87,7 @@ fn main() -> Result<(), std::io::Error> {
     // This will only be used to validate payloads
     //
     // We need to download it outside of the Tokio runtime
-    let tokenizer = Tokenizer::from_pretrained(tokenizer_name, None).unwrap();
+    let tokenizer = Tokenizer::from_pretrained(tokenizer_name.clone(), None).unwrap();
 
     // Launch Tokio runtime
     tokio::runtime::Builder::new_multi_thread()
@@ -96,6 +96,27 @@ fn main() -> Result<(), std::io::Error> {
         .unwrap()
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
+
+            // Get pipeline tag
+            let model_info = reqwest::get(format!(
+                "https://huggingface.co/api/models/{tokenizer_name}"
+            ))
+            .await
+            .expect("Could not connect to hf.co")
+            .text()
+            .await
+            .expect("error when retrieving model info from hf.co");
+            let model_info: serde_json::Value =
+                serde_json::from_str(&model_info).expect("unable to parse model info");
+
+            // if pipeline-tag == text-generation we default to return_full_text = true
+            let compat_return_full_text = match model_info.get("pipeline_tag") {
+                None => {
+                    tracing::warn!("no pipeline tag found for model {tokenizer_name}");
+                    false
+                }
+                Some(pipeline_tag) => pipeline_tag.as_str() == Some("text-generation"),
+            };
 
             // Instantiate sharded client from the master unix socket
             let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
@@ -113,6 +134,7 @@ fn main() -> Result<(), std::io::Error> {
 
             // Run server
             server::run(
+                compat_return_full_text,
                 max_concurrent_requests,
                 max_stop_sequences,
                 max_input_length,

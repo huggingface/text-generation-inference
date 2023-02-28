@@ -40,12 +40,15 @@ pub(crate) struct GenerateParameters {
         example = 0.95
     )]
     pub top_p: Option<f32>,
-    #[serde(default = "default_do_sample")]
+    #[serde(default)]
     #[schema(default = "false", example = true)]
     pub do_sample: bool,
     #[serde(default = "default_max_new_tokens")]
     #[schema(exclusive_minimum = 0, exclusive_maximum = 512, default = "20")]
     pub max_new_tokens: u32,
+    #[serde(default)]
+    #[schema(default = "None", example = false)]
+    pub return_full_text: Option<bool>,
     #[serde(default)]
     #[schema(inline, max_items = 4, example = json ! (["photographer"]))]
     pub stop: Vec<String>,
@@ -54,10 +57,6 @@ pub(crate) struct GenerateParameters {
     pub details: bool,
     #[serde(default)]
     pub seed: Option<u64>,
-}
-
-fn default_do_sample() -> bool {
-    false
 }
 
 fn default_max_new_tokens() -> u32 {
@@ -70,8 +69,9 @@ fn default_parameters() -> GenerateParameters {
         repetition_penalty: None,
         top_k: None,
         top_p: None,
-        do_sample: default_do_sample(),
+        do_sample: false,
         max_new_tokens: default_max_new_tokens(),
+        return_full_text: None,
         stop: vec![],
         details: false,
         seed: None,

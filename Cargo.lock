@@ -2268,6 +2268,7 @@ dependencies = [
  "opentelemetry-otlp",
  "parking_lot",
  "rand",
+ "reqwest",
  "serde",
  "serde_json",
  "text-generation-client",

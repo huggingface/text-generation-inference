@@ -29,11 +29,18 @@ use utoipa_swagger_ui::SwaggerUi;
 /// Compatibility route with api-inference and AzureML
 #[instrument(skip(infer))]
 async fn compat_generate(
+    default_return_full_text: Extension<bool>,
     infer: Extension<Infer>,
     req: Json<CompatGenerateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let mut req = req.0;
+
+    // default return_full_text given the pipeline_tag
+    if req.parameters.return_full_text.is_none() {
+        req.parameters.return_full_text = Some(default_return_full_text.0)
+    }
+
     // switch on stream
-    let req = req.0;
     if req.stream {
         Ok(generate_stream(infer, Json(req.into()))
             .await
@@ -63,6 +70,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
                 top_p: None,
                 do_sample: false,
                 max_new_tokens: 1,
+                return_full_text: None,
                 stop: Vec::new(),
                 details: false,
                 seed: None,
@@ -81,13 +89,13 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
     responses(
         (status = 200, description = "Generated Text", body = GenerateResponse),
         (status = 424, description = "Generation Error", body = ErrorResponse,
-            example = json!({"error": "Request failed during generation"})),
+            example = json ! ({"error": "Request failed during generation"})),
         (status = 429, description = "Model is overloaded", body = ErrorResponse,
-            example = json!({"error": "Model is overloaded"})),
+            example = json ! ({"error": "Model is overloaded"})),
         (status = 422, description = "Input validation error", body = ErrorResponse,
-            example = json!({"error": "Input validation error"})),
+            example = json ! ({"error": "Input validation error"})),
         (status = 500, description = "Incomplete generation", body = ErrorResponse,
-            example = json!({"error": "Incomplete generation"})),
+            example = json ! ({"error": "Incomplete generation"})),
     )
 )]
 #[instrument(
@@ -108,8 +116,14 @@ async fn generate(
     let span = tracing::Span::current();
     let start_time = Instant::now();
 
-    // Inference
+    let mut add_prompt = None;
+    if req.0.parameters.return_full_text.unwrap_or(false) {
+        add_prompt = Some(req.0.inputs.clone());
+    }
+
     let details = req.0.parameters.details;
+
+    // Inference
     let response = infer.generate(req.0).await?;
 
     // Token details
@@ -176,8 +190,13 @@ async fn generate(
     );
 
     // Send response
+    let mut output_text = response.generated_text.text;
+    if let Some(prompt) = add_prompt {
+        output_text = prompt + &output_text;
+    }
+
     let response = GenerateResponse {
-        generated_text: response.generated_text.text,
+        generated_text: output_text,
         details,
     };
     Ok((headers, Json(response)))
@@ -191,19 +210,19 @@ async fn generate(
     request_body = GenerateRequest,
     responses(
         (status = 200, description = "Generated Text", body = StreamResponse,
-            content_type="text/event-stream"),
+            content_type = "text/event-stream"),
         (status = 424, description = "Generation Error", body = ErrorResponse,
-            example = json!({"error": "Request failed during generation"}),
-            content_type="text/event-stream"),
+            example = json ! ({"error": "Request failed during generation"}),
+            content_type = "text/event-stream"),
         (status = 429, description = "Model is overloaded", body = ErrorResponse,
-            example = json!({"error": "Model is overloaded"}),
-            content_type="text/event-stream"),
+            example = json ! ({"error": "Model is overloaded"}),
+            content_type = "text/event-stream"),
         (status = 422, description = "Input validation error", body = ErrorResponse,
-            example = json!({"error": "Input validation error"}),
-            content_type="text/event-stream"),
+            example = json ! ({"error": "Input validation error"}),
+            content_type = "text/event-stream"),
         (status = 500, description = "Incomplete generation", body = ErrorResponse,
-            example = json!({"error": "Incomplete generation"}),
-            content_type="text/event-stream"),
+            example = json ! ({"error": "Incomplete generation"}),
+            content_type = "text/event-stream"),
     )
 )]
 #[instrument(
@@ -228,6 +247,11 @@ async fn generate_stream(
         // Inference
         let mut end_reached = false;
         let mut error = false;
+
+        let mut add_prompt = None;
+        if req.0.parameters.return_full_text.unwrap_or(false) {
+            add_prompt = Some(req.0.inputs.clone());
+        }
         let details = req.0.parameters.details;
 
         match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
@@ -294,20 +318,28 @@ async fn generate_stream(
 
                                     // StreamResponse
                                     end_reached = true;
+
+                                    let mut output_text = generated_text.text;
+                                    if let Some(prompt) = add_prompt {
+                                        output_text = prompt + &output_text;
+                                    }
+
                                     let stream_token = StreamResponse {
                                         token,
-                                        generated_text: Some(generated_text.text),
+                                        generated_text: Some(output_text),
                                         details
                                     };
 
-                                    yield Ok(Event::default().json_data(stream_token).unwrap())
+                                    yield Ok(Event::default().json_data(stream_token).unwrap());
+                                    break;
                                 }
                             }
                         }
                         // yield error
                         Err(err) => {
                             error = true;
-                            yield Ok(Event::from(err))
+                            yield Ok(Event::from(err));
+                            break;
                         }
                     }
                 }
@@ -315,7 +347,7 @@ async fn generate_stream(
             // yield error
             Err(err) => {
                 error = true;
-                yield Ok(Event::from(err))
+                yield Ok(Event::from(err));
             }
         }
         // Check if generation reached the end
@@ -324,7 +356,7 @@ async fn generate_stream(
             let err = InferError::IncompleteGeneration;
             metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
             tracing::error!("{err}");
-            yield Ok(Event::from(err))
+            yield Ok(Event::from(err));
         }
     };
 
@@ -345,6 +377,7 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
+    compat_return_full_text: bool,
     max_concurrent_requests: usize,
     max_stop_sequences: usize,
     max_input_length: usize,
@@ -429,8 +462,9 @@ pub async fn run(
         .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
         .route("/health", get(health))
-        .layer(Extension(infer))
         .route("/metrics", get(metrics))
+        .layer(Extension(compat_return_full_text))
+        .layer(Extension(infer))
         .layer(Extension(prom_handle))
         .layer(opentelemetry_tracing_layer())
         .layer(cors_layer);
