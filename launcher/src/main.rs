@@ -55,6 +55,10 @@ struct Args {
     otlp_endpoint: Option<String>,
     #[clap(long, env)]
     cors_allow_origin: Vec<String>,
+    #[clap(long, env)]
+    watermark_gamma: Option<f32>,
+    #[clap(long, env)]
+    watermark_delta: Option<f32>,
 }
 
 fn main() -> ExitCode {
@@ -88,6 +92,8 @@ fn main() -> ExitCode {
         json_output,
         otlp_endpoint,
         cors_allow_origin,
+        watermark_gamma,
+        watermark_delta,
     } = args;
 
     // Signal handler
@@ -243,6 +249,8 @@ fn main() -> ExitCode {
                 huggingface_hub_cache,
                 weights_cache_override,
                 disable_custom_kernels,
+                watermark_gamma,
+                watermark_delta,
                 otlp_endpoint,
                 status_sender,
                 shutdown,
@@ -414,6 +422,8 @@ fn shard_manager(
     huggingface_hub_cache: Option<String>,
     weights_cache_override: Option<String>,
     disable_custom_kernels: bool,
+    watermark_gamma: Option<f32>,
+    watermark_delta: Option<f32>,
     otlp_endpoint: Option<String>,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<Mutex<bool>>,
@@ -492,6 +502,16 @@ fn shard_manager(
     // If disable_custom_kernels is true, pass it to the shard as an env var
     if disable_custom_kernels {
         env.push(("DISABLE_CUSTOM_KERNELS".into(), "True".into()))
+    }
+
+    // Watermark Gamma
+    if let Some(watermark_gamma) = watermark_gamma {
+        env.push(("WATERMARK_GAMMA".into(), watermark_gamma.to_string().into()))
+    }
+
+    // Watermark Delta
+    if let Some(watermark_delta) = watermark_delta {
+        env.push(("WATERMARK_DELTA".into(), watermark_delta.to_string().into()))
     }
 
     // Start process

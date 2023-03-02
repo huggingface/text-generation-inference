@@ -13,6 +13,7 @@ from typing import List, Tuple, Optional
 
 from text_generation.pb import generate_pb2
 from text_generation.pb.generate_pb2 import FinishReason
+from text_generation.utils.watermark import WatermarkLogitsProcessor
 
 
 class Sampling:
@@ -35,6 +36,8 @@ class Greedy:
 class NextTokenChooser:
     def __init__(
         self,
+        vocab_size,
+        watermark=False,
         temperature=1.0,
         repetition_penalty=1.0,
         top_k=None,
@@ -47,6 +50,11 @@ class NextTokenChooser:
         # the following idea is largely copied from this PR: https://github.com/huggingface/transformers/pull/5420/files
         # all samplers can be found in `generation_utils_samplers.py`
         sampling = do_sample
+
+        if watermark:
+            warpers.append(WatermarkLogitsProcessor(vocab_size, device=device))
+        if repetition_penalty is not None and repetition_penalty != 1.0:
+            warpers.append(RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty))
         if temperature is not None and temperature != 1.0:
             temperature = float(temperature)
             warpers.append(TemperatureLogitsWarper(temperature))
@@ -57,8 +65,6 @@ class NextTokenChooser:
         if top_p is not None and top_p < 1.0:
             warpers.append(TopPLogitsWarper(top_p=top_p))
             sampling = True
-        if repetition_penalty is not None and repetition_penalty != 1.0:
-            warpers.append(RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty))
 
         self.warpers = warpers
         self.choice = Sampling(seed, device) if sampling else Greedy()
@@ -77,9 +83,14 @@ class NextTokenChooser:
 
     @classmethod
     def from_pb(
-        cls, pb: generate_pb2.NextTokenChooserParameters, device: torch.device
+        cls,
+        pb: generate_pb2.NextTokenChooserParameters,
+        vocab_size: int,
+        device: torch.device,
     ) -> "NextTokenChooser":
         return NextTokenChooser(
+            vocab_size=vocab_size,
+            watermark=pb.watermark,
             temperature=pb.temperature,
             repetition_penalty=pb.repetition_penalty,
             top_k=pb.top_k,

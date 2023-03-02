@@ -67,7 +67,9 @@ class CausalLMBatch(Batch):
         for r in pb.requests:
             inputs.append(r.inputs)
             input_lengths.append(r.input_length)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
+            next_token_choosers.append(
+                NextTokenChooser.from_pb(r.parameters, len(tokenizer), device)
+            )
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
