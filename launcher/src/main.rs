@@ -29,8 +29,12 @@ struct Args {
     quantize: bool,
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
+    #[clap(default_value = "4", long, env)]
+    max_stop_sequences: usize,
     #[clap(default_value = "1000", long, env)]
     max_input_length: usize,
+    #[clap(default_value = "1512", long, env)]
+    max_total_tokens: usize,
     #[clap(default_value = "32", long, env)]
     max_batch_size: usize,
     #[clap(default_value = "20", long, env)]
@@ -79,7 +83,9 @@ fn main() -> ExitCode {
         num_shard,
         quantize,
         max_concurrent_requests,
+        max_stop_sequences,
         max_input_length,
+        max_total_tokens,
         max_batch_size,
         max_waiting_tokens,
         port,
@@ -299,8 +305,12 @@ fn main() -> ExitCode {
         "text-generation-router".to_string(),
         "--max-concurrent-requests".to_string(),
         max_concurrent_requests.to_string(),
+        "--max-stop-sequences".to_string(),
+        max_stop_sequences.to_string(),
         "--max-input-length".to_string(),
         max_input_length.to_string(),
+        "--max-total-tokens".to_string(),
+        max_total_tokens.to_string(),
         "--max-batch-size".to_string(),
         max_batch_size.to_string(),
         "--max-waiting-tokens".to_string(),
