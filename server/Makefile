@@ -1,3 +1,5 @@
+transformers_commit := 712d62e83c28236c7f39af690e7792a54288dbd9
+
 gen-server:
 	# Compile protos
 	pip install grpcio-tools==1.51.1 --no-cache-dir
@@ -10,11 +12,11 @@ install-transformers:
 	# Install specific version of transformers with custom cuda kernels
 	pip uninstall transformers -y || true
 	rm -rf transformers || true
-	rm -rf transformers-text_generation_inference || true
-	curl -L -O https://github.com/OlivierDehaene/transformers/archive/refs/heads/text_generation_inference.zip
-	unzip text_generation_inference.zip
-	rm text_generation_inference.zip
-	mv transformers-text_generation_inference transformers
+	rm -rf transformers-$(transformers_commit) || true
+	curl -L -O https://github.com/OlivierDehaene/transformers/archive/$(transformers_commit).zip
+	unzip $(transformers_commit).zip
+	rm $(transformers_commit).zip
+	mv transformers-$(transformers_commit) transformers
 	cd transformers && python setup.py install
 
 install-torch:
