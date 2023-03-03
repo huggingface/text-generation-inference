@@ -786,7 +786,7 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "grpc-metadata"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "opentelemetry",
  "tonic",
@@ -2212,7 +2212,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "futures",
  "grpc-metadata",
@@ -2229,7 +2229,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "clap 4.1.8",
  "ctrlc",
@@ -2244,7 +2244,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "async-stream",
  "axum",

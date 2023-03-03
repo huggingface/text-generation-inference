@@ -11,7 +11,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "0.3.1"
+    "version": "0.3.2"
   },
   "paths": {
     "/generate": {
@@ -290,6 +290,11 @@
             "nullable": true,
             "exclusiveMinimum": 0.0
           },
+          "return_full_text": {
+            "type": "boolean",
+            "default": "None",
+            "example": false
+          },
           "seed": {
             "type": "integer",
             "format": "int64"
@@ -328,6 +333,11 @@
             "nullable": true,
             "maximum": 1.0,
             "exclusiveMinimum": 0.0
+          },
+          "watermark": {
+            "type": "boolean",
+            "default": "false",
+            "example": true
           }
         }
       },

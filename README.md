@@ -39,15 +39,17 @@ to power LLMs api-inference widgets.
   
 ## Features
 
+- Serve the most popular Large Language Models with a simple launcher
+- Tensor Parallelism for faster inference on multiple GPUs
 - Token streaming using Server-Sent Events (SSE)
 - [Dynamic batching of incoming requests](https://github.com/huggingface/text-generation-inference/blob/main/router/src/batcher.rs#L88) for increased total throughput
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
-- 45ms per token generation for BLOOM with 8xA100 80GB
+- Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 - Logits warpers (temperature scaling, topk, repetition penalty ...)
 - Stop sequences
 - Log probabilities
-- Distributed tracing with Open Telemetry
+- Production ready (distributed tracing with Open Telemetry, Prometheus metrics)
 
 ## Officially supported architectures
 
@@ -58,6 +60,7 @@ to power LLMs api-inference widgets.
 - [SantaCoder](https://huggingface.co/bigcode/santacoder)
 - [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - [FLAN-T5-XXL](https://huggingface.co/google/flan-t5-xxl)
+- [FLAN-UL2](https://huggingface.co/google/flan-ul2)
 
 Other architectures are supported on a best effort basis using:
 
@@ -96,6 +99,30 @@ curl 127.0.0.1:8080/generate_stream \
     -d '{"inputs":"Testing API","parameters":{"max_new_tokens":9}}' \
     -H 'Content-Type: application/json'
 ```
+
+or from Python:
+
+```python
+import requests
+
+result = requests.post("http://127.0.0.1:8080/generate", json={"inputs":"Testing API","parameters":{"max_new_tokens":9}})
+print(result.json())
+```
+
+```shell
+pip install sseclient-py
+```
+
+````python
+import sseclient
+import requests
+
+r = requests.post("http://127.0.0.1:8080/generate_stream", stream=True, json={"inputs":"Testing API","parameters":{"max_new_tokens":9}})
+sse_client = sseclient.SSEClient(r)
+
+for i, event in enumerate(sse_client.events()):
+    print(i, event.data)
+````
 
 **Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 

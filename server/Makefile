@@ -1,4 +1,4 @@
-transformers_commit := 712d62e83c28236c7f39af690e7792a54288dbd9
+transformers_commit := 2f87dca1ca3e5663d0637da9bb037a6956e57a5e
 
 gen-server:
 	# Compile protos
