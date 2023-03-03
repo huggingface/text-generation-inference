@@ -19,7 +19,7 @@ integration-tests: install-router install-launcher
 	cargo test
 
 python-tests:
-	cd server && pytest tests
+	cd server && HF_HUB_ENABLE_HF_TRANSFER=1 pytest tests
 
 run-bloom-560m:
 	text-generation-launcher --model-id bigscience/bloom-560m --num-shard 2
