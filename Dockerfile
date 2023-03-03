@@ -1,4 +1,15 @@
-FROM rust:1.67 as router-builder
+FROM lukemathwalker/cargo-chef:latest-rust-1.67 AS chef
+WORKDIR /usr/src
+
+FROM chef as planner
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY router router
+COPY launcher launcher
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
 
 RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
@@ -6,26 +17,15 @@ RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     unzip -o $PROTOC_ZIP -d /usr/local 'include/*' && \
     rm -f $PROTOC_ZIP
 
-WORKDIR /usr/src
+COPY --from=planner /usr/src/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
+COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
 COPY router router
-
-WORKDIR /usr/src/router
-
-RUN cargo install --path .
-
-FROM rust:1.67 as launcher-builder
-
-WORKDIR /usr/src
-
-COPY rust-toolchain.toml rust-toolchain.toml
 COPY launcher launcher
-
-WORKDIR /usr/src/launcher
-
-RUN cargo install --path .
+RUN cargo build --release
 
 FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 
@@ -69,9 +69,9 @@ RUN cd server && \
     /opt/miniconda/envs/text-generation/bin/pip install ".[bnb]" --no-cache-dir
 
 # Install router
-COPY --from=router-builder /usr/local/cargo/bin/text-generation-router /usr/local/bin/text-generation-router
+COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
-COPY --from=launcher-builder /usr/local/cargo/bin/text-generation-launcher /usr/local/bin/text-generation-launcher
+COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]
