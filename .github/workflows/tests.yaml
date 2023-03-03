@@ -3,6 +3,7 @@ name: Server Tests
 on:
   pull_request:
     paths:
+      - ".github/workflows/tests.yaml"
       - "server/**"
       - "proto/**"
       - "router/**"
@@ -11,6 +12,12 @@ on:
 jobs:
   run_tests:
     runs-on: ubuntu-20.04
+
+    env:
+      SCCACHE_GHA_ENABLED: "on"
+      RUSTC_WRAPPER: /usr/local/bin/sccache
+      SCCACHE: 0.3.3
+
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python
@@ -25,12 +32,28 @@ jobs:
           components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
-      - name: Loading cache.
-        uses: actions/cache@v2
-        id: model_cache
+      - name: Install sccache
+        run: |
+          curl -fsSL https://github.com/mozilla/sccache/releases/download/v$SCCACHE/sccache-v$SCCACHE-x86_64-unknown-linux-musl.tar.gz | tar -xzv --strip-components=1 -C /usr/local/bin sccache-v$SCCACHE-x86_64-unknown-linux-musl/sccache
+          chmod +x /usr/local/bin/sccache
+      - name: configure sccache
+        uses: actions/github-script@v6
         with:
-          path: ~/.cache/huggingface/
-          key: models
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            core.exportVariable('SCCACHE_GHA_CACHE_TO', 'sccache-${{runner.os}}-${{github.ref_name}}');
+            core.exportVariable('SCCACHE_GHA_CACHE_FROM', 'sccache-${{runner.os}}-main,sccache-${{runner.os}}-');
+      - name: cargo registry cache
+        uses: actions/cache@v3
+        with:
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}-${{ github.sha }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}-
+            cargo-${{ runner.os }}-
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
       - name: Install
         run: |
           make install
@@ -41,3 +64,6 @@ jobs:
       - name: Run Rust tests
         run: |
           cargo test
+      - name: sccache stats
+        run: |
+          /usr/local/bin/sccache --show-stats

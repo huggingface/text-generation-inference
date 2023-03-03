@@ -15,6 +15,10 @@ jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
     steps:
+      - name: Initialize Docker Buildx
+        uses: docker/setup-buildx-action@v2.0.0
+        with:
+          install: true
       - name: Tailscale
         uses: tailscale/github-action@v1
         with:
@@ -65,5 +69,5 @@ jobs:
           platforms: 'linux/amd64'
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/huggingface/text-generation-inference:latest
-          cache-to: type=inline
+          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
+          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
