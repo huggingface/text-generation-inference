@@ -385,10 +385,8 @@ class CausalLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.tokenizer.decode(
+            next_token_text = self.decode_token(
                 next_token_id_squeezed,
-                clean_up_tokenization_spaces=False,
-                skip_special_tokens=False,
             )
 
             # Evaluate stopping criteria

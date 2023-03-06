@@ -24,12 +24,12 @@ DELTA = os.getenv("WATERMARK_DELTA", 2.0)
 
 class WatermarkLogitsProcessor(LogitsProcessor):
     def __init__(
-            self,
-            vocab_size: int,
-            gamma: float = GAMMA,
-            delta: float = DELTA,
-            hash_key: int = 15485863,  # just a large prime number to create a rng seed with sufficient bit width
-            device: str = "cpu",
+        self,
+        vocab_size: int,
+        gamma: float = GAMMA,
+        delta: float = DELTA,
+        hash_key: int = 15485863,  # just a large prime number to create a rng seed with sufficient bit width
+        device: str = "cpu",
     ):
         # watermarking parameters
         self.vocab_size = vocab_size
@@ -40,7 +40,7 @@ class WatermarkLogitsProcessor(LogitsProcessor):
 
     def _seed_rng(self, input_ids: torch.LongTensor) -> None:
         assert (
-                input_ids.shape[-1] >= 1
+            input_ids.shape[-1] >= 1
         ), "requires at least a 1 token prefix sequence to seed rng"
         prev_token = input_ids[-1].item()
         self.rng.manual_seed(self.hash_key * prev_token)
@@ -58,7 +58,7 @@ class WatermarkLogitsProcessor(LogitsProcessor):
 
     @staticmethod
     def _calc_greenlist_mask(
-            scores: torch.FloatTensor, greenlist_token_ids
+        scores: torch.FloatTensor, greenlist_token_ids
     ) -> torch.BoolTensor:
         green_tokens_mask = torch.zeros_like(scores)
         green_tokens_mask[-1, greenlist_token_ids] = 1
@@ -67,13 +67,13 @@ class WatermarkLogitsProcessor(LogitsProcessor):
 
     @staticmethod
     def _bias_greenlist_logits(
-            scores: torch.Tensor, greenlist_mask: torch.Tensor, greenlist_bias: float
+        scores: torch.Tensor, greenlist_mask: torch.Tensor, greenlist_bias: float
     ) -> torch.Tensor:
         scores[greenlist_mask] = scores[greenlist_mask] + greenlist_bias
         return scores
 
     def __call__(
-            self, input_ids: torch.LongTensor, scores: torch.FloatTensor
+        self, input_ids: torch.LongTensor, scores: torch.FloatTensor
     ) -> torch.FloatTensor:
         assert len(input_ids) == 1
         greenlist_ids = self._get_greenlist_ids(input_ids[0])

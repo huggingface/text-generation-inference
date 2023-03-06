@@ -342,7 +342,9 @@ class Seq2SeqLM(Model):
         return Seq2SeqLMBatch
 
     def decode(self, decoder_ids: List[int]) -> str:
-        return self.tokenizer.decode(decoder_ids, skip_special_tokens=True)
+        return self.tokenizer.decode(
+            decoder_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )
 
     def forward(
         self,
@@ -457,10 +459,8 @@ class Seq2SeqLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.tokenizer.decode(
+            next_token_text = self.decode_token(
                 next_token_id_squeezed,
-                clean_up_tokenization_spaces=False,
-                skip_special_tokens=False,
             )
 
             # Evaluate stopping criteria
