@@ -14,18 +14,18 @@ use validation::Validation;
 pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(
-        exclusive_minimum = 0.0,
-        nullable = true,
-        default = "null",
-        example = 0.5
+    exclusive_minimum = 0.0,
+    nullable = true,
+    default = "null",
+    example = 0.5
     )]
     pub temperature: Option<f32>,
     #[serde(default)]
     #[schema(
-        exclusive_minimum = 0.0,
-        nullable = true,
-        default = "null",
-        example = 1.03
+    exclusive_minimum = 0.0,
+    nullable = true,
+    default = "null",
+    example = 1.03
     )]
     pub repetition_penalty: Option<f32>,
     #[serde(default)]
@@ -33,11 +33,11 @@ pub(crate) struct GenerateParameters {
     pub top_k: Option<i32>,
     #[serde(default)]
     #[schema(
-        exclusive_minimum = 0.0,
-        maximum = 1.0,
-        nullable = true,
-        default = "null",
-        example = 0.95
+    exclusive_minimum = 0.0,
+    maximum = 1.0,
+    nullable = true,
+    default = "null",
+    example = 0.95
     )]
     pub top_p: Option<f32>,
     #[serde(default)]
@@ -185,6 +185,6 @@ pub(crate) struct StreamResponse {
 
 #[derive(Serialize, ToSchema)]
 pub(crate) struct ErrorResponse {
-    #[schema(inline)]
     pub error: String,
+    pub error_type: String,
 }

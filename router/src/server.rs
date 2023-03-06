@@ -554,6 +554,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             status_code,
             Json(ErrorResponse {
                 error: err.to_string(),
+                error_type: err.error_type().to_string(),
             }),
         )
     }
@@ -564,6 +565,7 @@ impl From<InferError> for Event {
         Event::default()
             .json_data(ErrorResponse {
                 error: err.to_string(),
+                error_type: err.error_type().to_string(),
             })
             .unwrap()
     }

@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "text_generation_inference"
+version = "0.3.2"
+description = "Text Generation Inference Python Client"
+authors = ["Olivier Dehaene <olivier@huggingface.co>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pydantic = "^1.10.5"
+aiohttp = "^3.8.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

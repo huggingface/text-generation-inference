@@ -271,23 +271,23 @@ pub(crate) struct ValidGenerateRequest {
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
-    #[error("temperature must be strictly positive")]
+    #[error("`temperature` must be strictly positive")]
     Temperature,
-    #[error("repetition_penalty must be strictly positive")]
+    #[error("`repetition_penalty` must be strictly positive")]
     RepetitionPenalty,
-    #[error("top_p must be > 0.0 and <= 1.0")]
+    #[error("`top_p` must be > 0.0 and <= 1.0")]
     TopP,
-    #[error("top_k must be strictly positive")]
+    #[error("`top_k` must be strictly positive")]
     TopK,
-    #[error("max_new_tokens must be strictly positive")]
+    #[error("`max_new_tokens` must be strictly positive")]
     MaxNewTokens,
-    #[error("input tokens + max_new_tokens must be <= {0}. Given: {1} input tokens and {2} max_new_tokens")]
+    #[error("`inputs` tokens + `max_new_tokens` must be <= {0}. Given: {1} `inputs` tokens and {2} `max_new_tokens`")]
     MaxTotalTokens(usize, usize, u32),
-    #[error("inputs must have less than {0} tokens. Given: {1}")]
+    #[error("`inputs` must have less than {0} tokens. Given: {1}")]
     InputLength(usize, usize),
-    #[error("inputs cannot be empty")]
+    #[error("`inputs` cannot be empty")]
     EmptyInput,
-    #[error("stop supports up to {0} stop sequences. Given: {1}")]
+    #[error("`stop` supports up to {0} stop sequences. Given: {1}")]
     StopSequence(usize, usize),
     #[error("tokenizer error {0}")]
     Tokenizer(String),
