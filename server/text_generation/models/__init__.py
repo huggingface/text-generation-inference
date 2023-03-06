@@ -41,7 +41,7 @@ torch.set_grad_enabled(False)
 def get_model(
     model_id: str, revision: Optional[str], sharded: bool, quantize: bool
 ) -> Model:
-    if model_id.startswith("facebook/galactica"):
+    if "facebook/galactica" in model_id:
         if sharded:
             return GalacticaSharded(model_id, revision, quantize=quantize)
         else:

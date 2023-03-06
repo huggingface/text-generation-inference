@@ -110,8 +110,12 @@ fn main() -> ExitCode {
     })
     .expect("Error setting Ctrl-C handler");
 
+    // Check if model_id is a local model
+    let local_path = Path::new(&model_id);
+    let is_local_model = local_path.exists() && local_path.is_dir();
+
     // Download weights for sharded models
-    if weights_cache_override.is_none() && num_shard > 1 {
+    if !is_local_model && weights_cache_override.is_none() && num_shard > 1 {
         let mut download_argv = vec![
             "text-generation-server".to_string(),
             "download-weights".to_string(),
