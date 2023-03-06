@@ -36,6 +36,8 @@ class Model(ABC):
     def decode_token(self, token_id: int) -> str:
         """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
         # append token to special decode token and decode both
-        result = self.tokenizer.decode([self.special_decode_token_id, token_id], skip_special_tokens=False)
+        result = self.tokenizer.decode(
+            [self.special_decode_token_id, token_id], skip_special_tokens=False
+        )
         # slice to remove special decode token
-        return result[self.special_decode_token_length:]
+        return result[self.special_decode_token_length :]
