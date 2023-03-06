@@ -164,9 +164,6 @@ class GalacticaSharded(Galactica):
     def __init__(
         self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
-        if not model_id.startswith("facebook/galactica"):
-            raise ValueError(f"Model {model_id} is not supported")
-
         self.process_group, self.rank, self.world_size = initialize_torch_distributed()
         self.master = self.rank == 0
         if torch.cuda.is_available():
