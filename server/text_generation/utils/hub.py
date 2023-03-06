@@ -80,6 +80,10 @@ def weight_files(
     model_id: str, revision: Optional[str] = None, extension: str = ".safetensors"
 ) -> List[Path]:
     """Get the local files"""
+    # Local model
+    if Path(model_id).exists() and Path(model_id).is_dir():
+        return list(Path(model_id).glob(f"*{extension}"))
+
     try:
         filenames = weight_hub_files(model_id, revision, extension)
     except EntryNotFoundError as e:

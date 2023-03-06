@@ -234,7 +234,7 @@ mod tests {
                     do_sample: false,
                     seed: 0,
                     repetition_penalty: 0.0,
-                    watermark: false
+                    watermark: false,
                 },
                 stopping_parameters: StoppingCriteriaParameters {
                     max_new_tokens: 0,

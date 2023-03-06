@@ -8,6 +8,7 @@ use opentelemetry::sdk::Resource;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::Path;
 use text_generation_client::ShardedClient;
 use text_generation_router::server;
 use tokenizers::Tokenizer;
@@ -83,11 +84,19 @@ fn main() -> Result<(), std::io::Error> {
         )
     });
 
-    // Download and instantiate tokenizer
+    // Tokenizer instance
     // This will only be used to validate payloads
-    //
-    // We need to download it outside of the Tokio runtime
-    let tokenizer = Tokenizer::from_pretrained(tokenizer_name.clone(), None).unwrap();
+    let local_path = Path::new(&tokenizer_name);
+    let tokenizer =
+        if local_path.exists() && local_path.is_dir() && local_path.join("tokenizer.json").exists()
+        {
+            // Load local tokenizer
+            Tokenizer::from_file(local_path.join("tokenizer.json")).unwrap()
+        } else {
+            // Download and instantiate tokenizer
+            // We need to download it outside of the Tokio runtime
+            Tokenizer::from_pretrained(tokenizer_name.clone(), None).unwrap()
+        };
 
     // Launch Tokio runtime
     tokio::runtime::Builder::new_multi_thread()
