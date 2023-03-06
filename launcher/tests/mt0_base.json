@@ -14,7 +14,7 @@
     "tokens": [
       {
         "id": 259,
-        "text": "",
+        "text": " ",
         "logprob": -1.3656927,
         "special": false
       },
@@ -32,13 +32,13 @@
       },
       {
         "id": 287,
-        "text": "the",
+        "text": " the",
         "logprob": -1.2102449,
         "special": false
       },
       {
         "id": 259,
-        "text": "",
+        "text": " ",
         "logprob": -1.6057279,
         "special": false
       },
@@ -50,19 +50,19 @@
       },
       {
         "id": 304,
-        "text": "of",
+        "text": " of",
         "logprob": -0.5270343,
         "special": false
       },
       {
         "id": 287,
-        "text": "the",
+        "text": " the",
         "logprob": -0.62522805,
         "special": false
       },
       {
         "id": 259,
-        "text": "",
+        "text": " ",
         "logprob": -1.4069618,
         "special": false
       },
@@ -74,19 +74,19 @@
       },
       {
         "id": 304,
-        "text": "of",
+        "text": " of",
         "logprob": -1.3172221,
         "special": false
       },
       {
         "id": 287,
-        "text": "the",
+        "text": " the",
         "logprob": -0.3501925,
         "special": false
       },
       {
         "id": 259,
-        "text": "",
+        "text": " ",
         "logprob": -0.7219573,
         "special": false
       },
@@ -104,7 +104,7 @@
       },
       {
         "id": 259,
-        "text": "",
+        "text": " ",
         "logprob": -0.32933083,
         "special": false
       },
@@ -116,7 +116,7 @@
       },
       {
         "id": 2978,
-        "text": "test",
+        "text": " test",
         "logprob": -1.5846587,
         "special": false
       },
