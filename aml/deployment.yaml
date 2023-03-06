@@ -1,6 +1,6 @@
 $schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
 name: bloom-deployment
-endpoint_name: bloom-inference
+endpoint_name: bloom-azure-inference
 model: azureml:bloom-safetensors:1
 model_mount_path: /var/azureml-model
 environment_variables:
@@ -8,7 +8,7 @@ environment_variables:
   MODEL_ID: bigscience/bloom
   NUM_SHARD: 8
 environment:
-  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:sha-4e685d9
+  image: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:sha-cd5961b
   inference_config:
     liveness_route:
       port: 80
