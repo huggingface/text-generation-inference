@@ -1,59 +1,8 @@
 from enum import Enum
 from pydantic import BaseModel, validator
-from typing import Optional, List, Type
+from typing import Optional, List
 
-
-class ValidationError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-
-
-class GenerationError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-
-
-class OverloadedError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-
-
-class IncompleteGenerationError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-
-
-class InferenceAPIError(Exception):
-    def __init__(self, message: str):
-        super(InferenceAPIError, self).__init__(message)
-
-
-class ErrorType(str, Enum):
-    generation = "generation"
-    incomplete_generation = "incomplete_generation"
-    overloaded = "overloaded"
-    validation = "validation"
-
-    def to_exception_type(self) -> Type[Exception]:
-        if self == ErrorType.generation:
-            return GenerationError
-        if self == ErrorType.incomplete_generation:
-            return IncompleteGenerationError
-        if self == ErrorType.overloaded:
-            return OverloadedError
-        if self == ErrorType.validation:
-            return ValidationError
-        raise ValueError("Unknown error")
-
-
-class ErrorModel(BaseModel):
-    error_type: Optional[ErrorType]
-    error: str
-
-    def to_exception(self) -> Exception:
-        if self.error_type is not None:
-            return self.error_type.to_exception_type()(self.error)
-        return InferenceAPIError(self.error)
+from text_generation_inference.errors import ValidationError
 
 
 class Parameters(BaseModel):
@@ -61,12 +10,13 @@ class Parameters(BaseModel):
     max_new_tokens: int = 20
     repetition_penalty: Optional[float] = None
     return_full_text: bool = False
+    stop: List[str]
     seed: Optional[int]
-    stop: Optional[List[str]]
     temperature: Optional[float]
     top_k: Optional[int]
     top_p: Optional[float]
     watermark: bool = False
+    details: bool = False
 
     @validator("seed")
     def valid_seed(cls, v):
@@ -93,8 +43,16 @@ class Parameters(BaseModel):
         return v
 
 
-class Response(BaseModel):
-    generated_text: str
+class Request(BaseModel):
+    inputs: str
+    parameters: Parameters
+    stream: bool = False
+
+
+class PrefillToken(BaseModel):
+    id: int
+    text: str
+    logprob: Optional[float]
 
 
 class Token(BaseModel):
@@ -104,5 +62,32 @@ class Token(BaseModel):
     special: bool
 
 
+class FinishReason(Enum):
+    Length = "length"
+    EndOfSequenceToken = "eos_token"
+    StopSequence = "stop_sequence"
+
+
+class Details(BaseModel):
+    finish_reason: FinishReason
+    generated_tokens: int
+    seed: Optional[int]
+    prefill: List[PrefillToken]
+    tokens: List[Token]
+
+
+class StreamDetails(BaseModel):
+    finish_reason: FinishReason
+    generated_tokens: int
+    seed: Optional[int]
+
+
+class Response(BaseModel):
+    generated_text: str
+    details: Details
+
+
 class StreamResponse(BaseModel):
     token: Token
+    generated_text: Optional[str]
+    details: Optional[StreamDetails]

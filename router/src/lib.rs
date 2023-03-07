@@ -152,8 +152,8 @@ pub(crate) struct Details {
     pub generated_tokens: u32,
     #[schema(example = 42)]
     pub seed: Option<u64>,
-    pub prefill: Option<Vec<PrefillToken>>,
-    pub tokens: Option<Vec<Token>>,
+    pub prefill: Vec<PrefillToken>,
+    pub tokens: Vec<Token>,
 }
 
 #[derive(Serialize, ToSchema)]

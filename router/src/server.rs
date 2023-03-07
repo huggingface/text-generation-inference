@@ -133,8 +133,8 @@ async fn generate(
         true => Some(Details {
             finish_reason: FinishReason::from(response.generated_text.finish_reason),
             generated_tokens: response.generated_text.generated_tokens,
-            prefill: Some(response.prefill),
-            tokens: Some(response.tokens),
+            prefill: response.prefill,
+            tokens: response.tokens,
             seed: response.generated_text.seed,
         }),
         false => None,
