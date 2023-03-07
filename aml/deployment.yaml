@@ -1,6 +1,6 @@
 $schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
 name: bloom-deployment
-endpoint_name: bloom-azure-inference
+endpoint_name: bloom-inference
 model: azureml:bloom-safetensors:1
 model_mount_path: /var/azureml-model
 environment_variables:
@@ -24,13 +24,13 @@ request_settings:
   request_timeout_ms: 60000
   max_concurrent_requests_per_instance: 256
 liveness_probe:
-  initial_delay: 80
+  initial_delay: 140
   timeout: 60
   period: 60
   success_threshold: 1
   failure_threshold: 2
 readiness_probe:
-  initial_delay: 80
+  initial_delay: 140
   timeout: 60
   period: 60
   success_threshold: 1
