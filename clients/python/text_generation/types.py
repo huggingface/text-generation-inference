@@ -18,6 +18,12 @@ class Parameters(BaseModel):
     watermark: bool = False
     details: bool = False
 
+    @validator("repetition_penalty")
+    def valid_repetition_penalty(cls, v):
+        if v is not None and v is v < 0:
+            raise ValidationError("`repetition_penalty` must be strictly positive")
+        return v
+
     @validator("seed")
     def valid_seed(cls, v):
         if v is not None and v is v < 0:
