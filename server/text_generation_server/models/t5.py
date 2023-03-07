@@ -1,29 +1,23 @@
-import re
 import torch
 import torch.distributed
 
-from typing import List, Optional, Type, Tuple
+from typing import List, Optional, Tuple
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
 from transformers import (
     AutoTokenizer,
-    AutoModelForCausalLM,
+    AutoModelForSeq2SeqLM,
     AutoConfig,
-    PreTrainedTokenizerBase,
 )
-from transformers.models.opt.parallel_layers import (
+from transformers.models.t5.parallel_layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
 )
 
-from text_generation.models import CausalLM
-from text_generation.pb import generate_pb2
-from text_generation.models.causal_lm import CausalLMBatch
-from text_generation.utils import (
-    NextTokenChooser,
-    StoppingCriteria,
+from text_generation_server.models import Seq2SeqLM
+from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
 )
@@ -36,131 +30,7 @@ except Exception as e:
     HAS_BITS_AND_BYTES = False
 
 
-# CREDIT: Papers with code => https://github.com/paperswithcode/galai/blob/main/galai/utils.py
-
-# we split individual characters inside special tokens like [START_DNA]
-CUSTOM_SEQ_RE = re.compile(r"(\[START_(DNA|SMILES|I_SMILES|AMINO)])(.*?)(\[END_\2])")
-
-# token added to implement a custom sequence tokenization. This token is added at
-# corpus cleaning step and removed in pretokenization. The digits are added to increase the chance
-# that they do not occur in the corpus. The digits are escaped so that the token does not appear
-# literally in the source code in case we ever include it in the training data.
-SPLIT_MARKER = f"SPL{1}T-TH{1}S-Pl3A5E"
-
-
-def _insert_split_marker(m: re.Match):
-    """
-    Applies split marker based on a regex match of special tokens such as
-    [START_DNA].
-    Parameters
-    ----------
-    n : str
-        Input text to split
-    Returns
-    ----------
-    str - the text with the split token added
-    """
-    start_token, _, sequence, end_token = m.groups()
-    sequence = re.sub(r"(.)", rf"{SPLIT_MARKER}\1", sequence, flags=re.DOTALL)
-    return f"{start_token}{sequence}{SPLIT_MARKER}{end_token}"
-
-
-def escape_custom_split_sequence(text):
-    """
-    Applies custom splitting to the text for GALILEO's tokenization
-    Parameters
-    ----------
-    text : str
-        Input text to split
-    Returns
-    ----------
-    str - the text with the split token added
-    """
-    return CUSTOM_SEQ_RE.sub(_insert_split_marker, text)
-
-
-# END CREDIT
-
-
-class GalacticaCausalLMBatch(CausalLMBatch):
-    @classmethod
-    def from_pb(
-        cls,
-        pb: generate_pb2.Batch,
-        tokenizer: PreTrainedTokenizerBase,
-        device: torch.device,
-    ) -> "GalacticaCausalLMBatch":
-        inputs = []
-        next_token_choosers = []
-        stopping_criterias = []
-        input_lengths = []
-
-        # Parse batch
-        for r in pb.requests:
-            # Add escape_custom_split_sequence to the CausalLMBatch logic
-            inputs.append(escape_custom_split_sequence(r.inputs))
-            input_lengths.append(r.input_length)
-            next_token_choosers.append(
-                NextTokenChooser.from_pb(r.parameters, len(tokenizer), device)
-            )
-            stopping_criterias.append(
-                StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
-            )
-
-        # Tokenize batch
-        tokenized_inputs = tokenizer(
-            inputs,
-            return_tensors="pt",
-            padding=True,
-            return_token_type_ids=False,
-        ).to(device)
-        position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
-        position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
-        all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
-
-        return cls(
-            batch_id=pb.id,
-            requests=pb.requests,
-            input_ids=tokenized_inputs["input_ids"],
-            attention_mask=tokenized_inputs["attention_mask"],
-            position_ids=position_ids,
-            past_key_values=None,
-            all_input_ids=all_input_ids,
-            input_lengths=input_lengths,
-            next_token_choosers=next_token_choosers,
-            stopping_criterias=stopping_criterias,
-            size=pb.size,
-            max_sequence_length=max(input_lengths),
-        )
-
-
-class Galactica(CausalLM):
-    @property
-    def batch_type(self) -> Type[CausalLMBatch]:
-        return GalacticaCausalLMBatch
-
-    def decode(self, generated_ids: List[int]) -> str:
-        # Do not skip special tokens as they are used for custom parsing rules of the generated text
-        return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=False, cleanup_tokenization_spaces=False
-        )
-
-    def forward(
-        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
-    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
-        """Overwrite forward to ignore position_ids"""
-
-        # Model Forward
-        outputs = self.model.forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            past_key_values=past_key_values,
-            use_cache=True,
-        )
-        return outputs.logits, outputs.past_key_values
-
-
-class GalacticaSharded(Galactica):
+class T5Sharded(Seq2SeqLM):
     def __init__(
         self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
@@ -180,13 +50,13 @@ class GalacticaSharded(Galactica):
         config = AutoConfig.from_pretrained(
             model_id, revision=revision, tp_parallel=True
         )
-        tokenizer.pad_token_id = config.pad_token_id
+        tokenizer.bos_token_id = config.decoder_start_token_id
 
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
 
         with init_empty_weights():
-            model = AutoModelForCausalLM.from_config(config)
+            model = AutoModelForSeq2SeqLM.from_config(config)
 
         torch.distributed.barrier(group=self.process_group)
         self.load_weights(
@@ -199,7 +69,7 @@ class GalacticaSharded(Galactica):
         )
         self.model = model.eval().to(dtype)
         torch.distributed.barrier(group=self.process_group)
-        super(CausalLM, self).__init__(
+        super(Seq2SeqLM, self).__init__(
             tokenizer=tokenizer,
             device=device,
         )
@@ -219,28 +89,19 @@ class GalacticaSharded(Galactica):
                 file, framework="pt", device=str(device) if not quantize else "cpu"
             ) as f:
                 for name in f.keys():
-                    if name == "lm_head.weight":
-                        continue
-
                     module_name, param_name = name.rsplit(".", 1)
                     module = model.get_submodule(module_name)
-                    current_tensor = parameters[name]
+
+                    current_parameter_tensor = parameters.get(name, None)
 
                     slice_ = f.get_slice(name)
 
                     if isinstance(module, TensorParallelColumnLinear):
-                        if param_name == "weight":
-                            size = slice_.get_shape()[0]
-                            block_size = size // world_size
-                            start = rank * block_size
-                            stop = (rank + 1) * block_size
-                            tensor = slice_[start:stop]
-                        else:
-                            size = slice_.get_shape()[0]
-                            block_size = size // world_size
-                            start = rank * block_size
-                            stop = (rank + 1) * block_size
-                            tensor = slice_[start:stop]
+                        size = slice_.get_shape()[0]
+                        block_size = size // world_size
+                        start = rank * block_size
+                        stop = (rank + 1) * block_size
+                        tensor = slice_[start:stop]
                     elif isinstance(module, TensorParallelRowLinear):
                         if param_name == "weight":
                             size = slice_.get_shape()[1]
@@ -259,12 +120,30 @@ class GalacticaSharded(Galactica):
                         start = rank * block_size
                         stop = (rank + 1) * block_size
                         tensor = slice_[start:stop]
+                    elif name == "lm_head.weight":
+                        size = slice_.get_shape()[0]
+                        block_size = size // world_size
+                        start = rank * block_size
+                        stop = (rank + 1) * block_size
+                        tensor = slice_[start:stop]
+                    elif "relative_attention_bias.weight" in name:
+                        size = slice_.get_shape()[1]
+                        block_size = size // world_size
+                        start = rank * block_size
+                        stop = (rank + 1) * block_size
+                        tensor = slice_[:, start:stop]
                     else:
-                        tensor = slice_[:]
+                        try:
+                            tensor = slice_[:]
+                        except:
+                            tensor = f.get_tensor(name)
 
-                    if current_tensor.shape != tensor.shape:
+                    if (
+                        current_parameter_tensor is not None
+                        and current_parameter_tensor.shape != tensor.shape
+                    ):
                         raise ValueError(
-                            f"Name {name} -- Current {current_tensor.shape} and got {tensor.shape}"
+                            f"Name {name} -- Current {current_parameter_tensor.shape} and got {tensor.shape}"
                         )
 
                     tensor = tensor.contiguous()
@@ -323,16 +202,31 @@ class GalacticaSharded(Galactica):
                         else:
                             tensor = tensor.to(device)
 
-                    module._parameters[param_name] = tensor
-                    if name == "model.decoder.embed_tokens.weight":
-                        model.lm_head._parameters["weight"] = tensor
+                    if current_parameter_tensor is not None:
+                        module._parameters[param_name] = tensor
+                    else:
+                        module._buffers[param_name] = tensor
 
     def forward(
-        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
-    ):
+        self,
+        input_ids,
+        attention_mask,
+        decoder_input_ids,
+        decoder_attention_mask: Optional,
+        encoder_last_hidden_state: Optional,
+        past_key_values: Optional = None,
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
+    ]:
+        # Model Forward
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
+            decoder_attention_mask=decoder_attention_mask,
+            encoder_outputs=encoder_last_hidden_state,
             past_key_values=past_key_values,
             use_cache=True,
         )
@@ -342,4 +236,8 @@ class GalacticaSharded(Galactica):
         torch.distributed.all_gather(logits, outputs.logits, group=self.process_group)
         logits = torch.cat(logits, dim=2)
 
-        return logits, outputs.past_key_values
+        return (
+            logits,
+            outputs.encoder_last_hidden_state,
+            outputs.past_key_values,
+        )

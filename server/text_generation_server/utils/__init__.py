@@ -1,6 +1,6 @@
-from text_generation.utils.convert import convert_file, convert_files
-from text_generation.utils.dist import initialize_torch_distributed
-from text_generation.utils.hub import (
+from text_generation_server.utils.convert import convert_file, convert_files
+from text_generation_server.utils.dist import initialize_torch_distributed
+from text_generation_server.utils.hub import (
     weight_files,
     weight_hub_files,
     download_weights,
@@ -8,7 +8,7 @@ from text_generation.utils.hub import (
     LocalEntryNotFoundError,
     RevisionNotFoundError,
 )
-from text_generation.utils.tokens import (
+from text_generation_server.utils.tokens import (
     Greedy,
     NextTokenChooser,
     Sampling,

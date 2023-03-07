@@ -3,14 +3,14 @@ import torch
 from transformers import AutoConfig
 from typing import Optional
 
-from text_generation.models.model import Model
-from text_generation.models.causal_lm import CausalLM
-from text_generation.models.bloom import BLOOM, BLOOMSharded
-from text_generation.models.seq2seq_lm import Seq2SeqLM
-from text_generation.models.galactica import Galactica, GalacticaSharded
-from text_generation.models.santacoder import SantaCoder
-from text_generation.models.gpt_neox import GPTNeox, GPTNeoxSharded
-from text_generation.models.t5 import T5Sharded
+from text_generation_server.models.model import Model
+from text_generation_server.models.causal_lm import CausalLM
+from text_generation_server.models.bloom import BLOOM, BLOOMSharded
+from text_generation_server.models.seq2seq_lm import Seq2SeqLM
+from text_generation_server.models.galactica import Galactica, GalacticaSharded
+from text_generation_server.models.santacoder import SantaCoder
+from text_generation_server.models.gpt_neox import GPTNeox, GPTNeoxSharded
+from text_generation_server.models.t5 import T5Sharded
 
 __all__ = [
     "Model",

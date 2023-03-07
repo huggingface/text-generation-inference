@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "text-generation"
+version = "0.1.0"
+description = "Hugging Face Text Generation Python Client"
+license = "Apache-2.0"
+authors = ["Olivier Dehaene <olivier@huggingface.co>"]
+maintainers = ["Olivier Dehaene <olivier@huggingface.co>"]
+readme = "README.md"
+homepage = "https://github.com/huggingface/text-generation-inference"
+repository = "https://github.com/huggingface/text-generation-inference"
+
+
+[tool.poetry.dependencies]
+python = "^3.7"
+pydantic = "^1.10.5"
+aiohttp = "^3.8.4"
+huggingface-hub = "^0.12.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+pytest-asyncio = "^0.17.2"
+pytest-cov = "^3.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

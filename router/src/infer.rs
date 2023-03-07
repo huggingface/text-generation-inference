@@ -439,3 +439,14 @@ pub enum InferError {
     #[error("Incomplete generation")]
     IncompleteGeneration,
 }
+
+impl InferError {
+    pub(crate) fn error_type(&self) -> &str {
+        match self {
+            InferError::GenerationError(_) => "generation",
+            InferError::Overloaded(_) => "overloaded",
+            InferError::ValidationError(_) => "validation",
+            InferError::IncompleteGeneration => "incomplete_generation",
+        }
+    }
+}

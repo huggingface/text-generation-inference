@@ -133,8 +133,8 @@ async fn generate(
         true => Some(Details {
             finish_reason: FinishReason::from(response.generated_text.finish_reason),
             generated_tokens: response.generated_text.generated_tokens,
-            prefill: Some(response.prefill),
-            tokens: Some(response.tokens),
+            prefill: response.prefill,
+            tokens: response.tokens,
             seed: response.generated_text.seed,
         }),
         false => None,
@@ -554,6 +554,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             status_code,
             Json(ErrorResponse {
                 error: err.to_string(),
+                error_type: err.error_type().to_string(),
             }),
         )
     }
@@ -564,6 +565,7 @@ impl From<InferError> for Event {
         Event::default()
             .json_data(ErrorResponse {
                 error: err.to_string(),
+                error_type: err.error_type().to_string(),
             })
             .unwrap()
     }

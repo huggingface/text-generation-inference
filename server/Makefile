@@ -3,10 +3,10 @@ transformers_commit := 2f87dca1ca3e5663d0637da9bb037a6956e57a5e
 gen-server:
 	# Compile protos
 	pip install grpcio-tools==1.51.1 --no-cache-dir
-	mkdir text_generation/pb || true
-	python -m grpc_tools.protoc -I../proto --python_out=text_generation/pb --grpc_python_out=text_generation/pb ../proto/generate.proto
-	find text_generation/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
-	touch text_generation/pb/__init__.py
+	mkdir text_generation_server/pb || true
+	python -m grpc_tools.protoc -I../proto --python_out=text_generation_server/pb --grpc_python_out=text_generation_server/pb ../proto/generate.proto
+	find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
+	touch text_generation_server/pb/__init__.py
 
 install-transformers:
 	# Install specific version of transformers with custom cuda kernels
@@ -28,4 +28,4 @@ install: gen-server install-torch install-transformers
 	pip install -e . --no-cache-dir
 
 run-dev:
-	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation/cli.py serve bigscience/bloom-560m --sharded
+	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded

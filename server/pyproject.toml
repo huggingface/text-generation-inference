@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "text-generation"
+name = "text-generation-server"
 version = "0.3.2"
 description = "Text Generation Inference Python gRPC Server"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
 
 [tool.poetry.scripts]
-text-generation-server = 'text_generation.cli:app'
+text-generation-server = 'text_generation_server.cli:app'
 
 [tool.poetry.dependencies]
 python = "^3.9"

@@ -6,8 +6,8 @@ from typing import List, Optional
 
 from transformers import PreTrainedTokenizerBase
 
-from text_generation.pb import generate_pb2
-from text_generation.pb.generate_pb2 import FinishReason
+from text_generation_server.pb import generate_pb2
+from text_generation_server.pb.generate_pb2 import FinishReason
 
 
 class Batch(ABC):

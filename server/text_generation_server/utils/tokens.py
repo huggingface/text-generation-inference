@@ -11,9 +11,9 @@ from transformers import (
 )
 from typing import List, Tuple, Optional
 
-from text_generation.pb import generate_pb2
-from text_generation.pb.generate_pb2 import FinishReason
-from text_generation.utils.watermark import WatermarkLogitsProcessor
+from text_generation_server.pb import generate_pb2
+from text_generation_server.pb.generate_pb2 import FinishReason
+from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 
 
 class Sampling:
