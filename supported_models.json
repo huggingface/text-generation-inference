@@ -1,0 +1,8 @@
+[
+  "bigscience/bloom",
+  "bigscience/bloomz",
+  "EleutherAI/gpt-neox-20b",
+  "google/flan-ul2",
+  "google/flan-t5-xxl",
+  "olivierdehaene/optimized-santacoder"
+]
