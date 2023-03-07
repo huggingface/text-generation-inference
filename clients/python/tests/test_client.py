@@ -29,8 +29,8 @@ def test_generate_not_found(fake_url, hf_headers):
         client.generate("test")
 
 
-def test_generate_validation_error(bloom_url, hf_headers):
-    client = Client(bloom_url, hf_headers)
+def test_generate_validation_error(flan_t5_xxl_url, hf_headers):
+    client = Client(flan_t5_xxl_url, hf_headers)
     with pytest.raises(ValidationError):
         client.generate("test", max_new_tokens=10_000)
 
@@ -56,8 +56,8 @@ def test_generate_stream_not_found(fake_url, hf_headers):
         list(client.generate_stream("test"))
 
 
-def test_generate_stream_validation_error(bloom_url, hf_headers):
-    client = Client(bloom_url, hf_headers)
+def test_generate_stream_validation_error(flan_t5_xxl_url, hf_headers):
+    client = Client(flan_t5_xxl_url, hf_headers)
     with pytest.raises(ValidationError):
         list(client.generate_stream("test", max_new_tokens=10_000))
 
@@ -89,8 +89,8 @@ async def test_generate_async_not_found(fake_url, hf_headers):
 
 
 @pytest.mark.asyncio
-async def test_generate_async_validation_error(bloom_url, hf_headers):
-    client = AsyncClient(bloom_url, hf_headers)
+async def test_generate_async_validation_error(flan_t5_xxl_url, hf_headers):
+    client = AsyncClient(flan_t5_xxl_url, hf_headers)
     with pytest.raises(ValidationError):
         await client.generate("test", max_new_tokens=10_000)
 
@@ -120,8 +120,8 @@ async def test_generate_stream_async_not_found(fake_url, hf_headers):
 
 
 @pytest.mark.asyncio
-async def test_generate_stream_async_validation_error(bloom_url, hf_headers):
-    client = AsyncClient(bloom_url, hf_headers)
+async def test_generate_stream_async_validation_error(flan_t5_xxl_url, hf_headers):
+    client = AsyncClient(flan_t5_xxl_url, hf_headers)
     with pytest.raises(ValidationError):
         async for _ in client.generate_stream("test", max_new_tokens=10_000):
             pass

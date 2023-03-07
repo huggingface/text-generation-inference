@@ -7,7 +7,7 @@ from text_generation import (
     AsyncClient,
 )
 from text_generation.errors import NotSupportedError
-from text_generation.api_inference import get_supported_models
+from text_generation.inference_api import get_supported_models
 
 
 def test_get_supported_models():

@@ -10,6 +10,11 @@ def bloom_model():
 
 
 @pytest.fixture
+def flan_t5_xxl():
+    return "google/flan-t5-xxl"
+
+
+@pytest.fixture
 def fake_model():
     return "fake/model"
 
@@ -27,6 +32,11 @@ def base_url():
 @pytest.fixture
 def bloom_url(base_url, bloom_model):
     return f"{base_url}/{bloom_model}"
+
+
+@pytest.fixture
+def flan_t5_xxl_url(base_url, flan_t5_xxl):
+    return f"{base_url}/{flan_t5_xxl}"
 
 
 @pytest.fixture

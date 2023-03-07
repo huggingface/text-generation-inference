@@ -15,4 +15,4 @@
 __version__ = "0.3.2"
 
 from text_generation.client import Client, AsyncClient
-from text_generation.api_inference import InferenceAPIClient, InferenceAPIAsyncClient
+from text_generation.inference_api import InferenceAPIClient, InferenceAPIAsyncClient
