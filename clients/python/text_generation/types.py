@@ -10,7 +10,7 @@ class Parameters(BaseModel):
     max_new_tokens: int = 20
     repetition_penalty: Optional[float] = None
     return_full_text: bool = False
-    stop: List[str]
+    stop: List[str] = []
     seed: Optional[int]
     temperature: Optional[float]
     top_k: Optional[int]
@@ -20,25 +20,25 @@ class Parameters(BaseModel):
 
     @validator("repetition_penalty")
     def valid_repetition_penalty(cls, v):
-        if v is not None and v is v < 0:
+        if v is not None and v is v <= 0:
             raise ValidationError("`repetition_penalty` must be strictly positive")
         return v
 
     @validator("seed")
     def valid_seed(cls, v):
         if v is not None and v is v < 0:
-            raise ValidationError("`seed` must be strictly positive")
+            raise ValidationError("`seed` must be positive")
         return v
 
     @validator("temperature")
     def valid_temp(cls, v):
-        if v is not None and v < 0:
+        if v is not None and v <= 0:
             raise ValidationError("`temperature` must be strictly positive")
         return v
 
     @validator("top_k")
     def valid_top_k(cls, v):
-        if v is not None and v < 0:
+        if v is not None and v <= 0:
             raise ValidationError("`top_k` must be strictly positive")
         return v
 

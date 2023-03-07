@@ -5,8 +5,9 @@ import json
 import warnings
 
 from typing import List, Optional
+from huggingface_hub.utils import build_hf_headers
 
-from text_generation import Client, AsyncClient
+from text_generation import Client, AsyncClient, __version__
 from text_generation.errors import NotSupportedError
 
 INFERENCE_ENDPOINT = os.environ.get(
@@ -17,6 +18,12 @@ SUPPORTED_MODELS = None
 
 
 def get_supported_models() -> Optional[List[str]]:
+    """
+    Get the list of supported text-generation models from GitHub
+
+    Returns:
+        Optional[List[str]]: supported models list or None if unable to get the list from GitHub
+    """
     global SUPPORTED_MODELS
     if SUPPORTED_MODELS is not None:
         return SUPPORTED_MODELS
@@ -34,31 +41,110 @@ def get_supported_models() -> Optional[List[str]]:
     return None
 
 
-class APIInferenceClient(Client):
-    def __init__(self, model_id: str, token: Optional[str] = None, timeout: int = 10):
+class InferenceAPIClient(Client):
+    """Client to make calls to the HuggingFace Inference API.
+
+     Only supports a subset of the available text-generation or text2text-generation models that are served using
+     text-generation-inference
+
+     Example:
+
+     ```python
+     >>> from text_generation import InferenceAPIClient
+
+     >>> client = InferenceAPIClient("bigscience/bloomz")
+     >>> client.generate("Why is the sky blue?").generated_text
+     ' Rayleigh scattering'
+
+     >>> result = ""
+     >>> for response in client.generate_stream("Why is the sky blue?"):
+     >>>     if not response.token.special:
+     >>>         result += response.token.text
+     >>> result
+    ' Rayleigh scattering'
+     ```
+    """
+
+    def __init__(self, repo_id: str, token: Optional[str] = None, timeout: int = 10):
+        """
+        Init headers and API information
+
+        Args:
+            repo_id (`str`):
+                Id of repository (e.g. `bigscience/bloom`).
+            token (`str`, `optional`):
+                The API token to use as HTTP bearer authorization. This is not
+                the authentication token. You can find the token in
+                https://huggingface.co/settings/token. Alternatively, you can
+                find both your organizations and personal API tokens using
+                `HfApi().whoami(token)`.
+            timeout (`int`):
+                Timeout in seconds
+        """
+
         # Text Generation Inference client only supports a subset of the available hub models
         supported_models = get_supported_models()
-        if supported_models is not None and model_id not in supported_models:
-            raise NotSupportedError(model_id)
+        if supported_models is not None and repo_id not in supported_models:
+            raise NotSupportedError(repo_id)
 
-        headers = {}
-        if token is not None:
-            headers = {"Authorization": f"Bearer {token}"}
-        base_url = f"{INFERENCE_ENDPOINT}/models/{model_id}"
+        headers = build_hf_headers(
+            token=token, library_name="text-generation", library_version=__version__
+        )
+        base_url = f"{INFERENCE_ENDPOINT}/models/{repo_id}"
 
-        super(APIInferenceClient, self).__init__(base_url, headers, timeout)
+        super(InferenceAPIClient, self).__init__(base_url, headers, timeout)
 
 
-class APIInferenceAsyncClient(AsyncClient):
-    def __init__(self, model_id: str, token: Optional[str] = None, timeout: int = 10):
+class InferenceAPIAsyncClient(AsyncClient):
+    """Aynschronous Client to make calls to the HuggingFace Inference API.
+
+     Only supports a subset of the available text-generation or text2text-generation models that are served using
+     text-generation-inference
+
+     Example:
+
+     ```python
+     >>> from text_generation import InferenceAPIAsyncClient
+
+     >>> client = InferenceAPIAsyncClient("bigscience/bloomz")
+     >>> response = await client.generate("Why is the sky blue?")
+     >>> response.generated_text
+     ' Rayleigh scattering'
+
+     >>> result = ""
+     >>> async for response in client.generate_stream("Why is the sky blue?"):
+     >>>     if not response.token.special:
+     >>>         result += response.token.text
+     >>> result
+    ' Rayleigh scattering'
+     ```
+    """
+
+    def __init__(self, repo_id: str, token: Optional[str] = None, timeout: int = 10):
+        """
+        Init headers and API information
+
+        Args:
+            repo_id (`str`):
+                Id of repository (e.g. `bigscience/bloom`).
+            token (`str`, `optional`):
+                The API token to use as HTTP bearer authorization. This is not
+                the authentication token. You can find the token in
+                https://huggingface.co/settings/token. Alternatively, you can
+                find both your organizations and personal API tokens using
+                `HfApi().whoami(token)`.
+            timeout (`int`):
+                Timeout in seconds
+        """
+
         # Text Generation Inference client only supports a subset of the available hub models
         supported_models = get_supported_models()
-        if supported_models is not None and model_id not in supported_models:
-            raise NotSupportedError(model_id)
+        if supported_models is not None and repo_id not in supported_models:
+            raise NotSupportedError(repo_id)
 
-        headers = {}
-        if token is not None:
-            headers = {"Authorization": f"Bearer {token}"}
-        base_url = f"{INFERENCE_ENDPOINT}/models/{model_id}"
+        headers = build_hf_headers(
+            token=token, library_name="text-generation", library_version=__version__
+        )
+        base_url = f"{INFERENCE_ENDPOINT}/models/{repo_id}"
 
-        super(APIInferenceAsyncClient, self).__init__(base_url, headers, timeout)
+        super(InferenceAPIAsyncClient, self).__init__(base_url, headers, timeout)

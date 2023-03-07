@@ -33,7 +33,7 @@ class ShardNotReadyError(Exception):
         super().__init__(message)
 
 
-class TimeoutError(Exception):
+class ShardTimeoutError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
 
@@ -64,6 +64,19 @@ class UnknownError(Exception):
 
 
 def parse_error(status_code: int, payload: Dict[str, str]) -> Exception:
+    """
+    Parse error given an HTTP status code and a json payload
+
+    Args:
+        status_code (`int`):
+            HTTP status code
+        payload (`Dict[str, str]`):
+            Json payload
+
+    Returns:
+        Exception: parsed exception
+
+    """
     # Try to parse a Text Generation Inference error
     message = payload["error"]
     if "error_type" in payload:
@@ -83,7 +96,7 @@ def parse_error(status_code: int, payload: Dict[str, str]) -> Exception:
     if status_code == 403 or status_code == 424:
         return ShardNotReadyError(message)
     if status_code == 504:
-        return TimeoutError(message)
+        return ShardTimeoutError(message)
     if status_code == 404:
         return NotFoundError(message)
     if status_code == 429:
