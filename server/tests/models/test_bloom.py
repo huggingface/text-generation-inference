@@ -4,9 +4,9 @@ import torch
 from copy import copy
 from transformers import AutoTokenizer
 
-from text_generation.pb import generate_pb2
-from text_generation.models.causal_lm import CausalLMBatch
-from text_generation.models.bloom import BloomCausalLMBatch, BLOOM
+from text_generation_server.pb import generate_pb2
+from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.models.bloom import BloomCausalLMBatch, BLOOM
 
 
 @pytest.fixture(scope="session")

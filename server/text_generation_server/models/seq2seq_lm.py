@@ -5,10 +5,15 @@ from opentelemetry import trace
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type
 
-from text_generation.models import Model
-from text_generation.models.types import GeneratedText, Batch, Generation, PrefillTokens
-from text_generation.pb import generate_pb2
-from text_generation.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.models import Model
+from text_generation_server.models.types import (
+    GeneratedText,
+    Batch,
+    Generation,
+    PrefillTokens,
+)
+from text_generation_server.pb import generate_pb2
+from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
 
 tracer = trace.get_tracer(__name__)
 
@@ -45,7 +50,7 @@ class Seq2SeqLMBatch(Batch):
     padding_right_offset: int
 
     def to_pb(self) -> generate_pb2.Batch:
-        """Convert a Seq2SeqLMBatch to a text_generation.v1.Batch protobuf"""
+        """Convert a Seq2SeqLMBatch to a text_generation_server.v1.Batch protobuf"""
         return generate_pb2.Batch(
             id=self.batch_id,
             requests=self.requests,
@@ -59,7 +64,7 @@ class Seq2SeqLMBatch(Batch):
         tokenizer: PreTrainedTokenizerBase,
         device: torch.device,
     ) -> "Seq2SeqLMBatch":
-        """Convert a text_generation.v1.Batch protobuf to a Seq2SeqLMBatch"""
+        """Convert a text_generation_server.v1.Batch protobuf to a Seq2SeqLMBatch"""
         inputs = []
         next_token_choosers = []
         stopping_criterias = []

@@ -6,8 +6,8 @@ from pathlib import Path
 from loguru import logger
 from typing import Optional
 
-from text_generation import server, utils
-from text_generation.tracing import setup_tracing
+from text_generation_server import server, utils
+from text_generation_server.tracing import setup_tracing
 
 app = typer.Typer()
 
@@ -42,7 +42,7 @@ def serve(
     logger.add(
         sys.stdout,
         format="{message}",
-        filter="text_generation",
+        filter="text_generation_server",
         level=logger_level,
         serialize=json_output,
         backtrace=True,
@@ -68,7 +68,7 @@ def download_weights(
     logger.add(
         sys.stdout,
         format="{message}",
-        filter="text_generation",
+        filter="text_generation_server",
         level=logger_level,
         serialize=json_output,
         backtrace=True,

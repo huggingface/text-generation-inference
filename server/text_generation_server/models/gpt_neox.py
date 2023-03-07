@@ -7,17 +7,17 @@ from accelerate import init_empty_weights
 from safetensors import safe_open
 from transformers import (
     AutoTokenizer,
-    AutoModelForSeq2SeqLM,
+    AutoModelForCausalLM,
     AutoConfig,
 )
-from transformers.models.t5.parallel_layers import (
+from transformers.models.gpt_neox.parallel_layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
 )
 
-from text_generation.models import Seq2SeqLM
-from text_generation.utils import (
+from text_generation_server.models import CausalLM
+from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
 )
@@ -30,7 +30,23 @@ except Exception as e:
     HAS_BITS_AND_BYTES = False
 
 
-class T5Sharded(Seq2SeqLM):
+class GPTNeox(CausalLM):
+    def forward(
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
+        """Overwrite forward to ignore position_ids"""
+
+        # Model Forward
+        outputs = self.model.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
+        return outputs.logits, outputs.past_key_values
+
+
+class GPTNeoxSharded(GPTNeox):
     def __init__(
         self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
@@ -46,17 +62,17 @@ class T5Sharded(Seq2SeqLM):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left"
         )
+        tokenizer.pad_token = tokenizer.eos_token
 
         config = AutoConfig.from_pretrained(
             model_id, revision=revision, tp_parallel=True
         )
-        tokenizer.bos_token_id = config.decoder_start_token_id
 
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
 
         with init_empty_weights():
-            model = AutoModelForSeq2SeqLM.from_config(config)
+            model = AutoModelForCausalLM.from_config(config)
 
         torch.distributed.barrier(group=self.process_group)
         self.load_weights(
@@ -69,7 +85,7 @@ class T5Sharded(Seq2SeqLM):
         )
         self.model = model.eval().to(dtype)
         torch.distributed.barrier(group=self.process_group)
-        super(Seq2SeqLM, self).__init__(
+        super(CausalLM, self).__init__(
             tokenizer=tokenizer,
             device=device,
         )
@@ -120,18 +136,12 @@ class T5Sharded(Seq2SeqLM):
                         start = rank * block_size
                         stop = (rank + 1) * block_size
                         tensor = slice_[start:stop]
-                    elif name == "lm_head.weight":
+                    elif name == "embed_out.weight" and model.gpt_neox.tp_embeddings:
                         size = slice_.get_shape()[0]
                         block_size = size // world_size
                         start = rank * block_size
                         stop = (rank + 1) * block_size
                         tensor = slice_[start:stop]
-                    elif "relative_attention_bias.weight" in name:
-                        size = slice_.get_shape()[1]
-                        block_size = size // world_size
-                        start = rank * block_size
-                        stop = (rank + 1) * block_size
-                        tensor = slice_[:, start:stop]
                     else:
                         try:
                             tensor = slice_[:]
@@ -208,36 +218,26 @@ class T5Sharded(Seq2SeqLM):
                         module._buffers[param_name] = tensor
 
     def forward(
-        self,
-        input_ids,
-        attention_mask,
-        decoder_input_ids,
-        decoder_attention_mask: Optional,
-        encoder_last_hidden_state: Optional,
-        past_key_values: Optional = None,
-    ) -> Tuple[
-        torch.Tensor,
-        torch.Tensor,
-        List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
-    ]:
-        # Model Forward
-        outputs = self.model.forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            decoder_input_ids=decoder_input_ids,
-            decoder_attention_mask=decoder_attention_mask,
-            encoder_outputs=encoder_last_hidden_state,
-            past_key_values=past_key_values,
-            use_cache=True,
-        )
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+    ):
+        if self.model.gpt_neox.tp_embeddings:
+            outputs = self.model.forward(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                past_key_values=past_key_values,
+                use_cache=True,
+            )
 
-        # Logits are sharded, so we need to gather them
-        logits = [torch.empty_like(outputs.logits) for _ in range(self.world_size)]
-        torch.distributed.all_gather(logits, outputs.logits, group=self.process_group)
-        logits = torch.cat(logits, dim=2)
+            # Logits are sharded, so we need to gather them
+            logits = [torch.empty_like(outputs.logits) for _ in range(self.world_size)]
+            torch.distributed.all_gather(
+                logits, outputs.logits, group=self.process_group
+            )
+            logits = torch.cat(logits, dim=2)
 
-        return (
-            logits,
-            outputs.encoder_last_hidden_state,
-            outputs.past_key_values,
-        )
+            return logits, outputs.past_key_values
+        # While the model itself is sharded, the embeddings might not as they might not be dividable by num-shard
+        else:
+            return super(GPTNeoxSharded, self).forward(
+                input_ids, attention_mask, position_ids, past_key_values
+            )

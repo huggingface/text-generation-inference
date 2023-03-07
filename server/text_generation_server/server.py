@@ -9,11 +9,11 @@ from grpc_reflection.v1alpha import reflection
 from pathlib import Path
 from typing import List, Optional
 
-from text_generation.cache import Cache
-from text_generation.interceptor import ExceptionInterceptor
-from text_generation.models import Model, get_model
-from text_generation.pb import generate_pb2_grpc, generate_pb2
-from text_generation.tracing import UDSOpenTelemetryAioServerInterceptor
+from text_generation_server.cache import Cache
+from text_generation_server.interceptor import ExceptionInterceptor
+from text_generation_server.models import Model, get_model
+from text_generation_server.pb import generate_pb2_grpc, generate_pb2
+from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):

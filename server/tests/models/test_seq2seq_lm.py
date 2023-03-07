@@ -5,8 +5,8 @@ from copy import copy
 
 from transformers import AutoTokenizer
 
-from text_generation.pb import generate_pb2
-from text_generation.models.seq2seq_lm import Seq2SeqLM, Seq2SeqLMBatch
+from text_generation_server.pb import generate_pb2
+from text_generation_server.models.seq2seq_lm import Seq2SeqLM, Seq2SeqLMBatch
 
 
 @pytest.fixture(scope="session")

@@ -1,6 +1,6 @@
 import pytest
 
-from text_generation.utils.hub import (
+from text_generation_server.utils.hub import (
     weight_hub_files,
     download_weights,
     weight_files,

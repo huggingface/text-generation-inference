@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "text_generation_inference"
+name = "text-generation"
 version = "0.3.2"
 description = "Text Generation Inference Python Client"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]

@@ -2,7 +2,7 @@ from enum import Enum
 from pydantic import BaseModel, validator
 from typing import Optional, List
 
-from text_generation_inference.errors import ValidationError
+from text_generation.errors import ValidationError
 
 
 class Parameters(BaseModel):
