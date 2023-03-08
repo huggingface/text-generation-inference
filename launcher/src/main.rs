@@ -115,7 +115,8 @@ fn main() -> ExitCode {
                     None => {
                         // try to default to the number of available GPUs
                         tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES");
-                        let cuda_visible_devices = env::var("CUDA_VISIBLE_DEVICES").expect("--num-shard and CUDA_VISIBLE_DEVICES are not set");
+                        let cuda_visible_devices = env::var("CUDA_VISIBLE_DEVICES")
+                            .expect("--num-shard and CUDA_VISIBLE_DEVICES are not set");
                         let n_devices = cuda_visible_devices.split(",").count();
                         if n_devices <= 1 {
                             panic!("`sharded` is true but only found {n_devices} CUDA devices");
@@ -153,7 +154,7 @@ fn main() -> ExitCode {
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
     })
-        .expect("Error setting Ctrl-C handler");
+    .expect("Error setting Ctrl-C handler");
 
     // Check if model_id is a local model
     let local_path = Path::new(&model_id);
