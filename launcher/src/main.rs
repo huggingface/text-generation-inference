@@ -148,7 +148,9 @@ fn main() -> ExitCode {
             Some(num_shard) => num_shard,
         }
     };
-    tracing::info!("Sharding model on {num_shard} processes");
+    if num_shard > 1 {
+        tracing::info!("Sharding model on {num_shard} processes");
+    }
 
     // Signal handler
     let running = Arc::new(AtomicBool::new(true));
