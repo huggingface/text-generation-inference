@@ -35,4 +35,4 @@ class Model(ABC):
             [self.special_decode_token_id, token_id], skip_special_tokens=False
         )
         # slice to remove special decode token
-        return result[self.special_decode_token_length:]
+        return result[self.special_decode_token_length :]
