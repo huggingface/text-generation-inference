@@ -52,7 +52,7 @@ print(text)
 # ' Rayleigh scattering'
 ```
 
-### Hugging Fae Inference Endpoint usage
+### Hugging Face Inference Endpoint usage
 
 ```python
 from text_generation import Client

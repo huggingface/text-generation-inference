@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from text_generation.client import Client, AsyncClient
 from text_generation.inference_api import InferenceAPIClient, InferenceAPIAsyncClient
