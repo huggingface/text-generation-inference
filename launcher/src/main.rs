@@ -148,6 +148,10 @@ fn main() -> ExitCode {
             Some(num_shard) => num_shard,
         }
     };
+    if num_shard < 1 {
+        panic!("`num_shard` cannot be < 1");
+    }
+
     if num_shard > 1 {
         tracing::info!("Sharding model on {num_shard} processes");
     }
