@@ -23,8 +23,10 @@ struct Args {
     model_id: String,
     #[clap(long, env)]
     revision: Option<String>,
-    #[clap(default_value = "1", long, env)]
-    num_shard: usize,
+    #[clap(long, env)]
+    sharded: Option<bool>,
+    #[clap(long, env)]
+    num_shard: Option<usize>,
     #[clap(long, env)]
     quantize: bool,
     #[clap(default_value = "128", long, env)]
@@ -80,6 +82,7 @@ fn main() -> ExitCode {
     let Args {
         model_id,
         revision,
+        sharded,
         num_shard,
         quantize,
         max_concurrent_requests,
@@ -101,6 +104,49 @@ fn main() -> ExitCode {
         watermark_gamma,
         watermark_delta,
     } = args;
+
+    // get the number of shards given `sharded` and `num_shard`
+    let num_shard = if let Some(sharded) = sharded {
+        // sharded is set
+        match sharded {
+            // sharded is set and true
+            true => {
+                match num_shard {
+                    None => {
+                        // try to default to the number of available GPUs
+                        tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES");
+                        let cuda_visible_devices = env::var("CUDA_VISIBLE_DEVICES")
+                            .expect("--num-shard and CUDA_VISIBLE_DEVICES are not set");
+                        let n_devices = cuda_visible_devices.split(",").count();
+                        if n_devices <= 1 {
+                            panic!("`sharded` is true but only found {n_devices} CUDA devices");
+                        }
+                        tracing::info!("Sharding on {n_devices} found CUDA devices");
+                        n_devices
+                    }
+                    Some(num_shard) => {
+                        // we can't have only one shard while sharded
+                        if num_shard <= 1 {
+                            panic!("`sharded` is true but `num_shard` <= 1");
+                        }
+                        num_shard
+                    }
+                }
+            }
+            // sharded is set and false
+            false => {
+                let num_shard = num_shard.unwrap_or(1);
+                // we can't have more than one shard while not sharded
+                if num_shard != 1 {
+                    panic!("`sharded` is false but `num_shard` != 1");
+                }
+                num_shard
+            }
+        }
+    } else {
+        // default to a single shard
+        num_shard.unwrap_or(1)
+    };
 
     // Signal handler
     let running = Arc::new(AtomicBool::new(true));

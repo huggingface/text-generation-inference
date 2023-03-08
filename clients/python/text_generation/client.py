@@ -63,7 +63,7 @@ class Client:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
-        watermarking: bool = False,
+        watermark: bool = False,
     ) -> Response:
         """
         Given a prompt, generate the following text
@@ -91,7 +91,7 @@ class Client:
             top_p (`float`):
                 If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
                 higher are kept for generation.
-            watermarking (`bool`):
+            watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 
         Returns:
@@ -109,7 +109,7 @@ class Client:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
-            watermark=watermarking,
+            watermark=watermark,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
@@ -136,7 +136,7 @@ class Client:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
-        watermarking: bool = False,
+        watermark: bool = False,
     ) -> Iterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens
@@ -164,7 +164,7 @@ class Client:
             top_p (`float`):
                 If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
                 higher are kept for generation.
-            watermarking (`bool`):
+            watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 
         Returns:
@@ -182,7 +182,7 @@ class Client:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
-            watermark=watermarking,
+            watermark=watermark,
         )
         request = Request(inputs=prompt, stream=True, parameters=parameters)
 
@@ -268,7 +268,7 @@ class AsyncClient:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
-        watermarking: bool = False,
+        watermark: bool = False,
     ) -> Response:
         """
         Given a prompt, generate the following text asynchronously
@@ -296,7 +296,7 @@ class AsyncClient:
             top_p (`float`):
                 If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
                 higher are kept for generation.
-            watermarking (`bool`):
+            watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 
         Returns:
@@ -314,7 +314,7 @@ class AsyncClient:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
-            watermark=watermarking,
+            watermark=watermark,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
@@ -338,7 +338,7 @@ class AsyncClient:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
-        watermarking: bool = False,
+        watermark: bool = False,
     ) -> AsyncIterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens asynchronously
@@ -366,7 +366,7 @@ class AsyncClient:
             top_p (`float`):
                 If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
                 higher are kept for generation.
-            watermarking (`bool`):
+            watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 
         Returns:
@@ -384,7 +384,7 @@ class AsyncClient:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
-            watermark=watermarking,
+            watermark=watermark,
         )
         request = Request(inputs=prompt, stream=True, parameters=parameters)
 
