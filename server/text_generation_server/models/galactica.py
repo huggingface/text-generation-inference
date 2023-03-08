@@ -103,7 +103,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             inputs.append(escape_custom_split_sequence(r.inputs))
             input_lengths.append(r.input_length)
             next_token_choosers.append(
-                NextTokenChooser.from_pb(r.parameters, len(tokenizer), device)
+                NextTokenChooser.from_pb(r.parameters, device)
             )
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
