@@ -16,13 +16,8 @@ class Model(ABC):
         self.device = device
 
         # see `decode_token` method
-        self.tokenizer.add_special_tokens(
-            {"additional_special_tokens": ["<decode-token>"]}
-        )
-        self.special_decode_token_id = self.tokenizer.convert_tokens_to_ids(
-            "<decode-token>"
-        )
-        self.special_decode_token_length = len("<decode-token>")
+        self.special_decode_token_id = self.tokenizer.pad_token_id
+        self.special_decode_token_length = len(self.tokenizer.pad_token)
 
     @property
     @abstractmethod
@@ -40,4 +35,4 @@ class Model(ABC):
             [self.special_decode_token_id, token_id], skip_special_tokens=False
         )
         # slice to remove special decode token
-        return result[self.special_decode_token_length :]
+        return result[self.special_decode_token_length:]
