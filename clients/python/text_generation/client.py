@@ -191,7 +191,7 @@ class Client:
             json=request.dict(),
             headers=self.headers,
             timeout=self.timeout,
-            stream=False,
+            stream=True,
         )
 
         if resp.status_code != 200:
