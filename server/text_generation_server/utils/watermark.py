@@ -25,14 +25,12 @@ DELTA = os.getenv("WATERMARK_DELTA", 2.0)
 class WatermarkLogitsProcessor(LogitsProcessor):
     def __init__(
         self,
-        vocab_size: int,
         gamma: float = GAMMA,
         delta: float = DELTA,
         hash_key: int = 15485863,  # just a large prime number to create a rng seed with sufficient bit width
         device: str = "cpu",
     ):
         # watermarking parameters
-        self.vocab_size = vocab_size
         self.gamma = gamma
         self.delta = delta
         self.rng = torch.Generator(device=device)
@@ -45,13 +43,13 @@ class WatermarkLogitsProcessor(LogitsProcessor):
         prev_token = input_ids[-1].item()
         self.rng.manual_seed(self.hash_key * prev_token)
 
-    def _get_greenlist_ids(self, input_ids: torch.LongTensor) -> list[int]:
+    def _get_greenlist_ids(self, input_ids: torch.LongTensor, max_value: int) -> list[int]:
         # seed the rng using the previous tokens/prefix
         self._seed_rng(input_ids)
 
-        greenlist_size = int(self.vocab_size * self.gamma)
+        greenlist_size = int(max_value * self.gamma)
         vocab_permutation = torch.randperm(
-            self.vocab_size, device=input_ids.device, generator=self.rng
+            max_value, device=input_ids.device, generator=self.rng
         )
         greenlist_ids = vocab_permutation[:greenlist_size]
         return greenlist_ids
@@ -76,7 +74,7 @@ class WatermarkLogitsProcessor(LogitsProcessor):
         self, input_ids: torch.LongTensor, scores: torch.FloatTensor
     ) -> torch.FloatTensor:
         assert len(input_ids) == 1
-        greenlist_ids = self._get_greenlist_ids(input_ids[0])
+        greenlist_ids = self._get_greenlist_ids(input_ids[0], scores.shape[-1])
         green_tokens_mask = self._calc_greenlist_mask(
             scores=scores, greenlist_token_ids=greenlist_ids
         )

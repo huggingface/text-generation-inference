@@ -36,7 +36,6 @@ class Greedy:
 class NextTokenChooser:
     def __init__(
         self,
-        vocab_size,
         watermark=False,
         temperature=1.0,
         repetition_penalty=1.0,
@@ -52,7 +51,7 @@ class NextTokenChooser:
         sampling = do_sample
 
         if watermark:
-            warpers.append(WatermarkLogitsProcessor(vocab_size, device=device))
+            warpers.append(WatermarkLogitsProcessor(device=device))
         if repetition_penalty is not None and repetition_penalty != 1.0:
             warpers.append(RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty))
         if temperature is not None and temperature != 1.0:
@@ -85,11 +84,9 @@ class NextTokenChooser:
     def from_pb(
         cls,
         pb: generate_pb2.NextTokenChooserParameters,
-        vocab_size: int,
         device: torch.device,
     ) -> "NextTokenChooser":
         return NextTokenChooser(
-            vocab_size=vocab_size,
             watermark=pb.watermark,
             temperature=pb.temperature,
             repetition_penalty=pb.repetition_penalty,
