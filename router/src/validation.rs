@@ -129,11 +129,11 @@ fn validation_worker(
                         max_total_tokens,
                         &mut rng,
                     )
-                        .map_err(|err| {
-                            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
-                            tracing::error!("{err}");
-                            err
-                        }),
+                    .map_err(|err| {
+                        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+                        tracing::error!("{err}");
+                        err
+                    }),
                 )
                 .unwrap_or(())
         })
@@ -174,27 +174,32 @@ fn validate(
 
     // Different because the proto default value is not a valid value
     // for the user
-    let top_p = top_p.map(|value| {
-        if value <= 0.0 || value >= 1.0 {
-            return Err(ValidationError::TopP);
-        }
-        Ok(value)
-    }).unwrap_or(Ok(1.0))?;
+    let top_p = top_p
+        .map(|value| {
+            if value <= 0.0 || value >= 1.0 {
+                return Err(ValidationError::TopP);
+            }
+            Ok(value)
+        })
+        .unwrap_or(Ok(1.0))?;
 
-    let typical_p = typical_p.map(|value| {
-        if value <= 0.0 || value >= 1.0 {
-            return Err(ValidationError::TypicalP);
-        }
-        Ok(value)
-    }).unwrap_or(Ok(1.0))?;
+    let typical_p = typical_p
+        .map(|value| {
+            if value <= 0.0 || value >= 1.0 {
+                return Err(ValidationError::TypicalP);
+            }
+            Ok(value)
+        })
+        .unwrap_or(Ok(1.0))?;
 
-    let top_k: u32 = top_k.map(|value| {
-        if value <= 0 {
-            return Err(ValidationError::TopK);
-        }
-        Ok(value as u32)
-    }).unwrap_or(Ok(0))?;
-
+    let top_k: u32 = top_k
+        .map(|value| {
+            if value <= 0 {
+                return Err(ValidationError::TopK);
+            }
+            Ok(value as u32)
+        })
+        .unwrap_or(Ok(0))?;
 
     if max_new_tokens == 0 {
         return Err(ValidationError::MaxNewTokens);
