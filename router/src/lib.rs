@@ -59,13 +59,13 @@ pub(crate) struct GenerateParameters {
     #[schema(exclusive_minimum = 0, exclusive_maximum = 512, default = "20")]
     pub max_new_tokens: u32,
     #[serde(default)]
-    #[schema(default = "null", example = false)]
+    #[schema(nullable = true, default = "null", example = false)]
     pub return_full_text: Option<bool>,
     #[serde(default)]
     #[schema(inline, max_items = 4, example = json ! (["photographer"]))]
     pub stop: Vec<String>,
     #[serde(default)]
-    #[schema(default = "null", example = "null")]
+    #[schema(nullable = true, default = "null", example = "null")]
     pub truncate: Option<usize>,
     #[serde(default)]
     #[schema(default = "false", example = true)]
@@ -176,7 +176,7 @@ pub(crate) struct BestOfSequence {
     pub finish_reason: FinishReason,
     #[schema(example = 1)]
     pub generated_tokens: u32,
-    #[schema(example = 42)]
+    #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
     pub prefill: Vec<PrefillToken>,
     pub tokens: Vec<Token>,
@@ -188,7 +188,7 @@ pub(crate) struct Details {
     pub finish_reason: FinishReason,
     #[schema(example = 1)]
     pub generated_tokens: u32,
-    #[schema(example = 42)]
+    #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
     pub prefill: Vec<PrefillToken>,
     pub tokens: Vec<Token>,
@@ -210,7 +210,7 @@ pub(crate) struct StreamDetails {
     pub finish_reason: FinishReason,
     #[schema(example = 1)]
     pub generated_tokens: u32,
-    #[schema(example = 42)]
+    #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
 }
 

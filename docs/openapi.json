@@ -241,7 +241,8 @@
           "seed": {
             "type": "integer",
             "format": "int64",
-            "example": 42
+            "example": 42,
+            "nullable": true
           },
           "tokens": {
             "type": "array",
@@ -283,7 +284,8 @@
           "seed": {
             "type": "integer",
             "format": "int64",
-            "example": 42
+            "example": 42,
+            "nullable": true
           },
           "tokens": {
             "type": "array",
@@ -352,8 +354,9 @@
           },
           "return_full_text": {
             "type": "boolean",
-            "default": "None",
-            "example": false
+            "default": "null",
+            "example": false,
+            "nullable": true
           },
           "seed": {
             "type": "integer",
@@ -397,6 +400,12 @@
             "nullable": true,
             "maximum": 1.0,
             "exclusiveMinimum": 0.0
+          },
+          "truncate": {
+            "type": "integer",
+            "default": "null",
+            "example": "null",
+            "nullable": true
           },
           "typical_p": {
             "type": "number",
@@ -487,7 +496,8 @@
           "seed": {
             "type": "integer",
             "format": "int64",
-            "example": 42
+            "example": 42,
+            "nullable": true
           }
         }
       },
