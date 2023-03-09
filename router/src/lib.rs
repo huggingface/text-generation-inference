@@ -63,7 +63,7 @@ pub(crate) struct GenerateParameters {
     pub stop: Vec<String>,
     #[serde(default)]
     #[schema(default = "null", example = "null")]
-    pub truncate: Option<i32>,
+    pub truncate: Option<usize>,
     #[serde(default)]
     #[schema(default = "false", example = true)]
     pub watermark: bool,
