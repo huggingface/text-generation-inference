@@ -56,6 +56,7 @@ class Client:
         prompt: str,
         do_sample: bool = False,
         max_new_tokens: int = 20,
+        best_of: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
@@ -63,6 +64,8 @@ class Client:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
+        truncate: Optional[int] = None,
+        typical_p: Optional[float] = None,
         watermark: bool = False,
     ) -> Response:
         """
@@ -75,6 +78,8 @@ class Client:
                 Activate logits sampling
             max_new_tokens (`int`):
                 Maximum number of generated tokens
+            best_of (`int`):
+                Generate best_of sequences and return the one if the highest token logprobs
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
@@ -91,6 +96,11 @@ class Client:
             top_p (`float`):
                 If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
                 higher are kept for generation.
+            truncate (`int`):
+                Truncate inputs tokens to the given size
+            typical_p (`float`):
+                Typical Decoding mass
+                See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 
@@ -99,6 +109,7 @@ class Client:
         """
         # Validate parameters
         parameters = Parameters(
+            best_of=best_of,
             details=True,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
@@ -109,6 +120,8 @@ class Client:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            truncate=truncate,
+            typical_p=typical_p,
             watermark=watermark,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
@@ -129,6 +142,7 @@ class Client:
         prompt: str,
         do_sample: bool = False,
         max_new_tokens: int = 20,
+        best_of: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
@@ -136,6 +150,8 @@ class Client:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
+        truncate: Optional[int] = None,
+        typical_p: Optional[float] = None,
         watermark: bool = False,
     ) -> Iterator[StreamResponse]:
         """
@@ -148,6 +164,8 @@ class Client:
                 Activate logits sampling
             max_new_tokens (`int`):
                 Maximum number of generated tokens
+            best_of (`int`):
+                Generate best_of sequences and return the one if the highest token logprobs
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
@@ -164,6 +182,11 @@ class Client:
             top_p (`float`):
                 If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
                 higher are kept for generation.
+            truncate (`int`):
+                Truncate inputs tokens to the given size
+            typical_p (`float`):
+                Typical Decoding mass
+                See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 
@@ -172,6 +195,7 @@ class Client:
         """
         # Validate parameters
         parameters = Parameters(
+            best_of=best_of,
             details=True,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
@@ -182,6 +206,8 @@ class Client:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            truncate=truncate,
+            typical_p=typical_p,
             watermark=watermark,
         )
         request = Request(inputs=prompt, stream=True, parameters=parameters)
@@ -261,6 +287,7 @@ class AsyncClient:
         prompt: str,
         do_sample: bool = False,
         max_new_tokens: int = 20,
+        best_of: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
@@ -268,6 +295,8 @@ class AsyncClient:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
+        truncate: Optional[int] = None,
+        typical_p: Optional[float] = None,
         watermark: bool = False,
     ) -> Response:
         """
@@ -280,6 +309,8 @@ class AsyncClient:
                 Activate logits sampling
             max_new_tokens (`int`):
                 Maximum number of generated tokens
+            best_of (`int`):
+                Generate best_of sequences and return the one if the highest token logprobs
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
@@ -296,6 +327,11 @@ class AsyncClient:
             top_p (`float`):
                 If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
                 higher are kept for generation.
+            truncate (`int`):
+                Truncate inputs tokens to the given size
+            typical_p (`float`):
+                Typical Decoding mass
+                See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 
@@ -304,6 +340,7 @@ class AsyncClient:
         """
         # Validate parameters
         parameters = Parameters(
+            best_of=best_of,
             details=True,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
@@ -314,6 +351,8 @@ class AsyncClient:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            truncate=truncate,
+            typical_p=typical_p,
             watermark=watermark,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
@@ -331,6 +370,7 @@ class AsyncClient:
         prompt: str,
         do_sample: bool = False,
         max_new_tokens: int = 20,
+        best_of: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
@@ -338,6 +378,8 @@ class AsyncClient:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
+        truncate: Optional[int] = None,
+        typical_p: Optional[float] = None,
         watermark: bool = False,
     ) -> AsyncIterator[StreamResponse]:
         """
@@ -350,6 +392,8 @@ class AsyncClient:
                 Activate logits sampling
             max_new_tokens (`int`):
                 Maximum number of generated tokens
+            best_of (`int`):
+                Generate best_of sequences and return the one if the highest token logprobs
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
@@ -366,6 +410,11 @@ class AsyncClient:
             top_p (`float`):
                 If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
                 higher are kept for generation.
+            truncate (`int`):
+                Truncate inputs tokens to the given size
+            typical_p (`float`):
+                Typical Decoding mass
+                See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 
@@ -374,6 +423,7 @@ class AsyncClient:
         """
         # Validate parameters
         parameters = Parameters(
+            best_of=best_of,
             details=True,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
@@ -384,6 +434,8 @@ class AsyncClient:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            truncate=truncate,
+            typical_p=typical_p,
             watermark=watermark,
         )
         request = Request(inputs=prompt, stream=True, parameters=parameters)
