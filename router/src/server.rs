@@ -422,7 +422,7 @@ async fn generate_stream(
                 yield Ok(Event::from(err));
             }
         } else {
-            let err = InferError::from(ValidationError::StreamBestOf);
+            let err = InferError::from(ValidationError::BestOfStream);
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
             tracing::error!("{err}");
             yield Ok(Event::from(err));
