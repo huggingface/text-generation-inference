@@ -6,6 +6,7 @@ from transformers import (
     TemperatureLogitsWarper,
     TopKLogitsWarper,
     TopPLogitsWarper,
+    TypicalLogitsWarper,
     RepetitionPenaltyLogitsProcessor,
     PreTrainedTokenizerBase,
 )
@@ -41,6 +42,7 @@ class NextTokenChooser:
         repetition_penalty=1.0,
         top_k=None,
         top_p=None,
+        typical_p=None,
         do_sample=False,
         seed=0,
         device="cpu",
@@ -63,6 +65,9 @@ class NextTokenChooser:
             sampling = True
         if top_p is not None and top_p < 1.0:
             warpers.append(TopPLogitsWarper(top_p=top_p))
+            sampling = True
+        if typical_p is not None and typical_p < 1.0:
+            warpers.append(TypicalLogitsWarper(mass=typical_p))
             sampling = True
 
         self.warpers = warpers
@@ -92,6 +97,7 @@ class NextTokenChooser:
             repetition_penalty=pb.repetition_penalty,
             top_k=pb.top_k,
             top_p=pb.top_p,
+            typical_p=pb.typical_p,
             do_sample=pb.do_sample,
             seed=pb.seed,
             device=device,

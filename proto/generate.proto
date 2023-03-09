@@ -34,14 +34,16 @@ message NextTokenChooserParameters {
     uint32 top_k = 2;
     /// restricting to top tokens summing to prob_cut_off <= prob_cut_off
     float top_p = 3;
+    /// restricting to top tokens summing to prob_cut_off <= prob_cut_off
+    float typical_p = 4;
     /// apply sampling on the logits
-    bool do_sample = 4;
+    bool do_sample = 5;
     /// random seed for sampling
-    uint64 seed = 5;
+    uint64 seed = 6;
     /// repetition penalty
-    float repetition_penalty = 6;
+    float repetition_penalty = 7;
     /// token watermarking using "A Watermark for Large Language Models"
-    bool watermark = 7;
+    bool watermark = 8;
 }
 
 message StoppingCriteriaParameters {

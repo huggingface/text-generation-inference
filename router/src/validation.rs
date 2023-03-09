@@ -153,6 +153,7 @@ fn validate(
         repetition_penalty,
         top_k,
         top_p,
+        typical_p,
         do_sample,
         max_new_tokens,
         stop: stop_sequences,
@@ -171,22 +172,34 @@ fn validate(
         return Err(ValidationError::RepetitionPenalty);
     }
 
-    let top_p = top_p.unwrap_or(1.0);
-    if top_p <= 0.0 || top_p > 1.0 {
-        return Err(ValidationError::TopP);
-    }
-
-    // Different because the proto default value is 0 while it is not a valid value
+    // Different because the proto default value is not a valid value
     // for the user
-    let top_k: u32 = match top_k {
-        None => Ok(0),
-        Some(top_k) => {
-            if top_k <= 0 {
+    let top_p = top_p
+        .map(|value| {
+            if value <= 0.0 || value >= 1.0 {
+                return Err(ValidationError::TopP);
+            }
+            Ok(value)
+        })
+        .unwrap_or(Ok(1.0))?;
+
+    let typical_p = typical_p
+        .map(|value| {
+            if value <= 0.0 || value >= 1.0 {
+                return Err(ValidationError::TypicalP);
+            }
+            Ok(value)
+        })
+        .unwrap_or(Ok(1.0))?;
+
+    let top_k: u32 = top_k
+        .map(|value| {
+            if value <= 0 {
                 return Err(ValidationError::TopK);
             }
-            Ok(top_k as u32)
-        }
-    }?;
+            Ok(value as u32)
+        })
+        .unwrap_or(Ok(0))?;
 
     if max_new_tokens == 0 {
         return Err(ValidationError::MaxNewTokens);
@@ -231,6 +244,7 @@ fn validate(
                     repetition_penalty,
                     top_k,
                     top_p,
+                    typical_p,
                     do_sample,
                     seed,
                     watermark,
@@ -275,10 +289,12 @@ pub enum ValidationError {
     Temperature,
     #[error("`repetition_penalty` must be strictly positive")]
     RepetitionPenalty,
-    #[error("`top_p` must be > 0.0 and <= 1.0")]
+    #[error("`top_p` must be > 0.0 and < 1.0")]
     TopP,
     #[error("`top_k` must be strictly positive")]
     TopK,
+    #[error("`typical_p` must be > 0.0 and < 1.0")]
+    TypicalP,
     #[error("`max_new_tokens` must be strictly positive")]
     MaxNewTokens,
     #[error("`inputs` tokens + `max_new_tokens` must be <= {0}. Given: {1} `inputs` tokens and {2} `max_new_tokens`")]
