@@ -169,6 +169,20 @@ pub(crate) enum FinishReason {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(crate) struct BestOfSequence {
+    #[schema(example = "test")]
+    pub generated_text: String,
+    #[schema(example = "length")]
+    pub finish_reason: FinishReason,
+    #[schema(example = 1)]
+    pub generated_tokens: u32,
+    #[schema(example = 42)]
+    pub seed: Option<u64>,
+    pub prefill: Vec<PrefillToken>,
+    pub tokens: Vec<Token>,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(crate) struct Details {
     #[schema(example = "length")]
     pub finish_reason: FinishReason,
@@ -178,6 +192,8 @@ pub(crate) struct Details {
     pub seed: Option<u64>,
     pub prefill: Vec<PrefillToken>,
     pub tokens: Vec<Token>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub best_of_sequences: Option<Vec<BestOfSequence>>,
 }
 
 #[derive(Serialize, ToSchema)]

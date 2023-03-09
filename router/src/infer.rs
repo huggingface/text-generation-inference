@@ -185,28 +185,35 @@ impl Infer {
         &self,
         request: GenerateRequest,
         best_of: usize,
-    ) -> Result<InferResponse, InferError> {
+    ) -> Result<(InferResponse, Vec<InferResponse>), InferError> {
         // validate  best_of parameter separately
         let best_of = self.validation.validate_best_of(best_of)?;
 
         // create multiple generate requests
-        let infer_responses: Vec<InferResponse> =
+        let mut infer_responses: Vec<InferResponse> =
             try_join_all((0..best_of).map(|_| self.generate(request.clone()))).await?;
 
         // get the sequence with the highest log probability per token
+        let mut max_index = 0;
         let mut max_logprob: f32 = f32::MIN;
-        let mut best_response = None;
-        for response in infer_responses {
-            // sum logprobs of the generated tokens
-            let sequence_logprob = response.tokens.iter().map(|token| token.logprob).sum();
+
+        for (i, response) in infer_responses.iter().enumerate() {
+            // mean logprobs of the generated tokens
+            let sequence_logprob = response
+                .tokens
+                .iter()
+                .map(|token| token.logprob)
+                .sum::<f32>()
+                / response.tokens.len() as f32;
 
             // set best sequence
             if sequence_logprob > max_logprob {
+                max_index = i;
                 max_logprob = sequence_logprob;
-                best_response = Some(response);
             }
         }
-        Ok(best_response.expect("best_response is None. This is a bug."))
+        let best_response = infer_responses.remove(max_index);
+        Ok((best_response, infer_responses))
     }
 }
 
