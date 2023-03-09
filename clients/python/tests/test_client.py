@@ -14,9 +14,7 @@ def test_generate(flan_t5_xxl_url, hf_headers):
     assert response.details.generated_tokens == 1
     assert response.details.seed is None
     assert len(response.details.prefill) == 1
-    assert response.details.prefill[0] == PrefillToken(
-        id=0, text="<pad>", logprob=None
-    )
+    assert response.details.prefill[0] == PrefillToken(id=0, text="<pad>", logprob=None)
     assert len(response.details.tokens) == 1
     assert response.details.tokens[0] == Token(
         id=3, text=" ", logprob=-1.984375, special=False
@@ -72,9 +70,7 @@ async def test_generate_async(flan_t5_xxl_url, hf_headers):
     assert response.details.generated_tokens == 1
     assert response.details.seed is None
     assert len(response.details.prefill) == 1
-    assert response.details.prefill[0] == PrefillToken(
-        id=0, text="<pad>", logprob=None
-    )
+    assert response.details.prefill[0] == PrefillToken(id=0, text="<pad>", logprob=None)
     assert len(response.details.tokens) == 1
     assert response.details.tokens[0] == Token(
         id=3, text=" ", logprob=-1.984375, special=False

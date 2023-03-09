@@ -11,6 +11,9 @@ def test_parameters_validation():
         Parameters(best_of=0)
     with pytest.raises(ValidationError):
         Parameters(best_of=-1)
+    Parameters(best_of=2, do_sample=True)
+    with pytest.raises(ValidationError):
+        Parameters(best_of=2)
 
     # Test repetition_penalty
     Parameters(repetition_penalty=1)
@@ -71,7 +74,9 @@ def test_request_validation():
         Request(inputs="")
 
     Request(inputs="test", stream=True)
-    Request(inputs="test", parameters=Parameters(best_of=2))
+    Request(inputs="test", parameters=Parameters(best_of=2, do_sample=True))
 
     with pytest.raises(ValidationError):
-        Request(inputs="test", parameters=Parameters(best_of=2), stream=True)
+        Request(
+            inputs="test", parameters=Parameters(best_of=2, do_sample=True), stream=True
+        )

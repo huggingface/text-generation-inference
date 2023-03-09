@@ -6,8 +6,6 @@ from text_generation.errors import ValidationError
 
 
 class Parameters(BaseModel):
-    # Generate best_of sequences and return the one if the highest token logprobs
-    best_of: Optional[int]
     # Activate logits sampling
     do_sample: bool = False
     # Maximum number of generated tokens
@@ -33,16 +31,29 @@ class Parameters(BaseModel):
     # Typical Decoding mass
     # See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
     typical_p: Optional[float]
+    # Generate best_of sequences and return the one if the highest token logprobs
+    best_of: Optional[int]
     # Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
     watermark: bool = False
     # Get generation details
     details: bool = False
 
     @validator("best_of")
-    def valid_best_of(cls, v):
-        if v is not None and v <= 0:
-            raise ValidationError("`best_of` must be strictly positive")
-        return v
+    def valid_best_of(cls, field_value, values):
+        if field_value is not None:
+            if field_value <= 0:
+                raise ValidationError("`best_of` must be strictly positive")
+            sampling = (
+                values["do_sample"]
+                | (values["temperature"] is not None)
+                | (values["top_k"] is not None)
+                | (values["top_p"] is not None)
+                | (values["typical_p"] is not None)
+            )
+            if field_value > 1 and not sampling:
+                raise ValidationError("you must use sampling when `best_of` is > 1")
+
+        return field_value
 
     @validator("repetition_penalty")
     def valid_repetition_penalty(cls, v):
@@ -105,10 +116,10 @@ class Request(BaseModel):
     def valid_best_of_stream(cls, field_value, values):
         parameters = values["parameters"]
         if (
-                parameters is not None
-                and parameters.best_of is not None
-                and parameters.best_of > 1
-                and field_value
+            parameters is not None
+            and parameters.best_of is not None
+            and parameters.best_of > 1
+            and field_value
         ):
             raise ValidationError(
                 "`best_of` != 1 is not supported when `stream` == True"
