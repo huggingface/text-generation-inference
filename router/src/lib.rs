@@ -56,11 +56,14 @@ pub(crate) struct GenerateParameters {
     #[schema(exclusive_minimum = 0, exclusive_maximum = 512, default = "20")]
     pub max_new_tokens: u32,
     #[serde(default)]
-    #[schema(default = "None", example = false)]
+    #[schema(default = "null", example = false)]
     pub return_full_text: Option<bool>,
     #[serde(default)]
     #[schema(inline, max_items = 4, example = json ! (["photographer"]))]
     pub stop: Vec<String>,
+    #[serde(default)]
+    #[schema(default = "null", example = "null")]
+    pub truncate: Option<usize>,
     #[serde(default)]
     #[schema(default = "false", example = true)]
     pub watermark: bool,
@@ -86,6 +89,7 @@ fn default_parameters() -> GenerateParameters {
         max_new_tokens: default_max_new_tokens(),
         return_full_text: None,
         stop: Vec::new(),
+        truncate: None,
         watermark: false,
         details: false,
         seed: None,
