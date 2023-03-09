@@ -105,10 +105,10 @@ class Request(BaseModel):
     def valid_best_of_stream(cls, field_value, values):
         parameters = values["parameters"]
         if (
-            parameters is not None
-            and parameters.best_of is not None
-            and parameters.best_of > 1
-            and field_value
+                parameters is not None
+                and parameters.best_of is not None
+                and parameters.best_of > 1
+                and field_value
         ):
             raise ValidationError(
                 "`best_of` != 1 is not supported when `stream` == True"
@@ -150,6 +150,22 @@ class FinishReason(Enum):
     StopSequence = "stop_sequence"
 
 
+# Additional sequences when using the `best_of` parameter
+class BestOfSequence(BaseModel):
+    # Generated text
+    generated_text: str
+    # Generation finish reason
+    finish_reason: FinishReason
+    # Number of generated tokens
+    generated_tokens: int
+    # Sampling seed if sampling was activated
+    seed: Optional[int]
+    # Prompt tokens
+    prefill: List[PrefillToken]
+    # Generated tokens
+    tokens: List[Token]
+
+
 # `generate` details
 class Details(BaseModel):
     # Generation finish reason
@@ -162,6 +178,8 @@ class Details(BaseModel):
     prefill: List[PrefillToken]
     # Generated tokens
     tokens: List[Token]
+    # Additional sequences when using the `best_of` parameter
+    best_of_sequences: Optional[List[BestOfSequence]]
 
 
 # `generate` return value
