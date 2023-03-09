@@ -5,11 +5,6 @@ from huggingface_hub.utils import build_hf_headers
 
 
 @pytest.fixture
-def bloom_model():
-    return "bigscience/bloom"
-
-
-@pytest.fixture
 def flan_t5_xxl():
     return "google/flan-t5-xxl"
 

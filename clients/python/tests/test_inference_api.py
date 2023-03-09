@@ -14,8 +14,8 @@ def test_get_supported_models():
     assert isinstance(get_supported_models(), list)
 
 
-def test_client(bloom_model):
-    client = InferenceAPIClient(bloom_model)
+def test_client(flan_t5_xxl):
+    client = InferenceAPIClient(flan_t5_xxl)
     assert isinstance(client, Client)
 
 
@@ -24,8 +24,8 @@ def test_client_unsupported_model(unsupported_model):
         InferenceAPIClient(unsupported_model)
 
 
-def test_async_client(bloom_model):
-    client = InferenceAPIAsyncClient(bloom_model)
+def test_async_client(flan_t5_xxl):
+    client = InferenceAPIAsyncClient(flan_t5_xxl)
     assert isinstance(client, AsyncClient)
 
 

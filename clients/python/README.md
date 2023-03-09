@@ -133,6 +133,22 @@ class FinishReason(Enum):
     StopSequence = "stop_sequence"
 
 
+# Additional sequences when using the `best_of` parameter
+class BestOfSequence:
+    # Generated text
+    generated_text: str
+    # Generation finish reason
+    finish_reason: FinishReason
+    # Number of generated tokens
+    generated_tokens: int
+    # Sampling seed if sampling was activated
+    seed: Optional[int]
+    # Prompt tokens
+    prefill: List[PrefillToken]
+    # Generated tokens
+    tokens: List[Token]
+
+
 # `generate` details
 class Details:
     # Generation finish reason
@@ -145,6 +161,8 @@ class Details:
     prefill: List[PrefillToken]
     # Generated tokens
     tokens: List[Token]
+    # Additional sequences when using the `best_of` parameter
+    best_of_sequences: Optional[List[BestOfSequence]]
 
 
 # `generate` return value
