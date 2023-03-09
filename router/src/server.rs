@@ -87,21 +87,21 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
 
 /// Generate tokens
 #[utoipa::path(
-post,
-tag = "Text Generation Inference",
-path = "/generate",
-request_body = GenerateRequest,
-responses(
-(status = 200, description = "Generated Text", body = GenerateResponse),
-(status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
-(status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
-(status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
-(status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
-)
+    post,
+    tag = "Text Generation Inference",
+    path = "/generate",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Generated Text", body = GenerateResponse),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
+            example = json ! ({"error": "Request failed during generation"})),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
+            example = json ! ({"error": "Model is overloaded"})),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
+            example = json ! ({"error": "Input validation error"})),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
+            example = json ! ({"error": "Incomplete generation"})),
+    )
 )]
 #[instrument(
     skip(infer),
@@ -253,26 +253,26 @@ async fn generate(
 
 /// Generate a stream of token using Server-Sent Events
 #[utoipa::path(
-post,
-tag = "Text Generation Inference",
-path = "/generate_stream",
-request_body = GenerateRequest,
-responses(
-(status = 200, description = "Generated Text", body = StreamResponse,
-content_type = "text/event-stream"),
-(status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"}),
-content_type = "text/event-stream"),
-(status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"}),
-content_type = "text/event-stream"),
-(status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"}),
-content_type = "text/event-stream"),
-(status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"}),
-content_type = "text/event-stream"),
-)
+    post,
+    tag = "Text Generation Inference",
+    path = "/generate_stream",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Generated Text", body = StreamResponse,
+            content_type = "text/event-stream"),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
+            example = json ! ({"error": "Request failed during generation"}),
+            content_type = "text/event-stream"),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
+            example = json ! ({"error": "Model is overloaded"}),
+            content_type = "text/event-stream"),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
+            example = json ! ({"error": "Input validation error"}),
+            content_type = "text/event-stream"),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
+            example = json ! ({"error": "Incomplete generation"}),
+            content_type = "text/event-stream"),
+    )
 )]
 #[instrument(
     skip(infer),
@@ -434,10 +434,10 @@ async fn generate_stream(
 
 /// Prometheus metrics scrape endpoint
 #[utoipa::path(
-get,
-tag = "Text Generation Inference",
-path = "/metrics",
-responses((status = 200, description = "Prometheus Metrics", body = String))
+    get,
+    tag = "Text Generation Inference",
+    path = "/metrics",
+    responses((status = 200, description = "Prometheus Metrics", body = String))
 )]
 async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
     prom_handle.render()
@@ -463,36 +463,36 @@ pub async fn run(
     // OpenAPI documentation
     #[derive(OpenApi)]
     #[openapi(
-    paths(
-    generate,
-    generate_stream,
-    metrics,
-    ),
-    components(
-    schemas(
-    GenerateRequest,
-    GenerateParameters,
-    PrefillToken,
-    Token,
-    GenerateResponse,
-    BestOfSequence,
-    Details,
-    FinishReason,
-    StreamResponse,
-    StreamDetails,
-    ErrorResponse,
-    )
-    ),
-    tags(
-    (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
-    ),
-    info(
-    title = "Text Generation Inference",
-    license(
-    name = "Apache 2.0",
-    url = "https://www.apache.org/licenses/LICENSE-2.0"
-    )
-    )
+        paths(
+            generate,
+            generate_stream,
+            metrics,
+        ),
+        components(
+            schemas(
+                GenerateRequest,
+                GenerateParameters,
+                PrefillToken,
+                Token,
+                GenerateResponse,
+                BestOfSequence,
+                Details,
+                FinishReason,
+                StreamResponse,
+                StreamDetails,
+                ErrorResponse,
+            )
+        ),
+        tags(
+            (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
+        ),
+        info(
+            title = "Text Generation Inference",
+            license(
+                name = "Apache 2.0",
+                url = "https://www.apache.org/licenses/LICENSE-2.0"
+            )
+        )
     )]
     struct ApiDoc;
 

@@ -210,13 +210,62 @@
   },
   "components": {
     "schemas": {
+      "BestOfSequence": {
+        "type": "object",
+        "required": [
+          "generated_text",
+          "finish_reason",
+          "generated_tokens",
+          "prefill",
+          "tokens"
+        ],
+        "properties": {
+          "finish_reason": {
+            "$ref": "#/components/schemas/FinishReason"
+          },
+          "generated_text": {
+            "type": "string",
+            "example": "test"
+          },
+          "generated_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "example": 1
+          },
+          "prefill": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrefillToken"
+            }
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64",
+            "example": 42
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Token"
+            }
+          }
+        }
+      },
       "Details": {
         "type": "object",
         "required": [
           "finish_reason",
-          "generated_tokens"
+          "generated_tokens",
+          "prefill",
+          "tokens"
         ],
         "properties": {
+          "best_of_sequences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BestOfSequence"
+            }
+          },
           "finish_reason": {
             "$ref": "#/components/schemas/FinishReason"
           },
@@ -247,10 +296,14 @@
       "ErrorResponse": {
         "type": "object",
         "required": [
-          "error"
+          "error",
+          "error_type"
         ],
         "properties": {
           "error": {
+            "type": "string"
+          },
+          "error_type": {
             "type": "string"
           }
         }
@@ -266,6 +319,13 @@
       "GenerateParameters": {
         "type": "object",
         "properties": {
+          "best_of": {
+            "type": "integer",
+            "default": "null",
+            "example": 1,
+            "nullable": true,
+            "exclusiveMinimum": 0.0
+          },
           "details": {
             "type": "boolean",
             "default": "true"
@@ -297,7 +357,11 @@
           },
           "seed": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "default": "null",
+            "example": "null",
+            "nullable": true,
+            "exclusiveMinimum": 0.0
           },
           "stop": {
             "type": "array",
@@ -326,6 +390,15 @@
             "exclusiveMinimum": 0.0
           },
           "top_p": {
+            "type": "number",
+            "format": "float",
+            "default": "null",
+            "example": 0.95,
+            "nullable": true,
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0
+          },
+          "typical_p": {
             "type": "number",
             "format": "float",
             "default": "null",
