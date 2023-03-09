@@ -13,6 +13,9 @@ use validation::Validation;
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 pub(crate) struct GenerateParameters {
     #[serde(default)]
+    #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 1)]
+    pub best_of: Option<usize>,
+    #[serde(default)]
     #[schema(
         exclusive_minimum = 0.0,
         nullable = true,
@@ -71,6 +74,12 @@ pub(crate) struct GenerateParameters {
     #[schema(default = "true")]
     pub details: bool,
     #[serde(default)]
+    #[schema(
+        exclusive_minimum = 0,
+        nullable = true,
+        default = "null",
+        example = "null"
+    )]
     pub seed: Option<u64>,
 }
 
@@ -80,6 +89,7 @@ fn default_max_new_tokens() -> u32 {
 
 fn default_parameters() -> GenerateParameters {
     GenerateParameters {
+        best_of: None,
         temperature: None,
         repetition_penalty: None,
         top_k: None,

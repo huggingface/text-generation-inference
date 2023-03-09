@@ -2,6 +2,7 @@
 use crate::validation::{Validation, ValidationError};
 use crate::{Entry, Queue, Token};
 use crate::{GenerateRequest, PrefillToken};
+use futures::future::try_join_all;
 use nohash_hasher::IntMap;
 use std::sync::Arc;
 use text_generation_client::{
@@ -176,6 +177,36 @@ impl Infer {
             tracing::error!("{err}");
             Err(err)
         }
+    }
+    /// Add a best_of new request to the queue and return a InferResponse of the sequence with
+    /// the highest log probability per token
+    #[instrument(skip(self))]
+    pub(crate) async fn generate_best_of(
+        &self,
+        request: GenerateRequest,
+        best_of: usize,
+    ) -> Result<InferResponse, InferError> {
+        // validate  best_of parameter separately
+        let best_of = self.validation.validate_best_of(best_of)?;
+
+        // create multiple generate requests
+        let infer_responses: Vec<InferResponse> =
+            try_join_all((0..best_of).map(|_| self.generate(request.clone()))).await?;
+
+        // get the sequence with the highest log probability per token
+        let mut max_logprob: f32 = f32::MIN;
+        let mut best_response = None;
+        for response in infer_responses {
+            // sum logprobs of the generated tokens
+            let sequence_logprob = response.tokens.iter().map(|token| token.logprob).sum();
+
+            // set best sequence
+            if sequence_logprob > max_logprob {
+                max_logprob = sequence_logprob;
+                best_response = Some(response);
+            }
+        }
+        Ok(best_response.expect("best_response is None. This is a bug."))
     }
 }
 
