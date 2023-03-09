@@ -178,7 +178,7 @@ impl Infer {
             Err(err)
         }
     }
-    /// Add a best_of new request to the queue and return a InferResponse of the sequence with
+    /// Add best_of new requests to the queue and return a InferResponse of the sequence with
     /// the highest log probability per token
     #[instrument(skip(self))]
     pub(crate) async fn generate_best_of(
