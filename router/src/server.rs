@@ -73,6 +73,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
                 max_new_tokens: 1,
                 return_full_text: None,
                 stop: Vec::new(),
+                truncate: None,
                 watermark: false,
                 details: false,
                 seed: None,

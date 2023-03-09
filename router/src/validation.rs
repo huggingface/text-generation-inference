@@ -225,7 +225,9 @@ fn validate(
 
     // Get the number of tokens in the input
     match tokenizer.encode(request.inputs.clone(), true) {
-        Ok(encoding) => {
+        Ok(mut encoding) => {
+            encoding.truncate()
+
             let input_length = encoding.len();
             let total_tokens = input_length + max_new_tokens as usize;
 
