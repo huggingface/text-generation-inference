@@ -1,4 +1,4 @@
-use crate::validation::ValidationError::EmptyInput;
+use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 /// Payload validation logic
 use crate::{GenerateParameters, GenerateRequest};
 use rand::rngs::ThreadRng;
@@ -13,6 +13,9 @@ use tracing::{instrument, Span};
 /// Validation
 #[derive(Debug, Clone)]
 pub struct Validation {
+    /// maximum value for the best_of parameter
+    #[allow(dead_code)]
+    max_best_of: usize,
     /// Channel to communicate with the background validation task
     sender: mpsc::UnboundedSender<ValidationRequest>,
 }
@@ -21,6 +24,7 @@ impl Validation {
     pub(crate) fn new(
         workers: usize,
         tokenizer: Tokenizer,
+        max_best_of: usize,
         max_stop_sequences: usize,
         max_input_length: usize,
         max_total_tokens: usize,
@@ -39,6 +43,7 @@ impl Validation {
         ));
 
         Self {
+            max_best_of,
             sender: validation_sender,
         }
     }
@@ -59,6 +64,20 @@ impl Validation {
         // Await on response channel
         // Unwrap is safe here
         receiver.await.unwrap()
+    }
+
+    /// Validate the best_of parameter
+    #[instrument(skip_all)]
+    pub(crate) fn validate_best_of(&self, best_of: usize) -> Result<usize, ValidationError> {
+        if self.max_best_of == 1 && best_of != 1 {
+            return Err(ValidationError::BestOfDisabled);
+        }
+
+        if best_of > self.max_best_of {
+            return Err(ValidationError::BestOf(self.max_best_of, best_of));
+        }
+
+        Ok(best_of)
     }
 }
 
@@ -150,6 +169,7 @@ fn validate(
     rng: &mut ThreadRng,
 ) -> Result<ValidGenerateRequest, ValidationError> {
     let GenerateParameters {
+        best_of,
         temperature,
         repetition_penalty,
         top_k,
@@ -163,6 +183,18 @@ fn validate(
         watermark,
         ..
     } = request.parameters;
+
+    // sampling must be true when best_of > 1
+    let best_of = best_of.unwrap_or(1);
+    let sampling = do_sample
+        || temperature.is_some()
+        || top_k.is_some()
+        || top_p.is_some()
+        || typical_p.is_some();
+
+    if best_of > 1 && !sampling {
+        return Err(BestOfSampling);
+    }
 
     let temperature = temperature.unwrap_or(1.0);
     if temperature <= 0.0 {
@@ -217,7 +249,12 @@ fn validate(
     // If seed is None, assign a random one
     let seed = match seed {
         None => rng.gen(),
-        Some(seed) => seed,
+        Some(seed) => {
+            if best_of > 1 {
+                return Err(BestOfSeed);
+            }
+            seed
+        }
     };
 
     // Check if inputs is empty
@@ -307,6 +344,16 @@ pub(crate) struct ValidGenerateRequest {
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
+    #[error("`best_of` must be > 0 and <= {0}. Given: {1}")]
+    BestOf(usize, usize),
+    #[error("`best_of` != 1 is not allowed for this endpoint")]
+    BestOfDisabled,
+    #[error("you must use sampling when `best_of` is > 1")]
+    BestOfSampling,
+    #[error("`seed` must not be set when `best_of` > 1")]
+    BestOfSeed,
+    #[error("`best_of` != 1 is not supported when streaming tokens")]
+    BestOfStream,
     #[error("`temperature` must be strictly positive")]
     Temperature,
     #[error("`repetition_penalty` must be strictly positive")]

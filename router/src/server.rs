@@ -1,9 +1,10 @@
 /// HTTP Server logic
-use crate::infer::{InferError, InferStreamResponse};
+use crate::infer::{InferError, InferResponse, InferStreamResponse};
+use crate::validation::ValidationError;
 use crate::{
-    CompatGenerateRequest, Details, ErrorResponse, FinishReason, GenerateParameters,
-    GenerateRequest, GenerateResponse, Infer, PrefillToken, StreamDetails, StreamResponse, Token,
-    Validation,
+    BestOfSequence, CompatGenerateRequest, Details, ErrorResponse, FinishReason,
+    GenerateParameters, GenerateRequest, GenerateResponse, Infer, PrefillToken, StreamDetails,
+    StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -64,6 +65,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
         .generate(GenerateRequest {
             inputs: "liveness".to_string(),
             parameters: GenerateParameters {
+                best_of: None,
                 temperature: None,
                 repetition_penalty: None,
                 top_k: None,
@@ -128,17 +130,51 @@ async fn generate(
     let details = req.0.parameters.details;
 
     // Inference
-    let response = infer.generate(req.0).await?;
+    let (response, best_of_responses) = match req.0.parameters.best_of {
+        Some(best_of) if best_of > 1 => {
+            let (response, best_of_responses) = infer.generate_best_of(req.0, best_of).await?;
+            (response, Some(best_of_responses))
+        }
+        _ => (infer.generate(req.0).await?, None),
+    };
 
     // Token details
     let details = match details {
-        true => Some(Details {
-            finish_reason: FinishReason::from(response.generated_text.finish_reason),
-            generated_tokens: response.generated_text.generated_tokens,
-            prefill: response.prefill,
-            tokens: response.tokens,
-            seed: response.generated_text.seed,
-        }),
+        true => {
+            // convert best_of_responses
+            let best_of_sequences = best_of_responses.map(|responses: Vec<InferResponse>| {
+                responses
+                    .into_iter()
+                    .map(|response: InferResponse| {
+                        // Add prompt if return_full_text
+                        let mut output_text = response.generated_text.text;
+                        if let Some(prompt) = &add_prompt {
+                            output_text = prompt.clone() + &output_text;
+                        }
+
+                        BestOfSequence {
+                            generated_text: output_text,
+                            finish_reason: FinishReason::from(
+                                response.generated_text.finish_reason,
+                            ),
+                            generated_tokens: response.generated_text.generated_tokens,
+                            prefill: response.prefill,
+                            tokens: response.tokens,
+                            seed: response.generated_text.seed,
+                        }
+                    })
+                    .collect()
+            });
+
+            Some(Details {
+                finish_reason: FinishReason::from(response.generated_text.finish_reason),
+                generated_tokens: response.generated_text.generated_tokens,
+                prefill: response.prefill,
+                tokens: response.tokens,
+                seed: response.generated_text.seed,
+                best_of_sequences,
+            })
+        }
         false => None,
     };
 
@@ -279,107 +315,115 @@ async fn generate_stream(
         }
         let details = req.0.parameters.details;
 
-        match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
-            Ok(mut response_stream) => {
-                // Server-Sent Event stream
-                while let Some(response) = response_stream.next().await {
-                    match response {
-                        Ok(response) => {
-                            match response {
-                                // Prefill is ignored
-                                InferStreamResponse::Prefill(_) => {}
-                                // Yield event for every new token
-                                InferStreamResponse::Token(token) => {
-                                    // StreamResponse
-                                    let stream_token = StreamResponse {
-                                        token,
-                                        generated_text: None,
-                                        details: None,
-                                    };
+        let best_of = req.0.parameters.best_of.unwrap_or(1);
+        if best_of == 1 {
+            match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
+                Ok(mut response_stream) => {
+                    // Server-Sent Event stream
+                    while let Some(response) = response_stream.next().await {
+                        match response {
+                            Ok(response) => {
+                                match response {
+                                    // Prefill is ignored
+                                    InferStreamResponse::Prefill(_) => {}
+                                    // Yield event for every new token
+                                    InferStreamResponse::Token(token) => {
+                                        // StreamResponse
+                                        let stream_token = StreamResponse {
+                                            token,
+                                            generated_text: None,
+                                            details: None,
+                                        };
 
-                                    yield Ok(Event::default().json_data(stream_token).unwrap())
-                                }
-                                // Yield event for last token and compute timings
-                                InferStreamResponse::End {
-                                    token,
-                                    generated_text,
-                                    start,
-                                    queued,
-                                } => {
-                                    // Token details
-                                    let details = match details {
-                                        true => Some(StreamDetails {
-                                            finish_reason: FinishReason::from(generated_text.finish_reason),
-                                            generated_tokens: generated_text.generated_tokens,
-                                            seed: generated_text.seed,
-                                        }),
-                                        false => None,
-                                    };
-
-                                    // Timings
-                                    let total_time = start_time.elapsed();
-                                    let validation_time = queued - start_time;
-                                    let queue_time = start - queued;
-                                    let inference_time = Instant::now() - start;
-                                    let time_per_token = inference_time / generated_text.generated_tokens;
-
-                                    // Tracing metadata
-                                    span.record("total_time", format!("{total_time:?}"));
-                                    span.record("validation_time", format!("{validation_time:?}"));
-                                    span.record("queue_time", format!("{queue_time:?}"));
-                                    span.record("inference_time", format!("{inference_time:?}"));
-                                    span.record("time_per_token", format!("{time_per_token:?}"));
-                                    span.record("seed", format!("{:?}", generated_text.seed));
-                                    tracing::info!(parent: &span, "Output: {}", generated_text.text);
-
-                                    // Metrics
-                                    metrics::increment_counter!("tgi_request_success");
-                                    metrics::histogram!("tgi_request_duration", total_time);
-                                    metrics::histogram!("tgi_request_validation_duration", validation_time);
-                                    metrics::histogram!("tgi_request_queue_duration", queue_time);
-                                    metrics::histogram!("tgi_request_inference_duration", inference_time);
-                                    metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token);
-                                    metrics::histogram!("tgi_request_generated_tokens", generated_text.generated_tokens as f64);
-
-                                    // StreamResponse
-                                    end_reached = true;
-
-                                    let mut output_text = generated_text.text;
-                                    if let Some(prompt) = add_prompt {
-                                        output_text = prompt + &output_text;
+                                        yield Ok(Event::default().json_data(stream_token).unwrap())
                                     }
-
-                                    let stream_token = StreamResponse {
+                                    // Yield event for last token and compute timings
+                                    InferStreamResponse::End {
                                         token,
-                                        generated_text: Some(output_text),
-                                        details
-                                    };
+                                        generated_text,
+                                        start,
+                                        queued,
+                                    } => {
+                                        // Token details
+                                        let details = match details {
+                                            true => Some(StreamDetails {
+                                                finish_reason: FinishReason::from(generated_text.finish_reason),
+                                                generated_tokens: generated_text.generated_tokens,
+                                                seed: generated_text.seed,
+                                            }),
+                                            false => None,
+                                        };
 
-                                    yield Ok(Event::default().json_data(stream_token).unwrap());
-                                    break;
+                                        // Timings
+                                        let total_time = start_time.elapsed();
+                                        let validation_time = queued - start_time;
+                                        let queue_time = start - queued;
+                                        let inference_time = Instant::now() - start;
+                                        let time_per_token = inference_time / generated_text.generated_tokens;
+
+                                        // Tracing metadata
+                                        span.record("total_time", format!("{total_time:?}"));
+                                        span.record("validation_time", format!("{validation_time:?}"));
+                                        span.record("queue_time", format!("{queue_time:?}"));
+                                        span.record("inference_time", format!("{inference_time:?}"));
+                                        span.record("time_per_token", format!("{time_per_token:?}"));
+                                        span.record("seed", format!("{:?}", generated_text.seed));
+                                        tracing::info!(parent: &span, "Output: {}", generated_text.text);
+
+                                        // Metrics
+                                        metrics::increment_counter!("tgi_request_success");
+                                        metrics::histogram!("tgi_request_duration", total_time);
+                                        metrics::histogram!("tgi_request_validation_duration", validation_time);
+                                        metrics::histogram!("tgi_request_queue_duration", queue_time);
+                                        metrics::histogram!("tgi_request_inference_duration", inference_time);
+                                        metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token);
+                                        metrics::histogram!("tgi_request_generated_tokens", generated_text.generated_tokens as f64);
+
+                                        // StreamResponse
+                                        end_reached = true;
+
+                                        let mut output_text = generated_text.text;
+                                        if let Some(prompt) = add_prompt {
+                                            output_text = prompt + &output_text;
+                                        }
+
+                                        let stream_token = StreamResponse {
+                                            token,
+                                            generated_text: Some(output_text),
+                                            details
+                                        };
+
+                                        yield Ok(Event::default().json_data(stream_token).unwrap());
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                        // yield error
-                        Err(err) => {
-                            error = true;
-                            yield Ok(Event::from(err));
-                            break;
+                            // yield error
+                            Err(err) => {
+                                error = true;
+                                yield Ok(Event::from(err));
+                                break;
+                            }
                         }
                     }
+                },
+                // yield error
+                Err(err) => {
+                    error = true;
+                    yield Ok(Event::from(err));
                 }
-            },
-            // yield error
-            Err(err) => {
-                error = true;
+            }
+            // Check if generation reached the end
+            // Skip if we already sent an error
+            if !end_reached && !error {
+                let err = InferError::IncompleteGeneration;
+                metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
+                tracing::error!("{err}");
                 yield Ok(Event::from(err));
             }
-        }
-        // Check if generation reached the end
-        // Skip if we already sent an error
-        if !end_reached && !error {
-            let err = InferError::IncompleteGeneration;
-            metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
+        } else {
+            let err = InferError::from(ValidationError::BestOfStream);
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
             tracing::error!("{err}");
             yield Ok(Event::from(err));
         }
@@ -404,6 +448,7 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
 pub async fn run(
     compat_return_full_text: bool,
     max_concurrent_requests: usize,
+    max_best_of: usize,
     max_stop_sequences: usize,
     max_input_length: usize,
     max_total_tokens: usize,
@@ -430,6 +475,7 @@ pub async fn run(
                 PrefillToken,
                 Token,
                 GenerateResponse,
+                BestOfSequence,
                 Details,
                 FinishReason,
                 StreamResponse,
@@ -454,6 +500,7 @@ pub async fn run(
     let validation = Validation::new(
         validation_workers,
         tokenizer,
+        max_best_of,
         max_stop_sequences,
         max_input_length,
         max_total_tokens,
