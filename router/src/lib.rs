@@ -41,6 +41,15 @@ pub(crate) struct GenerateParameters {
     )]
     pub top_p: Option<f32>,
     #[serde(default)]
+    #[schema(
+        exclusive_minimum = 0.0,
+        maximum = 1.0,
+        nullable = true,
+        default = "null",
+        example = 0.95
+    )]
+    pub typical_p: Option<f32>,
+    #[serde(default)]
     #[schema(default = "false", example = true)]
     pub do_sample: bool,
     #[serde(default = "default_max_new_tokens")]
@@ -72,6 +81,7 @@ fn default_parameters() -> GenerateParameters {
         repetition_penalty: None,
         top_k: None,
         top_p: None,
+        typical_p: None,
         do_sample: false,
         max_new_tokens: default_max_new_tokens(),
         return_full_text: None,

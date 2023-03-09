@@ -68,6 +68,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
                 repetition_penalty: None,
                 top_k: None,
                 top_p: None,
+                typical_p: None,
                 do_sample: false,
                 max_new_tokens: 1,
                 return_full_text: None,
