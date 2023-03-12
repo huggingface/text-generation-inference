@@ -53,6 +53,9 @@ message StoppingCriteriaParameters {
     uint32 max_new_tokens = 1;
     /// Optional stopping sequences
     repeated string stop_sequences = 2;
+    /// Ignore end of sequence token
+    /// used for benchmarking
+    bool ignore_eos_token = 3;
 }
 
 message Request {
