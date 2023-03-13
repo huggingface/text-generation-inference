@@ -229,7 +229,11 @@ async fn batching_task(
     shared: Arc<Shared>,
 ) {
     // Minimum batch size after which we try to add more requests
-    let limit_min_batch_size = (max_batch_size / 2) as u32;
+    let limit_min_batch_size = if max_batch_size > 1 {
+        (max_batch_size / 2) as u32
+    } else {
+        0
+    };
 
     // Infinite loop
     loop {
