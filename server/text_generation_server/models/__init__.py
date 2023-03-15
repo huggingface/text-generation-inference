@@ -9,7 +9,7 @@ from text_generation_server.models.bloom import BLOOM, BLOOMSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
 from text_generation_server.models.galactica import Galactica, GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
-from text_generation_server.models.gpt_neox import GPTNeox, GPTNeoxSharded
+from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
 
 __all__ = [
@@ -19,7 +19,6 @@ __all__ = [
     "CausalLM",
     "Galactica",
     "GalacticaSharded",
-    "GPTNeox",
     "GPTNeoxSharded",
     "Seq2SeqLM",
     "SantaCoder",
@@ -62,7 +61,7 @@ def get_model(
         if sharded:
             return GPTNeoxSharded(model_id, revision, quantize=quantize)
         else:
-            return GPTNeox(model_id, revision, quantize=quantize)
+            return CausalLM(model_id, revision, quantize=quantize)
 
     if config.model_type == "t5":
         if sharded:

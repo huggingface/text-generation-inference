@@ -82,9 +82,7 @@ class Seq2SeqLMBatch(Batch):
             # Decoder sequence only contains the bos_token
             decoder_input_ids.append(tokenizer.bos_token_id)
             decoder_input_lengths.append(1)
-            next_token_choosers.append(
-                NextTokenChooser.from_pb(r.parameters, device)
-            )
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
