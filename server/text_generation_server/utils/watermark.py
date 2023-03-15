@@ -43,7 +43,9 @@ class WatermarkLogitsProcessor(LogitsProcessor):
         prev_token = input_ids[-1].item()
         self.rng.manual_seed(self.hash_key * prev_token)
 
-    def _get_greenlist_ids(self, input_ids: torch.LongTensor, max_value: int) -> list[int]:
+    def _get_greenlist_ids(
+        self, input_ids: torch.LongTensor, max_value: int
+    ) -> list[int]:
         # seed the rng using the previous tokens/prefix
         self._seed_rng(input_ids)
 

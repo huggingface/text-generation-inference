@@ -1,7 +1,7 @@
 import torch
 import torch.distributed
 
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
@@ -30,23 +30,7 @@ except Exception as e:
     HAS_BITS_AND_BYTES = False
 
 
-class GPTNeox(CausalLM):
-    def forward(
-        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
-    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
-        """Overwrite forward to ignore position_ids"""
-
-        # Model Forward
-        outputs = self.model.forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            past_key_values=past_key_values,
-            use_cache=True,
-        )
-        return outputs.logits, outputs.past_key_values
-
-
-class GPTNeoxSharded(GPTNeox):
+class GPTNeoxSharded(CausalLM):
     def __init__(
         self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
@@ -224,6 +208,7 @@ class GPTNeoxSharded(GPTNeox):
             outputs = self.model.forward(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
+                position_ids=position_ids,
                 past_key_values=past_key_values,
                 use_cache=True,
             )
