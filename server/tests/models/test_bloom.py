@@ -24,7 +24,6 @@ def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="Test",
-        input_length=1,
         parameters=default_pb_parameters,
         stopping_parameters=default_pb_stop_parameters,
     )
@@ -77,7 +76,7 @@ def test_batch_from_pb(default_pb_batch, default_bloom_batch):
     assert batch.size == default_pb_batch.size
     assert len(batch.next_token_choosers) == len(batch.stopping_criterias) == batch.size
 
-    assert batch.max_sequence_length == batch.input_lengths[0]
+    assert batch.max_input_length == batch.input_lengths[0]
 
 
 def test_batch_concatenate_no_prefill(default_bloom_batch):
@@ -110,7 +109,7 @@ def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     assert next_batch.input_ids[0, 0] == 10264
 
     assert next_batch.input_lengths == [2]
-    assert next_batch.max_sequence_length == next_batch.input_lengths[0]
+    assert next_batch.max_input_length == next_batch.input_lengths[0]
 
     assert next_batch.past_key_values is not None
     assert all(
@@ -222,7 +221,7 @@ def test_batch_concatenate(
     assert torch.all(next_batch.input_ids == 10264)
 
     assert next_batch.input_lengths == [3, 2, 2]
-    assert next_batch.max_sequence_length == 3
+    assert next_batch.max_input_length == 3
 
     assert next_batch.requests[0] == next_batch_0.requests[0]
     assert next_batch.requests[1:] == next_batch_1.requests

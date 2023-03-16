@@ -68,17 +68,14 @@ class Seq2SeqLMBatch(Batch):
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
-        input_lengths = []
 
         decoder_input_ids = []
         decoder_input_lengths = []
 
         # Parse batch
-        max_input_length = 0
         padding_right_offset = 0
         for r in pb.requests:
             inputs.append(r.inputs)
-            input_lengths.append(r.input_length)
             # Decoder sequence only contains the bos_token
             decoder_input_ids.append(tokenizer.bos_token_id)
             decoder_input_lengths.append(1)
@@ -87,7 +84,6 @@ class Seq2SeqLMBatch(Batch):
                 r.stopping_parameters, tokenizer
             )
             stopping_criterias.append(stopping_criteria)
-            max_input_length = max(max_input_length, r.input_length)
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -99,6 +95,10 @@ class Seq2SeqLMBatch(Batch):
             padding=True,
             return_token_type_ids=False,
         ).to(device)
+
+        input_lengths = tokenized_inputs["attention_mask"].sum(1)
+        max_input_length = input_lengths.max()
+
         # Convert decoder_input_ids to torch tensor of size [batch_size, 1]
         decoder_input_ids = torch.tensor(decoder_input_ids, device=device).unsqueeze(-1)
 
@@ -111,12 +111,12 @@ class Seq2SeqLMBatch(Batch):
             decoder_attention_mask=None,
             encoder_last_hidden_state=None,
             past_key_values=None,
-            input_lengths=input_lengths,
+            input_lengths=input_lengths.tolist(),
             decoder_input_lengths=decoder_input_lengths,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=len(pb.requests),
-            max_input_length=max(input_lengths),
+            max_input_length=max_input_length.item(),
             max_decoder_input_length=1,
             padding_right_offset=padding_right_offset,
         )

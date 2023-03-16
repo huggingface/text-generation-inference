@@ -41,7 +41,7 @@ class CausalLMBatch(Batch):
 
     # Metadata used for padding
     size: int
-    max_sequence_length: int
+    max_input_length: int
     padding_right_offset: int
 
     # Past metadata
@@ -67,17 +67,14 @@ class CausalLMBatch(Batch):
         input_lengths = []
 
         # Parse batch
-        max_sequence_length = 0
         padding_right_offset = 0
         for r in pb.requests:
             inputs.append(r.inputs)
-            input_lengths.append(r.input_length)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
             stopping_criterias.append(stopping_criteria)
-            max_sequence_length = max(max_sequence_length, r.input_length)
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -89,13 +86,16 @@ class CausalLMBatch(Batch):
             return_token_type_ids=False,
         ).to(device)
 
+        input_lengths = tokenized_inputs["attention_mask"].sum(1)
+        max_input_length = input_lengths.max()
+
         input_ids = tokenized_inputs["input_ids"]
         # Allocate maximum attention_mask
         attention_mask = input_ids.new_zeros(
-            (pb.size, max_sequence_length + padding_right_offset)
+            (pb.size, max_input_length + padding_right_offset)
         )
         # Copy tokenizer attention_mask into fully allocated attention_mask
-        attention_mask[:, :max_sequence_length] = tokenized_inputs["attention_mask"]
+        attention_mask[:, :max_input_length] = tokenized_inputs["attention_mask"]
 
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
@@ -109,11 +109,11 @@ class CausalLMBatch(Batch):
             position_ids=position_ids,
             past_key_values=None,
             all_input_ids=all_input_ids,
-            input_lengths=input_lengths,
+            input_lengths=input_lengths.tolist(),
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=pb.size,
-            max_sequence_length=max_sequence_length,
+            max_input_length=max_input_length.item(),
             padding_right_offset=padding_right_offset,
         )
 
@@ -122,11 +122,11 @@ class CausalLMBatch(Batch):
     def concatenate(cls, batches: List["CausalLMBatch"]) -> "CausalLMBatch":
         # Used for padding
         total_batch_size = 0
-        max_sequence_length = 0
+        max_input_length = 0
         padding_right_offset = 0
         for batch in batches:
             total_batch_size += batch.size
-            max_sequence_length = max(max_sequence_length, batch.max_sequence_length)
+            max_input_length = max(max_input_length, batch.max_input_length)
             padding_right_offset = max(padding_right_offset, batch.padding_right_offset)
 
         # Batch attributes
@@ -170,15 +170,15 @@ class CausalLMBatch(Batch):
             # Create padded tensor
             if attention_mask is None:
                 attention_mask = batch.attention_mask.new_zeros(
-                    (total_batch_size, max_sequence_length + padding_right_offset),
+                    (total_batch_size, max_input_length + padding_right_offset),
                 )
 
             # We need to slice the attention mask to remove padding from previous steps
             # and to remove unused allocated space
-            left_offset = max_sequence_length - batch.max_sequence_length
+            left_offset = max_input_length - batch.max_input_length
             batch_left_offset = (
                 batch.attention_mask.shape[1]
-                - batch.max_sequence_length
+                - batch.max_input_length
                 - batch.padding_right_offset
             )
             attention_mask[
@@ -209,7 +209,7 @@ class CausalLMBatch(Batch):
                 padded_past_values_shape = (
                     total_batch_size,
                     num_heads,
-                    max_sequence_length - 1,
+                    max_input_length - 1,
                     head_dim,
                 )
 
@@ -221,7 +221,7 @@ class CausalLMBatch(Batch):
                         total_batch_size,
                         num_heads,
                         head_dim,
-                        max_sequence_length - 1,
+                        max_input_length - 1,
                     )
 
                 # This will run only once per layer
@@ -235,20 +235,20 @@ class CausalLMBatch(Batch):
                     past_key_values[j][0][
                         start_index:end_index,
                         :,
-                        -(batch.max_sequence_length - 1) :,
+                        -(batch.max_input_length - 1) :,
                         :,
-                    ] = past_keys[:, :, -(batch.max_sequence_length - 1) :, :]
+                    ] = past_keys[:, :, -(batch.max_input_length - 1) :, :]
                 else:
                     past_key_values[j][0][
                         start_index:end_index,
                         :,
                         :,
-                        -(batch.max_sequence_length - 1) :,
-                    ] = past_keys[:, :, :, -(batch.max_sequence_length - 1) :]
+                        -(batch.max_input_length - 1) :,
+                    ] = past_keys[:, :, :, -(batch.max_input_length - 1) :]
 
                 past_key_values[j][1][
-                    start_index:end_index, :, -(batch.max_sequence_length - 1) :, :
-                ] = past_values[:, :, -(batch.max_sequence_length - 1) :, :]
+                    start_index:end_index, :, -(batch.max_input_length - 1) :, :
+                ] = past_values[:, :, -(batch.max_input_length - 1) :, :]
 
             start_index += batch.size
 
@@ -264,7 +264,7 @@ class CausalLMBatch(Batch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=total_batch_size,
-            max_sequence_length=max_sequence_length,
+            max_input_length=max_input_length,
             padding_right_offset=padding_right_offset,
             keys_head_dim_last=batches[0].keys_head_dim_last,
         )
@@ -352,7 +352,7 @@ class CausalLM(Model):
 
         # Metadata
         next_batch_size = 0
-        next_batch_max_sequence_length = 0
+        next_batch_max_input_length = 0
 
         # Results
         generations: List[Generation] = []
@@ -420,8 +420,8 @@ class CausalLM(Model):
                 next_batch_all_input_ids.append(all_input_ids)
                 next_batch_size += 1
                 next_batch_input_lengths.append(new_input_length)
-                next_batch_max_sequence_length = max(
-                    next_batch_max_sequence_length, new_input_length
+                next_batch_max_input_length = max(
+                    next_batch_max_input_length, new_input_length
                 )
 
             # Prefill
@@ -506,7 +506,7 @@ class CausalLM(Model):
             next_token_choosers=next_batch_next_token_choosers,
             stopping_criterias=next_batch_stopping_criterias,
             size=next_batch_size,
-            max_sequence_length=next_batch_max_sequence_length,
+            max_input_length=next_batch_max_input_length,
             padding_right_offset=batch.padding_right_offset - 1,
             keys_head_dim_last=batch.keys_head_dim_last,
         )

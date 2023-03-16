@@ -278,7 +278,8 @@ async fn batching_task(
                             // because a new batch is being computed
                             let entry_waiting_span =
                                 info_span!(parent: &entry.span, "waiting", batch_size = new_batch_size);
-                            // Add relationship
+                            // Add relationships
+                            span.follows_from(&entry_waiting_span);
                             entry_waiting_span.follows_from(&span);
                             // Update entry
                             entry.temp_span = Some(entry_waiting_span);
@@ -305,7 +306,8 @@ async fn batching_task(
                     // Create a new span to link the batch back to this entry
                     let entry_batch_span =
                         info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
-                    // Add relationship
+                    // Add relationships
+                    next_batch_span.follows_from(&entry_batch_span);
                     entry_batch_span.follows_from(&next_batch_span);
                     // Update entry
                     entry.temp_span = Some(entry_batch_span);
