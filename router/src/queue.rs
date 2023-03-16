@@ -165,7 +165,8 @@ impl State {
                 // Create a new span to link the batch back to this entry
                 let entry_batch_span =
                     info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
-                // Add relationship
+                // Add relationships
+                next_batch_span.follows_from(&entry_batch_span);
                 entry_batch_span.follows_from(&next_batch_span);
                 // Update entry
                 entry.temp_span = Some(entry_batch_span);
@@ -173,7 +174,6 @@ impl State {
                 batch_requests.push(Request {
                     id,
                     inputs: entry.request.inputs.clone(),
-                    input_length: entry.request.input_length,
                     parameters: Some(entry.request.parameters.clone()),
                     stopping_parameters: Some(entry.request.stopping_parameters.clone()),
                 });
@@ -226,7 +226,6 @@ mod tests {
         Entry {
             request: ValidGenerateRequest {
                 inputs: "".to_string(),
-                input_length: 0,
                 parameters: NextTokenChooserParameters {
                     temperature: 0.0,
                     top_k: 0,

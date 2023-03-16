@@ -322,7 +322,6 @@ fn validate(
 
     Ok(ValidGenerateRequest {
         inputs,
-        input_length: input_length as u32,
         parameters,
         stopping_parameters,
     })
@@ -337,7 +336,6 @@ type ValidationRequest = (
 #[derive(Debug)]
 pub(crate) struct ValidGenerateRequest {
     pub inputs: String,
-    pub input_length: u32,
     pub parameters: NextTokenChooserParameters,
     pub stopping_parameters: StoppingCriteriaParameters,
 }

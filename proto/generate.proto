@@ -58,12 +58,10 @@ message Request {
     uint64 id = 1;
     /// The generation context
     string inputs = 2;
-    /// The number of tokens inside inputs
-    uint32 input_length = 3;
     /// Next Token Chooser Parameters
-    NextTokenChooserParameters parameters = 4;
+    NextTokenChooserParameters parameters = 3;
     /// Stopping Criteria Parameters
-    StoppingCriteriaParameters stopping_parameters = 5;
+    StoppingCriteriaParameters stopping_parameters = 4;
 }
 
 message Batch {
