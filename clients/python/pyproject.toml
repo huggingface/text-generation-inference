@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "text-generation"
-version = "0.3.0"
+version = "0.3.1"
 description = "Hugging Face Text Generation Python Client"
 license = "Apache-2.0"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
@@ -12,9 +12,9 @@ repository = "https://github.com/huggingface/text-generation-inference"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-pydantic = "^1.10.5"
-aiohttp = "^3.8.4"
-huggingface-hub = "^0.12.1"
+pydantic = "^1.10"
+aiohttp = "^3.8"
+huggingface-hub = ">= 0.12, < 1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
