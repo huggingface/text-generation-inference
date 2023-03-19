@@ -9,6 +9,7 @@ from text_generation_server.models.bloom import BLOOM, BLOOMSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
 from text_generation_server.models.galactica import Galactica, GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
+from text_generation_server.models.llama import Llama
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
 
@@ -22,6 +23,7 @@ __all__ = [
     "GPTNeoxSharded",
     "Seq2SeqLM",
     "SantaCoder",
+    "Llama",
     "T5Sharded",
     "get_model",
 ]
@@ -68,6 +70,12 @@ def get_model(
             return T5Sharded(model_id, revision, quantize=quantize)
         else:
             return Seq2SeqLM(model_id, revision, quantize=quantize)
+
+    if config.model_type == "llama":
+        if sharded:
+            raise ValueError("sharded is not supported for Llama")
+        else:
+            return Llama(model_id, revision, quantize)
 
     if sharded:
         raise ValueError("sharded is not supported for AutoModel")
