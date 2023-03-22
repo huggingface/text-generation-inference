@@ -64,7 +64,6 @@ class CausalLMBatch(Batch):
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
-        input_lengths = []
 
         # Parse batch
         padding_right_offset = 0

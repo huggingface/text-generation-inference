@@ -11,6 +11,7 @@ from text_generation_server.models.galactica import Galactica, GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
+from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
 
 __all__ = [
     "Model",
@@ -59,9 +60,9 @@ def get_model(
 
     if config.model_type == "gpt_neox":
         if sharded:
-            return GPTNeoxSharded(model_id, revision, quantize=quantize)
+            return FlashNeoXSharded(model_id, revision, quantize=quantize)
         else:
-            return CausalLM(model_id, revision, quantize=quantize)
+            return FlashNeoX(model_id, revision, quantize=quantize)
 
     if config.model_type == "t5":
         if sharded:
