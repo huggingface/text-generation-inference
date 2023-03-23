@@ -4,16 +4,16 @@ import torch.distributed
 import torch.nn.functional as F
 
 from torch import nn
+from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
 from transformers.models.gpt_neox import GPTNeoXConfig
 
+# Flash attention imports
 import rotary_emb
 import flash_attn_cuda
 import dropout_layer_norm
 
-import fused_dense_lib as fused_dense_cuda
-
-from flash_attn.layers.rotary import RotaryEmbedding, apply_rotary_emb_qkv_
+from flash_attn.layers.rotary import RotaryEmbedding
 
 
 class TensorParallelColumnLinear(nn.Linear):
@@ -102,7 +102,6 @@ class TensorParallelEmbedding(nn.Embedding):
 
         self.original_num_embeddings = num_embeddings
 
-        # TODO @thomasw21 fix and remove that constraint
         assert num_embeddings % self.tp_world_size == 0
         block_size = num_embeddings // self.tp_world_size
         # inputs in `[min_id, max_id[` are handled by `self` to get embeddings
@@ -157,24 +156,14 @@ class PositionRotaryEmbedding(RotaryEmbedding):
             # Don't do einsum, it converts fp32 to fp16
             # freqs = torch.einsum("i,j->ij", t, self.inv_freq)
             freqs = torch.outer(t, self.inv_freq.to(device=t.device))
-            if self.scale is None:
-                self._cos_cached = torch.cos(freqs).to(dtype)
-                self._sin_cached = torch.sin(freqs).to(dtype)
-            else:
-                power = (
-                    torch.arange(
-                        seqlen, dtype=self.scale.dtype, device=self.scale.device
-                    )
-                    - seqlen // 2
-                ) / self.scale_base
-                scale = self.scale.to(device=power.device) ** power.unsqueeze(1)
-                # We want the multiplication by scale to happen in fp32
-                self._cos_cached = (torch.cos(freqs) * scale).to(dtype)
-                self._sin_cached = (torch.sin(freqs) * scale).to(dtype)
-                self._cos_k_cached = (torch.cos(freqs) / scale).to(dtype)
-                self._sin_k_cached = (torch.sin(freqs) / scale).to(dtype)
+            self._cos_cached = torch.cos(freqs).to(dtype)
+            self._sin_cached = torch.sin(freqs).to(dtype)
 
     def get_cos_sin(self, position_ids: torch.Tensor, max_s: int, dtype: torch.dtype):
+        """
+        Return cos and sin for the asked position ids
+        """
+
         self._update_cos_sin_cache(dtype, position_ids.device, max_s)
 
         cos = torch.index_select(self._cos_cached, 0, position_ids)
@@ -223,7 +212,9 @@ class FlashNeoxAttention(torch.nn.Module):
             )
         self.swap_dims = True
 
+    # TODO: remove and swap dims when loading weights
     def _swap_dims(self):
+        """Swap dims for the first inference to avoid an additional permute"""
         self.query_key_value.weight = torch.nn.Parameter(
             self.query_key_value.weight.view(
                 self.num_heads, 3, self.head_size, self.hidden_size
@@ -256,10 +247,14 @@ class FlashNeoxAttention(torch.nn.Module):
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
         qkv_rot = self.rotary_emb(qkv, cos, sin)
 
+        # Prefill
         if layer_past_present_indices is None:
+            # Copy to layer past
             layer_past[...] = qkv_rot[:, 1:]
 
+            # output
             attn_output = torch.empty_like(qkv[:, 0])
+            # flash attention
             flash_attn_cuda.fwd(
                 qkv[:, 0],
                 qkv[:, 1],
@@ -277,11 +272,15 @@ class FlashNeoxAttention(torch.nn.Module):
                 0,
                 None,
             )
+        # Decode
         else:
             query = qkv_rot[:, 0]
+            # Add present to the layer_past tensor at the correct indices
             layer_past[layer_past_present_indices] = qkv_rot[:, 1:]
 
+            # output
             attn_output = torch.empty_like(query)
+            # flash attention
             flash_attn_cuda.fwd(
                 query,
                 layer_past[:, 0],
@@ -306,11 +305,11 @@ class FlashNeoxAttention(torch.nn.Module):
 class FlashMLP(nn.Module):
     def __init__(self, act, hidden_size, intermediate_size, process_group=None):
         super().__init__()
-        if "gelu" in act:
-            act = "gelu_approx"
-        assert act in ["gelu_approx", "relu"]
-        self.is_gelu = act == "gelu_approx"
-        # self.act = lambda x: F.gelu(x, approximate="tanh")
+        self.act = (
+            ACT2FN[act]
+            if "gelu" not in act
+            else lambda x: torch.nn.functional.gelu(x, approximate="tanh")
+        )
 
         if process_group is None:
             self.dense_h_to_4h = nn.Linear(hidden_size, intermediate_size)
@@ -330,20 +329,10 @@ class FlashMLP(nn.Module):
         self.process_group = process_group
 
     def forward(self, hidden_states):
-        hidden_states, *rest = fused_dense_cuda.linear_act_forward(
-            hidden_states,
-            self.dense_h_to_4h.weight,
-            self.dense_h_to_4h.bias,
-            self.is_gelu,
-            False,
-            0,
-        )
-        return self.dense_4h_to_h(hidden_states)
-        #
-        # hidden_states = self.dense_h_to_4h(hidden_states)
-        # hidden_states = self.act(hidden_states)
-        # hidden_states = self.dense_4h_to_h(hidden_states)
-        # return hidden_states
+        hidden_states = self.dense_h_to_4h(hidden_states)
+        hidden_states = self.act(hidden_states)
+        hidden_states = self.dense_4h_to_h(hidden_states)
+        return hidden_states
 
 
 class FlashNeoXLayer(nn.Module):
@@ -381,6 +370,7 @@ class FlashNeoXLayer(nn.Module):
         cu_seqlens_q,
     ):
         if self.use_parallel_residual:
+            # faster input layer norm
             ln1_hidden_states, *rest = dropout_layer_norm.dropout_add_ln_fwd(
                 hidden_states,
                 None,
@@ -410,6 +400,7 @@ class FlashNeoXLayer(nn.Module):
                 cu_seqlens_q,
             )
 
+            # faster post attention layer norm
             ln2_hidden_states, *rest = dropout_layer_norm.dropout_add_ln_fwd(
                 hidden_states,
                 None,
@@ -431,6 +422,7 @@ class FlashNeoXLayer(nn.Module):
             mlp_output = self.mlp(ln2_hidden_states)
             return mlp_output + attn_output + hidden_states, None
         else:
+            # faster input layer norm
             hidden_states, residual, *rest = dropout_layer_norm.dropout_add_ln_fwd(
                 hidden_states,
                 residual,
@@ -460,6 +452,7 @@ class FlashNeoXLayer(nn.Module):
                 cu_seqlens_q,
             )
 
+            # faster post attention layer norm
             hidden_states, residual, *rest = dropout_layer_norm.dropout_add_ln_fwd(
                 hidden_states,
                 residual,
@@ -544,7 +537,9 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
     ):
         hidden_states = self.embed_in(input_ids)
 
+        # Prefill
         if past_key_values is None:
+            # Create past tensor
             past_key_values = hidden_states.new_empty(
                 (
                     len(self.layers),
@@ -556,12 +551,16 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             )
             layer_past_present_indices = None
             cu_seqlens_q = None
+        # Decode
         else:
+            # Create indices from cumulative sequence lengths
             layer_past_present_indices = cu_seqlens[1:] - 1
             cu_seqlens_q = torch.arange(
                 len(cu_seqlens), dtype=torch.int32, device=hidden_states.device
             )
 
+        # Get rotary cos and sin for this forward
+        # Avoid to index in each layer
         cos, sin = self.layers[0].attention.rotary_emb.get_cos_sin(
             position_ids, max_s, hidden_states.dtype
         )
@@ -580,7 +579,24 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 cu_seqlens_q,
             )
 
-        hidden_states = self.final_layer_norm(hidden_states)
+        # Faster final layer norm
+        hidden_states, *rest = dropout_layer_norm.dropout_add_ln_fwd(
+            hidden_states,
+            residual,
+            self.final_layer_norm.weight,
+            self.final_layer_norm.bias,
+            None,
+            None,
+            None,
+            None,
+            0.0,
+            self.final_layer_norm.eps,
+            1.0,
+            0,
+            None,
+            False,
+            False,
+        )
 
         return hidden_states, past_key_values
 

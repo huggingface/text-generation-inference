@@ -43,7 +43,7 @@ ENV LANG=C.UTF-8 \
     CONDA_DEFAULT_ENV=text-generation \
     PATH=$PATH:/opt/miniconda/envs/text-generation/bin:/opt/miniconda/bin:/usr/local/cuda/bin
 
-RUN apt-get update && apt-get install -y unzip curl libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git curl libssl-dev && rm -rf /var/lib/apt/lists/*
 
 RUN cd ~ && \
     curl -L -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
@@ -53,10 +53,13 @@ RUN cd ~ && \
 
 WORKDIR /usr/src
 
+# Install torch
+RUN pip install torch --extra-index-url https://download.pytorch.org/whl/cu118 --no-cache-dir
+
 COPY server/Makefile server/Makefile
 
-# Install specific version of torch
-RUN cd server && make install-torch
+# Install specific version of flash attention
+RUN cd server && make install-flash-attention
 
 # Install specific version of transformers
 RUN cd server && BUILD_EXTENSIONS="True" make install-transformers

@@ -1,4 +1,5 @@
 transformers_commit := 2b57aa18da658e7d2f42ef6bd5b56751af582fef
+flash_att_commit := 4d87e4d875077ad9efd25030efa4ab0ba92c19e1
 
 gen-server:
 	# Compile protos
@@ -12,12 +13,18 @@ install-transformers:
 	# Install specific version of transformers with custom cuda kernels
 	pip uninstall transformers -y || true
 	rm -rf transformers || true
-	rm -rf transformers-$(transformers_commit) || true
-	curl -L -O https://github.com/OlivierDehaene/transformers/archive/$(transformers_commit).zip
-	unzip $(transformers_commit).zip
-	rm $(transformers_commit).zip
-	mv transformers-$(transformers_commit) transformers
+	git clone https://github.com/OlivierDehaene/transformers.git
+	cd transformers && git checkout $(transformers_commit)
 	cd transformers && python setup.py install
+
+install-flash-attention:
+	# Install specific version of flash attention
+	pip install packaging
+	pip uninstall flash_attn rotary_emb dropout_layer_norm -y || true
+	rm -rf flash-attention || true
+	git clone https://github.com/HazyResearch/flash-attention.git
+	cd flash-attention && git checkout $(flash_att_commit)
+	cd flash-attention && python setup.py install && cd csrc/layer_norm && python setup.py install && cd ../rotary && python setup.py install
 
 install-torch:
 	# Install specific version of torch

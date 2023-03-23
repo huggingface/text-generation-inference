@@ -11,7 +11,12 @@ from text_generation_server.models.galactica import Galactica, GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
-from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+
+try:
+    from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+    FLASH_NEOX = torch.cuda.is_available()
+except ImportError:
+    FLASH_NEOX = False
 
 __all__ = [
     "Model",
@@ -27,6 +32,10 @@ __all__ = [
     "get_model",
 ]
 
+if FLASH_NEOX:
+    __all__.append(FlashNeoX)
+    __all__.append(FlashNeoXSharded)
+
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -39,7 +48,7 @@ torch.set_grad_enabled(False)
 
 
 def get_model(
-    model_id: str, revision: Optional[str], sharded: bool, quantize: bool
+        model_id: str, revision: Optional[str], sharded: bool, quantize: bool
 ) -> Model:
     if "facebook/galactica" in model_id:
         if sharded:
@@ -60,9 +69,11 @@ def get_model(
 
     if config.model_type == "gpt_neox":
         if sharded:
-            return FlashNeoXSharded(model_id, revision, quantize=quantize)
+            neox_cls = FlashNeoXSharded if FLASH_NEOX else GPTNeoxSharded
+            return neox_cls(model_id, revision, quantize=quantize)
         else:
-            return FlashNeoX(model_id, revision, quantize=quantize)
+            neox_cls = FlashNeoX if FLASH_NEOX else CausalLM
+            return neox_cls(model_id, revision, quantize=quantize)
 
     if config.model_type == "t5":
         if sharded:

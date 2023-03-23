@@ -79,30 +79,41 @@ class FlashNeoXBatch(Batch):
         next_token_choosers = []
         stopping_criterias = []
 
+        # Cumulative length
+        cumulative_length = 0
+
         # Parse batch
         for r in pb.requests:
             tokenized_input = (
                 tokenizer(r.inputs, return_tensors="pt")["input_ids"]
-                .to(device)
                 .squeeze(0)
             )
             input_ids.append(tokenized_input)
             all_input_ids.append(tokenized_input.tolist())
+
+            input_length = len(tokenized_input)
+            max_seqlen = max(max_seqlen, input_length)
+            input_lengths.append(input_length)
+
+            # Position ids
             position_ids.append(
-                torch.arange(0, len(tokenized_input), dtype=torch.int32, device=device)
+                torch.arange(0, input_length, dtype=torch.int32)
             )
-            input_lengths.append(len(tokenized_input))
-            cu_seqlens.append(len(tokenized_input))
-            max_seqlen = max(max_seqlen, len(tokenized_input))
+
+            # Add cumulative lengths of all previous inputs
+            cu_seqlens.append(cumulative_length + input_length)
 
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criterias.append(
                 StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
             )
 
+            # Update
+            cumulative_length += input_length
+
         input_ids = torch.concat(input_ids).unsqueeze(1)
         position_ids = torch.concat(position_ids)
-        cu_seqlens = torch.tensor(cu_seqlens, dtype=torch.int32, device=device)
+        cu_seqlens = torch.tensor(cu_seqlens, dtype=torch.int32)
 
         return cls(
             batch_id=pb.id,
@@ -121,7 +132,62 @@ class FlashNeoXBatch(Batch):
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["CausalLMBatch"]) -> "CausalLMBatch":
-        raise NotImplementedError
+        # Batch attributes
+        requests = []
+        input_lengths = []
+        all_input_ids = []
+        next_token_choosers = []
+        stopping_criterias = []
+
+        # Batch tensors
+        input_ids = []
+        position_ids = []
+        cu_seqlens = [torch.tensor([0], dtype=torch.int32)]
+        max_seqlen = 0
+        past_key_values = []
+
+        # Cumulative length
+        cumulative_length = torch.tensor(0)
+
+        for i, batch in enumerate(batches):
+            requests.extend(batch.requests)
+            input_lengths.extend(batch.input_lengths)
+            all_input_ids.extend(batch.all_input_ids)
+            next_token_choosers.extend(batch.next_token_choosers)
+            stopping_criterias.extend(batch.stopping_criterias)
+
+            # Add cumulative lengths of all previous inputs
+            cu_seqlens.append(batch.cu_seqlens[1:] + cumulative_length)
+
+            input_ids.append(batch.input_ids)
+            position_ids.append(batch.position_ids)
+            past_key_values.append(batch.past_key_values)
+
+            max_seqlen = max(max_seqlen, batch.max_seqlen)
+
+            # Update
+            cumulative_length += batch.cu_seqlens[-1]
+
+        input_ids = torch.concat(input_ids)
+        position_ids = torch.concat(position_ids)
+        # Concat on dim=1 as first dim represents the model layers
+        past_key_values = torch.concat(past_key_values, dim=1)
+        cu_seqlens = torch.concat(cu_seqlens)
+
+        return FlashNeoXBatch(
+            batch_id=batches[0].batch_id,
+            requests=requests,
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlens=cu_seqlens,
+            max_seqlen=max_seqlen,
+            past_key_values=past_key_values,
+            input_lengths=input_lengths,
+            all_input_ids=all_input_ids,
+            next_token_choosers=next_token_choosers,
+            stopping_criterias=stopping_criterias,
+        )
+
 
     def __len__(self):
         return len(self.requests)
@@ -191,15 +257,18 @@ class FlashNeoX(Model):
     def generate_token(
         self, batch: FlashNeoXBatch
     ) -> Tuple[List[Generation], Optional[FlashNeoXBatch]]:
+        # Better to send to device here to avoid device issues in concatenate
+        position_ids = batch.position_ids.to(self.device, non_blocking=True)
+        cu_seqlens = batch.cu_seqlens.to(self.device, non_blocking=True)
+        input_ids = batch.input_ids.squeeze(1).to(self.device)
+
         out, present = self.forward(
-            batch.input_ids.squeeze(1),
-            batch.position_ids,
-            batch.cu_seqlens,
+            input_ids,
+            position_ids,
+            cu_seqlens,
             batch.max_seqlen,
             batch.past_key_values,
         )
-
-        device = out.device
 
         # List of indices to cache
         next_batch_keep_indices = []
@@ -253,7 +322,8 @@ class FlashNeoX(Model):
             next_token_id, logprobs = next_token_chooser(
                 all_input_ids, logits
             )
-            next_token_id = next_token_id.to("cpu")
+            # Copy to cpu to avoid other copies when indexing and calling .item()
+            next_token_id = next_token_id.to("cpu", non_blocking=True)
             logprobs = logprobs.to("cpu")
 
             next_token_id_squeezed = next_token_id.squeeze()
@@ -261,7 +331,6 @@ class FlashNeoX(Model):
 
             # Append next token to all tokens
             all_input_ids.append(next_token_id_item)
-            # all_input_ids = torch.cat([all_input_ids, next_token_id.squeeze(1)])
             new_input_length = input_length + 1
 
             # Generated token
@@ -292,16 +361,20 @@ class FlashNeoX(Model):
                 )
             else:
                 # Keep request in the batch
+                next_batch_keep_indices.append(i)
+                generated_text = None
+
+                # Get sequence present
                 seq_present = present[:, start_index:end_index]
+                # Pad it for next iter attention
                 past = torch.nn.functional.pad(seq_present, (0, 0, 0, 0, 0, 0, 0, 1))
                 next_batch_past_key_values.append(past)
 
-                generated_text = None
-                next_batch_keep_indices.append(i)
                 next_batch_input_ids.append(next_token_id)
                 next_batch_position_ids.append(input_length)
+                # Cumulative sum
                 next_batch_cu_seqlens.append(
-                    next_batch_cu_seqlens[i] + new_input_length
+                    next_batch_cu_seqlens[-1] + new_input_length
                 )
                 next_batch_input_lengths.append(new_input_length)
                 next_batch_all_input_ids.append(all_input_ids)
@@ -360,16 +433,16 @@ class FlashNeoX(Model):
 
         # Create final next batch tensors
         next_batch_position_ids = torch.tensor(
-            next_batch_position_ids, dtype=torch.int32, device=device
+            next_batch_position_ids, dtype=torch.int32
         )
         next_batch_cu_seqlens = torch.tensor(
-            next_batch_cu_seqlens, dtype=torch.int32, device=device
+            next_batch_cu_seqlens, dtype=torch.int32
         )
         if len(next_batch_keep_indices) > 1:
-            next_batch_input_ids = torch.concat(next_batch_input_ids, dim=0)
-            next_batch_past_key_values = torch.concat(next_batch_past_key_values)
+            next_batch_input_ids = torch.concat(next_batch_input_ids)
+            next_batch_past_key_values = torch.concat(next_batch_past_key_values, dim=1)
         else:
-            next_batch_input_ids = next_batch_input_ids[0].to(device)
+            next_batch_input_ids = next_batch_input_ids[0]
             next_batch_past_key_values = next_batch_past_key_values[0]
 
         next_batch = FlashNeoXBatch(
