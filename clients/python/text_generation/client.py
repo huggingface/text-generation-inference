@@ -36,7 +36,11 @@ class Client:
     """
 
     def __init__(
-        self, base_url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 10
+        self,
+        base_url: str,
+        headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
+        timeout: int = 10,
     ):
         """
         Args:
@@ -44,11 +48,14 @@ class Client:
                 text-generation-inference instance base url
             headers (`Optional[Dict[str, str]]`):
                 Additional headers
+            cookies (`Optional[Dict[str, str]]`):
+                Cookies to include in the requests
             timeout (`int`):
                 Timeout in seconds
         """
         self.base_url = base_url
         self.headers = headers
+        self.cookies = cookies
         self.timeout = timeout
 
     def generate(
@@ -130,6 +137,7 @@ class Client:
             self.base_url,
             json=request.dict(),
             headers=self.headers,
+            cookies=self.cookies,
             timeout=self.timeout,
         )
         payload = resp.json()
@@ -216,6 +224,7 @@ class Client:
             self.base_url,
             json=request.dict(),
             headers=self.headers,
+            cookies=self.cookies,
             timeout=self.timeout,
             stream=True,
         )
@@ -267,7 +276,11 @@ class AsyncClient:
     """
 
     def __init__(
-        self, base_url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 10
+        self,
+        base_url: str,
+        headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
+        timeout: int = 10,
     ):
         """
         Args:
@@ -275,11 +288,14 @@ class AsyncClient:
                 text-generation-inference instance base url
             headers (`Optional[Dict[str, str]]`):
                 Additional headers
+            cookies (`Optional[Dict[str, str]]`):
+                Cookies to include in the requests
             timeout (`int`):
                 Timeout in seconds
         """
         self.base_url = base_url
         self.headers = headers
+        self.cookies = cookies
         self.timeout = ClientTimeout(timeout * 60)
 
     async def generate(
@@ -357,7 +373,9 @@ class AsyncClient:
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
-        async with ClientSession(headers=self.headers, timeout=self.timeout) as session:
+        async with ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        ) as session:
             async with session.post(self.base_url, json=request.dict()) as resp:
                 payload = await resp.json()
 
@@ -440,7 +458,9 @@ class AsyncClient:
         )
         request = Request(inputs=prompt, stream=True, parameters=parameters)
 
-        async with ClientSession(headers=self.headers, timeout=self.timeout) as session:
+        async with ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        ) as session:
             async with session.post(self.base_url, json=request.dict()) as resp:
 
                 if resp.status != 200:
