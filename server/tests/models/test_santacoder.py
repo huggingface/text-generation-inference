@@ -1,8 +1,8 @@
 import pytest
 
-from text_generation.pb import generate_pb2
-from text_generation.models.causal_lm import CausalLMBatch
-from text_generation.models.santacoder import SantaCoder
+from text_generation_server.pb import generate_pb2
+from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.models.santacoder import SantaCoder
 
 
 @pytest.fixture(scope="session")
@@ -15,7 +15,6 @@ def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="def",
-        input_length=1,
         parameters=default_pb_parameters,
         stopping_parameters=default_pb_stop_parameters,
     )
@@ -31,7 +30,6 @@ def default_fim_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="<fim-prefix>def<fim-suffix>world<fim-middle>",
-        input_length=5,
         parameters=default_pb_parameters,
         stopping_parameters=default_pb_stop_parameters,
     )

@@ -1,6 +1,7 @@
 use clap::Parser;
 use serde_json::Value;
 use std::env;
+use std::ffi::OsString;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::ExitCode;
@@ -12,7 +13,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
-use subprocess::{Popen, PopenConfig, PopenError, Redirection};
+use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -23,13 +24,21 @@ struct Args {
     #[clap(long, env)]
     revision: Option<String>,
     #[clap(long, env)]
+    sharded: Option<bool>,
+    #[clap(long, env)]
     num_shard: Option<usize>,
     #[clap(long, env)]
     quantize: bool,
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
+    #[clap(default_value = "2", long, env)]
+    max_best_of: usize,
+    #[clap(default_value = "4", long, env)]
+    max_stop_sequences: usize,
     #[clap(default_value = "1000", long, env)]
     max_input_length: usize,
+    #[clap(default_value = "1512", long, env)]
+    max_total_tokens: usize,
     #[clap(default_value = "32", long, env)]
     max_batch_size: usize,
     #[clap(default_value = "20", long, env)]
@@ -43,38 +52,112 @@ struct Args {
     #[clap(default_value = "29500", long, env)]
     master_port: usize,
     #[clap(long, env)]
+    huggingface_hub_cache: Option<String>,
+    #[clap(long, env)]
+    weights_cache_override: Option<String>,
+    #[clap(long, env)]
+    disable_custom_kernels: bool,
+    #[clap(long, env)]
     json_output: bool,
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
+    #[clap(long, env)]
+    cors_allow_origin: Vec<String>,
+    #[clap(long, env)]
+    watermark_gamma: Option<f32>,
+    #[clap(long, env)]
+    watermark_delta: Option<f32>,
 }
 
 fn main() -> ExitCode {
     // Pattern match configuration
+    let args = Args::parse();
+
+    if args.json_output {
+        tracing_subscriber::fmt().json().init();
+    } else {
+        tracing_subscriber::fmt().compact().init();
+    }
+
+    tracing::info!("{:?}", args);
+
     let Args {
         model_id,
         revision,
+        sharded,
         num_shard,
         quantize,
         max_concurrent_requests,
+        max_best_of,
+        max_stop_sequences,
         max_input_length,
+        max_total_tokens,
         max_batch_size,
         max_waiting_tokens,
         port,
         shard_uds_path,
         master_addr,
         master_port,
+        huggingface_hub_cache,
+        weights_cache_override,
+        disable_custom_kernels,
         json_output,
         otlp_endpoint,
-    } = Args::parse();
+        cors_allow_origin,
+        watermark_gamma,
+        watermark_delta,
+    } = args;
 
-    if json_output {
-        tracing_subscriber::fmt().json().init();
+    // get the number of shards given `sharded` and `num_shard`
+    let num_shard = if let Some(sharded) = sharded {
+        // sharded is set
+        match sharded {
+            // sharded is set and true
+            true => {
+                match num_shard {
+                    None => {
+                        // try to default to the number of available GPUs
+                        tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES");
+                        let n_devices = num_cuda_devices()
+                            .expect("--num-shard and CUDA_VISIBLE_DEVICES are not set");
+                        if n_devices <= 1 {
+                            panic!("`sharded` is true but only found {n_devices} CUDA devices");
+                        }
+                        n_devices
+                    }
+                    Some(num_shard) => {
+                        // we can't have only one shard while sharded
+                        if num_shard <= 1 {
+                            panic!("`sharded` is true but `num_shard` <= 1");
+                        }
+                        num_shard
+                    }
+                }
+            }
+            // sharded is set and false
+            false => {
+                let num_shard = num_shard.unwrap_or(1);
+                // we can't have more than one shard while not sharded
+                if num_shard != 1 {
+                    panic!("`sharded` is false but `num_shard` != 1");
+                }
+                num_shard
+            }
+        }
     } else {
-        tracing_subscriber::fmt().compact().init();
+        match num_shard {
+            // get num_shard from CUDA_VISIBLE_DEVICES or default to a single shard
+            None => num_cuda_devices().unwrap_or(1),
+            Some(num_shard) => num_shard,
+        }
+    };
+    if num_shard < 1 {
+        panic!("`num_shard` cannot be < 1");
     }
 
-    // By default we only have one master shard
-    let num_shard = num_shard.unwrap_or(1);
+    if num_shard > 1 {
+        tracing::info!("Sharding model on {num_shard} processes");
+    }
 
     // Signal handler
     let running = Arc::new(AtomicBool::new(true));
@@ -83,6 +166,121 @@ fn main() -> ExitCode {
         r.store(false, Ordering::SeqCst);
     })
     .expect("Error setting Ctrl-C handler");
+
+    // Check if model_id is a local model
+    let local_path = Path::new(&model_id);
+    let is_local_model = local_path.exists() && local_path.is_dir();
+
+    // Download weights for sharded models
+    if !is_local_model && weights_cache_override.is_none() && num_shard > 1 {
+        let mut download_argv = vec![
+            "text-generation-server".to_string(),
+            "download-weights".to_string(),
+            model_id.clone(),
+            "--extension".to_string(),
+            ".safetensors".to_string(),
+            "--logger-level".to_string(),
+            "INFO".to_string(),
+            "--json-output".to_string(),
+        ];
+
+        // Model optional revision
+        if let Some(ref revision) = revision {
+            download_argv.push("--revision".to_string());
+            download_argv.push(revision.to_string())
+        }
+
+        // Copy current process env
+        let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
+
+        // If huggingface_hub_cache is set, pass it to the shard
+        // Useful when running inside a docker container
+        if let Some(ref huggingface_hub_cache) = huggingface_hub_cache {
+            env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
+        };
+
+        // Enable hf transfer for insane download speeds
+        env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), "1".into()));
+
+        // Start process
+        tracing::info!("Starting download process.");
+        let mut download_process = match Popen::create(
+            &download_argv,
+            PopenConfig {
+                stdout: Redirection::Pipe,
+                stderr: Redirection::Pipe,
+                // Needed for the shutdown procedure
+                setpgid: true,
+                env: Some(env),
+                ..Default::default()
+            },
+        ) {
+            Ok(p) => p,
+            Err(err) => {
+                if let PopenError::IoError(ref err) = err {
+                    if err.kind() == io::ErrorKind::NotFound {
+                        tracing::error!("text-generation-server not found in PATH");
+                        tracing::error!("Please install it with `make install-server`")
+                    }
+                }
+                return ExitCode::FAILURE;
+            }
+        };
+
+        // Redirect STDOUT to the console
+        let download_stdout = download_process.stdout.take().unwrap();
+        thread::spawn(move || {
+            // Enter download tracing span
+            let stdout = BufReader::new(download_stdout);
+            let _span = tracing::span!(tracing::Level::INFO, "download").entered();
+            for line in stdout.lines() {
+                // Parse loguru logs
+                if let Ok(value) = serde_json::from_str::<Value>(&line.unwrap()) {
+                    if let Some(text) = value.get("text") {
+                        // Format escaped newlines
+                        tracing::info!("{}", text.to_string().replace("\\n", ""));
+                    }
+                }
+            }
+        });
+
+        loop {
+            if let Some(status) = download_process.poll() {
+                match status {
+                    ExitStatus::Exited(exit_code) => {
+                        if exit_code == 0 {
+                            tracing::info!("Successfully downloaded weights.");
+                            break;
+                        } else {
+                            let mut err = String::new();
+                            download_process
+                                .stderr
+                                .take()
+                                .unwrap()
+                                .read_to_string(&mut err)
+                                .unwrap();
+                            tracing::error!("Download encountered an error: {err}");
+                            return ExitCode::FAILURE;
+                        }
+                    }
+                    _ => {
+                        tracing::error!("Download process exited with an unknown status.");
+                        return ExitCode::FAILURE;
+                    }
+                }
+            }
+            if !running.load(Ordering::SeqCst) {
+                download_process.terminate().unwrap();
+                tracing::info!("Waiting for download process to gracefully shutdown");
+                download_process
+                    .wait_timeout(Duration::from_secs(90))
+                    .unwrap();
+                tracing::info!("Download process terminated");
+                return ExitCode::SUCCESS;
+            }
+            sleep(Duration::from_millis(100));
+        }
+    }
 
     // Shared shutdown bool
     let shutdown = Arc::new(Mutex::new(false));
@@ -99,6 +297,8 @@ fn main() -> ExitCode {
         let revision = revision.clone();
         let uds_path = shard_uds_path.clone();
         let master_addr = master_addr.clone();
+        let huggingface_hub_cache = huggingface_hub_cache.clone();
+        let weights_cache_override = weights_cache_override.clone();
         let status_sender = status_sender.clone();
         let shutdown = shutdown.clone();
         let shutdown_sender = shutdown_sender.clone();
@@ -113,6 +313,11 @@ fn main() -> ExitCode {
                 num_shard,
                 master_addr,
                 master_port,
+                huggingface_hub_cache,
+                weights_cache_override,
+                disable_custom_kernels,
+                watermark_gamma,
+                watermark_delta,
                 otlp_endpoint,
                 status_sender,
                 shutdown,
@@ -161,8 +366,14 @@ fn main() -> ExitCode {
         "text-generation-router".to_string(),
         "--max-concurrent-requests".to_string(),
         max_concurrent_requests.to_string(),
+        "--max-best-of".to_string(),
+        max_best_of.to_string(),
+        "--max-stop-sequences".to_string(),
+        max_stop_sequences.to_string(),
         "--max-input-length".to_string(),
         max_input_length.to_string(),
+        "--max-total-tokens".to_string(),
+        max_total_tokens.to_string(),
         "--max-batch-size".to_string(),
         max_batch_size.to_string(),
         "--max-waiting-tokens".to_string(),
@@ -183,6 +394,12 @@ fn main() -> ExitCode {
     if let Some(otlp_endpoint) = otlp_endpoint {
         argv.push("--otlp-endpoint".to_string());
         argv.push(otlp_endpoint);
+    }
+
+    // CORS origins
+    for origin in cors_allow_origin.into_iter() {
+        argv.push("--cors-allow-origin".to_string());
+        argv.push(origin);
     }
 
     let mut webserver = match Popen::create(
@@ -232,7 +449,7 @@ fn main() -> ExitCode {
 
     while running.load(Ordering::SeqCst) {
         if let Ok(ShardStatus::Failed((rank, err))) = status_receiver.try_recv() {
-            tracing::error!("Shard {} failed:\n{}", rank, err);
+            tracing::error!("Shard {rank} failed:\n{err}");
             exit_code = ExitCode::FAILURE;
             break;
         };
@@ -275,6 +492,11 @@ fn shard_manager(
     world_size: usize,
     master_addr: String,
     master_port: usize,
+    huggingface_hub_cache: Option<String>,
+    weights_cache_override: Option<String>,
+    disable_custom_kernels: bool,
+    watermark_gamma: Option<f32>,
+    watermark_delta: Option<f32>,
     otlp_endpoint: Option<String>,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<Mutex<bool>>,
@@ -319,43 +541,54 @@ fn shard_manager(
         shard_argv.push(otlp_endpoint);
     }
 
-    let mut env = vec![
-        ("RANK".into(), rank.to_string().into()),
-        ("WORLD_SIZE".into(), world_size.to_string().into()),
-        ("MASTER_ADDR".into(), master_addr.into()),
-        ("MASTER_PORT".into(), master_port.to_string().into()),
-        ("SAFETENSORS_FAST_GPU".into(), "1".into()),
-        ("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()),
-    ];
+    // Copy current process env
+    let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
 
-    // If the HUGGINGFACE_HUB_CACHE env var is set, pass it to the shard
+    // Torch Distributed Env vars
+    env.push(("RANK".into(), rank.to_string().into()));
+    env.push(("WORLD_SIZE".into(), world_size.to_string().into()));
+    env.push(("MASTER_ADDR".into(), master_addr.into()));
+    env.push(("MASTER_PORT".into(), master_port.to_string().into()));
+    env.push(("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()));
+
+    // Safetensors load fast
+    env.push(("SAFETENSORS_FAST_GPU".into(), "1".into()));
+
+    // Enable hf transfer for insane download speeds
+    env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), "1".into()));
+
+    // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
-    if let Ok(huggingface_hub_cache) = env::var("HUGGINGFACE_HUB_CACHE") {
+    if let Some(huggingface_hub_cache) = huggingface_hub_cache {
         env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
     };
 
-    // If the WEIGHTS_CACHE_OVERRIDE env var is set, pass it to the shard
+    // If weights_cache_override is some, pass it to the shard
     // Useful when running inside a HuggingFace Inference Endpoint
-    if let Ok(weights_cache_override) = env::var("WEIGHTS_CACHE_OVERRIDE") {
+    if let Some(weights_cache_override) = weights_cache_override {
         env.push((
             "WEIGHTS_CACHE_OVERRIDE".into(),
             weights_cache_override.into(),
         ));
     };
 
-    // If the NCCL_SHM_DISABLE env var is set, pass it to the shard
-    // needed when running NCCL inside a docker container and when you can't increase shm size
-    if let Ok(nccl_shm_disalbe) = env::var("NCCL_SHM_DISABLE") {
-        env.push(("NCCL_SHM_DISABLE".into(), nccl_shm_disalbe.into()));
-    };
+    // If disable_custom_kernels is true, pass it to the shard as an env var
+    if disable_custom_kernels {
+        env.push(("DISABLE_CUSTOM_KERNELS".into(), "True".into()))
+    }
 
-    // If the CUDA_VISIBLE_DEVICES env var is set, pass it to the shard
-    if let Ok(cuda_visible_devices) = env::var("CUDA_VISIBLE_DEVICES") {
-        env.push(("CUDA_VISIBLE_DEVICES".into(), cuda_visible_devices.into()));
-    };
+    // Watermark Gamma
+    if let Some(watermark_gamma) = watermark_gamma {
+        env.push(("WATERMARK_GAMMA".into(), watermark_gamma.to_string().into()))
+    }
+
+    // Watermark Delta
+    if let Some(watermark_delta) = watermark_delta {
+        env.push(("WATERMARK_DELTA".into(), watermark_delta.to_string().into()))
+    }
 
     // Start process
-    tracing::info!("Starting shard {}", rank);
+    tracing::info!("Starting shard {rank}");
     let mut p = match Popen::create(
         &shard_argv,
         PopenConfig {
@@ -419,17 +652,17 @@ fn shard_manager(
         if *shutdown.lock().unwrap() {
             p.terminate().unwrap();
             let _ = p.wait_timeout(Duration::from_secs(90));
-            tracing::info!("Shard {} terminated", rank);
+            tracing::info!("Shard {rank} terminated");
             return;
         }
 
         // Shard is ready
         if uds.exists() && !ready {
-            tracing::info!("Shard {} ready in {:?}", rank, start_time.elapsed());
+            tracing::info!("Shard {rank} ready in {:?}", start_time.elapsed());
             status_sender.send(ShardStatus::Ready).unwrap();
             ready = true;
         } else if !ready && wait_time.elapsed() > Duration::from_secs(10) {
-            tracing::info!("Waiting for shard {} to be ready...", rank);
+            tracing::info!("Waiting for shard {rank} to be ready...");
             wait_time = Instant::now();
         }
         sleep(Duration::from_millis(100));
@@ -448,4 +681,12 @@ fn shutdown_shards(shutdown: Arc<Mutex<bool>>, shutdown_receiver: &mpsc::Receive
     // Wait for shards to shutdown
     // This will block till all shutdown_sender are dropped
     let _ = shutdown_receiver.recv();
+}
+
+fn num_cuda_devices() -> Option<usize> {
+    if let Ok(cuda_visible_devices) = env::var("CUDA_VISIBLE_DEVICES") {
+        let n_devices = cuda_visible_devices.split(',').count();
+        return Some(n_devices);
+    }
+    None
 }

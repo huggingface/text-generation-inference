@@ -14,6 +14,7 @@ pub struct Token {
     id: u32,
     text: String,
     logprob: Option<f32>,
+    special: bool,
 }
 
 #[derive(Deserialize)]
@@ -136,6 +137,7 @@ fn compare_results(result: GeneratedText, expected: GeneratedText) {
     {
         assert_eq!(token.id, expected_token.id);
         assert_eq!(token.text, expected_token.text);
+        assert_eq!(token.special, expected_token.special);
         if let Some(logprob) = token.logprob {
             let expected_logprob = expected_token.logprob.unwrap();
             assert_float_eq!(logprob, expected_logprob, abs <= 0.001);

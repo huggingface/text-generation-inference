@@ -11,7 +11,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "0.2.1"
+    "version": "0.4.0"
   },
   "paths": {
     "/generate": {
@@ -38,10 +38,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GenerateResponse"
-                  }
+                  "$ref": "#/components/schemas/GenerateResponse"
                 }
               }
             }
@@ -51,10 +48,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Input validation error"
@@ -67,10 +61,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Request failed during generation"
@@ -83,10 +74,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Model is overloaded"
@@ -99,10 +87,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Incomplete generation"
@@ -136,12 +121,9 @@
           "200": {
             "description": "Generated Text",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/StreamResponse"
-                  }
+                  "$ref": "#/components/schemas/StreamResponse"
                 }
               }
             }
@@ -149,12 +131,9 @@
           "422": {
             "description": "Input validation error",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Input validation error"
@@ -165,12 +144,9 @@
           "424": {
             "description": "Generation Error",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Request failed during generation"
@@ -181,12 +157,9 @@
           "429": {
             "description": "Model is overloaded",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Model is overloaded"
@@ -197,15 +170,35 @@
           "500": {
             "description": "Incomplete generation",
             "content": {
-              "text/event-stream ": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ErrorResponse"
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
                   "error": "Incomplete generation"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Prometheus metrics scrape endpoint",
+        "description": "Prometheus metrics scrape endpoint",
+        "operationId": "metrics",
+        "responses": {
+          "200": {
+            "description": "Prometheus Metrics",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -217,13 +210,63 @@
   },
   "components": {
     "schemas": {
+      "BestOfSequence": {
+        "type": "object",
+        "required": [
+          "generated_text",
+          "finish_reason",
+          "generated_tokens",
+          "prefill",
+          "tokens"
+        ],
+        "properties": {
+          "finish_reason": {
+            "$ref": "#/components/schemas/FinishReason"
+          },
+          "generated_text": {
+            "type": "string",
+            "example": "test"
+          },
+          "generated_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "example": 1
+          },
+          "prefill": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrefillToken"
+            }
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64",
+            "example": 42,
+            "nullable": true
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Token"
+            }
+          }
+        }
+      },
       "Details": {
         "type": "object",
         "required": [
           "finish_reason",
-          "generated_tokens"
+          "generated_tokens",
+          "prefill",
+          "tokens"
         ],
         "properties": {
+          "best_of_sequences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BestOfSequence"
+            }
+          },
           "finish_reason": {
             "$ref": "#/components/schemas/FinishReason"
           },
@@ -235,13 +278,14 @@
           "prefill": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Token"
+              "$ref": "#/components/schemas/PrefillToken"
             }
           },
           "seed": {
             "type": "integer",
             "format": "int64",
-            "example": 42
+            "example": 42,
+            "nullable": true
           },
           "tokens": {
             "type": "array",
@@ -254,10 +298,14 @@
       "ErrorResponse": {
         "type": "object",
         "required": [
-          "error"
+          "error",
+          "error_type"
         ],
         "properties": {
           "error": {
+            "type": "string"
+          },
+          "error_type": {
             "type": "string"
           }
         }
@@ -273,6 +321,13 @@
       "GenerateParameters": {
         "type": "object",
         "properties": {
+          "best_of": {
+            "type": "integer",
+            "default": "null",
+            "example": 1,
+            "nullable": true,
+            "exclusiveMinimum": 0.0
+          },
           "details": {
             "type": "boolean",
             "default": "true"
@@ -297,9 +352,19 @@
             "nullable": true,
             "exclusiveMinimum": 0.0
           },
+          "return_full_text": {
+            "type": "boolean",
+            "default": "null",
+            "example": false,
+            "nullable": true
+          },
           "seed": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "default": "null",
+            "example": "null",
+            "nullable": true,
+            "exclusiveMinimum": 0.0
           },
           "stop": {
             "type": "array",
@@ -335,6 +400,26 @@
             "nullable": true,
             "maximum": 1.0,
             "exclusiveMinimum": 0.0
+          },
+          "truncate": {
+            "type": "integer",
+            "default": "null",
+            "example": "null",
+            "nullable": true
+          },
+          "typical_p": {
+            "type": "number",
+            "format": "float",
+            "default": "null",
+            "example": 0.95,
+            "nullable": true,
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0
+          },
+          "watermark": {
+            "type": "boolean",
+            "default": "false",
+            "example": true
           }
         }
       },
@@ -368,6 +453,31 @@
           }
         }
       },
+      "PrefillToken": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "logprob"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "example": 0
+          },
+          "logprob": {
+            "type": "number",
+            "format": "float",
+            "example": -0.34,
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "example": "test"
+          }
+        }
+      },
       "StreamDetails": {
         "type": "object",
         "required": [
@@ -386,7 +496,8 @@
           "seed": {
             "type": "integer",
             "format": "int64",
-            "example": 42
+            "example": 42,
+            "nullable": true
           }
         }
       },
@@ -415,7 +526,8 @@
         "required": [
           "id",
           "text",
-          "logprob"
+          "logprob",
+          "special"
         ],
         "properties": {
           "id": {
@@ -428,6 +540,10 @@
             "format": "float",
             "example": -0.34,
             "nullable": true
+          },
+          "special": {
+            "type": "boolean",
+            "example": "false"
           },
           "text": {
             "type": "string",

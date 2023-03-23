@@ -1,9 +1,9 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
-use crate::GenerateRequest;
 use crate::{Entry, Queue, Token};
+use crate::{GenerateRequest, PrefillToken};
+use futures::future::try_join_all;
 use nohash_hasher::IntMap;
-use std::future::Future;
 use std::sync::Arc;
 use text_generation_client::{
     Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
@@ -81,6 +81,7 @@ impl Infer {
             .limit_concurrent_requests
             .try_acquire_owned()
             .map_err(|err| {
+                metrics::increment_counter!("tgi_request_failure", "err" => "overloaded");
                 tracing::error!("{err}");
                 err
             })?;
@@ -138,7 +139,7 @@ impl Infer {
                         .into_iter()
                         .zip(tokens.logprobs.into_iter())
                         .zip(tokens.texts.into_iter())
-                        .map(|((id, logprob), text)| Token { id, text, logprob })
+                        .map(|((id, logprob), text)| PrefillToken { id, text, logprob })
                         .collect();
                 }
                 // Push last token
@@ -172,9 +173,47 @@ impl Infer {
             })
         } else {
             let err = InferError::IncompleteGeneration;
+            metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
             tracing::error!("{err}");
             Err(err)
         }
+    }
+    /// Add best_of new requests to the queue and return a InferResponse of the sequence with
+    /// the highest log probability per token
+    #[instrument(skip(self))]
+    pub(crate) async fn generate_best_of(
+        &self,
+        request: GenerateRequest,
+        best_of: usize,
+    ) -> Result<(InferResponse, Vec<InferResponse>), InferError> {
+        // validate  best_of parameter separately
+        let best_of = self.validation.validate_best_of(best_of)?;
+
+        // create multiple generate requests
+        let mut infer_responses: Vec<InferResponse> =
+            try_join_all((0..best_of).map(|_| self.generate(request.clone()))).await?;
+
+        // get the sequence with the highest log probability per token
+        let mut max_index = 0;
+        let mut max_logprob: f32 = f32::MIN;
+
+        for (i, response) in infer_responses.iter().enumerate() {
+            // mean logprobs of the generated tokens
+            let sequence_logprob = response
+                .tokens
+                .iter()
+                .map(|token| token.logprob)
+                .sum::<f32>()
+                / response.tokens.len() as f32;
+
+            // set best sequence
+            if sequence_logprob > max_logprob {
+                max_index = i;
+                max_logprob = sequence_logprob;
+            }
+        }
+        let best_response = infer_responses.remove(max_index);
+        Ok((best_response, infer_responses))
     }
 }
 
@@ -190,7 +229,11 @@ async fn batching_task(
     shared: Arc<Shared>,
 ) {
     // Minimum batch size after which we try to add more requests
-    let limit_min_batch_size = (max_batch_size / 2) as u32;
+    let limit_min_batch_size = if max_batch_size > 1 {
+        (max_batch_size / 2) as u32
+    } else {
+        0
+    };
 
     // Infinite loop
     loop {
@@ -201,7 +244,7 @@ async fn batching_task(
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the queue
         while let Some((mut entries, batch, span)) = queue.next_batch(None, max_batch_size).await {
-            let mut cached_batch = wrap_future(client.prefill(batch), &mut entries)
+            let mut cached_batch = prefill(&mut client, batch, &mut entries)
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -212,6 +255,7 @@ async fn batching_task(
                 // Get current batch info
                 let batch_size = batch.size;
                 let mut batches = vec![batch];
+                metrics::gauge!("tgi_batch_current_size", batch_size as f64);
 
                 // If the current batch is too small, we try to add more requests to it
                 if batch_size <= limit_min_batch_size {
@@ -234,17 +278,17 @@ async fn batching_task(
                             // because a new batch is being computed
                             let entry_waiting_span =
                                 info_span!(parent: &entry.span, "waiting", batch_size = new_batch_size);
-                            // Add relationship
+                            // Add relationships
+                            span.follows_from(&entry_waiting_span);
                             entry_waiting_span.follows_from(&span);
                             // Update entry
                             entry.temp_span = Some(entry_waiting_span);
                         });
 
                         // Generate one token for this new batch to have the attention past in cache
-                        let new_cached_batch =
-                            wrap_future(client.prefill(new_batch), &mut new_entries)
-                                .instrument(span)
-                                .await;
+                        let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
+                            .instrument(span)
+                            .await;
                         // Reset waiting counter
                         waiting_tokens = 1;
                         // Extend current batch with the new batch
@@ -262,35 +306,66 @@ async fn batching_task(
                     // Create a new span to link the batch back to this entry
                     let entry_batch_span =
                         info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
-                    // Add relationship
+                    // Add relationships
+                    next_batch_span.follows_from(&entry_batch_span);
                     entry_batch_span.follows_from(&next_batch_span);
                     // Update entry
                     entry.temp_span = Some(entry_batch_span);
                 });
 
-                cached_batch = wrap_future(client.decode(batches), &mut entries)
+                cached_batch = decode(&mut client, batches, &mut entries)
                     .instrument(next_batch_span)
                     .await;
                 waiting_tokens += 1;
             }
+            metrics::gauge!("tgi_batch_current_size", 0.0);
         }
     }
 }
 
-/// Wrap a future inside a match statement to handle errors and send the responses to Infer
 #[instrument(skip_all)]
-async fn wrap_future(
-    future: impl Future<Output = Result<(Vec<Generation>, Option<Batch>), ClientError>>,
+async fn prefill(
+    client: &mut ShardedClient,
+    batch: Batch,
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
-    match future.await {
+    let start_time = Instant::now();
+
+    match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
             send_generations(generations, entries);
+            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed(), "method" => "prefill");
+            metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
             next_batch
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
             send_errors(err, entries);
+            metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
+            None
+        }
+    }
+}
+
+#[instrument(skip_all)]
+async fn decode(
+    client: &mut ShardedClient,
+    batches: Vec<Batch>,
+    entries: &mut IntMap<u64, Entry>,
+) -> Option<Batch> {
+    let start_time = Instant::now();
+
+    match client.decode(batches).await {
+        Ok((generations, next_batch)) => {
+            send_generations(generations, entries);
+            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed(), "method" => "decode");
+            metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
+            next_batch
+        }
+        // If we have an error, we discard the whole batch
+        Err(err) => {
+            send_errors(err, entries);
+            metrics::increment_counter!("tgi_batch_inference_failure", "method" => "decode");
             None
         }
     }
@@ -303,6 +378,7 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
         // Create and enter a span to link this function back to the entry
         let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
         let err = InferError::GenerationError(error.to_string());
+        metrics::increment_counter!("tgi_request_failure", "err" => "generation");
         tracing::error!("{err}");
 
         // unwrap_or is valid here as we don't care if the receiver is gone.
@@ -340,6 +416,7 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
             id: generation.token_id,
             text: generation.token_text,
             logprob: generation.token_logprob,
+            special: generation.token_is_special,
         };
 
         if let Some(generated_text) = generation.generated_text {
@@ -388,7 +465,7 @@ pub(crate) enum InferStreamResponse {
 
 #[derive(Debug)]
 pub(crate) struct InferResponse {
-    pub(crate) prefill: Vec<Token>,
+    pub(crate) prefill: Vec<PrefillToken>,
     pub(crate) tokens: Vec<Token>,
     pub(crate) generated_text: GeneratedText,
     pub(crate) queued: Instant,
@@ -405,4 +482,15 @@ pub enum InferError {
     ValidationError(#[from] ValidationError),
     #[error("Incomplete generation")]
     IncompleteGeneration,
+}
+
+impl InferError {
+    pub(crate) fn error_type(&self) -> &str {
+        match self {
+            InferError::GenerationError(_) => "generation",
+            InferError::Overloaded(_) => "overloaded",
+            InferError::ValidationError(_) => "validation",
+            InferError::IncompleteGeneration => "incomplete_generation",
+        }
+    }
 }

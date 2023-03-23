@@ -1,17 +1,20 @@
 /// HTTP Server logic
-use crate::infer::{InferError, InferStreamResponse};
+use crate::infer::{InferError, InferResponse, InferStreamResponse};
+use crate::validation::ValidationError;
 use crate::{
-    Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
-    Infer, StreamDetails, StreamResponse, Token, Validation,
+    BestOfSequence, CompatGenerateRequest, Details, ErrorResponse, FinishReason,
+    GenerateParameters, GenerateRequest, GenerateResponse, Infer, PrefillToken, StreamDetails,
+    StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{http, Json, Router};
 use axum_tracing_opentelemetry::opentelemetry_tracing_layer;
 use futures::Stream;
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use text_generation_client::ShardedClient;
@@ -19,29 +22,61 @@ use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::time::Instant;
 use tokio_stream::StreamExt;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+/// Compatibility route with api-inference and AzureML
+#[instrument(skip(infer))]
+async fn compat_generate(
+    default_return_full_text: Extension<bool>,
+    infer: Extension<Infer>,
+    req: Json<CompatGenerateRequest>,
+) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    let mut req = req.0;
+
+    // default return_full_text given the pipeline_tag
+    if req.parameters.return_full_text.is_none() {
+        req.parameters.return_full_text = Some(default_return_full_text.0)
+    }
+
+    // switch on stream
+    if req.stream {
+        Ok(generate_stream(infer, Json(req.into()))
+            .await
+            .into_response())
+    } else {
+        let (headers, generation) = generate(infer, Json(req.into())).await?;
+        // wrap generation inside a Vec to match api-inference
+        Ok((headers, Json(vec![generation.0])).into_response())
+    }
+}
 
 /// Health check method
 #[instrument(skip(infer))]
 async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
     // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
     //       be a bit too slow for a health check.
-    //       What we should do instead if check if the gRPC channels are still healthy.
+    //       What we should do instead is check if the gRPC channels are still healthy.
 
     // Send a small inference request
     infer
         .generate(GenerateRequest {
             inputs: "liveness".to_string(),
             parameters: GenerateParameters {
+                best_of: None,
                 temperature: None,
                 repetition_penalty: None,
                 top_k: None,
                 top_p: None,
+                typical_p: None,
                 do_sample: false,
                 max_new_tokens: 1,
+                return_full_text: None,
                 stop: Vec::new(),
+                truncate: None,
+                watermark: false,
                 details: false,
                 seed: None,
             },
@@ -57,15 +92,15 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
     path = "/generate",
     request_body = GenerateRequest,
     responses(
-        (status = 200, description = "Generated Text", body = [GenerateResponse]),
-        (status = 424, description = "Generation Error", body = [ErrorResponse],
-            example = json!({"error": "Request failed during generation"})),
-        (status = 429, description = "Model is overloaded", body = [ErrorResponse],
-            example = json!({"error": "Model is overloaded"})),
-        (status = 422, description = "Input validation error", body = [ErrorResponse],
-            example = json!({"error": "Input validation error"})),
-        (status = 500, description = "Incomplete generation", body = [ErrorResponse],
-            example = json!({"error": "Incomplete generation"})),
+        (status = 200, description = "Generated Text", body = GenerateResponse),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
+            example = json ! ({"error": "Request failed during generation"})),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
+            example = json ! ({"error": "Model is overloaded"})),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
+            example = json ! ({"error": "Input validation error"})),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
+            example = json ! ({"error": "Incomplete generation"})),
     )
 )]
 #[instrument(
@@ -82,23 +117,64 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
 async fn generate(
     infer: Extension<Infer>,
     req: Json<GenerateRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     let start_time = Instant::now();
 
-    // Inference
+    let compute_characters = req.0.inputs.chars().count();
+    let mut add_prompt = None;
+    if req.0.parameters.return_full_text.unwrap_or(false) {
+        add_prompt = Some(req.0.inputs.clone());
+    }
+
     let details = req.0.parameters.details;
-    let response = infer.generate(req.0).await?;
+
+    // Inference
+    let (response, best_of_responses) = match req.0.parameters.best_of {
+        Some(best_of) if best_of > 1 => {
+            let (response, best_of_responses) = infer.generate_best_of(req.0, best_of).await?;
+            (response, Some(best_of_responses))
+        }
+        _ => (infer.generate(req.0).await?, None),
+    };
 
     // Token details
     let details = match details {
-        true => Some(Details {
-            finish_reason: FinishReason::from(response.generated_text.finish_reason),
-            generated_tokens: response.generated_text.generated_tokens,
-            prefill: Some(response.prefill),
-            tokens: Some(response.tokens),
-            seed: response.generated_text.seed,
-        }),
+        true => {
+            // convert best_of_responses
+            let best_of_sequences = best_of_responses.map(|responses: Vec<InferResponse>| {
+                responses
+                    .into_iter()
+                    .map(|response: InferResponse| {
+                        // Add prompt if return_full_text
+                        let mut output_text = response.generated_text.text;
+                        if let Some(prompt) = &add_prompt {
+                            output_text = prompt.clone() + &output_text;
+                        }
+
+                        BestOfSequence {
+                            generated_text: output_text,
+                            finish_reason: FinishReason::from(
+                                response.generated_text.finish_reason,
+                            ),
+                            generated_tokens: response.generated_text.generated_tokens,
+                            prefill: response.prefill,
+                            tokens: response.tokens,
+                            seed: response.generated_text.seed,
+                        }
+                    })
+                    .collect()
+            });
+
+            Some(Details {
+                finish_reason: FinishReason::from(response.generated_text.finish_reason),
+                generated_tokens: response.generated_text.generated_tokens,
+                prefill: response.prefill,
+                tokens: response.tokens,
+                seed: response.generated_text.seed,
+                best_of_sequences,
+            })
+        }
         false => None,
     };
 
@@ -111,6 +187,15 @@ async fn generate(
 
     // Headers
     let mut headers = HeaderMap::new();
+    headers.insert("x-compute-type", "gpu+optimized".parse().unwrap());
+    headers.insert(
+        "x-compute-time",
+        total_time.as_millis().to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "x-compute-characters",
+        compute_characters.to_string().parse().unwrap(),
+    );
     headers.insert(
         "x-total-time",
         total_time.as_millis().to_string().parse().unwrap(),
@@ -141,9 +226,26 @@ async fn generate(
     span.record("seed", format!("{:?}", response.generated_text.seed));
     tracing::info!("Output: {}", response.generated_text.text);
 
+    // Metrics
+    metrics::increment_counter!("tgi_request_success");
+    metrics::histogram!("tgi_request_duration", total_time);
+    metrics::histogram!("tgi_request_validation_duration", validation_time);
+    metrics::histogram!("tgi_request_queue_duration", queue_time);
+    metrics::histogram!("tgi_request_inference_duration", inference_time);
+    metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token);
+    metrics::histogram!(
+        "tgi_request_generated_tokens",
+        response.generated_text.generated_tokens as f64
+    );
+
     // Send response
+    let mut output_text = response.generated_text.text;
+    if let Some(prompt) = add_prompt {
+        output_text = prompt + &output_text;
+    }
+
     let response = GenerateResponse {
-        generated_text: response.generated_text.text,
+        generated_text: output_text,
         details,
     };
     Ok((headers, Json(response)))
@@ -156,20 +258,20 @@ async fn generate(
     path = "/generate_stream",
     request_body = GenerateRequest,
     responses(
-        (status = 200, description = "Generated Text", body = [StreamResponse],
-            content_type="text/event-stream "),
-        (status = 424, description = "Generation Error", body = [ErrorResponse],
-            example = json!({"error": "Request failed during generation"}),
-            content_type="text/event-stream "),
-        (status = 429, description = "Model is overloaded", body = [ErrorResponse],
-            example = json!({"error": "Model is overloaded"}),
-            content_type="text/event-stream "),
-        (status = 422, description = "Input validation error", body = [ErrorResponse],
-            example = json!({"error": "Input validation error"}),
-            content_type="text/event-stream "),
-        (status = 500, description = "Incomplete generation", body = [ErrorResponse],
-            example = json!({"error": "Incomplete generation"}),
-            content_type="text/event-stream "),
+        (status = 200, description = "Generated Text", body = StreamResponse,
+            content_type = "text/event-stream"),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
+            example = json ! ({"error": "Request failed during generation"}),
+            content_type = "text/event-stream"),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
+            example = json ! ({"error": "Model is overloaded"}),
+            content_type = "text/event-stream"),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
+            example = json ! ({"error": "Input validation error"}),
+            content_type = "text/event-stream"),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
+            example = json ! ({"error": "Incomplete generation"}),
+            content_type = "text/event-stream"),
     )
 )]
 #[instrument(
@@ -186,118 +288,177 @@ async fn generate(
 async fn generate_stream(
     infer: Extension<Infer>,
     req: Json<GenerateRequest>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+) -> (
+    HeaderMap,
+    Sse<impl Stream<Item = Result<Event, Infallible>>>,
+) {
     let span = tracing::Span::current();
     let start_time = Instant::now();
+
+    let compute_characters = req.0.inputs.chars().count();
+
+    let mut headers = HeaderMap::new();
+    headers.insert("x-compute-type", "gpu+optimized".parse().unwrap());
+    headers.insert(
+        "x-compute-characters",
+        compute_characters.to_string().parse().unwrap(),
+    );
 
     let stream = async_stream::stream! {
         // Inference
         let mut end_reached = false;
         let mut error = false;
+
+        let mut add_prompt = None;
+        if req.0.parameters.return_full_text.unwrap_or(false) {
+            add_prompt = Some(req.0.inputs.clone());
+        }
         let details = req.0.parameters.details;
 
-        match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
-            Ok(mut response_stream) => {
-                // Server-Sent Event stream
-                while let Some(response) = response_stream.next().await {
-                    match response {
-                        Ok(response) => {
-                            match response {
-                                // Prefill is ignored
-                                InferStreamResponse::Prefill(_) => {}
-                                // Yield event for every new token
-                                InferStreamResponse::Token(token) => {
-                                    // StreamResponse
-                                    let stream_token = StreamResponse {
+        let best_of = req.0.parameters.best_of.unwrap_or(1);
+        if best_of == 1 {
+            match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
+                Ok(mut response_stream) => {
+                    // Server-Sent Event stream
+                    while let Some(response) = response_stream.next().await {
+                        match response {
+                            Ok(response) => {
+                                match response {
+                                    // Prefill is ignored
+                                    InferStreamResponse::Prefill(_) => {}
+                                    // Yield event for every new token
+                                    InferStreamResponse::Token(token) => {
+                                        // StreamResponse
+                                        let stream_token = StreamResponse {
+                                            token,
+                                            generated_text: None,
+                                            details: None,
+                                        };
+
+                                        yield Ok(Event::default().json_data(stream_token).unwrap())
+                                    }
+                                    // Yield event for last token and compute timings
+                                    InferStreamResponse::End {
                                         token,
-                                        generated_text: None,
-                                        details: None,
-                                    };
+                                        generated_text,
+                                        start,
+                                        queued,
+                                    } => {
+                                        // Token details
+                                        let details = match details {
+                                            true => Some(StreamDetails {
+                                                finish_reason: FinishReason::from(generated_text.finish_reason),
+                                                generated_tokens: generated_text.generated_tokens,
+                                                seed: generated_text.seed,
+                                            }),
+                                            false => None,
+                                        };
 
-                                    yield Ok(Event::default().json_data(stream_token).unwrap())
-                                }
-                                // Yield event for last token and compute timings
-                                InferStreamResponse::End {
-                                    token,
-                                    generated_text,
-                                    start,
-                                    queued,
-                                } => {
-                                    // Token details
-                                    let details = match details {
-                                        true => Some(StreamDetails {
-                                            finish_reason: FinishReason::from(generated_text.finish_reason),
-                                            generated_tokens: generated_text.generated_tokens,
-                                            seed: generated_text.seed,
-                                        }),
-                                        false => None,
-                                    };
+                                        // Timings
+                                        let total_time = start_time.elapsed();
+                                        let validation_time = queued - start_time;
+                                        let queue_time = start - queued;
+                                        let inference_time = Instant::now() - start;
+                                        let time_per_token = inference_time / generated_text.generated_tokens;
 
-                                    // Timings
-                                    let total_time = start_time.elapsed();
-                                    let validation_time = queued - start_time;
-                                    let queue_time = start - queued;
-                                    let inference_time = Instant::now() - start;
-                                    let time_per_token = inference_time / generated_text.generated_tokens;
+                                        // Tracing metadata
+                                        span.record("total_time", format!("{total_time:?}"));
+                                        span.record("validation_time", format!("{validation_time:?}"));
+                                        span.record("queue_time", format!("{queue_time:?}"));
+                                        span.record("inference_time", format!("{inference_time:?}"));
+                                        span.record("time_per_token", format!("{time_per_token:?}"));
+                                        span.record("seed", format!("{:?}", generated_text.seed));
+                                        tracing::info!(parent: &span, "Output: {}", generated_text.text);
 
-                                    // Tracing metadata
-                                    span.record("total_time", format!("{:?}", total_time));
-                                    span.record("validation_time", format!("{:?}", validation_time));
-                                    span.record("queue_time", format!("{:?}", queue_time));
-                                    span.record("inference_time", format!("{:?}", inference_time));
-                                    span.record("time_per_token", format!("{:?}", time_per_token));
-                                    span.record("seed", format!("{:?}", generated_text.seed));
-                                    tracing::info!(parent: &span, "Output: {}", generated_text.text);
+                                        // Metrics
+                                        metrics::increment_counter!("tgi_request_success");
+                                        metrics::histogram!("tgi_request_duration", total_time);
+                                        metrics::histogram!("tgi_request_validation_duration", validation_time);
+                                        metrics::histogram!("tgi_request_queue_duration", queue_time);
+                                        metrics::histogram!("tgi_request_inference_duration", inference_time);
+                                        metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token);
+                                        metrics::histogram!("tgi_request_generated_tokens", generated_text.generated_tokens as f64);
 
-                                    // StreamResponse
-                                    end_reached = true;
-                                    let stream_token = StreamResponse {
-                                        token,
-                                        generated_text: Some(generated_text.text),
-                                        details
-                                    };
+                                        // StreamResponse
+                                        end_reached = true;
 
-                                    yield Ok(Event::default().json_data(stream_token).unwrap())
+                                        let mut output_text = generated_text.text;
+                                        if let Some(prompt) = add_prompt {
+                                            output_text = prompt + &output_text;
+                                        }
+
+                                        let stream_token = StreamResponse {
+                                            token,
+                                            generated_text: Some(output_text),
+                                            details
+                                        };
+
+                                        yield Ok(Event::default().json_data(stream_token).unwrap());
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                        // yield error
-                        Err(err) => {
-                            error = true;
-                            yield Ok(Event::from(err))
+                            // yield error
+                            Err(err) => {
+                                error = true;
+                                yield Ok(Event::from(err));
+                                break;
+                            }
                         }
                     }
+                },
+                // yield error
+                Err(err) => {
+                    error = true;
+                    yield Ok(Event::from(err));
                 }
-            },
-            // yield error
-            Err(err) => {
-                error = true;
-                yield Ok(Event::from(err))
             }
-        }
-        // Check if generation reached the end
-        // Skip if we already sent an error
-        if !end_reached && !error {
-            let err = InferError::IncompleteGeneration;
+            // Check if generation reached the end
+            // Skip if we already sent an error
+            if !end_reached && !error {
+                let err = InferError::IncompleteGeneration;
+                metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
+                tracing::error!("{err}");
+                yield Ok(Event::from(err));
+            }
+        } else {
+            let err = InferError::from(ValidationError::BestOfStream);
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
             tracing::error!("{err}");
-            yield Ok(Event::from(err))
+            yield Ok(Event::from(err));
         }
     };
 
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    (headers, Sse::new(stream).keep_alive(KeepAlive::default()))
+}
+
+/// Prometheus metrics scrape endpoint
+#[utoipa::path(
+    get,
+    tag = "Text Generation Inference",
+    path = "/metrics",
+    responses((status = 200, description = "Prometheus Metrics", body = String))
+)]
+async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
+    prom_handle.render()
 }
 
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
+    compat_return_full_text: bool,
     max_concurrent_requests: usize,
+    max_best_of: usize,
+    max_stop_sequences: usize,
     max_input_length: usize,
+    max_total_tokens: usize,
     max_batch_size: usize,
     max_waiting_tokens: usize,
     client: ShardedClient,
     tokenizer: Tokenizer,
     validation_workers: usize,
     addr: SocketAddr,
+    allow_origin: Option<AllowOrigin>,
 ) {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -305,13 +466,16 @@ pub async fn run(
         paths(
             generate,
             generate_stream,
+            metrics,
         ),
         components(
             schemas(
                 GenerateRequest,
                 GenerateParameters,
+                PrefillToken,
                 Token,
                 GenerateResponse,
+                BestOfSequence,
                 Details,
                 FinishReason,
                 StreamResponse,
@@ -333,7 +497,14 @@ pub async fn run(
     struct ApiDoc;
 
     // Create state
-    let validation = Validation::new(validation_workers, tokenizer, max_input_length);
+    let validation = Validation::new(
+        validation_workers,
+        tokenizer,
+        max_best_of,
+        max_stop_sequences,
+        max_input_length,
+        max_total_tokens,
+    );
     let infer = Infer::new(
         client,
         validation,
@@ -342,16 +513,33 @@ pub async fn run(
         max_concurrent_requests,
     );
 
+    // Prometheus handler
+    let builder = PrometheusBuilder::new();
+    let prom_handle = builder
+        .install_recorder()
+        .expect("failed to install metrics recorder");
+
+    // CORS layer
+    let allow_origin = allow_origin.unwrap_or(AllowOrigin::any());
+    let cors_layer = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([http::header::CONTENT_TYPE])
+        .allow_origin(allow_origin);
+
     // Create router
     let app = Router::new()
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
-        .route("/", post(generate))
+        .route("/", post(compat_generate))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/", get(health))
         .route("/health", get(health))
+        .route("/metrics", get(metrics))
+        .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
-        .layer(opentelemetry_tracing_layer());
+        .layer(Extension(prom_handle))
+        .layer(opentelemetry_tracing_layer())
+        .layer(cors_layer);
 
     // Run server
     axum::Server::bind(&addr)
@@ -415,6 +603,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             status_code,
             Json(ErrorResponse {
                 error: err.to_string(),
+                error_type: err.error_type().to_string(),
             }),
         )
     }
@@ -425,6 +614,7 @@ impl From<InferError> for Event {
         Event::default()
             .json_data(ErrorResponse {
                 error: err.to_string(),
+                error_type: err.error_type().to_string(),
             })
             .unwrap()
     }

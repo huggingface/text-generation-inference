@@ -39,27 +39,30 @@ to power LLMs api-inference widgets.
   
 ## Features
 
+- Serve the most popular Large Language Models with a simple launcher
+- Tensor Parallelism for faster inference on multiple GPUs
 - Token streaming using Server-Sent Events (SSE)
 - [Dynamic batching of incoming requests](https://github.com/huggingface/text-generation-inference/blob/main/router/src/batcher.rs#L88) for increased total throughput
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
-- 45ms per token generation for BLOOM with 8xA100 80GB
+- Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 - Logits warpers (temperature scaling, topk, repetition penalty ...)
 - Stop sequences
 - Log probabilities
-- Distributed tracing with Open Telemetry
+- Production ready (distributed tracing with Open Telemetry, Prometheus metrics)
 
-## Officially supported models
+## Officially supported architectures
 
 - [BLOOM](https://huggingface.co/bigscience/bloom)
 - [BLOOMZ](https://huggingface.co/bigscience/bloomz)
 - [MT0-XXL](https://huggingface.co/bigscience/mt0-xxl)
-- ~~[Galactica](https://huggingface.co/facebook/galactica-120b)~~ (deactivated)
+- [Galactica](https://huggingface.co/facebook/galactica-120b)
 - [SantaCoder](https://huggingface.co/bigcode/santacoder)
 - [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - [FLAN-T5-XXL](https://huggingface.co/google/flan-t5-xxl)
+- [FLAN-UL2](https://huggingface.co/google/flan-ul2)
 
-Other models are supported on a best effort basis using:
+Other architectures are supported on a best effort basis using:
 
 `AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
 
@@ -80,24 +83,42 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --num-shard $num_shard
 ```
+**Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 11.8 or higher.
 
 You can then query the model using either the `/generate` or `/generate_stream` routes:
 
 ```shell
 curl 127.0.0.1:8080/generate \
     -X POST \
-    -d '{"inputs":"Testing API","parameters":{"max_new_tokens":9}}' \
+    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":17}}' \
     -H 'Content-Type: application/json'
 ```
 
 ```shell
 curl 127.0.0.1:8080/generate_stream \
     -X POST \
-    -d '{"inputs":"Testing API","parameters":{"max_new_tokens":9}}' \
+    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":17}}' \
     -H 'Content-Type: application/json'
 ```
 
-**Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 11.8 or higher.
+or from Python:
+
+```shell
+pip install text-generation
+```
+
+```python
+from text_generation import Client
+
+client = Client("http://127.0.0.1:8080")
+print(client.generate("What is Deep Learning?", max_new_tokens=17).generated_text)
+
+text = ""
+for response in client.generate_stream("What is Deep Learning?", max_new_tokens=17):
+    if not response.token.special:
+        text += response.token.text
+print(text)
+```
 
 ### API documentation
 
@@ -191,7 +212,7 @@ Be aware that the official Docker image has them enabled by default.
 
 ### Download
 
-First you need to download the weights:
+It is advised to download the weights ahead of time with the following command:
 
 ```shell
 make download-bloom

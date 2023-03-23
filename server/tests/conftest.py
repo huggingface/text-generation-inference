@@ -1,6 +1,6 @@
 import pytest
 
-from text_generation.pb import generate_pb2
+from text_generation_server.pb import generate_pb2
 
 
 @pytest.fixture
@@ -10,6 +10,7 @@ def default_pb_parameters():
         repetition_penalty=1.0,
         top_k=0,
         top_p=1.0,
+        typical_p=1.0,
         do_sample=False,
     )
 

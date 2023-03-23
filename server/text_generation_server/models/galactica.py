@@ -2,7 +2,7 @@ import re
 import torch
 import torch.distributed
 
-from typing import List, Optional, Type
+from typing import List, Optional, Type, Tuple
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
@@ -18,15 +18,14 @@ from transformers.models.opt.parallel_layers import (
     TensorParallelRowLinear,
 )
 
-from text_generation.models import CausalLM
-from text_generation.pb import generate_pb2
-from text_generation.models.causal_lm import CausalLMBatch
-from text_generation.utils import (
+from text_generation_server.models import CausalLM
+from text_generation_server.pb import generate_pb2
+from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.utils import (
     NextTokenChooser,
     StoppingCriteria,
     initialize_torch_distributed,
     weight_files,
-    download_weights,
 )
 
 HAS_BITS_AND_BYTES = True
@@ -97,24 +96,37 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         input_lengths = []
 
         # Parse batch
+        max_sequence_length = 0
+        padding_right_offset = 0
         for r in pb.requests:
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
             input_lengths.append(r.input_length)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
-            stopping_criterias.append(
-                StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
+            stopping_criteria = StoppingCriteria.from_pb(
+                r.stopping_parameters, tokenizer
+            )
+            stopping_criterias.append(stopping_criteria)
+            max_sequence_length = max(max_sequence_length, r.input_length)
+            padding_right_offset = max(
+                padding_right_offset, stopping_criteria.max_new_tokens
             )
 
         # Tokenize batch
-        pad_to_multiple_of = 8 if device.type == "cuda" else None
         tokenized_inputs = tokenizer(
             inputs,
             return_tensors="pt",
             padding=True,
-            pad_to_multiple_of=pad_to_multiple_of,
             return_token_type_ids=False,
         ).to(device)
+        input_ids = tokenized_inputs["input_ids"]
+        # Allocate maximum attention_mask
+        attention_mask = input_ids.new_zeros(
+            (pb.size, max_sequence_length + padding_right_offset)
+        )
+        # Copy tokenizer attention_mask into fully allocated attention_mask
+        attention_mask[:, :max_sequence_length] = tokenized_inputs["attention_mask"]
+
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
@@ -122,8 +134,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         return cls(
             batch_id=pb.id,
             requests=pb.requests,
-            input_ids=tokenized_inputs["input_ids"],
-            attention_mask=tokenized_inputs["attention_mask"],
+            input_ids=input_ids,
+            attention_mask=attention_mask,
             position_ids=position_ids,
             past_key_values=None,
             all_input_ids=all_input_ids,
@@ -131,7 +143,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=pb.size,
-            max_sequence_length=max(input_lengths),
+            max_sequence_length=max_sequence_length,
+            padding_right_offset=padding_right_offset,
         )
 
 
@@ -146,14 +159,25 @@ class Galactica(CausalLM):
             generated_ids, skip_special_tokens=False, cleanup_tokenization_spaces=False
         )
 
+    def forward(
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
+        """Overwrite forward to ignore position_ids"""
+
+        # Model Forward
+        outputs = self.model.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
+        return outputs.logits, outputs.past_key_values
+
 
 class GalacticaSharded(Galactica):
     def __init__(
         self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
-        if not model_id.startswith("facebook/galactica"):
-            raise ValueError(f"Model {model_id} is not supported")
-
         self.process_group, self.rank, self.world_size = initialize_torch_distributed()
         self.master = self.rank == 0
         if torch.cuda.is_available():
@@ -172,14 +196,8 @@ class GalacticaSharded(Galactica):
         )
         tokenizer.pad_token_id = config.pad_token_id
 
-        # Only download weights for small models
-        if self.master and model_id == "facebook/galactica-125m":
-            download_weights(model_id, revision=revision, extension=".safetensors")
-
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-        if not filenames:
-            raise ValueError("No safetensors weights found")
 
         with init_empty_weights():
             model = AutoModelForCausalLM.from_config(config)
@@ -329,7 +347,6 @@ class GalacticaSharded(Galactica):
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            position_ids=position_ids,
             past_key_values=past_key_values,
             use_cache=True,
         )

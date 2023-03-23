@@ -1,10 +1,10 @@
 import torch
 import torch.distributed
 
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from text_generation.models import CausalLM
+from text_generation_server.models import CausalLM
 
 FIM_PREFIX = "<fim-prefix>"
 FIM_MIDDLE = "<fim-middle>"

@@ -34,12 +34,16 @@ message NextTokenChooserParameters {
     uint32 top_k = 2;
     /// restricting to top tokens summing to prob_cut_off <= prob_cut_off
     float top_p = 3;
+    /// restricting to top tokens summing to prob_cut_off <= prob_cut_off
+    float typical_p = 4;
     /// apply sampling on the logits
-    bool do_sample = 4;
+    bool do_sample = 5;
     /// random seed for sampling
-    uint64 seed = 5;
+    uint64 seed = 6;
     /// repetition penalty
-    float repetition_penalty = 6;
+    float repetition_penalty = 7;
+    /// token watermarking using "A Watermark for Large Language Models"
+    bool watermark = 8;
 }
 
 message StoppingCriteriaParameters {
@@ -54,12 +58,10 @@ message Request {
     uint64 id = 1;
     /// The generation context
     string inputs = 2;
-    /// The number of tokens inside inputs
-    uint32 input_length = 3;
     /// Next Token Chooser Parameters
-    NextTokenChooserParameters parameters = 4;
+    NextTokenChooserParameters parameters = 3;
     /// Stopping Criteria Parameters
-    StoppingCriteriaParameters stopping_parameters = 5;
+    StoppingCriteriaParameters stopping_parameters = 4;
 }
 
 message Batch {
@@ -108,8 +110,10 @@ message Generation {
     float token_logprob = 4;
     /// Text
     string token_text = 5;
+    /// Is it a special token
+    bool token_is_special = 6;
     /// Complete generated text
-    GeneratedText generated_text = 6;
+    GeneratedText generated_text = 7;
 }
 
 message PrefillRequest {

@@ -1,122 +1,142 @@
 {
+  "generated_text": ".get(\"action\");\n        if (action == null) {\n            throw new RuntimeException",
   "details": {
     "finish_reason": "length",
     "generated_tokens": 20,
+    "seed": null,
     "prefill": [
       {
         "id": 10264,
-        "logprob": null,
-        "text": "Test"
+        "text": "Test",
+        "logprob": null
       },
       {
         "id": 8821,
-        "logprob": -11.894989,
-        "text": " request"
+        "text": " request",
+        "logprob": -11.894989
       }
     ],
-    "seed": null,
     "tokens": [
       {
         "id": 17,
+        "text": ".",
         "logprob": -1.8267672,
-        "text": "."
+        "special": false
       },
       {
         "id": 1587,
+        "text": "get",
         "logprob": -2.4674969,
-        "text": "get"
+        "special": false
       },
       {
         "id": 11,
+        "text": "(",
         "logprob": -1.906001,
-        "text": "("
+        "special": false
       },
       {
         "id": 5,
+        "text": "\"",
         "logprob": -1.2279545,
-        "text": "\""
+        "special": false
       },
       {
         "id": 4899,
+        "text": "action",
         "logprob": -4.170299,
-        "text": "action"
+        "special": false
       },
       {
         "id": 5,
+        "text": "\"",
         "logprob": -0.32478866,
-        "text": "\""
+        "special": false
       },
       {
         "id": 12,
+        "text": ")",
         "logprob": -1.0773665,
-        "text": ")"
+        "special": false
       },
       {
         "id": 30,
+        "text": ";",
         "logprob": -0.27640742,
-        "text": ";"
+        "special": false
       },
       {
         "id": 837,
+        "text": "\n       ",
         "logprob": -1.6970354,
-        "text": "\n       "
+        "special": false
       },
       {
         "id": 1320,
+        "text": " if",
         "logprob": -1.4495516,
-        "text": " if"
+        "special": false
       },
       {
         "id": 375,
+        "text": " (",
         "logprob": -0.23609057,
-        "text": " ("
+        "special": false
       },
       {
         "id": 4899,
+        "text": "action",
         "logprob": -1.1916996,
-        "text": "action"
+        "special": false
       },
       {
         "id": 3535,
+        "text": " ==",
         "logprob": -0.8918753,
-        "text": " =="
+        "special": false
       },
       {
         "id": 5109,
+        "text": " null",
         "logprob": -0.3933342,
-        "text": " null"
+        "special": false
       },
       {
         "id": 12,
+        "text": ")",
         "logprob": -0.43212673,
-        "text": ")"
+        "special": false
       },
       {
         "id": 731,
+        "text": " {",
         "logprob": -0.17702064,
-        "text": " {"
+        "special": false
       },
       {
         "id": 1260,
+        "text": "\n           ",
         "logprob": -0.07027565,
-        "text": "\n           "
+        "special": false
       },
       {
         "id": 10519,
+        "text": " throw",
         "logprob": -1.3915029,
-        "text": " throw"
+        "special": false
       },
       {
         "id": 2084,
+        "text": " new",
         "logprob": -0.04201372,
-        "text": " new"
+        "special": false
       },
       {
         "id": 150858,
+        "text": " RuntimeException",
         "logprob": -1.7329919,
-        "text": " RuntimeException"
+        "special": false
       }
     ]
-  },
-  "generated_text": ".get(\"action\");\n        if (action == null) {\n            throw new RuntimeException"
+  }
 }

@@ -1,4 +1,5 @@
 /// Text Generation Inference webserver entrypoint
+use axum::http::HeaderValue;
 use clap::Parser;
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use opentelemetry::sdk::trace;
@@ -7,9 +8,11 @@ use opentelemetry::sdk::Resource;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::Path;
 use text_generation_client::ShardedClient;
 use text_generation_router::server;
 use tokenizers::Tokenizer;
+use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -20,8 +23,14 @@ use tracing_subscriber::{EnvFilter, Layer};
 struct Args {
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
+    #[clap(default_value = "2", long, env)]
+    max_best_of: usize,
+    #[clap(default_value = "4", long, env)]
+    max_stop_sequences: usize,
     #[clap(default_value = "1000", long, env)]
     max_input_length: usize,
+    #[clap(default_value = "1512", long, env)]
+    max_total_tokens: usize,
     #[clap(default_value = "32", long, env)]
     max_batch_size: usize,
     #[clap(default_value = "20", long, env)]
@@ -38,6 +47,8 @@ struct Args {
     json_output: bool,
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
+    #[clap(long, env)]
+    cors_allow_origin: Option<Vec<String>>,
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -46,7 +57,10 @@ fn main() -> Result<(), std::io::Error> {
     // Pattern match configuration
     let Args {
         max_concurrent_requests,
+        max_best_of,
+        max_stop_sequences,
         max_input_length,
+        max_total_tokens,
         max_batch_size,
         max_waiting_tokens,
         port,
@@ -55,17 +69,37 @@ fn main() -> Result<(), std::io::Error> {
         validation_workers,
         json_output,
         otlp_endpoint,
+        cors_allow_origin,
     } = args;
 
     if validation_workers == 0 {
         panic!("validation_workers must be > 0");
     }
 
-    // Download and instantiate tokenizer
+    // CORS allowed origins
+    // map to go inside the option and then map to parse from String to HeaderValue
+    // Finally, convert to AllowOrigin
+    let cors_allow_origin: Option<AllowOrigin> = cors_allow_origin.map(|cors_allow_origin| {
+        AllowOrigin::list(
+            cors_allow_origin
+                .iter()
+                .map(|origin| origin.parse::<HeaderValue>().unwrap()),
+        )
+    });
+
+    // Tokenizer instance
     // This will only be used to validate payloads
-    //
-    // We need to download it outside of the Tokio runtime
-    let tokenizer = Tokenizer::from_pretrained(tokenizer_name, None).unwrap();
+    let local_path = Path::new(&tokenizer_name);
+    let tokenizer =
+        if local_path.exists() && local_path.is_dir() && local_path.join("tokenizer.json").exists()
+        {
+            // Load local tokenizer
+            Tokenizer::from_file(local_path.join("tokenizer.json")).unwrap()
+        } else {
+            // Download and instantiate tokenizer
+            // We need to download it outside of the Tokio runtime
+            Tokenizer::from_pretrained(tokenizer_name.clone(), None).unwrap()
+        };
 
     // Launch Tokio runtime
     tokio::runtime::Builder::new_multi_thread()
@@ -74,6 +108,27 @@ fn main() -> Result<(), std::io::Error> {
         .unwrap()
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
+
+            // Get pipeline tag
+            let model_info = reqwest::get(format!(
+                "https://huggingface.co/api/models/{tokenizer_name}"
+            ))
+            .await
+            .expect("Could not connect to hf.co")
+            .text()
+            .await
+            .expect("error when retrieving model info from hf.co");
+            let model_info: serde_json::Value =
+                serde_json::from_str(&model_info).expect("unable to parse model info");
+
+            // if pipeline-tag == text-generation we default to return_full_text = true
+            let compat_return_full_text = match model_info.get("pipeline_tag") {
+                None => {
+                    tracing::warn!("no pipeline tag found for model {tokenizer_name}");
+                    false
+                }
+                Some(pipeline_tag) => pipeline_tag.as_str() == Some("text-generation"),
+            };
 
             // Instantiate sharded client from the master unix socket
             let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
@@ -91,14 +146,19 @@ fn main() -> Result<(), std::io::Error> {
 
             // Run server
             server::run(
+                compat_return_full_text,
                 max_concurrent_requests,
+                max_best_of,
+                max_stop_sequences,
                 max_input_length,
+                max_total_tokens,
                 max_batch_size,
                 max_waiting_tokens,
                 sharded_client,
                 tokenizer,
                 validation_workers,
                 addr,
+                cors_allow_origin,
             )
             .await;
             Ok(())

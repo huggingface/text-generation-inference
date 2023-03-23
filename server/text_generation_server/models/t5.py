@@ -16,11 +16,10 @@ from transformers.models.t5.parallel_layers import (
     TensorParallelRowLinear,
 )
 
-from text_generation.models import Seq2SeqLM
-from text_generation.utils import (
+from text_generation_server.models import Seq2SeqLM
+from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
-    download_weights,
 )
 
 HAS_BITS_AND_BYTES = True
@@ -53,14 +52,8 @@ class T5Sharded(Seq2SeqLM):
         )
         tokenizer.bos_token_id = config.decoder_start_token_id
 
-        # Only master download weights
-        if self.master:
-            download_weights(model_id, revision=revision, extension=".safetensors")
-
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-        if not filenames:
-            raise ValueError("No safetensors weights found")
 
         with init_empty_weights():
             model = AutoModelForSeq2SeqLM.from_config(config)
@@ -228,14 +221,6 @@ class T5Sharded(Seq2SeqLM):
         List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
     ]:
         # Model Forward
-        if past_key_values is not None:
-            decoder_input_ids = decoder_input_ids[:, -1].unsqueeze(-1)
-
-        # Wrap `encoder_last_hidden_state` because for some reason, Transformers does a `encoder_last_hidden_state[0]`
-        # internally...
-        if encoder_last_hidden_state is not None:
-            encoder_last_hidden_state = [encoder_last_hidden_state]
-
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
