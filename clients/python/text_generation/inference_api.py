@@ -92,7 +92,9 @@ class InferenceAPIClient(Client):
         )
         base_url = f"{INFERENCE_ENDPOINT}/models/{repo_id}"
 
-        super(InferenceAPIClient, self).__init__(base_url, headers, timeout)
+        super(InferenceAPIClient, self).__init__(
+            base_url, headers=headers, timeout=timeout
+        )
 
 
 class InferenceAPIAsyncClient(AsyncClient):
@@ -147,4 +149,6 @@ class InferenceAPIAsyncClient(AsyncClient):
         )
         base_url = f"{INFERENCE_ENDPOINT}/models/{repo_id}"
 
-        super(InferenceAPIAsyncClient, self).__init__(base_url, headers, timeout)
+        super(InferenceAPIAsyncClient, self).__init__(
+            base_url, headers=headers, timeout=timeout
+        )
