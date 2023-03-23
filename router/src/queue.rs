@@ -8,6 +8,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
+use crate::decoder::IncrementalDecoderWrapper;
 
 /// Queue entry
 #[derive(Debug)]
@@ -24,6 +25,10 @@ pub(crate) struct Entry {
     pub queue_time: Instant,
     /// Instant when this entry was added to a batch
     pub batch_time: Option<Instant>,
+    /// Count of generated tokens
+    pub generated_tokens: u32,
+    /// Accumulates output text
+    pub output: Option<IncrementalDecoderWrapper>,
     /// Permit
     pub _permit: OwnedSemaphorePermit,
 }
@@ -175,7 +180,7 @@ impl State {
                     id,
                     inputs: entry.request.inputs.clone(),
                     parameters: Some(entry.request.parameters.clone()),
-                    stopping_parameters: Some(entry.request.stopping_parameters.clone()),
+                    max_new_tokens: entry.request.stopping_criteria.max_new_tokens,
                 });
                 // Set batch_time
                 entry.batch_time = Some(Instant::now());
@@ -246,6 +251,8 @@ mod tests {
             temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
+            generated_tokens: 0,
+            output: None,
             _permit: permit,
         }
     }

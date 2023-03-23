@@ -1,3 +1,5 @@
+from operator import itemgetter
+
 import torch
 import torch.distributed
 
@@ -8,7 +10,7 @@ from dataclasses import dataclass
 from opentelemetry import trace
 from safetensors import safe_open
 from transformers import AutoTokenizer, PreTrainedTokenizerBase, AutoConfig
-from typing import Optional, Tuple, List, Type, Union
+from typing import Optional, Tuple, List, Type
 
 from text_generation_server.models import Model
 from text_generation_server.models.flash_neox_modeling import (
@@ -21,13 +23,10 @@ from text_generation_server.models.types import (
     Batch,
     PrefillTokens,
     Generation,
-    GeneratedText,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import (
     NextTokenChooser,
-    StoppingCriteria,
-    Sampling,
     initialize_torch_distributed,
     weight_files,
 )
@@ -57,12 +56,14 @@ class FlashNeoXBatch(Batch):
 
     # Generation helpers
     next_token_choosers: List[NextTokenChooser]
-    stopping_criterias: List[StoppingCriteria]
 
     def to_pb(self) -> generate_pb2.Batch:
         return generate_pb2.Batch(
             id=self.batch_id, requests=self.requests, size=len(self)
         )
+
+    def get_id(self) -> int:
+        return self.batch_id
 
     @classmethod
     def from_pb(
@@ -81,7 +82,6 @@ class FlashNeoXBatch(Batch):
         all_input_ids_tensor = []
 
         next_token_choosers = []
-        stopping_criterias = []
 
         # Cumulative length
         cumulative_length = 0
@@ -104,12 +104,8 @@ class FlashNeoXBatch(Batch):
             cu_seqlens.append(cumulative_length + input_length)
 
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
-            stopping_criteria = StoppingCriteria.from_pb(
-                r.stopping_parameters, tokenizer
-            )
-            stopping_criterias.append(stopping_criteria)
             all_input_ids_tensor.append(
-                F.pad(tokenized_input, (0, stopping_criteria.max_new_tokens))
+                F.pad(tokenized_input, (0, r.max_new_tokens))
             )
 
             # Update
@@ -131,7 +127,6 @@ class FlashNeoXBatch(Batch):
             all_input_ids=all_input_ids,
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
-            stopping_criterias=stopping_criterias,
         )
 
     @classmethod
@@ -143,7 +138,6 @@ class FlashNeoXBatch(Batch):
         all_input_ids = []
         all_input_ids_tensor = []
         next_token_choosers = []
-        stopping_criterias = []
 
         # Batch tensors
         input_ids = []
@@ -161,7 +155,6 @@ class FlashNeoXBatch(Batch):
             all_input_ids.extend(batch.all_input_ids)
             all_input_ids_tensor.extend(batch.all_input_ids_tensor)
             next_token_choosers.extend(batch.next_token_choosers)
-            stopping_criterias.extend(batch.stopping_criterias)
 
             # Add cumulative lengths of all previous inputs
             cu_seqlens.append(batch.cu_seqlens[1:] + cumulative_length)
@@ -193,11 +186,44 @@ class FlashNeoXBatch(Batch):
             all_input_ids=all_input_ids,
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
-            stopping_criterias=stopping_criterias,
         )
 
     def __len__(self):
         return len(self.requests)
+
+    @classmethod
+    def prune(cls, batch: "FlashNeoXBatch", completed_ids: List[int]) -> Optional["FlashNeoXBatch"]:
+        """Prune completed entries from a batch"""
+
+        if not completed_ids:
+            # Nothing to prune
+            return batch
+
+        # Compile list of indices to retain
+        keep_indices = Model.get_indices_to_keep(batch.requests, completed_ids)
+        new_size = len(keep_indices)
+
+        # If the whole batch has finished, discard it
+        if new_size == 0:
+            return None
+
+        #TODO maybe a single loop for all these list slices
+        slice_list = itemgetter(*keep_indices) if new_size > 1 else lambda l: (l[keep_indices[0]],)
+        batch.input_lengths = slice_list(batch.input_lengths)
+        batch.requests = slice_list(batch.requests)
+        batch.all_input_ids = slice_list(batch.all_input_ids)
+        batch.next_token_choosers = slice_list(batch.next_token_choosers)
+        batch.all_input_ids_tensor = slice_list(batch.all_input_ids_tensor)
+
+        batch.max_seqlen = max(batch.input_lengths)
+
+        batch.input_ids = batch.input_ids[keep_indices]
+        batch.position_ids = batch.position_ids[keep_indices]
+        batch.past_key_values = batch.past_key_values[:, keep_indices] \
+            if batch.past_key_values is not None else None
+        batch.cu_seqlens = batch.cu_seqlens[keep_indices]
+
+        return batch
 
 
 class FlashNeoX(Model):
@@ -238,11 +264,6 @@ class FlashNeoX(Model):
     def batch_type(self) -> Type[FlashNeoXBatch]:
         return FlashNeoXBatch
 
-    def decode(self, generated_ids: Union[torch.Tensor, List[int]]) -> str:
-        return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=True, cleanup_tokenization_spaces=False
-        )
-
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -261,9 +282,7 @@ class FlashNeoX(Model):
         )
 
     @tracer.start_as_current_span("generate_token")
-    def generate_token(
-        self, batch: FlashNeoXBatch
-    ) -> Tuple[List[Generation], Optional[FlashNeoXBatch]]:
+    def generate_token(self, batch: FlashNeoXBatch, prefill: bool = False) -> List[Generation]:
         # Better to send to device here to avoid device issues in concatenate
         position_ids = batch.position_ids.to(self.device, non_blocking=True)
         cu_seqlens = batch.cu_seqlens.to(self.device)
@@ -276,14 +295,10 @@ class FlashNeoX(Model):
             batch.past_key_values,
         )
 
-        # List of indices to cache
-        next_batch_keep_indices = []
-
         # New values for next forward
         next_batch_input_ids = []
         next_batch_position_ids = []
         next_batch_cu_seqlens = [0]
-        next_batch_max_seqlen = 0
         next_batch_past_key_values = []
         next_batch_input_lengths = []
         next_batch_all_input_ids = []
@@ -300,7 +315,6 @@ class FlashNeoX(Model):
             batch.requests,
             batch.input_lengths,
             batch.next_token_choosers,
-            batch.stopping_criterias,
             batch.all_input_ids,
             batch.all_input_ids_tensor,
         )
@@ -310,7 +324,6 @@ class FlashNeoX(Model):
             request,
             input_length,
             next_token_chooser,
-            stopping_criteria,
             all_input_ids,
             all_input_ids_tensor,
         ) in enumerate(iterator):
@@ -341,67 +354,31 @@ class FlashNeoX(Model):
 
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id_item]
-            next_token_text = self.decode_token(
-                next_token_id_item,
+
+            # Get sequence present
+            seq_present = present[:, start_index:end_index]
+            # Pad it for next iter attention
+            past = torch.nn.functional.pad(seq_present, (0, 0, 0, 0, 0, 0, 0, 1))
+            next_batch_past_key_values.append(past)
+
+            next_batch_input_ids.append(next_token_id)
+            next_batch_position_ids.append(input_length)
+            # Cumulative sum
+            next_batch_cu_seqlens.append(
+                next_batch_cu_seqlens[-1] + new_input_length
             )
-
-            # Evaluate stopping criteria
-            stop, reason = stopping_criteria(
-                next_token_id_item,
-                next_token_text,
-            )
-
-            if stop:
-                # Decode generated tokens
-                output_text = self.decode(
-                    all_input_ids[-stopping_criteria.current_tokens :]
-                )
-                # Get seed
-                if isinstance(next_token_chooser.choice, Sampling):
-                    seed = next_token_chooser.choice.seed
-                else:
-                    seed = None
-
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
-                )
-            else:
-                # Keep request in the batch
-                next_batch_keep_indices.append(i)
-                generated_text = None
-
-                # Get sequence present
-                seq_present = present[:, start_index:end_index]
-                # Pad it for next iter attention
-                past = torch.nn.functional.pad(seq_present, (0, 0, 0, 0, 0, 0, 0, 1))
-                next_batch_past_key_values.append(past)
-
-                next_batch_input_ids.append(next_token_id)
-                next_batch_position_ids.append(input_length)
-                # Cumulative sum
-                next_batch_cu_seqlens.append(
-                    next_batch_cu_seqlens[-1] + new_input_length
-                )
-                next_batch_input_lengths.append(new_input_length)
-                next_batch_all_input_ids.append(all_input_ids)
-                next_batch_all_input_ids_tensor.append(all_input_ids_tensor)
-                next_batch_max_seqlen = max(next_batch_max_seqlen, new_input_length)
+            next_batch_input_lengths.append(new_input_length)
+            next_batch_all_input_ids.append(all_input_ids)
+            next_batch_all_input_ids_tensor.append(all_input_ids_tensor)
 
             # Prefill
-            if stopping_criteria.current_tokens == 1:
+            if prefill:
                 # Remove generated token to only have prefill and add nan for first prompt token
                 prefill_logprobs = [float("nan")] + logprobs.gather(
                     1, all_input_ids_tensor[1:input_length].unsqueeze(1)
                 ).squeeze(1)[:-1].tolist()
                 prefill_token_ids = all_input_ids[:-1]
-                prefill_texts = self.tokenizer.batch_decode(
-                    prefill_token_ids,
-                    clean_up_tokenization_spaces=False,
-                    skip_special_tokens=False,
-                )
-                prefill_tokens = PrefillTokens(
-                    prefill_token_ids, prefill_logprobs, prefill_texts
-                )
+                prefill_tokens = PrefillTokens(prefill_token_ids, prefill_logprobs)
             else:
                 prefill_tokens = None
 
@@ -410,61 +387,34 @@ class FlashNeoX(Model):
                 prefill_tokens,
                 next_token_id_item,
                 next_token_logprob,
-                next_token_text,
                 next_token_id_item in self.all_special_ids,
-                generated_text,
             )
 
             generations.append(generation)
             cumulative_length += input_length
-
-        # We finished all generations in the batch; there is no next batch
-        if not next_batch_keep_indices:
-            return generations, None
-
-        # If we finished at least one generation, we need to evict the indices of the generations that finished
-        # from the values of the next batch
-        if len(next_batch_keep_indices) != len(batch):
-            # Apply indices to requests, token_choosers and stopping_criterias that need to be cached
-            next_batch_requests = [batch.requests[i] for i in next_batch_keep_indices]
-            next_batch_next_token_choosers = [
-                batch.next_token_choosers[i] for i in next_batch_keep_indices
-            ]
-            next_batch_stopping_criterias = [
-                batch.stopping_criterias[i] for i in next_batch_keep_indices
-            ]
-        else:
-            next_batch_requests = batch.requests
-            next_batch_next_token_choosers = batch.next_token_choosers
-            next_batch_stopping_criterias = batch.stopping_criterias
 
         # Create final next batch tensors
         next_batch_position_ids = torch.tensor(
             next_batch_position_ids, dtype=torch.int32
         )
         next_batch_cu_seqlens = torch.tensor(next_batch_cu_seqlens, dtype=torch.int32)
-        if len(next_batch_keep_indices) > 1:
+        if len(next_batch_input_ids) > 1:
             next_batch_input_ids = torch.concat(next_batch_input_ids).squeeze(1)
             next_batch_past_key_values = torch.concat(next_batch_past_key_values, dim=1)
         else:
             next_batch_input_ids = next_batch_input_ids[0].view(1)
             next_batch_past_key_values = next_batch_past_key_values[0]
 
-        next_batch = FlashNeoXBatch(
-            batch_id=batch.batch_id,
-            requests=next_batch_requests,
-            input_ids=next_batch_input_ids,
-            position_ids=next_batch_position_ids,
-            cu_seqlens=next_batch_cu_seqlens,
-            max_seqlen=next_batch_max_seqlen,
-            past_key_values=next_batch_past_key_values,
-            input_lengths=next_batch_input_lengths,
-            all_input_ids=next_batch_all_input_ids,
-            all_input_ids_tensor=next_batch_all_input_ids_tensor,
-            next_token_choosers=next_batch_next_token_choosers,
-            stopping_criterias=next_batch_stopping_criterias,
-        )
-        return generations, next_batch
+        batch.input_ids = next_batch_input_ids
+        batch.position_ids = next_batch_position_ids
+        batch.cu_seqlens = next_batch_cu_seqlens
+        batch.max_seqlen += 1
+        batch.past_key_values = next_batch_past_key_values
+        batch.input_lengths = next_batch_input_lengths
+        batch.all_input_ids = next_batch_all_input_ids
+        batch.all_input_ids_tensor = next_batch_all_input_ids_tensor
+
+        return generations
 
 
 class FlashNeoXSharded(FlashNeoX):

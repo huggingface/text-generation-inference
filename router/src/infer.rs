@@ -1,12 +1,12 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
-use crate::{Entry, Queue, Token};
+use crate::{Entry, FinishReason, Queue, Token};
 use crate::{GenerateRequest, PrefillToken};
 use futures::future::try_join_all;
 use nohash_hasher::IntMap;
 use std::sync::Arc;
 use text_generation_client::{
-    Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
+    Batch, CachedBatch, ClientError, Generation, PrefillTokens, RequestsStatus, ShardedClient
 };
 use thiserror::Error;
 use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
@@ -14,6 +14,8 @@ use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::{info_span, instrument, Instrument, Span};
+use crate::decoder::{Decoder, IncrementalDecoder, IncrementalDecoderWrapper};
+use crate::infer::FinishReason::{EndOfSequenceToken, Length, StopSequence, TimeLimit};
 
 /// Inference struct
 #[derive(Clone)]
@@ -41,6 +43,7 @@ impl Infer {
         max_batch_size: usize,
         max_waiting_tokens: usize,
         max_concurrent_requests: usize,
+        token_decoder: Decoder,
     ) -> Self {
         // Infer shared state
         let queue = Queue::new();
@@ -55,6 +58,7 @@ impl Infer {
             max_waiting_tokens,
             queue.clone(),
             shared.clone(),
+            token_decoder,
         ));
 
         // Inference limit with a semaphore
@@ -100,6 +104,8 @@ impl Infer {
             temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
+            generated_tokens: 0,
+            output: None,
             _permit: permit,
         });
 
@@ -227,6 +233,7 @@ async fn batching_task(
     max_waiting_tokens: usize,
     queue: Queue,
     shared: Arc<Shared>,
+    token_decoder: Decoder,
 ) {
     // Minimum batch size after which we try to add more requests
     let limit_min_batch_size = if max_batch_size > 1 {
@@ -244,7 +251,7 @@ async fn batching_task(
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the queue
         while let Some((mut entries, batch, span)) = queue.next_batch(None, max_batch_size).await {
-            let mut cached_batch = prefill(&mut client, batch, &mut entries)
+            let mut cached_batch = prefill(&mut client, batch, &mut entries, &token_decoder)
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -253,7 +260,7 @@ async fn batching_task(
             // all requests have met their stopping criteria)
             while let Some(batch) = cached_batch {
                 // Get current batch info
-                let batch_size = batch.size;
+                let batch_size = entries.len() as u32;
                 let mut batches = vec![batch];
                 metrics::gauge!("tgi_batch_current_size", batch_size as f64);
 
@@ -286,7 +293,7 @@ async fn batching_task(
                         });
 
                         // Generate one token for this new batch to have the attention past in cache
-                        let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
+                        let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries, &token_decoder)
                             .instrument(span)
                             .await;
                         // Reset waiting counter
@@ -313,7 +320,7 @@ async fn batching_task(
                     entry.temp_span = Some(entry_batch_span);
                 });
 
-                cached_batch = decode(&mut client, batches, &mut entries)
+                cached_batch = decode(&mut client, batches, &mut entries, &token_decoder)
                     .instrument(next_batch_span)
                     .await;
                 waiting_tokens += 1;
@@ -328,15 +335,16 @@ async fn prefill(
     client: &mut ShardedClient,
     batch: Batch,
     entries: &mut IntMap<u64, Entry>,
-) -> Option<Batch> {
+    token_decoder: &Decoder,
+) -> Option<CachedBatch> {
     let start_time = Instant::now();
 
-    match client.prefill(batch).await {
-        Ok((generations, next_batch)) => {
-            send_generations(generations, entries);
+    match client.prefill(&batch).await {
+        Ok(generations) => {
+            let requests_status = send_generations(generations, entries, token_decoder);
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed(), "method" => "prefill");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
-            next_batch
+            Some(CachedBatch {batch_id: batch.id, status: requests_status})
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
@@ -350,18 +358,21 @@ async fn prefill(
 #[instrument(skip_all)]
 async fn decode(
     client: &mut ShardedClient,
-    batches: Vec<Batch>,
+    batches: Vec<CachedBatch>,
     entries: &mut IntMap<u64, Entry>,
-) -> Option<Batch> {
+    token_decoder: &Decoder,
+) -> Option<CachedBatch> {
     let start_time = Instant::now();
 
-    match client.decode(batches).await {
-        Ok((generations, next_batch)) => {
-            send_generations(generations, entries);
+    match client.decode(batches, entries.len() as u32).await {
+        Ok((generations, Some(batch_id))) => {
+            let requests_status = send_generations(generations, entries, token_decoder);
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed(), "method" => "decode");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
-            next_batch
+            Some(CachedBatch {batch_id, status: requests_status})
         }
+        // Just response from clean up of completed batch
+        Ok((_, None)) => None,
         // If we have an error, we discard the whole batch
         Err(err) => {
             send_errors(err, entries);
@@ -382,27 +393,32 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
         tracing::error!("{err}");
 
         // unwrap_or is valid here as we don't care if the receiver is gone.
-        entry
-            .response_tx
-            .send(Err(err))
-            .unwrap_or(());
+        entry.response_tx.send(Err(err)).unwrap_or(());
     });
 }
 
 /// Send one or multiple `InferStreamResponse` to Infer for all `entries`
 #[instrument(skip_all)]
-fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
-    generations.into_iter().for_each(|generation| {
+fn send_generations(
+    generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>, token_decoder: &Decoder
+) -> Option<RequestsStatus>{
+    let mut completed_ids = Vec::new();
+    let request_count = generations.len();
+    for generation in generations.into_iter() {
+        let request_id = generation.request_id;
         // Get entry
         // We can `expect` here as the request id should always be in the entries
         let entry = entries
-            .get(&generation.request_id)
+            .get_mut(&request_id)
             .expect("ID not found in entries. This is a bug.");
 
         // Create and enter a span to link this function back to the entry
         let _generation_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
 
-        if let Some(prefill_tokens) = generation.prefill_tokens {
+        if let Some(mut prefill_tokens) = generation.prefill_tokens {
+            // Decode tokens
+            prefill_tokens.texts = prefill_tokens.ids.iter()
+                .map(|id| token_decoder.id_to_token(*id)).collect();
             // Send message
             // unwrap_or is valid here as we don't care if the receiver is gone.
             entry
@@ -411,41 +427,123 @@ fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entr
                 .unwrap_or(());
         }
 
+        // Initialize incremental decoder for entry if needed
+        let output = entry.output.get_or_insert_with(
+            || IncrementalDecoderWrapper::for_decoder(token_decoder, token_decoder.seq2seq)
+        );
+
+        // Pass token to decoder
+        let text = match output.next(generation.token_id, token_decoder) {
+            Ok(decoded) => decoded,
+            Err(err) => {
+                // Decoding error, abort the request
+                metrics::increment_counter!("tgi_request_failure", "err" => "generation");
+                tracing::error!("{err}");
+                // unwrap_or is valid here as we don't care if the receiver is gone.
+                entry.response_tx.send(Err(err)).unwrap_or_default();
+                entries.remove(&request_id).unwrap();
+                completed_ids.push(request_id);
+                continue
+            },
+        };
+
         // Create last Token
-        let token = Token {
+        let mut token = Token {
             id: generation.token_id,
-            text: generation.token_text,
+            text,
             logprob: generation.token_logprob,
             special: generation.token_is_special,
         };
 
-        if let Some(generated_text) = generation.generated_text {
+        // Increment generated token count
+        entry.generated_tokens += 1;
+
+        // Evaluate stopping criteria
+        let finish_reason = check_stopping_criteria(
+            &entry, token.id, token_decoder.eos_token_id, &token.text
+        );
+
+        if let Some(finish_reason) = finish_reason {
             // Remove entry as this is the last message
             // We can `expect` here as the request id should always be in the entries
             let entry = entries
                 .remove(&generation.request_id)
                 .expect("ID not found in entries. This is a bug.");
+            let mut output = entry.output.unwrap();
 
-            // Send message
-            // unwrap_or is valid here as we don't care if the receiver is gone.
-            entry
-                .response_tx
-                .send(Ok(InferStreamResponse::End {
+            // Flush any remaining text from the decoder
+            let message = output.flush(token_decoder).map(|t| {
+                token.text.push_str(&t);
+                let generated_text = GeneratedText{
+                    text: output.into_string(),
+                    generated_tokens: entry.generated_tokens,
+                    finish_reason,
+                    seed: Some(entry.request.parameters.seed),
+                };
+                InferStreamResponse::End {
                     token,
                     generated_text,
                     queued: entry.queue_time,
                     start: entry.batch_time.unwrap(),
-                }))
-                .unwrap_or(());
-        } else {
+                }
+            });
+
             // Send message
             // unwrap_or is valid here as we don't care if the receiver is gone.
-            entry
+            entry.response_tx.send(message).unwrap_or_default();
+            completed_ids.push(request_id);
+        } else {
+            // Send message
+            let cancelled = entry
                 .response_tx
                 .send(Ok(InferStreamResponse::Token(token)))
-                .unwrap_or(());
-        }
-    });
+                .is_err();
+            if cancelled {
+                // This means that the client cancelled the request/stream - remove it from the batch
+                entries.remove(&request_id).expect("ID not found in entries. This is a bug.");
+                completed_ids.push(request_id);
+            }
+        };
+    }
+
+    (completed_ids.len() < request_count).then(|| RequestsStatus {completed_ids})
+}
+
+fn check_stopping_criteria(
+    entry: &Entry, last_token_id: u32, eos_token_id: u32, last_text: &String,
+) -> Option<FinishReason> {
+    let criteria = &entry.request.stopping_criteria;
+    match criteria.deadline {
+        Some(deadline) if Instant::now() > deadline => Some(TimeLimit),
+        _ if last_token_id == eos_token_id => Some(EndOfSequenceToken),
+        _ if entry.generated_tokens >= criteria.max_new_tokens => Some(Length),
+        _ if matches_stop_sequence(entry, last_text) => Some(StopSequence),
+        _ => None,
+    }
+}
+
+fn matches_stop_sequence(entry: &Entry, text: &String) -> bool {
+    // We compare byte subslices to avoid utf8 boundary problem
+    let output = entry.output.as_ref().unwrap().output().as_bytes();
+    let next_off = (output.len() + 1) - text.len();
+    entry.request.stopping_criteria.stop_sequences.iter()
+        .map(|ss| (ss.as_bytes(), ss.len()))
+        .any(|(ss, len)|
+            output[next_off.checked_sub(len).unwrap_or(0)..]
+                .windows(len).rev().any(|w| w == ss)
+        )
+}
+
+#[derive(Debug)]
+pub(crate) struct GeneratedText {
+    /// Output
+    pub(crate) text: String,
+   /// Number of generated tokens
+   pub(crate) generated_tokens: u32,
+   /// Finish reason
+   pub(crate) finish_reason: FinishReason,
+   /// Seed
+   pub(crate) seed: Option<u64>, //TODO option TBC
 }
 
 #[derive(Debug)]
@@ -482,6 +580,8 @@ pub enum InferError {
     ValidationError(#[from] ValidationError),
     #[error("Incomplete generation")]
     IncompleteGeneration,
+    #[error("Detokenization error: {0}")]
+    DetokenizationError(String),
 }
 
 impl InferError {
@@ -491,6 +591,7 @@ impl InferError {
             InferError::Overloaded(_) => "overloaded",
             InferError::ValidationError(_) => "validation",
             InferError::IncompleteGeneration => "incomplete_generation",
+            InferError::DetokenizationError(_) => "detokenization",
         }
     }
 }

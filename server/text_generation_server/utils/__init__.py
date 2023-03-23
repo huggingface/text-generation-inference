@@ -12,9 +12,6 @@ from text_generation_server.utils.tokens import (
     Greedy,
     NextTokenChooser,
     Sampling,
-    StoppingCriteria,
-    StopSequenceCriteria,
-    FinishReason,
 )
 
 __all__ = [
@@ -30,7 +27,4 @@ __all__ = [
     "Greedy",
     "NextTokenChooser",
     "Sampling",
-    "StoppingCriteria",
-    "StopSequenceCriteria",
-    "FinishReason",
 ]

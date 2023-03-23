@@ -23,7 +23,6 @@ from text_generation_server.pb import generate_pb2
 from text_generation_server.models.causal_lm import CausalLMBatch
 from text_generation_server.utils import (
     NextTokenChooser,
-    StoppingCriteria,
     initialize_torch_distributed,
     weight_files,
 )
@@ -92,25 +91,18 @@ class GalacticaCausalLMBatch(CausalLMBatch):
     ) -> "GalacticaCausalLMBatch":
         inputs = []
         next_token_choosers = []
-        stopping_criterias = []
         input_lengths = []
 
         # Parse batch
-        max_sequence_length = 0
+        max_input_length = 0
         padding_right_offset = 0
         for r in pb.requests:
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
             input_lengths.append(r.input_length)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
-            stopping_criteria = StoppingCriteria.from_pb(
-                r.stopping_parameters, tokenizer
-            )
-            stopping_criterias.append(stopping_criteria)
-            max_sequence_length = max(max_sequence_length, r.input_length)
-            padding_right_offset = max(
-                padding_right_offset, stopping_criteria.max_new_tokens
-            )
+            max_input_length = max(max_input_length, r.input_length)
+            padding_right_offset = max(padding_right_offset, r.max_new_tokens)
 
         # Tokenize batch
         tokenized_inputs = tokenizer(
@@ -122,14 +114,14 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         input_ids = tokenized_inputs["input_ids"]
         # Allocate maximum attention_mask
         attention_mask = input_ids.new_zeros(
-            (pb.size, max_sequence_length + padding_right_offset)
+            (pb.size, max_input_length + padding_right_offset)
         )
         # Copy tokenizer attention_mask into fully allocated attention_mask
-        attention_mask[:, :max_sequence_length] = tokenized_inputs["attention_mask"]
+        attention_mask[:, :max_input_length] = tokenized_inputs["attention_mask"]
 
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
-        all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
+        all_input_ids = input_ids.unsqueeze(-1)
 
         return cls(
             batch_id=pb.id,
@@ -141,23 +133,19 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             all_input_ids=all_input_ids,
             input_lengths=input_lengths,
             next_token_choosers=next_token_choosers,
-            stopping_criterias=stopping_criterias,
             size=pb.size,
-            max_sequence_length=max_sequence_length,
+            max_input_length=max_input_length,
             padding_right_offset=padding_right_offset,
         )
 
 
 class Galactica(CausalLM):
+    def __init__(self, *args, **kwargs):
+        super(Galactica, self).__init__(*args, **kwargs, skip_special_tokens=False)
+
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
         return GalacticaCausalLMBatch
-
-    def decode(self, generated_ids: List[int]) -> str:
-        # Do not skip special tokens as they are used for custom parsing rules of the generated text
-        return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=False, cleanup_tokenization_spaces=False
-        )
 
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
@@ -216,6 +204,7 @@ class GalacticaSharded(Galactica):
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
             device=device,
+            skip_special_tokens=False,
         )
 
     @staticmethod

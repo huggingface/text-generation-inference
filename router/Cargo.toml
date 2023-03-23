@@ -37,6 +37,7 @@ tower-http = { version = "0.3.5", features = ["cors"] }
 tracing = "0.1.37"
 tracing-opentelemetry = "0.18.0"
 tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }
+unicode-segmentation = "1.10.1"
 utoipa = { version = "3.0.1", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["axum"] }
 

@@ -1,28 +1,21 @@
 import torch
 
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional, TypeVar, Type
+from typing import List, TypeVar, Type
 from transformers import PreTrainedTokenizerBase
 
-from text_generation_server.models.types import Batch, GeneratedText
+from text_generation_server.models.types import Batch, Generation
+from text_generation_server.pb import generate_pb2
 
 B = TypeVar("B", bound=Batch)
 
 
 class Model(ABC):
-    def __init__(self, tokenizer: PreTrainedTokenizerBase, device: torch.device):
+    def __init__(self, tokenizer: PreTrainedTokenizerBase, device: torch.device, skip_special_tokens: bool = True):
         self.tokenizer = tokenizer
         self.all_special_ids = set(tokenizer.all_special_ids)
         self.device = device
-
-        # see `decode_token` method
-        self.tokenizer.add_special_tokens(
-            {"additional_special_tokens": ["<decode-token>"]}
-        )
-        self.special_decode_token_id = self.tokenizer.convert_tokens_to_ids(
-            "<decode-token>"
-        )
-        self.special_decode_token_length = len("<decode-token>")
+        self.skip_special_tokens = skip_special_tokens
 
     @property
     @abstractmethod
@@ -30,14 +23,20 @@ class Model(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def generate_token(self, batch: B) -> Tuple[List[GeneratedText], Optional[B]]:
+    def generate_token(self, batch: B) -> List[Generation]:
         raise NotImplementedError
 
-    def decode_token(self, token_id: int) -> str:
-        """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
-        # append token to special decode token and decode both
-        result = self.tokenizer.decode(
-            [self.special_decode_token_id, token_id], skip_special_tokens=False
-        )
-        # slice to remove special decode token
-        return result[self.special_decode_token_length :]
+    @staticmethod
+    def get_indices_to_keep(
+            requests: List[generate_pb2.Request], completed_ids: List[int],
+    ) -> List[int]:
+        # Compile list of indices to retain
+        next_batch_keep_indices = []
+        completed = iter(completed_ids)
+        next_id = next(completed)
+        for i, r in enumerate(requests):
+            while next_id is not None and r.id > next_id:
+                next_id = next(completed, None)
+            if r.id != next_id:
+                next_batch_keep_indices.append(i)
+        return next_batch_keep_indices

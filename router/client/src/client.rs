@@ -1,10 +1,11 @@
 /// Single shard Client
 use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
 use crate::pb::generate::v1::*;
-use crate::Result;
+use crate::{ClientError, Result};
 use grpc_metadata::InjectTelemetryContext;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
+use crate::pb::generate::v1::model_info_response::ModelType;
 
 /// Text Generation Inference gRPC client
 #[derive(Clone)]
@@ -67,23 +68,34 @@ impl Client {
     /// Returns Generation for each request in batch
     /// and the next cached batch
     #[instrument(skip_all, fields(id = &batch.id, size = &batch.size))]
-    pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
+    pub async fn prefill(&mut self, batch: Batch) -> Result<Vec<Generation>> {
         let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
-        Ok((response.generations, response.batch))
+        Ok(response.generations)
     }
 
     /// Generate one token for each request in the given cached batches
     ///
     /// Returns Generation for each request in batches
     /// and the next cached batch
-    #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>()))]
+    #[instrument(skip_all, fields(size = _size))]
     pub async fn decode(
         &mut self,
-        batches: Vec<Batch>,
-    ) -> Result<(Vec<Generation>, Option<Batch>)> {
+        batches: Vec<CachedBatch>,
+        _size: u32,
+    ) -> Result<(Vec<Generation>, Option<u64>)> {
         let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
         let response = self.stub.decode(request).await?.into_inner();
-        Ok((response.generations, response.batch))
+        Ok((response.generations, response.batch_id))
+    }
+
+    /// Get shard model info
+    #[instrument(skip(self))]
+    pub async fn model_info(&mut self) -> Result<(ModelType, u32, bool)> {
+        let request = tonic::Request::new(ModelInfoRequest {}).inject_context();
+        let response = self.stub.model_info(request).await?.into_inner();
+        ModelType::from_i32(response.model_type)
+            .map(|mt| (mt, response.eos_token, response.skip_special_tokens))
+            .ok_or(ClientError::Generation("Unrecognized model type".to_string()))
     }
 }

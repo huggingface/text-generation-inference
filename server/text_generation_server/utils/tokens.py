@@ -1,4 +1,3 @@
-import re
 import torch
 
 from transformers import (
@@ -8,12 +7,10 @@ from transformers import (
     TopPLogitsWarper,
     TypicalLogitsWarper,
     RepetitionPenaltyLogitsProcessor,
-    PreTrainedTokenizerBase,
 )
 from typing import List, Tuple, Optional
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.pb.generate_pb2 import FinishReason
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 
 
@@ -105,56 +102,4 @@ class NextTokenChooser:
             do_sample=pb.do_sample,
             seed=pb.seed,
             device=device,
-        )
-
-
-class StopSequenceCriteria:
-    def __init__(self, stop_sequence: str):
-        self.regex = re.compile(f".*{stop_sequence}$")
-
-    def __call__(self, output: str) -> bool:
-        if self.regex.findall(output):
-            return True
-        return False
-
-
-class StoppingCriteria:
-    def __init__(
-        self,
-        eos_token_id: int,
-        stop_sequence_criterias: List[StopSequenceCriteria],
-        max_new_tokens=20,
-    ):
-        self.eos_token_id = eos_token_id
-        self.stop_sequence_criterias = stop_sequence_criterias
-        self.max_new_tokens = max_new_tokens
-        self.current_tokens = 0
-        self.current_output = ""
-
-    def __call__(self, last_token: int, last_output: str) -> Tuple[bool, Optional[str]]:
-        self.current_tokens += 1
-        if self.current_tokens >= self.max_new_tokens:
-            return True, FinishReason.FINISH_REASON_LENGTH
-
-        if last_token == self.eos_token_id:
-            return True, FinishReason.FINISH_REASON_EOS_TOKEN
-
-        self.current_output += last_output
-        for stop_sequence_criteria in self.stop_sequence_criterias:
-            if stop_sequence_criteria(self.current_output):
-                return True, FinishReason.FINISH_REASON_STOP_SEQUENCE
-
-        return False, None
-
-    @classmethod
-    def from_pb(
-        cls,
-        pb: generate_pb2.StoppingCriteriaParameters,
-        tokenizer: PreTrainedTokenizerBase,
-    ) -> "StoppingCriteria":
-        stop_sequence_criterias = [
-            StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
-        ]
-        return StoppingCriteria(
-            tokenizer.eos_token_id, stop_sequence_criterias, pb.max_new_tokens
         )

@@ -1,13 +1,16 @@
-use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 /// Payload validation logic
+use std::ops::Add;
+use std::time::Duration;
+use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{GenerateParameters, GenerateRequest};
 use rand::rngs::ThreadRng;
 use rand::Rng;
-use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
+use text_generation_client::NextTokenChooserParameters;
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::TruncationDirection;
 use tokio::sync::{mpsc, oneshot};
+use tokio::time::Instant;
 use tracing::{instrument, Span};
 
 /// Validation
@@ -178,6 +181,7 @@ fn validate(
         do_sample,
         max_new_tokens,
         stop: stop_sequences,
+        time_limit_ms,
         truncate,
         seed,
         watermark,
@@ -237,6 +241,10 @@ fn validate(
 
     if max_new_tokens == 0 {
         return Err(ValidationError::MaxNewTokens);
+    }
+
+    if time_limit_ms == Some(0) {
+        return Err(ValidationError::TimeLimit);
     }
 
     if stop_sequences.len() > max_stop_sequences {
@@ -312,9 +320,12 @@ fn validate(
         seed,
         watermark,
     };
-    let stopping_parameters = StoppingCriteriaParameters {
+    let stopping_criteria = StoppingCriteria {
         max_new_tokens,
         stop_sequences,
+        deadline: time_limit_ms.map(
+            |t| Instant::now().add(Duration::from_millis(t))
+        ),
     };
 
     metrics::histogram!("tgi_request_input_length", input_length as f64);
@@ -323,7 +334,7 @@ fn validate(
     Ok(ValidGenerateRequest {
         inputs,
         parameters,
-        stopping_parameters,
+        stopping_criteria,
     })
 }
 
@@ -334,10 +345,17 @@ type ValidationRequest = (
 );
 
 #[derive(Debug)]
+pub(crate) struct StoppingCriteria {
+    pub max_new_tokens: u32,
+    pub stop_sequences: Vec<String>,
+    pub deadline: Option<Instant>,
+}
+
+#[derive(Debug)]
 pub(crate) struct ValidGenerateRequest {
     pub inputs: String,
     pub parameters: NextTokenChooserParameters,
-    pub stopping_parameters: StoppingCriteriaParameters,
+    pub stopping_criteria: StoppingCriteria,
 }
 
 #[derive(Error, Debug)]
@@ -376,4 +394,6 @@ pub enum ValidationError {
     StopSequence(usize, usize),
     #[error("tokenizer error {0}")]
     Tokenizer(String),
+    #[error("time_limit_ms must be strictly positive")]
+    TimeLimit,
 }

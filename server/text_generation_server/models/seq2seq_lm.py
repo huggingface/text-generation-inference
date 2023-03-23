@@ -1,3 +1,5 @@
+from operator import itemgetter
+
 import torch
 
 from dataclasses import dataclass
@@ -7,13 +9,12 @@ from typing import Optional, Tuple, List, Type
 
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
-    GeneratedText,
     Batch,
     Generation,
     PrefillTokens,
 )
 from text_generation_server.pb import generate_pb2
-from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.utils import NextTokenChooser
 
 tracer = trace.get_tracer(__name__)
 
@@ -41,7 +42,6 @@ class Seq2SeqLMBatch(Batch):
 
     # Generation helpers
     next_token_choosers: List[NextTokenChooser]
-    stopping_criterias: List[StoppingCriteria]
 
     # Metadata used for padding
     size: int
@@ -57,6 +57,9 @@ class Seq2SeqLMBatch(Batch):
             size=self.size,
         )
 
+    def get_id(self) -> int:
+        return self.batch_id
+
     @classmethod
     def from_pb(
         cls,
@@ -67,7 +70,6 @@ class Seq2SeqLMBatch(Batch):
         """Convert a text_generation_server.v1.Batch protobuf to a Seq2SeqLMBatch"""
         inputs = []
         next_token_choosers = []
-        stopping_criterias = []
 
         decoder_input_ids = []
         decoder_input_lengths = []
@@ -80,12 +82,8 @@ class Seq2SeqLMBatch(Batch):
             decoder_input_ids.append(tokenizer.bos_token_id)
             decoder_input_lengths.append(1)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
-            stopping_criteria = StoppingCriteria.from_pb(
-                r.stopping_parameters, tokenizer
-            )
-            stopping_criterias.append(stopping_criteria)
             padding_right_offset = max(
-                padding_right_offset, stopping_criteria.max_new_tokens
+                padding_right_offset, r.max_new_tokens
             )
 
         # Tokenize batch
@@ -114,7 +112,6 @@ class Seq2SeqLMBatch(Batch):
             input_lengths=input_lengths.tolist(),
             decoder_input_lengths=decoder_input_lengths,
             next_token_choosers=next_token_choosers,
-            stopping_criterias=stopping_criterias,
             size=len(pb.requests),
             max_input_length=max_input_length.item(),
             max_decoder_input_length=1,
@@ -144,7 +141,6 @@ class Seq2SeqLMBatch(Batch):
         input_lengths = []
         decoder_input_lengths = []
         next_token_choosers = []
-        stopping_criterias = []
 
         # Batch tensors
         attention_mask = None
@@ -163,7 +159,6 @@ class Seq2SeqLMBatch(Batch):
             input_lengths.extend(batch.input_lengths)
             decoder_input_lengths.extend(batch.decoder_input_lengths)
             next_token_choosers.extend(batch.next_token_choosers)
-            stopping_criterias.extend(batch.stopping_criterias)
 
             # Slicing end index for this batch
             end_index = start_index + batch.size
@@ -300,7 +295,6 @@ class Seq2SeqLMBatch(Batch):
             input_lengths=input_lengths,
             decoder_input_lengths=decoder_input_lengths,
             next_token_choosers=next_token_choosers,
-            stopping_criterias=stopping_criterias,
             size=total_batch_size,
             max_input_length=max_input_length,
             max_decoder_input_length=max_decoder_input_length,
@@ -309,6 +303,48 @@ class Seq2SeqLMBatch(Batch):
 
     def __len__(self):
         return len(self.requests)
+
+    @classmethod
+    def prune(cls, batch: "Seq2SeqLMBatch", completed_ids: List[int]) -> Optional["Seq2SeqLMBatch"]:
+        """Prune completed entries from a batch"""
+
+        if not completed_ids:
+            # Nothing to prune
+            return batch
+
+        # Compile list of indices to retain
+        keep_indices = Model.get_indices_to_keep(batch.requests, completed_ids)
+        new_size = len(keep_indices)
+
+        # If the whole batch has finished, discard it
+        if new_size == 0:
+            return None
+
+        #TODO maybe a single loop for all these list slices
+        slice_list = itemgetter(*keep_indices) if new_size > 1 else lambda l: (l[keep_indices[0]],)
+        batch.input_lengths = slice_list(batch.input_lengths)
+        batch.decoder_input_lengths = slice_list(batch.decoder_input_lengths)
+        batch.requests = slice_list(batch.requests)
+        batch.next_token_choosers = slice_list(batch.next_token_choosers)
+
+        batch.max_input_length = max(batch.input_lengths)
+        batch.max_decoder_input_length = max(batch.decoder_input_lengths)
+
+        batch.decoder_attention_mask = batch.decoder_attention_mask[keep_indices] \
+            if batch.decoder_attention_mask is not None else None
+        batch.encoder_last_hidden_state = batch.encoder_last_hidden_state[keep_indices] \
+            if batch.encoder_last_hidden_state is not None else None
+        batch.input_ids = batch.input_ids[keep_indices]
+        batch.attention_mask = batch.attention_mask[keep_indices]
+        batch.decoder_input_ids = batch.decoder_input_ids[keep_indices]
+        if batch.past_key_values is not None:
+            batch.past_key_values = [
+                [t[keep_indices] for t in layer] for layer in batch.past_key_values
+            ]
+
+        batch.size = new_size
+
+        return batch
 
 
 class Seq2SeqLM(Model):
@@ -344,11 +380,6 @@ class Seq2SeqLM(Model):
     def batch_type(self) -> Type[Seq2SeqLMBatch]:
         return Seq2SeqLMBatch
 
-    def decode(self, decoder_ids: List[int]) -> str:
-        return self.tokenizer.decode(
-            decoder_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )
-
     def forward(
         self,
         input_ids,
@@ -379,9 +410,7 @@ class Seq2SeqLM(Model):
         )
 
     @tracer.start_as_current_span("generate_token")
-    def generate_token(
-        self, batch: Seq2SeqLMBatch
-    ) -> Tuple[List[Generation], Optional[Seq2SeqLMBatch]]:
+    def generate_token(self, batch: Seq2SeqLMBatch, prefill: bool = False) -> List[Generation]:
         if batch.decoder_attention_mask is not None:
             # slice to the correct shape
             decoder_attention_mask = batch.decoder_attention_mask[
@@ -413,41 +442,28 @@ class Seq2SeqLM(Model):
             batch.past_key_values,
         )
 
-        # List of indices to cache
-        next_batch_keep_indices = []
-
         # New values for next forward
-        next_batch_input_lengths = []
         next_batch_decoder_input_ids = []
         next_batch_decoder_input_lengths = []
 
-        # Metadata
-        next_batch_size = 0
-        next_batch_max_input_length = 0
-        next_batch_max_decoder_input_length = 0
-
-        # Finished requests
+        # Results
         generations: List[Generation] = []
 
         # Zipped iterator
         iterator = zip(
             batch.requests,
-            batch.input_lengths,
             batch.decoder_input_lengths,
             logits,
             batch.next_token_choosers,
-            batch.stopping_criterias,
             batch.decoder_input_ids,
         )
 
         # For each member of the batch
         for i, (
             request,
-            input_length,
             decoder_input_length,
             logits,
             next_token_chooser,
-            stopping_criteria,
             decoder_input_ids,
         ) in enumerate(iterator):
             # Select next token
@@ -457,53 +473,19 @@ class Seq2SeqLM(Model):
 
             # Append next token to decoder tokens
             decoder_input_ids = torch.cat([decoder_input_ids, next_token_id.squeeze(1)])
-            new_decoder_input_length = decoder_input_length + 1
 
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.decode_token(
-                next_token_id_squeezed,
-            )
 
-            # Evaluate stopping criteria
-            stop, reason = stopping_criteria(next_token_id, next_token_text)
-
-            if stop:
-                # Slice with decoder_input_length to remove padding
-                # Decode all tokens
-                output_text = self.decode(decoder_input_ids[-new_decoder_input_length:])
-
-                # Get seed
-                if isinstance(next_token_chooser.choice, Sampling):
-                    seed = next_token_chooser.choice.seed
-                else:
-                    seed = None
-
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
-                )
-            else:
-                # Keep request in the batch
-                generated_text = None
-                next_batch_keep_indices.append(i)
-                next_batch_decoder_input_ids.append(decoder_input_ids.unsqueeze(0))
-                next_batch_size += 1
-                next_batch_input_lengths.append(input_length)
-                next_batch_decoder_input_lengths.append(new_decoder_input_length)
-                next_batch_max_input_length = max(
-                    next_batch_max_input_length, input_length
-                )
-                next_batch_max_decoder_input_length = max(
-                    next_batch_max_decoder_input_length, new_decoder_input_length
-                )
+            next_batch_decoder_input_ids.append(decoder_input_ids.unsqueeze(0))
+            next_batch_decoder_input_lengths.append(decoder_input_length + 1)
 
             # Prefill
-            if stopping_criteria.current_tokens == 1:
+            if prefill:
                 prefill_tokens = PrefillTokens(
                     [self.tokenizer.bos_token_id],
                     [float("nan")],
-                    [self.tokenizer.bos_token],
                 )
             else:
                 prefill_tokens = None
@@ -513,74 +495,21 @@ class Seq2SeqLM(Model):
                 prefill_tokens,
                 next_token_id_squeezed,
                 next_token_logprob,
-                next_token_text,
                 next_token_id_squeezed.item() in self.all_special_ids,
-                generated_text,
             )
 
             generations.append(generation)
 
-        # We finished all generations in the batch; there is no next batch
-        if not next_batch_keep_indices:
-            return generations, None
+        # Update decoder_attention_mask as we added a new token to decoder_input_ids
+        if batch.decoder_attention_mask is not None:
+            batch.decoder_attention_mask[:, -batch.padding_right_offset] = 1
 
-        next_batch_decoder_input_ids = torch.cat(next_batch_decoder_input_ids)
-        # If we finished at least one generation, we need to evict the indices of the generations that finished
-        # from the values of the next batch
-        if len(next_batch_keep_indices) != len(batch):
-            # Apply indices to decoder_attention mask, past key values and other items that need to be cached
-            next_batch_attention_mask = batch.attention_mask[next_batch_keep_indices]
-            if batch.decoder_attention_mask is not None:
-                next_batch_decoder_attention_mask = batch.decoder_attention_mask[
-                    next_batch_keep_indices
-                ]
-            else:
-                next_batch_decoder_attention_mask = None
+        batch.input_ids = None
+        batch.decoder_input_ids = torch.cat(next_batch_decoder_input_ids)
+        batch.encoder_last_hidden_state = encoder_last_hidden_state
+        batch.past_key_values = past
+        batch.decoder_input_lengths = next_batch_decoder_input_lengths
+        batch.max_decoder_input_length += 1
+        batch.padding_right_offset -= 1
 
-            next_batch_encoder_last_hidden_state = encoder_last_hidden_state[
-                next_batch_keep_indices
-            ]
-
-            next_batch_past_key_values = [
-                [t[next_batch_keep_indices] for t in layer] for layer in past
-            ]
-            next_batch_requests = [batch.requests[i] for i in next_batch_keep_indices]
-            next_batch_next_token_choosers = [
-                batch.next_token_choosers[i] for i in next_batch_keep_indices
-            ]
-            next_batch_stopping_criterias = [
-                batch.stopping_criterias[i] for i in next_batch_keep_indices
-            ]
-        else:
-            next_batch_attention_mask = batch.attention_mask
-            next_batch_decoder_attention_mask = batch.decoder_attention_mask
-            next_batch_encoder_last_hidden_state = encoder_last_hidden_state
-            next_batch_past_key_values = past
-
-            next_batch_requests = batch.requests
-            next_batch_next_token_choosers = batch.next_token_choosers
-            next_batch_stopping_criterias = batch.stopping_criterias
-
-        # Update decoder_attention_mask as we added a new token to input_ids
-        if next_batch_decoder_attention_mask is not None:
-            next_batch_decoder_attention_mask[:, -batch.padding_right_offset] = 1
-
-        next_batch = Seq2SeqLMBatch(
-            batch_id=batch.batch_id,
-            requests=next_batch_requests,
-            input_ids=None,
-            attention_mask=next_batch_attention_mask,
-            decoder_input_ids=next_batch_decoder_input_ids,
-            decoder_attention_mask=next_batch_decoder_attention_mask,
-            encoder_last_hidden_state=next_batch_encoder_last_hidden_state,
-            past_key_values=next_batch_past_key_values,
-            input_lengths=next_batch_input_lengths,
-            decoder_input_lengths=next_batch_decoder_input_lengths,
-            next_token_choosers=next_batch_next_token_choosers,
-            stopping_criterias=next_batch_stopping_criterias,
-            size=next_batch_size,
-            max_input_length=next_batch_max_input_length,
-            max_decoder_input_length=next_batch_max_decoder_input_length,
-            padding_right_offset=batch.padding_right_offset - 1,
-        )
-        return generations, next_batch
+        return generations

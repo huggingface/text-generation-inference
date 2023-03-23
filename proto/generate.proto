@@ -7,6 +7,8 @@ service TextGenerationService {
     rpc ServiceDiscovery (ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse) {}
     /// Empties batch cache
     rpc ClearCache (ClearCacheRequest) returns (ClearCacheResponse);
+    /// Returns some model metadata
+    rpc ModelInfo (ModelInfoRequest) returns (ModelInfoResponse);
     /// Prefill batch and decode first token
     rpc Prefill (PrefillRequest) returns (PrefillResponse);
     /// Decode token for a list of prefilled batches
@@ -27,6 +29,20 @@ message ClearCacheRequest {}
 /// Empty response
 message ClearCacheResponse {}
 
+/// Empty request
+message ModelInfoRequest {}
+
+message ModelInfoResponse {
+    enum ModelType {
+        CAUSAL_LM = 0;
+        SEQ2SEQ_LM = 1;
+    }
+
+    ModelType model_type = 1;
+    uint32 eos_token = 2;
+    bool skip_special_tokens = 3;
+}
+
 message NextTokenChooserParameters {
     /// exponential scaling output probability distribution
     float temperature = 1;
@@ -46,13 +62,6 @@ message NextTokenChooserParameters {
     bool watermark = 8;
 }
 
-message StoppingCriteriaParameters {
-    /// Maximum number of generated tokens
-    uint32 max_new_tokens = 1;
-    /// Optional stopping sequences
-    repeated string stop_sequences = 2;
-}
-
 message Request {
     /// Request ID
     uint64 id = 1;
@@ -60,8 +69,8 @@ message Request {
     string inputs = 2;
     /// Next Token Chooser Parameters
     NextTokenChooserParameters parameters = 3;
-    /// Stopping Criteria Parameters
-    StoppingCriteriaParameters stopping_parameters = 4;
+    /// Maximum number of generated tokens - for preallocation sizing
+    uint32 max_new_tokens = 4;
 }
 
 message Batch {
@@ -71,23 +80,6 @@ message Batch {
     repeated Request requests = 2;
     /// Batch size (==len(requests))
     uint32 size = 3;
-}
-
-enum FinishReason {
-    FINISH_REASON_LENGTH = 0;
-    FINISH_REASON_EOS_TOKEN = 1;
-    FINISH_REASON_STOP_SEQUENCE = 2;
-}
-
-message GeneratedText {
-    /// Output
-    string text = 1;
-    /// Number of generated tokens
-    uint32 generated_tokens = 2;
-    /// Finish reason
-    FinishReason finish_reason = 3;
-    /// Seed
-    optional uint64 seed = 4;
 }
 
 message PrefillTokens {
@@ -108,12 +100,8 @@ message Generation {
     uint32 token_id = 3;
     /// Logprob
     float token_logprob = 4;
-    /// Text
-    string token_text = 5;
     /// Is it a special token
     bool token_is_special = 6;
-    /// Complete generated text
-    GeneratedText generated_text = 7;
 }
 
 message PrefillRequest {
@@ -124,18 +112,27 @@ message PrefillRequest {
 message PrefillResponse {
     /// Generation
     repeated Generation generations = 1;
-    /// Next batch (cached)
-    optional Batch batch = 2;
+}
+
+message RequestsStatus {
+    /// Ids of finished requests, if any
+    repeated uint64 completed_ids = 3;
+}
+
+message CachedBatch {
+    uint64 batch_id = 1;
+    /// If absent, batch is finished
+    optional RequestsStatus status = 2;
 }
 
 message DecodeRequest {
     /// Cached batches
-    repeated Batch batches = 1;
+    repeated CachedBatch batches = 1;
 }
 
 message DecodeResponse {
     /// Decodes
     repeated Generation generations = 1;
-    /// Next batch (cached)
-    optional Batch batch = 2;
+    /// Next batch (cached) - unset if batch is completed
+    optional uint64 batch_id = 2;
 }

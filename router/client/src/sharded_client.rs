@@ -5,6 +5,8 @@ use futures::future::join_all;
 use futures::future::select_all;
 use tonic::transport::Uri;
 use tracing::instrument;
+use crate::pb::generate::v1::CachedBatch;
+use crate::pb::generate::v1::model_info_response::ModelType;
 
 /// Text Generation Inference gRPC multi client
 pub struct ShardedClient {
@@ -54,7 +56,7 @@ impl ShardedClient {
     /// Returns Generation for each request in batch
     /// and the next cached batch
     #[instrument(skip_all, fields(id = &batch.id, size = &batch.size))]
-    pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
+    pub async fn prefill(&mut self, batch: &Batch) -> Result<Vec<Generation>> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
@@ -69,18 +71,31 @@ impl ShardedClient {
     ///
     /// Returns Generation for each request in batches
     /// and the next cached batch
-    #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>()))]
+    #[instrument(skip_all, fields(size))]
     pub async fn decode(
         &mut self,
-        batches: Vec<Batch>,
-    ) -> Result<(Vec<Generation>, Option<Batch>)> {
+        batches: Vec<CachedBatch>,
+        size: u32,
+    ) -> Result<(Vec<Generation>, Option<u64>)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.decode(batches.clone())))
+            .map(|client| Box::pin(client.decode(batches.clone(), size)))
             .collect();
-        // As soon as we receive one response, we can return as all shards will return the same
-        let (result, _, _) = select_all(futures).await;
-        result
+        let all_complete = batches.iter().all(|cb| cb.status.is_none());
+        if all_complete {
+            // Ensure that none of the shard requests are cancelled
+            join_all(futures).await.pop().unwrap()
+        } else {
+            // As soon as we receive one response, we can return as all shards will return the same
+            let (result, _, _) = select_all(futures).await;
+            result
+        }
+    }
+
+    /// Get shard model info
+    pub async fn model_info(&mut self) -> Result<(bool, u32, bool)> {
+        self.clients[0].model_info().await
+            .map(|(mt, eos, sst)| (mt == ModelType::Seq2seqLm, eos, sst))
     }
 }

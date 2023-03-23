@@ -3,6 +3,7 @@ mod infer;
 mod queue;
 pub mod server;
 mod validation;
+mod decoder;
 
 use infer::Infer;
 use queue::{Entry, Queue};
@@ -65,6 +66,9 @@ pub(crate) struct GenerateParameters {
     #[schema(inline, max_items = 4, example = json ! (["photographer"]))]
     pub stop: Vec<String>,
     #[serde(default)]
+    #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = "null")]
+    pub time_limit_ms: Option<u64>,
+    #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
     pub truncate: Option<usize>,
     #[serde(default)]
@@ -99,6 +103,7 @@ fn default_parameters() -> GenerateParameters {
         max_new_tokens: default_max_new_tokens(),
         return_full_text: None,
         stop: Vec::new(),
+        time_limit_ms: None,
         truncate: None,
         watermark: false,
         details: false,
@@ -156,7 +161,7 @@ pub struct Token {
     special: bool,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
 pub(crate) enum FinishReason {
     #[schema(rename = "length")]
@@ -166,6 +171,8 @@ pub(crate) enum FinishReason {
     EndOfSequenceToken,
     #[schema(rename = "stop_sequence")]
     StopSequence,
+    #[schema(rename = "time_limit")]
+    TimeLimit,
 }
 
 #[derive(Serialize, ToSchema)]

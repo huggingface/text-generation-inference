@@ -2270,6 +2270,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "unicode-segmentation",
  "utoipa",
  "utoipa-swagger-ui",
 ]

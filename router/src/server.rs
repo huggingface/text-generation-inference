@@ -26,6 +26,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+use crate::decoder::Decoder;
 
 /// Compatibility route with api-inference and AzureML
 #[instrument(skip(infer))]
@@ -75,6 +76,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
                 max_new_tokens: 1,
                 return_full_text: None,
                 stop: Vec::new(),
+                time_limit_ms: None,
                 truncate: None,
                 watermark: false,
                 details: false,
@@ -454,7 +456,7 @@ pub async fn run(
     max_total_tokens: usize,
     max_batch_size: usize,
     max_waiting_tokens: usize,
-    client: ShardedClient,
+    mut client: ShardedClient,
     tokenizer: Tokenizer,
     validation_workers: usize,
     addr: SocketAddr,
@@ -496,6 +498,14 @@ pub async fn run(
     )]
     struct ApiDoc;
 
+    // Query shard for model info
+    let (seq2seq, eos_token_id, skip_special_tokens) = client.model_info().await
+        .expect("Error contacting model shard");
+
+    let token_decoder = Decoder::new(
+        tokenizer.clone().into(), seq2seq, eos_token_id, skip_special_tokens
+    );
+
     // Create state
     let validation = Validation::new(
         validation_workers,
@@ -511,6 +521,7 @@ pub async fn run(
         max_batch_size,
         max_waiting_tokens,
         max_concurrent_requests,
+        token_decoder,
     );
 
     // Prometheus handler
@@ -578,17 +589,6 @@ async fn shutdown_signal() {
     opentelemetry::global::shutdown_tracer_provider();
 }
 
-impl From<i32> for FinishReason {
-    fn from(finish_reason: i32) -> Self {
-        let finish_reason = text_generation_client::FinishReason::from_i32(finish_reason).unwrap();
-        match finish_reason {
-            text_generation_client::FinishReason::Length => FinishReason::Length,
-            text_generation_client::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
-            text_generation_client::FinishReason::StopSequence => FinishReason::StopSequence,
-        }
-    }
-}
-
 /// Convert to Axum supported formats
 impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
     fn from(err: InferError) -> Self {
@@ -597,6 +597,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::Overloaded(_) => StatusCode::TOO_MANY_REQUESTS,
             InferError::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
+            InferError::DetokenizationError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (

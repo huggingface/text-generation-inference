@@ -11,8 +11,9 @@ from typing import List, Optional
 
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
-from text_generation_server.models import Model, get_model
+from text_generation_server.models import Model, get_model, Seq2SeqLM
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
+from text_generation_server.pb.generate_pb2 import ModelInfoResponse
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 
 
@@ -38,12 +39,11 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             request.batch, self.model.tokenizer, self.model.device
         )
 
-        generations, next_batch = self.model.generate_token(batch)
-        self.cache.set(next_batch)
+        generations = self.model.generate_token(batch, prefill=True)
+        self.cache.set(batch)
 
         return generate_pb2.PrefillResponse(
             generations=[generation.to_pb() for generation in generations],
-            batch=next_batch.to_pb() if next_batch else None,
         )
 
     async def Decode(self, request, context):
@@ -52,24 +52,38 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         batches = []
         for batch_pb in request.batches:
-            batch = self.cache.pop(batch_pb.id)
-            if batch is None:
-                raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
-            batches.append(batch)
+            batch = self.cache.pop(batch_pb.batch_id)
+            if batch_pb.HasField("status"):
+                if batch is None:
+                    raise ValueError(f"Batch ID {batch.batch_id} not found in cache.")
+                batch = self.model.batch_type.prune(batch, batch_pb.status.completed_ids)
+                if batch is not None:
+                    batches.append(batch)
+
+        if len(batches) == 0:
+            # All batches finished, nothing to do
+            return generate_pb2.DecodeResponse()
 
         if len(batches) > 1:
             batch = self.model.batch_type.concatenate(batches)
         else:
             batch = batches[0]
 
-        generations, next_batch = self.model.generate_token(batch)
-        self.cache.set(next_batch)
+        generations = self.model.generate_token(batch)
+        self.cache.set(batch)
 
         return generate_pb2.DecodeResponse(
             generations=[generation.to_pb() for generation in generations],
-            batch=next_batch.to_pb() if next_batch else None,
+            batch_id=batch.get_id(),
         )
 
+    async def ModelInfo(self, _: generate_pb2.ModelInfoRequest, context) -> generate_pb2.ModelInfoResponse:
+        return generate_pb2.ModelInfoResponse(
+            model_type=ModelInfoResponse.ModelType.SEQ2SEQ_LM
+            if isinstance(self.model, Seq2SeqLM) else ModelInfoResponse.ModelType.CAUSAL_LM,
+            eos_token=self.model.tokenizer.eos_token_id,
+            skip_special_tokens=self.model.skip_special_tokens,
+        )
 
 def serve(
     model_id: str,
