@@ -84,10 +84,9 @@ class FlashNeoXBatch(Batch):
 
         # Parse batch
         for r in pb.requests:
-            tokenized_input = (
-                tokenizer(r.inputs, return_tensors="pt")["input_ids"]
-                .squeeze(0)
-            )
+            tokenized_input = tokenizer(r.inputs, return_tensors="pt")[
+                "input_ids"
+            ].squeeze(0)
             input_ids.append(tokenized_input)
             all_input_ids.append(tokenized_input.tolist())
 
@@ -96,9 +95,7 @@ class FlashNeoXBatch(Batch):
             input_lengths.append(input_length)
 
             # Position ids
-            position_ids.append(
-                torch.arange(0, input_length, dtype=torch.int32)
-            )
+            position_ids.append(torch.arange(0, input_length, dtype=torch.int32))
 
             # Add cumulative lengths of all previous inputs
             cu_seqlens.append(cumulative_length + input_length)
@@ -187,7 +184,6 @@ class FlashNeoXBatch(Batch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
         )
-
 
     def __len__(self):
         return len(self.requests)
@@ -319,9 +315,7 @@ class FlashNeoX(Model):
                 logits = out[i].unsqueeze(0)
 
             # Select next token
-            next_token_id, logprobs = next_token_chooser(
-                all_input_ids, logits
-            )
+            next_token_id, logprobs = next_token_chooser(all_input_ids, logits)
             # Copy to cpu to avoid other copies when indexing and calling .item()
             next_token_id = next_token_id.to("cpu", non_blocking=True)
             logprobs = logprobs.to("cpu")
@@ -435,9 +429,7 @@ class FlashNeoX(Model):
         next_batch_position_ids = torch.tensor(
             next_batch_position_ids, dtype=torch.int32
         )
-        next_batch_cu_seqlens = torch.tensor(
-            next_batch_cu_seqlens, dtype=torch.int32
-        )
+        next_batch_cu_seqlens = torch.tensor(next_batch_cu_seqlens, dtype=torch.int32)
         if len(next_batch_keep_indices) > 1:
             next_batch_input_ids = torch.concat(next_batch_input_ids)
             next_batch_past_key_values = torch.concat(next_batch_past_key_values, dim=1)

@@ -14,6 +14,7 @@ from text_generation_server.models.t5 import T5Sharded
 
 try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+
     FLASH_NEOX = torch.cuda.is_available()
 except ImportError:
     FLASH_NEOX = False
@@ -48,7 +49,7 @@ torch.set_grad_enabled(False)
 
 
 def get_model(
-        model_id: str, revision: Optional[str], sharded: bool, quantize: bool
+    model_id: str, revision: Optional[str], sharded: bool, quantize: bool
 ) -> Model:
     if "facebook/galactica" in model_id:
         if sharded:

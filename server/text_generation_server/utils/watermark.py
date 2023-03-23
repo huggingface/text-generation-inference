@@ -39,7 +39,8 @@ class WatermarkLogitsProcessor(LogitsProcessor):
 
     def _seed_rng(self, input_ids: Union[List[int], torch.LongTensor]):
         if isinstance(input_ids, list):
-            assert (len(input_ids) >= 1
+            assert (
+                len(input_ids) >= 1
             ), "requires at least a 1 token prefix sequence to seed rng"
             prev_token = input_ids[-1]
         else:
@@ -52,15 +53,16 @@ class WatermarkLogitsProcessor(LogitsProcessor):
         self.rng.manual_seed(self.hash_key * prev_token)
 
     def _get_greenlist_ids(
-        self, input_ids: Union[List[int], torch.LongTensor], max_value: int, device: torch.device
+        self,
+        input_ids: Union[List[int], torch.LongTensor],
+        max_value: int,
+        device: torch.device,
     ) -> List[int]:
         # seed the rng using the previous tokens/prefix
         self._seed_rng(input_ids)
 
         greenlist_size = int(max_value * self.gamma)
-        vocab_permutation = torch.randperm(
-            max_value, device=device, generator=self.rng
-        )
+        vocab_permutation = torch.randperm(max_value, device=device, generator=self.rng)
         greenlist_ids = vocab_permutation[:greenlist_size]
         return greenlist_ids
 
@@ -83,7 +85,9 @@ class WatermarkLogitsProcessor(LogitsProcessor):
     def __call__(
         self, input_ids: Union[List[int], torch.LongTensor], scores: torch.FloatTensor
     ) -> torch.FloatTensor:
-        greenlist_ids = self._get_greenlist_ids(input_ids, scores.shape[-1], scores.device)
+        greenlist_ids = self._get_greenlist_ids(
+            input_ids, scores.shape[-1], scores.device
+        )
         green_tokens_mask = self._calc_greenlist_mask(
             scores=scores, greenlist_token_ids=greenlist_ids
         )
