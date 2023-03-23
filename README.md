@@ -83,6 +83,7 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --num-shard $num_shard
 ```
+**Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 11.8 or higher.
 
 You can then query the model using either the `/generate` or `/generate_stream` routes:
 
@@ -118,8 +119,6 @@ for response in client.generate_stream("What is Deep Learning?", max_new_tokens=
         text += response.token.text
 print(text)
 ```
-
-**Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
 ### API documentation
 
