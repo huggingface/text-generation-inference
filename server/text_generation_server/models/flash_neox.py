@@ -338,7 +338,6 @@ class FlashNeoX(Model):
 
         # Create final next batch tensors
         device = out.device
-        next_batch_input_ids = torch.concat(next_batch_input_ids, dim=0)
         next_batch_position_ids = torch.tensor(
             next_batch_position_ids, dtype=torch.int32, device=device
         )
@@ -346,8 +345,10 @@ class FlashNeoX(Model):
             next_batch_cu_seqlens, dtype=torch.int32, device=device
         )
         if len(next_batch_keep_indices) > 1:
+            next_batch_input_ids = torch.concat(next_batch_input_ids, dim=0)
             next_batch_past_key_values = torch.concat(next_batch_past_key_values)
         else:
+            next_batch_input_ids = next_batch_input_ids[0]
             next_batch_past_key_values = next_batch_past_key_values[0]
 
         next_batch = FlashNeoXBatch(
