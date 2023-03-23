@@ -13,7 +13,7 @@ from text_generation_server.models.flash_neox_modeling import (
     FlashGPTNeoXForCausalLM,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
-    TensorParallelColumnLinear
+    TensorParallelColumnLinear,
 )
 from text_generation_server.models.types import (
     Batch,
@@ -114,7 +114,6 @@ class FlashNeoXBatch(Batch):
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["CausalLMBatch"]) -> "CausalLMBatch":
         raise NotImplementedError
-
 
     def __len__(self):
         return len(self.requests)
@@ -259,7 +258,9 @@ class FlashNeoX(Model):
 
             if stop:
                 # Decode generated tokens
-                output_text = self.decode(all_input_ids[-stopping_criteria.current_tokens :])
+                output_text = self.decode(
+                    all_input_ids[-stopping_criteria.current_tokens :]
+                )
                 # Get seed
                 if isinstance(next_token_chooser.choice, Sampling):
                     seed = next_token_chooser.choice.seed
