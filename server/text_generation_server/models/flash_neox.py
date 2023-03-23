@@ -3,7 +3,6 @@ import torch.distributed
 
 from accelerate import init_empty_weights
 from dataclasses import dataclass
-from flash_attn.ops.fused_dense import ColumnParallelLinear, RowParallelLinear
 from opentelemetry import trace
 from safetensors import safe_open
 from transformers import AutoTokenizer, PreTrainedTokenizerBase, AutoConfig
@@ -13,6 +12,8 @@ from text_generation_server.models import Model
 from text_generation_server.models.flash_neox_modeling import (
     FlashGPTNeoXForCausalLM,
     TensorParallelEmbedding,
+    TensorParallelRowLinear,
+    TensorParallelColumnLinear
 )
 from text_generation_server.models.types import (
     Batch,
@@ -42,7 +43,7 @@ class FlashNeoXBatch(Batch):
     position_ids: torch.Tensor
     # cumulative sequence lengths
     cu_seqlens: torch.Tensor
-    max_seqlen: torch.Tensor
+    max_seqlen: int
     past_key_values: Optional[torch.Tensor]
 
     # All tokens
@@ -95,7 +96,6 @@ class FlashNeoXBatch(Batch):
         input_ids = torch.concat(input_ids).unsqueeze(1)
         position_ids = torch.concat(position_ids)
         cu_seqlens = torch.tensor(cu_seqlens, dtype=torch.int32, device=device)
-        max_seqlen = torch.tensor(max_seqlen, dtype=torch.int32, device=device)
 
         return cls(
             batch_id=pb.id,
@@ -168,7 +168,7 @@ class FlashNeoX(Model):
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlens: torch.Tensor,
-        max_s: torch.Tensor,
+        max_s: int,
         past_key_values: Optional = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
@@ -184,10 +184,6 @@ class FlashNeoX(Model):
     def generate_token(
         self, batch: FlashNeoXBatch
     ) -> Tuple[List[Generation], Optional[FlashNeoXBatch]]:
-        print("pos", batch.position_ids)
-        print("cu", batch.cu_seqlens)
-        print("max", batch.max_seqlen)
-
         out, present = self.forward(
             batch.input_ids.squeeze(1),
             batch.position_ids,
@@ -228,7 +224,7 @@ class FlashNeoX(Model):
             # Indexing metadata
             start_index = batch.cu_seqlens[i]
             end_index = batch.cu_seqlens[i + 1]
-            seq_length = end_index - start_index
+            seq_length = (end_index - start_index).item()
 
             if batch.past_key_values is None:
                 # Prefill mode
@@ -263,7 +259,7 @@ class FlashNeoX(Model):
 
             if stop:
                 # Decode generated tokens
-                output_text = self.decode(all_input_ids)
+                output_text = self.decode(all_input_ids[-stopping_criteria.current_tokens :])
                 # Get seed
                 if isinstance(next_token_chooser.choice, Sampling):
                     seed = next_token_chooser.choice.seed
@@ -282,7 +278,7 @@ class FlashNeoX(Model):
                 generated_text = None
                 next_batch_keep_indices.append(i)
                 next_batch_input_ids.append(next_token_id)
-                next_batch_position_ids.append(new_input_length)
+                next_batch_position_ids.append(seq_length)
                 next_batch_cu_seqlens.append(
                     next_batch_cu_seqlens[i] + new_input_length
                 )
@@ -435,13 +431,13 @@ class FlashNeoXSharded(FlashNeoX):
 
                     slice_ = f.get_slice(name)
 
-                    if isinstance(module, ColumnParallelLinear):
+                    if isinstance(module, TensorParallelColumnLinear):
                         size = slice_.get_shape()[0]
                         block_size = size // world_size
                         start = rank * block_size
                         stop = (rank + 1) * block_size
                         tensor = slice_[start:stop]
-                    elif isinstance(module, RowParallelLinear):
+                    elif isinstance(module, TensorParallelRowLinear):
                         if param_name == "weight":
                             size = slice_.get_shape()[1]
                             block_size = size // world_size
@@ -491,7 +487,7 @@ class FlashNeoXSharded(FlashNeoX):
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlens: torch.Tensor,
-        max_s: torch.Tensor,
+        max_s: int,
         past_key_values: Optional = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.model.gpt_neox.tp_embeddings:
