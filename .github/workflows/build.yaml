@@ -8,6 +8,15 @@ on:
     tags:
       - 'v*'
   pull_request:
+    paths:
+      - ".github/workflows/build.yaml"
+      - "server/**"
+      - "proto/**"
+      - "router/**"
+      - "launcher/**"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "Dockerfile"
     branches:
       - 'main'
 

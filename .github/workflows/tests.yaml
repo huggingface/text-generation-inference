@@ -8,6 +8,8 @@ on:
       - "proto/**"
       - "router/**"
       - "launcher/**"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
 
 jobs:
   run_tests:
