@@ -1,5 +1,7 @@
+import os
 import torch
 
+from loguru import logger
 from transformers import AutoConfig
 from typing import Optional
 
@@ -14,9 +16,10 @@ from text_generation_server.models.t5 import T5Sharded
 
 try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
-
-    FLASH_NEOX = torch.cuda.is_available()
+    FLASH_NEOX = torch.cuda.is_available() and int(os.environ.get("FLASH_NEOX", 0)) == 1
 except ImportError:
+    if int(os.environ.get("FLASH_NEOX", 0)) == 1:
+        logger.exception("Could not import FlashNeoX")
     FLASH_NEOX = False
 
 __all__ = [
