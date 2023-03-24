@@ -16,6 +16,7 @@ from text_generation_server.models.t5 import T5Sharded
 
 try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+
     FLASH_NEOX = torch.cuda.is_available() and int(os.environ.get("FLASH_NEOX", 0)) == 1
 except ImportError:
     if int(os.environ.get("FLASH_NEOX", 0)) == 1:

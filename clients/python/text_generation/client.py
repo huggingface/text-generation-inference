@@ -150,7 +150,6 @@ class Client:
         prompt: str,
         do_sample: bool = False,
         max_new_tokens: int = 20,
-        best_of: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
@@ -172,8 +171,6 @@ class Client:
                 Activate logits sampling
             max_new_tokens (`int`):
                 Maximum number of generated tokens
-            best_of (`int`):
-                Generate best_of sequences and return the one if the highest token logprobs
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
@@ -203,7 +200,7 @@ class Client:
         """
         # Validate parameters
         parameters = Parameters(
-            best_of=best_of,
+            best_of=None,
             details=True,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
@@ -388,7 +385,6 @@ class AsyncClient:
         prompt: str,
         do_sample: bool = False,
         max_new_tokens: int = 20,
-        best_of: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
@@ -410,8 +406,6 @@ class AsyncClient:
                 Activate logits sampling
             max_new_tokens (`int`):
                 Maximum number of generated tokens
-            best_of (`int`):
-                Generate best_of sequences and return the one if the highest token logprobs
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
@@ -441,7 +435,7 @@ class AsyncClient:
         """
         # Validate parameters
         parameters = Parameters(
-            best_of=best_of,
+            best_of=None,
             details=True,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,

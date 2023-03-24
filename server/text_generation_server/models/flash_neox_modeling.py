@@ -1,8 +1,6 @@
 import torch
 import torch.distributed
 
-import torch.nn.functional as F
-
 from torch import nn
 from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
@@ -16,7 +14,29 @@ import dropout_layer_norm
 from flash_attn.layers.rotary import RotaryEmbedding
 
 
-class TensorParallelColumnLinear(nn.Linear):
+class FastLinear(nn.Linear):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        device=None,
+        dtype=None,
+    ) -> None:
+        super(FastLinear, self).__init__(in_features, out_features, bias, device, dtype)
+        self.swap_dims = True
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        if self.swap_dims:
+            self.weight = nn.Parameter(self.weight.T)
+            self.swap_dims = False
+
+        if self.bias is not None:
+            return torch.addmm(self.bias, input, self.weight)
+        return torch.matmul(input, self.weight)
+
+
+class TensorParallelColumnLinear(FastLinear):
     def __init__(
         self,
         in_features,
@@ -39,15 +59,11 @@ class TensorParallelColumnLinear(nn.Linear):
             dtype=dtype,
         )
 
-    @staticmethod
-    def linear(input, weight, bias):
-        return F.linear(input, weight, bias)
-
     def forward(self, input):
-        return self.linear(input, self.weight, self.bias)
+        return super(TensorParallelColumnLinear, self).forward(input)
 
 
-class TensorParallelRowLinear(nn.Linear):
+class TensorParallelRowLinear(FastLinear):
     def __init__(
         self,
         in_features,
@@ -70,12 +86,8 @@ class TensorParallelRowLinear(nn.Linear):
             dtype=dtype,
         )
 
-    @staticmethod
-    def linear(input, weight, bias):
-        return F.linear(input, weight, bias)
-
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        out = self.linear(input, self.weight, self.bias)
+        out = super(TensorParallelRowLinear, self).forward(input)
         torch.distributed.all_reduce(out, group=self.process_group)
 
         return out
@@ -122,14 +134,6 @@ class TensorParallelEmbedding(nn.Embedding):
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # Sanity check
-        if torch.any(
-            torch.logical_or(0 > input, input >= self.original_num_embeddings)
-        ):
-            raise IndexError(
-                f"Input is required to be in [0, {self.original_num_embeddings}[, got min: {torch.min(input)} and max: {torch.max(input)}"
-            )
-
         # `0` if input is in the correct interval, else `1`
         input_mask = torch.logical_or(self.min_id > input, input >= self.max_id)
         # translate for [0, self.max_id - self.min_id[
@@ -196,8 +200,8 @@ class FlashNeoxAttention(torch.nn.Module):
         self.softmax_scale = self.head_size ** (-0.5)
 
         if process_group is None:
-            self.query_key_value = nn.Linear(hidden_size, 3 * hidden_size)
-            self.dense = nn.Linear(hidden_size, hidden_size)
+            self.query_key_value = FastLinear(hidden_size, 3 * hidden_size)
+            self.dense = FastLinear(hidden_size, hidden_size)
         else:
             self.num_heads = self.num_heads // process_group.size()
             self.query_key_value = TensorParallelColumnLinear(
@@ -312,8 +316,8 @@ class FlashMLP(nn.Module):
         )
 
         if process_group is None:
-            self.dense_h_to_4h = nn.Linear(hidden_size, intermediate_size)
-            self.dense_4h_to_h = nn.Linear(intermediate_size, hidden_size)
+            self.dense_h_to_4h = FastLinear(hidden_size, intermediate_size)
+            self.dense_4h_to_h = FastLinear(intermediate_size, hidden_size)
         else:
             self.dense_h_to_4h = TensorParallelColumnLinear(
                 hidden_size,
@@ -556,7 +560,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             # Create indices from cumulative sequence lengths
             layer_past_present_indices = cu_seqlens[1:] - 1
             cu_seqlens_q = torch.arange(
-                len(cu_seqlens), dtype=torch.int32, device=hidden_states.device
+                cu_seqlens.shape[0], dtype=torch.int32, device=hidden_states.device
             )
 
         # Get rotary cos and sin for this forward
@@ -613,13 +617,13 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         self.gpt_neox = FlashGPTNeoXModel(config, process_group)
 
         if self.gpt_neox.tp_embeddings:
-            self.embed_out = nn.Linear(
+            self.embed_out = FastLinear(
                 config.hidden_size,
                 config.vocab_size // process_group.size(),
                 bias=False,
             )
         else:
-            self.embed_out = nn.Linear(
+            self.embed_out = FastLinear(
                 config.hidden_size, config.vocab_size, bias=False
             )
 
