@@ -499,12 +499,12 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             if config.vocab_size % self.tp_world_size == 0:
                 self.tp_embeddings = True
 
-        # if self.tp_embeddings:
-        #     self.embed_in = TensorParallelEmbedding(
-        #         config.vocab_size, config.hidden_size, process_group=process_group
-        #     )
-        # else:
-        self.embed_in = nn.Embedding(config.vocab_size, config.hidden_size)
+        if self.tp_embeddings:
+            self.embed_in = TensorParallelEmbedding(
+                config.vocab_size, config.hidden_size, process_group=process_group
+            )
+        else:
+            self.embed_in = nn.Embedding(config.vocab_size, config.hidden_size)
 
         self.layers = nn.ModuleList(
             [
