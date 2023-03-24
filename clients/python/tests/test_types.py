@@ -14,6 +14,8 @@ def test_parameters_validation():
     Parameters(best_of=2, do_sample=True)
     with pytest.raises(ValidationError):
         Parameters(best_of=2)
+    with pytest.raises(ValidationError):
+        Parameters(best_of=2, seed=1)
 
     # Test repetition_penalty
     Parameters(repetition_penalty=1)

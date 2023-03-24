@@ -1,6 +1,8 @@
 import torch
 import torch.distributed
 
+from torch.nn import functional as F
+
 from accelerate import init_empty_weights
 from dataclasses import dataclass
 from opentelemetry import trace
@@ -48,6 +50,7 @@ class FlashNeoXBatch(Batch):
 
     # All tokens
     all_input_ids: List[List[int]]
+    all_input_ids_tensor: List[torch.Tensor]
 
     # Lengths of all generations present in the batch
     input_lengths: List[int]
@@ -75,6 +78,7 @@ class FlashNeoXBatch(Batch):
 
         input_lengths = []
         all_input_ids = []
+        all_input_ids_tensor = []
 
         next_token_choosers = []
         stopping_criterias = []
@@ -84,15 +88,14 @@ class FlashNeoXBatch(Batch):
 
         # Parse batch
         for r in pb.requests:
-            tokenized_input = tokenizer(r.inputs, return_tensors="pt")[
-                "input_ids"
-            ].squeeze(0)
-            input_ids.append(tokenized_input)
-            all_input_ids.append(tokenized_input.tolist())
-
+            tokenized_input = tokenizer(r.inputs)["input_ids"]
             input_length = len(tokenized_input)
             max_seqlen = max(max_seqlen, input_length)
             input_lengths.append(input_length)
+            all_input_ids.append(tokenized_input)
+
+            tokenized_input = torch.tensor(tokenized_input, device=device)
+            input_ids.append(tokenized_input)
 
             # Position ids
             position_ids.append(torch.arange(0, input_length, dtype=torch.int32))
@@ -101,14 +104,18 @@ class FlashNeoXBatch(Batch):
             cu_seqlens.append(cumulative_length + input_length)
 
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
-            stopping_criterias.append(
-                StoppingCriteria.from_pb(r.stopping_parameters, tokenizer)
+            stopping_criteria = StoppingCriteria.from_pb(
+                r.stopping_parameters, tokenizer
+            )
+            stopping_criterias.append(stopping_criteria)
+            all_input_ids_tensor.append(
+                F.pad(tokenized_input, (0, stopping_criteria.max_new_tokens))
             )
 
             # Update
             cumulative_length += input_length
 
-        input_ids = torch.concat(input_ids).unsqueeze(1)
+        input_ids = torch.concat(input_ids)
         position_ids = torch.concat(position_ids)
         cu_seqlens = torch.tensor(cu_seqlens, dtype=torch.int32)
 
@@ -122,6 +129,7 @@ class FlashNeoXBatch(Batch):
             past_key_values=None,
             input_lengths=input_lengths,
             all_input_ids=all_input_ids,
+            all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
         )
@@ -133,6 +141,7 @@ class FlashNeoXBatch(Batch):
         requests = []
         input_lengths = []
         all_input_ids = []
+        all_input_ids_tensor = []
         next_token_choosers = []
         stopping_criterias = []
 
@@ -150,6 +159,7 @@ class FlashNeoXBatch(Batch):
             requests.extend(batch.requests)
             input_lengths.extend(batch.input_lengths)
             all_input_ids.extend(batch.all_input_ids)
+            all_input_ids_tensor.extend(batch.all_input_ids_tensor)
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
 
@@ -181,6 +191,7 @@ class FlashNeoXBatch(Batch):
             past_key_values=past_key_values,
             input_lengths=input_lengths,
             all_input_ids=all_input_ids,
+            all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
         )
@@ -255,11 +266,10 @@ class FlashNeoX(Model):
     ) -> Tuple[List[Generation], Optional[FlashNeoXBatch]]:
         # Better to send to device here to avoid device issues in concatenate
         position_ids = batch.position_ids.to(self.device, non_blocking=True)
-        cu_seqlens = batch.cu_seqlens.to(self.device, non_blocking=True)
-        input_ids = batch.input_ids.squeeze(1).to(self.device)
+        cu_seqlens = batch.cu_seqlens.to(self.device)
 
         out, present = self.forward(
-            input_ids,
+            batch.input_ids,
             position_ids,
             cu_seqlens,
             batch.max_seqlen,
@@ -277,6 +287,7 @@ class FlashNeoX(Model):
         next_batch_past_key_values = []
         next_batch_input_lengths = []
         next_batch_all_input_ids = []
+        next_batch_all_input_ids_tensor = []
 
         # Cumulative length
         cumulative_length = 0
@@ -291,6 +302,7 @@ class FlashNeoX(Model):
             batch.next_token_choosers,
             batch.stopping_criterias,
             batch.all_input_ids,
+            batch.all_input_ids_tensor,
         )
 
         # For each member of the batch
@@ -300,6 +312,7 @@ class FlashNeoX(Model):
             next_token_chooser,
             stopping_criteria,
             all_input_ids,
+            all_input_ids_tensor,
         ) in enumerate(iterator):
             # Indexing metadata
             start_index = cumulative_length
@@ -315,20 +328,19 @@ class FlashNeoX(Model):
                 logits = out[i].unsqueeze(0)
 
             # Select next token
-            next_token_id, logprobs = next_token_chooser(all_input_ids, logits)
-            # Copy to cpu to avoid other copies when indexing and calling .item()
-            next_token_id = next_token_id.to("cpu", non_blocking=True)
-            logprobs = logprobs.to("cpu")
-
+            next_token_id, logprobs = next_token_chooser(
+                all_input_ids_tensor[None, :input_length], logits
+            )
             next_token_id_squeezed = next_token_id.squeeze()
             next_token_id_item = next_token_id_squeezed.item()
 
             # Append next token to all tokens
             all_input_ids.append(next_token_id_item)
+            all_input_ids_tensor[input_length] = next_token_id_item
             new_input_length = input_length + 1
 
             # Generated token
-            next_token_logprob = logprobs[-1, next_token_id]
+            next_token_logprob = logprobs[-1, next_token_id_item]
             next_token_text = self.decode_token(
                 next_token_id_item,
             )
@@ -372,13 +384,14 @@ class FlashNeoX(Model):
                 )
                 next_batch_input_lengths.append(new_input_length)
                 next_batch_all_input_ids.append(all_input_ids)
+                next_batch_all_input_ids_tensor.append(all_input_ids_tensor)
                 next_batch_max_seqlen = max(next_batch_max_seqlen, new_input_length)
 
             # Prefill
             if stopping_criteria.current_tokens == 1:
                 # Remove generated token to only have prefill and add nan for first prompt token
                 prefill_logprobs = [float("nan")] + logprobs.gather(
-                    1, torch.tensor(all_input_ids[1:]).unsqueeze(1)
+                    1, all_input_ids_tensor[1:input_length].unsqueeze(1)
                 ).squeeze(1)[:-1].tolist()
                 prefill_token_ids = all_input_ids[:-1]
                 prefill_texts = self.tokenizer.batch_decode(
@@ -431,11 +444,13 @@ class FlashNeoX(Model):
         )
         next_batch_cu_seqlens = torch.tensor(next_batch_cu_seqlens, dtype=torch.int32)
         if len(next_batch_keep_indices) > 1:
-            next_batch_input_ids = torch.concat(next_batch_input_ids)
+            next_batch_input_ids = torch.concat(next_batch_input_ids).squeeze(1)
             next_batch_past_key_values = torch.concat(next_batch_past_key_values, dim=1)
         else:
-            next_batch_input_ids = next_batch_input_ids[0]
+            next_batch_input_ids = next_batch_input_ids[0].view(1)
             next_batch_past_key_values = next_batch_past_key_values[0]
+
+        print(next_batch_input_ids.shape)
 
         next_batch = FlashNeoXBatch(
             batch_id=batch.batch_id,
@@ -447,6 +462,7 @@ class FlashNeoX(Model):
             past_key_values=next_batch_past_key_values,
             input_lengths=next_batch_input_lengths,
             all_input_ids=next_batch_all_input_ids,
+            all_input_ids_tensor=next_batch_all_input_ids_tensor,
             next_token_choosers=next_batch_next_token_choosers,
             stopping_criterias=next_batch_stopping_criterias,
         )

@@ -43,6 +43,8 @@ class Parameters(BaseModel):
         if field_value is not None:
             if field_value <= 0:
                 raise ValidationError("`best_of` must be strictly positive")
+            if field_value > 1 and values["seed"] is not None:
+                raise ValidationError("`seed` must not be set when `best_of` is > 1")
             sampling = (
                 values["do_sample"]
                 | (values["temperature"] is not None)
