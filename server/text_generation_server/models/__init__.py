@@ -1,5 +1,7 @@
+import os
 import torch
 
+from loguru import logger
 from transformers import AutoConfig
 from typing import Optional
 
@@ -11,6 +13,14 @@ from text_generation_server.models.galactica import Galactica, GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
+
+try:
+    from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+    FLASH_NEOX = torch.cuda.is_available() and int(os.environ.get("FLASH_NEOX", 0)) == 1
+except ImportError:
+    if int(os.environ.get("FLASH_NEOX", 0)) == 1:
+        logger.exception("Could not import FlashNeoX")
+    FLASH_NEOX = False
 
 __all__ = [
     "Model",
@@ -25,6 +35,10 @@ __all__ = [
     "T5Sharded",
     "get_model",
 ]
+
+if FLASH_NEOX:
+    __all__.append(FlashNeoX)
+    __all__.append(FlashNeoXSharded)
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -59,9 +73,11 @@ def get_model(
 
     if config.model_type == "gpt_neox":
         if sharded:
-            return GPTNeoxSharded(model_id, revision, quantize=quantize)
+            neox_cls = FlashNeoXSharded if FLASH_NEOX else GPTNeoxSharded
+            return neox_cls(model_id, revision, quantize=quantize)
         else:
-            return CausalLM(model_id, revision, quantize=quantize)
+            neox_cls = FlashNeoX if FLASH_NEOX else CausalLM
+            return neox_cls(model_id, revision, quantize=quantize)
 
     if config.model_type == "t5":
         if sharded:

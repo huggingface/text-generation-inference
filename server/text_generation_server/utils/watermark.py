@@ -17,6 +17,7 @@ import os
 
 import torch
 from transformers import LogitsProcessor
+from typing import List, Union
 
 GAMMA = os.getenv("WATERMARK_GAMMA", 0.5)
 DELTA = os.getenv("WATERMARK_DELTA", 2.0)
@@ -36,23 +37,32 @@ class WatermarkLogitsProcessor(LogitsProcessor):
         self.rng = torch.Generator(device=device)
         self.hash_key = hash_key
 
-    def _seed_rng(self, input_ids: torch.LongTensor) -> None:
-        assert (
-            input_ids.shape[-1] >= 1
-        ), "requires at least a 1 token prefix sequence to seed rng"
-        prev_token = input_ids[-1].item()
+    def _seed_rng(self, input_ids: Union[List[int], torch.LongTensor]):
+        if isinstance(input_ids, list):
+            assert (
+                len(input_ids) >= 1
+            ), "requires at least a 1 token prefix sequence to seed rng"
+            prev_token = input_ids[-1]
+        else:
+            input_ids = input_ids[0]
+            assert len(input_ids) == 1
+            assert (
+                input_ids.shape[-1] >= 1
+            ), "requires at least a 1 token prefix sequence to seed rng"
+            prev_token = input_ids[-1].item()
         self.rng.manual_seed(self.hash_key * prev_token)
 
     def _get_greenlist_ids(
-        self, input_ids: torch.LongTensor, max_value: int
-    ) -> list[int]:
+        self,
+        input_ids: Union[List[int], torch.LongTensor],
+        max_value: int,
+        device: torch.device,
+    ) -> List[int]:
         # seed the rng using the previous tokens/prefix
         self._seed_rng(input_ids)
 
         greenlist_size = int(max_value * self.gamma)
-        vocab_permutation = torch.randperm(
-            max_value, device=input_ids.device, generator=self.rng
-        )
+        vocab_permutation = torch.randperm(max_value, device=device, generator=self.rng)
         greenlist_ids = vocab_permutation[:greenlist_size]
         return greenlist_ids
 
@@ -73,10 +83,11 @@ class WatermarkLogitsProcessor(LogitsProcessor):
         return scores
 
     def __call__(
-        self, input_ids: torch.LongTensor, scores: torch.FloatTensor
+        self, input_ids: Union[List[int], torch.LongTensor], scores: torch.FloatTensor
     ) -> torch.FloatTensor:
-        assert len(input_ids) == 1
-        greenlist_ids = self._get_greenlist_ids(input_ids[0], scores.shape[-1])
+        greenlist_ids = self._get_greenlist_ids(
+            input_ids, scores.shape[-1], scores.device
+        )
         green_tokens_mask = self._calc_greenlist_mask(
             scores=scores, greenlist_token_ids=greenlist_ids
         )

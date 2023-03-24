@@ -24,7 +24,7 @@ class Sampling:
         self.seed = seed
 
     def __call__(self, logits):
-        probs = torch.nn.functional.softmax(logits)
+        probs = torch.nn.functional.softmax(logits, -1)
         next_tokens = torch.multinomial(probs, num_samples=1, generator=self.generator)
         return next_tokens
 

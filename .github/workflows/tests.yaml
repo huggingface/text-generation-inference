@@ -11,6 +11,10 @@ on:
       - "Cargo.lock"
       - "rust-toolchain.toml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   run_tests:
     runs-on: ubuntu-20.04
