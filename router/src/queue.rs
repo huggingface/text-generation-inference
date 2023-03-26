@@ -219,9 +219,10 @@ enum QueueCommand {
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
+    use text_generation_client::NextTokenChooserParameters;
     use tokio::sync::{mpsc, Semaphore};
     use tracing::info_span;
+    use crate::validation::StoppingCriteria;
 
     fn default_entry() -> Entry {
         let semaphore = Arc::new(Semaphore::new(1));
@@ -241,9 +242,10 @@ mod tests {
                     repetition_penalty: 0.0,
                     watermark: false,
                 },
-                stopping_parameters: StoppingCriteriaParameters {
+                stopping_criteria: StoppingCriteria {
                     max_new_tokens: 0,
                     stop_sequences: vec![],
+                    deadline: None,
                 },
             },
             response_tx,
