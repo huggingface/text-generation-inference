@@ -450,8 +450,6 @@ class FlashNeoX(Model):
             next_batch_input_ids = next_batch_input_ids[0].view(1)
             next_batch_past_key_values = next_batch_past_key_values[0]
 
-        print(next_batch_input_ids.shape)
-
         next_batch = FlashNeoXBatch(
             batch_id=batch.batch_id,
             requests=next_batch_requests,
@@ -507,6 +505,7 @@ class FlashNeoXSharded(FlashNeoX):
             rank=self.rank,
             world_size=self.world_size,
         )
+        model.post_load_weights()
         self.model = model.eval().to(dtype)
         torch.distributed.barrier(group=self.process_group)
         super(FlashNeoX, self).__init__(
