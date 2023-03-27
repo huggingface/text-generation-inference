@@ -45,12 +45,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if local_path.exists() && local_path.is_dir() && local_path.join("tokenizer.json").exists()
         {
             // Load local tokenizer
-            Tokenizer::from_file(local_path.join("tokenizer.json")).unwrap()
+            Tokenizer::from_file(local_path.join("tokenizer.json")).expect("unable to load local tokenizer")
         } else {
             // Download and instantiate tokenizer
             // We need to download it outside of the Tokio runtime
-            Tokenizer::from_pretrained(tokenizer_name.clone(), None).unwrap()
+            Tokenizer::from_pretrained(tokenizer_name.clone(), None).expect("unable to load hub tokenizer")
         };
+
     // Launch Tokio runtime
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -60,14 +61,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             init_logging();
 
             // Instantiate sharded client from the master unix socket
-            // let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
-            //     .await
-            //     .expect("Could not connect to server");
+            tracing::info!("Connect to model server");
+            let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
+                .await
+                .expect("Could not connect to server");
             // Clear the cache; useful if the webserver rebooted
-            // sharded_client
-            //     .clear_cache()
-            //     .await
-            //     .expect("Unable to clear cache");
+            sharded_client
+                .clear_cache()
+                .await
+                .expect("Unable to clear cache");
             tracing::info!("Connected");
 
             text_generation_benchmark::run(
@@ -76,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sequence_length,
                 decode_length,
                 runs,
-                // sharded_client,
+                sharded_client,
             ).await.unwrap();
         });
     Ok(())

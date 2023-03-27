@@ -14,12 +14,13 @@ use tui::text::{Span, Spans};
 use tui::widgets::{BarChart, Block, Borders, Gauge, Paragraph};
 use tui::Terminal;
 use tokio::sync::mpsc::Receiver;
+use crate::{Run, Step};
 
-pub struct UI {
-    pub n_run: usize,
-    pub n_batch: usize,
-    pub n_batch_done: usize,
-    pub run_receiver: Receiver<()>,
+pub(crate) struct UI {
+    pub(crate) n_run: usize,
+    pub(crate) n_batch: usize,
+    pub(crate) n_batch_done: usize,
+    pub(crate) run_receiver: Receiver<Run>,
 }
 
 impl UI {
@@ -30,6 +31,10 @@ impl UI {
         io::stdout().execute(crossterm::terminal::EnterAlternateScreen)?;
         io::stdout().execute(crossterm::cursor::Hide)?;
 
+        let mut prefill_latency = Vec::new();
+        let mut prefill_throughput = Vec::new();
+        let mut decode_latency = Vec::new();
+        let mut decode_throughput = Vec::new();
         let mut runs = Vec::new();
 
         let mut terminal = {
@@ -42,11 +47,20 @@ impl UI {
             loop {
                 match self.run_receiver.try_recv() {
                     Ok(run) => {
-                        // match report.as_ref() {
-                        //     Ok(report) => *status_dist.entry(report.status).or_default() += 1,
-                        //     Err(e) => *error_dist.entry(e.to_string()).or_default() += 1,
-                        // }
-                        // all.push(report);
+                        match run.step {
+                            Step::Prefill => {
+                                let latency = run.time.as_millis() as f64;
+                                let throughput = run.batch_size as f64 / run.time.as_secs_f64();
+                                prefill_latency.push(latency);
+                                prefill_throughput.push(throughput);
+                            }
+                            Step::Decode => {
+                                let latency = run.time.as_millis() as f64;
+                                let throughput = (run.batch_size * run.decode_length) as f64 / run.time.as_secs_f64();
+                                decode_latency.push(latency);
+                                decode_throughput.push(throughput);
+                            }
+                        }
                         runs.push(run);
                     }
                     Err(TryRecvError::Empty) => {
@@ -58,8 +72,6 @@ impl UI {
                     }
                 }
             }
-
-            let draw_start = Instant::now();
 
             let batch_progress = (self.n_batch_done as f64 / self.n_batch as f64).clamp(0.0, 1.0);
             let run_progress = (runs.len() as f64 / self.n_run as f64).clamp(0.0, 1.0);
@@ -128,10 +140,8 @@ impl UI {
                     .ratio(run_progress);
                 f.render_widget(run_gauge, top[1]);
 
-                let data = vec![0.0];
-
-                let prefill_latency_texts = statis_spans(&data, "ms", false);
-                let prefill_throughput_texts = statis_spans(&data, "tokens/secs", false);
+                let prefill_latency_texts = statis_spans(&prefill_latency, "ms", false);
+                let prefill_throughput_texts = statis_spans(&prefill_throughput, "tokens/secs", false);
 
                 let prefill_latency_statics = Paragraph::new(prefill_latency_texts).block(
                     Block::default()
@@ -146,6 +156,23 @@ impl UI {
                         .borders(Borders::ALL),
                 );
                 f.render_widget(prefill_throughput_statics, prefill_text[1]);
+
+                let decode_latency_texts = statis_spans(&decode_latency, "ms", false);
+                let decode_throughput_texts = statis_spans(&decode_throughput, "tokens/secs", false);
+
+                let decode_latency_statics = Paragraph::new(decode_latency_texts).block(
+                    Block::default()
+                        .title(Span::raw("Decode Latency"))
+                        .borders(Borders::ALL),
+                );
+                f.render_widget(decode_latency_statics, decode_text[0]);
+
+                let decode_throughput_statics = Paragraph::new(decode_throughput_texts).block(
+                    Block::default()
+                        .title(Span::raw("Decode Throughput"))
+                        .borders(Borders::ALL),
+                );
+                f.render_widget(decode_throughput_statics, decode_text[1]);
             })?;
 
             let per_frame = Duration::from_secs(1) / 30 as u32;
@@ -170,7 +197,7 @@ fn statis_spans<'a>(data: &Vec<f64>, unit: &'static str, color: bool) -> Vec<Spa
                 "Lowest: {:.4} {unit}",
                 data
                     .iter()
-                    .max_by(|a, b| a.total_cmp(b))
+                    .min_by(|a, b| a.total_cmp(b))
                     .unwrap_or(&std::f64::NAN)
             ),
             Style::default().fg(Color::Reset),
@@ -180,7 +207,7 @@ fn statis_spans<'a>(data: &Vec<f64>, unit: &'static str, color: bool) -> Vec<Spa
                 "Highest: {:.4} {unit}",
                 data
                     .iter()
-                    .min_by(|a, b| a.total_cmp(b))
+                    .max_by(|a, b| a.total_cmp(b))
                     .unwrap_or(&std::f64::NAN)
             ),
             Style::default().fg(Color::Reset),
