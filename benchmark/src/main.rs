@@ -16,16 +16,16 @@ struct Args {
     #[clap(default_value = "1", long, env)]
     batch_size: Vec<u32>,
     #[clap(default_value = "128", long, env)]
-    sequence_length: Vec<u32>,
+    sequence_length: u32,
     #[clap(default_value = "100", long, env)]
-    decode_length: Vec<u32>,
-    #[clap(default_value = "1", long, env)]
-    runs: u32,
+    decode_length: u32,
+    #[clap(default_value = "10", long, env)]
+    runs: usize,
     #[clap(default_value = "/tmp/text-generation-0", long, env)]
     master_shard_uds_path: String,
 }
 
-fn main() -> Result<(), std::io::Error> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get args
     let args = Args::parse();
     // Pattern match configuration
@@ -60,14 +60,14 @@ fn main() -> Result<(), std::io::Error> {
             init_logging();
 
             // Instantiate sharded client from the master unix socket
-            let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
-                .await
-                .expect("Could not connect to server");
+            // let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
+            //     .await
+            //     .expect("Could not connect to server");
             // Clear the cache; useful if the webserver rebooted
-            sharded_client
-                .clear_cache()
-                .await
-                .expect("Unable to clear cache");
+            // sharded_client
+            //     .clear_cache()
+            //     .await
+            //     .expect("Unable to clear cache");
             tracing::info!("Connected");
 
             text_generation_benchmark::run(
@@ -76,8 +76,8 @@ fn main() -> Result<(), std::io::Error> {
                 sequence_length,
                 decode_length,
                 runs,
-                sharded_client,
-            ).await;
+                // sharded_client,
+            ).await.unwrap();
         });
     Ok(())
 }
