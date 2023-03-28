@@ -1,3 +1,23 @@
+# coding=utf-8
+# Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
+#
+# This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
+# and OPT implementations in this library. It has been modified from its
+# original forms to accommodate minor architectural differences compared
+# to GPT-NeoX and OPT used by the Meta AI team that trained the model.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import torch
 import torch.distributed
 
@@ -23,15 +43,45 @@ class LlamaRMSNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(hidden_size))
         self.variance_epsilon = eps
 
-    def forward(self, hidden_states):
-        variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+    def forward(self, hidden_states, residual=None):
+        if hidden_states.shape[-1] > 6144:
+            if residual is not None:
+                hidden_states += residual
+            residual = hidden_states
 
-        # convert into half-precision if necessary
-        if self.weight.dtype in [torch.float16, torch.bfloat16]:
-            hidden_states = hidden_states.to(self.weight.dtype)
+            variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
+            hidden_states = hidden_states * torch.rsqrt(
+                variance + self.variance_epsilon
+            )
 
-        return self.weight * hidden_states
+            # convert into half-precision if necessary
+            if self.weight.dtype in [torch.float16, torch.bfloat16]:
+                hidden_states = hidden_states.to(self.weight.dtype)
+
+            return self.weight * hidden_states, residual
+        else:
+            # faster post attention rms norm
+            normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
+                hidden_states,
+                residual,
+                self.weight,
+                None,
+                None,
+                None,
+                None,
+                None,
+                0.0,
+                self.variance_epsilon,
+                1.0,
+                0,
+                None,
+                False,
+                True,  # Activate RMSNorm
+            )
+            if res is None:
+                res = hidden_states
+
+            return normed_hidden_states, res
 
 
 class FastLinear(nn.Linear):
@@ -183,8 +233,6 @@ class PositionRotaryEmbedding(RotaryEmbedding):
         ):
             self._seq_len_cached = seqlen
             t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
-            # Don't do einsum, it converts fp32 to fp16
-            # freqs = torch.einsum("i,j->ij", t, self.inv_freq)
             freqs = torch.outer(t, self.inv_freq.to(device=t.device))
             self._cos_cached = torch.cos(freqs).to(dtype)
             self._sin_cached = torch.sin(freqs).to(dtype)
@@ -244,16 +292,6 @@ class FlashLlamaAttention(torch.nn.Module):
                 bias=False,
                 process_group=process_group,
             )
-
-    def shuffle_qkv_dims(self):
-        """Swap dims to avoid an additional permute"""
-        self.query_key_value.weight = torch.nn.Parameter(
-            self.query_key_value.weight.view(
-                self.num_heads, 3, self.head_size, self.hidden_size
-            )
-            .permute(1, 0, 2, 3)
-            .reshape(-1, self.hidden_size)
-        )
 
     def forward(
         self,
@@ -333,7 +371,6 @@ class LlamaMLP(nn.Module):
             if "gelu" not in act
             else lambda x: torch.nn.functional.gelu(x, approximate="tanh")
         )
-        self.intermediate_size = intermediate_size
 
         if process_group is None:
             # Fuse gate and up proj
@@ -341,6 +378,7 @@ class LlamaMLP(nn.Module):
                 hidden_size, 2 * intermediate_size, bias=False
             )
             self.down_proj = FastLinear(intermediate_size, hidden_size, bias=False)
+            self.intermediate_size = intermediate_size
         else:
             # Fuse gate and up proj
             self.gate_up_proj = TensorParallelColumnLinear(
@@ -356,6 +394,8 @@ class LlamaMLP(nn.Module):
                 process_group=process_group,
                 reduce=True,
             )
+            self.intermediate_size = self.down_proj.in_features
+
         self.process_group = process_group
 
     def forward(self, hidden_states):
@@ -394,27 +434,11 @@ class FlashLlamaLayer(nn.Module):
         layer_past_present_indices,
         cu_seqlens_q,
     ):
-        # faster input rms norm
-        hidden_states, residual, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-            hidden_states,
-            residual,
-            self.input_layernorm.weight,
-            None,
-            None,
-            None,
-            None,
-            None,
-            0.0,
-            self.input_layernorm.variance_epsilon,
-            1.0,
-            0,
-            None,
-            False,
-            True,
-        )
+        normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
-        hidden_states = self.self_attn(
-            hidden_states,
+        # Self Attention
+        attn_output = self.self_attn(
+            normed_hidden_states,
             cos,
             sin,
             cu_seqlens,
@@ -425,27 +449,13 @@ class FlashLlamaLayer(nn.Module):
         )
 
         # faster post attention rms norm
-        hidden_states, residual, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-            hidden_states,
-            residual,
-            self.post_attention_layernorm.weight,
-            None,
-            None,
-            None,
-            None,
-            None,
-            0.0,
-            self.post_attention_layernorm.variance_epsilon,
-            1.0,
-            0,
-            None,
-            False,
-            True,
+        normed_attn_res_output, attn_res = self.post_attention_layernorm(
+            attn_output, res
         )
 
-        mlp_output = self.mlp(hidden_states)
+        mlp_output = self.mlp(normed_attn_res_output)
 
-        return mlp_output, residual
+        return mlp_output, attn_res
 
 
 class FlashLlamaModel(torch.nn.Module):
@@ -492,7 +502,6 @@ class FlashLlamaModel(torch.nn.Module):
             self.embed_tokens.add_null_idx()
         for layer in self.layers:
             layer: FlashLlamaLayer
-            layer.self_attn.shuffle_qkv_dims()
             layer.self_attn.query_key_value.transpose_weight()
             layer.self_attn.o_proj.transpose_weight()
             layer.mlp.gate_up_proj.transpose_weight()
@@ -550,24 +559,7 @@ class FlashLlamaModel(torch.nn.Module):
                 cu_seqlens_q,
             )
 
-        # Faster final layer norm
-        hidden_states, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-            hidden_states,
-            residual,
-            self.norm.weight,
-            None,
-            None,
-            None,
-            None,
-            None,
-            0.0,
-            self.norm.variance_epsilon,
-            1.0,
-            0,
-            None,
-            False,
-            True,
-        )
+        hidden_states, _ = self.norm(hidden_states, residual)
 
         return hidden_states, past_key_values
 

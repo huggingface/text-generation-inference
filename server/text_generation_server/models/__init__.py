@@ -19,7 +19,7 @@ from text_generation_server.models.t5 import T5Sharded
 try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
     from text_generation_server.models.flash_santacoder import FlashSantacoder
-    from text_generation_server.models.flash_llama import FlashLlama
+    from text_generation_server.models.flash_llama import FlashLlama, FlashLlamaSharded
 
     FLASH_ATTENTION = (
         torch.cuda.is_available() and int(os.environ.get("FLASH_ATTENTION", 0)) == 1
@@ -95,7 +95,11 @@ def get_model(
 
     if model_type == "llama":
         if sharded:
-            raise NotImplementedError
+            if FLASH_ATTENTION:
+                return FlashLlamaSharded(model_id, revision, quantize=quantize)
+            raise NotImplementedError(
+                "sharded is not supported for llama when FLASH_ATTENTION=0"
+            )
         else:
             llama_cls = FlashLlama if FLASH_ATTENTION else CausalLM
             return llama_cls(model_id, revision, quantize=quantize)
