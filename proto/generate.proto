@@ -21,8 +21,10 @@ message ServiceDiscoveryResponse {
     repeated string urls = 1;
 }
 
-/// Empty request
-message ClearCacheRequest {}
+message ClearCacheRequest {
+    /// Optional batch id
+    optional uint64 id = 1;
+}
 
 /// Empty response
 message ClearCacheResponse {}

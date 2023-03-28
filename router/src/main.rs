@@ -136,7 +136,7 @@ fn main() -> Result<(), std::io::Error> {
                 .expect("Could not connect to server");
             // Clear the cache; useful if the webserver rebooted
             sharded_client
-                .clear_cache()
+                .clear_cache(None)
                 .await
                 .expect("Unable to clear cache");
             tracing::info!("Connected");

@@ -330,6 +330,7 @@ async fn prefill(
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     let start_time = Instant::now();
+    let batch_id = batch.id;
 
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
@@ -340,6 +341,7 @@ async fn prefill(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
+            let _ = client.clear_cache(Some(batch_id)).await;
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
             None

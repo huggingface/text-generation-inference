@@ -40,11 +40,11 @@ impl ShardedClient {
 
     /// Clear the past generations cache
     #[instrument(skip(self))]
-    pub async fn clear_cache(&mut self) -> Result<()> {
+    pub async fn clear_cache(&mut self, batch_id: Option<u64>) -> Result<()> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| client.clear_cache())
+            .map(|client| client.clear_cache(batch_id))
             .collect();
         join_all(futures).await.into_iter().collect()
     }

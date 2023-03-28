@@ -56,8 +56,8 @@ impl Client {
 
     /// Clear the past generations cache
     #[instrument(skip(self))]
-    pub async fn clear_cache(&mut self) -> Result<()> {
-        let request = tonic::Request::new(ClearCacheRequest {}).inject_context();
+    pub async fn clear_cache(&mut self, batch_id: Option<u64>) -> Result<()> {
+        let request = tonic::Request::new(ClearCacheRequest { id: batch_id }).inject_context();
         self.stub.clear_cache(request).await?;
         Ok(())
     }

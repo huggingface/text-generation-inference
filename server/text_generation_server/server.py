@@ -30,7 +30,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.ServiceDiscoveryResponse(urls=self.server_urls)
 
     async def ClearCache(self, request, context):
-        self.cache.clear()
+        if request.HasField("id"):
+            self.cache.delete(request.id)
+        else:
+            self.cache.clear()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         return generate_pb2.ClearCacheResponse()
 
     async def Prefill(self, request, context):
