@@ -19,7 +19,7 @@ struct Args {
     sequence_length: u32,
     #[clap(default_value = "100", long, env)]
     decode_length: u32,
-    #[clap(default_value = "10", long, env)]
+    #[clap(default_value = "2", long, env)]
     runs: usize,
     #[clap(default_value = "/tmp/text-generation-0", long, env)]
     master_shard_uds_path: String,

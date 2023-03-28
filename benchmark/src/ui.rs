@@ -13,14 +13,15 @@ use tui::style::{Color, Style};
 use tui::text::{Span, Spans};
 use tui::widgets::{BarChart, Block, Borders, Gauge, Paragraph};
 use tui::Terminal;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::{mpsc, broadcast};
 use crate::{Run, Step};
 
 pub(crate) struct UI {
     pub(crate) n_run: usize,
     pub(crate) n_batch: usize,
     pub(crate) n_batch_done: usize,
-    pub(crate) run_receiver: Receiver<Run>,
+    pub(crate) run_receiver: mpsc::Receiver<Run>,
+    pub(crate) shutdown_sender: broadcast::Sender<()>,
 }
 
 impl UI {
@@ -175,6 +176,23 @@ impl UI {
                 f.render_widget(decode_throughput_statics, decode_text[1]);
             })?;
 
+            while crossterm::event::poll(Duration::from_secs(0))? {
+                match crossterm::event::read()? {
+                    Event::Key(KeyEvent {
+                                   code: KeyCode::Char('q'),
+                                   ..
+                               })
+                    | Event::Key(KeyEvent {
+                                     code: KeyCode::Char('c'),
+                                     modifiers: KeyModifiers::CONTROL,
+                                     ..
+                                 }) => {
+                        break 'outer;
+                    }
+                    _ => (),
+                }
+            }
+
             let per_frame = Duration::from_secs(1) / 30 as u32;
             let elapsed = frame_start.elapsed();
             if per_frame > elapsed {
@@ -182,10 +200,11 @@ impl UI {
             }
         }
 
-
         io::stdout().execute(crossterm::terminal::LeaveAlternateScreen)?;
         crossterm::terminal::disable_raw_mode()?;
         io::stdout().execute(crossterm::cursor::Show)?;
+
+        let _ = self.shutdown_sender.send(());
         Ok(())
     }
 }
