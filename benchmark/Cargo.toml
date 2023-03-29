@@ -16,6 +16,7 @@ path = "src/main.rs"
 average = "0.13"
 clap = { version = "4.1.4", features = ["derive", "env"] }
 crossterm = "0.26"
+float-ord = "0.3.2"
 serde = {version = "1.0.142", features = ["derive"]}
 serde_json = "1.0"
 text-generation-client = { path = "../router/client" }

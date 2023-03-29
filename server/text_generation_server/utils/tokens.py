@@ -123,7 +123,7 @@ class StoppingCriteria:
         self,
         eos_token_id: int,
         stop_sequence_criterias: List[StopSequenceCriteria],
-        max_new_tokens: int=20,
+        max_new_tokens: int = 20,
         ignore_eos_token: bool = False,
     ):
         self.eos_token_id = eos_token_id
@@ -158,5 +158,8 @@ class StoppingCriteria:
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
         ]
         return StoppingCriteria(
-            tokenizer.eos_token_id, stop_sequence_criterias, pb.max_new_tokens, pb.ignore_eos_token
+            tokenizer.eos_token_id,
+            stop_sequence_criterias,
+            pb.max_new_tokens,
+            pb.ignore_eos_token,
         )

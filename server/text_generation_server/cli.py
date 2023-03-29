@@ -18,7 +18,7 @@ def serve(
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: bool = False,
-    uds_path: Path = "/tmp/text-generation",
+    uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,

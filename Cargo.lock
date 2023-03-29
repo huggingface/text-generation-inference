@@ -2324,6 +2324,7 @@ dependencies = [
  "average",
  "clap 4.1.8",
  "crossterm",
+ "float-ord",
  "ratatui",
  "serde",
  "serde_json",
