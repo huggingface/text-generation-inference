@@ -17,6 +17,9 @@ use tui::widgets::{
 use tui::{symbols, Terminal};
 
 pub(crate) struct UI {
+    pub(crate) tokenizer_name: String,
+    pub(crate) sequence_length: u32,
+    pub(crate) decode_length: u32,
     pub(crate) n_run: usize,
     pub(crate) batch_size: Vec<u32>,
     pub(crate) receiver: mpsc::Receiver<Message>,
@@ -117,10 +120,11 @@ impl UI {
 
             terminal.draw(|f| {
                 // Vertical layout
-                let row4 = Layout::default()
+                let row5 = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints(
                         [
+                            Constraint::Length(1),
                             Constraint::Length(3),
                             Constraint::Length(3),
                             Constraint::Length(13),
@@ -134,7 +138,7 @@ impl UI {
                 let top = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-                    .split(row4[0]);
+                    .split(row5[2]);
 
                 // Mid row horizontal layout
                 let mid = Layout::default()
@@ -148,7 +152,7 @@ impl UI {
                         ]
                         .as_ref(),
                     )
-                    .split(row4[2]);
+                    .split(row5[3]);
 
                 // Left mid row vertical layout
                 let prefill_text = Layout::default()
@@ -166,7 +170,36 @@ impl UI {
                 let bottom = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-                    .split(row4[3]);
+                    .split(row5[4]);
+
+                // Title
+                let title = Block::default().borders(Borders::NONE).title(format!(
+                    "Model: {} | Sequence Length: {} | Decode Length: {}",
+                    self.tokenizer_name, self.sequence_length, self.decode_length
+                )).style(Style::default().add_modifier(Modifier::BOLD).fg(Color::White));
+                f.render_widget(title, row5[0]);
+
+                // Batch tabs
+                let titles = self
+                    .batch_size
+                    .iter()
+                    .map(|b| {
+                        Spans::from(vec![Span::styled(
+                            format!("Batch: {b}"),
+                            Style::default().fg(Color::White),
+                        )])
+                    })
+                    .collect();
+                let tabs = Tabs::new(titles)
+                    .block(Block::default().borders(Borders::ALL).title("Tabs"))
+                    .select(current_tab_idx)
+                    .style(Style::default().fg(Color::LightCyan))
+                    .highlight_style(
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .bg(Color::Black),
+                    );
+                f.render_widget(tabs, row5[1]);
 
                 // Total progress bar
                 let batch_gauge = progress_gauge(
@@ -185,28 +218,6 @@ impl UI {
                     Color::LightBlue,
                 );
                 f.render_widget(run_gauge, top[1]);
-
-                // Batch tabs
-                let titles = self
-                    .batch_size
-                    .iter()
-                    .map(|b| {
-                        Spans::from(vec![
-                            Span::raw(format!("Batch: {b}")), // Span::styled(first, Style::default().fg(Color::Yellow)),
-                                                              // Span::styled(rest, Style::default().fg(Color::Green)),
-                        ])
-                    })
-                    .collect();
-                let tabs = Tabs::new(titles)
-                    .block(Block::default().borders(Borders::ALL).title("Tabs"))
-                    .select(current_tab_idx)
-                    .style(Style::default().fg(Color::LightCyan))
-                    .highlight_style(
-                        Style::default()
-                            .add_modifier(Modifier::BOLD)
-                            .bg(Color::Black),
-                    );
-                f.render_widget(tabs, row4[1]);
 
                 // Prefill text infos
                 let (prefill_latency_statics, prefill_throughput_statics) = text_info(
@@ -384,7 +395,7 @@ fn latency_histogram<'a>(
         .block(
             Block::default()
                 .title(format!("{name} latency histogram"))
-                .style(Style::default().fg(Color::Yellow).bg(Color::Reset))
+                .style(Style::default().fg(Color::LightYellow).bg(Color::Reset))
                 .borders(Borders::ALL),
         )
         .data(histo_data_str.as_slice())

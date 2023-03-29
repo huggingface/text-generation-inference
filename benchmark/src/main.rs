@@ -15,13 +15,13 @@ struct Args {
     tokenizer_name: String,
     #[clap(default_value = "1", long, env)]
     batch_size: Vec<u32>,
-    #[clap(default_value = "12", long, env)]
-    sequence_length: u32,
     #[clap(default_value = "10", long, env)]
+    sequence_length: u32,
+    #[clap(default_value = "64", long, env)]
     decode_length: u32,
     #[clap(default_value = "10", long, env)]
     runs: usize,
-    #[clap(default_value = "0", long, env)]
+    #[clap(default_value = "2", long, env)]
     warmups: usize,
     #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
     master_shard_uds_path: String,
@@ -74,12 +74,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Could not connect to server");
             // Clear the cache; useful if the webserver rebooted
             sharded_client
-                .clear_cache()
+                .clear_cache(None)
                 .await
                 .expect("Unable to clear cache");
             tracing::info!("Connected");
 
             text_generation_benchmark::run(
+                tokenizer_name,
                 tokenizer,
                 batch_size,
                 sequence_length,

@@ -44,6 +44,7 @@ pub(crate) enum Message {
 }
 
 pub async fn run(
+    tokenizer_name: String,
     tokenizer: Tokenizer,
     batch_size: Vec<u32>,
     sequence_length: u32,
@@ -57,6 +58,9 @@ pub async fn run(
 
     tokio::spawn(
         UI {
+            tokenizer_name,
+            decode_length,
+            sequence_length,
             n_run: n_runs,
             batch_size: batch_size.clone(),
             receiver: ui_receiver,
@@ -68,22 +72,22 @@ pub async fn run(
     let mut runs = Vec::with_capacity(batch_size.len() * n_runs);
     let sequence = create_sequence(sequence_length, tokenizer);
 
-    for _ in 0..warmups {
-        let (_, decode_batch) = tokio::select! {
-            res = run_prefill(sequence.clone(), sequence_length, 1, decode_length, &mut client) => res?,
-            _ = shutdown_receiver.recv() => {
-                return Ok(());
-            }
-        };
-        let _ = tokio::select! {
-            res = run_decode(decode_batch, sequence_length, &mut client) => res?,
-            _ = shutdown_receiver.recv() => {
-                return Ok(());
-            }
-        };
-    }
-
     for b in batch_size {
+        for _ in 0..warmups {
+            let (_, decode_batch) = tokio::select! {
+                res = run_prefill(sequence.clone(), sequence_length, 1, decode_length, &mut client) => res?,
+                _ = shutdown_receiver.recv() => {
+                    return Ok(());
+                }
+            };
+            let _ = tokio::select! {
+                res = run_decode(decode_batch, sequence_length, &mut client) => res?,
+                _ = shutdown_receiver.recv() => {
+                    return Ok(());
+                }
+            };
+        }
+
         for _ in 0..n_runs {
             let (prefill, decode_batch) = tokio::select! {
                 res = run_prefill(sequence.clone(), sequence_length, b, decode_length, &mut client) => res?,
