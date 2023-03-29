@@ -529,11 +529,19 @@ pub async fn run(
     // Create router
     let app = Router::new()
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
+        // Base routes
         .route("/", post(compat_generate))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
-        .route("/", get(health))
+        // AWS Sagemaker route
+        .route("/invocations", post(compat_generate))
+        // Base Health route
         .route("/health", get(health))
+        // Inference API health route
+        .route("/", get(health))
+        // AWS Sagemaker health route
+        .route("/ping", get(health))
+        // Prometheus metrics route
         .route("/metrics", get(metrics))
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))

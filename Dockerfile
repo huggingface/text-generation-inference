@@ -27,7 +27,7 @@ COPY router router
 COPY launcher launcher
 RUN cargo build --release
 
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 as base
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
@@ -75,6 +75,17 @@ RUN cd server && \
 COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+
+# AWS Sagemaker compatbile image
+FROM base as sagemaker
+
+COPY sagemaker-entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]
+
+# Original image
+FROM base
 
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]
