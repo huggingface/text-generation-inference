@@ -19,15 +19,15 @@ use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(default_value = "bigscience/bloom-560m", long, env = "HF_MODEL_ID")]
+    #[clap(default_value = "bigscience/bloom-560m", long, env)]
     model_id: String,
-    #[clap(long, env = "HF_MODEL_REVISION")]
+    #[clap(long, env)]
     revision: Option<String>,
     #[clap(long, env)]
     sharded: Option<bool>,
-    #[clap(long, env = "SM_NUM_GPUS")]
+    #[clap(long, env)]
     num_shard: Option<usize>,
-    #[clap(long, env = "HF_MODEL_QUANTIZE")]
+    #[clap(long, env)]
     quantize: bool,
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,

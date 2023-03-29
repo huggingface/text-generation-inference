@@ -27,7 +27,7 @@ COPY router router
 COPY launcher launcher
 RUN cargo build --release
 
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 as base
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
@@ -37,7 +37,7 @@ ENV LANG=C.UTF-8 \
     MODEL_ID=bigscience/bloom-560m \
     QUANTIZE=false \
     NUM_SHARD=1 \
-    PORT=8080 \
+    PORT=80 \
     CUDA_HOME=/usr/local/cuda \
     LD_LIBRARY_PATH="/opt/miniconda/envs/text-generation/lib:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH" \
     CONDA_DEFAULT_ENV=text-generation \
@@ -76,7 +76,16 @@ COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bi
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
 
-COPY entrypoint.sh entrypoint.sh
+# AWS Sagemaker compatbile image
+FROM base as sagemaker
+
+COPY sagemaker-entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh
 
 ENTRYPOINT ["./entrypoint.sh"]
+
+# Original image
+FROM base
+
+ENTRYPOINT ["text-generation-launcher"]
+CMD ["--json-output"]
