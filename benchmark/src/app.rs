@@ -78,7 +78,7 @@ impl App {
             | KeyEvent {
                 code: KeyCode::Tab, ..
             } => {
-                self.touched_tab=true;
+                self.touched_tab = true;
                 self.current_tab = (self.current_tab + 1) % self.batch_size.len();
             }
             // Decrease and wrap tab
@@ -86,7 +86,7 @@ impl App {
                 code: KeyCode::Left,
                 ..
             } => {
-                self.touched_tab=true;
+                self.touched_tab = true;
                 if self.current_tab > 0 {
                     self.current_tab -= 1;
                 } else {
@@ -186,10 +186,10 @@ impl App {
             .direction(Direction::Horizontal)
             .constraints(
                 [
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(30),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(30),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
                 ]
                 .as_ref(),
             )
@@ -206,6 +206,10 @@ impl App {
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(8), Constraint::Length(5)].as_ref())
             .split(mid[2]);
+        let decode_text_latency = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .split(decode_text[0]);
 
         // Bottom row horizontal layout
         let bottom = Layout::default()
@@ -289,13 +293,15 @@ impl App {
         f.render_widget(run_gauge, top[1]);
 
         // Prefill text infos
-        let (prefill_latency_statics, prefill_throughput_statics) = text_info(
+        let prefill_latency_block = latency_paragraph(
             &mut self.data.prefill_latencies[self.current_tab],
-            &self.data.prefill_throughputs[self.current_tab],
             "Prefill",
         );
-        f.render_widget(prefill_latency_statics, prefill_text[0]);
-        f.render_widget(prefill_throughput_statics, prefill_text[1]);
+        let prefill_throughput_block =
+            throughput_paragraph(&self.data.prefill_throughputs[self.current_tab], "Prefill");
+
+        f.render_widget(prefill_latency_block, prefill_text[0]);
+        f.render_widget(prefill_throughput_block, prefill_text[1]);
 
         // Prefill latency histogram
         let histo_width = 7;
@@ -315,13 +321,19 @@ impl App {
         f.render_widget(prefill_histogram, mid[1]);
 
         // Decode text info
-        let (decode_latency_statics, decode_throughput_statics) = text_info(
+        let decode_latency_block = latency_paragraph(
             &mut self.data.decode_latencies[self.current_tab],
-            &self.data.decode_throughputs[self.current_tab],
-            "Decode",
+            "Decode Total",
         );
-        f.render_widget(decode_latency_statics, decode_text[0]);
-        f.render_widget(decode_throughput_statics, decode_text[1]);
+        let decode_token_latency_block = latency_paragraph(
+            &mut self.data.decode_token_latencies[self.current_tab],
+            "Decode Token",
+        );
+        let decode_throughput_block =
+            throughput_paragraph(&self.data.decode_throughputs[self.current_tab], "Decode");
+        f.render_widget(decode_latency_block, decode_text_latency[0]);
+        f.render_widget(decode_token_latency_block, decode_text_latency[1]);
+        f.render_widget(decode_throughput_block, decode_text[1]);
 
         // Decode latency histogram
         let histo_data =
@@ -357,6 +369,7 @@ struct Data {
     prefill_latencies: Vec<Vec<f64>>,
     prefill_throughputs: Vec<Vec<f64>>,
     decode_latencies: Vec<Vec<f64>>,
+    decode_token_latencies: Vec<Vec<f64>>,
     decode_throughputs: Vec<Vec<f64>>,
     prefill_batch_latency_throughput: Vec<(f64, f64)>,
     decode_batch_latency_throughput: Vec<(f64, f64)>,
@@ -366,22 +379,21 @@ impl Data {
     fn new(n_run: usize, n_batch: usize) -> Self {
         let prefill_latencies: Vec<Vec<f64>> =
             (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
-        let prefill_throughputs: Vec<Vec<f64>> =
-            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+        let prefill_throughputs: Vec<Vec<f64>> = prefill_latencies.clone();
 
-        let decode_latencies: Vec<Vec<f64>> =
-            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
-        let decode_throughputs: Vec<Vec<f64>> =
-            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+        let decode_latencies: Vec<Vec<f64>> = prefill_latencies.clone();
+        let decode_token_latencies: Vec<Vec<f64>> = decode_latencies.clone();
+        let decode_throughputs: Vec<Vec<f64>> = prefill_throughputs.clone();
 
         let prefill_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
-
-        let decode_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
+        let decode_batch_latency_throughput: Vec<(f64, f64)> =
+            prefill_batch_latency_throughput.clone();
 
         Self {
             prefill_latencies,
             prefill_throughputs,
             decode_latencies,
+            decode_token_latencies,
             decode_throughputs,
             prefill_batch_latency_throughput,
             decode_batch_latency_throughput,
@@ -394,10 +406,12 @@ impl Data {
         self.prefill_throughputs[batch_idx].push(prefill.throughput);
     }
 
-    fn push_decode(&mut self, prefill: Decode, batch_idx: usize) {
-        let latency = prefill.latency.as_millis() as f64;
+    fn push_decode(&mut self, decode: Decode, batch_idx: usize) {
+        let latency = decode.latency.as_millis() as f64;
+        let token_latency = decode.token_latency.as_millis() as f64;
         self.decode_latencies[batch_idx].push(latency);
-        self.decode_throughputs[batch_idx].push(prefill.throughput);
+        self.decode_token_latencies[batch_idx].push(token_latency);
+        self.decode_throughputs[batch_idx].push(decode.throughput);
     }
 
     fn end_batch(&mut self, batch_idx: usize) {
@@ -425,12 +439,21 @@ fn progress_gauge(title: &str, label: String, progress: f64, color: Color) -> Ga
         .ratio(progress)
 }
 
-/// Prefill or Decode text infos
-fn text_info<'a>(
-    latency: &mut Vec<f64>,
-    throughput: &Vec<f64>,
-    name: &'static str,
-) -> (Paragraph<'a>, Paragraph<'a>) {
+/// Throughput paragraph
+fn throughput_paragraph<'a>(throughput: &Vec<f64>, name: &'static str) -> Paragraph<'a> {
+    // Throughput average/high/low texts
+    let throughput_texts = statis_spans(throughput, "tokens/secs");
+
+    // Throughput block
+    Paragraph::new(throughput_texts).block(
+        Block::default()
+            .title(Span::raw(format!("{name} Throughput")))
+            .borders(Borders::ALL),
+    )
+}
+
+/// Latency paragraph
+fn latency_paragraph<'a>(latency: &mut Vec<f64>, name: &'static str) -> Paragraph<'a> {
     // Latency average/high/low texts
     let mut latency_texts = statis_spans(latency, "ms");
 
@@ -442,30 +465,17 @@ fn text_info<'a>(
     let colors = vec![Color::LightGreen, Color::LightYellow, Color::LightRed];
     for (i, (name, value)) in latency_percentiles.iter().enumerate() {
         let span = Spans::from(vec![Span::styled(
-            format!("{name}:     {value:.4} ms"),
+            format!("{name}:     {value:.2} ms"),
             Style::default().fg(colors[i]),
         )]);
         latency_texts.push(span);
     }
 
-    // Throughput average/high/low texts
-    let throughput_texts = statis_spans(throughput, "tokens/secs");
-
-    // Latency Block
-    let latency_statics = Paragraph::new(latency_texts).block(
+    Paragraph::new(latency_texts).block(
         Block::default()
             .title(Span::raw(format!("{name} Latency")))
             .borders(Borders::ALL),
-    );
-
-    // Throughput block
-    let throughput_statics = Paragraph::new(throughput_texts).block(
-        Block::default()
-            .title(Span::raw(format!("{name} Throughput")))
-            .borders(Borders::ALL),
-    );
-
-    (latency_statics, throughput_statics)
+    )
 }
 
 /// Average/High/Low spans
@@ -473,14 +483,14 @@ fn statis_spans<'a>(data: &Vec<f64>, unit: &'static str) -> Vec<Spans<'a>> {
     vec![
         Spans::from(vec![Span::styled(
             format!(
-                "Average: {:.4} {unit}",
+                "Average: {:.2} {unit}",
                 data.iter().sum::<f64>() / data.len() as f64
             ),
             Style::default().fg(Color::LightBlue),
         )]),
         Spans::from(vec![Span::styled(
             format!(
-                "Lowest:  {:.4} {unit}",
+                "Lowest:  {:.2} {unit}",
                 data.iter()
                     .min_by(|a, b| a.total_cmp(b))
                     .unwrap_or(&std::f64::NAN)
@@ -489,7 +499,7 @@ fn statis_spans<'a>(data: &Vec<f64>, unit: &'static str) -> Vec<Spans<'a>> {
         )]),
         Spans::from(vec![Span::styled(
             format!(
-                "Highest: {:.4} {unit}",
+                "Highest: {:.2} {unit}",
                 data.iter()
                     .max_by(|a, b| a.total_cmp(b))
                     .unwrap_or(&std::f64::NAN)

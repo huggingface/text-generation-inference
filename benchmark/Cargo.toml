@@ -5,6 +5,12 @@ edition = "2021"
 authors = ["Olivier Dehaene"]
 description = "Text Generation Benchmarking tool"
 
+[profile.release]
+debug = 1
+incremental = true
+lto = "off"
+panic = "abort"
+
 [lib]
 path = "src/lib.rs"
 
