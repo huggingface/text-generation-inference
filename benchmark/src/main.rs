@@ -14,19 +14,19 @@ use tracing_subscriber::EnvFilter;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(long, env)]
+    #[clap(short, long, env)]
     tokenizer_name: String,
-    #[clap(long)]
+    #[clap(short, long)]
     batch_size: Option<Vec<u32>>,
-    #[clap(default_value = "10", long, env)]
+    #[clap(default_value = "10", short, long, env)]
     sequence_length: u32,
-    #[clap(default_value = "64", long, env)]
+    #[clap(default_value = "8", short,long, env)]
     decode_length: u32,
-    #[clap(default_value = "10", long, env)]
+    #[clap(default_value = "10", short,long, env)]
     runs: usize,
-    #[clap(default_value = "1", long, env)]
+    #[clap(default_value = "1", short,long, env)]
     warmups: usize,
-    #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
+    #[clap(default_value = "/tmp/text-generation-server-0", short, long, env)]
     master_shard_uds_path: String,
 }
 

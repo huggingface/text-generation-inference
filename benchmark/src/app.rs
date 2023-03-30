@@ -19,6 +19,7 @@ pub(crate) struct App {
     completed_batch: usize,
     current_batch: usize,
     current_tab: usize,
+    touched_tab: bool,
     zoom: bool,
     is_error: bool,
     data: Data,
@@ -53,6 +54,7 @@ impl App {
             completed_batch,
             current_batch,
             current_tab,
+            touched_tab: false,
             zoom: false,
             is_error,
             data,
@@ -76,6 +78,7 @@ impl App {
             | KeyEvent {
                 code: KeyCode::Tab, ..
             } => {
+                self.touched_tab=true;
                 self.current_tab = (self.current_tab + 1) % self.batch_size.len();
             }
             // Decrease and wrap tab
@@ -83,6 +86,7 @@ impl App {
                 code: KeyCode::Left,
                 ..
             } => {
+                self.touched_tab=true;
                 if self.current_tab > 0 {
                     self.current_tab -= 1;
                 } else {
@@ -131,9 +135,14 @@ impl App {
                     }
                     Message::EndBatch => {
                         self.data.end_batch(self.current_batch);
-
                         self.completed_batch += 1;
+
                         if self.current_batch < self.batch_size.len() - 1 {
+                            // Only go to next tab if the user never touched the tab keys
+                            if !self.touched_tab {
+                                self.current_tab += 1;
+                            }
+
                             self.current_batch += 1;
                         }
                     }

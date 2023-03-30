@@ -237,6 +237,7 @@ mod tests {
                     watermark: false,
                 },
                 stopping_parameters: StoppingCriteriaParameters {
+                    ignore_eos_token: false,
                     max_new_tokens: 0,
                     stop_sequences: vec![],
                 },
