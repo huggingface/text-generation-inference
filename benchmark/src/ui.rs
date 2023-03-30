@@ -1,5 +1,4 @@
 /// Inspired by https://github.com/hatoo/oha/blob/master/src/monitor.rs
-use crate::Message;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::{event, ExecutableCommand};
 use std::io;
@@ -15,6 +14,8 @@ use tui::widgets::{
     Axis, BarChart, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph, Tabs,
 };
 use tui::{symbols, Terminal};
+use text_generation_client::ClientError;
+use crate::generation::Message;
 
 pub(crate) struct UI {
     pub(crate) tokenizer_name: String,
@@ -22,8 +23,9 @@ pub(crate) struct UI {
     pub(crate) decode_length: u32,
     pub(crate) n_run: usize,
     pub(crate) batch_size: Vec<u32>,
-    pub(crate) receiver: mpsc::Receiver<Message>,
+    pub(crate) receiver: mpsc::Receiver<Result<Message, ClientError>>,
     pub(crate) shutdown_sender: broadcast::Sender<()>,
+    pub(crate) _shutdown_guard_sender: mpsc::Sender<()>,
 }
 
 impl UI {
@@ -57,6 +59,7 @@ impl UI {
         let mut completed_runs: Vec<usize> = (0..self.batch_size.len()).map(|_| 0).collect();
         let mut completed_batch = 0;
         let mut current_batch_idx = 0;
+        let mut is_error = false;
 
         let mut terminal = {
             let backend = CrosstermBackend::new(io::stdout());
@@ -68,41 +71,44 @@ impl UI {
             loop {
                 match self.receiver.try_recv() {
                     Ok(message) => match message {
-                        Message::Prefill(step) => {
-                            let latency = step.latency.as_millis() as f64;
-                            let throughput = step.batch_size as f64 / step.latency.as_secs_f64();
-                            prefill_latencies[current_batch_idx].push(latency);
-                            prefill_throughputs[current_batch_idx].push(throughput);
-                        }
-                        Message::Decode(step) => {
-                            let latency = step.latency.as_millis() as f64;
-                            let throughput = (step.batch_size * step.decode_length) as f64
-                                / step.latency.as_secs_f64();
-                            decode_latencies[current_batch_idx].push(latency);
-                            decode_throughputs[current_batch_idx].push(throughput);
-                        }
-                        Message::IncreaseRun => {
-                            completed_runs[current_batch_idx] += 1;
-                        }
-                        Message::IncreaseBatch => {
-                            prefill_batch_latency_throughput.push((
-                                prefill_latencies[current_batch_idx].iter().sum::<f64>()
-                                    / completed_runs[current_batch_idx] as f64,
-                                prefill_throughputs[current_batch_idx].iter().sum::<f64>()
-                                    / completed_runs[current_batch_idx] as f64,
-                            ));
-                            decode_batch_latency_throughput.push((
-                                decode_latencies[current_batch_idx].iter().sum::<f64>()
-                                    / completed_runs[current_batch_idx] as f64,
-                                decode_throughputs[current_batch_idx].iter().sum::<f64>()
-                                    / completed_runs[current_batch_idx] as f64,
-                            ));
+                        Ok(message) => {
+                            match message {
+                                Message::Prefill(step) => {
+                                    let latency = step.latency.as_millis() as f64;
+                                    prefill_latencies[current_batch_idx].push(latency);
+                                    prefill_throughputs[current_batch_idx].push(step.throughput);
+                                }
+                                Message::Decode(step) => {
+                                    let latency = step.latency.as_millis() as f64;
+                                    decode_latencies[current_batch_idx].push(latency);
+                                    decode_throughputs[current_batch_idx].push(step.throughput);
+                                }
+                                Message::Run(_) => {
+                                    completed_runs[current_batch_idx] += 1;
+                                }
+                                Message::EndBatch => {
+                                    prefill_batch_latency_throughput.push((
+                                        prefill_latencies[current_batch_idx].iter().sum::<f64>()
+                                            / completed_runs[current_batch_idx] as f64,
+                                        prefill_throughputs[current_batch_idx].iter().sum::<f64>()
+                                            / completed_runs[current_batch_idx] as f64,
+                                    ));
+                                    decode_batch_latency_throughput.push((
+                                        decode_latencies[current_batch_idx].iter().sum::<f64>()
+                                            / completed_runs[current_batch_idx] as f64,
+                                        decode_throughputs[current_batch_idx].iter().sum::<f64>()
+                                            / completed_runs[current_batch_idx] as f64,
+                                    ));
 
-                            completed_batch += 1;
-                            if current_batch_idx < self.batch_size.len() - 1 {
-                                current_batch_idx += 1;
+                                    completed_batch += 1;
+                                    if current_batch_idx < self.batch_size.len() - 1 {
+                                        current_batch_idx += 1;
+                                    }
+                                }
+                                Message::Warmup => {}
                             }
                         }
+                        Err(_) => is_error = true
                     },
                     Err(TryRecvError::Empty) => {
                         break;
@@ -130,7 +136,7 @@ impl UI {
                             Constraint::Length(13),
                             Constraint::Min(10),
                         ]
-                        .as_ref(),
+                            .as_ref(),
                     )
                     .split(f.size());
 
@@ -150,7 +156,7 @@ impl UI {
                             Constraint::Percentage(20),
                             Constraint::Percentage(30),
                         ]
-                        .as_ref(),
+                            .as_ref(),
                     )
                     .split(row5[3]);
 
@@ -235,7 +241,7 @@ impl UI {
                 } else {
                     (mid[1].width as usize - 2) / (histo_width + 1)
                 }
-                .max(2);
+                    .max(2);
 
                 let histo_data = latency_histogram_data(&prefill_latencies[current_tab_idx], bins);
                 let histo_data_str: Vec<(&str, u64)> =
