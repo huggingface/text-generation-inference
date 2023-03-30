@@ -3,6 +3,7 @@ extern crate core;
 mod ui;
 mod utils;
 mod generation;
+mod event;
 
 use crate::ui::UI;
 use tokenizers::Tokenizer;

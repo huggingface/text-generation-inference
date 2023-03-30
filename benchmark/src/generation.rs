@@ -55,7 +55,6 @@ pub(crate) async fn generation_task(
         },
         _ = shutdown_receiver.recv() => {}
     }
-    ;
 }
 
 async fn generate_runs(tokenizer: Tokenizer,
