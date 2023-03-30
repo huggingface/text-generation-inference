@@ -1,341 +1,362 @@
+use crate::generation::{Decode, Message, Prefill};
 /// Inspired by https://github.com/hatoo/oha/blob/master/src/monitor.rs
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-use crossterm::{event, ExecutableCommand};
-use std::io;
-use std::time::{Duration, Instant};
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::{broadcast, mpsc};
-use tokio::time::sleep;
-use tui::backend::CrosstermBackend;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use text_generation_client::ClientError;
+use tokio::sync::mpsc;
+use tui::backend::Backend;
 use tui::layout::{Constraint, Direction, Layout};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
 use tui::widgets::{
     Axis, BarChart, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph, Tabs,
 };
-use tui::{symbols, Terminal};
-use text_generation_client::ClientError;
-use crate::generation::Message;
+use tui::{symbols, Frame};
+
+struct Data {
+    prefill_latencies: Vec<Vec<f64>>,
+    prefill_throughputs: Vec<Vec<f64>>,
+    decode_latencies: Vec<Vec<f64>>,
+    decode_throughputs: Vec<Vec<f64>>,
+    prefill_batch_latency_throughput: Vec<(f64, f64)>,
+    decode_batch_latency_throughput: Vec<(f64, f64)>,
+}
+
+impl Data {
+    fn new(n_run: usize, n_batch: usize) -> Self {
+        let prefill_latencies: Vec<Vec<f64>> =
+            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+        let prefill_throughputs: Vec<Vec<f64>> =
+            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+
+        let decode_latencies: Vec<Vec<f64>> =
+            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+        let decode_throughputs: Vec<Vec<f64>> =
+            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+
+        let prefill_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
+
+        let decode_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
+
+        Self {
+            prefill_latencies,
+            prefill_throughputs,
+            decode_latencies,
+            decode_throughputs,
+            prefill_batch_latency_throughput,
+            decode_batch_latency_throughput,
+        }
+    }
+
+    fn push_prefill(&mut self, prefill: Prefill, batch_idx: usize) {
+        let latency = prefill.latency.as_millis() as f64;
+        self.prefill_latencies[batch_idx].push(latency);
+        self.prefill_throughputs[batch_idx].push(prefill.throughput);
+    }
+
+    fn push_decode(&mut self, prefill: Decode, batch_idx: usize) {
+        let latency = prefill.latency.as_millis() as f64;
+        self.decode_latencies[batch_idx].push(latency);
+        self.decode_throughputs[batch_idx].push(prefill.throughput);
+    }
+
+    fn end_batch(&mut self, batch_idx: usize) {
+        self.prefill_batch_latency_throughput.push((
+            self.prefill_latencies[batch_idx].iter().sum::<f64>()
+                / self.prefill_latencies[batch_idx].len() as f64,
+            self.prefill_throughputs[batch_idx].iter().sum::<f64>()
+                / self.prefill_throughputs[batch_idx].len() as f64,
+        ));
+        self.decode_batch_latency_throughput.push((
+            self.decode_latencies[batch_idx].iter().sum::<f64>()
+                / self.decode_latencies[batch_idx].len() as f64,
+            self.decode_throughputs[batch_idx].iter().sum::<f64>()
+                / self.decode_throughputs[batch_idx].len() as f64,
+        ));
+    }
+}
 
 pub(crate) struct UI {
-    pub(crate) tokenizer_name: String,
-    pub(crate) sequence_length: u32,
-    pub(crate) decode_length: u32,
-    pub(crate) n_run: usize,
-    pub(crate) batch_size: Vec<u32>,
-    pub(crate) receiver: mpsc::Receiver<Result<Message, ClientError>>,
-    pub(crate) shutdown_sender: broadcast::Sender<()>,
-    pub(crate) _shutdown_guard_sender: mpsc::Sender<()>,
+    pub(crate) running: bool,
+    completed_runs: Vec<usize>,
+    completed_batch: usize,
+    current_batch: usize,
+    current_tab: usize,
+    is_error: bool,
+    data: Data,
+    tokenizer_name: String,
+    sequence_length: u32,
+    decode_length: u32,
+    n_run: usize,
+    batch_size: Vec<u32>,
+    receiver: mpsc::Receiver<Result<Message, ClientError>>,
 }
 
 impl UI {
-    pub async fn draw(mut self) -> Result<(), crossterm::ErrorKind> {
-        crossterm::terminal::enable_raw_mode()?;
-        io::stdout().execute(crossterm::terminal::EnterAlternateScreen)?;
-        io::stdout().execute(crossterm::cursor::Hide)?;
+    pub(crate) fn new(
+        receiver: mpsc::Receiver<Result<Message, ClientError>>,
+        tokenizer_name: String,
+        sequence_length: u32,
+        decode_length: u32,
+        n_run: usize,
+        batch_size: Vec<u32>,
+    ) -> Self {
+        let data = Data::new(n_run, batch_size.len());
+        let current_tab = 0;
 
-        let mut current_tab_idx = 0;
+        let completed_runs: Vec<usize> = (0..batch_size.len()).map(|_| 0).collect();
+        let completed_batch = 0;
+        let current_batch = 0;
+        let is_error = false;
 
-        let mut prefill_latencies: Vec<Vec<f64>> = (0..self.batch_size.len())
-            .map(|_| Vec::with_capacity(self.n_run))
-            .collect();
-        let mut prefill_throughputs: Vec<Vec<f64>> = (0..self.batch_size.len())
-            .map(|_| Vec::with_capacity(self.n_run))
-            .collect();
+        Self {
+            running: true,
+            completed_runs,
+            completed_batch,
+            current_batch,
+            current_tab,
+            is_error,
+            data,
+            tokenizer_name,
+            sequence_length,
+            decode_length,
+            n_run,
+            batch_size,
+            receiver,
+        }
+    }
 
-        let mut decode_latencies: Vec<Vec<f64>> = (0..self.batch_size.len())
-            .map(|_| Vec::with_capacity(self.n_run))
-            .collect();
-        let mut decode_throughputs: Vec<Vec<f64>> = (0..self.batch_size.len())
-            .map(|_| Vec::with_capacity(self.n_run))
-            .collect();
-
-        let mut prefill_batch_latency_throughput: Vec<(f64, f64)> =
-            Vec::with_capacity(self.batch_size.len());
-
-        let mut decode_batch_latency_throughput: Vec<(f64, f64)> =
-            Vec::with_capacity(self.batch_size.len());
-
-        let mut completed_runs: Vec<usize> = (0..self.batch_size.len()).map(|_| 0).collect();
-        let mut completed_batch = 0;
-        let mut current_batch_idx = 0;
-        let mut is_error = false;
-
-        let mut terminal = {
-            let backend = CrosstermBackend::new(io::stdout());
-            Terminal::new(backend)?
-        };
-
-        'outer: loop {
-            let frame_start = Instant::now();
-            loop {
-                match self.receiver.try_recv() {
-                    Ok(message) => match message {
-                        Ok(message) => {
-                            match message {
-                                Message::Prefill(step) => {
-                                    let latency = step.latency.as_millis() as f64;
-                                    prefill_latencies[current_batch_idx].push(latency);
-                                    prefill_throughputs[current_batch_idx].push(step.throughput);
-                                }
-                                Message::Decode(step) => {
-                                    let latency = step.latency.as_millis() as f64;
-                                    decode_latencies[current_batch_idx].push(latency);
-                                    decode_throughputs[current_batch_idx].push(step.throughput);
-                                }
-                                Message::Run(_) => {
-                                    completed_runs[current_batch_idx] += 1;
-                                }
-                                Message::EndBatch => {
-                                    prefill_batch_latency_throughput.push((
-                                        prefill_latencies[current_batch_idx].iter().sum::<f64>()
-                                            / completed_runs[current_batch_idx] as f64,
-                                        prefill_throughputs[current_batch_idx].iter().sum::<f64>()
-                                            / completed_runs[current_batch_idx] as f64,
-                                    ));
-                                    decode_batch_latency_throughput.push((
-                                        decode_latencies[current_batch_idx].iter().sum::<f64>()
-                                            / completed_runs[current_batch_idx] as f64,
-                                        decode_throughputs[current_batch_idx].iter().sum::<f64>()
-                                            / completed_runs[current_batch_idx] as f64,
-                                    ));
-
-                                    completed_batch += 1;
-                                    if current_batch_idx < self.batch_size.len() - 1 {
-                                        current_batch_idx += 1;
-                                    }
-                                }
-                                Message::Warmup => {}
-                            }
-                        }
-                        Err(_) => is_error = true
-                    },
-                    Err(TryRecvError::Empty) => {
-                        break;
-                    }
-                    Err(TryRecvError::Disconnected) => {
-                        break;
-                    }
-                }
+    pub(crate) fn handle_key_event(&mut self, key_event: KeyEvent) {
+        match key_event {
+            KeyEvent {
+                code: KeyCode::Right,
+                ..
+            } => {
+                self.current_tab = (self.current_tab + 1) % self.batch_size.len();
             }
-
-            let batch_progress =
-                (completed_batch as f64 / self.batch_size.len() as f64).clamp(0.0, 1.0);
-            let run_progress =
-                (completed_runs[current_batch_idx] as f64 / self.n_run as f64).clamp(0.0, 1.0);
-
-            terminal.draw(|f| {
-                // Vertical layout
-                let row5 = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints(
-                        [
-                            Constraint::Length(1),
-                            Constraint::Length(3),
-                            Constraint::Length(3),
-                            Constraint::Length(13),
-                            Constraint::Min(10),
-                        ]
-                            .as_ref(),
-                    )
-                    .split(f.size());
-
-                // Top row horizontal layout
-                let top = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-                    .split(row5[2]);
-
-                // Mid row horizontal layout
-                let mid = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints(
-                        [
-                            Constraint::Percentage(20),
-                            Constraint::Percentage(30),
-                            Constraint::Percentage(20),
-                            Constraint::Percentage(30),
-                        ]
-                            .as_ref(),
-                    )
-                    .split(row5[3]);
-
-                // Left mid row vertical layout
-                let prefill_text = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([Constraint::Length(8), Constraint::Length(5)].as_ref())
-                    .split(mid[0]);
-
-                // Right mid row vertical layout
-                let decode_text = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([Constraint::Length(8), Constraint::Length(5)].as_ref())
-                    .split(mid[2]);
-
-                // Bottom row horizontal layout
-                let bottom = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-                    .split(row5[4]);
-
-                // Title
-                let title = Block::default().borders(Borders::NONE).title(format!(
-                    "Model: {} | Sequence Length: {} | Decode Length: {}",
-                    self.tokenizer_name, self.sequence_length, self.decode_length
-                )).style(Style::default().add_modifier(Modifier::BOLD).fg(Color::White));
-                f.render_widget(title, row5[0]);
-
-                // Batch tabs
-                let titles = self
-                    .batch_size
-                    .iter()
-                    .map(|b| {
-                        Spans::from(vec![Span::styled(
-                            format!("Batch: {b}"),
-                            Style::default().fg(Color::White),
-                        )])
-                    })
-                    .collect();
-                let tabs = Tabs::new(titles)
-                    .block(Block::default().borders(Borders::ALL).title("Tabs"))
-                    .select(current_tab_idx)
-                    .style(Style::default().fg(Color::LightCyan))
-                    .highlight_style(
-                        Style::default()
-                            .add_modifier(Modifier::BOLD)
-                            .bg(Color::Black),
-                    );
-                f.render_widget(tabs, row5[1]);
-
-                // Total progress bar
-                let batch_gauge = progress_gauge(
-                    "Total Progress",
-                    format!("{} / {}", completed_batch, self.batch_size.len()),
-                    batch_progress,
-                    Color::LightGreen,
-                );
-                f.render_widget(batch_gauge, top[0]);
-
-                // Batch progress Bar
-                let run_gauge = progress_gauge(
-                    "Batch Progress",
-                    format!("{} / {}", completed_runs[current_batch_idx], self.n_run),
-                    run_progress,
-                    Color::LightBlue,
-                );
-                f.render_widget(run_gauge, top[1]);
-
-                // Prefill text infos
-                let (prefill_latency_statics, prefill_throughput_statics) = text_info(
-                    &mut prefill_latencies[current_tab_idx],
-                    &prefill_throughputs[current_tab_idx],
-                    "Prefill",
-                );
-                f.render_widget(prefill_latency_statics, prefill_text[0]);
-                f.render_widget(prefill_throughput_statics, prefill_text[1]);
-
-                // Prefill latency histogram
-                let histo_width = 7;
-                let bins = if mid[1].width < 2 {
-                    0
+            KeyEvent {
+                code: KeyCode::Left,
+                ..
+            } => {
+                if self.current_tab > 0 {
+                    self.current_tab -= 1;
                 } else {
-                    (mid[1].width as usize - 2) / (histo_width + 1)
-                }
-                    .max(2);
-
-                let histo_data = latency_histogram_data(&prefill_latencies[current_tab_idx], bins);
-                let histo_data_str: Vec<(&str, u64)> =
-                    histo_data.iter().map(|(l, v)| (l.as_str(), *v)).collect();
-                let prefill_histogram =
-                    latency_histogram(&histo_data_str, "Prefill").bar_width(histo_width as u16);
-                f.render_widget(prefill_histogram, mid[1]);
-
-                // Decode text info
-                let (decode_latency_statics, decode_throughput_statics) = text_info(
-                    &mut decode_latencies[current_tab_idx],
-                    &decode_throughputs[current_tab_idx],
-                    "Decode",
-                );
-                f.render_widget(decode_latency_statics, decode_text[0]);
-                f.render_widget(decode_throughput_statics, decode_text[1]);
-
-                // Decode latency histogram
-                let histo_data = latency_histogram_data(&decode_latencies[current_tab_idx], bins);
-                let histo_data_str: Vec<(&str, u64)> =
-                    histo_data.iter().map(|(l, v)| (l.as_str(), *v)).collect();
-                let decode_histogram =
-                    latency_histogram(&histo_data_str, "Decode").bar_width(histo_width as u16);
-                f.render_widget(decode_histogram, mid[3]);
-
-                // Prefill latency/throughput chart
-                let prefill_latency_throughput_chart = latency_throughput_chart(
-                    &prefill_batch_latency_throughput,
-                    &self.batch_size,
-                    "Prefill",
-                );
-                f.render_widget(prefill_latency_throughput_chart, bottom[0]);
-
-                // Decode latency/throughput chart
-                let decode_latency_throughput_chart = latency_throughput_chart(
-                    &decode_batch_latency_throughput,
-                    &self.batch_size,
-                    "Decode",
-                );
-                f.render_widget(decode_latency_throughput_chart, bottom[1]);
-            })?;
-
-            // Quit on q or CTRL+c
-
-            while event::poll(Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    match key {
-                        KeyEvent {
-                            code: KeyCode::Right,
-                            ..
-                        } => {
-                            current_tab_idx = (current_tab_idx + 1) % self.batch_size.len();
-                        }
-                        KeyEvent {
-                            code: KeyCode::Left,
-                            ..
-                        } => {
-                            if current_tab_idx > 0 {
-                                current_tab_idx -= 1;
-                            } else {
-                                current_tab_idx = self.batch_size.len() - 1;
-                            }
-                        }
-                        KeyEvent {
-                            code: KeyCode::Char('q'),
-                            ..
-                        }
-                        | KeyEvent {
-                            code: KeyCode::Char('c'),
-                            modifiers: KeyModifiers::CONTROL,
-                            ..
-                        } => {
-                            break 'outer;
-                        }
-                        _ => (),
-                    }
+                    self.current_tab = self.batch_size.len() - 1;
                 }
             }
+            KeyEvent {
+                code: KeyCode::Char('q'),
+                ..
+            }
+            | KeyEvent {
+                code: KeyCode::Char('c'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.running = false;
+            }
+            _ => (),
+        }
+    }
 
-            // Frame budget
-            let per_frame = Duration::from_secs(1) / 30 as u32;
-            let elapsed = frame_start.elapsed();
-            if per_frame > elapsed {
-                sleep(per_frame - elapsed).await;
+    pub(crate) fn tick(&mut self) {
+        while let Ok(message) = self.receiver.try_recv() {
+            match message {
+                Ok(message) => match message {
+                    Message::Prefill(step) => self.data.push_prefill(step, self.current_batch),
+                    Message::Decode(step) => self.data.push_decode(step, self.current_batch),
+                    Message::Run(_) => {
+                        self.completed_runs[self.current_batch] += 1;
+                    }
+                    Message::EndBatch => {
+                        self.data.end_batch(self.current_batch);
+
+                        self.completed_batch += 1;
+                        if self.current_batch < self.batch_size.len() - 1 {
+                            self.current_batch += 1;
+                        }
+                    }
+                    Message::Warmup => {}
+                },
+                Err(_) => self.is_error = true,
             }
         }
+    }
 
-        // Revert terminal to original view
-        io::stdout().execute(crossterm::terminal::LeaveAlternateScreen)?;
-        crossterm::terminal::disable_raw_mode()?;
-        io::stdout().execute(crossterm::cursor::Show)?;
+    pub fn render<B: Backend>(&mut self, f: &mut Frame<'_, B>) {
+        let batch_progress =
+            (self.completed_batch as f64 / self.batch_size.len() as f64).clamp(0.0, 1.0);
+        let run_progress =
+            (self.completed_runs[self.current_batch] as f64 / self.n_run as f64).clamp(0.0, 1.0);
 
-        let _ = self.shutdown_sender.send(());
-        Ok(())
+        // Vertical layout
+        let row5 = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(
+                [
+                    Constraint::Length(1),
+                    Constraint::Length(3),
+                    Constraint::Length(3),
+                    Constraint::Length(13),
+                    Constraint::Min(10),
+                ]
+                .as_ref(),
+            )
+            .split(f.size());
+
+        // Top row horizontal layout
+        let top = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .split(row5[2]);
+
+        // Mid row horizontal layout
+        let mid = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(
+                [
+                    Constraint::Percentage(20),
+                    Constraint::Percentage(30),
+                    Constraint::Percentage(20),
+                    Constraint::Percentage(30),
+                ]
+                .as_ref(),
+            )
+            .split(row5[3]);
+
+        // Left mid row vertical layout
+        let prefill_text = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(8), Constraint::Length(5)].as_ref())
+            .split(mid[0]);
+
+        // Right mid row vertical layout
+        let decode_text = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(8), Constraint::Length(5)].as_ref())
+            .split(mid[2]);
+
+        // Bottom row horizontal layout
+        let bottom = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .split(row5[4]);
+
+        // Title
+        let title = Block::default()
+            .borders(Borders::NONE)
+            .title(format!(
+                "Model: {} | Sequence Length: {} | Decode Length: {}",
+                self.tokenizer_name, self.sequence_length, self.decode_length
+            ))
+            .style(
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::White),
+            );
+        f.render_widget(title, row5[0]);
+
+        // Batch tabs
+        let titles = self
+            .batch_size
+            .iter()
+            .map(|b| {
+                Spans::from(vec![Span::styled(
+                    format!("Batch: {b}"),
+                    Style::default().fg(Color::White),
+                )])
+            })
+            .collect();
+        let tabs = Tabs::new(titles)
+            .block(Block::default().borders(Borders::ALL).title("Tabs"))
+            .select(self.current_tab)
+            .style(Style::default().fg(Color::LightCyan))
+            .highlight_style(
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .bg(Color::Black),
+            );
+        f.render_widget(tabs, row5[1]);
+
+        // Total progress bar
+        let batch_gauge = progress_gauge(
+            "Total Progress",
+            format!("{} / {}", self.completed_batch, self.batch_size.len()),
+            batch_progress,
+            Color::LightGreen,
+        );
+        f.render_widget(batch_gauge, top[0]);
+
+        // Batch progress Bar
+        let run_gauge = progress_gauge(
+            "Batch Progress",
+            format!(
+                "{} / {}",
+                self.completed_runs[self.current_batch], self.n_run
+            ),
+            run_progress,
+            Color::LightBlue,
+        );
+        f.render_widget(run_gauge, top[1]);
+
+        // Prefill text infos
+        let (prefill_latency_statics, prefill_throughput_statics) = text_info(
+            &mut self.data.prefill_latencies[self.current_tab],
+            &self.data.prefill_throughputs[self.current_tab],
+            "Prefill",
+        );
+        f.render_widget(prefill_latency_statics, prefill_text[0]);
+        f.render_widget(prefill_throughput_statics, prefill_text[1]);
+
+        // Prefill latency histogram
+        let histo_width = 7;
+        let bins = if mid[1].width < 2 {
+            0
+        } else {
+            (mid[1].width as usize - 2) / (histo_width + 1)
+        }
+        .max(2);
+
+        let histo_data =
+            latency_histogram_data(&self.data.prefill_latencies[self.current_tab], bins);
+        let histo_data_str: Vec<(&str, u64)> =
+            histo_data.iter().map(|(l, v)| (l.as_str(), *v)).collect();
+        let prefill_histogram =
+            latency_histogram(&histo_data_str, "Prefill").bar_width(histo_width as u16);
+        f.render_widget(prefill_histogram, mid[1]);
+
+        // Decode text info
+        let (decode_latency_statics, decode_throughput_statics) = text_info(
+            &mut self.data.decode_latencies[self.current_tab],
+            &self.data.decode_throughputs[self.current_tab],
+            "Decode",
+        );
+        f.render_widget(decode_latency_statics, decode_text[0]);
+        f.render_widget(decode_throughput_statics, decode_text[1]);
+
+        // Decode latency histogram
+        let histo_data =
+            latency_histogram_data(&self.data.decode_latencies[self.current_tab], bins);
+        let histo_data_str: Vec<(&str, u64)> =
+            histo_data.iter().map(|(l, v)| (l.as_str(), *v)).collect();
+        let decode_histogram =
+            latency_histogram(&histo_data_str, "Decode").bar_width(histo_width as u16);
+        f.render_widget(decode_histogram, mid[3]);
+
+        // Prefill latency/throughput chart
+        let prefill_latency_throughput_chart = latency_throughput_chart(
+            &self.data.prefill_batch_latency_throughput,
+            &self.batch_size,
+            "Prefill",
+        );
+        f.render_widget(prefill_latency_throughput_chart, bottom[0]);
+
+        // Decode latency/throughput chart
+        let decode_latency_throughput_chart = latency_throughput_chart(
+            &self.data.decode_batch_latency_throughput,
+            &self.batch_size,
+            "Decode",
+        );
+        f.render_widget(decode_latency_throughput_chart, bottom[1]);
     }
 }
 

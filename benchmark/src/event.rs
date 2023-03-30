@@ -1,7 +1,7 @@
 /// Inspired by https://github.com/orhun/rust-tui-template
 use crossterm::event;
-use tokio::sync::{mpsc, broadcast};
 use std::time::{Duration, Instant};
+use tokio::sync::{broadcast, mpsc};
 
 /// Events
 #[derive(Debug)]
@@ -14,9 +14,11 @@ pub(crate) enum Event {
     Resize(u16, u16),
 }
 
-pub(crate) async fn terminal_event_task(fps: u32, event_sender: mpsc::Sender<Event>,
-                                        mut shutdown_receiver: broadcast::Receiver<()>,
-                                        _shutdown_guard_sender: mpsc::Sender<()>,
+pub(crate) async fn terminal_event_task(
+    fps: u32,
+    event_sender: mpsc::Sender<Event>,
+    mut shutdown_receiver: broadcast::Receiver<()>,
+    _shutdown_guard_sender: mpsc::Sender<()>,
 ) {
     tokio::select! {
         _ = event_loop(fps, event_sender)  => {
@@ -25,8 +27,7 @@ pub(crate) async fn terminal_event_task(fps: u32, event_sender: mpsc::Sender<Eve
     }
 }
 
-async fn event_loop(fps: u32, event_sender: mpsc::Sender<Event>,
-) {
+async fn event_loop(fps: u32, event_sender: mpsc::Sender<Event>) {
     let per_frame = Duration::from_secs(1) / fps as u32;
     let mut last_frame = Instant::now();
     loop {
@@ -37,7 +38,9 @@ async fn event_loop(fps: u32, event_sender: mpsc::Sender<Event>,
         if event::poll(Duration::from_secs(0)).expect("no events available") {
             match event::read().expect("unable to read event") {
                 event::Event::Key(e) => event_sender.send(Event::Key(e)).await.unwrap_or(()),
-                event::Event::Resize(w, h) => event_sender.send(Event::Resize(w, h)).await.unwrap_or(()),
+                event::Event::Resize(w, h) => {
+                    event_sender.send(Event::Resize(w, h)).await.unwrap_or(())
+                }
                 _ => (),
             }
         }

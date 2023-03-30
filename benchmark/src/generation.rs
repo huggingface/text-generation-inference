@@ -1,5 +1,8 @@
 use std::time::{Duration, Instant};
-use text_generation_client::{Batch, ClientError, NextTokenChooserParameters, Request, ShardedClient, StoppingCriteriaParameters};
+use text_generation_client::{
+    Batch, ClientError, NextTokenChooserParameters, Request, ShardedClient,
+    StoppingCriteriaParameters,
+};
 use tokenizers::{Tokenizer, TruncationDirection};
 use tokio::sync::{broadcast, mpsc};
 
@@ -57,26 +60,29 @@ pub(crate) async fn generation_task(
     }
 }
 
-async fn generate_runs(tokenizer: Tokenizer,
-                       batch_size: Vec<u32>,
-                       sequence_length: u32,
-                       decode_length: u32,
-                       n_runs: usize,
-                       warmups: usize,
-                       mut client: ShardedClient,
-                       run_sender: mpsc::Sender<Result<Message, ClientError>>,
+async fn generate_runs(
+    tokenizer: Tokenizer,
+    batch_size: Vec<u32>,
+    sequence_length: u32,
+    decode_length: u32,
+    n_runs: usize,
+    warmups: usize,
+    mut client: ShardedClient,
+    run_sender: mpsc::Sender<Result<Message, ClientError>>,
 ) -> Result<(), ClientError> {
     let sequence = create_sequence(sequence_length, tokenizer);
 
     for b in batch_size {
         for _ in 0..warmups {
-            let (_, decode_batch) = prefill(sequence.clone(), b, decode_length, &mut client).await?;
+            let (_, decode_batch) =
+                prefill(sequence.clone(), b, decode_length, &mut client).await?;
             let _ = decode(decode_batch, &mut client).await?;
             run_sender.send(Ok(Message::Warmup)).await.unwrap_or(());
         }
 
         for _ in 0..n_runs {
-            let (prefill, decode_batch) = prefill(sequence.clone(), b, decode_length, &mut client).await?;
+            let (prefill, decode_batch) =
+                prefill(sequence.clone(), b, decode_length, &mut client).await?;
             run_sender
                 .send(Ok(Message::Prefill(prefill.clone())))
                 .await
@@ -89,12 +95,15 @@ async fn generate_runs(tokenizer: Tokenizer,
                 .await
                 .unwrap_or(());
 
-            run_sender.send(Ok(Message::Run(Run {
-                batch_size: b,
-                sequence_length,
-                prefill,
-                decode,
-            }))).await.unwrap_or(());
+            run_sender
+                .send(Ok(Message::Run(Run {
+                    batch_size: b,
+                    sequence_length,
+                    prefill,
+                    decode,
+                })))
+                .await
+                .unwrap_or(());
         }
         run_sender.send(Ok(Message::EndBatch)).await.unwrap_or(());
     }
@@ -138,8 +147,7 @@ async fn prefill(
     let start_time = Instant::now();
     let (_, decode_batch) = client.prefill(batch.clone()).await?;
     let latency = start_time.elapsed();
-    let throughput = batch_size as f64
-        / latency.as_secs_f64();
+    let throughput = batch_size as f64 / latency.as_secs_f64();
 
     let decode_batch = decode_batch.expect("decode_batch is None. This is a bug.");
 
@@ -151,10 +159,7 @@ async fn prefill(
     Ok((step, decode_batch))
 }
 
-async fn decode(
-    batch: Batch,
-    client: &mut ShardedClient,
-) -> Result<Decode, ClientError> {
+async fn decode(batch: Batch, client: &mut ShardedClient) -> Result<Decode, ClientError> {
     let mut decode_length = 0;
     let start_time = Instant::now();
     let batch_size = batch.size;
@@ -166,8 +171,7 @@ async fn decode(
         decode_length += 1;
     }
     let latency = start_time.elapsed();
-    let throughput = (batch_size * decode_length) as f64
-        / latency.as_secs_f64();
+    let throughput = (batch_size * decode_length) as f64 / latency.as_secs_f64();
 
     let step = Decode {
         decode_length,
