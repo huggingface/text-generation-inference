@@ -1,6 +1,6 @@
 [package]
 name = "text-generation-router"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 description = "Text Generation Webserver"
