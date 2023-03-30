@@ -1,10 +1,12 @@
 [workspace]
 members = [
-    "benchmark",
     "router",
     "router/client",
     "router/grpc-metadata",
     "launcher"
+]
+exclude = [
+    "benchmark"
 ]
 
 [profile.release]
