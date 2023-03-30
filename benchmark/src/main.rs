@@ -1,5 +1,8 @@
-use clap::Parser;
 /// Text Generation Inference benchmarking tool
+///
+/// Inspired by the great Oha app: https://github.com/hatoo/oha
+/// and: https://github.com/orhun/rust-tui-template
+use clap::Parser;
 use std::path::Path;
 use text_generation_client::ShardedClient;
 use tokenizers::Tokenizer;
@@ -11,17 +14,17 @@ use tracing_subscriber::EnvFilter;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(default_value = "bigscience/bloom", long, env)]
+    #[clap(long, env)]
     tokenizer_name: String,
-    #[clap(default_value = "1", long, env)]
-    batch_size: Vec<u32>,
+    #[clap(long)]
+    batch_size: Option<Vec<u32>>,
     #[clap(default_value = "10", long, env)]
     sequence_length: u32,
     #[clap(default_value = "64", long, env)]
     decode_length: u32,
     #[clap(default_value = "10", long, env)]
     runs: usize,
-    #[clap(default_value = "2", long, env)]
+    #[clap(default_value = "1", long, env)]
     warmups: usize,
     #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
     master_shard_uds_path: String,
@@ -40,6 +43,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         warmups,
         master_shard_uds_path,
     } = args;
+
+    let batch_size = batch_size.unwrap_or(vec![1, 2, 4, 8, 16, 32]);
 
     init_logging();
 
@@ -79,6 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Unable to clear cache");
             tracing::info!("Connected");
 
+            // Run app
             text_generation_benchmark::run(
                 tokenizer_name,
                 tokenizer,

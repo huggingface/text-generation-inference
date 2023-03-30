@@ -9,7 +9,7 @@ description = "Text Generation Benchmarking tool"
 path = "src/lib.rs"
 
 [[bin]]
-name = "text-generation-bench"
+name = "text-generation-benchmark"
 path = "src/main.rs"
 
 [dependencies]

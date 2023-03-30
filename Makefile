@@ -7,6 +7,9 @@ install-router:
 install-launcher:
 	cd launcher && cargo install --path .
 
+install-benchmark:
+	cd benchmark && cargo install --path .
+
 install: install-server install-router install-launcher
 
 server-dev:

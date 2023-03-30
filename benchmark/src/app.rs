@@ -1,5 +1,5 @@
+/// Inspired by https://github.com/hatoo/oha/blob/bb989ea3cd77727e7743e7daa60a19894bb5e901/src/monitor.rs
 use crate::generation::{Decode, Message, Prefill};
-/// Inspired by https://github.com/hatoo/oha/blob/master/src/monitor.rs
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use text_generation_client::ClientError;
 use tokio::sync::mpsc;
@@ -12,70 +12,8 @@ use tui::widgets::{
 };
 use tui::{symbols, Frame};
 
-struct Data {
-    prefill_latencies: Vec<Vec<f64>>,
-    prefill_throughputs: Vec<Vec<f64>>,
-    decode_latencies: Vec<Vec<f64>>,
-    decode_throughputs: Vec<Vec<f64>>,
-    prefill_batch_latency_throughput: Vec<(f64, f64)>,
-    decode_batch_latency_throughput: Vec<(f64, f64)>,
-}
-
-impl Data {
-    fn new(n_run: usize, n_batch: usize) -> Self {
-        let prefill_latencies: Vec<Vec<f64>> =
-            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
-        let prefill_throughputs: Vec<Vec<f64>> =
-            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
-
-        let decode_latencies: Vec<Vec<f64>> =
-            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
-        let decode_throughputs: Vec<Vec<f64>> =
-            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
-
-        let prefill_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
-
-        let decode_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
-
-        Self {
-            prefill_latencies,
-            prefill_throughputs,
-            decode_latencies,
-            decode_throughputs,
-            prefill_batch_latency_throughput,
-            decode_batch_latency_throughput,
-        }
-    }
-
-    fn push_prefill(&mut self, prefill: Prefill, batch_idx: usize) {
-        let latency = prefill.latency.as_millis() as f64;
-        self.prefill_latencies[batch_idx].push(latency);
-        self.prefill_throughputs[batch_idx].push(prefill.throughput);
-    }
-
-    fn push_decode(&mut self, prefill: Decode, batch_idx: usize) {
-        let latency = prefill.latency.as_millis() as f64;
-        self.decode_latencies[batch_idx].push(latency);
-        self.decode_throughputs[batch_idx].push(prefill.throughput);
-    }
-
-    fn end_batch(&mut self, batch_idx: usize) {
-        self.prefill_batch_latency_throughput.push((
-            self.prefill_latencies[batch_idx].iter().sum::<f64>()
-                / self.prefill_latencies[batch_idx].len() as f64,
-            self.prefill_throughputs[batch_idx].iter().sum::<f64>()
-                / self.prefill_throughputs[batch_idx].len() as f64,
-        ));
-        self.decode_batch_latency_throughput.push((
-            self.decode_latencies[batch_idx].iter().sum::<f64>()
-                / self.decode_latencies[batch_idx].len() as f64,
-            self.decode_throughputs[batch_idx].iter().sum::<f64>()
-                / self.decode_throughputs[batch_idx].len() as f64,
-        ));
-    }
-}
-
-pub(crate) struct UI {
+/// TUI powered App
+pub(crate) struct App {
     pub(crate) running: bool,
     completed_runs: Vec<usize>,
     completed_batch: usize,
@@ -92,7 +30,7 @@ pub(crate) struct UI {
     receiver: mpsc::Receiver<Result<Message, ClientError>>,
 }
 
-impl UI {
+impl App {
     pub(crate) fn new(
         receiver: mpsc::Receiver<Result<Message, ClientError>>,
         tokenizer_name: String,
@@ -127,18 +65,20 @@ impl UI {
         }
     }
 
+    /// Handle crossterm key events
     pub(crate) fn handle_key_event(&mut self, key_event: KeyEvent) {
         match key_event {
+            // Increase and wrap tab
             KeyEvent {
                 code: KeyCode::Right,
                 ..
-            } |
-            KeyEvent {
-                code: KeyCode::Tab,
-                ..
+            }
+            | KeyEvent {
+                code: KeyCode::Tab, ..
             } => {
                 self.current_tab = (self.current_tab + 1) % self.batch_size.len();
             }
+            // Decrease and wrap tab
             KeyEvent {
                 code: KeyCode::Left,
                 ..
@@ -149,19 +89,21 @@ impl UI {
                     self.current_tab = self.batch_size.len() - 1;
                 }
             }
+            // Zoom on throughput/latency fig
             KeyEvent {
                 code: KeyCode::Char('+'),
                 ..
             } => {
                 self.zoom = true;
             }
+            // Unzoom on throughput/latency fig
             KeyEvent {
                 code: KeyCode::Char('-'),
                 ..
             } => {
                 self.zoom = false;
             }
-
+            // Quit
             KeyEvent {
                 code: KeyCode::Char('q'),
                 ..
@@ -177,13 +119,14 @@ impl UI {
         }
     }
 
+    /// Get all pending messages from generation task
     pub(crate) fn tick(&mut self) {
         while let Ok(message) = self.receiver.try_recv() {
             match message {
                 Ok(message) => match message {
                     Message::Prefill(step) => self.data.push_prefill(step, self.current_batch),
                     Message::Decode(step) => self.data.push_decode(step, self.current_batch),
-                    Message::Run(_) => {
+                    Message::EndRun => {
                         self.completed_runs[self.current_batch] += 1;
                     }
                     Message::EndBatch => {
@@ -201,6 +144,7 @@ impl UI {
         }
     }
 
+    /// Render frame
     pub fn render<B: Backend>(&mut self, f: &mut Frame<'_, B>) {
         let batch_progress =
             (self.completed_batch as f64 / self.batch_size.len() as f64).clamp(0.0, 1.0);
@@ -218,7 +162,7 @@ impl UI {
                     Constraint::Length(13),
                     Constraint::Min(10),
                 ]
-                    .as_ref(),
+                .as_ref(),
             )
             .split(f.size());
 
@@ -238,7 +182,7 @@ impl UI {
                     Constraint::Percentage(20),
                     Constraint::Percentage(30),
                 ]
-                    .as_ref(),
+                .as_ref(),
             )
             .split(row5[3]);
 
@@ -277,14 +221,9 @@ impl UI {
         // Helper
         let helper = Block::default()
             .borders(Borders::NONE)
-            .title(format!(
-                "<- | tab | ->: change batch tab | q / CTRL + c: quit | +/-: zoom"
-            ))
+            .title("<- | tab | ->: change batch tab | q / CTRL + c: quit | +/-: zoom")
             .title_alignment(Alignment::Right)
-            .style(
-                Style::default()
-                    .fg(Color::White),
-            );
+            .style(Style::default().fg(Color::White));
         f.render_widget(helper, row5[0]);
 
         // Batch tabs
@@ -356,7 +295,7 @@ impl UI {
         } else {
             (mid[1].width as usize - 2) / (histo_width + 1)
         }
-            .max(2);
+        .max(2);
 
         let histo_data =
             latency_histogram_data(&self.data.prefill_latencies[self.current_tab], bins);
@@ -404,6 +343,71 @@ impl UI {
     }
 }
 
+/// App internal data struct
+struct Data {
+    prefill_latencies: Vec<Vec<f64>>,
+    prefill_throughputs: Vec<Vec<f64>>,
+    decode_latencies: Vec<Vec<f64>>,
+    decode_throughputs: Vec<Vec<f64>>,
+    prefill_batch_latency_throughput: Vec<(f64, f64)>,
+    decode_batch_latency_throughput: Vec<(f64, f64)>,
+}
+
+impl Data {
+    fn new(n_run: usize, n_batch: usize) -> Self {
+        let prefill_latencies: Vec<Vec<f64>> =
+            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+        let prefill_throughputs: Vec<Vec<f64>> =
+            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+
+        let decode_latencies: Vec<Vec<f64>> =
+            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+        let decode_throughputs: Vec<Vec<f64>> =
+            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+
+        let prefill_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
+
+        let decode_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
+
+        Self {
+            prefill_latencies,
+            prefill_throughputs,
+            decode_latencies,
+            decode_throughputs,
+            prefill_batch_latency_throughput,
+            decode_batch_latency_throughput,
+        }
+    }
+
+    fn push_prefill(&mut self, prefill: Prefill, batch_idx: usize) {
+        let latency = prefill.latency.as_millis() as f64;
+        self.prefill_latencies[batch_idx].push(latency);
+        self.prefill_throughputs[batch_idx].push(prefill.throughput);
+    }
+
+    fn push_decode(&mut self, prefill: Decode, batch_idx: usize) {
+        let latency = prefill.latency.as_millis() as f64;
+        self.decode_latencies[batch_idx].push(latency);
+        self.decode_throughputs[batch_idx].push(prefill.throughput);
+    }
+
+    fn end_batch(&mut self, batch_idx: usize) {
+        self.prefill_batch_latency_throughput.push((
+            self.prefill_latencies[batch_idx].iter().sum::<f64>()
+                / self.prefill_latencies[batch_idx].len() as f64,
+            self.prefill_throughputs[batch_idx].iter().sum::<f64>()
+                / self.prefill_throughputs[batch_idx].len() as f64,
+        ));
+        self.decode_batch_latency_throughput.push((
+            self.decode_latencies[batch_idx].iter().sum::<f64>()
+                / self.decode_latencies[batch_idx].len() as f64,
+            self.decode_throughputs[batch_idx].iter().sum::<f64>()
+                / self.decode_throughputs[batch_idx].len() as f64,
+        ));
+    }
+}
+
+/// Progress bar
 fn progress_gauge(title: &str, label: String, progress: f64, color: Color) -> Gauge {
     Gauge::default()
         .block(Block::default().title(title).borders(Borders::ALL))
@@ -412,31 +416,40 @@ fn progress_gauge(title: &str, label: String, progress: f64, color: Color) -> Ga
         .ratio(progress)
 }
 
+/// Prefill or Decode text infos
 fn text_info<'a>(
     latency: &mut Vec<f64>,
     throughput: &Vec<f64>,
     name: &'static str,
 ) -> (Paragraph<'a>, Paragraph<'a>) {
-    let mut latency_texts = statis_spans(&latency, "ms");
+    // Latency average/high/low texts
+    let mut latency_texts = statis_spans(latency, "ms");
+
+    // Sort latency for percentiles
     float_ord::sort(latency);
     let latency_percentiles = crate::utils::percentiles(latency, &[50, 90, 99]);
+
+    // Latency p50/p90/p99 texts
     let colors = vec![Color::LightGreen, Color::LightYellow, Color::LightRed];
     for (i, (name, value)) in latency_percentiles.iter().enumerate() {
         let span = Spans::from(vec![Span::styled(
-            format!("{name}:     {:.4} ms", value),
+            format!("{name}:     {value:.4} ms"),
             Style::default().fg(colors[i]),
         )]);
         latency_texts.push(span);
     }
 
-    let throughput_texts = statis_spans(&throughput, "tokens/secs");
+    // Throughput average/high/low texts
+    let throughput_texts = statis_spans(throughput, "tokens/secs");
 
+    // Latency Block
     let latency_statics = Paragraph::new(latency_texts).block(
         Block::default()
             .title(Span::raw(format!("{name} Latency")))
             .borders(Borders::ALL),
     );
 
+    // Throughput block
     let throughput_statics = Paragraph::new(throughput_texts).block(
         Block::default()
             .title(Span::raw(format!("{name} Throughput")))
@@ -446,32 +459,7 @@ fn text_info<'a>(
     (latency_statics, throughput_statics)
 }
 
-fn latency_histogram_data(latency: &Vec<f64>, bins: usize) -> Vec<(String, u64)> {
-    let histo_data: Vec<(String, u64)> = {
-        let histo = crate::utils::histogram(latency, bins);
-        histo
-            .into_iter()
-            .map(|(label, v)| (format!("{label:.2}"), v as u64))
-            .collect()
-    };
-
-    histo_data
-}
-
-fn latency_histogram<'a>(
-    histo_data_str: &'a Vec<(&'a str, u64)>,
-    name: &'static str,
-) -> BarChart<'a> {
-    BarChart::default()
-        .block(
-            Block::default()
-                .title(format!("{name} latency histogram"))
-                .style(Style::default().fg(Color::LightYellow).bg(Color::Reset))
-                .borders(Borders::ALL),
-        )
-        .data(histo_data_str.as_slice())
-}
-
+/// Average/High/Low spans
 fn statis_spans<'a>(data: &Vec<f64>, unit: &'static str) -> Vec<Spans<'a>> {
     vec![
         Spans::from(vec![Span::styled(
@@ -502,15 +490,45 @@ fn statis_spans<'a>(data: &Vec<f64>, unit: &'static str) -> Vec<Spans<'a>> {
     ]
 }
 
+/// Latency histogram data
+fn latency_histogram_data(latency: &[f64], bins: usize) -> Vec<(String, u64)> {
+    let histo_data: Vec<(String, u64)> = {
+        let histo = crate::utils::histogram(latency, bins);
+        histo
+            .into_iter()
+            .map(|(label, v)| (format!("{label:.2}"), v as u64))
+            .collect()
+    };
+
+    histo_data
+}
+
+/// Latency Histogram
+fn latency_histogram<'a>(
+    histo_data_str: &'a Vec<(&'a str, u64)>,
+    name: &'static str,
+) -> BarChart<'a> {
+    BarChart::default()
+        .block(
+            Block::default()
+                .title(format!("{name} latency histogram"))
+                .style(Style::default().fg(Color::LightYellow).bg(Color::Reset))
+                .borders(Borders::ALL),
+        )
+        .data(histo_data_str.as_slice())
+}
+
+/// Latency/Throughput chart
 fn latency_throughput_chart<'a>(
     latency_throughput: &'a Vec<(f64, f64)>,
-    batch_sizes: &'a Vec<u32>,
+    batch_sizes: &'a [u32],
     zoom: bool,
     name: &'static str,
 ) -> Chart<'a> {
     let latency_iter = latency_throughput.iter().map(|(l, _)| l);
     let throughput_iter = latency_throughput.iter().map(|(_, t)| t);
 
+    // Get extreme values
     let min_latency: f64 = *latency_iter
         .clone()
         .min_by(|a, b| a.total_cmp(b))
@@ -526,6 +544,7 @@ fn latency_throughput_chart<'a>(
         .max_by(|a, b| a.total_cmp(b))
         .unwrap_or(&std::f64::NAN);
 
+    // Char min max values
     let min_x = if zoom {
         ((min_latency - 0.05 * min_latency) / 100.0).floor() * 100.0
     } else {
@@ -534,6 +553,7 @@ fn latency_throughput_chart<'a>(
     let max_x = ((max_latency + 0.05 * max_latency) / 100.0).ceil() * 100.0;
     let step_x = (max_x - min_x) / 4.0;
 
+    // Chart min max values
     let min_y = if zoom {
         ((min_throughput - 0.05 * min_throughput) / 100.0).floor() * 100.0
     } else {
@@ -542,8 +562,9 @@ fn latency_throughput_chart<'a>(
     let max_y = ((max_throughput + 0.05 * max_throughput) / 100.0).ceil() * 100.0;
     let step_y = (max_y - min_y) / 4.0;
 
+    // Labels
     let mut x_labels = vec![Span::styled(
-        format!("{:.2}", min_x),
+        format!("{min_x:.2}"),
         Style::default()
             .add_modifier(Modifier::BOLD)
             .fg(Color::Gray)
@@ -556,15 +577,16 @@ fn latency_throughput_chart<'a>(
         ));
     }
     x_labels.push(Span::styled(
-        format!("{:.2}", max_x),
+        format!("{max_x:.2}"),
         Style::default()
             .add_modifier(Modifier::BOLD)
             .fg(Color::Gray)
             .bg(Color::Reset),
     ));
 
+    // Labels
     let mut y_labels = vec![Span::styled(
-        format!("{:.2}", min_y),
+        format!("{min_y:.2}"),
         Style::default()
             .add_modifier(Modifier::BOLD)
             .fg(Color::Gray)
@@ -577,25 +599,29 @@ fn latency_throughput_chart<'a>(
         ));
     }
     y_labels.push(Span::styled(
-        format!("{:.2}", max_y),
+        format!("{max_y:.2}"),
         Style::default()
             .add_modifier(Modifier::BOLD)
             .fg(Color::Gray)
             .bg(Color::Reset),
     ));
 
+    // Chart dataset
     let colors = color_vec();
     let datasets: Vec<Dataset> = (0..latency_throughput.len())
         .map(|i| {
+            let color_idx = i % colors.len();
+
             Dataset::default()
                 .name(batch_sizes[i].to_string())
                 .marker(symbols::Marker::Block)
-                .style(Style::default().fg(colors[i]))
+                .style(Style::default().fg(colors[color_idx]))
                 .graph_type(GraphType::Scatter)
                 .data(&latency_throughput[i..(i + 1)])
         })
         .collect();
 
+    // Chart
     Chart::new(datasets)
         .style(Style::default().fg(Color::Cyan).bg(Color::Reset))
         .block(
@@ -608,20 +634,21 @@ fn latency_throughput_chart<'a>(
         )
         .x_axis(
             Axis::default()
-                .title(format!("ms"))
+                .title("ms")
                 .style(Style::default().fg(Color::Gray).bg(Color::Reset))
                 .labels(x_labels)
                 .bounds([min_x, max_x]),
         )
         .y_axis(
             Axis::default()
-                .title(format!("tokens/secs"))
+                .title("tokens/secs")
                 .style(Style::default().fg(Color::Gray).bg(Color::Reset))
                 .labels(y_labels)
                 .bounds([min_y, max_y]),
         )
 }
 
+// Colors for latency/throughput chart
 fn color_vec() -> Vec<Color> {
     vec![
         Color::Red,

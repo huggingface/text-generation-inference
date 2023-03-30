@@ -1,12 +1,10 @@
-extern crate core;
-
+mod app;
 mod event;
 mod generation;
-mod ui;
 mod utils;
 
+use crate::app::App;
 use crate::event::Event;
-use crate::ui::UI;
 use crossterm::ExecutableCommand;
 use std::io;
 use text_generation_client::ShardedClient;
@@ -15,6 +13,8 @@ use tokio::sync::{broadcast, mpsc};
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 
+/// Run benchmarking app
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     tokenizer_name: String,
     tokenizer: Tokenizer,
@@ -25,11 +25,27 @@ pub async fn run(
     warmups: usize,
     client: ShardedClient,
 ) -> Result<(), crossterm::ErrorKind> {
+    // Initialize terminal properties
+    crossterm::terminal::enable_raw_mode()?;
+    io::stdout().execute(crossterm::terminal::EnterAlternateScreen)?;
+    io::stdout().execute(crossterm::cursor::Hide)?;
+
+    // Initialize terminal
+    let mut terminal = {
+        let backend = CrosstermBackend::new(io::stdout());
+        Terminal::new(backend)?
+    };
+
+    // Create message channel between generation_task and app
     let (run_sender, run_receiver) = mpsc::channel(8);
+    // Crossterm event channel
     let (event_sender, mut event_receiver) = mpsc::channel(8);
+    // Shutdown channel to terminate tasks
     let (shutdown_sender, _) = broadcast::channel(1);
+    // Channel to check if tasks terminated
     let (shutdown_guard_sender, mut shutdown_guard_receiver) = mpsc::channel(1);
 
+    // Create generation task
     tokio::spawn(generation::generation_task(
         tokenizer,
         batch_size.clone(),
@@ -43,6 +59,7 @@ pub async fn run(
         shutdown_guard_sender.clone(),
     ));
 
+    // Create event task
     tokio::spawn(event::terminal_event_task(
         250,
         event_sender,
@@ -50,9 +67,11 @@ pub async fn run(
         shutdown_guard_sender.clone(),
     ));
 
+    // Drop our end of shutdown sender
     drop(shutdown_guard_sender);
 
-    let mut ui = UI::new(
+    // Create App
+    let mut app = App::new(
         run_receiver,
         tokenizer_name,
         sequence_length,
@@ -61,23 +80,17 @@ pub async fn run(
         batch_size,
     );
 
-    crossterm::terminal::enable_raw_mode()?;
-    io::stdout().execute(crossterm::terminal::EnterAlternateScreen)?;
-    io::stdout().execute(crossterm::cursor::Hide)?;
+    while app.running {
+        // Draw frame
+        terminal.draw(|frame| app.render(frame))?;
 
-    let mut terminal = {
-        let backend = CrosstermBackend::new(io::stdout());
-        Terminal::new(backend)?
-    };
-
-    while ui.running {
-        terminal.draw(|frame| ui.render(frame))?;
-
+        // Await a new event from event handling task
         match event_receiver.recv().await {
             None => break,
+            // Update app state
             Some(event) => match event {
-                Event::Tick => ui.tick(),
-                Event::Key(key_event) => ui.handle_key_event(key_event),
+                Event::Tick => app.tick(),
+                Event::Key(key_event) => app.handle_key_event(key_event),
                 _ => {}
             },
         }

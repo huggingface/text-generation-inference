@@ -16,17 +16,8 @@ pub(crate) struct Prefill {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Decode {
-    pub(crate) decode_length: u32,
     pub(crate) latency: Duration,
     pub(crate) throughput: f64,
-}
-
-#[derive(Debug)]
-pub(crate) struct Run {
-    pub(crate) batch_size: u32,
-    pub(crate) sequence_length: u32,
-    pub(crate) prefill: Prefill,
-    pub(crate) decode: Decode,
 }
 
 #[derive(Debug)]
@@ -34,10 +25,12 @@ pub(crate) enum Message {
     Warmup,
     Prefill(Prefill),
     Decode(Decode),
-    Run(Run),
+    EndRun,
     EndBatch,
 }
 
+/// Benchmarking task
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generation_task(
     tokenizer: Tokenizer,
     batch_size: Vec<u32>,
@@ -50,6 +43,8 @@ pub(crate) async fn generation_task(
     mut shutdown_receiver: broadcast::Receiver<()>,
     _shutdown_guard_sender: mpsc::Sender<()>,
 ) {
+    // End task if a message is received on shutdown_receiver
+    // _shutdown_guard_sender will be dropped once the task is finished
     tokio::select! {
         res = generate_runs(tokenizer, batch_size, sequence_length, decode_length, n_runs, warmups, client, run_sender.clone())  => {
             if let Err(err) = res {
@@ -60,6 +55,8 @@ pub(crate) async fn generation_task(
     }
 }
 
+/// Benchmark prefill/decode
+#[allow(clippy::too_many_arguments)]
 async fn generate_runs(
     tokenizer: Tokenizer,
     batch_size: Vec<u32>,
@@ -70,52 +67,53 @@ async fn generate_runs(
     mut client: ShardedClient,
     run_sender: mpsc::Sender<Result<Message, ClientError>>,
 ) -> Result<(), ClientError> {
+    // Create a dummy sequence
     let sequence = create_sequence(sequence_length, tokenizer);
 
     for b in batch_size {
+        // Warmups on batch size
         for _ in 0..warmups {
             let (_, decode_batch) =
                 prefill(sequence.clone(), b, decode_length, &mut client).await?;
             let _ = decode(decode_batch, &mut client).await?;
+            // Send warmup message
             run_sender.send(Ok(Message::Warmup)).await.unwrap_or(());
         }
 
         for _ in 0..n_runs {
             let (prefill, decode_batch) =
                 prefill(sequence.clone(), b, decode_length, &mut client).await?;
+            // Send prefill message
             run_sender
-                .send(Ok(Message::Prefill(prefill.clone())))
+                .send(Ok(Message::Prefill(prefill)))
                 .await
                 .unwrap_or(());
 
             let decode = decode(decode_batch, &mut client).await?;
 
+            // Send decode message
             run_sender
-                .send(Ok(Message::Decode(decode.clone())))
+                .send(Ok(Message::Decode(decode)))
                 .await
                 .unwrap_or(());
 
-            run_sender
-                .send(Ok(Message::Run(Run {
-                    batch_size: b,
-                    sequence_length,
-                    prefill,
-                    decode,
-                })))
-                .await
-                .unwrap_or(());
+            // Send run ended message
+            run_sender.send(Ok(Message::EndRun)).await.unwrap_or(());
         }
+        // Batch ended
         run_sender.send(Ok(Message::EndBatch)).await.unwrap_or(());
     }
     Ok(())
 }
 
+// Run a prefill step
 async fn prefill(
     sequence: String,
     batch_size: u32,
     decode_length: u32,
     client: &mut ShardedClient,
 ) -> Result<(Prefill, Batch), ClientError> {
+    // Create requests
     let requests = (0..batch_size)
         .map(|id| Request {
             id: id.into(),
@@ -133,7 +131,7 @@ async fn prefill(
             stopping_parameters: Some(StoppingCriteriaParameters {
                 max_new_tokens: decode_length,
                 stop_sequences: vec![],
-                ignore_eos_token: true,
+                ignore_eos_token: true, // Will not stop even if a eos token is generated
             }),
         })
         .collect();
@@ -144,11 +142,17 @@ async fn prefill(
         size: batch_size,
     };
 
+    // Run prefill
     let start_time = Instant::now();
     let (_, decode_batch) = client.prefill(batch.clone()).await?;
+
+    // Get latency
     let latency = start_time.elapsed();
+
+    // Compute throughput from latency and batch size
     let throughput = batch_size as f64 / latency.as_secs_f64();
 
+    // Decode batch cannot be empty
     let decode_batch = decode_batch.expect("decode_batch is None. This is a bug.");
 
     let step = Prefill {
@@ -159,28 +163,35 @@ async fn prefill(
     Ok((step, decode_batch))
 }
 
+/// Run a full decode
 async fn decode(batch: Batch, client: &mut ShardedClient) -> Result<Decode, ClientError> {
     let mut decode_length = 0;
-    let start_time = Instant::now();
     let batch_size = batch.size;
 
+    let start_time = Instant::now();
+
+    // Full decode over decode length
     let mut next_batch = Some(batch);
     while let Some(batch) = next_batch {
         let result = client.decode(vec![batch]).await?;
         next_batch = result.1;
         decode_length += 1;
     }
+
+    // Get latency
     let latency = start_time.elapsed();
+
+    // Compute throughput from latency, batch size and decode length
     let throughput = (batch_size * decode_length) as f64 / latency.as_secs_f64();
 
     let step = Decode {
-        decode_length,
         latency,
         throughput,
     };
     Ok(step)
 }
 
+/// Create a dummy sequence of the correct length
 fn create_sequence(sequence_length: u32, tokenizer: Tokenizer) -> String {
     let lorem_ipsum_length = tokenizer.encode(LOREM_IPSUM, true).unwrap().len();
     // Repeat lorem ipsum to cover sequence length
