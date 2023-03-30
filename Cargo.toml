@@ -5,6 +5,9 @@ members = [
     "router/grpc-metadata",
     "launcher"
 ]
+exclude = [
+    "benchmark"
+]
 
 [profile.release]
 debug = 1

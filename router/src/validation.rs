@@ -315,6 +315,7 @@ fn validate(
     let stopping_parameters = StoppingCriteriaParameters {
         max_new_tokens,
         stop_sequences,
+        ignore_eos_token: false,
     };
 
     metrics::histogram!("tgi_request_input_length", input_length as f64);

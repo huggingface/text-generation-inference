@@ -123,20 +123,22 @@ class StoppingCriteria:
         self,
         eos_token_id: int,
         stop_sequence_criterias: List[StopSequenceCriteria],
-        max_new_tokens=20,
+        max_new_tokens: int = 20,
+        ignore_eos_token: bool = False,
     ):
         self.eos_token_id = eos_token_id
         self.stop_sequence_criterias = stop_sequence_criterias
         self.max_new_tokens = max_new_tokens
         self.current_tokens = 0
         self.current_output = ""
+        self.ignore_eos_token = ignore_eos_token
 
     def __call__(self, last_token: int, last_output: str) -> Tuple[bool, Optional[str]]:
         self.current_tokens += 1
         if self.current_tokens >= self.max_new_tokens:
             return True, FinishReason.FINISH_REASON_LENGTH
 
-        if last_token == self.eos_token_id:
+        if not self.ignore_eos_token and last_token == self.eos_token_id:
             return True, FinishReason.FINISH_REASON_EOS_TOKEN
 
         self.current_output += last_output
@@ -156,5 +158,8 @@ class StoppingCriteria:
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
         ]
         return StoppingCriteria(
-            tokenizer.eos_token_id, stop_sequence_criterias, pb.max_new_tokens
+            tokenizer.eos_token_id,
+            stop_sequence_criterias,
+            pb.max_new_tokens,
+            pb.ignore_eos_token,
         )

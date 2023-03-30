@@ -37,7 +37,7 @@ struct Args {
     max_waiting_tokens: usize,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
-    #[clap(default_value = "/tmp/text-generation-0", long, env)]
+    #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
     master_shard_uds_path: String,
     #[clap(default_value = "bigscience/bloom", long, env)]
     tokenizer_name: String,
@@ -76,6 +76,8 @@ fn main() -> Result<(), std::io::Error> {
         panic!("validation_workers must be > 0");
     }
 
+    init_logging(otlp_endpoint, json_output);
+
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
     // Finally, convert to AllowOrigin
@@ -89,17 +91,21 @@ fn main() -> Result<(), std::io::Error> {
 
     // Tokenizer instance
     // This will only be used to validate payloads
+    tracing::info!("Loading tokenizer");
     let local_path = Path::new(&tokenizer_name);
     let tokenizer =
         if local_path.exists() && local_path.is_dir() && local_path.join("tokenizer.json").exists()
         {
             // Load local tokenizer
+            tracing::info!("Found local tokenizer");
             Tokenizer::from_file(local_path.join("tokenizer.json")).unwrap()
         } else {
             // Download and instantiate tokenizer
             // We need to download it outside of the Tokio runtime
+            tracing::info!("Downloading tokenizer");
             Tokenizer::from_pretrained(tokenizer_name.clone(), None).unwrap()
         };
+    tracing::info!("Tokenizer loaded");
 
     // Launch Tokio runtime
     tokio::runtime::Builder::new_multi_thread()
@@ -107,8 +113,6 @@ fn main() -> Result<(), std::io::Error> {
         .build()
         .unwrap()
         .block_on(async {
-            init_logging(otlp_endpoint, json_output);
-
             // Get pipeline tag
             let model_info = reqwest::get(format!(
                 "https://huggingface.co/api/models/{tokenizer_name}"

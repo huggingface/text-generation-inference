@@ -1,0 +1,35 @@
+[package]
+name = "text-generation-benchmark"
+version = "0.1.0"
+edition = "2021"
+authors = ["Olivier Dehaene"]
+description = "Text Generation Benchmarking tool"
+
+[profile.release]
+debug = 1
+incremental = true
+lto = "off"
+panic = "abort"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "text-generation-benchmark"
+path = "src/main.rs"
+
+[dependencies]
+average = "0.13"
+clap = { version = "4.1.4", features = ["derive", "env"] }
+crossterm = "0.26"
+float-ord = "0.3.2"
+serde = {version = "1.0.142", features = ["derive"]}
+serde_json = "1.0"
+text-generation-client = { path = "../router/client" }
+thiserror = "1.0.38"
+tokenizers = "0.13.2"
+tokio = { version = "1.25.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
+tui = {package = "ratatui", version = "0.20", default-features = false, features = ["crossterm"]}
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }
+
