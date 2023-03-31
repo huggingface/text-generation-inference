@@ -209,7 +209,7 @@ class FlashNeoXBatch(Batch):
 
         #TODO maybe a single loop for all these list slices
         slice_list = itemgetter(*keep_indices) if new_size > 1 else lambda l: (l[keep_indices[0]],)
-        batch.input_lengths = slice_list(batch.input_lengths)
+        batch.input_lengths = list(slice_list(batch.input_lengths))
         batch.requests = slice_list(batch.requests)
         batch.all_input_ids = slice_list(batch.all_input_ids)
         batch.next_token_choosers = slice_list(batch.next_token_choosers)
@@ -221,7 +221,11 @@ class FlashNeoXBatch(Batch):
         batch.position_ids = batch.position_ids[keep_indices]
         batch.past_key_values = batch.past_key_values[:, keep_indices] \
             if batch.past_key_values is not None else None
-        batch.cu_seqlens = batch.cu_seqlens[keep_indices]
+
+        # Recalculate cumulative seq lengths
+        new_cu_seqlens = batch.cu_seqlens.new_tensor(batch.input_lengths)
+        torch.cumsum(new_cu_seqlens, dim=0, out=new_cu_seqlens)
+        batch.cu_seqlens = torch.cat((batch.cu_seqlens[:1], new_cu_seqlens))
 
         return batch
 
@@ -300,7 +304,6 @@ class FlashNeoX(Model):
         next_batch_position_ids = []
         next_batch_cu_seqlens = [0]
         next_batch_past_key_values = []
-        next_batch_input_lengths = []
 
         # Cumulative length
         cumulative_length = 0
@@ -365,7 +368,7 @@ class FlashNeoX(Model):
             next_batch_cu_seqlens.append(
                 next_batch_cu_seqlens[-1] + new_input_length
             )
-            next_batch_input_lengths.append(new_input_length)
+            batch.input_lengths[i] = new_input_length
 
             # Prefill
             if prefill:
@@ -406,7 +409,6 @@ class FlashNeoX(Model):
         batch.cu_seqlens = next_batch_cu_seqlens
         batch.max_seqlen += 1
         batch.past_key_values = next_batch_past_key_values
-        batch.input_lengths = next_batch_input_lengths
 
         return generations
 

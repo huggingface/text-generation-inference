@@ -281,7 +281,7 @@ class CausalLMBatch(Batch):
 
         #TODO maybe a single loop for all these list slices
         slice_list = itemgetter(*keep_indices) if new_size > 1 else lambda l: (l[keep_indices[0]],)
-        batch.input_lengths = slice_list(batch.input_lengths)
+        batch.input_lengths = list(slice_list(batch.input_lengths))
         batch.requests = slice_list(batch.requests)
         batch.all_input_ids = slice_list(batch.all_input_ids)
         batch.next_token_choosers = slice_list(batch.next_token_choosers)
@@ -366,7 +366,6 @@ class CausalLM(Model):
         )
 
         # New values for next forward
-        next_batch_input_lengths = []
         next_batch_input_ids = []
         next_batch_all_input_ids = []
 
@@ -405,7 +404,7 @@ class CausalLM(Model):
 
             next_batch_input_ids.append(next_token_id)
             next_batch_all_input_ids.append(all_input_ids)
-            next_batch_input_lengths.append(new_input_length)
+            batch.input_lengths[i] = new_input_length
 
             # Prefill
             if prefill:
@@ -437,7 +436,6 @@ class CausalLM(Model):
         batch.input_ids = torch.cat(next_batch_input_ids, dim=0)
         batch.past_key_values = past
         batch.all_input_ids = next_batch_all_input_ids
-        batch.input_lengths = next_batch_input_lengths
         batch.max_input_length += 1
         batch.padding_right_offset -= 1
 

@@ -444,7 +444,6 @@ class Seq2SeqLM(Model):
 
         # New values for next forward
         next_batch_decoder_input_ids = []
-        next_batch_decoder_input_lengths = []
 
         # Results
         generations: List[Generation] = []
@@ -452,7 +451,6 @@ class Seq2SeqLM(Model):
         # Zipped iterator
         iterator = zip(
             batch.requests,
-            batch.decoder_input_lengths,
             logits,
             batch.next_token_choosers,
             batch.decoder_input_ids,
@@ -461,7 +459,6 @@ class Seq2SeqLM(Model):
         # For each member of the batch
         for i, (
             request,
-            decoder_input_length,
             logits,
             next_token_chooser,
             decoder_input_ids,
@@ -479,7 +476,7 @@ class Seq2SeqLM(Model):
             next_token_id_squeezed = next_token_id.squeeze()
 
             next_batch_decoder_input_ids.append(decoder_input_ids.unsqueeze(0))
-            next_batch_decoder_input_lengths.append(decoder_input_length + 1)
+            batch.decoder_input_lengths[i] += 1
 
             # Prefill
             if prefill:
@@ -508,7 +505,6 @@ class Seq2SeqLM(Model):
         batch.decoder_input_ids = torch.cat(next_batch_decoder_input_ids)
         batch.encoder_last_hidden_state = encoder_last_hidden_state
         batch.past_key_values = past
-        batch.decoder_input_lengths = next_batch_decoder_input_lengths
         batch.max_decoder_input_length += 1
         batch.padding_right_offset -= 1
 
