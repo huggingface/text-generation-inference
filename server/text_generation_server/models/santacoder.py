@@ -6,6 +6,12 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from text_generation_server.models import CausalLM
 
+FIM_PREFIX = "<fim-prefix>"
+FIM_MIDDLE = "<fim-middle>"
+FIM_SUFFIX = "<fim-suffix>"
+FIM_PAD = "<fim-pad>"
+EOD = "<|endoftext|>"
+
 
 class SantaCoder(CausalLM):
     def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
@@ -21,6 +27,18 @@ class SantaCoder(CausalLM):
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left"
+        )
+        tokenizer.add_special_tokens(
+            {
+                "additional_special_tokens": [
+                    EOD,
+                    FIM_PREFIX,
+                    FIM_MIDDLE,
+                    FIM_SUFFIX,
+                    FIM_PAD,
+                ],
+                "pad_token": EOD,
+            }
         )
 
         self.model = (

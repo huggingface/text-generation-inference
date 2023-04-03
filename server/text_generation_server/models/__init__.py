@@ -18,6 +18,7 @@ from text_generation_server.models.t5 import T5Sharded
 
 try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+    from text_generation_server.models.flash_santacoder import FlashSantacoder
 
     FLASH_ATTENTION = (
         torch.cuda.is_available() and int(os.environ.get("FLASH_ATTENTION", 0)) == 1
@@ -67,7 +68,11 @@ def get_model(
             return Galactica(model_id, revision, quantize=quantize)
 
     if "santacoder" in model_id:
-        return SantaCoder(model_id, revision, quantize)
+        if sharded:
+            raise NotImplementedError("sharded is not supported for Santacoder")
+        else:
+            santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
+            return santacoder_cls(model_id, revision, quantize)
 
     config = AutoConfig.from_pretrained(model_id, revision=revision)
     model_type = config.model_type
