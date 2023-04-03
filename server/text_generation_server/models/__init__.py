@@ -8,6 +8,7 @@ from typing import Optional
 
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
+from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOM, BLOOMSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
 from text_generation_server.models.galactica import Galactica, GalacticaSharded
@@ -17,18 +18,22 @@ from text_generation_server.models.t5 import T5Sharded
 
 try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+    from text_generation_server.models.flash_santacoder import FlashSantacoder
 
-    FLASH_NEOX = torch.cuda.is_available() and int(os.environ.get("FLASH_NEOX", 0)) == 1
+    FLASH_ATTENTION = (
+        torch.cuda.is_available() and int(os.environ.get("FLASH_ATTENTION", 0)) == 1
+    )
 except ImportError:
-    if int(os.environ.get("FLASH_NEOX", 0)) == 1:
-        logger.exception("Could not import FlashNeoX")
-    FLASH_NEOX = False
+    if int(os.environ.get("FLASH_ATTENTION", 0)) == 1:
+        logger.exception("Could not import Flash Attention models")
+    FLASH_ATTENTION = False
 
 __all__ = [
     "Model",
     "BLOOM",
     "BLOOMSharded",
     "CausalLM",
+    "FlashCausalLM",
     "Galactica",
     "GalacticaSharded",
     "GPTNeoxSharded",
@@ -38,9 +43,10 @@ __all__ = [
     "get_model",
 ]
 
-if FLASH_NEOX:
+if FLASH_ATTENTION:
     __all__.append(FlashNeoX)
     __all__.append(FlashNeoXSharded)
+    __all__.append(FlashSantacoder)
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -63,7 +69,11 @@ def get_model(
             return Galactica(model_id, revision, quantize=quantize)
 
     if "santacoder" in model_id:
-        return SantaCoder(model_id, revision, quantize)
+        if sharded:
+            raise NotImplementedError("sharded is not supported for Santacoder")
+        else:
+            santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
+            return santacoder_cls(model_id, revision, quantize)
 
     config = AutoConfig.from_pretrained(model_id, revision=revision)
     model_type = config.model_type
@@ -76,10 +86,10 @@ def get_model(
 
     if model_type == "gpt_neox":
         if sharded:
-            neox_cls = FlashNeoXSharded if FLASH_NEOX else GPTNeoxSharded
+            neox_cls = FlashNeoXSharded if FLASH_ATTENTION else GPTNeoxSharded
             return neox_cls(model_id, revision, quantize=quantize)
         else:
-            neox_cls = FlashNeoX if FLASH_NEOX else CausalLM
+            neox_cls = FlashNeoX if FLASH_ATTENTION else CausalLM
             return neox_cls(model_id, revision, quantize=quantize)
 
     if model_type == "t5":
