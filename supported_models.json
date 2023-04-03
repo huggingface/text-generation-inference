@@ -1,9 +1,9 @@
 [
+  "bigcode/santacoder",
   "bigscience/bloom",
   "bigscience/bloomz",
   "EleutherAI/gpt-neox-20b",
   "google/flan-ul2",
   "google/flan-t5-xxl",
-  "OpenAssistant/oasst-sft-1-pythia-12b",
-  "olivierdehaene/optimized-santacoder"
+  "OpenAssistant/oasst-sft-1-pythia-12b"
 ]
