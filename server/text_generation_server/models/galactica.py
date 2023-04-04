@@ -93,23 +93,21 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
-        input_lengths = []
+        offsets = []
 
         # Parse batch
         max_truncation = 0
-        max_sequence_length = 0
         padding_right_offset = 0
         for r in pb.requests:
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
-            input_lengths.append(r.input_length)
+            offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
             stopping_criterias.append(stopping_criteria)
             max_truncation = max(max_truncation, r.truncate)
-            max_sequence_length = max(max_sequence_length, r.input_length)
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -123,13 +121,17 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             truncation=True,
             max_length=max_truncation,
         ).to(device)
+
+        input_lengths = tokenized_inputs["attention_mask"].sum(1)
+        max_input_length = input_lengths.max()
+
         input_ids = tokenized_inputs["input_ids"]
         # Allocate maximum attention_mask
         attention_mask = input_ids.new_zeros(
-            (pb.size, max_sequence_length + padding_right_offset)
+            (pb.size, max_input_length + padding_right_offset)
         )
         # Copy tokenizer attention_mask into fully allocated attention_mask
-        attention_mask[:, :max_sequence_length] = tokenized_inputs["attention_mask"]
+        attention_mask[:, :max_input_length] = tokenized_inputs["attention_mask"]
 
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
@@ -144,10 +146,11 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             past_key_values=None,
             all_input_ids=all_input_ids,
             input_lengths=input_lengths,
+            offsets=offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=pb.size,
-            max_sequence_length=max_sequence_length,
+            max_input_length=max_input_length,
             padding_right_offset=padding_right_offset,
         )
 

@@ -38,6 +38,7 @@ class Seq2SeqLMBatch(Batch):
     # Lengths of all generations present in the batch
     input_lengths: List[int]
     decoder_input_lengths: List[int]
+    offsets: List[Optional[int]]
 
     # Generation helpers
     next_token_choosers: List[NextTokenChooser]
@@ -71,6 +72,7 @@ class Seq2SeqLMBatch(Batch):
 
         decoder_input_ids = []
         decoder_input_lengths = []
+        offsets = []
 
         # Parse batch
         max_truncation = 0
@@ -80,6 +82,7 @@ class Seq2SeqLMBatch(Batch):
             # Decoder sequence only contains the bos_token
             decoder_input_ids.append(tokenizer.bos_token_id)
             decoder_input_lengths.append(1)
+            offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -117,6 +120,7 @@ class Seq2SeqLMBatch(Batch):
             past_key_values=None,
             input_lengths=input_lengths.tolist(),
             decoder_input_lengths=decoder_input_lengths,
+            offsets=offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=len(pb.requests),
@@ -147,6 +151,7 @@ class Seq2SeqLMBatch(Batch):
         requests = []
         input_lengths = []
         decoder_input_lengths = []
+        offsets = []
         next_token_choosers = []
         stopping_criterias = []
 
@@ -166,6 +171,7 @@ class Seq2SeqLMBatch(Batch):
             requests.extend(batch.requests)
             input_lengths.extend(batch.input_lengths)
             decoder_input_lengths.extend(batch.decoder_input_lengths)
+            offsets.extend(batch.offsets)
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
 
@@ -303,6 +309,7 @@ class Seq2SeqLMBatch(Batch):
             past_key_values=past_key_values,
             input_lengths=input_lengths,
             decoder_input_lengths=decoder_input_lengths,
+            offsets=offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=total_batch_size,
@@ -422,6 +429,7 @@ class Seq2SeqLM(Model):
 
         # New values for next forward
         next_batch_input_lengths = []
+        next_batch_offsets = []
         next_batch_decoder_input_ids = []
         next_batch_decoder_input_lengths = []
 
@@ -437,6 +445,7 @@ class Seq2SeqLM(Model):
         iterator = zip(
             batch.requests,
             batch.input_lengths,
+            batch.offsets,
             batch.decoder_input_lengths,
             logits,
             batch.next_token_choosers,
@@ -448,6 +457,7 @@ class Seq2SeqLM(Model):
         for i, (
             request,
             input_length,
+            offset,
             decoder_input_length,
             logits,
             next_token_chooser,
@@ -466,10 +476,7 @@ class Seq2SeqLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.decode_token(
-                decoder_input_ids[-2],
-                next_token_id_squeezed,
-            )
+            next_token_text, offset = self.decode_token(decoder_input_ids, offset)
 
             # Evaluate stopping criteria
             stop, reason = stopping_criteria(next_token_id, next_token_text)
@@ -496,6 +503,7 @@ class Seq2SeqLM(Model):
                 next_batch_size += 1
                 next_batch_input_lengths.append(input_length)
                 next_batch_decoder_input_lengths.append(new_decoder_input_length)
+                next_batch_offsets.append(offset)
                 next_batch_max_input_length = max(
                     next_batch_max_input_length, input_length
                 )
@@ -581,6 +589,7 @@ class Seq2SeqLM(Model):
             past_key_values=next_batch_past_key_values,
             input_lengths=next_batch_input_lengths,
             decoder_input_lengths=next_batch_decoder_input_lengths,
+            offsets=next_batch_offsets,
             next_token_choosers=next_batch_next_token_choosers,
             stopping_criterias=next_batch_stopping_criterias,
             size=next_batch_size,

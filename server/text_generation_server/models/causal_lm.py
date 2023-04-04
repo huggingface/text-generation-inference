@@ -34,6 +34,7 @@ class CausalLMBatch(Batch):
 
     # Lengths of all generations present in the batch
     input_lengths: List[int]
+    offsets: List[Optional[int]]
 
     # Generation helpers
     next_token_choosers: List[NextTokenChooser]
@@ -64,12 +65,14 @@ class CausalLMBatch(Batch):
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
+        offsets = []
 
         # Parse batch
         max_truncation = 0
         padding_right_offset = 0
         for r in pb.requests:
             inputs.append(r.inputs)
+            offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -113,6 +116,7 @@ class CausalLMBatch(Batch):
             past_key_values=None,
             all_input_ids=all_input_ids,
             input_lengths=input_lengths.tolist(),
+            offsets=offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=pb.size,
@@ -135,6 +139,7 @@ class CausalLMBatch(Batch):
         # Batch attributes
         requests = []
         input_lengths = []
+        offsets = []
         all_input_ids = []
         next_token_choosers = []
         stopping_criterias = []
@@ -151,6 +156,7 @@ class CausalLMBatch(Batch):
         for i, batch in enumerate(batches):
             requests.extend(batch.requests)
             input_lengths.extend(batch.input_lengths)
+            offsets.extend(batch.offsets)
             all_input_ids.extend(batch.all_input_ids)
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
@@ -264,6 +270,7 @@ class CausalLMBatch(Batch):
             past_key_values=past_key_values,
             all_input_ids=all_input_ids,
             input_lengths=input_lengths,
+            offsets=offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=total_batch_size,
@@ -350,6 +357,7 @@ class CausalLM(Model):
 
         # New values for next forward
         next_batch_input_lengths = []
+        next_batch_offsets = []
         next_batch_input_ids = []
         next_batch_all_input_ids = []
 
@@ -364,6 +372,7 @@ class CausalLM(Model):
         iterator = zip(
             batch.requests,
             batch.input_lengths,
+            batch.offsets,
             logits,
             batch.next_token_choosers,
             batch.stopping_criterias,
@@ -374,6 +383,7 @@ class CausalLM(Model):
         for i, (
             request,
             input_length,
+            offset,
             logits,
             next_token_chooser,
             stopping_criteria,
@@ -391,10 +401,7 @@ class CausalLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text = self.decode_token(
-                all_input_ids[-2, 0],
-                next_token_id_squeezed,
-            )
+            next_token_text, offset = self.decode_token(all_input_ids[:, 0], offset)
 
             # Evaluate stopping criteria
             stop, reason = stopping_criteria(
@@ -424,6 +431,7 @@ class CausalLM(Model):
                 next_batch_all_input_ids.append(all_input_ids)
                 next_batch_size += 1
                 next_batch_input_lengths.append(new_input_length)
+                next_batch_offsets.append(offset)
                 next_batch_max_input_length = max(
                     next_batch_max_input_length, new_input_length
                 )
@@ -507,6 +515,7 @@ class CausalLM(Model):
             past_key_values=next_batch_past_key_values,
             all_input_ids=next_batch_all_input_ids,
             input_lengths=next_batch_input_lengths,
+            offsets=next_batch_offsets,
             next_token_choosers=next_batch_next_token_choosers,
             stopping_criterias=next_batch_stopping_criterias,
             size=next_batch_size,
