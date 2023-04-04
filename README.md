@@ -46,7 +46,7 @@ to power LLMs api-inference widgets.
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
-- Logits warper (temperature scaling, TopP, TopK, repetition penalty, more details see [transformers.generation_logits_process](https://huggingface.co/transformers/v4.1.1/_modules/transformers/generation_logits_process.html))
+- Logits warper (temperature scaling, top-p, top-k, repetition penalty, more details see [transformers.generation_logits_process](https://huggingface.co/transformers/v4.1.1/_modules/transformers/generation_logits_process.html))
 - Stop sequences
 - Log probabilities
 - Production ready (distributed tracing with Open Telemetry, Prometheus metrics)
