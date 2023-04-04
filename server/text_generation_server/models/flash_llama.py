@@ -11,8 +11,6 @@ from typing import Optional, Tuple, List
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_llama_modeling import (
     FlashLlamaForCausalLM,
-)
-from text_generation_server.models.custom_modeling.tensor_parallel import (
     TensorParallelEmbedding,
     TensorParallelRowLinear,
     TensorParallelColumnLinear,

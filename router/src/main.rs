@@ -94,11 +94,11 @@ fn main() -> Result<(), std::io::Error> {
         if local_path.exists() && local_path.is_dir() && local_path.join("tokenizer.json").exists()
         {
             // Load local tokenizer
-            Tokenizer::from_file(local_path.join("tokenizer.json")).unwrap()
+            Tokenizer::from_file(local_path.join("tokenizer.json")).ok()
         } else {
             // Download and instantiate tokenizer
             // We need to download it outside of the Tokio runtime
-            Tokenizer::from_pretrained(tokenizer_name.clone(), None).unwrap()
+            Tokenizer::from_pretrained(tokenizer_name.clone(), None).ok()
         };
 
     // Launch Tokio runtime
@@ -108,6 +108,13 @@ fn main() -> Result<(), std::io::Error> {
         .unwrap()
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
+
+            if tokenizer.is_none() {
+                tracing::warn!(
+                    "Could not find a fast tokenizer implementation for {tokenizer_name}"
+                );
+                tracing::warn!("Rust input length validation and truncation is disabled");
+            }
 
             // Get pipeline tag
             let model_info = reqwest::get(format!(

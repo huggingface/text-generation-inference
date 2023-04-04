@@ -96,6 +96,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         input_lengths = []
 
         # Parse batch
+        max_truncation = 0
         max_sequence_length = 0
         padding_right_offset = 0
         for r in pb.requests:
@@ -107,6 +108,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
                 r.stopping_parameters, tokenizer
             )
             stopping_criterias.append(stopping_criteria)
+            max_truncation = max(max_truncation, r.truncate)
             max_sequence_length = max(max_sequence_length, r.input_length)
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
@@ -118,6 +120,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             return_tensors="pt",
             padding=True,
             return_token_type_ids=False,
+            truncation=True,
+            max_length=max_truncation,
         ).to(device)
         input_ids = tokenized_inputs["input_ids"]
         # Allocate maximum attention_mask

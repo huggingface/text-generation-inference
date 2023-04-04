@@ -23,7 +23,7 @@ pub struct Validation {
 impl Validation {
     pub(crate) fn new(
         workers: usize,
-        tokenizer: Tokenizer,
+        tokenizer: Option<Tokenizer>,
         max_best_of: usize,
         max_stop_sequences: usize,
         max_input_length: usize,
@@ -85,7 +85,7 @@ impl Validation {
 /// Load balance the validation requests between multiple validation workers
 async fn validation_task(
     workers: usize,
-    tokenizer: Tokenizer,
+    tokenizer: Option<Tokenizer>,
     max_stop_sequences: usize,
     max_input_length: usize,
     max_total_tokens: usize,
@@ -95,7 +95,7 @@ async fn validation_task(
 
     // Create workers
     for _ in 0..workers {
-        let tokenizer_clone: Tokenizer = tokenizer.clone().into();
+        let tokenizer_clone: Option<Tokenizer> = tokenizer.clone().into();
         // Create channel to communicate with worker
         let (worker_sender, worker_receiver) = mpsc::channel(workers);
         workers_senders.push(worker_sender);
@@ -127,7 +127,7 @@ async fn validation_task(
 /// Check the parameters inside the payload and get the number of tokens inside the input using
 /// the tokenizer
 fn validation_worker(
-    tokenizer: Tokenizer,
+    tokenizer: Option<Tokenizer>,
     max_stop_sequences: usize,
     max_input_length: usize,
     max_total_tokens: usize,
@@ -143,7 +143,7 @@ fn validation_worker(
                 .send(
                     validate(
                         request,
-                        &tokenizer,
+                        tokenizer.as_ref(),
                         max_stop_sequences,
                         max_input_length,
                         max_total_tokens,
@@ -162,7 +162,7 @@ fn validation_worker(
 
 fn validate(
     request: GenerateRequest,
-    tokenizer: &Tokenizer,
+    tokenizer: Option<&Tokenizer>,
     max_stop_sequences: usize,
     max_input_length: usize,
     max_total_tokens: usize,
@@ -272,34 +272,42 @@ fn validate(
         })
         .unwrap_or(Ok(None))?;
 
-    // Get the number of tokens in the input
-    let mut encoding = tokenizer
-        .encode(request.inputs.clone(), true)
-        .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
-
-    let (inputs, input_length) = if let Some(truncate) = truncate {
-        // truncate encoding and decode new inputs
-        encoding.truncate(truncate, 0, TruncationDirection::Left);
-        let inputs = tokenizer
-            .decode(Vec::from(encoding.get_ids()), false)
+    // If we have a fast tokenizer
+    let inputs = if let Some(tokenizer) = tokenizer {
+        // Get the number of tokens in the input
+        let mut encoding = tokenizer
+            .encode(request.inputs.clone(), true)
             .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
-        (inputs, encoding.len())
+
+        let (inputs, input_length) = if let Some(truncate) = truncate {
+            // truncate encoding and decode new inputs
+            encoding.truncate(truncate, 0, TruncationDirection::Left);
+            let inputs = tokenizer
+                .decode(Vec::from(encoding.get_ids()), false)
+                .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
+            (inputs, encoding.len())
+        } else {
+            (request.inputs, encoding.len())
+        };
+
+        if input_length > max_input_length {
+            return Err(ValidationError::InputLength(max_input_length, input_length));
+        }
+
+        let total_tokens = input_length + max_new_tokens as usize;
+        if total_tokens > max_total_tokens {
+            return Err(ValidationError::MaxTotalTokens(
+                max_total_tokens,
+                input_length,
+                max_new_tokens,
+            ));
+        }
+
+        metrics::histogram!("tgi_request_input_length", input_length as f64);
+        inputs
     } else {
-        (request.inputs, encoding.len())
+        request.inputs
     };
-
-    if input_length > max_input_length {
-        return Err(ValidationError::InputLength(max_input_length, input_length));
-    }
-
-    let total_tokens = input_length + max_new_tokens as usize;
-    if total_tokens > max_total_tokens {
-        return Err(ValidationError::MaxTotalTokens(
-            max_total_tokens,
-            input_length,
-            max_new_tokens,
-        ));
-    }
 
     // Return ValidGenerateRequest
     let parameters = NextTokenChooserParameters {
@@ -318,11 +326,11 @@ fn validate(
         ignore_eos_token: false,
     };
 
-    metrics::histogram!("tgi_request_input_length", input_length as f64);
     metrics::histogram!("tgi_request_max_new_tokens", max_new_tokens as f64);
 
     Ok(ValidGenerateRequest {
         inputs,
+        truncate: truncate.unwrap_or(max_input_length) as u32,
         parameters,
         stopping_parameters,
     })
@@ -337,6 +345,7 @@ type ValidationRequest = (
 #[derive(Debug)]
 pub(crate) struct ValidGenerateRequest {
     pub inputs: String,
+    pub truncate: u32,
     pub parameters: NextTokenChooserParameters,
     pub stopping_parameters: StoppingCriteriaParameters,
 }

@@ -174,6 +174,7 @@ impl State {
                 batch_requests.push(Request {
                     id,
                     inputs: entry.request.inputs.clone(),
+                    truncate: entry.request.truncate,
                     parameters: Some(entry.request.parameters.clone()),
                     stopping_parameters: Some(entry.request.stopping_parameters.clone()),
                 });
@@ -226,6 +227,7 @@ mod tests {
         Entry {
             request: ValidGenerateRequest {
                 inputs: "".to_string(),
+                truncate: 0,
                 parameters: NextTokenChooserParameters {
                     temperature: 0.0,
                     top_k: 0,

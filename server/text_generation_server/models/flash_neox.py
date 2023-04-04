@@ -8,13 +8,11 @@ from transformers import AutoTokenizer, AutoConfig
 from typing import Optional, Tuple, List
 
 from text_generation_server.models import FlashCausalLM
-from text_generation_server.models.custom_modeling.tensor_parallel import (
+from text_generation_server.models.custom_modeling.flash_neox_modeling import (
+    FlashGPTNeoXForCausalLM,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
-)
-from text_generation_server.models.custom_modeling.flash_neox_modeling import (
-    FlashGPTNeoXForCausalLM,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,

@@ -455,7 +455,7 @@ pub async fn run(
     max_batch_size: usize,
     max_waiting_tokens: usize,
     client: ShardedClient,
-    tokenizer: Tokenizer,
+    tokenizer: Option<Tokenizer>,
     validation_workers: usize,
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,

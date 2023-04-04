@@ -78,7 +78,9 @@ class FlashCausalLMBatch(Batch):
 
         # Parse batch
         for r in pb.requests:
-            tokenized_input = tokenizer(r.inputs)["input_ids"]
+            tokenized_input = tokenizer(
+                r.inputs, truncation=True, max_length=r.truncate
+            )["input_ids"]
             input_length = len(tokenized_input)
             max_seqlen = max(max_seqlen, input_length)
             input_lengths.append(input_length)
@@ -333,6 +335,7 @@ class FlashCausalLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id_item]
             next_token_text = self.decode_token(
+                all_input_ids[-2],
                 next_token_id_item,
             )
 

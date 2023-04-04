@@ -66,6 +66,7 @@ class CausalLMBatch(Batch):
         stopping_criterias = []
 
         # Parse batch
+        max_truncation = 0
         padding_right_offset = 0
         for r in pb.requests:
             inputs.append(r.inputs)
@@ -74,6 +75,7 @@ class CausalLMBatch(Batch):
                 r.stopping_parameters, tokenizer
             )
             stopping_criterias.append(stopping_criteria)
+            max_truncation = max(max_truncation, r.truncate)
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -83,6 +85,8 @@ class CausalLMBatch(Batch):
             return_tensors="pt",
             padding=True,
             return_token_type_ids=False,
+            truncation=True,
+            max_length=max_truncation,
         ).to(device)
 
         input_lengths = tokenized_inputs["attention_mask"].sum(1)
@@ -388,6 +392,7 @@ class CausalLM(Model):
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
             next_token_text = self.decode_token(
+                all_input_ids[-2, 0],
                 next_token_id_squeezed,
             )
 
