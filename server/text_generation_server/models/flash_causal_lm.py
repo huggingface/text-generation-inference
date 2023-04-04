@@ -188,6 +188,7 @@ class FlashCausalLMBatch(Batch):
             max_seqlen=max_seqlen,
             past_key_values=past_key_values,
             input_lengths=input_lengths,
+            offsets=offsets,
             all_input_ids=all_input_ids,
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
