@@ -32,7 +32,7 @@ class Model(ABC):
             skip_special_tokens=False,
         )
 
-        if results[0][0] == " " and results[1][0] != " ":
+        if results[0] and results[0][0] == " " and results[1][0] != " ":
             results[0] = results[0].lstrip()
 
         # slice to remove previous token

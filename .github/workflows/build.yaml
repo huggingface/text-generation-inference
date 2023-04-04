@@ -65,20 +65,20 @@ jobs:
           flavor: |
             latest=auto
           images: |
-            ghcr.io/huggingface/text-generation-inference
+#            ghcr.io/huggingface/text-generation-inference
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
-            db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
+#            db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}
+#            type=semver,pattern={{version}}
+#            type=semver,pattern={{major}}.{{minor}}
+#            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=llama-sha-${{ env.GITHUB_SHA_SHORT }}
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
           context: .
           file: Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           platforms: 'linux/amd64'
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
