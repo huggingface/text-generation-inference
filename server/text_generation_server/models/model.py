@@ -31,5 +31,9 @@ class Model(ABC):
             [[previous_token_id], [previous_token_id, token_id]],
             skip_special_tokens=False,
         )
+
+        if results[0][0] == " " and results[1][0] != " ":
+            results[0] = results[0].lstrip()
+
         # slice to remove previous token
-        return results[1][len(results[0]) :]
+        return results[1][len(results[0]): ]
