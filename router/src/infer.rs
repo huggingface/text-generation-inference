@@ -109,7 +109,6 @@ impl Infer {
 
         // Return stream
         Ok(response_rx.into_stream())
-        // Ok(UnboundedReceiverStream::new(response_rx))
     }
 
     /// Add a new request to the queue and return a InferResponse
