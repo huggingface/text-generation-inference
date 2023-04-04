@@ -200,7 +200,8 @@ fn main() -> ExitCode {
         };
 
         // Enable hf transfer for insane download speeds
-        env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), "1".into()));
+        let enable_hf_transfer = env::var("HF_HUB_ENABLE_HF_TRANSFER").unwrap_or("1".to_string());
+        env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), enable_hf_transfer.into()));
 
         // Start process
         tracing::info!("Starting download process.");
@@ -555,7 +556,8 @@ fn shard_manager(
     env.push(("SAFETENSORS_FAST_GPU".into(), "1".into()));
 
     // Enable hf transfer for insane download speeds
-    env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), "1".into()));
+    let enable_hf_transfer = env::var("HF_HUB_ENABLE_HF_TRANSFER").unwrap_or("1".to_string());
+    env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), enable_hf_transfer.into()));
 
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
