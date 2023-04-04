@@ -87,7 +87,11 @@ impl Infer {
             })?;
 
         // Validate request
-        let valid_request = self.validation.validate(request).await?;
+        let valid_request = self.validation.validate(request).await.map_err(|err| {
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            tracing::error!("{err}");
+            err
+        })?;
 
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = flume::unbounded();

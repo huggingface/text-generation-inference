@@ -59,6 +59,7 @@ impl Validation {
         }
     }
 
+    #[instrument(skip_all)]
     async fn validate_input(
         &self,
         inputs: String,
@@ -270,11 +271,7 @@ fn tokenizer_worker(tokenizer: Tokenizer, receiver: flume::Receiver<TokenizerReq
     while let Ok(((inputs, truncate), response_tx, parent_span)) = receiver.recv() {
         parent_span.in_scope(|| {
             response_tx
-                .send(prepare_input(inputs, truncate, &tokenizer).map_err(|err| {
-                    metrics::increment_counter!("tgi_request_failure", "err" => "validation");
-                    tracing::error!("{err}");
-                    err
-                }))
+                .send(prepare_input(inputs, truncate, &tokenizer))
                 .unwrap_or(())
         })
     }
