@@ -20,6 +20,8 @@ try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
     from text_generation_server.models.flash_santacoder import FlashSantacoder
     from text_generation_server.models.flash_llama import FlashLlama, FlashLlamaSharded
+    from text_generation_server.models.flash_santacoder import FlashSantacoder, FlashSantacoderSharded
+
 
     FLASH_ATTENTION = torch.cuda.is_available()
 except ImportError:
@@ -49,6 +51,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashNeoX)
     __all__.append(FlashNeoXSharded)
     __all__.append(FlashSantacoder)
+    __all__.append(FlashSantacoderSharded)
     __all__.append(FlashLlama)
     __all__.append(FlashLlamaSharded)
 
@@ -78,9 +81,11 @@ def get_model(
         else:
             return Galactica(model_id, revision, quantize=quantize)
 
-    if "santacoder" in model_id:
+    if "bigcode" in model_id:
         if sharded:
-            raise NotImplementedError("sharded is not supported for Santacoder")
+            if not FLASH_ATTENTION:
+                raise NotImplementedError("sharded is not supported for Santacoder when FLASH_ATTENTION=0")
+            return FlashSantacoderSharded(model_id, revision=revision)
         else:
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
             return santacoder_cls(model_id, revision, quantize)
