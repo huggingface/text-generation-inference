@@ -47,12 +47,12 @@ class FastLayerNorm(nn.LayerNorm):
 
 class FastLinear(nn.Linear):
     def __init__(
-            self,
-            in_features: int,
-            out_features: int,
-            bias: bool = True,
-            device=None,
-            dtype=None,
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        device=None,
+        dtype=None,
     ) -> None:
         super(FastLinear, self).__init__(in_features, out_features, bias, device, dtype)
 
@@ -67,10 +67,10 @@ class FastLinear(nn.Linear):
 
 class FlashMQAttention(torch.nn.Module):
     def __init__(
-            self,
-            num_heads,
-            hidden_size,
-            process_group=None,
+        self,
+        num_heads,
+        hidden_size,
+        process_group=None,
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -86,13 +86,13 @@ class FlashMQAttention(torch.nn.Module):
             raise NotImplementedError
 
     def forward(
-            self,
-            hidden_states,
-            cu_seqlens,
-            max_s,
-            layer_past,
-            layer_past_present_indices,
-            cu_seqlens_q,
+        self,
+        hidden_states,
+        cu_seqlens,
+        max_s,
+        layer_past,
+        layer_past_present_indices,
+        cu_seqlens_q,
     ):
         qkv = self.attn(hidden_states)
 
@@ -162,15 +162,17 @@ class FlashMQAttention(torch.nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(
-            self, act, hidden_size, intermediate_size, process_group=None
-    ):
+    def __init__(self, act, hidden_size, intermediate_size, process_group=None):
         super().__init__()
         self.act = (
             ACT2FN[act]
             if "gelu" not in act
-            else lambda x: torch.nn.functional.gelu(x, approximate="tanh" if act in ["gelu_fast",
-                                                                                     "gelu_pytorch_tanh"] else None)
+            else lambda x: torch.nn.functional.gelu(
+                x,
+                approximate="tanh"
+                if act in ["gelu_fast", "gelu_pytorch_tanh"]
+                else None,
+            )
         )
 
         if process_group is None:
@@ -188,13 +190,13 @@ class MLP(nn.Module):
 
 class Block(nn.Module):
     def __init__(
-            self,
-            num_heads,
-            act,
-            hidden_size,
-            intermediate_size,
-            layer_norm_eps,
-            process_group=None,
+        self,
+        num_heads,
+        act,
+        hidden_size,
+        intermediate_size,
+        layer_norm_eps,
+        process_group=None,
     ):
         super().__init__()
         self.ln_1 = FastLayerNorm(hidden_size, eps=layer_norm_eps)
@@ -212,14 +214,14 @@ class Block(nn.Module):
         )
 
     def forward(
-            self,
-            hidden_states,
-            residual,
-            cu_seqlens,
-            max_s,
-            layer_past,
-            layer_past_present_indices,
-            cu_seqlens_q,
+        self,
+        hidden_states,
+        residual,
+        cu_seqlens,
+        max_s,
+        layer_past,
+        layer_past_present_indices,
+        cu_seqlens_q,
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
 
@@ -232,9 +234,7 @@ class Block(nn.Module):
             cu_seqlens_q,
         )
 
-        hidden_states, residual = self.ln_2(
-            hidden_states, residual
-        )
+        hidden_states, residual = self.ln_2(hidden_states, residual)
 
         mlp_output = self.mlp(hidden_states)
 
@@ -258,16 +258,16 @@ class FlashSantacoderModel(nn.Module):
                     config.num_attention_heads,
                     config.activation_function,
                     config.hidden_size,
-                    config.n_inner if config.n_inner is not None else 4 * config.hidden_size,
+                    config.n_inner
+                    if config.n_inner is not None
+                    else 4 * config.hidden_size,
                     config.layer_norm_epsilon,
                     process_group,
                 )
                 for _ in range(config.num_hidden_layers)
             ]
         )
-        self.ln_f = FastLayerNorm(
-            config.hidden_size, eps=config.layer_norm_epsilon
-        )
+        self.ln_f = FastLayerNorm(config.hidden_size, eps=config.layer_norm_epsilon)
 
         self.head_size = self.h[0].attn.head_size
         self.num_heads = self.h[0].attn.num_heads
@@ -281,12 +281,12 @@ class FlashSantacoderModel(nn.Module):
             layer.mlp.c_proj.transpose_weight()
 
     def forward(
-            self,
-            input_ids,
-            position_ids,
-            cu_seqlens,
-            max_s,
-            past_key_values=None,
+        self,
+        input_ids,
+        position_ids,
+        cu_seqlens,
+        max_s,
+        past_key_values=None,
     ):
         hidden_states = self.wte(input_ids) + self.wpe(position_ids)
 
@@ -335,21 +335,19 @@ class FlashSantacoderForCausalLM(nn.Module):
 
         self.transformer = FlashSantacoderModel(config, process_group)
 
-        self.lm_head = FastLinear(
-            config.hidden_size, config.vocab_size, bias=False
-        )
+        self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
 
     def post_load_weights(self):
         self.transformer.post_load_weights()
         self.lm_head.transpose_weight()
 
     def forward(
-            self,
-            input_ids,
-            position_ids,
-            cu_seqlens,
-            max_s,
-            past_key_values=None,
+        self,
+        input_ids,
+        position_ids,
+        cu_seqlens,
+        max_s,
+        past_key_values=None,
     ):
         hidden_states, present = self.transformer(
             input_ids, position_ids, cu_seqlens, max_s, past_key_values

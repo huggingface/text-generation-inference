@@ -110,6 +110,7 @@ class NextTokenChooser:
 
 class StopSequenceCriteria:
     def __init__(self, stop_sequence: str):
+        stop_sequence = re.escape(stop_sequence)
         self.regex = re.compile(f".*{stop_sequence}$")
 
     def __call__(self, output: str) -> bool:
