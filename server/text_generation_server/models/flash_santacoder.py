@@ -9,7 +9,7 @@ from typing import Optional, List
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_santacoder_modeling import (
-    FlashSantacoderForCausalLM
+    FlashSantacoderForCausalLM,
 )
 from text_generation_server.utils import (
     weight_files,
@@ -37,8 +37,9 @@ class FlashSantacoder(FlashCausalLM):
         )
 
         config = AutoConfig.from_pretrained(
-            model_id, revision=revision,
-            trust_remote_code=True  # Needed as the config is not part of Transformers
+            model_id,
+            revision=revision,
+            trust_remote_code=True,  # Needed as the config is not part of Transformers
         )
 
         # We do not use from_pretrained as we modified the model internal module layout
@@ -65,8 +66,8 @@ class FlashSantacoder(FlashCausalLM):
 
     @staticmethod
     def load_weights(
-            model: FlashSantacoderForCausalLM,
-            filenames: List[Path],
+        model: FlashSantacoderForCausalLM,
+        filenames: List[Path],
     ):
         for filename in filenames:
             state_dict = torch.load(filename, map_location="cpu")
@@ -91,7 +92,12 @@ class FlashSantacoder(FlashCausalLM):
                     current_parameter_tensor = None
 
                 if current_parameter_tensor is not None:
-                    if "c_fc.weight" in key or "c_proj.weight" in key or "q_attn.weight" in key or "kv_attn.weight" in key:
+                    if (
+                        "c_fc.weight" in key
+                        or "c_proj.weight" in key
+                        or "q_attn.weight" in key
+                        or "kv_attn.weight" in key
+                    ):
                         # Tranpose as we use nn.Linear instead of Conv1D
                         value = value.T
 
@@ -99,11 +105,18 @@ class FlashSantacoder(FlashCausalLM):
                         # Init qkv
                         if "attn.weight" in final_key:
                             module._parameters[param_name] = value.new_empty(
-                                (model.transformer.head_size * (model.transformer.num_heads + 2), value.shape[1])
+                                (
+                                    model.transformer.head_size
+                                    * (model.transformer.num_heads + 2),
+                                    value.shape[1],
+                                )
                             )
                         elif "attn.bias" in final_key:
                             module._parameters[param_name] = value.new_empty(
-                                (model.transformer.head_size * (model.transformer.num_heads + 2))
+                                (
+                                    model.transformer.head_size
+                                    * (model.transformer.num_heads + 2)
+                                )
                             )
 
                     # Copy to correct slice
@@ -113,11 +126,11 @@ class FlashSantacoder(FlashCausalLM):
                         module._parameters[param_name][: value.shape[0]] = value
                     elif "kv_attn.weight" in key:
                         module._parameters[param_name][
-                        model.transformer.head_size * model.transformer.num_heads:
+                            model.transformer.head_size * model.transformer.num_heads :
                         ] = value
                     elif "kv_attn.bias" in key:
                         module._parameters[param_name][
-                        model.transformer.head_size * model.transformer.num_heads:
+                            model.transformer.head_size * model.transformer.num_heads :
                         ] = value
                     else:
                         if current_parameter_tensor.shape != value.shape:

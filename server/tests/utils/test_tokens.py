@@ -14,6 +14,15 @@ def test_stop_sequence_criteria():
     assert not criteria("/test; ")
 
 
+def test_stop_sequence_criteria_escape():
+    criteria = StopSequenceCriteria("<|stop|>")
+
+    assert not criteria("<")
+    assert not criteria("<|stop")
+    assert criteria("<|stop|>")
+    assert not criteria("<|stop|> ")
+
+
 def test_stopping_criteria():
     criteria = StoppingCriteria(0, [StopSequenceCriteria("/test;")], max_new_tokens=5)
     assert criteria(65827, "/test") == (False, None)
