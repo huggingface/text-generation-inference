@@ -35,6 +35,7 @@ class CausalLMBatch(Batch):
     # Lengths of all generations present in the batch
     input_lengths: List[int]
     offsets: List[Optional[int]]
+    token_offsets: List[Optional[int]]
 
     # Generation helpers
     next_token_choosers: List[NextTokenChooser]
@@ -66,6 +67,7 @@ class CausalLMBatch(Batch):
         next_token_choosers = []
         stopping_criterias = []
         offsets = []
+        token_offsets = []
 
         # Parse batch
         max_truncation = 0
@@ -73,6 +75,7 @@ class CausalLMBatch(Batch):
         for r in pb.requests:
             inputs.append(r.inputs)
             offsets.append(None)
+            token_offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -117,6 +120,7 @@ class CausalLMBatch(Batch):
             all_input_ids=all_input_ids,
             input_lengths=input_lengths.tolist(),
             offsets=offsets,
+            token_offsets=token_offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=pb.size,
@@ -140,6 +144,7 @@ class CausalLMBatch(Batch):
         requests = []
         input_lengths = []
         offsets = []
+        token_offsets = []
         all_input_ids = []
         next_token_choosers = []
         stopping_criterias = []
@@ -157,6 +162,7 @@ class CausalLMBatch(Batch):
             requests.extend(batch.requests)
             input_lengths.extend(batch.input_lengths)
             offsets.extend(batch.offsets)
+            token_offsets.extend(batch.token_offsets)
             all_input_ids.extend(batch.all_input_ids)
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
@@ -271,6 +277,7 @@ class CausalLMBatch(Batch):
             all_input_ids=all_input_ids,
             input_lengths=input_lengths,
             offsets=offsets,
+            token_offsets=token_offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=total_batch_size,
@@ -358,6 +365,7 @@ class CausalLM(Model):
         # New values for next forward
         next_batch_input_lengths = []
         next_batch_offsets = []
+        next_batch_token_offsets = []
         next_batch_input_ids = []
         next_batch_all_input_ids = []
 
@@ -373,6 +381,7 @@ class CausalLM(Model):
             batch.requests,
             batch.input_lengths,
             batch.offsets,
+            batch.token_offsets,
             logits,
             batch.next_token_choosers,
             batch.stopping_criterias,
@@ -384,6 +393,7 @@ class CausalLM(Model):
             request,
             input_length,
             offset,
+            token_offset,
             logits,
             next_token_chooser,
             stopping_criteria,
@@ -401,7 +411,9 @@ class CausalLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id]
             next_token_id_squeezed = next_token_id.squeeze()
-            next_token_text, offset = self.decode_token(all_input_ids[:, 0], offset)
+            next_token_text, offset, token_offset = self.decode_token(
+                all_input_ids[:, 0], offset, token_offset
+            )
 
             # Evaluate stopping criteria
             stop, reason = stopping_criteria(
@@ -432,6 +444,7 @@ class CausalLM(Model):
                 next_batch_size += 1
                 next_batch_input_lengths.append(new_input_length)
                 next_batch_offsets.append(offset)
+                next_batch_token_offsets.append(token_offset)
                 next_batch_max_input_length = max(
                     next_batch_max_input_length, new_input_length
                 )
@@ -516,6 +529,7 @@ class CausalLM(Model):
             all_input_ids=next_batch_all_input_ids,
             input_lengths=next_batch_input_lengths,
             offsets=next_batch_offsets,
+            token_offsets=next_batch_token_offsets,
             next_token_choosers=next_batch_next_token_choosers,
             stopping_criterias=next_batch_stopping_criterias,
             size=next_batch_size,

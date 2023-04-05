@@ -25,13 +25,18 @@ class Model(ABC):
         raise NotImplementedError
 
     def decode_token(
-        self, all_input_ids: List[int], offset: Optional[int] = None
-    ) -> Tuple[str, Optional[int]]:
+        self,
+        all_input_ids: List[int],
+        offset: Optional[int] = None,
+        token_offset: Optional[int] = None,
+    ) -> Tuple[str, Optional[int], Optional[int]]:
         """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
+        if token_offset is None:
+            token_offset = len(all_input_ids) - 5
 
-        # Decode all token minus last one and all tokens
+        # Decode token_offset token minus last one and token_offset tokens
         results = self.tokenizer.batch_decode(
-            [all_input_ids[:-1], all_input_ids],
+            [all_input_ids[token_offset:-1], all_input_ids[token_offset:]],
             skip_special_tokens=False,
         )
 
@@ -44,6 +49,6 @@ class Model(ABC):
 
         # if text is utf-8
         if text and text[-1] != "�":
-            return text, None
+            return text, None, None
         else:
-            return "", offset
+            return "", offset, token_offset
