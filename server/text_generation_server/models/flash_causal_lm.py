@@ -355,7 +355,7 @@ class FlashCausalLM(Model):
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id_item]
             next_token_text, offset, token_offset = self.decode_token(
-                all_input_ids[-(stopping_criteria.current_tokens + 1) :],
+                all_input_ids,
                 offset,
                 token_offset,
             )
