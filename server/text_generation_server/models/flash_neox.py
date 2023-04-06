@@ -49,14 +49,15 @@ class FlashNeoXSharded(FlashNeoX):
         )
 
         config = AutoConfig.from_pretrained(
-            model_id, revision=revision, tp_parallel=True
+            model_id,
+            revision=revision,
         )
 
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
 
         with init_empty_weights():
-            model = FlashGPTNeoXForCausalLM(config)
+            model = FlashGPTNeoXForCausalLM(config, self.process_group)
 
         torch.distributed.barrier(group=self.process_group)
         self.load_weights(

@@ -43,7 +43,8 @@ class FlashLlama(FlashCausalLM):
         )
 
         config = AutoConfig.from_pretrained(
-            model_id, revision=revision, tp_parallel=True
+            model_id,
+            revision=revision,
         )
 
         # We do not use from_pretrained as we modified the model internal module layout
@@ -57,12 +58,7 @@ class FlashLlama(FlashCausalLM):
         with init_empty_weights():
             model = FlashLlamaForCausalLM(config)
 
-        self.load_weights(
-            model,
-            filenames,
-            device,
-            dtype
-        )
+        self.load_weights(model, filenames, device, dtype)
         self.model = model.eval()
 
         super(FlashCausalLM, self).__init__(
@@ -163,7 +159,8 @@ class FlashLlamaSharded(FlashLlama):
         )
 
         config = AutoConfig.from_pretrained(
-            model_id, revision=revision, tp_parallel=True
+            model_id,
+            revision=revision,
         )
 
         torch.distributed.barrier(group=self.process_group)

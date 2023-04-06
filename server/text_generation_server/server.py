@@ -39,11 +39,18 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.ClearCacheResponse()
 
     async def Prefill(self, request, context):
-        batch = self.model.batch_type.from_pb(
-            request.batch, self.model.tokenizer, self.model.device
-        )
+        from torch.profiler import profile, ProfilerActivity
 
-        generations, next_batch = self.model.generate_token(batch)
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]
+        ) as prefill_prof:
+            batch = self.model.batch_type.from_pb(
+                request.batch, self.model.tokenizer, self.model.device
+            )
+
+            generations, next_batch = self.model.generate_token(batch)
+        prefill_prof.export_chrome_trace("prefill.json")
+
         self.cache.set(next_batch)
 
         return generate_pb2.PrefillResponse(
@@ -62,12 +69,20 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
             batches.append(batch)
 
-        if len(batches) > 1:
-            batch = self.model.batch_type.concatenate(batches)
-        else:
-            batch = batches[0]
+        from torch.profiler import profile, ProfilerActivity
 
-        generations, next_batch = self.model.generate_token(batch)
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]
+        ) as decode_prof:
+
+            if len(batches) > 1:
+                batch = self.model.batch_type.concatenate(batches)
+            else:
+                batch = batches[0]
+
+            generations, next_batch = self.model.generate_token(batch)
+        decode_prof.export_chrome_trace("decode.json")
+
         self.cache.set(next_batch)
 
         return generate_pb2.DecodeResponse(

@@ -624,13 +624,16 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
 
 class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config):
+    def __init__(self, config, process_group=None):
         super().__init__(config)
 
-        if config.tp_parallel:
-            process_group = torch.distributed.distributed_c10d._get_default_group()
+        self.process_group = process_group
+        if self.process_group is not None:
+            self.world_size = self.process_group.size()
+            self.rank = self.process_group.rank()
         else:
-            process_group = None
+            self.world_size = 1
+            self.rank = 0
 
         self.gpt_neox = FlashGPTNeoXModel(config, process_group)
 
