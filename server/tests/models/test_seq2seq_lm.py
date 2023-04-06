@@ -148,7 +148,7 @@ def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch)
     assert all([generation.generated_text is None for generation in generations])
     assert all([len(generation.prefill_tokens) == 1 for generation in generations])
     assert all([generation.token_id.item() == 259 for generation in generations])
-    assert all([generation.token_text == " " for generation in generations])
+    assert all([generation.token_text == "" for generation in generations])
     assert generations[0].request_id == 0
 
 
