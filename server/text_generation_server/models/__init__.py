@@ -18,7 +18,6 @@ from text_generation_server.models.t5 import T5Sharded
 
 try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
-    from text_generation_server.models.flash_santacoder import FlashSantacoder
     from text_generation_server.models.flash_llama import FlashLlama, FlashLlamaSharded
     from text_generation_server.models.flash_santacoder import FlashSantacoder, FlashSantacoderSharded
 
@@ -84,7 +83,9 @@ def get_model(
     if "bigcode" in model_id:
         if sharded:
             if not FLASH_ATTENTION:
-                raise NotImplementedError("sharded is not supported for Santacoder when FLASH_ATTENTION=0")
+                raise NotImplementedError(
+                    "sharded is not supported for Santacoder when FLASH_ATTENTION=0"
+                )
             return FlashSantacoderSharded(model_id, revision=revision)
         else:
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder

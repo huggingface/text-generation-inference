@@ -69,13 +69,13 @@ class FastLinear(nn.Linear):
 
 class TensorParallelColumnLinear(FastLinear):
     def __init__(
-            self,
-            in_features,
-            out_features,
-            process_group: torch.distributed.ProcessGroup,
-            bias=True,
-            device=None,
-            dtype=None,
+        self,
+        in_features,
+        out_features,
+        process_group: torch.distributed.ProcessGroup,
+        bias=True,
+        device=None,
+        dtype=None,
     ):
         self.process_group = process_group
         self.tp_world_size = process_group.size()
@@ -93,14 +93,14 @@ class TensorParallelColumnLinear(FastLinear):
 
 class TensorParallelRowLinear(FastLinear):
     def __init__(
-            self,
-            in_features,
-            out_features,
-            process_group: torch.distributed.ProcessGroup,
-            reduce=True,
-            bias=True,
-            device=None,
-            dtype=None,
+        self,
+        in_features,
+        out_features,
+        process_group: torch.distributed.ProcessGroup,
+        reduce=True,
+        bias=True,
+        device=None,
+        dtype=None,
     ):
         self.process_group = process_group
         self.tp_world_size = process_group.size()
@@ -126,19 +126,19 @@ class TensorParallelRowLinear(FastLinear):
 
 class TensorParallelEmbedding(nn.Embedding):
     def __init__(
-            self,
-            num_embeddings,
-            embedding_dim,
-            process_group: torch.distributed.ProcessGroup,
-            reduce=True,
-            padding_idx=None,
-            max_norm=None,
-            norm_type=2.0,
-            scale_grad_by_freq=False,
-            sparse=False,
-            _weight=None,
-            device=None,
-            dtype=None,
+        self,
+        num_embeddings,
+        embedding_dim,
+        process_group: torch.distributed.ProcessGroup,
+        reduce=True,
+        padding_idx=None,
+        max_norm=None,
+        norm_type=2.0,
+        scale_grad_by_freq=False,
+        sparse=False,
+        _weight=None,
+        device=None,
+        dtype=None,
     ):
         self.process_group = process_group
         self.tp_rank = process_group.rank()
@@ -207,11 +207,7 @@ class FlashMQAttention(torch.nn.Module):
             self.c_proj = FastLinear(hidden_size, hidden_size)
         else:
             self.num_heads = self.num_heads // process_group.size()
-            self.hidden_size = self.hidden_size // process_group.size()
-            self.c_attn = FastLinear(
-                hidden_size,
-                self.head_size * (self.num_heads + 2)
-            )
+            self.c_attn = FastLinear(hidden_size, self.head_size * (self.num_heads + 2))
             self.c_proj = TensorParallelRowLinear(
                 hidden_size, hidden_size, process_group=process_group, reduce=True
             )
@@ -228,7 +224,9 @@ class FlashMQAttention(torch.nn.Module):
         qkv = self.c_attn(hidden_states)
 
         # Split query from key_value
-        query, key_value = qkv.split([self.head_size * self.num_heads, 2 * self.head_size], dim=1)
+        query, key_value = qkv.split(
+            [self.head_size * self.num_heads, 2 * self.head_size], dim=1
+        )
 
         # Prepare query and key_value for indexing
         query = query.view(-1, self.num_heads, self.head_size)
@@ -302,7 +300,7 @@ class MLP(nn.Module):
                 x,
                 approximate="tanh"
                 if act in ["gelu_fast", "gelu_pytorch_tanh"]
-                else None,
+                else "none",
             )
         )
 
@@ -399,11 +397,13 @@ class FlashSantacoderModel(nn.Module):
             self.wte = TensorParallelEmbedding(
                 config.vocab_size,
                 config.hidden_size,
+                reduce=False,
                 process_group=process_group,
             )
             self.wpe = TensorParallelEmbedding(
                 config.max_position_embeddings,
                 config.hidden_size,
+                reduce=False,
                 process_group=process_group,
             )
         else:
