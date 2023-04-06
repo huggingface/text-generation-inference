@@ -39,7 +39,7 @@ class FlashLlama(FlashCausalLM):
             raise NotImplementedError("FlashLlama does not support quantization")
 
         tokenizer = LlamaTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left",
         )
 
         config = AutoConfig.from_pretrained(
@@ -155,7 +155,7 @@ class FlashLlamaSharded(FlashLlama):
             raise NotImplementedError("FlashLlama does not support quantization")
 
         tokenizer = LlamaTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left",
         )
 
         config = AutoConfig.from_pretrained(
