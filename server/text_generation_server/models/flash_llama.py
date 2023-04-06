@@ -5,8 +5,9 @@ from accelerate import init_empty_weights
 from opentelemetry import trace
 from pathlib import Path
 from safetensors import safe_open
-from transformers import AutoTokenizer, AutoConfig
-from typing import Optional, Tuple, List
+from transformers import AutoConfig
+from transformers.models.llama import LlamaTokenizer
+from typing import Optional, List
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_llama_modeling import (
@@ -37,7 +38,7 @@ class FlashLlama(FlashCausalLM):
         if quantize:
             raise NotImplementedError("FlashLlama does not support quantization")
 
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = LlamaTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left"
         )
 
@@ -59,8 +60,10 @@ class FlashLlama(FlashCausalLM):
         self.load_weights(
             model,
             filenames,
+            device,
+            dtype
         )
-        self.model = model.eval().to(device).to(dtype)
+        self.model = model.eval()
 
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -71,10 +74,14 @@ class FlashLlama(FlashCausalLM):
     def load_weights(
         model,
         filenames: List[Path],
+        device: torch.device,
+        dtype: torch.dtype,
     ):
         for filename in filenames:
             state_dict = torch.load(filename, map_location="cpu")
             for key, value in state_dict.items():
+                value = value.to(device).to(dtype)
+
                 layer_name = ".".join(key.split(".")[:4])
 
                 # Fused qkv
@@ -130,6 +137,8 @@ class FlashLlama(FlashCausalLM):
                 else:
                     module._buffers[param_name] = value
 
+                del value
+
         torch.cuda.empty_cache()
         model.post_load_weights()
 
@@ -149,7 +158,7 @@ class FlashLlamaSharded(FlashLlama):
         if quantize:
             raise NotImplementedError("FlashLlama does not support quantization")
 
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = LlamaTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left"
         )
 
@@ -169,10 +178,11 @@ class FlashLlamaSharded(FlashLlama):
             filenames,
             quantize=quantize,
             device=device,
+            dtype=dtype,
             rank=self.rank,
             world_size=self.world_size,
         )
-        self.model = model.eval().to(dtype)
+        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -185,6 +195,7 @@ class FlashLlamaSharded(FlashLlama):
         filenames: List[str],
         quantize: bool,
         device: torch.device,
+        dtype: torch.dtype,
         rank: int,
         world_size: int,
     ):
@@ -240,7 +251,7 @@ class FlashLlamaSharded(FlashLlama):
                         except:
                             tensor = f.get_tensor(name)
 
-                    tensor = tensor.contiguous()
+                    tensor = tensor.contiguous().to(dtype)
 
                     try:
                         current_parameter_tensor = module._parameters[param_name]
