@@ -42,7 +42,7 @@ impl Validation {
 
                 // Spawn worker
                 tokio::task::spawn_blocking(move || {
-                    tokenizer_worker(tokenizer_clone.into(), receiver_clone)
+                    tokenizer_worker(tokenizer_clone, receiver_clone)
                 });
             }
             Some(validation_sender)

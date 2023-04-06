@@ -668,4 +668,13 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         hidden_states, present = self.gpt_neox(
             input_ids, position_ids, cu_seqlens, max_s, past_key_values
         )
-        return self.embed_out(hidden_states), present
+        logits = self.embed_out(hidden_states)
+
+        if self.gpt_neox.tp_embeddings:
+            # Logits are sharded, so we need to gather them
+            world_logits = [torch.empty_like(logits) for _ in range(self.world_size)]
+            torch.distributed.all_gather(world_logits, logits, group=self.process_group)
+            world_logits = torch.cat(world_logits, dim=1)
+
+            return world_logits, present
+        return logits, present

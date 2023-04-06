@@ -7,6 +7,9 @@ export const options = {
         {duration: '2m', target: 100},
         {duration: '1m', target: 0},
     ],
+    hosts: {
+        'text-generation-inference.huggingface.co': '127.0.0.1:3000',
+    },
 };
 const SLEEP_DURATION = 1;
 
@@ -26,7 +29,7 @@ function greedy_example(inputs, max_new_tokens, name) {
             name: name
         }
     };
-    return http.post('https://open-assistant.ngrok.io/generate', body, params);
+    return http.post('http://text-generation-inference.huggingface.co/generate', body, params);
 }
 
 function sample_example(inputs, max_new_tokens, name) {
@@ -47,7 +50,7 @@ function sample_example(inputs, max_new_tokens, name) {
             name: name
         }
     };
-    return http.post('https://open-assistant.ngrok.io/generate', body, params);
+    return http.post('http://text-generation-inference.huggingface.co/generate', body, params);
 }
 
 export default function () {

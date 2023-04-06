@@ -201,7 +201,15 @@ fn main() -> ExitCode {
 
         // Enable hf transfer for insane download speeds
         let enable_hf_transfer = env::var("HF_HUB_ENABLE_HF_TRANSFER").unwrap_or("1".to_string());
-        env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), enable_hf_transfer.into()));
+        env.push((
+            "HF_HUB_ENABLE_HF_TRANSFER".into(),
+            enable_hf_transfer.into(),
+        ));
+
+        // Parse Inference API token
+        if let Ok(api_token) = env::var("HF_API_TOKEN") {
+            env.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        };
 
         // Start process
         tracing::info!("Starting download process.");
@@ -557,7 +565,15 @@ fn shard_manager(
 
     // Enable hf transfer for insane download speeds
     let enable_hf_transfer = env::var("HF_HUB_ENABLE_HF_TRANSFER").unwrap_or("1".to_string());
-    env.push(("HF_HUB_ENABLE_HF_TRANSFER".into(), enable_hf_transfer.into()));
+    env.push((
+        "HF_HUB_ENABLE_HF_TRANSFER".into(),
+        enable_hf_transfer.into(),
+    ));
+
+    // Parse Inference API token
+    if let Ok(api_token) = env::var("HF_API_TOKEN") {
+        env.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+    };
 
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container

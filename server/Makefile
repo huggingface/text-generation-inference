@@ -1,4 +1,4 @@
-transformers_commit := 88bfd061f44f4d33e687c20a79856314d877b86d
+transformers_commit := b8d969ff47c6a9d40538a6ea33df021953363afc
 flash_att_commit := 4d87e4d875077ad9efd25030efa4ab0ba92c19e1
 
 gen-server:

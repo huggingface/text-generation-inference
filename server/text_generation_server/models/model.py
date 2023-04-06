@@ -32,7 +32,7 @@ class Model(ABC):
     ) -> Tuple[str, Optional[int], Optional[int]]:
         """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
         if token_offset is None:
-            token_offset = len(all_input_ids) - 5
+            token_offset = len(all_input_ids) - 3
 
         # Decode token_offset token minus last one and token_offset tokens
         results = self.tokenizer.batch_decode(

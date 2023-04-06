@@ -287,32 +287,3 @@ class FlashLlamaSharded(FlashLlama):
                         module._buffers[param_name] = tensor
         torch.cuda.empty_cache()
         model.post_load_weights()
-
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        cu_seqlens: torch.Tensor,
-        max_s: int,
-        past_key_values: Optional = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if self.model.model.tp_embeddings:
-            logits, present = self.model.forward(
-                input_ids=input_ids,
-                position_ids=position_ids,
-                cu_seqlens=cu_seqlens,
-                max_s=max_s,
-                past_key_values=past_key_values,
-            )
-
-            # Logits are sharded, so we need to gather them
-            world_logits = [torch.empty_like(logits) for _ in range(self.world_size)]
-            torch.distributed.all_gather(world_logits, logits, group=self.process_group)
-            world_logits = torch.cat(world_logits, dim=1)
-
-            return world_logits, present
-        # While the model itself is sharded, the embeddings might not as they might not be dividable by num-shard
-        else:
-            return super(FlashLlamaSharded, self).forward(
-                input_ids, position_ids, cu_seqlens, max_s, past_key_values
-            )
