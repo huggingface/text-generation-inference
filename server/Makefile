@@ -12,6 +12,7 @@ gen-server:
 
 install-transformers:
 	# Install specific version of transformers with custom cuda kernels
+	pip install --upgrade setuptools
 	pip uninstall transformers -y || true
 	rm -rf transformers || true
 	git clone https://github.com/OlivierDehaene/transformers.git
