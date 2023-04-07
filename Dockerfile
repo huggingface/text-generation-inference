@@ -38,8 +38,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         cmake \
         curl \
         git \
-        libjpeg-dev \
-        libpng-dev && \
     rm -rf /var/lib/apt/lists/*
 RUN /usr/sbin/update-ccache-symlinks
 RUN mkdir /opt/ccache && ccache --set-config=cache_dir=/opt/ccache
@@ -60,9 +58,6 @@ RUN case ${TARGETPLATFORM} in \
 RUN chmod +x ~/miniconda.sh && \
     bash ~/miniconda.sh -b -p /opt/conda && \
     rm ~/miniconda.sh
-#    /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake conda-build pyyaml numpy ipython && \
-#    /opt/conda/bin/conda clean -ya
-
 
 # Install pytorch
 FROM conda as pytorch-install
@@ -83,30 +78,11 @@ RUN case ${TARGETPLATFORM} in \
     esac && \
     /opt/conda/bin/conda clean -ya
 
-
-FROM ubuntu:22.04 as final-pytorch-image
-ARG TARGETPLATFORM
-ARG PYTORCH_VERSION=2.0.0
-ARG CUDA_VERSION=11.8
-LABEL com.nvidia.volumes.needed="nvidia_driver"
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ca-certificates \
-        && rm -rf /var/lib/apt/lists/*
-COPY --from=pytorch-install /opt/conda /opt/conda
-ENV PATH /opt/conda/bin:$PATH
-ENV NVIDIA_VISIBLE_DEVICES all
-ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
-ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
-ENV PYTORCH_VERSION ${PYTORCH_VERSION}
-WORKDIR /workspace
-
 # CUDA kernels builder image
-FROM final-pytorch-image as kernel-builder
+FROM pytorch-install as kernel-builder
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential \
         ninja-build \
-        git \
         && rm -rf /var/lib/apt/lists/*
 
 RUN /opt/conda/bin/conda install -c "nvidia/label/cuda-11.8.0"  cuda==11.8 && \
@@ -132,6 +108,23 @@ COPY server/Makefile-transformers Makefile
 
 # Build specific version of transformers
 RUN BUILD_EXTENSIONS="True" make build-transformers
+
+# Final pytorch image
+FROM ubuntu:22.04 as final-pytorch-image
+ARG TARGETPLATFORM
+ARG PYTORCH_VERSION=2.0.0
+ARG CUDA_VERSION=11.8
+LABEL com.nvidia.volumes.needed="nvidia_driver"
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates \
+        && rm -rf /var/lib/apt/lists/*
+COPY --from=pytorch-install /opt/conda /opt/conda
+ENV PATH /opt/conda/bin:$PATH
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
+ENV PYTORCH_VERSION ${PYTORCH_VERSION}
+WORKDIR /workspace
 
 # Text Generation Inference base image
 FROM final-pytorch-image as base
