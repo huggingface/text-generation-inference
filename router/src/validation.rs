@@ -2,6 +2,7 @@ use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput}
 /// Payload validation logic
 use crate::{GenerateParameters, GenerateRequest};
 use rand::{thread_rng, Rng};
+use std::cmp::max;
 use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
@@ -30,6 +31,10 @@ impl Validation {
         max_input_length: usize,
         max_total_tokens: usize,
     ) -> Self {
+        if max_input_length >= max_total_tokens {
+            panic!("`max_input_length` must be < `max_total_tokens`");
+        }
+
         // If we have a fast tokenizer
         let sender = if let Some(tokenizer) = tokenizer {
             // Create channel
@@ -105,6 +110,18 @@ impl Validation {
         }
         // Return inputs without validation
         else {
+            // In this case, we don't know the real length in tokens of the inputs
+            // However, the inputs will be truncated by the python servers
+            // We make sure that truncate + max_new_tokens <= self.max_total_tokens
+
+            // Validate MaxNewTokens
+            if (truncate + max_new_tokens) > self.max_total_tokens {
+                return Err(ValidationError::MaxNewTokens(
+                    self.max_total_tokens - self.max_input_length,
+                    max_new_tokens,
+                ));
+            }
+
             Ok(inputs)
         }
     }
@@ -183,7 +200,7 @@ impl Validation {
             .unwrap_or(Ok(0))?;
 
         if max_new_tokens == 0 {
-            return Err(ValidationError::MaxNewTokens);
+            return Err(ValidationError::NegativeMaxNewTokens);
         }
 
         if stop_sequences.len() > self.max_stop_sequences {
@@ -345,7 +362,9 @@ pub enum ValidationError {
     #[error("`typical_p` must be > 0.0 and < 1.0")]
     TypicalP,
     #[error("`max_new_tokens` must be strictly positive")]
-    MaxNewTokens,
+    NegativeMaxNewTokens,
+    #[error("`max_new_tokens` must be <= {0}. Given: {1}")]
+    MaxNewTokens(usize, u32),
     #[error("`inputs` tokens + `max_new_tokens` must be <= {0}. Given: {1} `inputs` tokens and {2} `max_new_tokens`")]
     MaxTotalTokens(usize, usize, u32),
     #[error("`inputs` must have less than {0} tokens. Given: {1}")]

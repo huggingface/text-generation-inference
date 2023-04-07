@@ -38,7 +38,7 @@ from flash_attn.layers.rotary import RotaryEmbedding
 
 class FastLayerNorm(nn.LayerNorm):
     def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 6144:
+        if hidden_states.shape[-1] > 8192:
             if residual is not None:
                 hidden_states += residual
             residual = hidden_states

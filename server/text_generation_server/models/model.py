@@ -31,6 +31,13 @@ class Model(ABC):
         token_offset: Optional[int] = None,
     ) -> Tuple[str, Optional[int], Optional[int]]:
         """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
+        if all_input_ids[-1] in self.all_special_ids:
+            return (
+                self.tokenizer.decode(all_input_ids[-1], skip_special_tokens=False),
+                None,
+                None,
+            )
+
         if token_offset is None:
             token_offset = len(all_input_ids) - 3
 
