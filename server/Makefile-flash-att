@@ -1,4 +1,4 @@
-flash_att_commit := 4d87e4d875077ad9efd25030efa4ab0ba92c19e1
+flash_att_commit := d478eeec8f16c7939c54e4617dbd36f59b8eeed7
 
 install-flash-attention:
 	# Install specific version of flash attention
