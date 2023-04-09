@@ -528,22 +528,22 @@ pub async fn run(
     }
     // Input Length buckets
     let input_length_matcher = Matcher::Full(String::from("tgi_request_input_length"));
-    let input_length_buckets: Vec<f64> = (1..100)
-        .map(|x| (max_input_length as f64 / 100.0) * x as f64)
+    let input_length_buckets: Vec<f64> = (0..100)
+        .map(|x| (max_input_length as f64 / 100.0) * (x + 1) as f64)
         .collect();
     // Generated tokens buckets
     let generated_tokens_matcher = Matcher::Full(String::from("tgi_request_generated_tokens"));
-    let generated_tokens_buckets: Vec<f64> = (1..100)
-        .map(|x| (max_total_tokens as f64 / 100.0) * x as f64)
+    let generated_tokens_buckets: Vec<f64> = (0..100)
+        .map(|x| (max_total_tokens as f64 / 100.0) * (x + 1) as f64)
         .collect();
     // Input Length buckets
     let max_new_tokens_matcher = Matcher::Full(String::from("tgi_request_max_new_tokens"));
-    let max_new_tokens_buckets: Vec<f64> = (1..100)
-        .map(|x| (max_total_tokens as f64 / 100.0) * x as f64)
+    let max_new_tokens_buckets: Vec<f64> = (0..100)
+        .map(|x| (max_total_tokens as f64 / 100.0) * (x + 1) as f64)
         .collect();
     // Batch size buckets
     let batch_size_matcher = Matcher::Full(String::from("tgi_batch_next_size"));
-    let batch_size_buckets: Vec<f64> = (1..max_batch_size).map(|x| x as f64).collect();
+    let batch_size_buckets: Vec<f64> = (0..max_batch_size).map(|x| (x + 1) as f64).collect();
 
     // Prometheus handler
     let builder = PrometheusBuilder::new()
