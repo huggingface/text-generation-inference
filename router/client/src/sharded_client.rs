@@ -2,7 +2,6 @@
 use crate::Result;
 use crate::{Batch, Client, Generation};
 use futures::future::join_all;
-use futures::future::select_all;
 use tonic::transport::Uri;
 use tracing::instrument;
 

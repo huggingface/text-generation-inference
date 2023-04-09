@@ -15,7 +15,7 @@ use axum::{http, Json, Router};
 use axum_tracing_opentelemetry::opentelemetry_tracing_layer;
 use futures::stream::StreamExt;
 use futures::Stream;
-use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
+use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use text_generation_client::ShardedClient;
@@ -120,6 +120,7 @@ async fn generate(
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     let start_time = Instant::now();
+    metrics::increment_counter!("tgi_request_count");
 
     let compute_characters = req.0.inputs.chars().count();
     let mut add_prompt = None;
@@ -294,6 +295,7 @@ async fn generate_stream(
 ) {
     let span = tracing::Span::current();
     let start_time = Instant::now();
+    metrics::increment_counter!("tgi_request_count");
 
     let compute_characters = req.0.inputs.chars().count();
 
@@ -513,8 +515,48 @@ pub async fn run(
         max_concurrent_requests,
     );
 
+    // Duration buckets
+    let duration_matcher = Matcher::Suffix(String::from("duration"));
+    let n_duration_buckets = 35;
+    let mut duration_buckets = Vec::with_capacity(n_duration_buckets);
+    // Minimum latency in ms
+    let mut value = 0.1;
+    for _ in 0..n_duration_buckets {
+        // geometric sequence
+        value *= 1.5;
+        duration_buckets.push(value);
+    }
+    // Input Length buckets
+    let input_length_matcher = Matcher::Full(String::from("tgi_request_input_length"));
+    let input_length_buckets: Vec<f64> = (1..100)
+        .map(|x| (max_input_length as f64 / 100.0) * x as f64)
+        .collect();
+    // Generated tokens buckets
+    let generated_tokens_matcher = Matcher::Full(String::from("tgi_request_generated_tokens"));
+    let generated_tokens_buckets: Vec<f64> = (1..100)
+        .map(|x| (max_total_tokens as f64 / 100.0) * x as f64)
+        .collect();
+    // Input Length buckets
+    let max_new_tokens_matcher = Matcher::Full(String::from("tgi_request_max_new_tokens"));
+    let max_new_tokens_buckets: Vec<f64> = (1..100)
+        .map(|x| (max_total_tokens as f64 / 100.0) * x as f64)
+        .collect();
+    // Batch size buckets
+    let batch_size_matcher = Matcher::Full(String::from("tgi_batch_next_size"));
+    let batch_size_buckets: Vec<f64> = (1..max_batch_size).map(|x| x as f64).collect();
+
     // Prometheus handler
-    let builder = PrometheusBuilder::new();
+    let builder = PrometheusBuilder::new()
+        .set_buckets_for_metric(duration_matcher, &duration_buckets)
+        .unwrap()
+        .set_buckets_for_metric(input_length_matcher, &input_length_buckets)
+        .unwrap()
+        .set_buckets_for_metric(generated_tokens_matcher, &generated_tokens_buckets)
+        .unwrap()
+        .set_buckets_for_metric(max_new_tokens_matcher, &max_new_tokens_buckets)
+        .unwrap()
+        .set_buckets_for_metric(batch_size_matcher, &batch_size_buckets)
+        .unwrap();
     let prom_handle = builder
         .install_recorder()
         .expect("failed to install metrics recorder");
