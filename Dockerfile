@@ -56,13 +56,15 @@ WORKDIR /usr/src
 # Install torch
 RUN pip install torch --extra-index-url https://download.pytorch.org/whl/cu118 --no-cache-dir
 
-COPY server/Makefile server/Makefile
-
 # Install specific version of flash attention
+COPY server/Makefile-flash-att server/Makefile
 RUN cd server && make install-flash-attention
 
 # Install specific version of transformers
+COPY server/Makefile-transformers server/Makefile
 RUN cd server && BUILD_EXTENSIONS="True" make install-transformers
+
+COPY server/Makefile server/Makefile
 
 # Install server
 COPY proto proto
