@@ -331,11 +331,12 @@ async fn prefill(
 ) -> Option<Batch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
+    metrics::increment_counter!("tgi_batch_inference_count", "method" => "prefill");
 
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
             send_generations(generations, entries);
-            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed(), "method" => "prefill");
+            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "prefill");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
             next_batch
         }
@@ -356,11 +357,12 @@ async fn decode(
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     let start_time = Instant::now();
+    metrics::increment_counter!("tgi_batch_inference_count", "method" => "decode");
 
     match client.decode(batches).await {
         Ok((generations, next_batch)) => {
             send_generations(generations, entries);
-            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed(), "method" => "decode");
+            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "decode");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
             next_batch
         }
