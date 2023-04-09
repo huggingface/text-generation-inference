@@ -1,50 +1,129 @@
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 /// Payload validation logic
 use crate::{GenerateParameters, GenerateRequest};
-use rand::rngs::ThreadRng;
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::TruncationDirection;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 use tracing::{instrument, Span};
 
 /// Validation
 #[derive(Debug, Clone)]
 pub struct Validation {
-    /// maximum value for the best_of parameter
-    #[allow(dead_code)]
+    /// Validation parameters
     max_best_of: usize,
-    /// Channel to communicate with the background validation task
-    sender: mpsc::UnboundedSender<ValidationRequest>,
+    max_stop_sequences: usize,
+    max_input_length: usize,
+    max_total_tokens: usize,
+    /// Channel to communicate with the background tokenization task
+    sender: Option<flume::Sender<TokenizerRequest>>,
 }
 
 impl Validation {
     pub(crate) fn new(
         workers: usize,
-        tokenizer: Tokenizer,
+        tokenizer: Option<Tokenizer>,
         max_best_of: usize,
         max_stop_sequences: usize,
         max_input_length: usize,
         max_total_tokens: usize,
     ) -> Self {
-        // Create channel
-        let (validation_sender, validation_receiver) = mpsc::unbounded_channel();
+        if max_input_length >= max_total_tokens {
+            panic!("`max_input_length` must be < `max_total_tokens`");
+        }
 
-        // Launch background validation task
-        tokio::spawn(validation_task(
-            workers,
-            tokenizer,
-            max_stop_sequences,
-            max_input_length,
-            max_total_tokens,
-            validation_receiver,
-        ));
+        // If we have a fast tokenizer
+        let sender = if let Some(tokenizer) = tokenizer {
+            // Create channel
+            let (validation_sender, validation_receiver) = flume::unbounded();
+
+            // Create workers
+            for _ in 0..workers {
+                let tokenizer_clone = tokenizer.clone();
+                let receiver_clone = validation_receiver.clone();
+
+                // Spawn worker
+                tokio::task::spawn_blocking(move || {
+                    tokenizer_worker(tokenizer_clone, receiver_clone)
+                });
+            }
+            Some(validation_sender)
+        } else {
+            None
+        };
 
         Self {
             max_best_of,
-            sender: validation_sender,
+            sender,
+            max_stop_sequences,
+            max_input_length,
+            max_total_tokens,
+        }
+    }
+
+    #[instrument(skip_all)]
+    async fn validate_input(
+        &self,
+        inputs: String,
+        truncate: Option<usize>,
+        max_new_tokens: u32,
+    ) -> Result<String, ValidationError> {
+        // If we have a fast tokenizer
+        if let Some(sender) = &self.sender {
+            // Create response channel
+            let (response_sender, response_receiver) = oneshot::channel();
+            // Send request to the background validation task
+            // Unwrap is safe here
+            sender
+                .send(((inputs, truncate), response_sender, Span::current()))
+                .unwrap();
+
+            // Await on response channel
+            // Unwrap is safe here
+            let (inputs, input_length) = response_receiver.await.unwrap()?;
+
+            // Get total tokens
+            let total_tokens = input_length + max_new_tokens as usize;
+
+            // Validate MaxTotalTokens
+            if total_tokens > self.max_total_tokens {
+                return Err(ValidationError::MaxTotalTokens(
+                    self.max_total_tokens,
+                    input_length,
+                    max_new_tokens,
+                ));
+            }
+
+            // Validate InputLength
+            if input_length > self.max_input_length {
+                return Err(ValidationError::InputLength(
+                    self.max_input_length,
+                    input_length,
+                ));
+            }
+
+            metrics::histogram!("tgi_request_input_length", input_length as f64);
+            Ok(inputs)
+        }
+        // Return inputs without validation
+        else {
+            // In this case, we don't know the real length in tokens of the inputs
+            // However, the inputs will be truncated by the python servers
+            // We make sure that truncate + max_new_tokens <= self.max_total_tokens
+
+            // Validate MaxNewTokens
+            if (truncate.unwrap_or(self.max_input_length) as u32 + max_new_tokens)
+                > self.max_total_tokens as u32
+            {
+                return Err(ValidationError::MaxNewTokens(
+                    self.max_total_tokens - self.max_input_length,
+                    max_new_tokens,
+                ));
+            }
+
+            Ok(inputs)
         }
     }
 
@@ -54,16 +133,139 @@ impl Validation {
         &self,
         request: GenerateRequest,
     ) -> Result<ValidGenerateRequest, ValidationError> {
-        // Create response channel
-        let (sender, receiver) = oneshot::channel();
-        // Send request to the background validation task
-        // Unwrap is safe here
-        self.sender
-            .send((request, sender, Span::current()))
-            .unwrap();
-        // Await on response channel
-        // Unwrap is safe here
-        receiver.await.unwrap()
+        let GenerateParameters {
+            best_of,
+            temperature,
+            repetition_penalty,
+            top_k,
+            top_p,
+            typical_p,
+            do_sample,
+            max_new_tokens,
+            stop: stop_sequences,
+            truncate,
+            seed,
+            watermark,
+            ..
+        } = request.parameters;
+
+        // sampling must be true when best_of > 1
+        let best_of = best_of.unwrap_or(1);
+        let sampling = do_sample
+            || temperature.is_some()
+            || top_k.is_some()
+            || top_p.is_some()
+            || typical_p.is_some();
+
+        if best_of > 1 && !sampling {
+            return Err(BestOfSampling);
+        }
+
+        let temperature = temperature.unwrap_or(1.0);
+        if temperature <= 0.0 {
+            return Err(ValidationError::Temperature);
+        }
+
+        let repetition_penalty = repetition_penalty.unwrap_or(1.0);
+        if repetition_penalty <= 0.0 {
+            return Err(ValidationError::RepetitionPenalty);
+        }
+
+        // Different because the proto default value is not a valid value
+        // for the user
+        let top_p = top_p
+            .map(|value| {
+                if value <= 0.0 || value >= 1.0 {
+                    return Err(ValidationError::TopP);
+                }
+                Ok(value)
+            })
+            .unwrap_or(Ok(1.0))?;
+
+        let typical_p = typical_p
+            .map(|value| {
+                if value <= 0.0 || value >= 1.0 {
+                    return Err(ValidationError::TypicalP);
+                }
+                Ok(value)
+            })
+            .unwrap_or(Ok(1.0))?;
+
+        let top_k: u32 = top_k
+            .map(|value| {
+                if value <= 0 {
+                    return Err(ValidationError::TopK);
+                }
+                Ok(value as u32)
+            })
+            .unwrap_or(Ok(0))?;
+
+        if max_new_tokens == 0 {
+            return Err(ValidationError::NegativeMaxNewTokens);
+        }
+
+        if stop_sequences.len() > self.max_stop_sequences {
+            return Err(ValidationError::StopSequence(
+                self.max_stop_sequences,
+                stop_sequences.len(),
+            ));
+        }
+
+        // If seed is None, assign a random one
+        let seed = match seed {
+            None => thread_rng().gen(),
+            Some(seed) => {
+                if best_of > 1 {
+                    return Err(BestOfSeed);
+                }
+                seed
+            }
+        };
+
+        // Check if inputs is empty
+        if request.inputs.is_empty() {
+            return Err(EmptyInput);
+        }
+
+        // Check if truncate is strictly positive and less than max_input_length
+        let truncate = truncate
+            .map(|value| {
+                if value == 0 || value > self.max_input_length {
+                    return Err(ValidationError::Truncate(self.max_input_length, value));
+                }
+                Ok(Some(value))
+            })
+            .unwrap_or(Ok(None))?;
+
+        // Validate inputs
+        let inputs = self
+            .validate_input(request.inputs, truncate, max_new_tokens)
+            .await?;
+
+        let parameters = NextTokenChooserParameters {
+            temperature,
+            repetition_penalty,
+            top_k,
+            top_p,
+            typical_p,
+            do_sample,
+            seed,
+            watermark,
+        };
+        let stopping_parameters = StoppingCriteriaParameters {
+            max_new_tokens,
+            stop_sequences,
+            ignore_eos_token: false,
+        };
+
+        metrics::histogram!("tgi_request_max_new_tokens", max_new_tokens as f64);
+
+        Ok(ValidGenerateRequest {
+            inputs,
+            truncate: truncate.unwrap_or(self.max_input_length) as u32,
+            parameters,
+            stopping_parameters,
+        })
     }
 
     /// Validate the best_of parameter
@@ -81,262 +283,57 @@ impl Validation {
     }
 }
 
-/// Validation task
-/// Load balance the validation requests between multiple validation workers
-async fn validation_task(
-    workers: usize,
-    tokenizer: Tokenizer,
-    max_stop_sequences: usize,
-    max_input_length: usize,
-    max_total_tokens: usize,
-    mut receiver: mpsc::UnboundedReceiver<ValidationRequest>,
-) {
-    let mut workers_senders = Vec::with_capacity(workers);
-
-    // Create workers
-    for _ in 0..workers {
-        let tokenizer_clone: Tokenizer = tokenizer.clone().into();
-        // Create channel to communicate with worker
-        let (worker_sender, worker_receiver) = mpsc::channel(workers);
-        workers_senders.push(worker_sender);
-
-        // Spawn worker
-        tokio::task::spawn_blocking(move || {
-            validation_worker(
-                tokenizer_clone,
-                max_stop_sequences,
-                max_input_length,
-                max_total_tokens,
-                worker_receiver,
-            )
-        });
-    }
-
-    loop {
-        // Load balance requests between workers
-        for sender in workers_senders.iter() {
-            if let Some(validation_request) = receiver.recv().await {
-                sender.send(validation_request).await.unwrap();
-            } else {
-                return;
-            }
-        }
-    }
-}
-
-/// Check the parameters inside the payload and get the number of tokens inside the input using
-/// the tokenizer
-fn validation_worker(
-    tokenizer: Tokenizer,
-    max_stop_sequences: usize,
-    max_input_length: usize,
-    max_total_tokens: usize,
-    mut receiver: mpsc::Receiver<ValidationRequest>,
-) {
-    // Seed rng
-    let mut rng = rand::thread_rng();
-
+/// Start tokenization workers
+fn tokenizer_worker(tokenizer: Tokenizer, receiver: flume::Receiver<TokenizerRequest>) {
     // Loop over requests
-    while let Some((request, response_tx, parent_span)) = receiver.blocking_recv() {
+    while let Ok(((inputs, truncate), response_tx, parent_span)) = receiver.recv() {
         parent_span.in_scope(|| {
             response_tx
-                .send(
-                    validate(
-                        request,
-                        &tokenizer,
-                        max_stop_sequences,
-                        max_input_length,
-                        max_total_tokens,
-                        &mut rng,
-                    )
-                    .map_err(|err| {
-                        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
-                        tracing::error!("{err}");
-                        err
-                    }),
-                )
+                .send(prepare_input(inputs, truncate, &tokenizer))
                 .unwrap_or(())
         })
     }
 }
 
-fn validate(
-    request: GenerateRequest,
+/// Get input length and optionally truncate it
+fn prepare_input(
+    inputs: String,
+    truncate: Option<usize>,
     tokenizer: &Tokenizer,
-    max_stop_sequences: usize,
-    max_input_length: usize,
-    max_total_tokens: usize,
-    rng: &mut ThreadRng,
-) -> Result<ValidGenerateRequest, ValidationError> {
-    let GenerateParameters {
-        best_of,
-        temperature,
-        repetition_penalty,
-        top_k,
-        top_p,
-        typical_p,
-        do_sample,
-        max_new_tokens,
-        stop: stop_sequences,
-        truncate,
-        seed,
-        watermark,
-        ..
-    } = request.parameters;
-
-    // sampling must be true when best_of > 1
-    let best_of = best_of.unwrap_or(1);
-    let sampling = do_sample
-        || temperature.is_some()
-        || top_k.is_some()
-        || top_p.is_some()
-        || typical_p.is_some();
-
-    if best_of > 1 && !sampling {
-        return Err(BestOfSampling);
-    }
-
-    let temperature = temperature.unwrap_or(1.0);
-    if temperature <= 0.0 {
-        return Err(ValidationError::Temperature);
-    }
-
-    let repetition_penalty = repetition_penalty.unwrap_or(1.0);
-    if repetition_penalty <= 0.0 {
-        return Err(ValidationError::RepetitionPenalty);
-    }
-
-    // Different because the proto default value is not a valid value
-    // for the user
-    let top_p = top_p
-        .map(|value| {
-            if value <= 0.0 || value >= 1.0 {
-                return Err(ValidationError::TopP);
-            }
-            Ok(value)
-        })
-        .unwrap_or(Ok(1.0))?;
-
-    let typical_p = typical_p
-        .map(|value| {
-            if value <= 0.0 || value >= 1.0 {
-                return Err(ValidationError::TypicalP);
-            }
-            Ok(value)
-        })
-        .unwrap_or(Ok(1.0))?;
-
-    let top_k: u32 = top_k
-        .map(|value| {
-            if value <= 0 {
-                return Err(ValidationError::TopK);
-            }
-            Ok(value as u32)
-        })
-        .unwrap_or(Ok(0))?;
-
-    if max_new_tokens == 0 {
-        return Err(ValidationError::MaxNewTokens);
-    }
-
-    if stop_sequences.len() > max_stop_sequences {
-        return Err(ValidationError::StopSequence(
-            max_stop_sequences,
-            stop_sequences.len(),
-        ));
-    }
-
-    // If seed is None, assign a random one
-    let seed = match seed {
-        None => rng.gen(),
-        Some(seed) => {
-            if best_of > 1 {
-                return Err(BestOfSeed);
-            }
-            seed
-        }
-    };
-
-    // Check if inputs is empty
-    if request.inputs.is_empty() {
-        return Err(EmptyInput);
-    }
-
-    // Check if truncate is strictly positive and less than max_input_length
-    let truncate = truncate
-        .map(|value| {
-            if value == 0 || value > max_input_length {
-                return Err(ValidationError::Truncate(max_input_length, value));
-            }
-            Ok(Some(value))
-        })
-        .unwrap_or(Ok(None))?;
-
+) -> Result<(String, usize), ValidationError> {
     // Get the number of tokens in the input
     let mut encoding = tokenizer
-        .encode(request.inputs.clone(), true)
+        .encode(inputs.clone(), true)
         .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
 
-    let (inputs, input_length) = if let Some(truncate) = truncate {
-        // truncate encoding and decode new inputs
-        encoding.truncate(truncate, 0, TruncationDirection::Left);
-        let inputs = tokenizer
-            .decode(Vec::from(encoding.get_ids()), false)
-            .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
-        (inputs, encoding.len())
-    } else {
-        (request.inputs, encoding.len())
+    // Optionally truncate
+    let (inputs, input_length) = match truncate {
+        // Truncate is some and > encoding length
+        Some(truncate) if truncate > encoding.len() => {
+            // truncate encoding and decode new inputs
+            encoding.truncate(truncate, 0, TruncationDirection::Left);
+            let inputs = tokenizer
+                .decode(Vec::from(encoding.get_ids()), false)
+                .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
+            (inputs, encoding.len())
+        }
+        // Nothing to do
+        _ => (inputs, encoding.len()),
     };
 
-    if input_length > max_input_length {
-        return Err(ValidationError::InputLength(max_input_length, input_length));
-    }
-
-    let total_tokens = input_length + max_new_tokens as usize;
-    if total_tokens > max_total_tokens {
-        return Err(ValidationError::MaxTotalTokens(
-            max_total_tokens,
-            input_length,
-            max_new_tokens,
-        ));
-    }
-
-    // Return ValidGenerateRequest
-    let parameters = NextTokenChooserParameters {
-        temperature,
-        repetition_penalty,
-        top_k,
-        top_p,
-        typical_p,
-        do_sample,
-        seed,
-        watermark,
-    };
-    let stopping_parameters = StoppingCriteriaParameters {
-        max_new_tokens,
-        stop_sequences,
-        ignore_eos_token: false,
-    };
-
-    metrics::histogram!("tgi_request_input_length", input_length as f64);
-    metrics::histogram!("tgi_request_max_new_tokens", max_new_tokens as f64);
-
-    Ok(ValidGenerateRequest {
-        inputs,
-        parameters,
-        stopping_parameters,
-    })
+    Ok((inputs, input_length))
 }
 
-type ValidationRequest = (
-    GenerateRequest,
-    oneshot::Sender<Result<ValidGenerateRequest, ValidationError>>,
+type TokenizerRequest = (
+    (String, Option<usize>),
+    oneshot::Sender<Result<(String, usize), ValidationError>>,
     Span,
 );
 
 #[derive(Debug)]
 pub(crate) struct ValidGenerateRequest {
     pub inputs: String,
+    pub truncate: u32,
     pub parameters: NextTokenChooserParameters,
     pub stopping_parameters: StoppingCriteriaParameters,
 }
@@ -366,7 +363,9 @@ pub enum ValidationError {
     #[error("`typical_p` must be > 0.0 and < 1.0")]
     TypicalP,
     #[error("`max_new_tokens` must be strictly positive")]
-    MaxNewTokens,
+    NegativeMaxNewTokens,
+    #[error("`max_new_tokens` must be <= {0}. Given: {1}")]
+    MaxNewTokens(usize, u32),
     #[error("`inputs` tokens + `max_new_tokens` must be <= {0}. Given: {1} `inputs` tokens and {2} `max_new_tokens`")]
     MaxTotalTokens(usize, usize, u32),
     #[error("`inputs` must have less than {0} tokens. Given: {1}")]

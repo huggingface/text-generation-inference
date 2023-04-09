@@ -2,17 +2,17 @@
 use crate::validation::{Validation, ValidationError};
 use crate::{Entry, Queue, Token};
 use crate::{GenerateRequest, PrefillToken};
+use flume::r#async::RecvStream;
 use futures::future::try_join_all;
+use futures::stream::StreamExt;
 use nohash_hasher::IntMap;
 use std::sync::Arc;
 use text_generation_client::{
     Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
 };
 use thiserror::Error;
-use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
+use tokio::sync::{Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
-use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_stream::StreamExt;
 use tracing::{info_span, instrument, Instrument, Span};
 
 /// Inference struct
@@ -73,7 +73,7 @@ impl Infer {
     pub(crate) async fn generate_stream(
         &self,
         request: GenerateRequest,
-    ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError> {
+    ) -> Result<RecvStream<Result<InferStreamResponse, InferError>>, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
         // This permit will live as long as Entry
         let permit = self
@@ -87,10 +87,14 @@ impl Infer {
             })?;
 
         // Validate request
-        let valid_request = self.validation.validate(request).await?;
+        let valid_request = self.validation.validate(request).await.map_err(|err| {
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            tracing::error!("{err}");
+            err
+        })?;
 
         // MPSC channel to communicate with the background batching task
-        let (response_tx, response_rx) = mpsc::unbounded_channel();
+        let (response_tx, response_rx) = flume::unbounded();
 
         // Append the request to the queue
         self.queue.append(Entry {
@@ -108,7 +112,7 @@ impl Infer {
         self.shared.batching_task.notify_one();
 
         // Return stream
-        Ok(UnboundedReceiverStream::new(response_rx))
+        Ok(response_rx.into_stream())
     }
 
     /// Add a new request to the queue and return a InferResponse

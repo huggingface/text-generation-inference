@@ -38,7 +38,7 @@ from flash_attn.layers.rotary import RotaryEmbedding
 
 class FastLayerNorm(nn.LayerNorm):
     def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 6144:
+        if hidden_states.shape[-1] > 8192:
             if residual is not None:
                 hidden_states += residual
             residual = hidden_states
@@ -624,13 +624,16 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
 
 class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config):
+    def __init__(self, config, process_group=None):
         super().__init__(config)
 
-        if config.tp_parallel:
-            process_group = torch.distributed.distributed_c10d._get_default_group()
+        self.process_group = process_group
+        if self.process_group is not None:
+            self.world_size = self.process_group.size()
+            self.rank = self.process_group.rank()
         else:
-            process_group = None
+            self.world_size = 1
+            self.rank = 0
 
         self.gpt_neox = FlashGPTNeoXModel(config, process_group)
 
@@ -668,4 +671,13 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         hidden_states, present = self.gpt_neox(
             input_ids, position_ids, cu_seqlens, max_s, past_key_values
         )
-        return self.embed_out(hidden_states), present
+        logits = self.embed_out(hidden_states)
+
+        if self.gpt_neox.tp_embeddings:
+            # Logits are sharded, so we need to gather them
+            world_logits = [torch.empty_like(logits) for _ in range(self.world_size)]
+            torch.distributed.all_gather(world_logits, logits, group=self.process_group)
+            world_logits = torch.cat(world_logits, dim=1)
+
+            return world_logits, present
+        return logits, present

@@ -75,7 +75,7 @@ async fn generate_runs(
         // Warmups on batch size
         for _ in 0..warmups {
             let (_, decode_batch) =
-                prefill(sequence.clone(), b, decode_length, &mut client).await?;
+                prefill(sequence.clone(), sequence_length, b, decode_length, &mut client).await?;
             let _ = decode(decode_batch, &mut client).await?;
             // Send warmup message
             run_sender.send(Ok(Message::Warmup)).await.unwrap_or(());
@@ -83,7 +83,7 @@ async fn generate_runs(
 
         for _ in 0..n_runs {
             let (prefill, decode_batch) =
-                prefill(sequence.clone(), b, decode_length, &mut client).await?;
+                prefill(sequence.clone(), sequence_length, b, decode_length, &mut client).await?;
             // Send prefill message
             run_sender
                 .send(Ok(Message::Prefill(prefill)))
@@ -110,6 +110,7 @@ async fn generate_runs(
 // Run a prefill step
 async fn prefill(
     sequence: String,
+    sequence_length: u32,
     batch_size: u32,
     decode_length: u32,
     client: &mut ShardedClient,
@@ -119,6 +120,7 @@ async fn prefill(
         .map(|id| Request {
             id: id.into(),
             inputs: sequence.clone(),
+            truncate: sequence_length,
             parameters: Some(NextTokenChooserParameters {
                 temperature: 1.0,
                 top_k: 0,

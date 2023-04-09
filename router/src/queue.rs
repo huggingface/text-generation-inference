@@ -4,8 +4,7 @@ use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use text_generation_client::{Batch, Request};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit};
+use tokio::sync::{oneshot, OwnedSemaphorePermit};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
 
@@ -15,7 +14,7 @@ pub(crate) struct Entry {
     /// Request
     pub request: ValidGenerateRequest,
     /// Response sender to communicate between the Infer struct and the batching_task
-    pub response_tx: UnboundedSender<Result<InferStreamResponse, InferError>>,
+    pub response_tx: flume::Sender<Result<InferStreamResponse, InferError>>,
     /// Span that will live as long as entry
     pub span: Span,
     /// Temporary span used as a guard when logging inference, wait times...
@@ -32,13 +31,13 @@ pub(crate) struct Entry {
 #[derive(Debug, Clone)]
 pub(crate) struct Queue {
     /// Channel to communicate with the background queue task
-    queue_sender: UnboundedSender<QueueCommand>,
+    queue_sender: flume::Sender<QueueCommand>,
 }
 
 impl Queue {
     pub(crate) fn new() -> Self {
         // Create channel
-        let (queue_sender, queue_receiver) = mpsc::unbounded_channel();
+        let (queue_sender, queue_receiver) = flume::unbounded();
 
         // Launch background queue task
         tokio::spawn(queue_task(queue_receiver));
@@ -82,10 +81,10 @@ impl Queue {
 }
 
 // Background task responsible of the queue state
-async fn queue_task(mut receiver: UnboundedReceiver<QueueCommand>) {
+async fn queue_task(receiver: flume::Receiver<QueueCommand>) {
     let mut state = State::new();
 
-    while let Some(cmd) = receiver.recv().await {
+    while let Ok(cmd) = receiver.recv_async().await {
         match cmd {
             QueueCommand::Append(entry, span) => span.in_scope(|| state.append(entry)),
             QueueCommand::NextBatch {
@@ -174,6 +173,7 @@ impl State {
                 batch_requests.push(Request {
                     id,
                     inputs: entry.request.inputs.clone(),
+                    truncate: entry.request.truncate,
                     parameters: Some(entry.request.parameters.clone()),
                     stopping_parameters: Some(entry.request.stopping_parameters.clone()),
                 });
@@ -215,17 +215,18 @@ mod tests {
     use super::*;
     use std::sync::Arc;
     use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
-    use tokio::sync::{mpsc, Semaphore};
+    use tokio::sync::Semaphore;
     use tracing::info_span;
 
     fn default_entry() -> Entry {
         let semaphore = Arc::new(Semaphore::new(1));
-        let (response_tx, _) = mpsc::unbounded_channel();
+        let (response_tx, _) = flume::unbounded();
         let permit = semaphore.try_acquire_owned().unwrap();
 
         Entry {
             request: ValidGenerateRequest {
                 inputs: "".to_string(),
+                truncate: 0,
                 parameters: NextTokenChooserParameters {
                     temperature: 0.0,
                     top_k: 0,

@@ -33,7 +33,7 @@ class FlashSantacoder(FlashCausalLM):
             raise NotImplementedError("FlashSantacoder does not support quantization")
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left", truncation_side="left"
         )
 
         config = AutoConfig.from_pretrained(
@@ -56,6 +56,8 @@ class FlashSantacoder(FlashCausalLM):
         self.load_weights(
             model,
             filenames,
+            device,
+            dtype,
         )
         self.model = model.eval().to(device).to(dtype)
 
@@ -68,10 +70,14 @@ class FlashSantacoder(FlashCausalLM):
     def load_weights(
         model: FlashSantacoderForCausalLM,
         filenames: List[Path],
+        device: torch.device,
+        dtype: torch.dtype,
     ):
         for filename in filenames:
             state_dict = torch.load(filename, map_location="cpu")
             for key, value in state_dict.items():
+                value = value.to(device).to(dtype)
+
                 layer_name = ".".join(key.split(".")[:4])
 
                 # Fused qkv
@@ -140,6 +146,8 @@ class FlashSantacoder(FlashCausalLM):
                         module._parameters[param_name] = value
                 else:
                     module._buffers[param_name] = value
+
+                del value
 
         torch.cuda.empty_cache()
         model.post_load_weights()

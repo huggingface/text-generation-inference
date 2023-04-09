@@ -78,7 +78,9 @@ class FlashCausalLMBatch(Batch):
 
         # Parse batch
         for r in pb.requests:
-            tokenized_input = tokenizer(r.inputs)["input_ids"]
+            tokenized_input = tokenizer(
+                r.inputs, truncation=True, max_length=r.truncate
+            )["input_ids"]
             input_length = len(tokenized_input)
             max_seqlen = max(max_seqlen, input_length)
             input_lengths.append(input_length)
@@ -208,7 +210,7 @@ class FlashCausalLM(Model):
             raise NotImplementedError("FlashCausalLM does not support quantization")
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left", truncation_side="left"
         )
         self.model = (
             model_cls.from_pretrained(
