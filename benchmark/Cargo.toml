@@ -27,7 +27,7 @@ serde = {version = "1.0.142", features = ["derive"]}
 serde_json = "1.0"
 text-generation-client = { path = "../router/client" }
 thiserror = "1.0.38"
-tokenizers = "0.13.2"
+tokenizers = "0.13.3"
 tokio = { version = "1.25.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tui = {package = "ratatui", version = "0.20", default-features = false, features = ["crossterm"]}
 tracing = "0.1.37"

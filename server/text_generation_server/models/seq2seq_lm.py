@@ -73,6 +73,7 @@ class Seq2SeqLMBatch(Batch):
         decoder_input_lengths = []
 
         # Parse batch
+        max_truncation = 0
         padding_right_offset = 0
         for r in pb.requests:
             inputs.append(r.inputs)
@@ -84,6 +85,7 @@ class Seq2SeqLMBatch(Batch):
                 r.stopping_parameters, tokenizer
             )
             stopping_criterias.append(stopping_criteria)
+            max_truncation = max(max_truncation, r.truncate)
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -94,6 +96,8 @@ class Seq2SeqLMBatch(Batch):
             return_tensors="pt",
             padding=True,
             return_token_type_ids=False,
+            truncation=True,
+            max_length=max_truncation,
         ).to(device)
 
         input_lengths = tokenized_inputs["attention_mask"].sum(1)

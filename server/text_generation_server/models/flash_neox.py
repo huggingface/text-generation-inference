@@ -45,18 +45,19 @@ class FlashNeoXSharded(FlashNeoX):
             raise NotImplementedError("FlashNeoX does not support quantization")
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left", truncation_side="left"
         )
 
         config = AutoConfig.from_pretrained(
-            model_id, revision=revision, tp_parallel=True
+            model_id,
+            revision=revision,
         )
 
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
 
         with init_empty_weights():
-            model = FlashGPTNeoXForCausalLM(config)
+            model = FlashGPTNeoXForCausalLM(config, self.process_group)
 
         torch.distributed.barrier(group=self.process_group)
         self.load_weights(
@@ -147,32 +148,3 @@ class FlashNeoXSharded(FlashNeoX):
                         module._parameters[param_name] = tensor
                     else:
                         module._buffers[param_name] = tensor
-
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        cu_seqlens: torch.Tensor,
-        max_s: int,
-        past_key_values: Optional = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if self.model.gpt_neox.tp_embeddings:
-            logits, present = self.model.forward(
-                input_ids=input_ids,
-                position_ids=position_ids,
-                cu_seqlens=cu_seqlens,
-                max_s=max_s,
-                past_key_values=past_key_values,
-            )
-
-            # Logits are sharded, so we need to gather them
-            world_logits = [torch.empty_like(logits) for _ in range(self.world_size)]
-            torch.distributed.all_gather(world_logits, logits, group=self.process_group)
-            world_logits = torch.cat(world_logits, dim=1)
-
-            return world_logits, present
-        # While the model itself is sharded, the embeddings might not as they might not be dividable by num-shard
-        else:
-            return super(FlashNeoXSharded, self).forward(
-                input_ids, position_ids, cu_seqlens, max_s, past_key_values
-            )
