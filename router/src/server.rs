@@ -87,21 +87,21 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
 
 /// Generate tokens
 #[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/generate",
-    request_body = GenerateRequest,
-    responses(
-        (status = 200, description = "Generated Text", body = GenerateResponse),
-        (status = 424, description = "Generation Error", body = ErrorResponse,
-            example = json ! ({"error": "Request failed during generation"})),
-        (status = 429, description = "Model is overloaded", body = ErrorResponse,
-            example = json ! ({"error": "Model is overloaded"})),
-        (status = 422, description = "Input validation error", body = ErrorResponse,
-            example = json ! ({"error": "Input validation error"})),
-        (status = 500, description = "Incomplete generation", body = ErrorResponse,
-            example = json ! ({"error": "Incomplete generation"})),
-    )
+post,
+tag = "Text Generation Inference",
+path = "/generate",
+request_body = GenerateRequest,
+responses(
+(status = 200, description = "Generated Text", body = GenerateResponse),
+(status = 424, description = "Generation Error", body = ErrorResponse,
+example = json ! ({"error": "Request failed during generation"})),
+(status = 429, description = "Model is overloaded", body = ErrorResponse,
+example = json ! ({"error": "Model is overloaded"})),
+(status = 422, description = "Input validation error", body = ErrorResponse,
+example = json ! ({"error": "Input validation error"})),
+(status = 500, description = "Incomplete generation", body = ErrorResponse,
+example = json ! ({"error": "Incomplete generation"})),
+)
 )]
 #[instrument(
     skip(infer),
@@ -186,6 +186,14 @@ async fn generate(
     let inference_time = Instant::now() - response.start;
     let time_per_token = inference_time / response.generated_text.generated_tokens;
 
+    // Tracing metadata
+    span.record("total_time", format!("{total_time:?}"));
+    span.record("validation_time", format!("{validation_time:?}"));
+    span.record("queue_time", format!("{queue_time:?}"));
+    span.record("inference_time", format!("{inference_time:?}"));
+    span.record("time_per_token", format!("{time_per_token:?}"));
+    span.record("seed", format!("{:?}", response.generated_text.seed));
+
     // Headers
     let mut headers = HeaderMap::new();
     headers.insert("x-compute-type", "gpu+optimized".parse().unwrap());
@@ -218,22 +226,22 @@ async fn generate(
         time_per_token.as_millis().to_string().parse().unwrap(),
     );
 
-    // Tracing metadata
-    span.record("total_time", format!("{total_time:?}"));
-    span.record("validation_time", format!("{validation_time:?}"));
-    span.record("queue_time", format!("{queue_time:?}"));
-    span.record("inference_time", format!("{inference_time:?}"));
-    span.record("time_per_token", format!("{time_per_token:?}"));
-    span.record("seed", format!("{:?}", response.generated_text.seed));
-    tracing::info!("Output: {}", response.generated_text.text);
-
     // Metrics
     metrics::increment_counter!("tgi_request_success");
-    metrics::histogram!("tgi_request_duration", total_time);
-    metrics::histogram!("tgi_request_validation_duration", validation_time);
-    metrics::histogram!("tgi_request_queue_duration", queue_time);
-    metrics::histogram!("tgi_request_inference_duration", inference_time);
-    metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token);
+    metrics::histogram!("tgi_request_duration", total_time.as_secs_f64());
+    metrics::histogram!(
+        "tgi_request_validation_duration",
+        validation_time.as_secs_f64()
+    );
+    metrics::histogram!("tgi_request_queue_duration", queue_time.as_secs_f64());
+    metrics::histogram!(
+        "tgi_request_inference_duration",
+        inference_time.as_secs_f64()
+    );
+    metrics::histogram!(
+        "tgi_request_mean_time_per_token_duration",
+        time_per_token.as_secs_f64()
+    );
     metrics::histogram!(
         "tgi_request_generated_tokens",
         response.generated_text.generated_tokens as f64
@@ -245,6 +253,8 @@ async fn generate(
         output_text = prompt + &output_text;
     }
 
+    tracing::info!("Output: {}", output_text);
+
     let response = GenerateResponse {
         generated_text: output_text,
         details,
@@ -254,26 +264,26 @@ async fn generate(
 
 /// Generate a stream of token using Server-Sent Events
 #[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/generate_stream",
-    request_body = GenerateRequest,
-    responses(
-        (status = 200, description = "Generated Text", body = StreamResponse,
-            content_type = "text/event-stream"),
-        (status = 424, description = "Generation Error", body = ErrorResponse,
-            example = json ! ({"error": "Request failed during generation"}),
-            content_type = "text/event-stream"),
-        (status = 429, description = "Model is overloaded", body = ErrorResponse,
-            example = json ! ({"error": "Model is overloaded"}),
-            content_type = "text/event-stream"),
-        (status = 422, description = "Input validation error", body = ErrorResponse,
-            example = json ! ({"error": "Input validation error"}),
-            content_type = "text/event-stream"),
-        (status = 500, description = "Incomplete generation", body = ErrorResponse,
-            example = json ! ({"error": "Incomplete generation"}),
-            content_type = "text/event-stream"),
-    )
+post,
+tag = "Text Generation Inference",
+path = "/generate_stream",
+request_body = GenerateRequest,
+responses(
+(status = 200, description = "Generated Text", body = StreamResponse,
+content_type = "text/event-stream"),
+(status = 424, description = "Generation Error", body = ErrorResponse,
+example = json ! ({"error": "Request failed during generation"}),
+content_type = "text/event-stream"),
+(status = 429, description = "Model is overloaded", body = ErrorResponse,
+example = json ! ({"error": "Model is overloaded"}),
+content_type = "text/event-stream"),
+(status = 422, description = "Input validation error", body = ErrorResponse,
+example = json ! ({"error": "Input validation error"}),
+content_type = "text/event-stream"),
+(status = 500, description = "Incomplete generation", body = ErrorResponse,
+example = json ! ({"error": "Incomplete generation"}),
+content_type = "text/event-stream"),
+)
 )]
 #[instrument(
     skip(infer),
@@ -370,15 +380,14 @@ async fn generate_stream(
                                         span.record("inference_time", format!("{inference_time:?}"));
                                         span.record("time_per_token", format!("{time_per_token:?}"));
                                         span.record("seed", format!("{:?}", generated_text.seed));
-                                        tracing::info!(parent: &span, "Output: {}", generated_text.text);
 
                                         // Metrics
                                         metrics::increment_counter!("tgi_request_success");
-                                        metrics::histogram!("tgi_request_duration", total_time);
-                                        metrics::histogram!("tgi_request_validation_duration", validation_time);
-                                        metrics::histogram!("tgi_request_queue_duration", queue_time);
-                                        metrics::histogram!("tgi_request_inference_duration", inference_time);
-                                        metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token);
+                                        metrics::histogram!("tgi_request_duration", total_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_validation_duration", validation_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_queue_duration", queue_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_inference_duration", inference_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token.as_secs_f64());
                                         metrics::histogram!("tgi_request_generated_tokens", generated_text.generated_tokens as f64);
 
                                         // StreamResponse
@@ -388,6 +397,8 @@ async fn generate_stream(
                                         if let Some(prompt) = add_prompt {
                                             output_text = prompt + &output_text;
                                         }
+
+                                        tracing::info!(parent: &span, "Output: {}", output_text);
 
                                         let stream_token = StreamResponse {
                                             token,
@@ -436,10 +447,10 @@ async fn generate_stream(
 
 /// Prometheus metrics scrape endpoint
 #[utoipa::path(
-    get,
-    tag = "Text Generation Inference",
-    path = "/metrics",
-    responses((status = 200, description = "Prometheus Metrics", body = String))
+get,
+tag = "Text Generation Inference",
+path = "/metrics",
+responses((status = 200, description = "Prometheus Metrics", body = String))
 )]
 async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
     prom_handle.render()
@@ -465,36 +476,36 @@ pub async fn run(
     // OpenAPI documentation
     #[derive(OpenApi)]
     #[openapi(
-        paths(
-            generate,
-            generate_stream,
-            metrics,
-        ),
-        components(
-            schemas(
-                GenerateRequest,
-                GenerateParameters,
-                PrefillToken,
-                Token,
-                GenerateResponse,
-                BestOfSequence,
-                Details,
-                FinishReason,
-                StreamResponse,
-                StreamDetails,
-                ErrorResponse,
-            )
-        ),
-        tags(
-            (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
-        ),
-        info(
-            title = "Text Generation Inference",
-            license(
-                name = "Apache 2.0",
-                url = "https://www.apache.org/licenses/LICENSE-2.0"
-            )
-        )
+    paths(
+    generate,
+    generate_stream,
+    metrics,
+    ),
+    components(
+    schemas(
+    GenerateRequest,
+    GenerateParameters,
+    PrefillToken,
+    Token,
+    GenerateResponse,
+    BestOfSequence,
+    Details,
+    FinishReason,
+    StreamResponse,
+    StreamDetails,
+    ErrorResponse,
+    )
+    ),
+    tags(
+    (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
+    ),
+    info(
+    title = "Text Generation Inference",
+    license(
+    name = "Apache 2.0",
+    url = "https://www.apache.org/licenses/LICENSE-2.0"
+    )
+    )
     )]
     struct ApiDoc;
 
