@@ -2,7 +2,6 @@ use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput}
 /// Payload validation logic
 use crate::{GenerateParameters, GenerateRequest};
 use rand::{thread_rng, Rng};
-use std::cmp::max;
 use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
@@ -115,7 +114,9 @@ impl Validation {
             // We make sure that truncate + max_new_tokens <= self.max_total_tokens
 
             // Validate MaxNewTokens
-            if (truncate + max_new_tokens) > self.max_total_tokens {
+            if (truncate.unwrap_or(self.max_input_length) as u32 + max_new_tokens)
+                > self.max_total_tokens as u32
+            {
                 return Err(ValidationError::MaxNewTokens(
                     self.max_total_tokens - self.max_input_length,
                     max_new_tokens,
