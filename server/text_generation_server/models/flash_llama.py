@@ -42,6 +42,7 @@ class FlashLlama(FlashCausalLM):
             model_id,
             revision=revision,
             padding_side="left",
+            truncation_side="left",
         )
 
         config = AutoConfig.from_pretrained(
@@ -160,6 +161,7 @@ class FlashLlamaSharded(FlashLlama):
             model_id,
             revision=revision,
             padding_side="left",
+            truncation_side="left",
         )
 
         config = AutoConfig.from_pretrained(

@@ -349,7 +349,7 @@ class Seq2SeqLM(Model):
             load_in_8bit=quantize,
         ).eval()
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left", truncation_side="left"
         )
         tokenizer.bos_token_id = self.model.config.decoder_start_token_id
 

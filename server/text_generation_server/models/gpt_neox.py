@@ -44,7 +44,7 @@ class GPTNeoxSharded(CausalLM):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left", truncation_side="left"
         )
         tokenizer.pad_token = tokenizer.eos_token
 

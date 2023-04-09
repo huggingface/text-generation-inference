@@ -44,7 +44,7 @@ class T5Sharded(Seq2SeqLM):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left", truncation_side="left"
         )
 
         config = AutoConfig.from_pretrained(

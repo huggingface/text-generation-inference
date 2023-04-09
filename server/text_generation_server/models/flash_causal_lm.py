@@ -224,7 +224,7 @@ class FlashCausalLM(Model):
             raise NotImplementedError("FlashCausalLM does not support quantization")
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left", truncation_side="left"
         )
         self.model = (
             model_cls.from_pretrained(
