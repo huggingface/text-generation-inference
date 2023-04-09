@@ -60,9 +60,8 @@ impl ShardedClient {
             .iter_mut()
             .map(|client| Box::pin(client.prefill(batch.clone())))
             .collect();
-        // As soon as we receive one response, we can return as all shards will return the same
-        let (result, _, _) = select_all(futures).await;
-        result
+        // all shards return the same message
+        join_all(futures).await.pop().unwrap()
     }
 
     /// Generate one token for each request in the given cached batches
@@ -79,8 +78,7 @@ impl ShardedClient {
             .iter_mut()
             .map(|client| Box::pin(client.decode(batches.clone())))
             .collect();
-        // As soon as we receive one response, we can return as all shards will return the same
-        let (result, _, _) = select_all(futures).await;
-        result
+        // all shards return the same message
+        join_all(futures).await.pop().unwrap()
     }
 }
