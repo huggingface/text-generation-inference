@@ -1,0 +1,10 @@
+transformers_commit := b8d969ff47c6a9d40538a6ea33df021953363afc
+
+install-transformers:
+	# Install specific version of transformers with custom cuda kernels
+	pip install --upgrade setuptools
+	pip uninstall transformers -y || true
+	rm -rf transformers || true
+	git clone https://github.com/OlivierDehaene/transformers.git
+	cd transformers && git checkout $(transformers_commit)
+	cd transformers && python setup.py install
