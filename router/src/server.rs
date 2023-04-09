@@ -530,8 +530,8 @@ pub async fn run(
     let duration_matcher = Matcher::Suffix(String::from("duration"));
     let n_duration_buckets = 35;
     let mut duration_buckets = Vec::with_capacity(n_duration_buckets);
-    // Minimum latency in ms
-    let mut value = 0.1;
+    // Minimum duration in seconds
+    let mut value = 0.0001;
     for _ in 0..n_duration_buckets {
         // geometric sequence
         value *= 1.5;
