@@ -18,10 +18,10 @@ from transformers.models.opt.parallel_layers import (
     TensorParallelRowLinear,
 )
 
-from text_generation.models import CausalLMBatch
-from text_generation.pb import generate_pb2
-from text_generation.models.opt import OPT, OPTSharded
-from text_generation.utils import (
+from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.pb import generate_pb2
+from text_generation_server.models.opt import OPT, OPTSharded
+from text_generation_server.utils import (
     NextTokenChooser,
     StoppingCriteria,
     initialize_torch_distributed,
@@ -192,7 +192,7 @@ class GalacticaSharded(OPTSharded):
         self.master = self.rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16
+            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
         else:
             device = torch.device("cpu")
             dtype = torch.float32

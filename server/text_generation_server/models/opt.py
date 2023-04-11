@@ -16,8 +16,8 @@ from transformers.models.opt.parallel_layers import (
     TensorParallelRowLinear,
 )
 
-from text_generation.models import CausalLM
-from text_generation.utils import (
+from text_generation_server.models import CausalLM
+from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
 )
@@ -54,13 +54,13 @@ class OPTSharded(OPT):
         self.master = self.rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16
+            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
         else:
             device = torch.device("cpu")
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left"
+            model_id, revision=revision, padding_side="left", truncation_side="left"
         )
 
         config = AutoConfig.from_pretrained(

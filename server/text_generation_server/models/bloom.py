@@ -62,7 +62,7 @@ class BLOOMSharded(BLOOM):
         self.master = self.rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16
+            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
         else:
             device = torch.device("cpu")
             dtype = torch.float32
