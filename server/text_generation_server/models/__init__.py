@@ -1,4 +1,3 @@
-import os
 import torch
 
 from loguru import logger
@@ -11,6 +10,7 @@ from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOM, BLOOMSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
+from text_generation_server.models.opt import OPT, OPTSharded
 from text_generation_server.models.galactica import Galactica, GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
@@ -36,7 +36,11 @@ __all__ = [
     "GalacticaSharded",
     "GPTNeoxSharded",
     "Seq2SeqLM",
+    "Galactica",
+    "GalacticaSharded",
     "SantaCoder",
+    "OPT",
+    "OPTSharded",
     "T5Sharded",
     "get_model",
 ]
@@ -48,9 +52,11 @@ if FLASH_ATTENTION:
     __all__.append(FlashLlama)
     __all__.append(FlashLlamaSharded)
 
-FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention CUDA kernels to be installed.\n" \
-                          "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) " \
-                          "or install flash attention with `cd server && make install install-flash-attention`"
+FLASH_ATT_ERROR_MESSAGE = (
+    "{} requires Flash Attention CUDA kernels to be installed.\n"
+    "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
+    "or install flash attention with `cd server && make install install-flash-attention`"
+)
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -64,7 +70,7 @@ torch.set_grad_enabled(False)
 
 
 def get_model(
-        model_id: str, revision: Optional[str], sharded: bool, quantize: bool
+    model_id: str, revision: Optional[str], sharded: bool, quantize: bool
 ) -> Model:
     if "facebook/galactica" in model_id:
         if sharded:
@@ -100,12 +106,16 @@ def get_model(
         if sharded:
             if FLASH_ATTENTION:
                 return FlashLlamaSharded(model_id, revision, quantize=quantize)
-            raise NotImplementedError(
-                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Llama")
-            )
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Llama"))
         else:
             llama_cls = FlashLlama if FLASH_ATTENTION else CausalLM
             return llama_cls(model_id, revision, quantize=quantize)
+
+    if config.model_type == "opt":
+        if sharded:
+            return OPTSharded(model_id, revision, quantize=quantize)
+        else:
+            return OPT(model_id, revision, quantize=quantize)
 
     if model_type == "t5":
         if sharded:

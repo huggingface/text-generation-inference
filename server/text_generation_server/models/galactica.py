@@ -19,8 +19,9 @@ from transformers.models.opt.parallel_layers import (
 )
 
 from text_generation_server.models import CausalLM
-from text_generation_server.pb import generate_pb2
 from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.pb import generate_pb2
+from text_generation_server.models.opt import OPT
 from text_generation_server.utils import (
     NextTokenChooser,
     StoppingCriteria,
@@ -158,7 +159,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         )
 
 
-class Galactica(CausalLM):
+class Galactica(OPT):
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
         return GalacticaCausalLMBatch
@@ -192,7 +193,7 @@ class GalacticaSharded(Galactica):
         self.master = self.rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16
+            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
         else:
             device = torch.device("cpu")
             dtype = torch.float32
@@ -253,18 +254,11 @@ class GalacticaSharded(Galactica):
                     slice_ = f.get_slice(name)
 
                     if isinstance(module, TensorParallelColumnLinear):
-                        if param_name == "weight":
-                            size = slice_.get_shape()[0]
-                            block_size = size // world_size
-                            start = rank * block_size
-                            stop = (rank + 1) * block_size
-                            tensor = slice_[start:stop]
-                        else:
-                            size = slice_.get_shape()[0]
-                            block_size = size // world_size
-                            start = rank * block_size
-                            stop = (rank + 1) * block_size
-                            tensor = slice_[start:stop]
+                        size = slice_.get_shape()[0]
+                        block_size = size // world_size
+                        start = rank * block_size
+                        stop = (rank + 1) * block_size
+                        tensor = slice_[start:stop]
                     elif isinstance(module, TensorParallelRowLinear):
                         if param_name == "weight":
                             size = slice_.get_shape()[1]

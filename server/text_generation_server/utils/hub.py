@@ -50,7 +50,6 @@ def try_to_load_from_cache(
 
     refs_dir = repo_cache / "refs"
     snapshots_dir = repo_cache / "snapshots"
-    no_exist_dir = repo_cache / ".no_exist"
 
     # Resolve refs (for instance to convert main to the associated commit sha)
     if refs_dir.is_dir():
@@ -58,10 +57,6 @@ def try_to_load_from_cache(
         if revision_file.exists():
             with revision_file.open() as f:
                 revision = f.read()
-
-    # Check if file is cached as "no_exist"
-    if (no_exist_dir / revision / filename).is_file():
-        return None
 
     # Check if revision folder exists
     if not snapshots_dir.exists():

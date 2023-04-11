@@ -1,7 +1,7 @@
 import torch
 import torch.distributed
 
-from typing import List, Optional, Type
+from typing import List, Optional, Tuple
 
 from accelerate import init_empty_weights
 from safetensors import safe_open
@@ -9,17 +9,14 @@ from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
     AutoConfig,
-    PreTrainedTokenizerBase,
 )
-from transformers.models.bloom.parallel_layers import (
+from transformers.models.opt.parallel_layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
 )
 
 from text_generation_server.models import CausalLM
-from text_generation_server.models.causal_lm import CausalLMBatch
-from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -33,28 +30,23 @@ except Exception as e:
     HAS_BITS_AND_BYTES = False
 
 
-class BloomCausalLMBatch(CausalLMBatch):
-    @classmethod
-    def from_pb(
-        cls,
-        pb: generate_pb2.Batch,
-        tokenizer: PreTrainedTokenizerBase,
-        device: torch.device,
-    ) -> "CausalLMBatch":
-        batch = super(BloomCausalLMBatch, cls).from_pb(
-            pb=pb, tokenizer=tokenizer, device=device
+class OPT(CausalLM):
+    def forward(
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
+        """Overwrite forward to ignore position_ids"""
+
+        # Model Forward
+        outputs = self.model.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
         )
-        batch.keys_head_dim_last = False
-        return batch
+        return outputs.logits, outputs.past_key_values
 
 
-class BLOOM(CausalLM):
-    @property
-    def batch_type(self) -> Type[CausalLMBatch]:
-        return BloomCausalLMBatch
-
-
-class BLOOMSharded(BLOOM):
+class OPTSharded(OPT):
     def __init__(
         self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
@@ -72,9 +64,9 @@ class BLOOMSharded(BLOOM):
         )
 
         config = AutoConfig.from_pretrained(
-            model_id, revision=revision, slow_but_exact=False, tp_parallel=True
+            model_id, revision=revision, tp_parallel=True
         )
-        config.pad_token_id = 3
+        tokenizer.pad_token_id = config.pad_token_id
 
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
@@ -113,11 +105,12 @@ class BLOOMSharded(BLOOM):
                 file, framework="pt", device=str(device) if not quantize else "cpu"
             ) as f:
                 for name in f.keys():
-                    full_name = f"transformer.{name}"
+                    if name == "lm_head.weight":
+                        continue
 
-                    module_name, param_name = full_name.rsplit(".", 1)
+                    module_name, param_name = name.rsplit(".", 1)
                     module = model.get_submodule(module_name)
-                    current_tensor = parameters[full_name]
+                    current_tensor = parameters[name]
 
                     slice_ = f.get_slice(name)
 
@@ -210,7 +203,7 @@ class BLOOMSharded(BLOOM):
                             tensor = tensor.to(device)
 
                     module._parameters[param_name] = tensor
-                    if name == "word_embeddings.weight":
+                    if name == "model.decoder.embed_tokens.weight":
                         model.lm_head._parameters["weight"] = tensor
 
     def forward(
@@ -219,7 +212,6 @@ class BLOOMSharded(BLOOM):
         outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            position_ids=position_ids,
             past_key_values=past_key_values,
             use_cache=True,
         )
