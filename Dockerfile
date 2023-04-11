@@ -30,7 +30,16 @@ RUN cargo build --release
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
-FROM ubuntu:22.04 as dev-base
+FROM ubuntu:22.04 as pytorch-install
+
+ARG PYTORCH_VERSION=2.0.0
+ARG PYTHON_VERSION=3.9
+ARG CUDA_VERSION=11.8
+ARG CUDA_CHANNEL=nvidia
+ARG INSTALL_CHANNEL=pytorch
+# Automatically set by buildx
+ARG TARGETPLATFORM
+
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
@@ -39,15 +48,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         curl \
         git && \
         rm -rf /var/lib/apt/lists/*
-RUN /usr/sbin/update-ccache-symlinks
-RUN mkdir /opt/ccache && ccache --set-config=cache_dir=/opt/ccache
+RUN /usr/sbin/update-ccache-symlinks &&  \
+    mkdir /opt/ccache &&  \
+    ccache --set-config=cache_dir=/opt/ccache
 ENV PATH /opt/conda/bin:$PATH
 
 # Install conda
-FROM dev-base as conda
-ARG PYTHON_VERSION=3.9
-# Automatically set by buildx
-ARG TARGETPLATFORM
 # translating Docker's TARGETPLATFORM into miniconda arches
 RUN case ${TARGETPLATFORM} in \
          "linux/arm64")  MINICONDA_ARCH=aarch64  ;; \
@@ -60,21 +66,11 @@ RUN chmod +x ~/miniconda.sh && \
     rm ~/miniconda.sh
 
 # Install pytorch
-FROM conda as pytorch-install
-ARG PYTHON_VERSION=3.9
-ARG CUDA_VERSION=11.8
-ARG CUDA_CHANNEL=nvidia
-ARG INSTALL_CHANNEL=pytorch
-ARG PYTORCH_VERSION=2.0.0
-# Automatically set by buildx
-RUN /opt/conda/bin/conda update -y conda
-RUN /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -y python=${PYTHON_VERSION}
-ARG TARGETPLATFORM
-
 # On arm64 we exit with an error code
 RUN case ${TARGETPLATFORM} in \
          "linux/arm64")  exit 1 ;; \
-         *)              /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" pytorch==$PYTORCH_VERSION "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
+         *)              /opt/conda/bin/conda update -y conda &&  \
+                         /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" pytorch==$PYTORCH_VERSION "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
     esac && \
     /opt/conda/bin/conda clean -ya
 
@@ -109,26 +105,20 @@ COPY server/Makefile-transformers Makefile
 # Build specific version of transformers
 RUN BUILD_EXTENSIONS="True" make build-transformers
 
-# Final pytorch image
-FROM ubuntu:22.04 as final-pytorch-image
+# Text Generation Inference base image
+FROM ubuntu:22.04 as base
+
 ARG TARGETPLATFORM
 ARG PYTORCH_VERSION=2.0.0
 ARG CUDA_VERSION=11.8
-LABEL com.nvidia.volumes.needed="nvidia_driver"
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ca-certificates \
-        && rm -rf /var/lib/apt/lists/*
-COPY --from=pytorch-install /opt/conda /opt/conda
-ENV PATH /opt/conda/bin:$PATH
-ENV NVIDIA_VISIBLE_DEVICES all
-ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
-ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
-ENV PYTORCH_VERSION ${PYTORCH_VERSION}
-WORKDIR /workspace
 
-# Text Generation Inference base image
-FROM final-pytorch-image as base
+# Conda and CUDA env
+ENV PATH=/opt/conda/bin:$PATH \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+    LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64
 
+# Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     MODEL_ID=bigscience/bloom-560m \
@@ -136,12 +126,17 @@ ENV HUGGINGFACE_HUB_CACHE=/data \
     NUM_SHARD=1 \
     PORT=80
 
+LABEL com.nvidia.volumes.needed="nvidia_driver"
+
+WORKDIR /usr/src
+
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         libssl-dev \
         make \
         && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /usr/src
+# Copy conda with PyTorch installed
+COPY --from=pytorch-install /opt/conda /opt/conda
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
@@ -154,8 +149,6 @@ COPY --from=transformers-builder /usr/src/transformers/build/lib.linux-x86_64-cp
 
 # Install transformers dependencies
 RUN cd /usr/src/transformers && pip install -e . --no-cache-dir
-
-#RUN cd server && make install-flash-attention && BUILD_EXTENSIONS="True" make install-transformers
 
 # Install server
 COPY proto proto
