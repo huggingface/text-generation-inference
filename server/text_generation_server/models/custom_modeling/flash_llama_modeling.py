@@ -233,8 +233,6 @@ class PositionRotaryEmbedding(RotaryEmbedding):
         ):
             self._seq_len_cached = seqlen
             t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
-            # Don't do einsum, it converts fp32 to fp16
-            # freqs = torch.einsum("i,j->ij", t, self.inv_freq)
             freqs = torch.outer(t, self.inv_freq.to(device=t.device))
             self._cos_cached = torch.cos(freqs).to(dtype)
             self._sin_cached = torch.sin(freqs).to(dtype)
