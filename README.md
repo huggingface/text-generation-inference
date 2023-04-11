@@ -54,11 +54,12 @@ to power LLMs api-inference widgets.
 ## Optimized architectures
 
 - [BLOOM](https://huggingface.co/bigscience/bloom)
-- [Galactica](https://huggingface.co/facebook/galactica-120b)
-- [SantaCoder](https://huggingface.co/bigcode/santacoder)
-- [GPT-Neox](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - [FLAN-T5](https://huggingface.co/google/flan-t5-xxl)
+- [Galactica](https://huggingface.co/facebook/galactica-120b)
+- [GPT-Neox](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - [Llama](https://github.com/facebookresearch/llama)
+- [OPT](https://huggingface.co/facebook/opt-66b)
+- [SantaCoder](https://huggingface.co/bigcode/santacoder)
 
 Other architectures are supported on a best effort basis using:
 
