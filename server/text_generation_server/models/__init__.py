@@ -19,8 +19,10 @@ from text_generation_server.models.t5 import T5Sharded
 try:
     from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
     from text_generation_server.models.flash_llama import FlashLlama, FlashLlamaSharded
-    from text_generation_server.models.flash_santacoder import FlashSantacoder, FlashSantacoderSharded
-
+    from text_generation_server.models.flash_santacoder import (
+        FlashSantacoder,
+        FlashSantacoderSharded,
+    )
 
     FLASH_ATTENTION = torch.cuda.is_available()
 except ImportError:
@@ -83,7 +85,9 @@ def get_model(
     if "bigcode" in model_id:
         if sharded:
             if not FLASH_ATTENTION:
-                raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Santacoder"))
+                raise NotImplementedError(
+                    FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Santacoder")
+                )
             return FlashSantacoderSharded(model_id, revision=revision)
         else:
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder

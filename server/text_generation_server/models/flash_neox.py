@@ -64,11 +64,12 @@ class FlashNeoXSharded(FlashNeoX):
             model,
             filenames,
             device=device,
+            dtype=dtype,
             rank=self.rank,
             world_size=self.world_size,
         )
         model.post_load_weights()
-        self.model = model.eval().to(dtype)
+        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -80,6 +81,7 @@ class FlashNeoXSharded(FlashNeoX):
         model,
         filenames: List[str],
         device: torch.device,
+        dtype: torch.dtype,
         rank: int,
         world_size: int,
     ):
@@ -138,7 +140,7 @@ class FlashNeoXSharded(FlashNeoX):
                             f"Name {name} -- Current {current_parameter_tensor.shape} and got {tensor.shape}"
                         )
 
-                    tensor = tensor.contiguous()
+                    tensor = tensor.contiguous().to(dtype)
 
                     if current_parameter_tensor is not None:
                         module._parameters[param_name] = tensor

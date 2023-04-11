@@ -209,7 +209,9 @@ class FlashMQAttention(torch.nn.Module):
             self.num_heads = self.num_heads // process_group.size()
             self.c_attn = FastLinear(hidden_size, self.head_size * (self.num_heads + 2))
             self.c_proj = TensorParallelRowLinear(
-                hidden_size, hidden_size, process_group=process_group,
+                hidden_size,
+                hidden_size,
+                process_group=process_group,
             )
 
     def forward(

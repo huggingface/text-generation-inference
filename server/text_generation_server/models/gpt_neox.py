@@ -64,10 +64,11 @@ class GPTNeoxSharded(CausalLM):
             filenames,
             quantize=quantize,
             device=device,
+            dtype=dtype,
             rank=self.rank,
             world_size=self.world_size,
         )
-        self.model = model.eval().to(dtype)
+        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -80,6 +81,7 @@ class GPTNeoxSharded(CausalLM):
         filenames: List[str],
         quantize: bool,
         device: torch.device,
+        dtype: torch.dtype,
         rank: int,
         world_size: int,
     ):
@@ -140,7 +142,7 @@ class GPTNeoxSharded(CausalLM):
                             f"Name {name} -- Current {current_parameter_tensor.shape} and got {tensor.shape}"
                         )
 
-                    tensor = tensor.contiguous()
+                    tensor = tensor.contiguous().to(dtype)
 
                     if quantize:
                         if not HAS_BITS_AND_BYTES:

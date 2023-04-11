@@ -58,11 +58,7 @@ class FlashSantacoder(FlashCausalLM):
             model = FlashSantacoderForCausalLM(config)
 
         self.load_weights(
-            model,
-            filenames,
-            device,
-            dtype,
-            config.architectures[0].startswith("GPT2")
+            model, filenames, device, dtype, config.architectures[0].startswith("GPT2")
         )
         self.model = model.eval()
 
@@ -77,7 +73,7 @@ class FlashSantacoder(FlashCausalLM):
         filenames: List[Path],
         device: torch.device,
         dtype: torch.dtype,
-        transpose: bool
+        transpose: bool,
     ):
         for filename in filenames:
             state_dict = torch.load(filename, map_location="cpu")
@@ -179,7 +175,9 @@ class FlashSantacoderSharded(FlashSantacoder):
             raise NotImplementedError("FlashSantacoderSharded is only available on GPU")
 
         if quantize:
-            raise NotImplementedError("FlashSantacoderSharded does not support quantization")
+            raise NotImplementedError(
+                "FlashSantacoderSharded does not support quantization"
+            )
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
@@ -247,7 +245,9 @@ class FlashSantacoderSharded(FlashSantacoder):
                         block_size = size // world_size
                         start = rank * block_size
                         stop = (rank + 1) * block_size
-                        tensor = slice_[start:stop] if dim == 0 else slice_[:, start:stop]
+                        tensor = (
+                            slice_[start:stop] if dim == 0 else slice_[:, start:stop]
+                        )
                     elif isinstance(module, TensorParallelRowLinear):
                         if param_name == "weight":
                             dim = 0 if transpose else 1
@@ -255,7 +255,11 @@ class FlashSantacoderSharded(FlashSantacoder):
                             block_size = size // world_size
                             start = rank * block_size
                             stop = (rank + 1) * block_size
-                            tensor = slice_[start:stop] if dim == 0 else slice_[:, start:stop]
+                            tensor = (
+                                slice_[start:stop]
+                                if dim == 0
+                                else slice_[:, start:stop]
+                            )
                         else:
                             tensor = slice_[:]
                             # XXX: Hack for Rowlinear to add the bias only once.
