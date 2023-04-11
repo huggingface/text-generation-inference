@@ -91,6 +91,9 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
+          build-args:
+            - KERNEL_BUILDER_IMAGE=registry.internal.huggingface.tech/pytorch-base-images/kernel-builder:2.0.0-cuda11.8
+            - PYTORCH_IMAGE=registry.internal.huggingface.tech/pytorch-base-images/torch:2.0.0-cuda11.8
           file: Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           platforms: 'linux/amd64'
