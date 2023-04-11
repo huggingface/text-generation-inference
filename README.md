@@ -51,16 +51,14 @@ to power LLMs api-inference widgets.
 - Log probabilities
 - Production ready (distributed tracing with Open Telemetry, Prometheus metrics)
 
-## Officially supported architectures
+## Optimized architectures
 
 - [BLOOM](https://huggingface.co/bigscience/bloom)
-- [BLOOMZ](https://huggingface.co/bigscience/bloomz)
-- [MT0-XXL](https://huggingface.co/bigscience/mt0-xxl)
 - [Galactica](https://huggingface.co/facebook/galactica-120b)
 - [SantaCoder](https://huggingface.co/bigcode/santacoder)
-- [GPT-Neox 20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
-- [FLAN-T5-XXL](https://huggingface.co/google/flan-t5-xxl)
-- [FLAN-UL2](https://huggingface.co/google/flan-ul2)
+- [GPT-Neox](https://huggingface.co/EleutherAI/gpt-neox-20b)
+- [FLAN-T5](https://huggingface.co/google/flan-t5-xxl)
+- [Llama](https://github.com/facebookresearch/llama)
 
 Other architectures are supported on a best effort basis using:
 

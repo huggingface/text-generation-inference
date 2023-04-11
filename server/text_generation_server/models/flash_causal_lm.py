@@ -44,6 +44,8 @@ class FlashCausalLMBatch(Batch):
 
     # Lengths of all generations present in the batch
     input_lengths: List[int]
+    offsets: List[Optional[int]]
+    token_offsets: List[Optional[int]]
 
     # Generation helpers
     next_token_choosers: List[NextTokenChooser]
@@ -67,6 +69,8 @@ class FlashCausalLMBatch(Batch):
         max_seqlen = 0
 
         input_lengths = []
+        offsets = []
+        token_offsets = []
         all_input_ids = []
         all_input_ids_tensor = []
 
@@ -84,6 +88,8 @@ class FlashCausalLMBatch(Batch):
             input_length = len(tokenized_input)
             max_seqlen = max(max_seqlen, input_length)
             input_lengths.append(input_length)
+            offsets.append(None)
+            token_offsets.append(None)
             all_input_ids.append(tokenized_input)
 
             tokenized_input = torch.tensor(tokenized_input, device=device)
@@ -120,6 +126,8 @@ class FlashCausalLMBatch(Batch):
             max_seqlen=max_seqlen,
             past_key_values=None,
             input_lengths=input_lengths,
+            offsets=offsets,
+            token_offsets=token_offsets,
             all_input_ids=all_input_ids,
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
@@ -132,6 +140,8 @@ class FlashCausalLMBatch(Batch):
         # Batch attributes
         requests = []
         input_lengths = []
+        offsets = []
+        token_offsets = []
         all_input_ids = []
         all_input_ids_tensor = []
         next_token_choosers = []
@@ -150,6 +160,8 @@ class FlashCausalLMBatch(Batch):
         for i, batch in enumerate(batches):
             requests.extend(batch.requests)
             input_lengths.extend(batch.input_lengths)
+            offsets.extend(batch.offsets)
+            token_offsets.extend(batch.token_offsets)
             all_input_ids.extend(batch.all_input_ids)
             all_input_ids_tensor.extend(batch.all_input_ids_tensor)
             next_token_choosers.extend(batch.next_token_choosers)
@@ -182,6 +194,8 @@ class FlashCausalLMBatch(Batch):
             max_seqlen=max_seqlen,
             past_key_values=past_key_values,
             input_lengths=input_lengths,
+            offsets=offsets,
+            token_offsets=token_offsets,
             all_input_ids=all_input_ids,
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
@@ -279,6 +293,8 @@ class FlashCausalLM(Model):
         next_batch_max_seqlen = 0
         next_batch_past_key_values = []
         next_batch_input_lengths = []
+        next_batch_offsets = []
+        next_batch_token_offsets = []
         next_batch_all_input_ids = []
         next_batch_all_input_ids_tensor = []
 
@@ -292,6 +308,8 @@ class FlashCausalLM(Model):
         iterator = zip(
             batch.requests,
             batch.input_lengths,
+            batch.offsets,
+            batch.token_offsets,
             batch.next_token_choosers,
             batch.stopping_criterias,
             batch.all_input_ids,
@@ -302,6 +320,8 @@ class FlashCausalLM(Model):
         for i, (
             request,
             input_length,
+            offset,
+            token_offset,
             next_token_chooser,
             stopping_criteria,
             all_input_ids,
@@ -334,8 +354,10 @@ class FlashCausalLM(Model):
 
             # Generated token
             next_token_logprob = logprobs[-1, next_token_id_item]
-            next_token_text = self.decode_token(
-                next_token_id_item,
+            next_token_text, offset, token_offset = self.decode_token(
+                all_input_ids,
+                offset,
+                token_offset,
             )
 
             # Evaluate stopping criteria
@@ -376,6 +398,8 @@ class FlashCausalLM(Model):
                     next_batch_cu_seqlens[-1] + new_input_length
                 )
                 next_batch_input_lengths.append(new_input_length)
+                next_batch_offsets.append(offset)
+                next_batch_token_offsets.append(token_offset)
                 next_batch_all_input_ids.append(all_input_ids)
                 next_batch_all_input_ids_tensor.append(all_input_ids_tensor)
                 next_batch_max_seqlen = max(next_batch_max_seqlen, new_input_length)
@@ -452,6 +476,8 @@ class FlashCausalLM(Model):
             max_seqlen=next_batch_max_seqlen,
             past_key_values=next_batch_past_key_values,
             input_lengths=next_batch_input_lengths,
+            offsets=next_batch_offsets,
+            token_offsets=next_batch_token_offsets,
             all_input_ids=next_batch_all_input_ids,
             all_input_ids_tensor=next_batch_all_input_ids_tensor,
             next_token_choosers=next_batch_next_token_choosers,

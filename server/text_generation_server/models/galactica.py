@@ -93,7 +93,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
-        input_lengths = []
+        offsets = []
+        token_offsets = []
 
         # Parse batch
         max_truncation = 0
@@ -101,7 +102,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         for r in pb.requests:
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
-            input_lengths.append(r.input_length)
+            offsets.append(None)
+            token_offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -146,6 +148,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             past_key_values=None,
             all_input_ids=all_input_ids,
             input_lengths=input_lengths,
+            offsets=offsets,
+            token_offsets=token_offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             size=pb.size,
