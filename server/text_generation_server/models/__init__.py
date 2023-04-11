@@ -83,9 +83,7 @@ def get_model(
     if "bigcode" in model_id:
         if sharded:
             if not FLASH_ATTENTION:
-                raise NotImplementedError(
-                    "sharded is not supported for Santacoder when FLASH_ATTENTION=0"
-                )
+                raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Santacoder"))
             return FlashSantacoderSharded(model_id, revision=revision)
         else:
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder

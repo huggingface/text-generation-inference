@@ -376,7 +376,12 @@ class FlashMLP(nn.Module):
         self.act = (
             ACT2FN[act]
             if "gelu" not in act
-            else lambda x: torch.nn.functional.gelu(x, approximate="tanh")
+            else lambda x: torch.nn.functional.gelu(
+                x,
+                approximate="tanh"
+                if act in ["gelu_fast", "gelu_pytorch_tanh"]
+                else "none",
+            )
         )
 
         if process_group is None:
