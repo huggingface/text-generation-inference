@@ -62,8 +62,7 @@ class FlashSantacoder(FlashCausalLM):
         self.model = model.eval().to(device).to(dtype)
 
         super(FlashCausalLM, self).__init__(
-            tokenizer=tokenizer,
-            device=device,
+            tokenizer=tokenizer, device=device, decode_buffer=1
         )
 
     @staticmethod

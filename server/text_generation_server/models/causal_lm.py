@@ -291,7 +291,13 @@ class CausalLMBatch(Batch):
 
 
 class CausalLM(Model):
-    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+    def __init__(
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: bool = False,
+        decode_buffer: int = 3,
+    ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
@@ -319,8 +325,7 @@ class CausalLM(Model):
         )
 
         super(CausalLM, self).__init__(
-            tokenizer=tokenizer,
-            device=device,
+            tokenizer=tokenizer, device=device, decode_buffer=decode_buffer
         )
 
     @property

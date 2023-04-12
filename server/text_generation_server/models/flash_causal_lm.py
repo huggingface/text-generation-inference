@@ -212,7 +212,8 @@ class FlashCausalLM(Model):
         model_cls: Type[PreTrainedModel],
         model_id: str,
         revision: Optional[str] = None,
-        quantize=False,
+        quantize: bool = False,
+        decode_buffer: int = 3,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -237,8 +238,7 @@ class FlashCausalLM(Model):
         )
 
         super(FlashCausalLM, self).__init__(
-            tokenizer=tokenizer,
-            device=device,
+            tokenizer=tokenizer, device=device, decode_buffer=decode_buffer
         )
 
     @property

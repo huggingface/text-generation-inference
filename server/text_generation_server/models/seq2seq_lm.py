@@ -330,7 +330,13 @@ class Seq2SeqLMBatch(Batch):
 
 
 class Seq2SeqLM(Model):
-    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+    def __init__(
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: bool = False,
+        decode_buffer: int = 3,
+    ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
@@ -354,8 +360,7 @@ class Seq2SeqLM(Model):
         tokenizer.bos_token_id = self.model.config.decoder_start_token_id
 
         super(Seq2SeqLM, self).__init__(
-            tokenizer=tokenizer,
-            device=device,
+            tokenizer=tokenizer, device=device, decode_buffer=decode_buffer
         )
 
     @property
@@ -496,7 +501,7 @@ class Seq2SeqLM(Model):
             if stop:
                 # Slice with decoder_input_length to remove padding
                 # Decode all tokens
-                output_text = self.decode(decoder_input_ids[-new_decoder_input_length:])
+                output_text = self.decode(decoder_input_ids[-decoder_input_length:])
 
                 # Get seed
                 if isinstance(next_token_chooser.choice, Sampling):
