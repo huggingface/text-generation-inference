@@ -1,6 +1,8 @@
 import torch
 import torch.distributed
 
+import torch.nn.functional as F
+
 from torch import nn
 from transformers.activations import ACT2FN
 
@@ -65,6 +67,127 @@ class FastLinear(nn.Linear):
         return torch.matmul(input, self.weight)
 
 
+class TensorParallelColumnLinear(FastLinear):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        process_group: torch.distributed.ProcessGroup,
+        bias=True,
+        device=None,
+        dtype=None,
+    ):
+        self.process_group = process_group
+        self.tp_world_size = process_group.size()
+        assert out_features % self.tp_world_size == 0
+        out_features = out_features // self.tp_world_size
+
+        super().__init__(
+            in_features=in_features,
+            out_features=out_features,
+            bias=bias,
+            device=device,
+            dtype=dtype,
+        )
+
+
+class TensorParallelRowLinear(FastLinear):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        process_group: torch.distributed.ProcessGroup,
+        reduce=True,
+        bias=True,
+        device=None,
+        dtype=None,
+    ):
+        self.process_group = process_group
+        self.tp_world_size = process_group.size()
+        self.reduce = reduce
+        assert in_features % self.tp_world_size == 0
+        in_features = in_features // self.tp_world_size
+
+        super().__init__(
+            in_features=in_features,
+            out_features=out_features,
+            bias=bias,
+            device=device,
+            dtype=dtype,
+        )
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        out = super(TensorParallelRowLinear, self).forward(input)
+        if self.reduce:
+            torch.distributed.all_reduce(out, group=self.process_group)
+
+        return out
+
+
+class TensorParallelEmbedding(nn.Embedding):
+    def __init__(
+        self,
+        num_embeddings,
+        embedding_dim,
+        process_group: torch.distributed.ProcessGroup,
+        reduce=True,
+        padding_idx=None,
+        max_norm=None,
+        norm_type=2.0,
+        scale_grad_by_freq=False,
+        sparse=False,
+        _weight=None,
+        device=None,
+        dtype=None,
+    ):
+        self.process_group = process_group
+        self.tp_rank = process_group.rank()
+        self.tp_world_size = process_group.size()
+        self.reduce = reduce
+
+        self.original_num_embeddings = num_embeddings
+
+        assert num_embeddings % self.tp_world_size == 0
+        block_size = num_embeddings // self.tp_world_size
+        # inputs in `[min_id, max_id[` are handled by `self` to get embeddings
+        self.min_id = self.tp_rank * block_size
+        self.max_id = (self.tp_rank + 1) * block_size
+
+        # Additional entry that will map to zero
+        # Used for masking
+        self.null_idx = block_size
+
+        super().__init__(
+            block_size,
+            embedding_dim,
+            padding_idx=padding_idx,
+            max_norm=max_norm,
+            norm_type=norm_type,
+            scale_grad_by_freq=scale_grad_by_freq,
+            sparse=sparse,
+            _weight=_weight,
+            device=device,
+            dtype=dtype,
+        )
+
+    def add_null_idx(self):
+        """Additional 0 entry used for masking"""
+        self.weight = nn.Parameter(F.pad(self.weight, (0, 0, 0, 1)))
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # default all out of bounds values to `self.null_idx` that will then be mapped to 0
+        # translate for [0, self.max_id - self.min_id[
+        input = torch.where(
+            (self.min_id > input) | (input >= self.max_id),
+            self.null_idx,
+            input - self.min_id,
+        )
+        out = super().forward(input)
+        if self.reduce:
+            torch.distributed.all_reduce(out, group=self.process_group)
+        return out
+
+
 class FlashMQAttention(torch.nn.Module):
     def __init__(
         self,
@@ -80,10 +203,16 @@ class FlashMQAttention(torch.nn.Module):
         self.softmax_scale = self.head_size ** (-0.5)
 
         if process_group is None:
-            self.attn = FastLinear(hidden_size, hidden_size + 2 * self.head_size)
+            self.c_attn = FastLinear(hidden_size, hidden_size + 2 * self.head_size)
             self.c_proj = FastLinear(hidden_size, hidden_size)
         else:
-            raise NotImplementedError
+            self.num_heads = self.num_heads // process_group.size()
+            self.c_attn = FastLinear(hidden_size, self.head_size * (self.num_heads + 2))
+            self.c_proj = TensorParallelRowLinear(
+                hidden_size,
+                hidden_size,
+                process_group=process_group,
+            )
 
     def forward(
         self,
@@ -94,10 +223,12 @@ class FlashMQAttention(torch.nn.Module):
         layer_past_present_indices,
         cu_seqlens_q,
     ):
-        qkv = self.attn(hidden_states)
+        qkv = self.c_attn(hidden_states)
 
         # Split query from key_value
-        query, key_value = qkv.split([self.hidden_size, 2 * self.head_size], dim=1)
+        query, key_value = qkv.split(
+            [self.head_size * self.num_heads, 2 * self.head_size], dim=1
+        )
 
         # Prepare query and key_value for indexing
         query = query.view(-1, self.num_heads, self.head_size)
@@ -171,7 +302,7 @@ class MLP(nn.Module):
                 x,
                 approximate="tanh"
                 if act in ["gelu_fast", "gelu_pytorch_tanh"]
-                else None,
+                else "none",
             )
         )
 
@@ -179,7 +310,16 @@ class MLP(nn.Module):
             self.c_fc = FastLinear(hidden_size, intermediate_size)
             self.c_proj = FastLinear(intermediate_size, hidden_size)
         else:
-            raise NotImplementedError
+            self.c_fc = TensorParallelColumnLinear(
+                hidden_size,
+                intermediate_size,
+                process_group=process_group,
+            )
+            self.c_proj = TensorParallelRowLinear(
+                intermediate_size,
+                hidden_size,
+                process_group=process_group,
+            )
 
     def forward(self, hidden_states):
         hidden_states = self.c_fc(hidden_states)
@@ -246,11 +386,30 @@ class FlashSantacoderModel(nn.Module):
         super().__init__()
         self.config = config
 
+        self.process_group = process_group
+        self.tp_embeddings = False
         if process_group is not None:
-            raise NotImplementedError
+            self.tp_rank = process_group.rank()
+            self.tp_world_size = process_group.size()
+            if config.vocab_size % self.tp_world_size == 0:
+                self.tp_embeddings = True
 
-        self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.wpe = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+        if self.tp_embeddings:
+            self.wte = TensorParallelEmbedding(
+                config.vocab_size,
+                config.hidden_size,
+                reduce=False,
+                process_group=process_group,
+            )
+            self.wpe = TensorParallelEmbedding(
+                config.max_position_embeddings,
+                config.hidden_size,
+                reduce=False,
+                process_group=process_group,
+            )
+        else:
+            self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
+            self.wpe = nn.Embedding(config.max_position_embeddings, config.hidden_size)
 
         self.h = nn.ModuleList(
             [
@@ -273,9 +432,12 @@ class FlashSantacoderModel(nn.Module):
         self.num_heads = self.h[0].attn.num_heads
 
     def post_load_weights(self):
+        if self.tp_embeddings:
+            self.wte.add_null_idx()
+            self.wpe.add_null_idx()
         for layer in self.h:
             layer: Block
-            layer.attn.attn.transpose_weight()
+            layer.attn.c_attn.transpose_weight()
             layer.attn.c_proj.transpose_weight()
             layer.mlp.c_fc.transpose_weight()
             layer.mlp.c_proj.transpose_weight()
@@ -289,6 +451,8 @@ class FlashSantacoderModel(nn.Module):
         past_key_values=None,
     ):
         hidden_states = self.wte(input_ids) + self.wpe(position_ids)
+        if self.tp_embeddings:
+            torch.distributed.all_reduce(hidden_states, group=self.process_group)
 
         # Prefill
         if past_key_values is None:
@@ -335,7 +499,14 @@ class FlashSantacoderForCausalLM(nn.Module):
 
         self.transformer = FlashSantacoderModel(config, process_group)
 
-        self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
+        if self.transformer.tp_embeddings:
+            self.lm_head = FastLinear(
+                config.hidden_size,
+                config.vocab_size // process_group.size(),
+                bias=False,
+            )
+        else:
+            self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
 
     def post_load_weights(self):
         self.transformer.post_load_weights()
@@ -352,4 +523,18 @@ class FlashSantacoderForCausalLM(nn.Module):
         hidden_states, present = self.transformer(
             input_ids, position_ids, cu_seqlens, max_s, past_key_values
         )
-        return self.lm_head(hidden_states), present
+        logits = self.lm_head(hidden_states)
+
+        if self.transformer.tp_embeddings:
+            # Logits are sharded, so we need to gather them
+            world_logits = [
+                torch.empty_like(logits) for _ in range(self.transformer.tp_world_size)
+            ]
+            torch.distributed.all_gather(
+                world_logits, logits, group=self.transformer.process_group
+            )
+            world_logits = torch.cat(world_logits, dim=1)
+
+            return world_logits, present
+
+        return logits, present

@@ -5,7 +5,7 @@ from accelerate import init_empty_weights
 from opentelemetry import trace
 from safetensors import safe_open
 from transformers import AutoTokenizer, AutoConfig
-from typing import Optional, Tuple, List
+from typing import Optional, List
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_neox_modeling import (
@@ -63,13 +63,13 @@ class FlashNeoXSharded(FlashNeoX):
         self.load_weights(
             model,
             filenames,
-            quantize=quantize,
             device=device,
+            dtype=dtype,
             rank=self.rank,
             world_size=self.world_size,
         )
         model.post_load_weights()
-        self.model = model.eval().to(dtype)
+        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -80,16 +80,14 @@ class FlashNeoXSharded(FlashNeoX):
     def load_weights(
         model,
         filenames: List[str],
-        quantize: bool,
         device: torch.device,
+        dtype: torch.dtype,
         rank: int,
         world_size: int,
     ):
         parameters = dict(model.named_parameters())
         for file in filenames:
-            with safe_open(
-                file, framework="pt", device=str(device) if not quantize else "cpu"
-            ) as f:
+            with safe_open(file, framework="pt", device=str(device)) as f:
                 for name in f.keys():
                     module_name, param_name = name.rsplit(".", 1)
                     module = model.get_submodule(module_name)
@@ -142,7 +140,7 @@ class FlashNeoXSharded(FlashNeoX):
                             f"Name {name} -- Current {current_parameter_tensor.shape} and got {tensor.shape}"
                         )
 
-                    tensor = tensor.contiguous()
+                    tensor = tensor.contiguous().to(dtype)
 
                     if current_parameter_tensor is not None:
                         module._parameters[param_name] = tensor

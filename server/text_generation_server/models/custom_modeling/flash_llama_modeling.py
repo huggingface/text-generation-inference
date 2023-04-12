@@ -373,7 +373,7 @@ class LlamaMLP(nn.Module):
                 x,
                 approximate="tanh"
                 if act in ["gelu_fast", "gelu_pytorch_tanh"]
-                else None,
+                else "none",
             )
         )
 
