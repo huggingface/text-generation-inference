@@ -54,8 +54,7 @@ class SantaCoder(CausalLM):
         )
 
         super(CausalLM, self).__init__(
-            tokenizer=tokenizer,
-            device=device,
+            tokenizer=tokenizer, device=device, decode_buffer=1
         )
 
     def decode(self, generated_ids: List[int]) -> str:

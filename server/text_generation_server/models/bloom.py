@@ -49,6 +49,11 @@ class BloomCausalLMBatch(CausalLMBatch):
 
 
 class BLOOM(CausalLM):
+    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+        super(BLOOM, self).__init__(
+            model_id=model_id, revision=revision, quantize=quantize, decode_buffer=1
+        )
+
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
         return BloomCausalLMBatch
@@ -94,8 +99,7 @@ class BLOOMSharded(BLOOM):
         self.model = model.eval().to(dtype)
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
-            tokenizer=tokenizer,
-            device=device,
+            tokenizer=tokenizer, device=device, decode_buffer=1
         )
 
     @staticmethod

@@ -853,7 +853,7 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "grpc-metadata"
-version = "0.4.1"
+version = "0.1.0"
 dependencies = [
  "opentelemetry",
  "tonic",
@@ -2140,7 +2140,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "0.4.3"
+version = "0.5.0"
 dependencies = [
  "futures",
  "grpc-metadata",
