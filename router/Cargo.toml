@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 async-stream = "0.3.3"
 axum = { version = "0.6.4", features = ["json"] }
-axum-tracing-opentelemetry = "0.9.0"
+axum-tracing-opentelemetry = "0.10.0"
 text-generation-client = { path = "client" }
 clap = { version = "4.1.4", features = ["derive", "env"] }
 flume = "0.10.14"
@@ -32,7 +32,7 @@ serde_json = "1.0.93"
 thiserror = "1.0.38"
 tokenizers = "0.13.3"
 tokio = { version = "1.25.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
-tower-http = { version = "0.3.5", features = ["cors"] }
+tower-http = { version = "0.4.0", features = ["cors"] }
 tracing = "0.1.37"
 tracing-opentelemetry = "0.18.0"
 tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }
