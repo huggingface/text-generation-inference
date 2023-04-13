@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   build-and-push-image:
-    runs-on: ubuntu-latest
+    runs-on: large
     permissions:
       contents: read
       packages: write
@@ -133,7 +133,7 @@ jobs:
   build-and-push-sagemaker-image:
     needs:
       - build-and-push-image
-    runs-on: ubuntu-latest
+    runs-on: large
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
