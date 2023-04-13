@@ -176,16 +176,16 @@ dependencies = [
 
 [[package]]
 name = "axum-tracing-opentelemetry"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a43f5b506fc945900d08e541de14b5b9c82860637702ae082888b0fc2654d86"
+checksum = "164b95427e83b79583c7699a72b4a6b485a12bbdef5b5c054ee5ff2296d82f52"
 dependencies = [
  "axum",
  "futures",
  "http",
  "opentelemetry",
  "tower",
- "tower-http",
+ "tower-http 0.3.5",
  "tracing",
  "tracing-opentelemetry",
 ]
@@ -2424,7 +2424,7 @@ dependencies = [
  "thiserror",
  "tokenizers",
  "tokio",
- "tower-http",
+ "tower-http 0.4.0",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -2686,6 +2686,24 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d1d42a9b3f3ec46ba828e8d376aec14592ea199f70a06a548587ecd1c4ab658"
+dependencies = [
+ "bitflags",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-range-header",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]
