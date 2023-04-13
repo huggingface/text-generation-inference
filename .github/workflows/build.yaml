@@ -28,11 +28,12 @@ jobs:
   build-and-push-image:
     runs-on: large
     permissions:
-      contents: read
+      contents: write
       packages: write
       # This is used to complete the identity challenge
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
+      security-events: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -116,6 +117,7 @@ jobs:
           format: 'github'
           output: 'dependency-results.sbom.json'
           github-pat: ${{ secrets.GITHUB_TOKEN }}
+          scanners: 'vuln'
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         if: ${{ github.event_name != 'pull_request' }}
@@ -124,6 +126,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL'
+          scanners: 'vuln'
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         if: ${{ github.event_name != 'pull_request' }}
