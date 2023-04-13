@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   build-and-push-image:
-    runs-on: large-runner
+    runs-on: large
     permissions:
       contents: read
       packages: write
