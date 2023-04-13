@@ -119,6 +119,7 @@ jobs:
           format: 'github'
           output: 'dependency-results.sbom.json'
           github-pat: ${{ secrets.GITHUB_TOKEN }}
+          scanners: vuln
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         if: ${{ github.event_name != 'pull_request' }}
@@ -127,6 +128,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL'
+          scanners: vuln
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         if: ${{ github.event_name != 'pull_request' }}
@@ -136,7 +138,7 @@ jobs:
   build-and-push-sagemaker-image:
     needs:
       - build-and-push-image
-    runs-on: large
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
