@@ -349,8 +349,8 @@ fn main() -> ExitCode {
             Err(TryRecvError::Empty) => {
                 sleep(Duration::from_millis(100));
             }
-            Ok(ShardStatus::Failed(rank)) => {
-                tracing::error!("Shard {} failed to start.", rank);
+            Ok(ShardStatus::Failed((rank, err))) => {
+                tracing::error!("Shard {} failed to start:\n{}", rank, err);
                 shutdown_shards(shutdown, &shutdown_receiver);
                 return ExitCode::FAILURE;
             }
@@ -457,8 +457,8 @@ fn main() -> ExitCode {
     let mut exit_code = ExitCode::SUCCESS;
 
     while running.load(Ordering::SeqCst) {
-        if let Ok(ShardStatus::Failed(rank)) = status_receiver.try_recv() {
-            tracing::error!("Shard {rank} failed.");
+        if let Ok(ShardStatus::Failed((rank, err))) = status_receiver.try_recv() {
+            tracing::error!("Shard {rank} failed:\n{err}");
             exit_code = ExitCode::FAILURE;
             break;
         };
@@ -488,7 +488,7 @@ fn main() -> ExitCode {
 #[derive(Debug)]
 enum ShardStatus {
     Ready,
-    Failed(usize),
+    Failed((usize, String)),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -627,7 +627,9 @@ fn shard_manager(
                     tracing::error!("Please install it with `make install-server`")
                 }
             }
-            status_sender.send(ShardStatus::Failed(rank)).unwrap();
+            status_sender
+                .send(ShardStatus::Failed((rank, err.to_string())))
+                .unwrap();
             return;
         }
     };
@@ -656,7 +658,11 @@ fn shard_manager(
     loop {
         // Process exited
         if p.poll().is_some() {
-            status_sender.send(ShardStatus::Failed(rank)).unwrap();
+            let mut err = String::new();
+            p.stderr.take().unwrap().read_to_string(&mut err).unwrap();
+            status_sender
+                .send(ShardStatus::Failed((rank, err)))
+                .unwrap();
             return;
         }
 
