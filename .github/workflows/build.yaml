@@ -108,6 +108,26 @@ jobs:
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
         run: echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign {}@${{ steps.build-and-push.outputs.digest }}
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL'
+
+      - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}'
+          format: 'github'
+          output: 'dependency-results.sbom.json'
+          github-pat: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
 
   build-and-push-sagemaker-image:
     needs:
