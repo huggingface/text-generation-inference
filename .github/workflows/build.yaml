@@ -118,6 +118,7 @@ jobs:
           github-pat: ${{ secrets.GITHUB_TOKEN }}
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
+        if: ${{ github.event_name != 'pull_request' }}
         with:
           image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}'
           format: 'sarif'
