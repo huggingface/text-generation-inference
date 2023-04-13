@@ -49,6 +49,7 @@ jobs:
         with:
           cosign-release: 'v1.13.1'
       - name: Tailscale
+        if: github.event_name != 'pull_request'
         uses: tailscale/github-action@v1
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
@@ -60,13 +61,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Login to internal Container Registry
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
           password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
           registry: registry.internal.huggingface.tech
       - name: Login to Azure Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.AZURE_DOCKER_USERNAME }}
@@ -97,8 +98,8 @@ jobs:
           platforms: 'linux/amd64'
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
-          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max,compression=zstd
+          cache-from: type=registry,ref=db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:cache,mode=max
+          cache-to: type=registry,ref=db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:cache,mode=max
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker
       # repository is public to avoid leaking data.
@@ -146,16 +147,12 @@ jobs:
           install: true
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
-      - name: Tailscale
-        uses: tailscale/github-action@v1
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-      - name: Login to internal Container Registry
+      - name: Login to Azure Container Registry
         uses: docker/login-action@v2.1.0
         with:
-          username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
-          password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
-          registry: registry.internal.huggingface.tech
+          username: ${{ secrets.AZURE_DOCKER_USERNAME }}
+          password: ${{ secrets.AZURE_DOCKER_PASSWORD }}
+          registry: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v4.3.0
@@ -179,4 +176,4 @@ jobs:
           target: sagemaker
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
+          cache-from: type=registry,ref=db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:cache,mode=max
