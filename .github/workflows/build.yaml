@@ -45,9 +45,7 @@ jobs:
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@f3c664df7af409cb4873aa5068053ba9d61a57b6 #v2.6.0
-        with:
-          cosign-release: 'v1.13.1'
+        uses: sigstore/cosign-installer@v3.0.2
       - name: Tailscale
         uses: tailscale/github-action@v1
         with:
@@ -97,7 +95,7 @@ jobs:
           platforms: 'linux/amd64'
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference:cache,mode=max
+          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
           cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker
