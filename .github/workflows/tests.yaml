@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   run_tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     env:
       SCCACHE_GHA_ENABLED: "on"

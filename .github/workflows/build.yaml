@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   build-and-push-image:
-    runs-on: large
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
@@ -45,9 +45,7 @@ jobs:
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@f3c664df7af409cb4873aa5068053ba9d61a57b6 #v2.6.0
-        with:
-          cosign-release: 'v1.13.1'
+        uses: sigstore/cosign-installer@v3.0.2
       - name: Tailscale
         uses: tailscale/github-action@v1
         with:
@@ -66,7 +64,7 @@ jobs:
           password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
           registry: registry.internal.huggingface.tech
       - name: Login to Azure Container Registry
-        if: github.event_name != 'pull_request'
+#        if: github.event_name != 'pull_request'
         uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.AZURE_DOCKER_USERNAME }}
@@ -136,7 +134,7 @@ jobs:
   build-and-push-sagemaker-image:
     needs:
       - build-and-push-image
-    runs-on: large
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
