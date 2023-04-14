@@ -106,7 +106,7 @@ COPY server/Makefile-transformers Makefile
 RUN BUILD_EXTENSIONS="True" make build-transformers
 
 # Text Generation Inference base image
-FROM ubuntu:22.04 as base
+FROM debian:bullseye-slim as base
 
 ARG TARGETPLATFORM
 ARG PYTORCH_VERSION=2.0.0
