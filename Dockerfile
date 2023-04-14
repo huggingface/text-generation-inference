@@ -132,6 +132,7 @@ WORKDIR /usr/src
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         libssl-dev \
+        ca-certificates \
         make \
         && rm -rf /var/lib/apt/lists/*
 
@@ -148,7 +149,7 @@ COPY --from=transformers-builder /usr/src/transformers /usr/src/transformers
 COPY --from=transformers-builder /usr/src/transformers/build/lib.linux-x86_64-cpython-39/transformers /usr/src/transformers/src/transformers
 
 # Install transformers dependencies
-RUN cd /usr/src/transformers && pip install -e . --no-cache-dir
+RUN cd /usr/src/transformers && pip install -e . --no-cache-dir && pip install einops --no-cache-dir
 
 # Install server
 COPY proto proto

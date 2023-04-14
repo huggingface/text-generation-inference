@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   build-and-push-image:
-    runs-on: ubuntu-latest
+    runs-on: large-runner
     permissions:
       contents: write
       packages: write
