@@ -7,9 +7,8 @@ use futures::future::try_join_all;
 use futures::stream::StreamExt;
 use nohash_hasher::IntMap;
 use std::sync::Arc;
-use text_generation_client::{
-    Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
-};
+use flume::SendError;
+use text_generation_client::{Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient};
 use thiserror::Error;
 use tokio::sync::{Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
@@ -339,7 +338,21 @@ async fn prefill(
 
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
-            send_generations(generations, entries);
+            filter_send_generations(generations, entries);
+
+            let next_batch = {
+                let mut batch = next_batch.expect("next_batch is None. This is a bug.");
+
+                batch.requests = batch.requests.into_iter().filter(|r| { entries.contains_key(&r.id) }).collect();
+                let size = batch.requests.len();
+                if size == 0 {
+                    let _ = client.clear_cache(Some(batch.id)).await;
+                    return None;
+                }
+                batch.size = size as u32;
+                Some(batch)
+            };
+
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "prefill");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
             next_batch
@@ -361,17 +374,35 @@ async fn decode(
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     let start_time = Instant::now();
+    let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "decode");
 
     match client.decode(batches).await {
         Ok((generations, next_batch)) => {
-            send_generations(generations, entries);
+            filter_send_generations(generations, entries);
+
+            let next_batch = {
+                let mut batch = next_batch.expect("next_batch is None. This is a bug.");
+
+                batch.requests = batch.requests.into_iter().filter(|r| { entries.contains_key(&r.id) }).collect();
+                let size = batch.requests.len();
+                if size == 0 {
+                    let _ = client.clear_cache(Some(batch.id)).await;
+                    return None;
+                }
+                batch.size = size as u32;
+                Some(batch)
+            };
+
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "decode");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
             next_batch
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
+            for id in batch_ids {
+                let _ = client.clear_cache(Some(id)).await;
+            }
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "decode");
             None
@@ -398,62 +429,64 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
 }
 
 /// Send one or multiple `InferStreamResponse` to Infer for all `entries`
+/// and filter entries
 #[instrument(skip_all)]
-fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
+fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
     generations.into_iter().for_each(|generation| {
+        let id = generation.request_id;
         // Get entry
         // We can `expect` here as the request id should always be in the entries
         let entry = entries
-            .get(&generation.request_id)
+            .get(&id)
             .expect("ID not found in entries. This is a bug.");
 
         // Create and enter a span to link this function back to the entry
-        let _generation_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
-
-        if let Some(prefill_tokens) = generation.prefill_tokens {
-            // Send message
-            // unwrap_or is valid here as we don't care if the receiver is gone.
-            entry
-                .response_tx
-                .send(Ok(InferStreamResponse::Prefill(prefill_tokens)))
-                .unwrap_or(());
-        }
-
-        // Create last Token
-        let token = Token {
-            id: generation.token_id,
-            text: generation.token_text,
-            logprob: generation.token_logprob,
-            special: generation.token_is_special,
-        };
-
-        if let Some(generated_text) = generation.generated_text {
-            // Remove entry as this is the last message
-            // We can `expect` here as the request id should always be in the entries
-            let entry = entries
-                .remove(&generation.request_id)
-                .expect("ID not found in entries. This is a bug.");
-
-            // Send message
-            // unwrap_or is valid here as we don't care if the receiver is gone.
-            entry
-                .response_tx
-                .send(Ok(InferStreamResponse::End {
-                    token,
-                    generated_text,
-                    queued: entry.queue_time,
-                    start: entry.batch_time.unwrap(),
-                }))
-                .unwrap_or(());
-        } else {
-            // Send message
-            // unwrap_or is valid here as we don't care if the receiver is gone.
-            entry
-                .response_tx
-                .send(Ok(InferStreamResponse::Token(token)))
-                .unwrap_or(());
+        let _span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
+        // Send generation back to infer task
+        // If the receive an error from the Flume channel, we need to stop generating for this
+        // request hence why we unwrap_or(true)
+        let stopped = send_generation(generation, entry).unwrap_or(true);
+        if stopped {
+            entries.remove(&id).expect("ID not found in entries. This is a bug.");
         }
     });
+}
+
+fn send_generation(generation: Generation, entry: &Entry) -> Result<bool, SendError<Result<InferStreamResponse, InferError>>> {
+    let mut stopped = false;
+
+    if let Some(prefill_tokens) = generation.prefill_tokens {
+        // Send message
+        entry.response_tx
+            .send(Ok(InferStreamResponse::Prefill(prefill_tokens)))?;
+    }
+
+    // Create last Token
+    let token = Token {
+        id: generation.token_id,
+        text: generation.token_text,
+        logprob: generation.token_logprob,
+        special: generation.token_is_special,
+    };
+
+    if let Some(generated_text) = generation.generated_text {
+        // Generation has ended
+        stopped = true;
+        // Send message
+        entry.response_tx
+            .send(Ok(InferStreamResponse::End {
+                token,
+                generated_text,
+                queued: entry.queue_time,
+                start: entry.batch_time.unwrap(),
+            }))?;
+    } else {
+        // Send message
+        entry.response_tx
+            .send(Ok(InferStreamResponse::Token(token)))
+            ?;
+    }
+    Ok(stopped)
 }
 
 #[derive(Debug)]
