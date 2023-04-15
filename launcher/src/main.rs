@@ -525,7 +525,7 @@ fn shard_manager(
         "--uds-path".to_string(),
         uds_path,
         "--logger-level".to_string(),
-        "ERROR".to_string(),
+        "INFO".to_string(),
         "--json-output".to_string(),
     ];
 
@@ -645,8 +645,16 @@ fn shard_manager(
             // Parse loguru logs
             if let Ok(value) = serde_json::from_str::<Value>(&line.unwrap()) {
                 if let Some(text) = value.get("text") {
-                    // Format escaped newlines
-                    tracing::error!("{}", text.to_string().replace("\\n", "\n"));
+                    let level = value.get("record").unwrap().get("level").unwrap().get("name").unwrap().to_string();
+                    tracing::error!("{}", level);
+                    if level.eq(&"INFO".to_string()) {
+                        tracing::info!("{}", text.to_string().replace("\\n", "\n"));
+                    } else if level == "WARN".to_string()  {
+                        tracing::warn!("{}", text.to_string().replace("\\n", "\n"));
+                    }
+                    else {
+                        tracing::error!("{}", text.to_string().replace("\\n", "\n"));
+                    }
                 }
             }
         }
