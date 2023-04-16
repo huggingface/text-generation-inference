@@ -148,6 +148,7 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
+    pip install -r requirements.txt && \
     pip install ".[bnb]" --no-cache-dir
 
 # Install router
