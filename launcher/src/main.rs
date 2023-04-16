@@ -1,5 +1,5 @@
 use clap::Parser;
-use serde_json::Value;
+use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
 use std::io::{BufRead, BufReader, Read};
@@ -244,11 +244,8 @@ fn main() -> ExitCode {
             let _span = tracing::span!(tracing::Level::INFO, "download").entered();
             for line in stdout.lines() {
                 // Parse loguru logs
-                if let Ok(value) = serde_json::from_str::<Value>(&line.unwrap()) {
-                    if let Some(text) = value.get("text") {
-                        // Format escaped newlines
-                        tracing::info!("{}", text.to_string().replace("\\n", ""));
-                    }
+                if let Ok(log) = serde_json::from_str::<PythonLogMessage>(&line.unwrap()) {
+                    log.trace();
                 }
             }
         });
@@ -525,7 +522,7 @@ fn shard_manager(
         "--uds-path".to_string(),
         uds_path,
         "--logger-level".to_string(),
-        "ERROR".to_string(),
+        "INFO".to_string(),
         "--json-output".to_string(),
     ];
 
@@ -643,11 +640,8 @@ fn shard_manager(
         let _span = tracing::span!(tracing::Level::INFO, "shard-manager", rank = rank).entered();
         for line in stdout.lines() {
             // Parse loguru logs
-            if let Ok(value) = serde_json::from_str::<Value>(&line.unwrap()) {
-                if let Some(text) = value.get("text") {
-                    // Format escaped newlines
-                    tracing::error!("{}", text.to_string().replace("\\n", "\n"));
-                }
+            if let Ok(log) = serde_json::from_str::<PythonLogMessage>(&line.unwrap()) {
+                log.trace();
             }
         }
     });
@@ -707,4 +701,46 @@ fn num_cuda_devices() -> Option<usize> {
         return Some(n_devices);
     }
     None
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+enum PythonLogLevelEnum {
+    Trace,
+    Debug,
+    Info,
+    Success,
+    Warning,
+    Error,
+    Critical,
+}
+
+#[derive(Deserialize)]
+struct PythonLogLevel {
+    name: PythonLogLevelEnum,
+}
+
+#[derive(Deserialize)]
+struct PythonLogRecord {
+    level: PythonLogLevel,
+}
+
+#[derive(Deserialize)]
+struct PythonLogMessage {
+    text: String,
+    record: PythonLogRecord,
+}
+
+impl PythonLogMessage {
+    fn trace(&self) {
+        match self.record.level.name {
+            PythonLogLevelEnum::Trace => tracing::trace!("{}", self.text),
+            PythonLogLevelEnum::Debug => tracing::debug!("{}", self.text),
+            PythonLogLevelEnum::Info => tracing::info!("{}", self.text),
+            PythonLogLevelEnum::Success => tracing::info!("{}", self.text),
+            PythonLogLevelEnum::Warning => tracing::warn!("{}", self.text),
+            PythonLogLevelEnum::Error => tracing::error!("{}", self.text),
+            PythonLogLevelEnum::Critical => tracing::error!("{}", self.text),
+        }
+    }
 }

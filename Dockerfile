@@ -28,9 +28,9 @@ COPY router router
 COPY launcher launcher
 RUN cargo build --release
 
-# CUDA kernel builder
+# Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 as kernel-builder
+FROM debian:bullseye-slim as pytorch-install
 
 ARG PYTORCH_VERSION=2.0.0
 ARG PYTHON_VERSION=3.9
@@ -41,19 +41,15 @@ ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
 ARG TARGETPLATFORM
 
+ENV PATH /opt/conda/bin:$PATH
+
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         ccache \
-        ninja-build \
-        cmake \
         curl \
         git && \
         rm -rf /var/lib/apt/lists/*
-RUN /usr/sbin/update-ccache-symlinks &&  \
-    mkdir /opt/ccache &&  \
-    ccache --set-config=cache_dir=/opt/ccache
-ENV PATH /opt/conda/bin:$PATH
 
 # Install conda
 # translating Docker's TARGETPLATFORM into mamba arches
@@ -73,6 +69,16 @@ RUN case ${TARGETPLATFORM} in \
          *)              /opt/conda/bin/conda update -y conda &&  \
                          /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" pytorch==$PYTORCH_VERSION "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
     esac && \
+    /opt/conda/bin/conda clean -ya
+
+# CUDA kernels builder image
+FROM pytorch-install as kernel-builder
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ninja-build \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN /opt/conda/bin/conda install -c "nvidia/label/cuda-11.8.0"  cuda==11.8 && \
     /opt/conda/bin/conda clean -ya
 
 
@@ -97,10 +103,11 @@ COPY server/Makefile-transformers Makefile
 RUN BUILD_EXTENSIONS="True" make build-transformers
 
 # Text Generation Inference base image
-FROM nvidia/cuda:11.8.0-base-ubuntu22.04 as base
+FROM debian:bullseye-slim as base
 
 # Conda env
-ENV PATH=/opt/conda/bin:$PATH
+ENV PATH=/opt/conda/bin:$PATH \
+    CONDA_PREFIX=/opt/conda
 
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
@@ -121,7 +128,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
-COPY --from=kernel-builder /opt/conda /opt/conda
+COPY --from=pytorch-install /opt/conda /opt/conda
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
