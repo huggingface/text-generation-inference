@@ -16,6 +16,7 @@ install-torch:
 
 install: gen-server install-torch install-transformers
 	pip install pip --upgrade
+	pip install -r requirements.txt
 	pip install -e . --no-cache-dir
 
 run-dev:

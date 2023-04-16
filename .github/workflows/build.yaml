@@ -79,8 +79,8 @@ jobs:
           flavor: |
             latest=auto
           images: |
-            ghcr.io/huggingface/text-generation-inference
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+            ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
             type=semver,pattern={{version}}

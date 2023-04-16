@@ -6,8 +6,6 @@ from pathlib import Path
 from loguru import logger
 from typing import Optional
 
-from text_generation_server import server, utils
-from text_generation_server.tracing import setup_tracing
 
 app = typer.Typer()
 
@@ -48,6 +46,11 @@ def serve(
         backtrace=True,
         diagnose=False,
     )
+
+    # Import here after the logger is added to log potential import exceptions
+    from text_generation_server import server
+    from text_generation_server.tracing import setup_tracing
+
     # Setup OpenTelemetry distributed tracing
     if otlp_endpoint is not None:
         setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
@@ -74,6 +77,9 @@ def download_weights(
         backtrace=True,
         diagnose=False,
     )
+
+    # Import here after the logger is added to log potential import exceptions
+    from text_generation_server import utils
 
     # Test if files were already download
     try:
