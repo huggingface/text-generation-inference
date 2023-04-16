@@ -4,7 +4,7 @@ use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use text_generation_client::{Batch, Request};
-use tokio::sync::{oneshot, OwnedSemaphorePermit};
+use tokio::sync::oneshot;
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
 
@@ -23,8 +23,6 @@ pub(crate) struct Entry {
     pub queue_time: Instant,
     /// Instant when this entry was added to a batch
     pub batch_time: Option<Instant>,
-    /// Permit
-    pub _permit: OwnedSemaphorePermit,
 }
 
 /// Request Queue
@@ -147,46 +145,53 @@ impl State {
             }
         }
 
-        let next_batch_size = min(self.entries.len(), max_size);
+        let max_batch_size = min(self.entries.len(), max_size);
 
         // Create span for this batch to add context to inference calls
-        let next_batch_span = info_span!(parent: None, "batch", batch_size = next_batch_size);
+        let next_batch_span = info_span!(parent: None, "batch", batch_size = tracing::field::Empty);
         next_batch_span.follows_from(&Span::current());
 
-        let mut batch_requests = Vec::with_capacity(next_batch_size);
+        let mut batch_requests = Vec::with_capacity(max_batch_size);
         let mut batch_entries =
-            IntMap::with_capacity_and_hasher(next_batch_size, BuildNoHashHasher::default());
+            IntMap::with_capacity_and_hasher(max_batch_size, BuildNoHashHasher::default());
 
         // Drain next_batch_size entries
-        self.entries
-            .drain(..next_batch_size)
-            .for_each(|(id, mut entry)| {
-                // Create a new span to link the batch back to this entry
-                let entry_batch_span =
-                    info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
-                // Add relationships
-                next_batch_span.follows_from(&entry_batch_span);
-                entry_batch_span.follows_from(&next_batch_span);
-                // Update entry
-                entry.temp_span = Some(entry_batch_span);
+        for (id, mut entry) in self.entries.drain(..max_batch_size) {
+            // Filter entries where the response receiver was dropped (== entries where the request
+            // was dropped by the client)
+            if entry.response_tx.is_disconnected() {
+                continue;
+            }
 
-                batch_requests.push(Request {
-                    id,
-                    inputs: entry.request.inputs.clone(),
-                    truncate: entry.request.truncate,
-                    parameters: Some(entry.request.parameters.clone()),
-                    stopping_parameters: Some(entry.request.stopping_parameters.clone()),
-                });
-                // Set batch_time
-                entry.batch_time = Some(Instant::now());
-                // Insert in batch_entries IntMap
-                batch_entries.insert(id, entry);
+            // Create a new span to link the batch back to this entry
+            let entry_batch_span = info_span!(parent: &entry.span, "infer");
+            // Add relationships
+            next_batch_span.follows_from(&entry_batch_span);
+            entry_batch_span.follows_from(&next_batch_span);
+            // Update entry
+            entry.temp_span = Some(entry_batch_span);
+
+            batch_requests.push(Request {
+                id,
+                inputs: entry.request.inputs.clone(),
+                truncate: entry.request.truncate,
+                parameters: Some(entry.request.parameters.clone()),
+                stopping_parameters: Some(entry.request.stopping_parameters.clone()),
             });
+            // Set batch_time
+            entry.batch_time = Some(Instant::now());
+            // Insert in batch_entries IntMap
+            batch_entries.insert(id, entry);
+        }
+
+        // Final batch size once we dropped entries
+        let size = batch_requests.len() as u32;
+        next_batch_span.record("batch_size", size);
 
         let batch = Batch {
             id: self.next_batch_id,
             requests: batch_requests,
-            size: next_batch_size as u32,
+            size,
         };
         // Increment batch id
         self.next_batch_id += 1;
@@ -219,9 +224,7 @@ mod tests {
     use tracing::info_span;
 
     fn default_entry() -> Entry {
-        let semaphore = Arc::new(Semaphore::new(1));
         let (response_tx, _) = flume::unbounded();
-        let permit = semaphore.try_acquire_owned().unwrap();
 
         Entry {
             request: ValidGenerateRequest {
@@ -248,7 +251,6 @@ mod tests {
             temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
-            _permit: permit,
         }
     }
 
