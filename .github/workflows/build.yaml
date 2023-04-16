@@ -80,8 +80,8 @@ jobs:
             latest=auto
           images: |
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
-#            ghcr.io/huggingface/text-generation-inference
-#            db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
+            ghcr.io/huggingface/text-generation-inference
+            db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -93,8 +93,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
-#          push: ${{ github.event_name != 'pull_request' }}
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           platforms: 'linux/amd64'
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
