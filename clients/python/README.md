@@ -52,6 +52,14 @@ print(text)
 # ' Rayleigh scattering'
 ```
 
+Check all currently deployed models on the Huggingface Inference API with `Text Generation` support:
+
+```python
+from text_generation.inference_api import deployed_models
+
+print(deployed_models())
+```
+
 ### Hugging Face Inference Endpoint usage
 
 ```python
@@ -193,4 +201,9 @@ class StreamResponse:
     # Generation details
     # Only available when the generation is finished
     details: Optional[StreamDetails]
+
+# Inference API currently deployed model
+class DeployedModel:
+    model_id: str
+    sha: str
 ```

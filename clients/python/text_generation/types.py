@@ -223,3 +223,9 @@ class StreamResponse(BaseModel):
     # Generation details
     # Only available when the generation is finished
     details: Optional[StreamDetails]
+
+
+# Inference API currently deployed model
+class DeployedModel(BaseModel):
+    model_id: str
+    sha: str

@@ -1,44 +1,57 @@
 import os
 import requests
-import base64
-import json
-import warnings
 
-from typing import List, Optional
+from typing import Optional, List
 from huggingface_hub.utils import build_hf_headers
 
 from text_generation import Client, AsyncClient, __version__
-from text_generation.errors import NotSupportedError
+from text_generation.types import DeployedModel
+from text_generation.errors import NotSupportedError, parse_error
 
 INFERENCE_ENDPOINT = os.environ.get(
     "HF_INFERENCE_ENDPOINT", "https://api-inference.huggingface.co"
 )
 
-SUPPORTED_MODELS = None
 
-
-def get_supported_models() -> Optional[List[str]]:
+def deployed_models() -> List[DeployedModel]:
     """
-    Get the list of supported text-generation models from GitHub
+    Get all currently deployed models with text-generation-inference-support
 
     Returns:
-        Optional[List[str]]: supported models list or None if unable to get the list from GitHub
+        List[DeployedModel]: list of all currently deployed models
     """
-    global SUPPORTED_MODELS
-    if SUPPORTED_MODELS is not None:
-        return SUPPORTED_MODELS
-
-    response = requests.get(
-        "https://api.github.com/repos/huggingface/text-generation-inference/contents/supported_models.json",
+    resp = requests.get(
+        f"https://api-inference.huggingface.co/framework/text-generation-inference",
         timeout=5,
     )
-    if response.status_code == 200:
-        file_content = response.json()["content"]
-        SUPPORTED_MODELS = json.loads(base64.b64decode(file_content).decode("utf-8"))
-        return SUPPORTED_MODELS
 
-    warnings.warn("Could not retrieve list of supported models.")
-    return None
+    payload = resp.json()
+    if resp.status_code != 200:
+        raise parse_error(resp.status_code, payload)
+
+    models = [DeployedModel(**raw_deployed_model) for raw_deployed_model in payload]
+    return models
+
+
+def check_model_support(repo_id: str) -> bool:
+    """
+    Check if a given model is supported by text-generation-inference
+
+    Returns:
+        bool: whether the model is supported by this client
+    """
+    resp = requests.get(
+        f"https://api-inference.huggingface.co/status/{repo_id}",
+        timeout=5,
+    )
+
+    payload = resp.json()
+    if resp.status_code != 200:
+        raise parse_error(resp.status_code, payload)
+
+    framework = payload["framework"]
+    supported = framework == "text-generation-inference"
+    return supported
 
 
 class InferenceAPIClient(Client):
@@ -83,8 +96,7 @@ class InferenceAPIClient(Client):
         """
 
         # Text Generation Inference client only supports a subset of the available hub models
-        supported_models = get_supported_models()
-        if supported_models is not None and repo_id not in supported_models:
+        if not check_model_support(repo_id):
             raise NotSupportedError(repo_id)
 
         headers = build_hf_headers(
@@ -140,8 +152,7 @@ class InferenceAPIAsyncClient(AsyncClient):
         """
 
         # Text Generation Inference client only supports a subset of the available hub models
-        supported_models = get_supported_models()
-        if supported_models is not None and repo_id not in supported_models:
+        if not check_model_support(repo_id):
             raise NotSupportedError(repo_id)
 
         headers = build_hf_headers(

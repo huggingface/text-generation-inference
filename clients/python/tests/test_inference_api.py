@@ -6,12 +6,20 @@ from text_generation import (
     Client,
     AsyncClient,
 )
-from text_generation.errors import NotSupportedError
-from text_generation.inference_api import get_supported_models
+from text_generation.errors import NotSupportedError, NotFoundError
+from text_generation.inference_api import check_model_support, deployed_models
 
 
-def test_get_supported_models():
-    assert isinstance(get_supported_models(), list)
+def test_check_model_support(flan_t5_xxl, unsupported_model, fake_model):
+    assert check_model_support(flan_t5_xxl)
+    assert not check_model_support(unsupported_model)
+
+    with pytest.raises(NotFoundError):
+        check_model_support(fake_model)
+
+
+def test_deployed_models():
+    deployed_models()
 
 
 def test_client(flan_t5_xxl):
