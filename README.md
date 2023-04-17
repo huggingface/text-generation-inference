@@ -22,7 +22,7 @@ to power LLMs api-inference widgets.
 ## Table of contents
 
 - [Features](#features)
-- [Officially Supported Models](#officially-supported-models)
+- [Optimized Architectures](#optimized-architectures)
 - [Get Started](#get-started)
   - [Docker](#docker)
   - [API Documentation](#api-documentation)
