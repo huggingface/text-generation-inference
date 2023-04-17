@@ -23,6 +23,7 @@ class Model(ABC):
         self.all_special_ids = set(tokenizer.all_special_ids)
         self.device = device
         self.decode_buffer = decode_buffer
+        self.use_position_ids = False
 
     @property
     @abstractmethod
