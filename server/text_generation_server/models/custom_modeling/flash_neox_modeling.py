@@ -505,7 +505,7 @@ class FlashGPTNeoXPreTrainedModel(PreTrainedModel):
     config_class = GPTNeoXConfig
     base_model_prefix = "gpt_neox"
     supports_gradient_checkpointing = False
-    _no_split_modules = None
+    _no_split_modules = ["FlashNeoXLayer"]
 
 
 class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
