@@ -308,8 +308,8 @@ fn prepare_input(
 
     // Optionally truncate
     let (inputs, input_length) = match truncate {
-        // Truncate is some and > encoding length
-        Some(truncate) if truncate > encoding.len() => {
+        // Truncate is some and < encoding length
+        Some(truncate) if truncate < encoding.len() => {
             // truncate encoding and decode new inputs
             encoding.truncate(truncate, 0, TruncationDirection::Left);
             let inputs = tokenizer
