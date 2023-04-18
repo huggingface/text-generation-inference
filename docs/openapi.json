@@ -4,8 +4,7 @@
     "title": "Text Generation Inference",
     "description": "Text Generation Webserver",
     "contact": {
-      "name": "Olivier Dehaene",
-      "email": "olivier@huggingface.co"
+      "name": "Olivier Dehaene"
     },
     "license": {
       "name": "Apache 2.0",
@@ -14,6 +13,83 @@
     "version": "0.5.0"
   },
   "paths": {
+    "/": {
+      "post": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Generate tokens if `stream == false` or a stream of token if `stream == true`",
+        "description": "Generate tokens if `stream == false` or a stream of token if `stream == true`",
+        "operationId": "compat_generate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompatGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "See /generate or /generate_stream"
+          },
+          "422": {
+            "description": "Input validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Input validation error"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Generation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Request failed during generation"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Model is overloaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Model is overloaded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Incomplete generation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Incomplete generation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/generate": {
       "post": {
         "tags": [
@@ -95,8 +171,7 @@
               }
             }
           }
-        },
-        "deprecated": false
+        }
       }
     },
     "/generate_stream": {
@@ -180,8 +255,29 @@
               }
             }
           }
-        },
-        "deprecated": false
+        }
+      }
+    },
+    "/info": {
+      "get": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Text Generation Inference endpoint info",
+        "description": "Text Generation Inference endpoint info",
+        "operationId": "get_model_info",
+        "responses": {
+          "200": {
+            "description": "Served model info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Info"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/metrics": {
@@ -203,8 +299,7 @@
               }
             }
           }
-        },
-        "deprecated": false
+        }
       }
     }
   },
@@ -230,7 +325,8 @@
           "generated_tokens": {
             "type": "integer",
             "format": "int32",
-            "example": 1
+            "example": 1,
+            "minimum": 0.0
           },
           "prefill": {
             "type": "array",
@@ -242,13 +338,32 @@
             "type": "integer",
             "format": "int64",
             "example": 42,
-            "nullable": true
+            "nullable": true,
+            "minimum": 0.0
           },
           "tokens": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Token"
             }
+          }
+        }
+      },
+      "CompatGenerateRequest": {
+        "type": "object",
+        "required": [
+          "inputs"
+        ],
+        "properties": {
+          "inputs": {
+            "type": "string",
+            "example": "My name is Olivier and I"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/GenerateParameters"
+          },
+          "stream": {
+            "type": "boolean"
           }
         }
       },
@@ -265,7 +380,8 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/BestOfSequence"
-            }
+            },
+            "nullable": true
           },
           "finish_reason": {
             "$ref": "#/components/schemas/FinishReason"
@@ -273,7 +389,8 @@
           "generated_tokens": {
             "type": "integer",
             "format": "int32",
-            "example": 1
+            "example": 1,
+            "minimum": 0.0
           },
           "prefill": {
             "type": "array",
@@ -285,7 +402,8 @@
             "type": "integer",
             "format": "int64",
             "example": 42,
-            "nullable": true
+            "nullable": true,
+            "minimum": 0.0
           },
           "tokens": {
             "type": "array",
@@ -326,6 +444,7 @@
             "default": "null",
             "example": 1,
             "nullable": true,
+            "minimum": 0.0,
             "exclusiveMinimum": 0.0
           },
           "details": {
@@ -341,6 +460,7 @@
             "type": "integer",
             "format": "int32",
             "default": "20",
+            "minimum": 0.0,
             "exclusiveMaximum": 512.0,
             "exclusiveMinimum": 0.0
           },
@@ -364,6 +484,7 @@
             "default": "null",
             "example": "null",
             "nullable": true,
+            "minimum": 0.0,
             "exclusiveMinimum": 0.0
           },
           "stop": {
@@ -405,7 +526,8 @@
             "type": "integer",
             "default": "null",
             "example": "null",
-            "nullable": true
+            "nullable": true,
+            "minimum": 0.0
           },
           "typical_p": {
             "type": "number",
@@ -445,11 +567,48 @@
         ],
         "properties": {
           "details": {
-            "$ref": "#/components/schemas/Details"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Details"
+              }
+            ],
+            "nullable": true
           },
           "generated_text": {
             "type": "string",
             "example": "test"
+          }
+        }
+      },
+      "Info": {
+        "type": "object",
+        "required": [
+          "model_id",
+          "version"
+        ],
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "example": "bigscience/blomm-560m"
+          },
+          "model_pipeline_tag": {
+            "type": "string",
+            "example": "text-generation",
+            "nullable": true
+          },
+          "model_sha": {
+            "type": "string",
+            "example": "e985a63cdc139290c5f700ff1929f0b5942cced2",
+            "nullable": true
+          },
+          "sha": {
+            "type": "string",
+            "example": "null",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "example": "0.5.0"
           }
         }
       },
@@ -464,7 +623,8 @@
           "id": {
             "type": "integer",
             "format": "int32",
-            "example": 0
+            "example": 0,
+            "minimum": 0.0
           },
           "logprob": {
             "type": "number",
@@ -491,13 +651,15 @@
           "generated_tokens": {
             "type": "integer",
             "format": "int32",
-            "example": 1
+            "example": 1,
+            "minimum": 0.0
           },
           "seed": {
             "type": "integer",
             "format": "int64",
             "example": 42,
-            "nullable": true
+            "nullable": true,
+            "minimum": 0.0
           }
         }
       },
@@ -508,7 +670,12 @@
         ],
         "properties": {
           "details": {
-            "$ref": "#/components/schemas/StreamDetails"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StreamDetails"
+              }
+            ],
+            "nullable": true
           },
           "generated_text": {
             "type": "string",
@@ -533,7 +700,8 @@
           "id": {
             "type": "integer",
             "format": "int32",
-            "example": 0
+            "example": 0,
+            "minimum": 0.0
           },
           "logprob": {
             "type": "number",

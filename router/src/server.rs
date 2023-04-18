@@ -3,8 +3,8 @@ use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, CompatGenerateRequest, Details, ErrorResponse, FinishReason,
-    GenerateParameters, GenerateRequest, GenerateResponse, Infer, PrefillToken, StreamDetails,
-    StreamResponse, Token, Validation,
+    GenerateParameters, GenerateRequest, GenerateResponse, Infer, Info, ModelInfo, PrefillToken,
+    StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -27,7 +27,24 @@ use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-/// Compatibility route with api-inference and AzureML
+/// Generate tokens if `stream == false` or a stream of token if `stream == true`
+#[utoipa::path(
+    post,
+    tag = "Text Generation Inference",
+    path = "/",
+    request_body = CompatGenerateRequest,
+    responses(
+        (status = 200, description = "See /generate or /generate_stream"),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
+            example = json ! ({"error": "Request failed during generation"})),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
+            example = json ! ({"error": "Model is overloaded"})),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
+            example = json ! ({"error": "Input validation error"})),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
+            example = json ! ({"error": "Incomplete generation"})),
+    )
+)]
 #[instrument(skip(infer))]
 async fn compat_generate(
     default_return_full_text: Extension<bool>,
@@ -51,6 +68,26 @@ async fn compat_generate(
         // wrap generation inside a Vec to match api-inference
         Ok((headers, Json(vec![generation.0])).into_response())
     }
+}
+
+/// Text Generation Inference endpoint info
+#[utoipa::path(
+    get,
+    tag = "Text Generation Inference",
+    path = "/info",
+    responses((status = 200, description = "Served model info", body = Info))
+)]
+#[instrument]
+async fn get_model_info(model_info: Extension<ModelInfo>) -> Json<Info> {
+    let model_info = model_info.0;
+    let info = Info {
+        version: env!("CARGO_PKG_VERSION"),
+        sha: option_env!("VERGEN_GIT_SHA"),
+        model_id: model_info.model_id,
+        model_sha: model_info.sha,
+        model_pipeline_tag: model_info.pipeline_tag,
+    };
+    Json(info)
 }
 
 /// Health check method
@@ -87,21 +124,21 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
 
 /// Generate tokens
 #[utoipa::path(
-post,
-tag = "Text Generation Inference",
-path = "/generate",
-request_body = GenerateRequest,
-responses(
-(status = 200, description = "Generated Text", body = GenerateResponse),
-(status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
-(status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
-(status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
-(status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
-)
+    post,
+    tag = "Text Generation Inference",
+    path = "/generate",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Generated Text", body = GenerateResponse),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
+            example = json ! ({"error": "Request failed during generation"})),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
+            example = json ! ({"error": "Model is overloaded"})),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
+            example = json ! ({"error": "Input validation error"})),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
+            example = json ! ({"error": "Incomplete generation"})),
+    )
 )]
 #[instrument(
     skip(infer),
@@ -264,26 +301,26 @@ async fn generate(
 
 /// Generate a stream of token using Server-Sent Events
 #[utoipa::path(
-post,
-tag = "Text Generation Inference",
-path = "/generate_stream",
-request_body = GenerateRequest,
-responses(
-(status = 200, description = "Generated Text", body = StreamResponse,
-content_type = "text/event-stream"),
-(status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"}),
-content_type = "text/event-stream"),
-(status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"}),
-content_type = "text/event-stream"),
-(status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"}),
-content_type = "text/event-stream"),
-(status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"}),
-content_type = "text/event-stream"),
-)
+    post,
+    tag = "Text Generation Inference",
+    path = "/generate_stream",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Generated Text", body = StreamResponse,
+            content_type = "text/event-stream"),
+        (status = 424, description = "Generation Error", body = ErrorResponse,
+            example = json ! ({"error": "Request failed during generation"}),
+            content_type = "text/event-stream"),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
+            example = json ! ({"error": "Model is overloaded"}),
+            content_type = "text/event-stream"),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
+            example = json ! ({"error": "Input validation error"}),
+            content_type = "text/event-stream"),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
+            example = json ! ({"error": "Incomplete generation"}),
+            content_type = "text/event-stream"),
+    )
 )]
 #[instrument(
     skip(infer),
@@ -447,10 +484,10 @@ async fn generate_stream(
 
 /// Prometheus metrics scrape endpoint
 #[utoipa::path(
-get,
-tag = "Text Generation Inference",
-path = "/metrics",
-responses((status = 200, description = "Prometheus Metrics", body = String))
+    get,
+    tag = "Text Generation Inference",
+    path = "/metrics",
+    responses((status = 200, description = "Prometheus Metrics", body = String))
 )]
 async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
     prom_handle.render()
@@ -459,6 +496,7 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
+    model_info: ModelInfo,
     compat_return_full_text: bool,
     max_concurrent_requests: usize,
     max_best_of: usize,
@@ -476,36 +514,40 @@ pub async fn run(
     // OpenAPI documentation
     #[derive(OpenApi)]
     #[openapi(
-    paths(
-    generate,
-    generate_stream,
-    metrics,
-    ),
-    components(
-    schemas(
-    GenerateRequest,
-    GenerateParameters,
-    PrefillToken,
-    Token,
-    GenerateResponse,
-    BestOfSequence,
-    Details,
-    FinishReason,
-    StreamResponse,
-    StreamDetails,
-    ErrorResponse,
-    )
-    ),
-    tags(
-    (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
-    ),
-    info(
-    title = "Text Generation Inference",
-    license(
-    name = "Apache 2.0",
-    url = "https://www.apache.org/licenses/LICENSE-2.0"
-    )
-    )
+        paths(
+            get_model_info,
+            compat_generate,
+            generate,
+            generate_stream,
+            metrics,
+        ),
+        components(
+            schemas(
+                Info,
+                CompatGenerateRequest,
+                GenerateRequest,
+                GenerateParameters,
+                PrefillToken,
+                Token,
+                GenerateResponse,
+                BestOfSequence,
+                Details,
+                FinishReason,
+                StreamResponse,
+                StreamDetails,
+                ErrorResponse,
+            )
+        ),
+        tags(
+            (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
+        ),
+        info(
+            title = "Text Generation Inference",
+            license(
+                name = "Apache 2.0",
+                url = "https://www.apache.org/licenses/LICENSE-2.0"
+            )
+        )
     )]
     struct ApiDoc;
 
@@ -584,6 +626,7 @@ pub async fn run(
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
         // Base routes
         .route("/", post(compat_generate))
+        .route("/info", get(get_model_info))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         // AWS Sagemaker route
@@ -596,6 +639,7 @@ pub async fn run(
         .route("/ping", get(health))
         // Prometheus metrics route
         .route("/metrics", get(metrics))
+        .layer(Extension(model_info))
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
         .layer(Extension(prom_handle))

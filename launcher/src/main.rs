@@ -392,6 +392,12 @@ fn main() -> ExitCode {
         model_id,
     ];
 
+    // Model optional revision
+    if let Some(ref revision) = revision {
+        argv.push("--revision".to_string());
+        argv.push(revision.to_string())
+    }
+
     if json_output {
         argv.push("--json-output".to_string());
     }
