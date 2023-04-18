@@ -244,9 +244,12 @@ class FlashCausalLMBatch(Batch):
         for i, batch in enumerate(batches):
             requests.extend(batch.requests)
 
-            # We need to offset the mapping for each batch by the cumulative batch size
-            for k, v in batch.requests_idx_mapping.items():
-                requests_idx_mapping[k] = v + cumulative_batch_size
+            if i == 0:
+                requests_idx_mapping = batch.requests_idx_mapping
+            else:
+                # We need to offset the mapping for each batch by the cumulative batch size
+                for k, v in batch.requests_idx_mapping.items():
+                    requests_idx_mapping[k] = v + cumulative_batch_size
 
             input_ids.extend(batch.input_ids)
             position_ids.extend(batch.position_ids)

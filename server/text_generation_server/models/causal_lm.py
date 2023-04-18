@@ -147,10 +147,13 @@ class CausalLMBatch(Batch):
         all_input_ids = []
         max_input_length = 0
 
+        next_token_choosers = []
+        stopping_criterias = []
+
         for i, r in enumerate(requests):
             idx = self.requests_idx_mapping[r.id]
-            keep_indices.append(idx)
             requests_idx_mapping[r.id] = i
+            keep_indices.append(idx)
 
             offsets.append(self.offsets[idx])
             token_offsets.append(self.token_offsets[idx])
@@ -160,28 +163,37 @@ class CausalLMBatch(Batch):
             input_lengths.append(request_input_length)
             max_input_length = max(max_input_length, request_input_length)
 
-        # Replace metadata
-        self.requests_idx_mapping = requests_idx_mapping
-        self.input_lengths = input_lengths
-        self.offsets = offsets
-        self.token_offsets = token_offsets
-        self.all_input_ids = all_input_ids
-        self.max_input_length = max_input_length
+            next_token_choosers.append(self.next_token_choosers[idx])
+            stopping_criterias.append(self.stopping_criterias[idx])
 
         # Apply indices to input_ids, attention mask, past key values and other items that need to be cached
-        self.input_ids = self.input_ids[keep_indices]
-        self.attention_mask = self.attention_mask[keep_indices]
-        self.position_ids = self.position_ids[keep_indices]
+        input_ids = self.input_ids[keep_indices]
+        attention_mask = self.attention_mask[keep_indices]
+        position_ids = self.position_ids[keep_indices]
         # Force past to be of dim [self_size, num_heads, ...] for easy indexing
-        self.past_key_values = [
+        past_key_values = [
             [t.view(len(self), -1, *t.shape[-2:])[keep_indices] for t in layer]
             for layer in self.past_key_values
         ]
-        self.requests = requests
-        self.next_token_choosers = [self.next_token_choosers[i] for i in keep_indices]
-        self.stopping_criterias = [self.stopping_criterias[i] for i in keep_indices]
 
-        return self
+        return CausalLMBatch(
+            batch_id=self.batch_id,
+            requests=requests,
+            requests_idx_mapping=requests_idx_mapping,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            all_input_ids=all_input_ids,
+            input_lengths=input_lengths,
+            offsets=offsets,
+            token_offsets=token_offsets,
+            next_token_choosers=next_token_choosers,
+            stopping_criterias=stopping_criterias,
+            max_input_length=max_input_length,
+            padding_right_offset=self.padding_right_offset,
+            keys_head_dim_last=self.keys_head_dim_last,
+        )
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
@@ -224,8 +236,9 @@ class CausalLMBatch(Batch):
             stopping_criterias.extend(batch.stopping_criterias)
 
             if i == 0:
-                requests_idx_mapping = requests_idx_mapping
+                requests_idx_mapping = batch.requests_idx_mapping
             else:
+                # We need to offset the mapping for each batch by the cumulative batch size
                 for k, v in batch.requests_idx_mapping.items():
                     requests_idx_mapping[k] = v + start_index
 
@@ -525,17 +538,20 @@ class CausalLM(Model):
             generations.append(generation)
 
             # Update values
-            batch.input_ids[i] = next_token_id
+            batch.input_ids[i, 0] = next_token_id
             batch.all_input_ids[i] = all_input_ids
             batch.input_lengths[i] = new_input_length
             batch.offsets[i] = offset
             batch.token_offsets[i] = token_offset
             batch.max_input_length = max(batch.max_input_length, new_input_length)
 
-        # Decrease right offset
-        batch.padding_right_offset -= 1
+        # Slice unused values from prefill
+        batch.input_ids = batch.input_ids[:, :1]
+
         # Update attention_mask as we added a new token to input_ids
         batch.attention_mask[:, -batch.padding_right_offset] = 1
+        # Decrease right offset
+        batch.padding_right_offset -= 1
 
         # Update position_ids
         batch.position_ids = batch.position_ids[:, -1:] + 1
