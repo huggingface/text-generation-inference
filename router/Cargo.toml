@@ -4,6 +4,7 @@ version = "0.5.0"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 description = "Text Generation Webserver"
+build = "build.rs"
 
 [lib]
 path = "src/lib.rs"
@@ -26,7 +27,7 @@ nohash-hasher = "0.2.0"
 opentelemetry = { version = "0.18.0", features = ["rt-tokio"] }
 opentelemetry-otlp = "0.11.0"
 rand = "0.8.5"
-reqwest = { version  = "0.11.14", features = [] }
+reqwest = { version = "0.11.14", features = [] }
 serde = "1.0.152"
 serde_json = "1.0.93"
 thiserror = "1.0.38"
@@ -39,3 +40,5 @@ tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }
 utoipa = { version = "3.0.1", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["axum"] }
 
+[build-dependencies]
+vergen = { version = "8.0.0", features = ["build", "git", "gitcl"] }

@@ -10,8 +10,8 @@ use opentelemetry_otlp::WithExportConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use text_generation_client::ShardedClient;
-use text_generation_router::server;
-use tokenizers::Tokenizer;
+use text_generation_router::{server, ModelInfo};
+use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -41,6 +41,8 @@ struct Args {
     master_shard_uds_path: String,
     #[clap(default_value = "bigscience/bloom", long, env)]
     tokenizer_name: String,
+    #[clap(default_value = "main", long, env)]
+    revision: String,
     #[clap(default_value = "2", long, env)]
     validation_workers: usize,
     #[clap(long, env)]
@@ -66,6 +68,7 @@ fn main() -> Result<(), std::io::Error> {
         port,
         master_shard_uds_path,
         tokenizer_name,
+        revision,
         validation_workers,
         json_output,
         otlp_endpoint,
@@ -90,16 +93,19 @@ fn main() -> Result<(), std::io::Error> {
     // Tokenizer instance
     // This will only be used to validate payloads
     let local_path = Path::new(&tokenizer_name);
-    let tokenizer =
-        if local_path.exists() && local_path.is_dir() && local_path.join("tokenizer.json").exists()
-        {
-            // Load local tokenizer
-            Tokenizer::from_file(local_path.join("tokenizer.json")).ok()
-        } else {
-            // Download and instantiate tokenizer
-            // We need to download it outside of the Tokio runtime
-            Tokenizer::from_pretrained(tokenizer_name.clone(), None).ok()
+    let local_model = local_path.exists() && local_path.is_dir();
+    let tokenizer = if local_model {
+        // Load local tokenizer
+        Tokenizer::from_file(local_path.join("tokenizer.json")).ok()
+    } else {
+        // Download and instantiate tokenizer
+        // We need to download it outside of the Tokio runtime
+        let params = FromPretrainedParameters {
+            revision: revision.clone(),
+            ..Default::default()
         };
+        Tokenizer::from_pretrained(tokenizer_name.clone(), Some(params)).ok()
+    };
 
     // Launch Tokio runtime
     tokio::runtime::Builder::new_multi_thread()
@@ -116,25 +122,23 @@ fn main() -> Result<(), std::io::Error> {
                 tracing::warn!("Rust input length validation and truncation is disabled");
             }
 
-            // Get pipeline tag
-            let model_info = reqwest::get(format!(
-                "https://huggingface.co/api/models/{tokenizer_name}"
-            ))
-            .await
-            .expect("Could not connect to hf.co")
-            .text()
-            .await
-            .expect("error when retrieving model info from hf.co");
-            let model_info: serde_json::Value =
-                serde_json::from_str(&model_info).expect("unable to parse model info");
+            // Get Model info
+            let model_info = match local_model {
+                true => ModelInfo {
+                    model_id: tokenizer_name.clone(),
+                    sha: None,
+                    pipeline_tag: None,
+                },
+                false => get_model_info(&tokenizer_name, &revision).await,
+            };
 
             // if pipeline-tag == text-generation we default to return_full_text = true
-            let compat_return_full_text = match model_info.get("pipeline_tag") {
+            let compat_return_full_text = match &model_info.pipeline_tag {
                 None => {
                     tracing::warn!("no pipeline tag found for model {tokenizer_name}");
                     false
                 }
-                Some(pipeline_tag) => pipeline_tag.as_str() == Some("text-generation"),
+                Some(pipeline_tag) => pipeline_tag.as_str() == "text-generation",
             };
 
             // Instantiate sharded client from the master unix socket
@@ -153,6 +157,7 @@ fn main() -> Result<(), std::io::Error> {
 
             // Run server
             server::run(
+                model_info,
                 compat_return_full_text,
                 max_concurrent_requests,
                 max_best_of,
@@ -225,4 +230,17 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
         .with(env_filter)
         .with(layers)
         .init();
+}
+
+/// get model info from the Huggingface Hub
+pub async fn get_model_info(model_id: &str, revision: &str) -> ModelInfo {
+    let model_info = reqwest::get(format!(
+        "https://huggingface.co/api/models/{model_id}/revision/{revision}"
+    ))
+    .await
+    .expect("Could not connect to hf.co")
+    .text()
+    .await
+    .expect("error when retrieving model info from hf.co");
+    serde_json::from_str(&model_info).expect("unable to parse model info")
 }

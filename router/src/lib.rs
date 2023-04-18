@@ -10,6 +10,29 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validation::Validation;
 
+/// Hub type
+#[derive(Clone, Debug, Deserialize)]
+pub struct ModelInfo {
+    #[serde(rename(deserialize = "id"))]
+    pub model_id: String,
+    pub sha: Option<String>,
+    pub pipeline_tag: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, ToSchema)]
+pub struct Info {
+    #[schema(example = "bigscience/blomm-560m")]
+    pub model_id: String,
+    #[schema(nullable = true, example = "e985a63cdc139290c5f700ff1929f0b5942cced2")]
+    pub model_sha: Option<String>,
+    #[schema(nullable = true, example = "text-generation")]
+    pub model_pipeline_tag: Option<String>,
+    #[schema(example = "0.5.0")]
+    pub version: &'static str,
+    #[schema(nullable = true, example = "null")]
+    pub sha: Option<&'static str>,
+}
+
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 pub(crate) struct GenerateParameters {
     #[serde(default)]
