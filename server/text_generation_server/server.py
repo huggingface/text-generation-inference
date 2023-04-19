@@ -39,8 +39,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.ClearCacheResponse()
 
     async def Prefill(self, request, context):
+        kwargs = {"use_position_ids": True} if self.model.use_position_ids else {}
         batch = self.model.batch_type.from_pb(
-            request.batch, self.model.tokenizer, self.model.device
+            request.batch, self.model.tokenizer, self.model.device, **kwargs,
         )
 
         generations, next_batch = self.model.generate_token(batch)
