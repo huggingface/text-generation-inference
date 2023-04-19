@@ -17,13 +17,6 @@ from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
 
 try:
-    from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
-    from text_generation_server.models.flash_llama import FlashLlama, FlashLlamaSharded
-    from text_generation_server.models.flash_santacoder import (
-        FlashSantacoder,
-        FlashSantacoderSharded,
-    )
-
     if torch.cuda.is_available():
         major, minor = torch.cuda.get_device_capability()
         is_sm75 = major == 7 and minor == 5
@@ -32,7 +25,20 @@ try:
 
         supported = is_sm75 or is_sm8x or is_sm90
         if not supported:
-            raise ImportError(f"GPU with CUDA capability {major} {minor} is not supported")
+            raise ImportError(
+                f"GPU with CUDA capability {major} {minor} is not supported"
+            )
+
+        from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+        from text_generation_server.models.flash_llama import (
+            FlashLlama,
+            FlashLlamaSharded,
+        )
+        from text_generation_server.models.flash_santacoder import (
+            FlashSantacoder,
+            FlashSantacoderSharded,
+        )
+
         FLASH_ATTENTION = True
     else:
         FLASH_ATTENTION = False
