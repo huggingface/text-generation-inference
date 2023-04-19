@@ -142,6 +142,11 @@ COPY --from=transformers-builder /usr/src/transformers/build/lib.linux-x86_64-cp
 # Install transformers dependencies
 RUN cd /usr/src/transformers && pip install -e . --no-cache-dir && pip install einops --no-cache-dir
 
+# FIXME: remove when we get a release of huggingface-hub
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        git \
+        && rm -rf /var/lib/apt/lists/*
+
 # Install server
 COPY proto proto
 COPY server server
