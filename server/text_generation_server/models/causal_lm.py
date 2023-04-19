@@ -428,7 +428,7 @@ class CausalLM(Model):
     @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: CausalLMBatch
-    ) -> Tuple[List[Generation], CausalLMBatch]:
+    ) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
         # slice the attention mask to the correct shape
         attention_mask = batch.attention_mask[:, : -batch.padding_right_offset]
 
@@ -545,6 +545,10 @@ class CausalLM(Model):
             batch.token_offsets[i] = token_offset
             batch.max_input_length = max(batch.max_input_length, new_input_length)
 
+        # We finished all generations in the batch; there is no next batch
+        if stopped:
+            return generations, None
+
         # Slice unused values from prefill
         batch.input_ids = batch.input_ids[:, :1]
 
@@ -559,4 +563,4 @@ class CausalLM(Model):
         # Update past key values
         batch.past_key_values = past
 
-        return generations, batch if not stopped else None
+        return generations, batch

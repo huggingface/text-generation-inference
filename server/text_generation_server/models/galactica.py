@@ -96,11 +96,13 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         stopping_criterias = []
         offsets = []
         token_offsets = []
+        requests_idx_mapping = {}
 
         # Parse batch
         max_truncation = 0
         padding_right_offset = 0
-        for r in pb.requests:
+        for i, r in enumerate(pb.requests):
+            requests_idx_mapping[r.id] = i
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
             offsets.append(None)
@@ -115,7 +117,6 @@ class GalacticaCausalLMBatch(CausalLMBatch):
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
 
-        # Tokenize batch
         tokenized_inputs = tokenizer(
             inputs,
             return_tensors="pt",
@@ -138,23 +139,23 @@ class GalacticaCausalLMBatch(CausalLMBatch):
 
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
-        all_input_ids = tokenized_inputs["input_ids"].unsqueeze(-1)
+        all_input_ids = tokenized_inputs["input_ids"].T.split(1, dim=1)
 
         return cls(
             batch_id=pb.id,
             requests=pb.requests,
+            requests_idx_mapping=requests_idx_mapping,
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
             past_key_values=None,
-            all_input_ids=all_input_ids,
-            input_lengths=input_lengths,
+            all_input_ids=list(all_input_ids),
+            input_lengths=input_lengths.tolist(),
             offsets=offsets,
             token_offsets=token_offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
-            size=pb.size,
-            max_input_length=max_input_length,
+            max_input_length=max_input_length.item(),
             padding_right_offset=padding_right_offset,
         )
 

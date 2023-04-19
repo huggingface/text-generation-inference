@@ -68,7 +68,12 @@ def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):
 
     assert batch.past_key_values is None
 
-    assert all([torch.equal(input_ids, all_input_ids[:, 0]) for input_ids, all_input_ids in zip(batch.input_ids, batch.all_input_ids)])
+    assert all(
+        [
+            torch.equal(input_ids, all_input_ids[:, 0])
+            for input_ids, all_input_ids in zip(batch.input_ids, batch.all_input_ids)
+        ]
+    )
 
     assert batch.input_lengths == [1]
 
