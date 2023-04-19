@@ -17,7 +17,10 @@ install-torch:
 install: gen-server install-torch install-transformers
 	pip install pip --upgrade
 	pip install -r requirements.txt
-	pip install -e . --no-cache-dir
+	pip install -e ".[bnb, accelerate]"
 
 run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded
+
+export-requirements:
+	poetry export -o requirements.txt -E bnb --without-hashes
