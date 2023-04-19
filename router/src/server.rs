@@ -505,6 +505,8 @@ pub async fn run(
     max_input_length: usize,
     max_total_tokens: usize,
     max_batch_size: usize,
+    max_batch_weight: Option<usize>,
+    max_prefill_weight: Option<usize>,
     max_waiting_tokens: usize,
     client: ShardedClient,
     tokenizer: Option<Tokenizer>,
@@ -552,6 +554,15 @@ pub async fn run(
     )]
     struct ApiDoc;
 
+    // If max batch weight is not set, infer from max batch size and max seq length
+    let max_batch_weight = max_batch_weight
+        .unwrap_or(max_batch_size * max_total_tokens);
+    let max_prefill_weight = max_prefill_weight.unwrap_or_default();
+
+    if max_total_tokens > max_batch_weight {
+        panic!("max_total_tokens cannot be greater than max_batch_weight");
+    }
+
     // Create state
     let validation = Validation::new(
         validation_workers,
@@ -565,6 +576,8 @@ pub async fn run(
         client,
         validation,
         max_batch_size,
+        max_batch_weight,
+        max_prefill_weight,
         max_waiting_tokens,
         max_concurrent_requests,
     );

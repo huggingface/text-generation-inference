@@ -33,6 +33,10 @@ struct Args {
     max_total_tokens: usize,
     #[clap(default_value = "32", long, env)]
     max_batch_size: usize,
+    #[clap(default_value = None, long, env)]
+    max_batch_weight: Option<usize>,
+    #[clap(default_value = None, long, env)]
+    max_prefill_weight: Option<usize>,
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
     #[clap(default_value = "3000", long, short, env)]
@@ -64,6 +68,8 @@ fn main() -> Result<(), std::io::Error> {
         max_input_length,
         max_total_tokens,
         max_batch_size,
+        max_batch_weight,
+        max_prefill_weight,
         max_waiting_tokens,
         port,
         master_shard_uds_path,
@@ -169,6 +175,8 @@ fn main() -> Result<(), std::io::Error> {
                 max_input_length,
                 max_total_tokens,
                 max_batch_size,
+                max_batch_weight,
+                max_prefill_weight,
                 max_waiting_tokens,
                 sharded_client,
                 tokenizer,
