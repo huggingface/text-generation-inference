@@ -35,9 +35,6 @@ class FlashLlama(FlashCausalLM):
         else:
             raise NotImplementedError("FlashLlama is only available on GPU")
 
-        if quantize:
-            raise NotImplementedError("FlashLlama does not support quantization")
-
         tokenizer = LlamaTokenizer.from_pretrained(
             model_id,
             revision=revision,
@@ -61,8 +58,8 @@ class FlashLlama(FlashCausalLM):
         with init_empty_weights():
             model = FlashLlamaForCausalLM(config)
 
-        self.load_weights(model, filenames, device, dtype)
-        self.model = model.eval()
+        self.load_weights(model, filenames, quantize, device, dtype)
+        self.model = model.eval().to(device)
 
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -73,13 +70,14 @@ class FlashLlama(FlashCausalLM):
     def load_weights(
         model,
         filenames: List[Path],
+        quantize: bool,
         device: torch.device,
         dtype: torch.dtype,
     ):
         for filename in filenames:
             state_dict = torch.load(filename, map_location="cpu")
             for key, value in state_dict.items():
-                value = value.to(device).to(dtype)
+                value = value.to(device if not quantize else "cpu").to(dtype)
 
                 layer_name = ".".join(key.split(".")[:4])
 
@@ -139,7 +137,7 @@ class FlashLlama(FlashCausalLM):
                 del value
 
         torch.cuda.empty_cache()
-        model.post_load_weights()
+        model.post_load_weights(quantize)
 
 
 class FlashLlamaSharded(FlashLlama):
@@ -153,9 +151,6 @@ class FlashLlamaSharded(FlashLlama):
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
         else:
             raise NotImplementedError("FlashLlama is only available on GPU")
-
-        if quantize:
-            raise NotImplementedError("FlashLlama does not support quantization")
 
         tokenizer = LlamaTokenizer.from_pretrained(
             model_id,
@@ -185,7 +180,7 @@ class FlashLlamaSharded(FlashLlama):
             rank=self.rank,
             world_size=self.world_size,
         )
-        self.model = model.eval()
+        self.model = model.eval().to(device)
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -300,4 +295,4 @@ class FlashLlamaSharded(FlashLlama):
                     else:
                         module._buffers[param_name] = tensor
         torch.cuda.empty_cache()
-        model.post_load_weights()
+        model.post_load_weights(quantize)

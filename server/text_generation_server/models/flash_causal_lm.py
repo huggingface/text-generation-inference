@@ -221,9 +221,6 @@ class FlashCausalLM(Model):
         else:
             raise NotImplementedError("FlashCausalLM is only available on GPU")
 
-        if quantize:
-            raise NotImplementedError("FlashCausalLM does not support quantization")
-
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
         )
@@ -232,9 +229,10 @@ class FlashCausalLM(Model):
                 model_id,
                 revision=revision,
                 torch_dtype=dtype,
+                load_in_8bit=quantize,
             )
             .eval()
-            .cuda()
+            .to(device)
         )
 
         super(FlashCausalLM, self).__init__(

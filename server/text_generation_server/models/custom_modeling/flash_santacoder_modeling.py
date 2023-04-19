@@ -10,6 +10,12 @@ from transformers.activations import ACT2FN
 import flash_attn_cuda
 import dropout_layer_norm
 
+HAS_BITS_AND_BYTES = True
+try:
+    from bitsandbytes.nn import Linear8bitLt
+except ImportError as e:
+    HAS_BITS_AND_BYTES = False
+
 
 class FastLayerNorm(nn.LayerNorm):
     def forward(self, hidden_states, residual=None):
@@ -57,14 +63,44 @@ class FastLinear(nn.Linear):
         dtype=None,
     ) -> None:
         super(FastLinear, self).__init__(in_features, out_features, bias, device, dtype)
+        self.quantized = False
+        self.bnb_linear = None
 
-    def transpose_weight(self):
-        self.weight = nn.Parameter(self.weight.T)
+    def prepare_weights(self, quantize: bool = False):
+        if quantize:
+            if not HAS_BITS_AND_BYTES:
+                raise ImportError(
+                    "bitsandbytes is not available on your machine either because it is not installed "
+                    "or you don't have a GPU.\n"
+                    "You can install it with `pip install bitsandbytes`."
+                )
+
+            self.quantized = True
+            self.bnb_linear = Linear8bitLt(
+                self.in_features,
+                self.out_features,
+                has_fp16_weights=False,
+                threshold=6.0,
+                bias=False,
+            )
+            # Copy data to bnb_linear
+            self.bnb_linear.weight.data = self.weight.data
+            if self.bias is not None:
+                self.bnb_linear.bias = nn.Parameter(self.bias)
+
+            # Delete reference to data
+            self.weight = None
+            self.bias = None
+        else:
+            self.weight = nn.Parameter(self.weight.T)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.bias is not None:
-            return torch.addmm(self.bias, input, self.weight)
-        return torch.matmul(input, self.weight)
+        if self.quantized:
+            return self.bnb_linear(input)
+        else:
+            if self.bias is not None:
+                return torch.addmm(self.bias, input, self.weight)
+            return torch.matmul(input, self.weight)
 
 
 class TensorParallelColumnLinear(FastLinear):
@@ -431,16 +467,16 @@ class FlashSantacoderModel(nn.Module):
         self.head_size = self.h[0].attn.head_size
         self.num_heads = self.h[0].attn.num_heads
 
-    def post_load_weights(self):
+    def post_load_weights(self, load_in_8bit: bool = False):
         if self.tp_embeddings:
             self.wte.add_null_idx()
             self.wpe.add_null_idx()
         for layer in self.h:
             layer: Block
-            layer.attn.c_attn.transpose_weight()
-            layer.attn.c_proj.transpose_weight()
-            layer.mlp.c_fc.transpose_weight()
-            layer.mlp.c_proj.transpose_weight()
+            layer.attn.c_attn.prepare_weights(load_in_8bit)
+            layer.attn.c_proj.prepare_weights(load_in_8bit)
+            layer.mlp.c_fc.prepare_weights(load_in_8bit)
+            layer.mlp.c_proj.prepare_weights(load_in_8bit)
 
     def forward(
         self,
@@ -508,9 +544,9 @@ class FlashSantacoderForCausalLM(nn.Module):
         else:
             self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
 
-    def post_load_weights(self):
-        self.transformer.post_load_weights()
-        self.lm_head.transpose_weight()
+    def post_load_weights(self, load_in_8bit: bool = False):
+        self.transformer.post_load_weights(load_in_8bit)
+        self.lm_head.prepare_weights()
 
     def forward(
         self,

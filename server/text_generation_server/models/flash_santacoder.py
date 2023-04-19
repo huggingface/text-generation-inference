@@ -34,9 +34,6 @@ class FlashSantacoder(FlashCausalLM):
         else:
             raise NotImplementedError("FlashSantacoder is only available on GPU")
 
-        if quantize:
-            raise NotImplementedError("FlashSantacoder does not support quantization")
-
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
         )
@@ -58,9 +55,14 @@ class FlashSantacoder(FlashCausalLM):
             model = FlashSantacoderForCausalLM(config)
 
         self.load_weights(
-            model, filenames, device, dtype, config.architectures[0].startswith("GPT2")
+            model,
+            filenames,
+            quantize,
+            device,
+            dtype,
+            config.architectures[0].startswith("GPT2"),
         )
-        self.model = model.eval()
+        self.model = model.eval().to(device)
 
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer, device=device, decode_buffer=1
@@ -70,6 +72,7 @@ class FlashSantacoder(FlashCausalLM):
     def load_weights(
         model: FlashSantacoderForCausalLM,
         filenames: List[Path],
+        quantize: bool,
         device: torch.device,
         dtype: torch.dtype,
         transpose: bool,
@@ -77,7 +80,7 @@ class FlashSantacoder(FlashCausalLM):
         for filename in filenames:
             state_dict = torch.load(filename, map_location="cpu")
             for key, value in state_dict.items():
-                value = value.to(device).to(dtype)
+                value = value.to(device if not quantize else "cpu").to(dtype)
 
                 layer_name = ".".join(key.split(".")[:4])
 
@@ -152,7 +155,7 @@ class FlashSantacoder(FlashCausalLM):
                 del value
 
         torch.cuda.empty_cache()
-        model.post_load_weights()
+        model.post_load_weights(quantize)
 
     def decode(self, generated_ids: List[int]) -> str:
         # Do not skip special tokens as they are used for custom parsing rules of the generated text
@@ -173,11 +176,6 @@ class FlashSantacoderSharded(FlashSantacoder):
         else:
             raise NotImplementedError("FlashSantacoderSharded is only available on GPU")
 
-        if quantize:
-            raise NotImplementedError(
-                "FlashSantacoderSharded does not support quantization"
-            )
-
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
         )
@@ -197,13 +195,14 @@ class FlashSantacoderSharded(FlashSantacoder):
         self.load_weights(
             model,
             filenames,
+            quantize=quantize,
             device=device,
             dtype=dtype,
             rank=self.rank,
             world_size=self.world_size,
             transpose=config.architectures[0].startswith("GPT2"),
         )
-        self.model = model.eval()
+        self.model = model.eval().to(device)
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -214,6 +213,7 @@ class FlashSantacoderSharded(FlashSantacoder):
     def load_weights(
         model,
         filenames: List[str],
+        quantize: bool,
         device: torch.device,
         dtype: torch.dtype,
         rank: int,
@@ -221,7 +221,9 @@ class FlashSantacoderSharded(FlashSantacoder):
         transpose: bool,
     ):
         for file in filenames:
-            with safe_open(file, framework="pt", device=str(device)) as f:
+            with safe_open(
+                file, framework="pt", device=str(device) if not quantize else "cpu"
+            ) as f:
                 for key in f.keys():
                     slice_ = f.get_slice(key)
 
@@ -363,4 +365,4 @@ class FlashSantacoderSharded(FlashSantacoder):
                     else:
                         module._buffers[param_name] = tensor
         torch.cuda.empty_cache()
-        model.post_load_weights()
+        model.post_load_weights(quantize)

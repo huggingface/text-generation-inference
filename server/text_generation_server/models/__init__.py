@@ -26,7 +26,9 @@ try:
 
     FLASH_ATTENTION = torch.cuda.is_available()
 except ImportError:
-    logger.opt(exception=True).warning("Could not import Flash Attention enabled models")
+    logger.opt(exception=True).warning(
+        "Could not import Flash Attention enabled models"
+    )
     FLASH_ATTENTION = False
 
 __all__ = [
@@ -88,10 +90,10 @@ def get_model(
                 raise NotImplementedError(
                     FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Santacoder")
                 )
-            return FlashSantacoderSharded(model_id, revision=revision)
+            return FlashSantacoderSharded(model_id, revision, quantize=quantize)
         else:
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
-            return santacoder_cls(model_id, revision, quantize)
+            return santacoder_cls(model_id, revision, quantize=quantize)
 
     config = AutoConfig.from_pretrained(model_id, revision=revision)
     model_type = config.model_type
