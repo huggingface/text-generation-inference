@@ -414,6 +414,14 @@ fn main() -> ExitCode {
         argv.push(origin);
     }
 
+    // Copy current process env
+    let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
+
+    // Parse Inference API token
+    if let Ok(api_token) = env::var("HF_API_TOKEN") {
+        env.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+    };
+
     let mut webserver = match Popen::create(
         &argv,
         PopenConfig {
@@ -421,6 +429,7 @@ fn main() -> ExitCode {
             stderr: Redirection::Pipe,
             // Needed for the shutdown procedure
             setpgid: true,
+            env: Some(env),
             ..Default::default()
         },
     ) {
