@@ -95,6 +95,8 @@ jobs:
           file: Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           platforms: 'linux/amd64'
+          build-args: |
+            GIT_SHA={{ env.GITHUB_SHA }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
@@ -176,6 +178,8 @@ jobs:
           file: Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           platforms: 'linux/amd64'
+          build-args: |
+            GIT_SHA={{ env.GITHUB_SHA }}
           target: sagemaker
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
