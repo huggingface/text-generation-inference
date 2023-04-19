@@ -75,9 +75,9 @@ class FlashLlama(FlashCausalLM):
         dtype: torch.dtype,
     ):
         for filename in filenames:
-            state_dict = torch.load(filename, "cpu")
+            state_dict = torch.load(filename, map_location="cpu")
             for key, value in state_dict.items():
-                value = value.to(dtype).to(device if not quantize else "cpu")
+                value = value.to(device if not quantize else "cpu").to(dtype)
 
                 layer_name = ".".join(key.split(".")[:4])
 
