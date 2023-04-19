@@ -154,7 +154,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements.txt && \
-    pip install ".[bnb]" --no-cache-dir
+    pip install ".[bnb, accelerate]" --no-cache-dir
 
 # Install router
 COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
