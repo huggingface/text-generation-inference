@@ -35,6 +35,12 @@ import dropout_layer_norm
 
 from flash_attn.layers.rotary import RotaryEmbedding
 
+HAS_BITS_AND_BYTES = True
+try:
+    from bitsandbytes.nn import Linear8bitLt
+except ImportError as e:
+    HAS_BITS_AND_BYTES = False
+
 
 class FastLayerNorm(nn.LayerNorm):
     def forward(self, hidden_states, residual=None):
@@ -82,14 +88,44 @@ class FastLinear(nn.Linear):
         dtype=None,
     ) -> None:
         super(FastLinear, self).__init__(in_features, out_features, bias, device, dtype)
+        self.quantized = False
+        self.bnb_linear = None
 
-    def transpose_weight(self):
-        self.weight = nn.Parameter(self.weight.T)
+    def prepare_weights(self, quantize: bool = False):
+        if quantize:
+            if not HAS_BITS_AND_BYTES:
+                raise ImportError(
+                    "bitsandbytes is not available on your machine either because it is not installed "
+                    "or you don't have a GPU.\n"
+                    "You can install it with `pip install bitsandbytes`."
+                )
+
+            self.quantized = True
+            self.bnb_linear = Linear8bitLt(
+                self.in_features,
+                self.out_features,
+                has_fp16_weights=False,
+                threshold=6.0,
+                bias=False,
+            )
+            # Copy data to bnb_linear
+            self.bnb_linear.weight.data = self.weight.data
+            if self.bias is not None:
+                self.bnb_linear.bias = nn.Parameter(self.bias)
+
+            # Delete reference to data
+            self.weight = None
+            self.bias = None
+        else:
+            self.weight = nn.Parameter(self.weight.T)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.bias is not None:
-            return torch.addmm(self.bias, input, self.weight)
-        return torch.matmul(input, self.weight)
+        if self.quantized:
+            return self.bnb_linear(input)
+        else:
+            if self.bias is not None:
+                return torch.addmm(self.bias, input, self.weight)
+            return torch.matmul(input, self.weight)
 
 
 class TensorParallelColumnLinear(FastLinear):
@@ -552,23 +588,27 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         self.head_size = self.layers[0].attention.head_size
         self.num_heads = self.layers[0].attention.num_heads
 
-    def post_load_weights(self):
+    def post_load_weights(self, load_in_8bit=False):
         if isinstance(self.embed_in, TensorParallelEmbedding):
             self.embed_in.add_null_idx()
         for layer in self.layers:
             layer: FlashNeoXLayer
             layer.attention.shuffle_qkv_dims()
-            layer.attention.query_key_value.transpose_weight()
-            layer.attention.dense.transpose_weight()
-            layer.mlp.dense_h_to_4h.transpose_weight()
-            layer.mlp.dense_4h_to_h.transpose_weight()
+            layer.attention.query_key_value.prepare_weights(load_in_8bit)
+            layer.attention.dense.prepare_weights(load_in_8bit)
+            layer.mlp.dense_h_to_4h.prepare_weights(load_in_8bit)
+            layer.mlp.dense_4h_to_h.prepare_weights(load_in_8bit)
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        # Pop here as we will replace the layer in our own logic and don't want from_pretrained
+        # to do it for us
+        load_in_8bit = kwargs.pop("load_in_8bit", False)
         model = super(FlashGPTNeoXModel, cls).from_pretrained(
-            pretrained_model_name_or_path, *model_args, **kwargs
+            pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
         )
-        model.post_load_weights()
+
+        model.post_load_weights(load_in_8bit)
         return model
 
     def forward(
@@ -653,16 +693,19 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
                 config.hidden_size, config.vocab_size, bias=False
             )
 
-    def post_load_weights(self):
-        self.gpt_neox.post_load_weights()
-        self.embed_out.transpose_weight()
+    def post_load_weights(self, load_in_8bit=False):
+        self.gpt_neox.post_load_weights(load_in_8bit)
+        self.embed_out.prepare_weights()
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        # Pop here as we will replace the layer in our own logic and don't want from_pretrained
+        # to do it for us
+        load_in_8bit = kwargs.pop("load_in_8bit", False)
         model = super(FlashGPTNeoXForCausalLM, cls).from_pretrained(
-            pretrained_model_name_or_path, *model_args, **kwargs
+            pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
         )
-        model.post_load_weights()
+        model.post_load_weights(load_in_8bit)
         return model
 
     def forward(

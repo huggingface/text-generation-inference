@@ -41,9 +41,6 @@ class FlashNeoXSharded(FlashNeoX):
         else:
             raise NotImplementedError("FlashNeoX is only available on GPU")
 
-        if quantize:
-            raise NotImplementedError("FlashNeoX does not support quantization")
-
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
         )
@@ -63,13 +60,13 @@ class FlashNeoXSharded(FlashNeoX):
         self.load_weights(
             model,
             filenames,
+            quantize=quantize,
             device=device,
             dtype=dtype,
             rank=self.rank,
             world_size=self.world_size,
         )
-        model.post_load_weights()
-        self.model = model.eval()
+        self.model = model.eval().to(device)
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
@@ -80,6 +77,7 @@ class FlashNeoXSharded(FlashNeoX):
     def load_weights(
         model,
         filenames: List[str],
+        quantize: bool,
         device: torch.device,
         dtype: torch.dtype,
         rank: int,
@@ -87,7 +85,9 @@ class FlashNeoXSharded(FlashNeoX):
     ):
         parameters = dict(model.named_parameters())
         for file in filenames:
-            with safe_open(file, framework="pt", device=str(device)) as f:
+            with safe_open(
+                file, framework="pt", device=str(device) if not quantize else "cpu"
+            ) as f:
                 for name in f.keys():
                     module_name, param_name = name.rsplit(".", 1)
                     module = model.get_submodule(module_name)
@@ -146,3 +146,4 @@ class FlashNeoXSharded(FlashNeoX):
                         module._parameters[param_name] = tensor
                     else:
                         module._buffers[param_name] = tensor
+        model.post_load_weights(quantize)

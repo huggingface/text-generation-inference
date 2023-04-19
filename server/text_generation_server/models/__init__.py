@@ -26,7 +26,9 @@ try:
 
     FLASH_ATTENTION = torch.cuda.is_available()
 except ImportError:
-    logger.opt(exception=True).warning("Could not import Flash Attention enabled models")
+    logger.opt(exception=True).warning(
+        "Could not import Flash Attention enabled models"
+    )
     FLASH_ATTENTION = False
 
 __all__ = [
