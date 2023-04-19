@@ -161,6 +161,7 @@ impl State {
             // Filter entries where the response receiver was dropped (== entries where the request
             // was dropped by the client)
             if entry.response_tx.is_disconnected() {
+                metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
                 continue;
             }
 
@@ -190,6 +191,8 @@ impl State {
             }
         }
 
+        metrics::gauge!("tgi_queue_size", self.entries.len() as f64);
+
         // Maybe all entries were dropped because their channel were closed
         if batch_requests.is_empty() {
             return None;
@@ -207,7 +210,6 @@ impl State {
         // Increment batch id
         self.next_batch_id += 1;
 
-        metrics::gauge!("tgi_queue_size", self.entries.len() as f64);
         metrics::histogram!("tgi_batch_next_size", batch.size as f64);
         Some((batch_entries, batch, next_batch_span))
     }
