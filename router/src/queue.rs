@@ -235,6 +235,8 @@ impl State {
         // that don't fit in the current batch to reach smaller entries that do
         let mut queue_index = checked_up_to_index;
         'queue_loop: for (entry_id, entry) in self.entries.range(queue_index..) {
+            // If we have skipped over an entry, stop when we reach requests
+            // that came in to long after it
             if matches!(time_cutoff, Some(t) if entry.queue_time > t) {
                 break
             }
@@ -303,9 +305,9 @@ impl State {
             }
             // Here, we can add this request to the batch without breaching memory limit
 
+            // Also check whether adding this request will make the batch of new requests
+            // too expensive latency-wise to perform in a single forward-pass.
             if config.prefill_weight_limit > 0 {
-                // Also check whether adding this request will make the batch of new requests
-                // too expensive latency-wise to perform in a single forward-pass.
                 if prefill_size + input_len > config.prefill_weight_limit {
                     if let Some(tree) = btree.as_mut() {
                         // Remove our tuple from the set
@@ -367,8 +369,7 @@ impl State {
         let batch_requests = chosen_indices.iter().enumerate().map(|(i, index)| {
             let (id, mut entry) = self.entries.remove(index - i).expect("bug");
             // Create a new span to link the batch back to this entry
-            let entry_batch_span =
-                info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
+            let entry_batch_span = info_span!(parent: &entry.span, "infer");
             // Add relationships
             next_batch_span.follows_from(&entry_batch_span);
             entry_batch_span.follows_from(&next_batch_span);
