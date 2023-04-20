@@ -3,8 +3,9 @@ use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
+use std::collections::VecDeque;
 use text_generation_client::{Batch, Request};
-use tokio::sync::{oneshot, OwnedSemaphorePermit};
+use tokio::sync::oneshot;
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
 
@@ -23,8 +24,6 @@ pub(crate) struct Entry {
     pub queue_time: Instant,
     /// Instant when this entry was added to a batch
     pub batch_time: Option<Instant>,
-    /// Permit
-    pub _permit: OwnedSemaphorePermit,
 }
 
 /// Request Queue
@@ -104,7 +103,7 @@ async fn queue_task(receiver: flume::Receiver<QueueCommand>) {
 #[derive(Debug)]
 struct State {
     /// Queue entries organized in a Vec
-    entries: Vec<(u64, Entry)>,
+    entries: VecDeque<(u64, Entry)>,
 
     /// Id of the next entry
     next_id: u64,
@@ -116,7 +115,7 @@ struct State {
 impl State {
     fn new() -> Self {
         Self {
-            entries: Vec::with_capacity(128),
+            entries: VecDeque::with_capacity(128),
             next_id: 0,
             next_batch_id: 0,
         }
@@ -129,7 +128,7 @@ impl State {
         entry.temp_span = Some(queue_span);
 
         // Push entry in the queue
-        self.entries.push((self.next_id, entry));
+        self.entries.push_back((self.next_id, entry));
         self.next_id += 1;
         metrics::increment_gauge!("tgi_queue_size", 1.0);
     }
@@ -147,51 +146,70 @@ impl State {
             }
         }
 
-        let next_batch_size = min(self.entries.len(), max_size);
+        let max_batch_size = min(self.entries.len(), max_size);
 
         // Create span for this batch to add context to inference calls
-        let next_batch_span = info_span!(parent: None, "batch", batch_size = next_batch_size);
+        let next_batch_span = info_span!(parent: None, "batch", batch_size = tracing::field::Empty);
         next_batch_span.follows_from(&Span::current());
 
-        let mut batch_requests = Vec::with_capacity(next_batch_size);
+        let mut batch_requests = Vec::with_capacity(max_batch_size);
         let mut batch_entries =
-            IntMap::with_capacity_and_hasher(next_batch_size, BuildNoHashHasher::default());
+            IntMap::with_capacity_and_hasher(max_batch_size, BuildNoHashHasher::default());
 
-        // Drain next_batch_size entries
-        self.entries
-            .drain(..next_batch_size)
-            .for_each(|(id, mut entry)| {
-                // Create a new span to link the batch back to this entry
-                let entry_batch_span =
-                    info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
-                // Add relationships
-                next_batch_span.follows_from(&entry_batch_span);
-                entry_batch_span.follows_from(&next_batch_span);
-                // Update entry
-                entry.temp_span = Some(entry_batch_span);
+        // Iterate on buffer
+        while let Some((id, mut entry)) = self.entries.pop_front() {
+            // Filter entries where the response receiver was dropped (== entries where the request
+            // was dropped by the client)
+            if entry.response_tx.is_disconnected() {
+                metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+                continue;
+            }
 
-                batch_requests.push(Request {
-                    id,
-                    inputs: entry.request.inputs.clone(),
-                    truncate: entry.request.truncate,
-                    parameters: Some(entry.request.parameters.clone()),
-                    stopping_parameters: Some(entry.request.stopping_parameters.clone()),
-                });
-                // Set batch_time
-                entry.batch_time = Some(Instant::now());
-                // Insert in batch_entries IntMap
-                batch_entries.insert(id, entry);
+            // Create a new span to link the batch back to this entry
+            let entry_batch_span = info_span!(parent: &entry.span, "infer");
+            // Add relationships
+            next_batch_span.follows_from(&entry_batch_span);
+            entry_batch_span.follows_from(&next_batch_span);
+            // Update entry
+            entry.temp_span = Some(entry_batch_span);
+
+            batch_requests.push(Request {
+                id,
+                inputs: entry.request.inputs.clone(),
+                truncate: entry.request.truncate,
+                parameters: Some(entry.request.parameters.clone()),
+                stopping_parameters: Some(entry.request.stopping_parameters.clone()),
             });
+            // Set batch_time
+            entry.batch_time = Some(Instant::now());
+            // Insert in batch_entries IntMap
+            batch_entries.insert(id, entry);
+
+            if batch_requests.len() == max_batch_size {
+                // We have enough requests in the batch
+                break;
+            }
+        }
+
+        metrics::gauge!("tgi_queue_size", self.entries.len() as f64);
+
+        // Maybe all entries were dropped because their channel were closed
+        if batch_requests.is_empty() {
+            return None;
+        }
+
+        // Final batch size once we dropped entries
+        let size = batch_requests.len() as u32;
+        next_batch_span.record("batch_size", size);
 
         let batch = Batch {
             id: self.next_batch_id,
             requests: batch_requests,
-            size: next_batch_size as u32,
+            size,
         };
         // Increment batch id
         self.next_batch_id += 1;
 
-        metrics::gauge!("tgi_queue_size", self.entries.len() as f64);
         metrics::histogram!("tgi_batch_next_size", batch.size as f64);
         Some((batch_entries, batch, next_batch_span))
     }
@@ -213,17 +231,16 @@ enum QueueCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
-    use tokio::sync::Semaphore;
     use tracing::info_span;
 
-    fn default_entry() -> Entry {
-        let semaphore = Arc::new(Semaphore::new(1));
-        let (response_tx, _) = flume::unbounded();
-        let permit = semaphore.try_acquire_owned().unwrap();
+    fn default_entry() -> (
+        Entry,
+        flume::Receiver<Result<InferStreamResponse, InferError>>,
+    ) {
+        let (response_tx, receiver_tx) = flume::unbounded();
 
-        Entry {
+        let entry = Entry {
             request: ValidGenerateRequest {
                 inputs: "".to_string(),
                 truncate: 0,
@@ -248,14 +265,14 @@ mod tests {
             temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
-            _permit: permit,
-        }
+        };
+        (entry, receiver_tx)
     }
 
     #[test]
     fn test_append() {
         let mut state = State::new();
-        let entry = default_entry();
+        let (entry, _guard) = default_entry();
 
         assert_eq!(state.next_id, 0);
         assert_eq!(state.entries.len(), 0);
@@ -264,7 +281,7 @@ mod tests {
 
         assert_eq!(state.next_id, 1);
         assert_eq!(state.entries.len(), 1);
-        let (id, _) = state.entries.remove(0);
+        let (id, _) = state.entries.remove(0).unwrap();
         assert_eq!(id, 0);
     }
 
@@ -279,8 +296,10 @@ mod tests {
     #[test]
     fn test_next_batch_min_size() {
         let mut state = State::new();
-        state.append(default_entry());
-        state.append(default_entry());
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        state.append(entry1);
+        state.append(entry2);
 
         let (entries, batch, _) = state.next_batch(None, 2).unwrap();
         assert_eq!(entries.len(), 2);
@@ -295,21 +314,24 @@ mod tests {
         assert_eq!(state.entries.len(), 0);
         assert_eq!(state.next_batch_id, 1);
 
-        state.append(default_entry());
+        let (entry3, _guard3) = default_entry();
+        state.append(entry3);
 
         assert!(state.next_batch(Some(2), 2).is_none());
 
         assert_eq!(state.next_id, 3);
         assert_eq!(state.entries.len(), 1);
-        let (id, _) = state.entries.remove(0);
+        let (id, _) = state.entries.remove(0).unwrap();
         assert_eq!(id, 2);
     }
 
     #[test]
     fn test_next_batch_max_size() {
         let mut state = State::new();
-        state.append(default_entry());
-        state.append(default_entry());
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        state.append(entry1);
+        state.append(entry2);
 
         let (entries, batch, _) = state.next_batch(None, 1).unwrap();
         assert_eq!(entries.len(), 1);
@@ -321,7 +343,8 @@ mod tests {
         assert_eq!(state.entries.len(), 1);
         assert_eq!(state.next_batch_id, 1);
 
-        state.append(default_entry());
+        let (entry3, _guard3) = default_entry();
+        state.append(entry3);
 
         let (entries, batch, _) = state.next_batch(None, 3).unwrap();
         assert_eq!(entries.len(), 2);
@@ -338,7 +361,8 @@ mod tests {
     #[tokio::test]
     async fn test_queue_append() {
         let queue = Queue::new();
-        queue.append(default_entry());
+        let (entry, _guard) = default_entry();
+        queue.append(entry);
     }
 
     #[tokio::test]
@@ -352,8 +376,10 @@ mod tests {
     #[tokio::test]
     async fn test_queue_next_batch_min_size() {
         let queue = Queue::new();
-        queue.append(default_entry());
-        queue.append(default_entry());
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        queue.append(entry1);
+        queue.append(entry2);
 
         let (entries, batch, _) = queue.next_batch(None, 2).await.unwrap();
         assert_eq!(entries.len(), 2);
@@ -364,7 +390,8 @@ mod tests {
         assert_eq!(batch.id, 0);
         assert_eq!(batch.size, 2);
 
-        queue.append(default_entry());
+        let (entry3, _guard3) = default_entry();
+        queue.append(entry3);
 
         assert!(queue.next_batch(Some(2), 2).await.is_none());
     }
@@ -372,8 +399,10 @@ mod tests {
     #[tokio::test]
     async fn test_queue_next_batch_max_size() {
         let queue = Queue::new();
-        queue.append(default_entry());
-        queue.append(default_entry());
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        queue.append(entry1);
+        queue.append(entry2);
 
         let (entries, batch, _) = queue.next_batch(None, 1).await.unwrap();
         assert_eq!(entries.len(), 1);
@@ -381,7 +410,8 @@ mod tests {
         assert_eq!(batch.id, 0);
         assert_eq!(batch.size, 1);
 
-        queue.append(default_entry());
+        let (entry3, _guard3) = default_entry();
+        queue.append(entry3);
 
         let (entries, batch, _) = queue.next_batch(None, 3).await.unwrap();
         assert_eq!(entries.len(), 2);
@@ -389,5 +419,14 @@ mod tests {
         assert!(entries.contains_key(&2));
         assert_eq!(batch.id, 1);
         assert_eq!(batch.size, 2);
+    }
+
+    #[tokio::test]
+    async fn test_queue_next_batch_dropped_receiver() {
+        let queue = Queue::new();
+        let (entry, _) = default_entry();
+        queue.append(entry);
+
+        assert!(queue.next_batch(None, 1).await.is_none());
     }
 }

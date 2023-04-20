@@ -3,6 +3,7 @@ use crate::validation::{Validation, ValidationError};
 use crate::{Entry, Queue, Token};
 use crate::{GenerateRequest, PrefillToken};
 use flume::r#async::RecvStream;
+use flume::SendError;
 use futures::future::try_join_all;
 use futures::stream::StreamExt;
 use nohash_hasher::IntMap;
@@ -11,7 +12,7 @@ use text_generation_client::{
     Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
 };
 use thiserror::Error;
-use tokio::sync::{Notify, Semaphore, TryAcquireError};
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
 
@@ -73,9 +74,14 @@ impl Infer {
     pub(crate) async fn generate_stream(
         &self,
         request: GenerateRequest,
-    ) -> Result<RecvStream<Result<InferStreamResponse, InferError>>, InferError> {
+    ) -> Result<
+        (
+            OwnedSemaphorePermit,
+            RecvStream<Result<InferStreamResponse, InferError>>,
+        ),
+        InferError,
+    > {
         // Limit concurrent requests by acquiring a permit from the semaphore
-        // This permit will live as long as Entry
         let permit = self
             .clone()
             .limit_concurrent_requests
@@ -104,7 +110,6 @@ impl Infer {
             temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
-            _permit: permit,
         });
 
         // Notify the background task that we have a new entry in the queue that needs
@@ -112,7 +117,7 @@ impl Infer {
         self.shared.batching_task.notify_one();
 
         // Return stream
-        Ok(response_rx.into_stream())
+        Ok((permit, response_rx.into_stream()))
     }
 
     /// Add a new request to the queue and return a InferResponse
@@ -121,8 +126,8 @@ impl Infer {
         &self,
         request: GenerateRequest,
     ) -> Result<InferResponse, InferError> {
-        // Create stream
-        let mut stream = self.generate_stream(request).await?;
+        // Create stream and keep semaphore permit as long as generate lives
+        let (_permit, mut stream) = self.generate_stream(request).await?;
 
         // Return values
         let mut result_prefill = Vec::new();
@@ -276,12 +281,10 @@ async fn batching_task(
                         .next_batch(min_size, max_batch_size - batch_size as usize)
                         .await
                     {
-                        let new_batch_size = new_batch.size;
                         entries.iter_mut().for_each(|(_, entry)| {
                             // Create a new span to add the info that this entry is waiting
                             // because a new batch is being computed
-                            let entry_waiting_span =
-                                info_span!(parent: &entry.span, "waiting", batch_size = new_batch_size);
+                            let entry_waiting_span = info_span!(parent: &entry.span, "waiting");
                             // Add relationships
                             span.follows_from(&entry_waiting_span);
                             entry_waiting_span.follows_from(&span);
@@ -308,8 +311,7 @@ async fn batching_task(
                     info_span!(parent: None, "batch", batch_size = next_batch_size);
                 entries.iter_mut().for_each(|(_, entry)| {
                     // Create a new span to link the batch back to this entry
-                    let entry_batch_span =
-                        info_span!(parent: &entry.span, "infer", batch_size = next_batch_size);
+                    let entry_batch_span = info_span!(parent: &entry.span, "infer");
                     // Add relationships
                     next_batch_span.follows_from(&entry_batch_span);
                     entry_batch_span.follows_from(&next_batch_span);
@@ -339,7 +341,23 @@ async fn prefill(
 
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
-            send_generations(generations, entries);
+            filter_send_generations(generations, entries);
+
+            // Filter next batch and remove requests that were stopped
+            let next_batch = match next_batch {
+                None => None,
+                Some(batch) => {
+                    let id = batch.id;
+                    let next_batch = filter_batch(batch, entries);
+                    // Next batch is now empty
+                    // Clear it from the Python shards cache
+                    if next_batch.is_none() {
+                        let _ = client.clear_cache(Some(id)).await;
+                    }
+                    next_batch
+                }
+            };
+
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "prefill");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
             next_batch
@@ -361,22 +379,122 @@ async fn decode(
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<Batch> {
     let start_time = Instant::now();
+    let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "decode");
 
     match client.decode(batches).await {
         Ok((generations, next_batch)) => {
-            send_generations(generations, entries);
+            filter_send_generations(generations, entries);
+
+            // Filter next batch and remove requests that were stopped
+            let next_batch = match next_batch {
+                None => None,
+                Some(batch) => {
+                    let id = batch.id;
+                    let next_batch = filter_batch(batch, entries);
+                    // Next batch is now empty
+                    // Clear it from the Python shards cache
+                    if next_batch.is_none() {
+                        let _ = client.clear_cache(Some(id)).await;
+                    }
+                    next_batch
+                }
+            };
+
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "decode");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
             next_batch
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
+            for id in batch_ids {
+                let _ = client.clear_cache(Some(id)).await;
+            }
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "decode");
             None
         }
     }
+}
+
+/// Filter a `batch` and remove all requests not present in `entries`
+#[instrument(skip_all)]
+fn filter_batch(mut batch: Batch, entries: &IntMap<u64, Entry>) -> Option<Batch> {
+    batch.requests.retain(|r| entries.contains_key(&r.id));
+    let size = batch.requests.len();
+    if size == 0 {
+        return None;
+    }
+    batch.size = size as u32;
+    Some(batch)
+}
+
+/// Send one or multiple `InferStreamResponse` to Infer for all `entries`
+/// and filter entries
+#[instrument(skip_all)]
+fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
+    generations.into_iter().for_each(|generation| {
+        let id = generation.request_id;
+        // Get entry
+        // We can `expect` here as the request id should always be in the entries
+        let entry = entries
+            .get(&id)
+            .expect("ID not found in entries. This is a bug.");
+
+        // Create and enter a span to link this function back to the entry
+        let _span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
+        // Send generation responses back to the infer task
+        // If the receive an error from the Flume channel, it means that the client dropped the
+        // request and we need to stop generating hence why we unwrap_or(true)
+        let stopped = send_responses(generation, entry).map_err(|err| {
+            metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+            err
+        }).unwrap_or(true);
+        if stopped {
+            entries.remove(&id).expect("ID not found in entries. This is a bug.");
+        }
+    });
+}
+
+/// Send responses through the `entry` response channel
+fn send_responses(
+    generation: Generation,
+    entry: &Entry,
+) -> Result<bool, SendError<Result<InferStreamResponse, InferError>>> {
+    let mut stopped = false;
+
+    if let Some(prefill_tokens) = generation.prefill_tokens {
+        // Send message
+        entry
+            .response_tx
+            .send(Ok(InferStreamResponse::Prefill(prefill_tokens)))?;
+    }
+
+    // Create last Token
+    let token = Token {
+        id: generation.token_id,
+        text: generation.token_text,
+        logprob: generation.token_logprob,
+        special: generation.token_is_special,
+    };
+
+    if let Some(generated_text) = generation.generated_text {
+        // Generation has ended
+        stopped = true;
+        // Send message
+        entry.response_tx.send(Ok(InferStreamResponse::End {
+            token,
+            generated_text,
+            queued: entry.queue_time,
+            start: entry.batch_time.unwrap(),
+        }))?;
+    } else {
+        // Send message
+        entry
+            .response_tx
+            .send(Ok(InferStreamResponse::Token(token)))?;
+    }
+    Ok(stopped)
 }
 
 /// Send errors to Infer for all `entries`
@@ -394,65 +512,6 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
             .response_tx
             .send(Err(err))
             .unwrap_or(());
-    });
-}
-
-/// Send one or multiple `InferStreamResponse` to Infer for all `entries`
-#[instrument(skip_all)]
-fn send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
-    generations.into_iter().for_each(|generation| {
-        // Get entry
-        // We can `expect` here as the request id should always be in the entries
-        let entry = entries
-            .get(&generation.request_id)
-            .expect("ID not found in entries. This is a bug.");
-
-        // Create and enter a span to link this function back to the entry
-        let _generation_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
-
-        if let Some(prefill_tokens) = generation.prefill_tokens {
-            // Send message
-            // unwrap_or is valid here as we don't care if the receiver is gone.
-            entry
-                .response_tx
-                .send(Ok(InferStreamResponse::Prefill(prefill_tokens)))
-                .unwrap_or(());
-        }
-
-        // Create last Token
-        let token = Token {
-            id: generation.token_id,
-            text: generation.token_text,
-            logprob: generation.token_logprob,
-            special: generation.token_is_special,
-        };
-
-        if let Some(generated_text) = generation.generated_text {
-            // Remove entry as this is the last message
-            // We can `expect` here as the request id should always be in the entries
-            let entry = entries
-                .remove(&generation.request_id)
-                .expect("ID not found in entries. This is a bug.");
-
-            // Send message
-            // unwrap_or is valid here as we don't care if the receiver is gone.
-            entry
-                .response_tx
-                .send(Ok(InferStreamResponse::End {
-                    token,
-                    generated_text,
-                    queued: entry.queue_time,
-                    start: entry.batch_time.unwrap(),
-                }))
-                .unwrap_or(());
-        } else {
-            // Send message
-            // unwrap_or is valid here as we don't care if the receiver is gone.
-            entry
-                .response_tx
-                .send(Ok(InferStreamResponse::Token(token)))
-                .unwrap_or(());
-        }
     });
 }
 

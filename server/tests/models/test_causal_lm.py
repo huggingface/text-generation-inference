@@ -44,11 +44,12 @@ def default_causal_lm_batch(default_pb_batch, gpt2_tokenizer):
 @pytest.fixture
 def default_multi_requests_causal_lm_batch(default_pb_request, gpt2_tokenizer):
     req_0 = copy(default_pb_request)
+    req_0.id = 1
     req_1 = default_pb_request
-    req_1.id = 1
+    req_1.id = 2
     req_1.stopping_parameters.max_new_tokens = 5
 
-    batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
+    batch_pb = generate_pb2.Batch(id=1, requests=[req_0, req_1], size=2)
     return CausalLMBatch.from_pb(batch_pb, gpt2_tokenizer, torch.device("cpu"))
 
 
@@ -67,12 +68,17 @@ def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):
 
     assert batch.past_key_values is None
 
-    assert torch.equal(batch.input_ids, batch.all_input_ids[:, :, 0])
+    assert all(
+        [
+            torch.equal(input_ids, all_input_ids[:, 0])
+            for input_ids, all_input_ids in zip(batch.input_ids, batch.all_input_ids)
+        ]
+    )
 
     assert batch.input_lengths == [1]
 
-    assert batch.size == default_pb_batch.size
-    assert len(batch.next_token_choosers) == len(batch.stopping_criterias) == batch.size
+    assert len(batch) == default_pb_batch.size
+    assert len(batch.next_token_choosers) == len(batch.stopping_criterias) == len(batch)
 
     assert batch.max_input_length == batch.input_lengths[0]
 
@@ -93,7 +99,7 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     assert len(generations) == len(next_batch)
     assert isinstance(next_batch, CausalLMBatch)
 
-    assert len(next_batch.all_input_ids) == next_batch.size
+    assert len(next_batch.all_input_ids) == len(next_batch)
     assert len(next_batch.all_input_ids[0]) == sequence_length + 1
     assert len(next_batch.attention_mask[0]) == 11
     assert next_batch.all_input_ids[0][-1] == 13
@@ -103,7 +109,7 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     assert torch.all(next_batch.attention_mask[0][0:2] == 1)
     assert torch.all(next_batch.attention_mask[0][2:] == 0)
 
-    assert next_batch.input_ids.shape == (next_batch.size, 1)
+    assert next_batch.input_ids.shape == (len(next_batch), 1)
     assert next_batch.input_ids[0, 0] == 13
 
     assert next_batch.input_lengths == [2]
@@ -167,6 +173,8 @@ def test_causal_lm_generate_token_completion_multi(
         generations[1].generated_text.generated_tokens
         == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
     )
+
+    next_batch = next_batch.filter([next_batch.requests[0]])
 
     for _ in range(
         default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens
@@ -266,6 +274,8 @@ def test_batch_concatenate(
         == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
     )
 
+    next_batch = next_batch.filter([next_batch.requests[0], next_batch.requests[1]])
+
     for _ in range(
         default_causal_lm_batch.stopping_criterias[0].max_new_tokens
         - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
@@ -284,6 +294,8 @@ def test_batch_concatenate(
         generations[0].generated_text.generated_tokens
         == default_causal_lm_batch.stopping_criterias[0].max_new_tokens
     )
+
+    next_batch = next_batch.filter([next_batch.requests[1]])
 
     for _ in range(
         default_multi_requests_causal_lm_batch.stopping_criterias[0].max_new_tokens

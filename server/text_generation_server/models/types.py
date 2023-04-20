@@ -25,6 +25,10 @@ class Batch(ABC):
     ) -> "Batch":
         raise NotImplementedError
 
+    @abstractmethod
+    def filter(self, requests: List[generate_pb2.Request]) -> "Batch":
+        raise NotImplementedError
+
     @classmethod
     @abstractmethod
     def concatenate(cls, batches: List["Batch"]) -> "Batch":

@@ -60,7 +60,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch = self.cache.pop(batch_pb.id)
             if batch is None:
                 raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
-            batches.append(batch)
+            batch = batch.filter(batch_pb.requests)
+            if batch is not None:
+                batches.append(batch)
+
+        if len(batches) == 0:
+            raise ValueError("All batches are empty")
 
         if len(batches) > 1:
             batch = self.model.batch_type.concatenate(batches)
