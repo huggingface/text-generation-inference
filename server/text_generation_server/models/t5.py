@@ -72,6 +72,8 @@ class T5Sharded(Seq2SeqLM):
         torch.distributed.barrier(group=self.process_group)
         super(Seq2SeqLM, self).__init__(
             tokenizer=tokenizer,
+            requires_padding=True,
+            dtype=dtype,
             device=device,
         )
 

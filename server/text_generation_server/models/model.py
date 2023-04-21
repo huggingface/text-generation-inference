@@ -5,6 +5,7 @@ from typing import List, Tuple, Optional, TypeVar, Type
 from transformers import PreTrainedTokenizerBase
 
 from text_generation_server.models.types import Batch, GeneratedText
+from text_generation_server.pb.generate_pb2 import InfoResponse
 
 B = TypeVar("B", bound=Batch)
 
@@ -13,6 +14,8 @@ class Model(ABC):
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
+        requires_padding: bool,
+        dtype: torch.dtype,
         device: torch.device,
         decode_buffer: int = 3,
     ):
@@ -21,8 +24,18 @@ class Model(ABC):
 
         self.tokenizer = tokenizer
         self.all_special_ids = set(tokenizer.all_special_ids)
+        self.requires_padding = requires_padding
+        self.dtype = dtype
         self.device = device
         self.decode_buffer = decode_buffer
+
+    @property
+    def info(self) -> InfoResponse:
+        return InfoResponse(
+            requires_padding=self.requires_padding,
+            dtype=str(self.dtype),
+            device_type=self.device.type,
+        )
 
     @property
     @abstractmethod

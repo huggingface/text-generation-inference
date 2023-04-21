@@ -3,6 +3,8 @@ syntax = "proto3";
 package generate.v1;
 
 service TextGenerationService {
+    /// Model Info
+    rpc Info (InfoRequest) returns (InfoResponse) {}
     /// Service discovery
     rpc ServiceDiscovery (ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse) {}
     /// Empties batch cache
@@ -11,6 +13,15 @@ service TextGenerationService {
     rpc Prefill (PrefillRequest) returns (PrefillResponse);
     /// Decode token for a list of prefilled batches
     rpc Decode (DecodeRequest) returns (DecodeResponse);
+}
+
+/// Empty request
+message InfoRequest {}
+
+message InfoResponse {
+    bool requires_padding = 1;
+    string dtype = 2;
+    string device_type = 3;
 }
 
 /// Empty request

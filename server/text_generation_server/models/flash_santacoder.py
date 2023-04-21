@@ -65,7 +65,11 @@ class FlashSantacoder(FlashCausalLM):
         self.model = model.eval().to(device)
 
         super(FlashCausalLM, self).__init__(
-            tokenizer=tokenizer, device=device, decode_buffer=1
+            tokenizer=tokenizer,
+            requires_padding=False,
+            dtype=dtype,
+            device=device,
+            decode_buffer=1,
         )
 
     @staticmethod
@@ -206,6 +210,8 @@ class FlashSantacoderSharded(FlashSantacoder):
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
+            requires_padding=False,
+            dtype=dtype,
             device=device,
         )
 
