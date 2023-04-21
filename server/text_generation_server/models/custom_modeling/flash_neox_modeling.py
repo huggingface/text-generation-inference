@@ -657,7 +657,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
         residual = None
         for i, layer in enumerate(self.layers):
-            # We added padding that now need to slice
+            # We added padding that we now need to slice
             layer_past_key_values = (
                 past_key_values[i]
                 if slice_past_index is None
