@@ -225,6 +225,7 @@ class FlashCausalLMBatch(Batch):
 
         return FlashCausalLMBatch(
             batch_id=self.batch_id,
+            past_pad=self.past_pad,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
             input_ids=input_ids,
@@ -311,6 +312,7 @@ class FlashCausalLMBatch(Batch):
 
         return FlashCausalLMBatch(
             batch_id=batches[0].batch_id,
+            past_pad=batches[0].past_pad,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
             input_ids=input_ids,
