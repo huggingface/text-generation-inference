@@ -27,6 +27,7 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
 from transformers.models.gpt_neox import GPTNeoXConfig
+from typing import Optional
 
 # Flash attention imports
 import rotary_emb
@@ -618,6 +619,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         cu_seqlens,
         max_s,
         past_key_values=None,
+        pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states = self.embed_in(input_ids)
 
@@ -627,7 +629,9 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             past_key_values = hidden_states.new_empty(
                 (
                     len(self.layers),
-                    len(hidden_states),
+                    len(hidden_states)
+                    if pre_allocate_past_size is None
+                    else pre_allocate_past_size,
                     2,
                     self.num_heads,
                     self.head_size,
@@ -635,6 +639,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             )
             layer_past_present_indices = None
             cu_seqlens_q = None
+            slice_past_index = len(hidden_states)
         # Decode
         else:
             # Create indices from cumulative sequence lengths
@@ -642,6 +647,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             cu_seqlens_q = torch.arange(
                 cu_seqlens.shape[0], dtype=torch.int32, device=hidden_states.device
             )
+            slice_past_index = None
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -651,6 +657,13 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
         residual = None
         for i, layer in enumerate(self.layers):
+            # We added padding that now need to slice
+            layer_past_key_values = (
+                past_key_values[i]
+                if slice_past_index is None
+                else past_key_values[i, :slice_past_index]
+            )
+
             hidden_states, residual = layer(
                 hidden_states,
                 residual,
@@ -658,7 +671,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 sin,
                 cu_seqlens,
                 max_s,
-                past_key_values[i],
+                layer_past_key_values,
                 layer_past_present_indices,
                 cu_seqlens_q,
             )
@@ -714,10 +727,16 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         position_ids,
         cu_seqlens,
         max_s,
-        past_key_values=None,
+        past_key_values: Optional[torch.Tensor] = None,
+        pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states, present = self.gpt_neox(
-            input_ids, position_ids, cu_seqlens, max_s, past_key_values
+            input_ids,
+            position_ids,
+            cu_seqlens,
+            max_s,
+            past_key_values,
+            pre_allocate_past_size,
         )
         logits = self.embed_out(hidden_states)
 
