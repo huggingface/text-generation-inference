@@ -142,6 +142,7 @@ class FlashCausalLMBatch(Batch):
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
+            past_pad=None,
         )
 
     @tracer.start_as_current_span("filter")
@@ -188,8 +189,10 @@ class FlashCausalLMBatch(Batch):
             cu_seqlens.append(cumulative_length + request_input_length)
             max_seqlen = max(max_seqlen, request_input_length)
             if not single_request:
+                # True index for past
                 past_key_values.append(self.past_key_values[2 * idx])
-                past_key_values.append(self.past_key_values[1])
+                # Add one padding
+                past_key_values.append(self.past_pad)
 
             all_input_ids.append(self.all_input_ids[idx])
             all_input_ids_tensor.append(self.all_input_ids_tensor[idx])
@@ -207,7 +210,17 @@ class FlashCausalLMBatch(Batch):
             # Preallocate tensor for bs = 1 case
             past_key_values = torch.nn.functional.pad(
                 self.past_key_values[0],
-                (0, 0, 0, 0, 0, 0, 0, stopping_criterias[0].max_new_tokens - stopping_criterias[0].current_tokens)
+                (
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    stopping_criterias[0].max_new_tokens
+                    - stopping_criterias[0].current_tokens,
+                ),
             )
 
         return FlashCausalLMBatch(
@@ -270,10 +283,16 @@ class FlashCausalLMBatch(Batch):
             # Add cumulative lengths of all previous inputs
             cu_seqlens.extend([l + cumulative_length for l in batch.cu_seqlens[1:]])
             max_seqlen = max(max_seqlen, batch.max_seqlen)
+
             if len(batch) != 1:
                 past_key_values.extend(batch.past_key_values)
             else:
-                past_key_values.append(batch.past_key_values[:, :batch.input_lengths[0]])
+                # past was pre-allocated for this batch
+                # We need to slice to remove the padding
+                past_key_values.append(
+                    batch.past_key_values[:, : batch.input_lengths[0]]
+                )
+                # Add one padding
                 past_key_values.append(batch.past_pad)
 
             all_input_ids.extend(batch.all_input_ids)
@@ -366,6 +385,7 @@ class FlashCausalLM(Model):
         cu_seqlens: torch.Tensor,
         max_s: int,
         past_key_values: Optional = None,
+        pre_allocate_past_size: Optional[int] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
         return self.model.forward(
@@ -374,6 +394,7 @@ class FlashCausalLM(Model):
             cu_seqlens=cu_seqlens,
             max_s=max_s,
             past_key_values=past_key_values,
+            pre_allocate_past_size=pre_allocate_past_size,
         )
 
     @tracer.start_as_current_span("generate_token")
@@ -382,7 +403,9 @@ class FlashCausalLM(Model):
     ) -> Tuple[List[Generation], Optional[FlashCausalLMBatch]]:
         # Shortcut when batch_size == 1
         if len(batch) == 1:
-            # No need to slice this down
+            input_ids = batch.input_ids[0].view(-1)
+            # Slice to remove extra padding
+            # past_key_values = batch.past_key_values[:, :batch.input_lengths[0]] if batch.past_key_values is not None else None
             past_key_values = batch.past_key_values
         else:
             # Concatenate tensors
@@ -392,6 +415,16 @@ class FlashCausalLM(Model):
                 if batch.past_key_values is not None
                 else None
             )
+
+        # if prefill and bs == 1
+        if past_key_values is None and len(batch) == 1:
+            # Ask to pre-allocate kv to its max size
+            # == number of tokens + max_new_tokens
+            pre_allocate_past_size = (
+                batch.input_lengths[0] + batch.stopping_criterias[0].max_new_tokens
+            )
+        else:
+            pre_allocate_past_size = None
 
         # Concatenate when prefill, torch.tensor when decode
         position_ids = (
@@ -409,21 +442,28 @@ class FlashCausalLM(Model):
             cu_seqlens,
             batch.max_seqlen,
             past_key_values,
+            pre_allocate_past_size,
         )
 
         # Initialize past_key_values in prefill
         if batch.past_key_values is None:
             # Initialize past padding tensor
             if self.past_pad is None:
-                self.past_pad = present.new_zeros(present.shape[0], 1, *present.shape[2:])
+                self.past_pad = present.new_zeros(
+                    present.shape[0], 1, *present.shape[2:]
+                )
             # Set in batch in case it needs to be used later in concatenate()
             batch.past_pad = self.past_pad
             if len(batch) == 1:
                 # Preallocate tensor for bs = 1 case
                 batch.past_key_values = torch.nn.functional.pad(
-                    present, (0, 0, 0, 0, 0, 0, 0, batch.stopping_criterias[0].max_new_tokens)
+                    present,
+                    (0, 0, 0, 0, 0, 0, 0, batch.stopping_criterias[0].max_new_tokens),
                 )
             else:
+                # Add padding after each sequence
+                # This will have the correct shape after the final past_key_values concatenation before the model
+                # forward
                 batch.past_key_values = [None, self.past_pad] * len(batch)
 
         # Cumulative length
@@ -555,6 +595,7 @@ class FlashCausalLM(Model):
             batch.all_input_ids_tensor[i] = all_input_ids_tensor
             batch.max_seqlen = max(batch.max_seqlen, new_input_length)
             if len(batch) != 1:
+                # Add each sequence before its padding
                 batch.past_key_values[i * 2] = present[:, start_index:end_index]
             # Cumulative sum
             batch.cu_seqlens[(i + 1)] = batch.cu_seqlens[i] + new_input_length

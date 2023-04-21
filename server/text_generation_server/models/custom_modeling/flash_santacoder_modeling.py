@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 from torch import nn
 from transformers.activations import ACT2FN
+from typing import Optional
 
 # Flash attention imports
 import flash_attn_cuda
@@ -484,7 +485,8 @@ class FlashSantacoderModel(nn.Module):
         position_ids,
         cu_seqlens,
         max_s,
-        past_key_values=None,
+        past_key_values: Optional[torch.Tensor] = None,
+        pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states = self.wte(input_ids) + self.wpe(position_ids)
         if self.tp_embeddings:
@@ -496,7 +498,9 @@ class FlashSantacoderModel(nn.Module):
             past_key_values = hidden_states.new_empty(
                 (
                     len(self.h),
-                    len(hidden_states),
+                    len(hidden_states)
+                    if pre_allocate_past_size is None
+                    else pre_allocate_past_size,
                     2,
                     1,
                     self.head_size,
@@ -504,6 +508,7 @@ class FlashSantacoderModel(nn.Module):
             )
             layer_past_present_indices = None
             cu_seqlens_q = None
+            slice_past_index = len(hidden_states)
         # Decode
         else:
             # Create indices from cumulative sequence lengths
@@ -511,15 +516,23 @@ class FlashSantacoderModel(nn.Module):
             cu_seqlens_q = torch.arange(
                 cu_seqlens.shape[0], dtype=torch.int32, device=hidden_states.device
             )
+            slice_past_index = None
 
         residual = None
         for i, layer in enumerate(self.h):
+            # We added padding that now need to slice
+            layer_past_key_values = (
+                past_key_values[i]
+                if slice_past_index is None
+                else past_key_values[i, :slice_past_index]
+            )
+
             hidden_states, residual = layer(
                 hidden_states,
                 residual,
                 cu_seqlens,
                 max_s,
-                past_key_values[i],
+                layer_past_key_values,
                 layer_past_present_indices,
                 cu_seqlens_q,
             )
@@ -554,10 +567,16 @@ class FlashSantacoderForCausalLM(nn.Module):
         position_ids,
         cu_seqlens,
         max_s,
-        past_key_values=None,
+        past_key_values: Optional[torch.Tensor] = None,
+        pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states, present = self.transformer(
-            input_ids, position_ids, cu_seqlens, max_s, past_key_values
+            input_ids,
+            position_ids,
+            cu_seqlens,
+            max_s,
+            past_key_values,
+            pre_allocate_past_size,
         )
         logits = self.lm_head(hidden_states)
 
