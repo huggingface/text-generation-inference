@@ -1,5 +1,5 @@
 # Rust builder
-FROM lukemathwalker/cargo-chef:latest-rust-1.67 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.69 AS chef
 WORKDIR /usr/src
 
 FROM chef as planner
