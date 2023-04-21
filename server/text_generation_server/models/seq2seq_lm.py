@@ -460,7 +460,11 @@ class Seq2SeqLM(Model):
         tokenizer.bos_token_id = self.model.config.decoder_start_token_id
 
         super(Seq2SeqLM, self).__init__(
-            tokenizer=tokenizer, device=device, decode_buffer=decode_buffer
+            tokenizer=tokenizer,
+            requires_padding=True,
+            dtype=dtype,
+            device=device,
+            decode_buffer=decode_buffer,
         )
 
     @property

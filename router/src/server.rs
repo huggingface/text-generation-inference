@@ -3,7 +3,7 @@ use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, CompatGenerateRequest, Details, ErrorResponse, FinishReason,
-    GenerateParameters, GenerateRequest, GenerateResponse, Infer, Info, ModelInfo, PrefillToken,
+    GenerateParameters, GenerateRequest, GenerateResponse, HubModelInfo, Infer, Info, PrefillToken,
     StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
@@ -18,7 +18,7 @@ use futures::Stream;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use text_generation_client::ShardedClient;
+use text_generation_client::{ShardInfo, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::time::Instant;
@@ -78,13 +78,19 @@ async fn compat_generate(
     responses((status = 200, description = "Served model info", body = Info))
 )]
 #[instrument]
-async fn get_model_info(model_info: Extension<ModelInfo>) -> Json<Info> {
+async fn get_model_info(
+    model_info: Extension<HubModelInfo>,
+    shard_info: Extension<ShardInfo>,
+) -> Json<Info> {
     let model_info = model_info.0;
+    let shard_info = shard_info.0;
     let info = Info {
         version: env!("CARGO_PKG_VERSION"),
         sha: option_env!("VERGEN_GIT_SHA"),
         model_id: model_info.model_id,
         model_sha: model_info.sha,
+        model_dtype: shard_info.dtype,
+        model_device_type: shard_info.device_type,
         model_pipeline_tag: model_info.pipeline_tag,
     };
     Json(info)
@@ -497,7 +503,8 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
-    model_info: ModelInfo,
+    model_info: HubModelInfo,
+    shard_info: ShardInfo,
     compat_return_full_text: bool,
     max_concurrent_requests: usize,
     max_best_of: usize,
@@ -641,6 +648,7 @@ pub async fn run(
         // Prometheus metrics route
         .route("/metrics", get(metrics))
         .layer(Extension(model_info))
+        .layer(Extension(shard_info))
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
         .layer(Extension(prom_handle))

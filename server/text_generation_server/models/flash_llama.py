@@ -63,6 +63,8 @@ class FlashLlama(FlashCausalLM):
 
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
+            requires_padding=False,
+            dtype=dtype,
             device=device,
         )
 
@@ -184,6 +186,8 @@ class FlashLlamaSharded(FlashLlama):
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
             tokenizer=tokenizer,
+            requires_padding=False,
+            dtype=dtype,
             device=device,
         )
 

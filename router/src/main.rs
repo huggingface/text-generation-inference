@@ -10,7 +10,7 @@ use opentelemetry_otlp::WithExportConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use text_generation_client::ShardedClient;
-use text_generation_router::{server, ModelInfo};
+use text_generation_router::{server, HubModelInfo};
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
@@ -128,7 +128,7 @@ fn main() -> Result<(), std::io::Error> {
 
             // Get Model info
             let model_info = match local_model {
-                true => ModelInfo {
+                true => HubModelInfo {
                     model_id: tokenizer_name.clone(),
                     sha: None,
                     pipeline_tag: None,
@@ -154,6 +154,11 @@ fn main() -> Result<(), std::io::Error> {
                 .clear_cache(None)
                 .await
                 .expect("Unable to clear cache");
+            // Get info from the shard
+            let shard_info = sharded_client
+                .info()
+                .await
+                .expect("Unable to get shard info");
             tracing::info!("Connected");
 
             // Binds on localhost
@@ -162,6 +167,7 @@ fn main() -> Result<(), std::io::Error> {
             // Run server
             server::run(
                 model_info,
+                shard_info,
                 compat_return_full_text,
                 max_concurrent_requests,
                 max_best_of,
@@ -237,7 +243,7 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
 }
 
 /// get model info from the Huggingface Hub
-pub async fn get_model_info(model_id: &str, revision: &str, token: Option<String>) -> ModelInfo {
+pub async fn get_model_info(model_id: &str, revision: &str, token: Option<String>) -> HubModelInfo {
     let client = reqwest::Client::new();
     let mut builder = client.get(format!(
         "https://huggingface.co/api/models/{model_id}/revision/{revision}"

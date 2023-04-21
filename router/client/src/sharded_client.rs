@@ -1,6 +1,6 @@
 /// Multi shard Client
 use crate::Result;
-use crate::{Batch, Client, Generation};
+use crate::{Batch, Client, Generation, ShardInfo};
 use futures::future::join_all;
 use tonic::transport::Uri;
 use tracing::instrument;
@@ -35,6 +35,17 @@ impl ShardedClient {
     pub async fn connect_uds(path: String) -> Result<Self> {
         let master_client = Client::connect_uds(path).await?;
         Self::from_master_client(master_client).await
+    }
+
+    /// Get the model info
+    #[instrument(skip(self))]
+    pub async fn info(&mut self) -> Result<ShardInfo> {
+        let futures: Vec<_> = self
+            .clients
+            .iter_mut()
+            .map(|client| client.info())
+            .collect();
+        join_all(futures).await.pop().unwrap()
     }
 
     /// Clear the past generations cache

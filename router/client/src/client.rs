@@ -54,6 +54,14 @@ impl Client {
         Ok(urls)
     }
 
+    /// Get model info
+    #[instrument(skip(self))]
+    pub async fn info(&mut self) -> Result<InfoResponse> {
+        let request = tonic::Request::new(InfoRequest {}).inject_context();
+        let response = self.stub.info(request).await?.into_inner();
+        Ok(response)
+    }
+
     /// Clear the past generations cache
     #[instrument(skip(self))]
     pub async fn clear_cache(&mut self, batch_id: Option<u64>) -> Result<()> {

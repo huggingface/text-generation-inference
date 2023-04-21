@@ -26,6 +26,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             # Force inference mode for the lifetime of TextGenerationService
             self._inference_mode_raii_guard = torch._C._InferenceMode(True)
 
+    async def Info(self, request, context):
+        return self.model.info
+
     async def ServiceDiscovery(self, request, context):
         return generate_pb2.ServiceDiscoveryResponse(urls=self.server_urls)
 

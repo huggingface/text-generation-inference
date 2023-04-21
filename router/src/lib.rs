@@ -12,7 +12,7 @@ use validation::Validation;
 
 /// Hub type
 #[derive(Clone, Debug, Deserialize)]
-pub struct ModelInfo {
+pub struct HubModelInfo {
     #[serde(rename(deserialize = "id"))]
     pub model_id: String,
     pub sha: Option<String>,
@@ -25,6 +25,10 @@ pub struct Info {
     pub model_id: String,
     #[schema(nullable = true, example = "e985a63cdc139290c5f700ff1929f0b5942cced2")]
     pub model_sha: Option<String>,
+    #[schema(example = "torch.float16")]
+    pub model_dtype: String,
+    #[schema(example = "cuda")]
+    pub model_device_type: String,
     #[schema(nullable = true, example = "text-generation")]
     pub model_pipeline_tag: Option<String>,
     #[schema(example = "0.5.0")]
