@@ -78,22 +78,8 @@ async fn compat_generate(
     responses((status = 200, description = "Served model info", body = Info))
 )]
 #[instrument]
-async fn get_model_info(
-    model_info: Extension<HubModelInfo>,
-    shard_info: Extension<ShardInfo>,
-) -> Json<Info> {
-    let model_info = model_info.0;
-    let shard_info = shard_info.0;
-    let info = Info {
-        version: env!("CARGO_PKG_VERSION"),
-        sha: option_env!("VERGEN_GIT_SHA"),
-        model_id: model_info.model_id,
-        model_sha: model_info.sha,
-        model_dtype: shard_info.dtype,
-        model_device_type: shard_info.device_type,
-        model_pipeline_tag: model_info.pipeline_tag,
-    };
-    Json(info)
+async fn get_model_info(info: Extension<Info>) -> Json<Info> {
+    Json(info.0)
 }
 
 /// Health check method
@@ -632,6 +618,26 @@ pub async fn run(
         .allow_headers([http::header::CONTENT_TYPE])
         .allow_origin(allow_origin);
 
+    // Endpoint info
+    let info = Info {
+        model_id: model_info.model_id,
+        model_sha: model_info.sha,
+        model_dtype: shard_info.dtype,
+        model_device_type: shard_info.device_type,
+        model_pipeline_tag: model_info.pipeline_tag,
+        max_concurrent_requests,
+        max_best_of,
+        max_stop_sequences,
+        max_input_length,
+        max_total_tokens,
+        waiting_served_ratio,
+        max_batch_total_tokens,
+        max_waiting_tokens,
+        validation_workers,
+        version: env!("CARGO_PKG_VERSION"),
+        sha: option_env!("VERGEN_GIT_SHA"),
+    };
+
     // Create router
     let app = Router::new()
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
@@ -650,8 +656,7 @@ pub async fn run(
         .route("/ping", get(health))
         // Prometheus metrics route
         .route("/metrics", get(metrics))
-        .layer(Extension(model_info))
-        .layer(Extension(shard_info))
+        .layer(Extension(info))
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
         .layer(Extension(prom_handle))
