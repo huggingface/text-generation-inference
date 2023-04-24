@@ -337,6 +337,10 @@ class CausalLMBatch(Batch):
                         layer[k] = t.view(len(batch), -1, *t.shape[-2:])
 
             start_index = end_index
+            # Add eventual padding tokens that were added while concatenating
+            max_tokens += batch.max_tokens + (
+                    max_input_length - batch.max_input_length
+            ) * len(batch)
 
         first_past_kvs = batches[0].past_key_values
         _, num_heads, padded_sequence_length, head_dim = first_past_kvs[0][1].shape
@@ -404,10 +408,6 @@ class CausalLMBatch(Batch):
 
                 # Update values
                 start_index = end_index
-                # Add eventual padding tokens that were added while concatenating
-                max_tokens += batch.max_tokens + (
-                        max_input_length - batch.max_input_length
-                ) * len(batch)
 
             past_key_values.append([padded_past_keys, padded_past_values])
 

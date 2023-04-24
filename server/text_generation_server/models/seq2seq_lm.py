@@ -390,6 +390,13 @@ class Seq2SeqLMBatch(Batch):
                 batch.past_key_values = [[t for t in layer] for layer in batch.past_key_values]
 
             start_index = end_index
+            # Add eventual padding tokens that were added while concatenating
+            max_tokens += batch.max_tokens + (
+                    max_input_length
+                    - batch.max_input_length
+                    + max_decoder_input_length
+                    - batch.max_decoder_input_length
+            ) * len(batch)
 
         # Determine shapes for new past kv tensors
         first_past_kvs = batches[0].past_key_values
@@ -455,13 +462,7 @@ class Seq2SeqLMBatch(Batch):
                     del t
 
                     start_index = end_index
-                    # Add eventual padding tokens that were added while concatenating
-                    max_tokens += batch.max_tokens + (
-                            max_input_length
-                            - batch.max_input_length
-                            + max_decoder_input_length
-                            - batch.max_decoder_input_length
-                    ) * len(batch)
+
 
         return cls(
             batch_id=batches[0].batch_id,
