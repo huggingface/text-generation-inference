@@ -15,6 +15,7 @@ use thiserror::Error;
 use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
+use crate::queue::BatchingConfig;
 
 /// Inference struct
 #[derive(Clone)]
@@ -40,11 +41,17 @@ impl Infer {
         client: ShardedClient,
         validation: Validation,
         max_batch_size: usize,
+        max_batch_weight: usize,
+        max_prefill_weight: usize,
         max_waiting_tokens: usize,
         max_concurrent_requests: usize,
     ) -> Self {
         // Infer shared state
-        let queue = Queue::new();
+        let queue = Queue::new(BatchingConfig {
+            size_limit: max_batch_size,
+            weight_limit: max_batch_weight,
+            prefill_weight_limit: max_prefill_weight,
+        });
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });
@@ -52,7 +59,6 @@ impl Infer {
         // Spawn batching background task that contains all the inference logic
         tokio::spawn(batching_task(
             client,
-            max_batch_size,
             max_waiting_tokens,
             queue.clone(),
             shared.clone(),
@@ -105,6 +111,7 @@ impl Infer {
         // Append the request to the queue
         self.queue.append(Entry {
             request: valid_request,
+            generated_tokens: 0,
             response_tx,
             span: Span::current(),
             temp_span: None,
@@ -232,18 +239,11 @@ impl Infer {
 /// Batches requests and sends them to the inference server
 async fn batching_task(
     mut client: ShardedClient,
-    max_batch_size: usize,
+    // max_batch_size: usize,
     max_waiting_tokens: usize,
     queue: Queue,
     shared: Arc<Shared>,
 ) {
-    // Minimum batch size after which we try to add more requests
-    let limit_min_batch_size = if max_batch_size > 1 {
-        (max_batch_size / 2) as u32
-    } else {
-        0
-    };
-
     // Infinite loop
     loop {
         // Wait for a notification from the Infer struct
@@ -252,8 +252,8 @@ async fn batching_task(
         // Get the next batch from the queue
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the queue
-        while let Some((mut entries, batch, span)) = queue.next_batch(None, max_batch_size).await {
-            let mut cached_batch = prefill(&mut client, batch, &mut entries)
+        while let (_, Some((mut entries, batch, span))) = queue.next_batch(None).await {
+            let (mut cached_batch, mut some_completed) = prefill(&mut client, batch, &mut entries)
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -266,21 +266,16 @@ async fn batching_task(
                 let mut batches = vec![batch];
                 metrics::gauge!("tgi_batch_current_size", batch_size as f64);
 
-                // If the current batch is too small, we try to add more requests to it
-                if batch_size <= limit_min_batch_size {
-                    let min_size = match waiting_tokens {
-                        // If we didn't onboard any new requests since >= max_waiting_tokens, we try
-                        // to add a new batch even though its size might be small
-                        _ if waiting_tokens >= max_waiting_tokens => None,
-                        // Minimum size criteria
-                        _ => Some(limit_min_batch_size as usize),
-                    };
+                // Try to extend batch if its size reduced or enough tokens have elapsed since last one
+                if some_completed || waiting_tokens >= max_waiting_tokens {
 
-                    // Try to get a new batch
-                    if let Some((mut new_entries, new_batch, span)) = queue
-                        .next_batch(min_size, max_batch_size - batch_size as usize)
-                        .await
-                    {
+                    // Try to get a new batch - ownership of entries passed in and out
+                    let (
+                        existing_entries, new_entries
+                    ) = queue.next_batch(Some(entries)).await;
+                    entries = existing_entries.unwrap();
+
+                    if let Some((mut new_entries, new_batch, span)) = new_entries {
                         entries.iter_mut().for_each(|(_, entry)| {
                             // Create a new span to add the info that this entry is waiting
                             // because a new batch is being computed
@@ -293,7 +288,7 @@ async fn batching_task(
                         });
 
                         // Generate one token for this new batch to have the attention past in cache
-                        let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
+                        let (new_cached_batch, _) = prefill(&mut client, new_batch, &mut new_entries)
                             .instrument(span)
                             .await;
                         // Reset waiting counter
@@ -319,7 +314,7 @@ async fn batching_task(
                     entry.temp_span = Some(entry_batch_span);
                 });
 
-                cached_batch = decode(&mut client, batches, &mut entries)
+                (cached_batch, some_completed) = decode(&mut client, batches, &mut entries)
                     .instrument(next_batch_span)
                     .await;
                 waiting_tokens += 1;
@@ -334,14 +329,14 @@ async fn prefill(
     client: &mut ShardedClient,
     batch: Batch,
     entries: &mut IntMap<u64, Entry>,
-) -> Option<Batch> {
+) -> (Option<Batch>, bool) {
     let start_time = Instant::now();
     let batch_id = batch.id;
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "prefill");
 
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
-            filter_send_generations(generations, entries);
+            let some_completed = filter_send_generations(generations, entries);
 
             // Filter next batch and remove requests that were stopped
             let next_batch = match next_batch {
@@ -360,14 +355,14 @@ async fn prefill(
 
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "prefill");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
-            next_batch
+            (next_batch, some_completed)
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
             let _ = client.clear_cache(Some(batch_id)).await;
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
-            None
+            (None, true)
         }
     }
 }
@@ -377,14 +372,14 @@ async fn decode(
     client: &mut ShardedClient,
     batches: Vec<Batch>,
     entries: &mut IntMap<u64, Entry>,
-) -> Option<Batch> {
+) -> (Option<Batch>, bool) {
     let start_time = Instant::now();
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "decode");
 
     match client.decode(batches).await {
         Ok((generations, next_batch)) => {
-            filter_send_generations(generations, entries);
+            let some_completed = filter_send_generations(generations, entries);
 
             // Filter next batch and remove requests that were stopped
             let next_batch = match next_batch {
@@ -403,7 +398,7 @@ async fn decode(
 
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "decode");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
-            next_batch
+            (next_batch, some_completed)
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
@@ -412,7 +407,7 @@ async fn decode(
             }
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "decode");
-            None
+            (None, true)
         }
     }
 }
@@ -431,14 +426,16 @@ fn filter_batch(mut batch: Batch, entries: &IntMap<u64, Entry>) -> Option<Batch>
 
 /// Send one or multiple `InferStreamResponse` to Infer for all `entries`
 /// and filter entries
+/// Return true if any requests completed
 #[instrument(skip_all)]
-fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
+fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) ->  bool {
+    let mut some_stopped = false;
     generations.into_iter().for_each(|generation| {
         let id = generation.request_id;
         // Get entry
         // We can `expect` here as the request id should always be in the entries
         let entry = entries
-            .get(&id)
+            .get_mut(&id)
             .expect("ID not found in entries. This is a bug.");
 
         // Create and enter a span to link this function back to the entry
@@ -451,9 +448,14 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
             err
         }).unwrap_or(true);
         if stopped {
+            some_stopped = true;
             entries.remove(&id).expect("ID not found in entries. This is a bug.");
+        } else {
+            // Increment generated token count
+            entry.generated_tokens += 1;
         }
     });
+    return some_stopped;
 }
 
 /// Send responses through the `entry` response channel

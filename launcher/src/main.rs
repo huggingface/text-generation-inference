@@ -41,6 +41,10 @@ struct Args {
     max_total_tokens: usize,
     #[clap(default_value = "32", long, env)]
     max_batch_size: usize,
+    #[clap(default_value = None, long, env)]
+    max_batch_weight: Option<usize>,
+    #[clap(default_value = None, long, env)]
+    max_prefill_weight: Option<usize>,
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
     #[clap(default_value = "3000", long, short, env)]
@@ -93,6 +97,8 @@ fn main() -> ExitCode {
         max_input_length,
         max_total_tokens,
         max_batch_size,
+        max_batch_weight,
+        max_prefill_weight,
         max_waiting_tokens,
         port,
         shard_uds_path,
@@ -391,6 +397,16 @@ fn main() -> ExitCode {
         "--tokenizer-name".to_string(),
         model_id,
     ];
+
+    if let Some(max_batch_weight) = max_batch_weight {
+        argv.push("--max-batch-weight".to_string());
+        argv.push(max_batch_weight.to_string())
+    }
+
+    if let Some(max_prefill_weight) = max_prefill_weight {
+        argv.push("--max-batch-weight".to_string());
+        argv.push(max_prefill_weight.to_string())
+    }
 
     // Model optional revision
     if let Some(ref revision) = revision {

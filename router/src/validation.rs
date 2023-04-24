@@ -1,3 +1,4 @@
+use std::cmp::min;
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 /// Payload validation logic
 use crate::{GenerateParameters, GenerateRequest};
@@ -69,7 +70,7 @@ impl Validation {
         inputs: String,
         truncate: Option<usize>,
         max_new_tokens: u32,
-    ) -> Result<String, ValidationError> {
+    ) -> Result<(String, usize), ValidationError> {
         // If we have a fast tokenizer
         if let Some(sender) = &self.sender {
             // Create response channel
@@ -105,7 +106,7 @@ impl Validation {
             }
 
             metrics::histogram!("tgi_request_input_length", input_length as f64);
-            Ok(inputs)
+            Ok((inputs, input_length))
         }
         // Return inputs without validation
         else {
@@ -123,7 +124,7 @@ impl Validation {
                 ));
             }
 
-            Ok(inputs)
+            Ok((inputs, min(truncate.unwrap_or(usize::MAX), self.max_input_length)))
         }
     }
 
@@ -238,7 +239,7 @@ impl Validation {
             .unwrap_or(Ok(None))?;
 
         // Validate inputs
-        let inputs = self
+        let (inputs, input_length) = self
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
@@ -262,7 +263,7 @@ impl Validation {
 
         Ok(ValidGenerateRequest {
             inputs,
-            truncate: truncate.unwrap_or(self.max_input_length) as u32,
+            truncate: input_length as u32,
             parameters,
             stopping_parameters,
         })
