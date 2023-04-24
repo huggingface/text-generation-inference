@@ -25,7 +25,7 @@ opentelemetry-instrumentation-grpc = "^0.36b0"
 hf-transfer = "^0.1.2"
 sentencepiece = "^0.1.97"
 tokenizers = "0.13.3"
-huggingface-hub = {git = "https://github.com/huggingface/huggingface_hub.git", rev = "4f27b44ee536cd654e171c7f37478eaf1996cc3f"}
+huggingface-hub = "0.14.0"
 
 [tool.poetry.extras]
 accelerate = ["accelerate"]
