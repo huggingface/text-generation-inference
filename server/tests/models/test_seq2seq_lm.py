@@ -219,6 +219,19 @@ def test_batch_concatenate(
     next_batch_1 = default_multi_requests_seq2seq_lm_batch
     _, next_batch_1 = default_seq2seq_lm.generate_token(next_batch_1)
 
+    # Copy hidden state because it is removed from the concatenated branches
+    next_batch_0_encoder_last_hidden_state = next_batch_0.encoder_last_hidden_state
+    next_batch_1_encoder_last_hidden_state = next_batch_1.encoder_last_hidden_state
+
+    # Clone past_key_values before concatenating to compare after,
+    # because they are removed from the concatenated batches
+    next_batch_0_past_key_values = [
+        [t.clone() for t in layer] for layer in next_batch_0.past_key_values
+    ]
+    next_batch_1_past_key_values = [
+        [t.clone() for t in layer] for layer in next_batch_1.past_key_values
+    ]
+
     next_batch = Seq2SeqLMBatch.concatenate([next_batch_0, next_batch_1])
 
     assert next_batch.batch_id == 0
@@ -239,11 +252,11 @@ def test_batch_concatenate(
 
     assert torch.equal(
         next_batch.encoder_last_hidden_state[0],
-        next_batch_0.encoder_last_hidden_state[0, -2:],
+        next_batch_0_encoder_last_hidden_state[0, -2:],
     )
     assert torch.equal(
         next_batch.encoder_last_hidden_state[1:],
-        next_batch_1.encoder_last_hidden_state[:, -2:],
+        next_batch_1_encoder_last_hidden_state[:, -2:],
     )
 
     assert next_batch.input_lengths == [2, 2, 2]
@@ -275,24 +288,24 @@ def test_batch_concatenate(
     )
 
     for i, past in enumerate(next_batch.past_key_values):
-        assert torch.equal(next_batch_0.past_key_values[i][0][0, :, -2:, :], past[0][0])
+        assert torch.equal(next_batch_0_past_key_values[i][0][0, :, -2:, :], past[0][0])
         assert torch.equal(
-            next_batch_1.past_key_values[i][0][:, :, -1:, :], past[0][1:, :, -1:, :]
+            next_batch_1_past_key_values[i][0][:, :, -1:, :], past[0][1:, :, -1:, :]
         )
 
-        assert torch.equal(next_batch_0.past_key_values[i][1][0, :, -2:, :], past[1][0])
+        assert torch.equal(next_batch_0_past_key_values[i][1][0, :, -2:, :], past[1][0])
         assert torch.equal(
-            next_batch_1.past_key_values[i][1][:, :, -1:, :], past[1][1:, :, -1:, :]
+            next_batch_1_past_key_values[i][1][:, :, -1:, :], past[1][1:, :, -1:, :]
         )
 
-        assert torch.equal(next_batch_0.past_key_values[i][2][0, :, -2:, :], past[2][0])
+        assert torch.equal(next_batch_0_past_key_values[i][2][0, :, -2:, :], past[2][0])
         assert torch.equal(
-            next_batch_1.past_key_values[i][2][:, :, -2:, :], past[2][1:]
+            next_batch_1_past_key_values[i][2][:, :, -2:, :], past[2][1:]
         )
 
-        assert torch.equal(next_batch_0.past_key_values[i][3][0, :, -2:, :], past[3][0])
+        assert torch.equal(next_batch_0_past_key_values[i][3][0, :, -2:, :], past[3][0])
         assert torch.equal(
-            next_batch_1.past_key_values[i][3][:, :, -2:, :], past[3][1:]
+            next_batch_1_past_key_values[i][3][:, :, -2:, :], past[3][1:]
         )
 
     for _ in range(3):
