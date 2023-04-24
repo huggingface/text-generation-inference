@@ -267,12 +267,13 @@ async fn batching_task(
                 metrics::gauge!("tgi_batch_current_size", batch_size as f64);
                 metrics::gauge!("tgi_batch_current_max_tokens", batch_max_tokens as f64);
 
-                let min_size = match waiting_tokens {
+                let min_size = if waiting_tokens >= max_waiting_tokens {
                     // If we didn't onboard any new requests since >= max_waiting_tokens, we try
                     // to add a new batch even though its size might be small
-                    _ if waiting_tokens >= max_waiting_tokens => None,
+                    None
+                } else {
                     // Minimum batch size
-                    _ => Some((batch_size as f32 * waiting_served_ratio).floor() as usize),
+                    Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
                 };
 
                 let token_budget = max_batch_total_tokens - batch_max_tokens;
