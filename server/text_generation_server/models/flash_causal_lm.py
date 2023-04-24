@@ -56,9 +56,15 @@ class FlashCausalLMBatch(Batch):
     # Constant shared tensor, ref here just so that it's accessible in concatentate()
     past_pad: Optional[torch.Tensor]
 
+    # Maximum number of tokens this batch will grow to
+    max_tokens: int
+
     def to_pb(self) -> generate_pb2.Batch:
         return generate_pb2.Batch(
-            id=self.batch_id, requests=self.requests, size=len(self)
+            id=self.batch_id,
+            requests=self.requests,
+            size=len(self),
+            max_tokens=self.max_tokens,
         )
 
     @classmethod
@@ -85,6 +91,8 @@ class FlashCausalLMBatch(Batch):
 
         # Cumulative length
         cumulative_length = 0
+
+        max_tokens = 0
 
         # Parse batch
         for i, r in enumerate(pb.requests):
@@ -115,16 +123,20 @@ class FlashCausalLMBatch(Batch):
             cu_seqlens.append(cumulative_length + input_length)
 
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
+
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
+            max_new_tokens = stopping_criteria.max_new_tokens
             stopping_criterias.append(stopping_criteria)
+
             all_input_ids_tensor.append(
                 F.pad(tokenized_input, (0, stopping_criteria.max_new_tokens))
             )
 
             # Update
             cumulative_length += input_length
+            max_tokens += input_length + max_new_tokens
 
         return cls(
             batch_id=pb.id,
@@ -143,6 +155,7 @@ class FlashCausalLMBatch(Batch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             past_pad=None,
+            max_tokens=max_tokens,
         )
 
     @tracer.start_as_current_span("filter")
@@ -177,6 +190,8 @@ class FlashCausalLMBatch(Batch):
         next_token_choosers = []
         stopping_criterias = []
 
+        max_tokens = 0
+
         for i, r in enumerate(requests):
             idx = self.requests_idx_mapping[r.id]
             requests_idx_mapping[r.id] = i
@@ -203,9 +218,14 @@ class FlashCausalLMBatch(Batch):
             token_offsets.append(self.token_offsets[idx])
 
             next_token_choosers.append(self.next_token_choosers[idx])
-            stopping_criterias.append(self.stopping_criterias[idx])
+
+            stopping_criteria = self.stopping_criterias[idx]
+            stopping_criterias.append(stopping_criteria)
 
             cumulative_length += request_input_length
+            max_tokens += request_input_length + (
+                stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
+            )
 
         if single_request:
             # Preallocate tensor for bs = 1 case
@@ -241,6 +261,7 @@ class FlashCausalLMBatch(Batch):
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
+            max_tokens=max_tokens,
         )
 
     @classmethod
@@ -269,6 +290,7 @@ class FlashCausalLMBatch(Batch):
         # Cumulative length
         cumulative_batch_size = 0
         cumulative_length = 0
+        max_tokens = 0
 
         for i, batch in enumerate(batches):
             requests.extend(batch.requests)
@@ -310,6 +332,7 @@ class FlashCausalLMBatch(Batch):
             # Update
             cumulative_length += batch.cu_seqlens[-1]
             cumulative_batch_size += len(batch)
+            max_tokens += batch.max_tokens
 
         return FlashCausalLMBatch(
             batch_id=batches[0].batch_id,
@@ -328,6 +351,7 @@ class FlashCausalLMBatch(Batch):
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
+            max_tokens=max_tokens,
         )
 
     def __len__(self):

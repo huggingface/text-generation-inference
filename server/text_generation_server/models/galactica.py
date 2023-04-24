@@ -101,6 +101,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         # Parse batch
         max_truncation = 0
         padding_right_offset = 0
+        max_decode_tokens = 0
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             # Add escape_custom_split_sequence to the CausalLMBatch logic
@@ -113,6 +114,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             )
             stopping_criterias.append(stopping_criteria)
             max_truncation = max(max_truncation, r.truncate)
+            max_decode_tokens += stopping_criteria.max_new_tokens
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -141,6 +143,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].T.split(1, dim=1)
 
+        max_tokens = len(inputs) * max_input_length + max_decode_tokens
+
         return cls(
             batch_id=pb.id,
             requests=pb.requests,
@@ -157,6 +161,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             stopping_criterias=stopping_criterias,
             max_input_length=max_input_length.item(),
             padding_right_offset=padding_right_offset,
+            max_tokens=max_tokens,
         )
 
 

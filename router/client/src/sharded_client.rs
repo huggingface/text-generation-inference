@@ -1,6 +1,6 @@
 /// Multi shard Client
 use crate::Result;
-use crate::{Batch, Client, Generation, ShardInfo};
+use crate::{Batch, Client, Generation, Request, ShardInfo};
 use futures::future::join_all;
 use tonic::transport::Uri;
 use tracing::instrument;
@@ -57,6 +57,22 @@ impl ShardedClient {
             .map(|client| client.clear_cache(batch_id))
             .collect();
         join_all(futures).await.into_iter().collect()
+    }
+
+    /// Filter a cached batch
+    #[instrument(skip(self))]
+    pub async fn filter_batch(
+        &mut self,
+        batch_id: u64,
+        keep_requests: Vec<Request>,
+    ) -> Result<Option<Batch>> {
+        let futures: Vec<_> = self
+            .clients
+            .iter_mut()
+            .map(|client| Box::pin(client.filter_batch(batch_id, keep_requests.clone())))
+            .collect();
+        // all shards return the same message
+        join_all(futures).await.pop().unwrap()
     }
 
     /// Generate one token for each request in the given batch
