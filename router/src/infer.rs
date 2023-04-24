@@ -265,12 +265,13 @@ async fn batching_task(
                 let batch_max_tokens = batch.max_tokens;
                 let mut batches = vec![batch];
                 metrics::gauge!("tgi_batch_current_size", batch_size as f64);
+                metrics::gauge!("tgi_batch_current_max_tokens", batch_max_tokens as f64);
 
                 let min_size = match waiting_tokens {
                     // If we didn't onboard any new requests since >= max_waiting_tokens, we try
                     // to add a new batch even though its size might be small
                     _ if waiting_tokens >= max_waiting_tokens => None,
-                    // Minimum size criteria
+                    // Minimum batch size
                     _ => Some((batch_size as f32 * waiting_served_ratio).floor() as usize),
                 };
 
@@ -281,6 +282,11 @@ async fn batching_task(
                     queue.next_batch(min_size, token_budget).await
                 {
                     // Tracking metrics
+                    if min_size.is_some() {
+                        metrics::increment_counter!("tgi_batch_concat", "reason" => "backpressure");
+                    } else {
+                        metrics::increment_counter!("tgi_batch_concat", "reason" => "wait_exceeded");
+                    }
 
                     entries.iter_mut().for_each(|(_, entry)| {
                         // Create a new span to add the info that this entry is waiting
@@ -326,6 +332,7 @@ async fn batching_task(
                 waiting_tokens += 1;
             }
             metrics::gauge!("tgi_batch_current_size", 0.0);
+            metrics::gauge!("tgi_batch_current_max_tokens", 0.0);
         }
     }
 }
