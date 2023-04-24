@@ -178,11 +178,12 @@ class CausalLMBatch(Batch):
             next_token_choosers.append(self.next_token_choosers[idx])
             stopping_criteria = self.stopping_criterias[idx]
             stopping_criterias.append(stopping_criteria)
-            remaining_decode_tokens = stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
+            remaining_decode_tokens = (
+                stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
+            )
             total_remaining_decode_tokens += remaining_decode_tokens
             new_padding_right_offset = max(
-                new_padding_right_offset,
-                remaining_decode_tokens
+                new_padding_right_offset, remaining_decode_tokens
             )
 
         # Apply indices to input_ids, attention mask, past key values and other items that need to be cached
@@ -190,8 +191,10 @@ class CausalLMBatch(Batch):
         position_ids = self.position_ids[keep_indices]
         self.attention_mask = self.attention_mask[
             keep_indices,
-            -(self.padding_right_offset + max_input_length):
-            (self.attention_mask.shape[1] - self.padding_right_offset) + new_padding_right_offset,
+            -(self.padding_right_offset + max_input_length) : (
+                self.attention_mask.shape[1] - self.padding_right_offset
+            )
+            + new_padding_right_offset,
         ]
 
         # Ensure that past_key_values tensors can be updated in-place
@@ -329,7 +332,8 @@ class CausalLMBatch(Batch):
             # And ensure that we can update tensors in-place
             if type(batch.past_key_values[0]) == tuple:
                 batch.past_key_values = [
-                    [t.view(len(batch), -1, *t.shape[-2:]) for t in layer] for layer in batch.past_key_values
+                    [t.view(len(batch), -1, *t.shape[-2:]) for t in layer]
+                    for layer in batch.past_key_values
                 ]
             elif batch.past_key_values[0][0].shape == 3:
                 for layer in batch.past_key_values:
@@ -339,7 +343,7 @@ class CausalLMBatch(Batch):
             start_index = end_index
             # Add eventual padding tokens that were added while concatenating
             max_tokens += batch.max_tokens + (
-                    max_input_length - batch.max_input_length
+                max_input_length - batch.max_input_length
             ) * len(batch)
 
         first_past_kvs = batches[0].past_key_values
@@ -390,7 +394,9 @@ class CausalLMBatch(Batch):
 
                 start_index = end_index
 
-            padded_past_values = first_past_kvs[j][1].new_zeros(padded_past_values_shape)
+            padded_past_values = first_past_kvs[j][1].new_zeros(
+                padded_past_values_shape
+            )
             start_index = 0
             for batch in batches:
                 past_values = batch.past_key_values[j][1]
@@ -410,7 +416,6 @@ class CausalLMBatch(Batch):
                 start_index = end_index
 
             past_key_values.append([padded_past_keys, padded_past_values])
-
 
         return cls(
             batch_id=batches[0].batch_id,

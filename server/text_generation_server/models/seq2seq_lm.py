@@ -200,7 +200,8 @@ class Seq2SeqLMBatch(Batch):
             )
             padding_right_offset = max(
                 padding_right_offset,
-                self.stopping_criterias[idx].max_new_tokens - self.stopping_criterias[idx].current_tokens
+                self.stopping_criterias[idx].max_new_tokens
+                - self.stopping_criterias[idx].current_tokens,
             )
 
             next_token_choosers.append(self.next_token_choosers[idx])
@@ -215,16 +216,22 @@ class Seq2SeqLMBatch(Batch):
         self.attention_mask = self.attention_mask[keep_indices, -max_input_length:]
         if self.decoder_attention_mask is not None:
             self.decoder_attention_mask = self.decoder_attention_mask[
-              keep_indices,
-              -(self.padding_right_offset + max_decoder_input_length):
-              (self.decoder_attention_mask.shape[1] - self.padding_right_offset) + padding_right_offset,
+                keep_indices,
+                -(self.padding_right_offset + max_decoder_input_length) : (
+                    self.decoder_attention_mask.shape[1] - self.padding_right_offset
+                )
+                + padding_right_offset,
             ]
 
-        self.encoder_last_hidden_state = self.encoder_last_hidden_state[keep_indices, -max_input_length:]
+        self.encoder_last_hidden_state = self.encoder_last_hidden_state[
+            keep_indices, -max_input_length:
+        ]
 
         # Ensure that past_key_values tensors can be updated in-place
         if type(self.past_key_values[0]) == tuple:
-            self.past_key_values = [[t for t in layer] for layer in self.past_key_values]
+            self.past_key_values = [
+                [t for t in layer] for layer in self.past_key_values
+            ]
 
         decoder_past_seq_len = max_decoder_input_length - 1
         for layer in self.past_key_values:
@@ -234,8 +241,8 @@ class Seq2SeqLMBatch(Batch):
             layer[3] = layer[3][keep_indices, :, -max_input_length:]
 
         max_tokens = (
-                len(requests) * (max_input_length + max_decoder_input_length)
-                + remaining_decode_tokens
+            len(requests) * (max_input_length + max_decoder_input_length)
+            + remaining_decode_tokens
         )
 
         self.requests = requests
@@ -254,7 +261,6 @@ class Seq2SeqLMBatch(Batch):
         self.max_tokens = max_tokens
 
         return self
-
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
@@ -387,15 +393,17 @@ class Seq2SeqLMBatch(Batch):
 
             # Ensure that we can update tensors in-place
             if type(batch.past_key_values[0]) == tuple:
-                batch.past_key_values = [[t for t in layer] for layer in batch.past_key_values]
+                batch.past_key_values = [
+                    [t for t in layer] for layer in batch.past_key_values
+                ]
 
             start_index = end_index
             # Add eventual padding tokens that were added while concatenating
             max_tokens += batch.max_tokens + (
-                    max_input_length
-                    - batch.max_input_length
-                    + max_decoder_input_length
-                    - batch.max_decoder_input_length
+                max_input_length
+                - batch.max_input_length
+                + max_decoder_input_length
+                - batch.max_decoder_input_length
             ) * len(batch)
 
         # Determine shapes for new past kv tensors
@@ -435,9 +443,9 @@ class Seq2SeqLMBatch(Batch):
                     end_index = start_index + len(batch)
                     # We slice the past keys and values to remove the padding from previous batches
                     past_seq_len = batch.max_decoder_input_length - 1
-                    padded_past_values[
-                        start_index:end_index, :, -past_seq_len:, :
-                    ] = t[:, :, -past_seq_len:, :]
+                    padded_past_values[start_index:end_index, :, -past_seq_len:, :] = t[
+                        :, :, -past_seq_len:, :
+                    ]
                     del t
 
                     start_index = end_index
@@ -457,12 +465,11 @@ class Seq2SeqLMBatch(Batch):
                     end_index = start_index + len(batch)
                     # We slice the past keys and values to remove the padding from previous batches
                     padded_past_values[
-                        start_index:end_index, :, -batch.max_input_length:, :
-                    ] = t[:, :, -batch.max_input_length:, :]
+                        start_index:end_index, :, -batch.max_input_length :, :
+                    ] = t[:, :, -batch.max_input_length :, :]
                     del t
 
                     start_index = end_index
-
 
         return cls(
             batch_id=batches[0].batch_id,
