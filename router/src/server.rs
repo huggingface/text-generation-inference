@@ -511,7 +511,8 @@ pub async fn run(
     max_stop_sequences: usize,
     max_input_length: usize,
     max_total_tokens: usize,
-    max_batch_size: usize,
+    waiting_served_ratio: f32,
+    max_batch_total_tokens: u32,
     max_waiting_tokens: usize,
     client: ShardedClient,
     tokenizer: Option<Tokenizer>,
@@ -571,9 +572,11 @@ pub async fn run(
     let infer = Infer::new(
         client,
         validation,
-        max_batch_size,
+        waiting_served_ratio,
+        max_batch_total_tokens,
         max_waiting_tokens,
         max_concurrent_requests,
+        shard_info.requires_padding,
     );
 
     // Duration buckets
@@ -604,7 +607,7 @@ pub async fn run(
         .collect();
     // Batch size buckets
     let batch_size_matcher = Matcher::Full(String::from("tgi_batch_next_size"));
-    let batch_size_buckets: Vec<f64> = (0..max_batch_size).map(|x| (x + 1) as f64).collect();
+    let batch_size_buckets: Vec<f64> = (0..1024).map(|x| (x + 1) as f64).collect();
 
     // Prometheus handler
     let builder = PrometheusBuilder::new()

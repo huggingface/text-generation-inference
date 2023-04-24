@@ -2,7 +2,6 @@ use crate::infer::InferError;
 use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
-use std::cmp::min;
 use std::collections::VecDeque;
 use text_generation_client::{Batch, Request};
 use tokio::sync::oneshot;
@@ -34,12 +33,12 @@ pub(crate) struct Queue {
 }
 
 impl Queue {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(requires_padding: bool) -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = flume::unbounded();
 
         // Launch background queue task
-        tokio::spawn(queue_task(queue_receiver));
+        tokio::spawn(queue_task(requires_padding, queue_receiver));
 
         Self { queue_sender }
     }
@@ -59,7 +58,7 @@ impl Queue {
     pub(crate) async fn next_batch(
         &self,
         min_size: Option<usize>,
-        max_size: usize,
+        token_budget: u32,
     ) -> Option<NextBatch> {
         // Create response channel
         let (response_sender, response_receiver) = oneshot::channel();
@@ -68,7 +67,7 @@ impl Queue {
         self.queue_sender
             .send(QueueCommand::NextBatch {
                 min_size,
-                max_size,
+                token_budget,
                 response_sender,
                 span: Span::current(),
             })
@@ -80,20 +79,24 @@ impl Queue {
 }
 
 // Background task responsible of the queue state
-async fn queue_task(receiver: flume::Receiver<QueueCommand>) {
-    let mut state = State::new();
+async fn queue_task(requires_padding: bool, receiver: flume::Receiver<QueueCommand>) {
+    let mut state = State::new(requires_padding);
 
     while let Ok(cmd) = receiver.recv_async().await {
         match cmd {
-            QueueCommand::Append(entry, span) => span.in_scope(|| state.append(entry)),
+            QueueCommand::Append(entry, span) => {
+                span.in_scope(|| state.append(entry));
+                metrics::increment_gauge!("tgi_queue_size", 1.0);
+            }
             QueueCommand::NextBatch {
                 min_size,
-                max_size,
+                token_budget,
                 response_sender,
                 span,
             } => span.in_scope(|| {
-                let next_batch = state.next_batch(min_size, max_size);
+                let next_batch = state.next_batch(min_size, token_budget);
                 response_sender.send(next_batch).unwrap_or(());
+                metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
             }),
         }
     }
@@ -110,14 +113,18 @@ struct State {
 
     /// Id of the next batch
     next_batch_id: u64,
+
+    /// Whether the model is using padding
+    requires_padding: bool,
 }
 
 impl State {
-    fn new() -> Self {
+    fn new(requires_padding: bool) -> Self {
         Self {
             entries: VecDeque::with_capacity(128),
             next_id: 0,
             next_batch_id: 0,
+            requires_padding,
         }
     }
 
@@ -130,11 +137,10 @@ impl State {
         // Push entry in the queue
         self.entries.push_back((self.next_id, entry));
         self.next_id += 1;
-        metrics::increment_gauge!("tgi_queue_size", 1.0);
     }
 
     // Get the next batch
-    fn next_batch(&mut self, min_size: Option<usize>, max_size: usize) -> Option<NextBatch> {
+    fn next_batch(&mut self, min_size: Option<usize>, token_budget: u32) -> Option<NextBatch> {
         if self.entries.is_empty() {
             return None;
         }
@@ -146,23 +152,43 @@ impl State {
             }
         }
 
-        let max_batch_size = min(self.entries.len(), max_size);
-
         // Create span for this batch to add context to inference calls
         let next_batch_span = info_span!(parent: None, "batch", batch_size = tracing::field::Empty);
         next_batch_span.follows_from(&Span::current());
 
-        let mut batch_requests = Vec::with_capacity(max_batch_size);
+        let mut batch_requests = Vec::with_capacity(self.entries.len());
         let mut batch_entries =
-            IntMap::with_capacity_and_hasher(max_batch_size, BuildNoHashHasher::default());
+            IntMap::with_capacity_and_hasher(self.entries.len(), BuildNoHashHasher::default());
 
-        // Iterate on buffer
+        let mut max_input_length = 0;
+        let mut prefill_tokens: u32 = 0;
+        let mut decode_tokens: u32 = 0;
+
+        // Pop entries starting from the front of the queue
         while let Some((id, mut entry)) = self.entries.pop_front() {
             // Filter entries where the response receiver was dropped (== entries where the request
             // was dropped by the client)
             if entry.response_tx.is_disconnected() {
                 metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
                 continue;
+            }
+
+            if self.requires_padding {
+                // We pad to max input length in the Python shards
+                // We need to take these padding tokens into the equation
+                max_input_length = max_input_length.max(entry.request.input_length);
+                prefill_tokens = (batch_requests.len() + 1) as u32 * max_input_length
+            } else {
+                prefill_tokens += entry.request.input_length;
+            }
+
+            decode_tokens += entry.request.stopping_parameters.max_new_tokens;
+
+            if (prefill_tokens + decode_tokens) > token_budget {
+                // Entry is over budget
+                // Add it back to the front
+                self.entries.push_front((id, entry));
+                break;
             }
 
             // Create a new span to link the batch back to this entry
@@ -184,21 +210,29 @@ impl State {
             entry.batch_time = Some(Instant::now());
             // Insert in batch_entries IntMap
             batch_entries.insert(id, entry);
-
-            if batch_requests.len() == max_batch_size {
-                // We have enough requests in the batch
-                break;
-            }
         }
 
-        metrics::gauge!("tgi_queue_size", self.entries.len() as f64);
-
-        // Maybe all entries were dropped because their channel were closed
+        // Empty batch
         if batch_requests.is_empty() {
             return None;
         }
 
-        // Final batch size once we dropped entries
+        // Check if our batch is big enough
+        if let Some(min_size) = min_size {
+            // Batch is too small
+            if batch_requests.len() < min_size {
+                // Add back entries to the queue in the correct order
+                for r in batch_requests.into_iter().rev() {
+                    let id = r.id;
+                    let entry = batch_entries.remove(&id).unwrap();
+                    self.entries.push_front((id, entry));
+                }
+
+                return None;
+            }
+        }
+
+        // Final batch size
         let size = batch_requests.len() as u32;
         next_batch_span.record("batch_size", size);
 
@@ -206,11 +240,13 @@ impl State {
             id: self.next_batch_id,
             requests: batch_requests,
             size,
+            max_tokens: (prefill_tokens + decode_tokens),
         };
         // Increment batch id
         self.next_batch_id += 1;
 
         metrics::histogram!("tgi_batch_next_size", batch.size as f64);
+
         Some((batch_entries, batch, next_batch_span))
     }
 }
@@ -222,7 +258,7 @@ enum QueueCommand {
     Append(Entry, Span),
     NextBatch {
         min_size: Option<usize>,
-        max_size: usize,
+        token_budget: u32,
         response_sender: oneshot::Sender<Option<NextBatch>>,
         span: Span,
     },
@@ -243,6 +279,7 @@ mod tests {
         let entry = Entry {
             request: ValidGenerateRequest {
                 inputs: "".to_string(),
+                input_length: 0,
                 truncate: 0,
                 parameters: NextTokenChooserParameters {
                     temperature: 0.0,
@@ -256,7 +293,7 @@ mod tests {
                 },
                 stopping_parameters: StoppingCriteriaParameters {
                     ignore_eos_token: false,
-                    max_new_tokens: 0,
+                    max_new_tokens: 1,
                     stop_sequences: vec![],
                 },
             },
@@ -271,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_append() {
-        let mut state = State::new();
+        let mut state = State::new(false);
         let (entry, _guard) = default_entry();
 
         assert_eq!(state.next_id, 0);
@@ -287,7 +324,7 @@ mod tests {
 
     #[test]
     fn test_next_batch_empty() {
-        let mut state = State::new();
+        let mut state = State::new(false);
 
         assert!(state.next_batch(None, 1).is_none());
         assert!(state.next_batch(Some(1), 1).is_none());
@@ -295,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_next_batch_min_size() {
-        let mut state = State::new();
+        let mut state = State::new(false);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
@@ -326,8 +363,8 @@ mod tests {
     }
 
     #[test]
-    fn test_next_batch_max_size() {
-        let mut state = State::new();
+    fn test_next_batch_token_budget() {
+        let mut state = State::new(false);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
@@ -360,14 +397,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_append() {
-        let queue = Queue::new();
+        let queue = Queue::new(false);
         let (entry, _guard) = default_entry();
         queue.append(entry);
     }
 
     #[tokio::test]
     async fn test_queue_next_batch_empty() {
-        let queue = Queue::new();
+        let queue = Queue::new(false);
 
         assert!(queue.next_batch(None, 1).await.is_none());
         assert!(queue.next_batch(Some(1), 1).await.is_none());
@@ -375,7 +412,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_min_size() {
-        let queue = Queue::new();
+        let queue = Queue::new(false);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -397,8 +434,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_queue_next_batch_max_size() {
-        let queue = Queue::new();
+    async fn test_queue_next_batch_token_budget() {
+        let queue = Queue::new(false);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -423,7 +460,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_dropped_receiver() {
-        let queue = Queue::new();
+        let queue = Queue::new(false);
         let (entry, _) = default_entry();
         queue.append(entry);
 

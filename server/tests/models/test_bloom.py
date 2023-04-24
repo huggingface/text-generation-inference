@@ -181,9 +181,7 @@ def test_causal_lm_generate_token_completion_multi(
     next_batch = next_batch.filter([next_batch.requests[0]])
 
     for _ in range(
-        stopping_criterias[0].max_new_tokens
-        - stopping_criterias[1].max_new_tokens
-        - 1
+        stopping_criterias[0].max_new_tokens - stopping_criterias[1].max_new_tokens - 1
     ):
         generations, next_batch = default_bloom.generate_token(next_batch)
         assert len(generations) == len(next_batch)

@@ -69,7 +69,7 @@ impl Validation {
         inputs: String,
         truncate: Option<usize>,
         max_new_tokens: u32,
-    ) -> Result<String, ValidationError> {
+    ) -> Result<(String, usize), ValidationError> {
         // If we have a fast tokenizer
         if let Some(sender) = &self.sender {
             // Create response channel
@@ -105,25 +105,24 @@ impl Validation {
             }
 
             metrics::histogram!("tgi_request_input_length", input_length as f64);
-            Ok(inputs)
+            Ok((inputs, input_length))
         }
         // Return inputs without validation
         else {
             // In this case, we don't know the real length in tokens of the inputs
             // However, the inputs will be truncated by the python servers
             // We make sure that truncate + max_new_tokens <= self.max_total_tokens
+            let input_length = truncate.unwrap_or(self.max_input_length);
 
             // Validate MaxNewTokens
-            if (truncate.unwrap_or(self.max_input_length) as u32 + max_new_tokens)
-                > self.max_total_tokens as u32
-            {
+            if (input_length as u32 + max_new_tokens) > self.max_total_tokens as u32 {
                 return Err(ValidationError::MaxNewTokens(
                     self.max_total_tokens - self.max_input_length,
                     max_new_tokens,
                 ));
             }
 
-            Ok(inputs)
+            Ok((inputs, input_length))
         }
     }
 
@@ -238,7 +237,7 @@ impl Validation {
             .unwrap_or(Ok(None))?;
 
         // Validate inputs
-        let inputs = self
+        let (inputs, input_length) = self
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
@@ -262,6 +261,7 @@ impl Validation {
 
         Ok(ValidGenerateRequest {
             inputs,
+            input_length: input_length as u32,
             truncate: truncate.unwrap_or(self.max_input_length) as u32,
             parameters,
             stopping_parameters,
@@ -333,6 +333,7 @@ type TokenizerRequest = (
 #[derive(Debug)]
 pub(crate) struct ValidGenerateRequest {
     pub inputs: String,
+    pub input_length: u32,
     pub truncate: u32,
     pub parameters: NextTokenChooserParameters,
     pub stopping_parameters: StoppingCriteriaParameters,

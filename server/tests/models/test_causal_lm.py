@@ -174,14 +174,14 @@ def test_causal_lm_generate_token_completion_multi(
         == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
     )
     # Copy stopping_criterias before filtering
-    stopping_criterias = default_multi_requests_causal_lm_batch.stopping_criterias.copy()
+    stopping_criterias = (
+        default_multi_requests_causal_lm_batch.stopping_criterias.copy()
+    )
 
     next_batch = next_batch.filter([next_batch.requests[0]])
 
     for _ in range(
-        stopping_criterias[0].max_new_tokens
-        - stopping_criterias[1].max_new_tokens
-        - 1
+        stopping_criterias[0].max_new_tokens - stopping_criterias[1].max_new_tokens - 1
     ):
         generations, next_batch = default_causal_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)

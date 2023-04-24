@@ -70,6 +70,22 @@ impl Client {
         Ok(())
     }
 
+    /// Filter a cached batch
+    #[instrument(skip(self))]
+    pub async fn filter_batch(
+        &mut self,
+        batch_id: u64,
+        keep_requests: Vec<Request>,
+    ) -> Result<Option<Batch>> {
+        let request = tonic::Request::new(FilterBatchRequest {
+            batch_id,
+            keep_requests,
+        })
+        .inject_context();
+        let filtered_batch = self.stub.filter_batch(request).await?.into_inner();
+        Ok(filtered_batch.batch)
+    }
+
     /// Generate one token for each request in the given batch
     ///
     /// Returns Generation for each request in batch

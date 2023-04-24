@@ -41,6 +41,15 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             torch.cuda.empty_cache()
         return generate_pb2.ClearCacheResponse()
 
+    async def FilterBatch(self, request, context):
+        batch = self.cache.pop(request.batch_id)
+        if batch is None:
+            raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
+        filtered_batch = batch.filter(request.keep_requests)
+        self.cache.set(filtered_batch)
+
+        return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
+
     async def Prefill(self, request, context):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.device
@@ -63,9 +72,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch = self.cache.pop(batch_pb.id)
             if batch is None:
                 raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
-            batch = batch.filter(batch_pb.requests)
-            if batch is not None:
-                batches.append(batch)
+            batches.append(batch)
 
         if len(batches) == 0:
             raise ValueError("All batches are empty")

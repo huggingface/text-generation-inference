@@ -9,6 +9,8 @@ service TextGenerationService {
     rpc ServiceDiscovery (ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse) {}
     /// Empties batch cache
     rpc ClearCache (ClearCacheRequest) returns (ClearCacheResponse);
+    /// Remove requests from a cached batch
+    rpc FilterBatch (FilterBatchRequest) returns (FilterBatchResponse);
     /// Prefill batch and decode first token
     rpc Prefill (PrefillRequest) returns (PrefillResponse);
     /// Decode token for a list of prefilled batches
@@ -89,6 +91,8 @@ message Batch {
     repeated Request requests = 2;
     /// Batch size (==len(requests))
     uint32 size = 3;
+    /// Maximum number of tokens this batch will grow to
+    uint32 max_tokens = 4;
 }
 
 enum FinishReason {
@@ -133,6 +137,19 @@ message Generation {
     /// Complete generated text
     GeneratedText generated_text = 7;
 }
+
+message FilterBatchRequest {
+    /// Batch ID
+    uint64 batch_id = 1;
+    /// Requests to keep
+    repeated Request keep_requests = 2;
+}
+
+message FilterBatchResponse {
+    /// Filtered Batch (cached)
+    Batch batch = 1;
+}
+
 
 message PrefillRequest {
     /// Batch

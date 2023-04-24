@@ -46,6 +46,9 @@ class CausalLMBatch(Batch):
     max_input_length: int
     padding_right_offset: int
 
+    # Maximum number of tokens this batch will grow to
+    max_tokens: int
+
     # Past metadata
     keys_head_dim_last: bool = True
 
@@ -54,6 +57,7 @@ class CausalLMBatch(Batch):
             id=self.batch_id,
             requests=self.requests,
             size=len(self),
+            max_tokens=self.max_tokens,
         )
 
     @classmethod
@@ -73,6 +77,7 @@ class CausalLMBatch(Batch):
         # Parse batch
         max_truncation = 0
         padding_right_offset = 0
+        max_decode_tokens = 0
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             inputs.append(r.inputs)
@@ -84,6 +89,7 @@ class CausalLMBatch(Batch):
             )
             stopping_criterias.append(stopping_criteria)
             max_truncation = max(max_truncation, r.truncate)
+            max_decode_tokens += stopping_criteria.max_new_tokens
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -112,6 +118,8 @@ class CausalLMBatch(Batch):
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].T.split(1, dim=1)
 
+        max_tokens = len(inputs) * max_input_length + max_decode_tokens
+
         return cls(
             batch_id=pb.id,
             requests=pb.requests,
@@ -128,6 +136,7 @@ class CausalLMBatch(Batch):
             stopping_criterias=stopping_criterias,
             max_input_length=max_input_length.item(),
             padding_right_offset=padding_right_offset,
+            max_tokens=max_tokens,
         )
 
     @tracer.start_as_current_span("filter")
@@ -150,6 +159,7 @@ class CausalLMBatch(Batch):
         next_token_choosers = []
         stopping_criterias = []
 
+        total_remaining_decode_tokens = 0
         new_padding_right_offset = 0
 
         for i, r in enumerate(requests):
@@ -168,10 +178,12 @@ class CausalLMBatch(Batch):
             next_token_choosers.append(self.next_token_choosers[idx])
             stopping_criteria = self.stopping_criterias[idx]
             stopping_criterias.append(stopping_criteria)
-
-            new_padding_right_offset = max(
-                new_padding_right_offset,
+            remaining_decode_tokens = (
                 stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
+            )
+            total_remaining_decode_tokens += remaining_decode_tokens
+            new_padding_right_offset = max(
+                new_padding_right_offset, remaining_decode_tokens
             )
 
         # Apply indices to input_ids, attention mask, past key values and other items that need to be cached
@@ -179,8 +191,10 @@ class CausalLMBatch(Batch):
         position_ids = self.position_ids[keep_indices]
         self.attention_mask = self.attention_mask[
             keep_indices,
-            -(self.padding_right_offset + max_input_length):
-            (self.attention_mask.shape[1] - self.padding_right_offset) + new_padding_right_offset,
+            -(self.padding_right_offset + max_input_length) : (
+                self.attention_mask.shape[1] - self.padding_right_offset
+            )
+            + new_padding_right_offset,
         ]
 
         # Ensure that past_key_values tensors can be updated in-place
@@ -203,6 +217,8 @@ class CausalLMBatch(Batch):
             layer[1] = past_values[keep_indices, :, -past_kv_length:, :]
             del past_values
 
+        max_tokens = len(requests) * max_input_length + total_remaining_decode_tokens
+
         self.requests = requests
         self.requests_idx_mapping = requests_idx_mapping
         self.input_ids = input_ids
@@ -215,6 +231,7 @@ class CausalLMBatch(Batch):
         self.stopping_criterias = stopping_criterias
         self.max_input_length = max_input_length
         self.padding_right_offset = new_padding_right_offset
+        self.max_tokens = max_tokens
 
         return self
 
@@ -239,6 +256,7 @@ class CausalLMBatch(Batch):
         all_input_ids = []
         next_token_choosers = []
         stopping_criterias = []
+        max_tokens = 0
 
         # Batch tensors
         input_ids = None
@@ -314,7 +332,8 @@ class CausalLMBatch(Batch):
             # And ensure that we can update tensors in-place
             if type(batch.past_key_values[0]) == tuple:
                 batch.past_key_values = [
-                    [t.view(len(batch), -1, *t.shape[-2:]) for t in layer] for layer in batch.past_key_values
+                    [t.view(len(batch), -1, *t.shape[-2:]) for t in layer]
+                    for layer in batch.past_key_values
                 ]
             elif batch.past_key_values[0][0].shape == 3:
                 for layer in batch.past_key_values:
@@ -322,6 +341,10 @@ class CausalLMBatch(Batch):
                         layer[k] = t.view(len(batch), -1, *t.shape[-2:])
 
             start_index = end_index
+            # Add eventual padding tokens that were added while concatenating
+            max_tokens += batch.max_tokens + (
+                max_input_length - batch.max_input_length
+            ) * len(batch)
 
         first_past_kvs = batches[0].past_key_values
         _, num_heads, padded_sequence_length, head_dim = first_past_kvs[0][1].shape
@@ -371,7 +394,9 @@ class CausalLMBatch(Batch):
 
                 start_index = end_index
 
-            padded_past_values = first_past_kvs[j][1].new_zeros(padded_past_values_shape)
+            padded_past_values = first_past_kvs[j][1].new_zeros(
+                padded_past_values_shape
+            )
             start_index = 0
             for batch in batches:
                 past_values = batch.past_key_values[j][1]
@@ -387,6 +412,7 @@ class CausalLMBatch(Batch):
                 ] = past_values[:, :, -past_seq_len:, :]
                 del past_values
 
+                # Update values
                 start_index = end_index
 
             past_key_values.append([padded_past_keys, padded_past_values])
@@ -408,6 +434,7 @@ class CausalLMBatch(Batch):
             max_input_length=max_input_length,
             padding_right_offset=padding_right_offset,
             keys_head_dim_last=batches[0].keys_head_dim_last,
+            max_tokens=max_tokens,
         )
 
     def __len__(self):
