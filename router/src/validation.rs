@@ -383,7 +383,7 @@ pub enum ValidationError {
 mod tests{
     use super::*;
     use crate::default_parameters;
-    use std::io::Write;
+    use crate::tests::get_tokenizer;
 
     #[tokio::test]
     async fn test_validation_max_new_tokens(){
@@ -400,15 +400,6 @@ mod tests{
             Err(ValidationError::MaxNewTokens(1, 10)) => (),
             _ => panic!("Unexpected not max new tokens")
         }
-    }
-
-    async fn get_tokenizer() -> Tokenizer{
-        if !std::path::Path::new("tokenizer.json").exists(){
-            let content = reqwest::get("https://huggingface.co/gpt2/raw/main/tokenizer.json").await.unwrap().bytes().await.unwrap();
-             let mut file = std::fs::File::create("tokenizer.json").unwrap();
-            file.write_all(&content).unwrap();
-        }
-        Tokenizer::from_file("tokenizer.json").unwrap()
     }
 
     #[tokio::test]
