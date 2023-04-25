@@ -21,6 +21,7 @@ pub struct HubModelInfo {
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct Info {
+    /// Model info
     #[schema(example = "bigscience/blomm-560m")]
     pub model_id: String,
     #[schema(nullable = true, example = "e985a63cdc139290c5f700ff1929f0b5942cced2")]
@@ -31,6 +32,26 @@ pub struct Info {
     pub model_device_type: String,
     #[schema(nullable = true, example = "text-generation")]
     pub model_pipeline_tag: Option<String>,
+    /// Router Parameters
+    #[schema(example = "128")]
+    pub max_concurrent_requests: usize,
+    #[schema(example = "2")]
+    pub max_best_of: usize,
+    #[schema(example = "4")]
+    pub max_stop_sequences: usize,
+    #[schema(example = "1024")]
+    pub max_input_length: usize,
+    #[schema(example = "2048")]
+    pub max_total_tokens: usize,
+    #[schema(example = "1.2")]
+    pub waiting_served_ratio: f32,
+    #[schema(example = "32000")]
+    pub max_batch_total_tokens: u32,
+    #[schema(example = "20")]
+    pub max_waiting_tokens: usize,
+    #[schema(example = "2")]
+    pub validation_workers: usize,
+    /// Router Info
     #[schema(example = "0.5.0")]
     pub version: &'static str,
     #[schema(nullable = true, example = "null")]
