@@ -741,3 +741,63 @@ impl From<InferError> for Event {
             .unwrap()
     }
 }
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use crate::tests::get_tokenizer;
+    use axum_test_server::TestServer;
+    use crate::default_parameters;
+
+    #[tokio::test]
+    async fn test_health(){
+        let tokenizer = Some(get_tokenizer().await);
+        let max_best_of = 2;
+        let max_stop_sequence = 3;
+        let max_input_length = 4;
+        let max_total_tokens = 5;
+        let workers = 1;
+        let validation = Validation::new(workers, tokenizer, max_best_of, max_stop_sequence, max_input_length, max_total_tokens);
+        match validation.validate(GenerateRequest{
+            inputs: "Hello".to_string(),
+            parameters: GenerateParameters{
+                best_of: Some(2),
+                do_sample: false,
+                ..default_parameters()
+            }
+        }).await{
+            Err(ValidationError::BestOfSampling) => (),
+            _ => panic!("Unexpected not best of sampling")
+        }
+            
+        let client = ShardedClient::connect_uds("/tmp/text-generation-test".to_string()).await.unwrap();
+        let waiting_served_ratio = 1.2;
+        let max_batch_total_tokens = 100;
+        let max_waiting_tokens = 10;
+        let max_concurrent_requests = 10;
+        let requires_padding = false;
+        let infer = Infer::new(
+            client,
+            validation,
+            waiting_served_ratio,
+            max_batch_total_tokens,
+            max_waiting_tokens,
+            max_concurrent_requests,
+            requires_padding,
+        );
+      let app = Router::new()
+          .route("/health", get(health))
+          .layer(Extension(infer))
+          .into_make_service();
+
+      // Run the server on a random address.
+      let server = TestServer::new(app);
+
+      // Get the request.
+      let response = server
+          .get("/health")
+          .await;
+
+      assert_eq!(response.contents, "pong!");
+    }
+}

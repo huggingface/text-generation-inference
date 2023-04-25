@@ -42,3 +42,6 @@ utoipa-swagger-ui = { version = "3.0.2", features = ["axum"] }
 
 [build-dependencies]
 vergen = { version = "8.0.0", features = ["build", "git", "gitcl"] }
+
+[dev-dependencies]
+axum-test-server = "2.0.0"

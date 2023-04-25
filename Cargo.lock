@@ -184,6 +184,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-test-server"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57f8f8627d32fe7e2c36b33de0e87dcdee4d6ac8619b9b892e5cc299ea4eed52"
+dependencies = [
+ "anyhow",
+ "axum",
+ "hyper",
+ "portpicker",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "axum-tracing-opentelemetry"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1737,6 +1752,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26f6a7b87c2e435a3241addceeeff740ff8b7e76b74c13bf9acb17fa454ea00b"
 
 [[package]]
+name = "portpicker"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be97d76faf1bfab666e1375477b23fde79eccf0276e9b63b92a39d676a889ba9"
+dependencies = [
+ "rand",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2407,6 +2431,7 @@ version = "0.6.0"
 dependencies = [
  "async-stream",
  "axum",
+ "axum-test-server",
  "axum-tracing-opentelemetry",
  "clap",
  "flume",
