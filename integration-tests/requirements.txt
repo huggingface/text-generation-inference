@@ -1,0 +1,3 @@
+syrupy==0.4.2
+text-generation==0.5.1
+pytest==7.3.1
