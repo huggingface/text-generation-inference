@@ -141,7 +141,6 @@ impl State {
 
     // Get the next batch
     fn next_batch(&mut self, min_size: Option<usize>, token_budget: u32) -> Option<NextBatch> {
-
         if self.entries.is_empty() {
             return None;
         }
