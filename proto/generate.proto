@@ -15,7 +15,12 @@ service TextGenerationService {
     rpc Prefill (PrefillRequest) returns (PrefillResponse);
     /// Decode token for a list of prefilled batches
     rpc Decode (DecodeRequest) returns (DecodeResponse);
+    /// Health check
+    rpc Health (HealthRequest) returns (HealthResponse);
 }
+
+message HealthRequest {}
+message HealthResponse {}
 
 /// Empty request
 message InfoRequest {}

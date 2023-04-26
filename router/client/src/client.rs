@@ -7,7 +7,7 @@ use tonic::transport::{Channel, Uri};
 use tracing::instrument;
 
 /// Text Generation Inference gRPC client
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Client {
     stub: TextGenerationServiceClient<Channel>,
 }
@@ -59,6 +59,14 @@ impl Client {
     pub async fn info(&mut self) -> Result<InfoResponse> {
         let request = tonic::Request::new(InfoRequest {}).inject_context();
         let response = self.stub.info(request).await?.into_inner();
+        Ok(response)
+    }
+
+    /// Get model health
+    #[instrument(skip(self))]
+    pub async fn health(&mut self) -> Result<HealthResponse> {
+        let request = tonic::Request::new(HealthRequest {}).inject_context();
+        let response = self.stub.health(request).await?.into_inner();
         Ok(response)
     }
 

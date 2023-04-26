@@ -3,8 +3,8 @@ use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, CompatGenerateRequest, Details, ErrorResponse, FinishReason,
-    GenerateParameters, GenerateRequest, GenerateResponse, HubModelInfo, Infer, Info, PrefillToken,
-    StreamDetails, StreamResponse, Token, Validation,
+    GenerateParameters, GenerateRequest, GenerateResponse, Health, HubModelInfo, Infer, Info,
+    PrefillToken, StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -82,9 +82,43 @@ async fn get_model_info(info: Extension<Info>) -> Json<Info> {
     Json(info.0)
 }
 
+#[utoipa::path(
+    get,
+    tag = "Text Generation Inference",
+    path = "/health",
+    request_body = HealthRequest,
+    responses(
+        (status = 200, description = "Everything is working fine"),
+        (status = 500, description = "Text generation inference is down", body = ErrorResponse,
+            example = json ! ({"error": "unhealthy"})),
+    )
+)]
+#[instrument]
 /// Health check method
+async fn health(
+    mut health: Extension<Health>,
+) -> Result<Json<()>, (StatusCode, Json<ErrorResponse>)> {
+    // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
+    //       be a bit too slow for a health check.
+    //       What we should do instead is check if the gRPC channels are still healthy.
+
+    // Send a small inference request
+    health.client.health().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "unhealthy".to_string(),
+                error_type: "healthcheck".to_string(),
+            }),
+        )
+    })?;
+    Ok(axum::Json(()))
+}
+
 #[instrument(skip(infer))]
-async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+async fn health_generate(
+    infer: Extension<Infer>,
+) -> Result<Json<()>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
     //       be a bit too slow for a health check.
     //       What we should do instead is check if the gRPC channels are still healthy.
@@ -111,7 +145,7 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
             },
         })
         .await?;
-    Ok(())
+    Ok(axum::Json(()))
 }
 
 /// Generate tokens
@@ -555,6 +589,7 @@ pub async fn run(
         max_input_length,
         max_total_tokens,
     );
+    let health_ext = Health::new(client.clone());
     let infer = Infer::new(
         client,
         validation,
@@ -650,6 +685,7 @@ pub async fn run(
         .route("/invocations", post(compat_generate))
         // Base Health route
         .route("/health", get(health))
+        .route("/health_generate", get(health_generate))
         // Inference API health route
         .route("/", get(health))
         // AWS Sagemaker health route
@@ -657,6 +693,7 @@ pub async fn run(
         // Prometheus metrics route
         .route("/metrics", get(metrics))
         .layer(Extension(info))
+        .layer(Extension(health_ext))
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
         .layer(Extension(prom_handle))

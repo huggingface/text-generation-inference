@@ -7,6 +7,7 @@ mod validation;
 use infer::Infer;
 use queue::{Entry, Queue};
 use serde::{Deserialize, Serialize};
+use text_generation_client::ShardedClient;
 use utoipa::ToSchema;
 use validation::Validation;
 
@@ -17,6 +18,20 @@ pub struct HubModelInfo {
     pub model_id: String,
     pub sha: Option<String>,
     pub pipeline_tag: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, ToSchema)]
+pub struct HealthResponse {}
+
+#[derive(Clone, Debug)]
+pub struct Health {
+    pub client: ShardedClient,
+}
+
+impl Health {
+    pub fn new(client: ShardedClient) -> Self {
+        Self { client }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
