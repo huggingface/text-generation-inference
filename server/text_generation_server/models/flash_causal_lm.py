@@ -58,6 +58,8 @@ class FlashCausalLMBatch(Batch):
 
     # Maximum number of tokens this batch will grow to
     max_tokens: int
+    # Maximum number of decode steps before at least one request finish
+    max_decode_steps: int
 
     def to_pb(self) -> generate_pb2.Batch:
         return generate_pb2.Batch(
@@ -92,7 +94,7 @@ class FlashCausalLMBatch(Batch):
         # Cumulative length
         cumulative_length = 0
 
-        max_tokens = 0
+        max_decode_steps = None
 
         # Parse batch
         for i, r in enumerate(pb.requests):
@@ -127,7 +129,15 @@ class FlashCausalLMBatch(Batch):
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
-            max_new_tokens = stopping_criteria.max_new_tokens
+
+            # Maximum number of decode steps before one request finish
+            if max_decode_steps is None:
+                max_decode_steps = stopping_criteria.max_new_tokens
+            else:
+                max_decode_steps = min(
+                    max_decode_steps, stopping_criteria.max_new_tokens
+                )
+
             stopping_criterias.append(stopping_criteria)
 
             all_input_ids_tensor.append(
@@ -136,7 +146,11 @@ class FlashCausalLMBatch(Batch):
 
             # Update
             cumulative_length += input_length
-            max_tokens += input_length + max_new_tokens
+
+        # Since we are sure that at least one request will be dropped in max_decode_steps,
+        # we know the kv_cache will only grow to cumulative_length + batch_size * max_decode_steps
+        # before getting filtered and decreasing in size
+        max_tokens = cumulative_length + max_decode_steps * len(pb.requests)
 
         return cls(
             batch_id=pb.id,
@@ -156,6 +170,7 @@ class FlashCausalLMBatch(Batch):
             stopping_criterias=stopping_criterias,
             past_pad=None,
             max_tokens=max_tokens,
+            max_decode_steps=max_decode_steps,
         )
 
     @tracer.start_as_current_span("filter")
@@ -190,7 +205,7 @@ class FlashCausalLMBatch(Batch):
         next_token_choosers = []
         stopping_criterias = []
 
-        max_tokens = 0
+        max_decode_steps = None
 
         for i, r in enumerate(requests):
             idx = self.requests_idx_mapping[r.id]
@@ -221,11 +236,21 @@ class FlashCausalLMBatch(Batch):
 
             stopping_criteria = self.stopping_criterias[idx]
             stopping_criterias.append(stopping_criteria)
-
-            cumulative_length += request_input_length
-            max_tokens += request_input_length + (
+            # Remaining decode steps for this request
+            remaining_decode = (
                 stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
             )
+            if max_decode_steps is None:
+                max_decode_steps = remaining_decode
+            else:
+                max_decode_steps = min(max_decode_steps, remaining_decode)
+
+            cumulative_length += request_input_length
+
+        # Since we are sure that at least one request will be dropped in max_decode_steps,
+        # we know the kv_cache will only grow to cumulative_length + batch_size * max_decode_steps
+        # before getting filtered and decreasing in size
+        max_tokens = cumulative_length + max_decode_steps * len(requests)
 
         if single_request:
             # Preallocate tensor for bs = 1 case
@@ -290,7 +315,8 @@ class FlashCausalLMBatch(Batch):
         # Cumulative length
         cumulative_batch_size = 0
         cumulative_length = 0
-        max_tokens = 0
+
+        max_decode_steps = None
 
         for i, batch in enumerate(batches):
             requests.extend(batch.requests)
@@ -329,10 +355,16 @@ class FlashCausalLMBatch(Batch):
             next_token_choosers.extend(batch.next_token_choosers)
             stopping_criterias.extend(batch.stopping_criterias)
 
+            if max_decode_steps is None:
+                max_decode_steps = batch.max_decode_steps
+            else:
+                max_decode_steps = min(max_decode_steps, batch.max_decode_steps)
+
             # Update
             cumulative_length += batch.cu_seqlens[-1]
             cumulative_batch_size += len(batch)
-            max_tokens += batch.max_tokens
+
+        max_tokens = cumulative_length + max_decode_steps * cumulative_batch_size
 
         return FlashCausalLMBatch(
             batch_id=batches[0].batch_id,
@@ -352,6 +384,7 @@ class FlashCausalLMBatch(Batch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             max_tokens=max_tokens,
+            max_decode_steps=max_decode_steps,
         )
 
     def __len__(self):
@@ -617,6 +650,7 @@ class FlashCausalLM(Model):
             batch.all_input_ids[i] = all_input_ids
             batch.all_input_ids_tensor[i] = all_input_ids_tensor
             batch.max_seqlen = max(batch.max_seqlen, new_input_length)
+            batch.max_decode_steps -= 1
             if len(batch) != 1:
                 # Add each sequence before its padding
                 batch.past_key_values[i * 2] = present[:, start_index:end_index]

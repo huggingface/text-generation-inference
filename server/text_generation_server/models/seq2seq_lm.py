@@ -56,6 +56,8 @@ class Seq2SeqLMBatch(Batch):
 
     # Maximum number of tokens this batch will grow to
     max_tokens: int
+    # Maximum number of decode steps before at least one request finish
+    max_decode_steps: int
 
     def to_pb(self) -> generate_pb2.Batch:
         """Convert a Seq2SeqLMBatch to a text_generation_server.v1.Batch protobuf"""
@@ -86,7 +88,7 @@ class Seq2SeqLMBatch(Batch):
         # Parse batch
         max_truncation = 0
         padding_right_offset = 0
-        max_decode_tokens = 0
+        max_decode_steps = None
         for i, r in enumerate(pb.requests):
             inputs.append(r.inputs)
             requests_idx_mapping[r.id] = i
@@ -99,7 +101,15 @@ class Seq2SeqLMBatch(Batch):
             )
             stopping_criterias.append(stopping_criteria)
             max_truncation = max(max_truncation, r.truncate)
-            max_decode_tokens += stopping_criteria.max_new_tokens
+
+            # Maximum number of decode steps before one request finish
+            if max_decode_steps is None:
+                max_decode_steps = stopping_criteria.max_new_tokens
+            else:
+                max_decode_steps = min(
+                    max_decode_steps, stopping_criteria.max_new_tokens
+                )
+
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -125,7 +135,7 @@ class Seq2SeqLMBatch(Batch):
         )
         all_decoder_input_ids = decoder_input_ids.view(-1).split(1)
 
-        max_tokens = len(inputs) * max_input_length + max_decode_tokens
+        max_tokens = len(inputs) * (max_input_length + max_decode_steps)
 
         return cls(
             batch_id=pb.id,
@@ -148,6 +158,7 @@ class Seq2SeqLMBatch(Batch):
             max_decoder_input_length=1,
             padding_right_offset=padding_right_offset,
             max_tokens=max_tokens,
+            max_decode_steps=max_decode_steps,
         )
 
     @tracer.start_as_current_span("filter")
@@ -177,7 +188,7 @@ class Seq2SeqLMBatch(Batch):
         max_decoder_input_length = 0
         padding_right_offset = 0
 
-        remaining_decode_tokens = 0
+        max_decode_steps = None
 
         for i, r in enumerate(requests):
             idx = self.requests_idx_mapping[r.id]
@@ -207,9 +218,15 @@ class Seq2SeqLMBatch(Batch):
             next_token_choosers.append(self.next_token_choosers[idx])
             stopping_criteria = self.stopping_criterias[idx]
             stopping_criterias.append(stopping_criteria)
-            remaining_decode_tokens += (
+
+            # Remaining decode steps for this request
+            remaining_decode = (
                 stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
             )
+            if max_decode_steps is None:
+                max_decode_steps = remaining_decode
+            else:
+                max_decode_steps = min(max_decode_steps, remaining_decode)
 
         # Apply indices to input_ids, attention mask, past key values and other items that need to be cached
         self.decoder_input_ids = self.decoder_input_ids[keep_indices]
@@ -240,9 +257,8 @@ class Seq2SeqLMBatch(Batch):
             layer[2] = layer[2][keep_indices, :, -max_input_length:]
             layer[3] = layer[3][keep_indices, :, -max_input_length:]
 
-        max_tokens = (
-            len(requests) * (max_input_length + max_decoder_input_length)
-            + remaining_decode_tokens
+        max_tokens = len(requests) * (
+            max_input_length + max_decoder_input_length + max_decode_steps
         )
 
         self.requests = requests
@@ -259,6 +275,7 @@ class Seq2SeqLMBatch(Batch):
         self.max_decoder_input_length = max_decoder_input_length
         self.padding_right_offset = padding_right_offset
         self.max_tokens = max_tokens
+        self.max_decode_steps = max_decode_steps
 
         return self
 
@@ -290,7 +307,7 @@ class Seq2SeqLMBatch(Batch):
         token_offsets = []
         next_token_choosers = []
         stopping_criterias = []
-        max_tokens = 0
+        max_decode_steps = 0
 
         # Batch tensors
         attention_mask = None
@@ -398,13 +415,11 @@ class Seq2SeqLMBatch(Batch):
                 ]
 
             start_index = end_index
-            # Add eventual padding tokens that were added while concatenating
-            max_tokens += batch.max_tokens + (
-                max_input_length
-                - batch.max_input_length
-                + max_decoder_input_length
-                - batch.max_decoder_input_length
-            ) * len(batch)
+
+            if max_decode_steps is None:
+                max_decode_steps = batch.max_decode_steps
+            else:
+                max_decode_steps = min(max_decode_steps, batch.max_decode_steps)
 
         # Determine shapes for new past kv tensors
         first_past_kvs = batches[0].past_key_values
@@ -471,6 +486,10 @@ class Seq2SeqLMBatch(Batch):
 
                     start_index = end_index
 
+        max_tokens = len(requests) * (
+            max_input_length + max_decoder_input_length + max_decode_steps
+        )
+
         return cls(
             batch_id=batches[0].batch_id,
             requests=requests,
@@ -492,6 +511,7 @@ class Seq2SeqLMBatch(Batch):
             max_decoder_input_length=max_decoder_input_length,
             padding_right_offset=padding_right_offset,
             max_tokens=max_tokens,
+            max_decode_steps=max_decode_steps,
         )
 
     def __len__(self):
@@ -717,5 +737,6 @@ class Seq2SeqLM(Model):
         if batch.decoder_attention_mask is not None:
             batch.decoder_attention_mask[:, -batch.padding_right_offset] = 1
         batch.padding_right_offset -= 1
+        batch.max_decode_steps -= 1
 
         return generations, batch

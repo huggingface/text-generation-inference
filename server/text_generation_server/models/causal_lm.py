@@ -48,6 +48,8 @@ class CausalLMBatch(Batch):
 
     # Maximum number of tokens this batch will grow to
     max_tokens: int
+    # Maximum number of decode steps before at least one request finish
+    max_decode_steps: int
 
     # Past metadata
     keys_head_dim_last: bool = True
@@ -77,7 +79,7 @@ class CausalLMBatch(Batch):
         # Parse batch
         max_truncation = 0
         padding_right_offset = 0
-        max_decode_tokens = 0
+        max_decode_steps = None
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             inputs.append(r.inputs)
@@ -89,7 +91,15 @@ class CausalLMBatch(Batch):
             )
             stopping_criterias.append(stopping_criteria)
             max_truncation = max(max_truncation, r.truncate)
-            max_decode_tokens += stopping_criteria.max_new_tokens
+
+            # Maximum number of decode steps before one request finish
+            if max_decode_steps is None:
+                max_decode_steps = stopping_criteria.max_new_tokens
+            else:
+                max_decode_steps = min(
+                    max_decode_steps, stopping_criteria.max_new_tokens
+                )
+
             padding_right_offset = max(
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
@@ -118,7 +128,10 @@ class CausalLMBatch(Batch):
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].T.split(1, dim=1)
 
-        max_tokens = len(inputs) * max_input_length + max_decode_tokens
+        # Since we are sure that at least one request will be dropped in max_decode_steps,
+        # we know the kv_cache will only grow to cumulative_length + batch_size * max_decode_steps
+        # before getting filtered and decreasing in size
+        max_tokens = len(inputs) * (max_input_length + max_decode_steps)
 
         return cls(
             batch_id=pb.id,
@@ -137,6 +150,7 @@ class CausalLMBatch(Batch):
             max_input_length=max_input_length.item(),
             padding_right_offset=padding_right_offset,
             max_tokens=max_tokens,
+            max_decode_steps=max_decode_steps,
         )
 
     @tracer.start_as_current_span("filter")
@@ -159,8 +173,8 @@ class CausalLMBatch(Batch):
         next_token_choosers = []
         stopping_criterias = []
 
-        total_remaining_decode_tokens = 0
         new_padding_right_offset = 0
+        max_decode_steps = None
 
         for i, r in enumerate(requests):
             idx = self.requests_idx_mapping[r.id]
@@ -178,13 +192,17 @@ class CausalLMBatch(Batch):
             next_token_choosers.append(self.next_token_choosers[idx])
             stopping_criteria = self.stopping_criterias[idx]
             stopping_criterias.append(stopping_criteria)
-            remaining_decode_tokens = (
+
+            # Remaining decode steps for this request
+            remaining_decode = (
                 stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
             )
-            total_remaining_decode_tokens += remaining_decode_tokens
-            new_padding_right_offset = max(
-                new_padding_right_offset, remaining_decode_tokens
-            )
+            if max_decode_steps is None:
+                max_decode_steps = remaining_decode
+            else:
+                max_decode_steps = min(max_decode_steps, remaining_decode)
+
+            new_padding_right_offset = max(new_padding_right_offset, remaining_decode)
 
         # Apply indices to input_ids, attention mask, past key values and other items that need to be cached
         input_ids = self.input_ids[keep_indices]
@@ -217,7 +235,10 @@ class CausalLMBatch(Batch):
             layer[1] = past_values[keep_indices, :, -past_kv_length:, :]
             del past_values
 
-        max_tokens = len(requests) * max_input_length + total_remaining_decode_tokens
+        # Since we are sure that at least one request will be dropped in max_decode_steps,
+        # we know the kv_cache will only grow to cumulative_length + batch_size * max_decode_steps
+        # before getting filtered and decreasing in size
+        max_tokens = len(requests) * (max_input_length + max_decode_steps)
 
         self.requests = requests
         self.requests_idx_mapping = requests_idx_mapping
@@ -232,6 +253,7 @@ class CausalLMBatch(Batch):
         self.max_input_length = max_input_length
         self.padding_right_offset = new_padding_right_offset
         self.max_tokens = max_tokens
+        self.max_decode_steps = max_decode_steps
 
         return self
 
@@ -256,13 +278,14 @@ class CausalLMBatch(Batch):
         all_input_ids = []
         next_token_choosers = []
         stopping_criterias = []
-        max_tokens = 0
 
         # Batch tensors
         input_ids = None
         attention_mask = None
         position_ids = None
         past_key_values = []
+
+        max_decode_steps = None
 
         # Used for slicing correctly inside the tensors
         # Equivalent to a cumsum on batch sizes
@@ -341,10 +364,11 @@ class CausalLMBatch(Batch):
                         layer[k] = t.view(len(batch), -1, *t.shape[-2:])
 
             start_index = end_index
-            # Add eventual padding tokens that were added while concatenating
-            max_tokens += batch.max_tokens + (
-                max_input_length - batch.max_input_length
-            ) * len(batch)
+
+            if max_decode_steps is None:
+                max_decode_steps = batch.max_decode_steps
+            else:
+                max_decode_steps = min(max_decode_steps, batch.max_decode_steps)
 
         first_past_kvs = batches[0].past_key_values
         _, num_heads, padded_sequence_length, head_dim = first_past_kvs[0][1].shape
@@ -417,6 +441,8 @@ class CausalLMBatch(Batch):
 
             past_key_values.append([padded_past_keys, padded_past_values])
 
+        max_tokens = len(requests) * (max_input_length + max_decode_steps)
+
         return cls(
             batch_id=batches[0].batch_id,
             requests=requests,
@@ -435,6 +461,7 @@ class CausalLMBatch(Batch):
             padding_right_offset=padding_right_offset,
             keys_head_dim_last=batches[0].keys_head_dim_last,
             max_tokens=max_tokens,
+            max_decode_steps=max_decode_steps,
         )
 
     def __len__(self):
@@ -636,6 +663,8 @@ class CausalLM(Model):
         batch.attention_mask[:, -batch.padding_right_offset] = 1
         # Decrease right offset
         batch.padding_right_offset -= 1
+        # Decrease max_decode_steps
+        batch.max_decode_steps -= 1
 
         # Update position_ids
         batch.position_ids = batch.position_ids[:, -1:] + 1
