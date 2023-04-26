@@ -551,8 +551,8 @@ pub async fn run(
         max_input_length,
         max_total_tokens,
     );
-    let healthy = Arc::new(AtomicBool::new(false));
-    let health_ext = Health::new(client.clone(), healthy.clone());
+    let generation_health = Arc::new(AtomicBool::new(false));
+    let health_ext = Health::new(client.clone(), generation_health.clone());
     let infer = Infer::new(
         client,
         validation,
@@ -561,7 +561,7 @@ pub async fn run(
         max_waiting_tokens,
         max_concurrent_requests,
         shard_info.requires_padding,
-        healthy,
+        generation_health,
     );
 
     // Duration buckets
