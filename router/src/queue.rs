@@ -162,7 +162,7 @@ impl State {
 
         let mut max_input_length = 0;
         let mut prefill_tokens: u32 = 0;
-        let mut decode_tokens: u32 = 0;
+        let mut max_decode_steps: u32 = u32::MAX;
 
         // Pop entries starting from the front of the queue
         while let Some((id, mut entry)) = self.entries.pop_front() {
@@ -182,7 +182,10 @@ impl State {
                 prefill_tokens += entry.request.input_length;
             }
 
-            decode_tokens += entry.request.stopping_parameters.max_new_tokens;
+            max_decode_steps =
+                max_decode_steps.min(entry.request.stopping_parameters.max_new_tokens);
+
+            let decode_tokens = max_decode_steps * (batch_requests.len() + 1) as u32;
 
             if (prefill_tokens + decode_tokens) > token_budget {
                 // Entry is over budget
@@ -235,6 +238,8 @@ impl State {
         // Final batch size
         let size = batch_requests.len() as u32;
         next_batch_span.record("batch_size", size);
+
+        let decode_tokens = size * max_decode_steps;
 
         let batch = Batch {
             id: self.next_batch_id,
