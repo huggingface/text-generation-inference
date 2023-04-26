@@ -1,13 +1,14 @@
 mod app;
 mod event;
 mod generation;
+mod table;
 mod utils;
 
 use crate::app::App;
 use crate::event::Event;
 use crossterm::ExecutableCommand;
 use std::io;
-use text_generation_client::ShardedClient;
+use text_generation_client::{NextTokenChooserParameters, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::sync::{broadcast, mpsc};
 use tui::backend::CrosstermBackend;
@@ -23,8 +24,26 @@ pub async fn run(
     decode_length: u32,
     n_runs: usize,
     warmups: usize,
+    temperature: Option<f32>,
+    top_k: Option<u32>,
+    top_p: Option<f32>,
+    typical_p: Option<f32>,
+    repetition_penalty: Option<f32>,
+    watermark: bool,
+    do_sample: bool,
     client: ShardedClient,
 ) -> Result<(), crossterm::ErrorKind> {
+    let parameters = NextTokenChooserParameters {
+        temperature: temperature.unwrap_or(1.0),
+        top_k: top_k.unwrap_or(0),
+        top_p: top_p.unwrap_or(1.0),
+        typical_p: typical_p.unwrap_or(1.0),
+        do_sample,
+        seed: 0,
+        repetition_penalty: repetition_penalty.unwrap_or(1.0),
+        watermark,
+    };
+
     // Initialize terminal properties
     crossterm::terminal::enable_raw_mode()?;
     io::stdout().execute(crossterm::terminal::EnterAlternateScreen)?;
@@ -53,6 +72,7 @@ pub async fn run(
         decode_length,
         n_runs,
         warmups,
+        parameters,
         client,
         run_sender,
         shutdown_sender.subscribe(),
@@ -73,7 +93,7 @@ pub async fn run(
     // Create App
     let mut app = App::new(
         run_receiver,
-        tokenizer_name,
+        tokenizer_name.clone(),
         sequence_length,
         decode_length,
         n_runs,
@@ -105,6 +125,28 @@ pub async fn run(
     io::stdout().execute(crossterm::terminal::LeaveAlternateScreen)?;
     crossterm::terminal::disable_raw_mode()?;
     io::stdout().execute(crossterm::cursor::Show)?;
+
+    let parameters_table = table::parameters_table(
+        tokenizer_name,
+        sequence_length,
+        decode_length,
+        n_runs,
+        warmups,
+        temperature,
+        top_k,
+        top_p,
+        typical_p,
+        repetition_penalty,
+        watermark,
+        do_sample,
+    );
+    println!("\n{parameters_table}\n");
+
+    let latency_table = table::latency_table(&app.data);
+    println!("\n{latency_table}\n");
+
+    let throughput_table = table::throughput_table(&app.data);
+    println!("\n{throughput_table}\n");
 
     Ok(())
 }

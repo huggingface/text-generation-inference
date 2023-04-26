@@ -28,11 +28,27 @@ struct Args {
     runs: usize,
     #[clap(default_value = "1", short, long, env)]
     warmups: usize,
+    #[clap(long, env)]
+    temperature: Option<f32>,
+    #[clap(long, env)]
+    top_k: Option<u32>,
+    #[clap(long, env)]
+    top_p: Option<f32>,
+    #[clap(long, env)]
+    typical_p: Option<f32>,
+    #[clap(long, env)]
+    repetition_penalty: Option<f32>,
+    #[clap(long, env)]
+    watermark: bool,
+    #[clap(long, env)]
+    do_sample: bool,
     #[clap(default_value = "/tmp/text-generation-server-0", short, long, env)]
     master_shard_uds_path: String,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_logging();
+
     // Get args
     let args = Args::parse();
     // Pattern match configuration
@@ -44,12 +60,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         decode_length,
         runs,
         warmups,
+        temperature,
+        top_k,
+        top_p,
+        typical_p,
+        repetition_penalty,
+        watermark,
+        do_sample,
         master_shard_uds_path,
     } = args;
 
     let batch_size = batch_size.unwrap_or(vec![1, 2, 4, 8, 16, 32]);
-
-    init_logging();
 
     // Tokenizer instance
     // This will only be used to validate payloads
@@ -105,6 +126,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 decode_length,
                 runs,
                 warmups,
+                temperature,
+                top_k,
+                top_p,
+                typical_p,
+                repetition_penalty,
+                watermark,
+                do_sample,
                 sharded_client,
             )
             .await

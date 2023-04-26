@@ -20,6 +20,7 @@ crossterm = "0.26"
 float-ord = "0.3.2"
 serde = {version = "1.0.142", features = ["derive"]}
 serde_json = "1.0"
+tabled = "0.12.0"
 text-generation-client = { path = "../router/client" }
 thiserror = "1.0.38"
 tokenizers = "0.13.3"
