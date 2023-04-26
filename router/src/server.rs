@@ -90,7 +90,7 @@ async fn get_model_info(info: Extension<Info>) -> Json<Info> {
     responses(
         (status = 200, description = "Everything is working fine"),
         (status = 500, description = "Text generation inference is down", body = ErrorResponse,
-            example = json ! ({"error": "unhealthy"})),
+            example = json ! ({"error": "unhealthy", "error_type": "healthcheck"})),
     )
 )]
 #[instrument]
@@ -98,11 +98,6 @@ async fn get_model_info(info: Extension<Info>) -> Json<Info> {
 async fn health(
     mut health: Extension<Health>,
 ) -> Result<Json<()>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
-    //       be a bit too slow for a health check.
-    //       What we should do instead is check if the gRPC channels are still healthy.
-
-    // Send a small inference request
     health.client.health().await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -589,7 +584,9 @@ pub async fn run(
         max_input_length,
         max_total_tokens,
     );
-    let health_ext = Health::new(client.clone());
+    let health_ext = Health {
+        client: client.clone(),
+    };
     let infer = Infer::new(
         client,
         validation,
