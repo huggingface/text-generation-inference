@@ -741,3 +741,4 @@ impl From<InferError> for Event {
             .unwrap()
     }
 }
+

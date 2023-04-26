@@ -276,3 +276,19 @@ pub(crate) struct ErrorResponse {
     pub error: String,
     pub error_type: String,
 }
+
+#[cfg(test)]
+mod tests{
+    use std::io::Write;
+    use tokenizers::Tokenizer;
+
+    pub(crate) async fn get_tokenizer() -> Tokenizer{
+        if !std::path::Path::new("tokenizer.json").exists(){
+            let content = reqwest::get("https://huggingface.co/gpt2/raw/main/tokenizer.json").await.unwrap().bytes().await.unwrap();
+             let mut file = std::fs::File::create("tokenizer.json").unwrap();
+            file.write_all(&content).unwrap();
+        }
+        Tokenizer::from_file("tokenizer.json").unwrap()
+    }
+}
+

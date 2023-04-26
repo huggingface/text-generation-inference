@@ -141,6 +141,7 @@ impl State {
 
     // Get the next batch
     fn next_batch(&mut self, min_size: Option<usize>, token_budget: u32) -> Option<NextBatch> {
+
         if self.entries.is_empty() {
             return None;
         }
@@ -430,7 +431,17 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         queue.append(entry3);
 
+        // Not enough requests pending
         assert!(queue.next_batch(Some(2), 2).await.is_none());
+        // Not enough token budget
+        assert!(queue.next_batch(Some(1), 0).await.is_none());
+        // Ok
+        let (entries2, batch2, _) = queue.next_batch(Some(1), 2).await.unwrap();
+        assert_eq!(entries2.len(), 1);
+        assert!(entries2.contains_key(&2));
+        assert!(entries2.get(&2).unwrap().batch_time.is_some());
+        assert_eq!(batch2.id, 1);
+        assert_eq!(batch2.size, 1);
     }
 
     #[tokio::test]
