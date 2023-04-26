@@ -30,8 +30,6 @@ pub struct Infer {
     shared: Arc<Shared>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
-    /// Has done roundtrip valid run
-    healthy: Arc<AtomicBool>,
 }
 
 /// Infer shared state
@@ -41,6 +39,7 @@ struct Shared {
 }
 
 impl Infer {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         client: ShardedClient,
         validation: Validation,
@@ -49,6 +48,7 @@ impl Infer {
         max_waiting_tokens: usize,
         max_concurrent_requests: usize,
         requires_padding: bool,
+        generation_health: Arc<AtomicBool>,
     ) -> Self {
         // Infer shared state
         let queue = Queue::new(requires_padding);
@@ -64,27 +64,18 @@ impl Infer {
             max_waiting_tokens,
             queue.clone(),
             shared.clone(),
+            generation_health,
         ));
 
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
-        let healthy = Arc::new(AtomicBool::new(false));
 
         Self {
             validation,
             queue,
             shared,
             limit_concurrent_requests: semaphore,
-            healthy,
         }
-    }
-
-    pub(crate) fn healthy(&self) -> bool {
-        self.healthy.load(Ordering::SeqCst)
-    }
-
-    pub(crate) fn set_healthy(&self, value: bool) {
-        self.healthy.store(value, Ordering::SeqCst)
     }
 
     /// Add a new request to the queue and return a stream of InferStreamResponse
@@ -255,6 +246,7 @@ async fn batching_task(
     max_waiting_tokens: usize,
     queue: Queue,
     shared: Arc<Shared>,
+    generation_health: Arc<AtomicBool>,
 ) {
     // Infinite loop
     loop {
@@ -267,7 +259,7 @@ async fn batching_task(
         while let Some((mut entries, batch, span)) =
             queue.next_batch(None, max_batch_total_tokens).await
         {
-            let mut cached_batch = prefill(&mut client, batch, &mut entries)
+            let mut cached_batch = prefill(&mut client, batch, &mut entries, &generation_health)
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -316,9 +308,10 @@ async fn batching_task(
                     });
 
                     // Generate one token for this new batch to have the attention past in cache
-                    let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
-                        .instrument(span)
-                        .await;
+                    let new_cached_batch =
+                        prefill(&mut client, new_batch, &mut new_entries, &generation_health)
+                            .instrument(span)
+                            .await;
                     // Reset waiting counter
                     waiting_tokens = 1;
                     // Extend current batch with the new batch
@@ -342,7 +335,7 @@ async fn batching_task(
                     entry.temp_span = Some(entry_batch_span);
                 });
 
-                cached_batch = decode(&mut client, batches, &mut entries)
+                cached_batch = decode(&mut client, batches, &mut entries, &generation_health)
                     .instrument(next_batch_span)
                     .await;
                 waiting_tokens += 1;
@@ -358,6 +351,7 @@ async fn prefill(
     client: &mut ShardedClient,
     batch: Batch,
     entries: &mut IntMap<u64, Entry>,
+    generation_health: &Arc<AtomicBool>,
 ) -> Option<Batch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
@@ -365,6 +359,8 @@ async fn prefill(
 
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
+            // Update health
+            generation_health.store(true, Ordering::SeqCst);
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
@@ -377,6 +373,8 @@ async fn prefill(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
+            // Update health
+            generation_health.store(false, Ordering::SeqCst);
             let _ = client.clear_cache(Some(batch_id)).await;
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
@@ -390,6 +388,7 @@ async fn decode(
     client: &mut ShardedClient,
     batches: Vec<Batch>,
     entries: &mut IntMap<u64, Entry>,
+    generation_health: &Arc<AtomicBool>,
 ) -> Option<Batch> {
     let start_time = Instant::now();
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
@@ -397,6 +396,8 @@ async fn decode(
 
     match client.decode(batches).await {
         Ok((generations, next_batch)) => {
+            // Update health
+            generation_health.store(true, Ordering::SeqCst);
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
@@ -409,6 +410,7 @@ async fn decode(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
+            generation_health.store(false, Ordering::SeqCst);
             for id in batch_ids {
                 let _ = client.clear_cache(Some(id)).await;
             }

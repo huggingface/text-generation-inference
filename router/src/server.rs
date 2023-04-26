@@ -1,10 +1,11 @@
+use crate::health::Health;
 /// HTTP Server logic
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, CompatGenerateRequest, Details, ErrorResponse, FinishReason,
-    GenerateParameters, GenerateRequest, GenerateResponse, Health, HubModelInfo, Infer, Info,
-    PrefillToken, StreamDetails, StreamResponse, Token, Validation,
+    GenerateParameters, GenerateRequest, GenerateResponse, HubModelInfo, Infer, Info, PrefillToken,
+    StreamDetails, StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -18,6 +19,8 @@ use futures::Stream;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use text_generation_client::{ShardInfo, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::signal;
@@ -86,54 +89,25 @@ async fn get_model_info(info: Extension<Info>) -> Json<Info> {
     get,
     tag = "Text Generation Inference",
     path = "/health",
-    request_body = HealthRequest,
     responses(
         (status = 200, description = "Everything is working fine"),
-        (status = 500, description = "Text generation inference is down", body = ErrorResponse,
+        (status = 503, description = "Text generation inference is down", body = ErrorResponse,
             example = json ! ({"error": "unhealthy", "error_type": "healthcheck"})),
     )
 )]
-#[instrument(skip(infer))]
+#[instrument(skip(health))]
 /// Health check method
-async fn health(
-    mut health: Extension<Health>,
-    infer: Extension<Infer>,
-) -> Result<Json<()>, (StatusCode, Json<ErrorResponse>)> {
-    if infer.healthy() {
-        health.client.health().await.map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "unhealthy".to_string(),
-                    error_type: "healthcheck".to_string(),
-                }),
-            )
-        })?;
-    } else {
-        infer
-            .generate(GenerateRequest {
-                inputs: "liveness".to_string(),
-                parameters: GenerateParameters {
-                    best_of: None,
-                    temperature: None,
-                    repetition_penalty: None,
-                    top_k: None,
-                    top_p: None,
-                    typical_p: None,
-                    do_sample: false,
-                    max_new_tokens: 1,
-                    return_full_text: None,
-                    stop: Vec::new(),
-                    truncate: None,
-                    watermark: false,
-                    details: false,
-                    seed: None,
-                },
-            })
-            .await?;
-        infer.set_healthy(true);
+async fn health(mut health: Extension<Health>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    match health.check().await {
+        true => Ok(()),
+        false => Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "unhealthy".to_string(),
+                error_type: "healthcheck".to_string(),
+            }),
+        )),
     }
-    Ok(axum::Json(()))
 }
 
 /// Generate tokens
@@ -184,27 +158,10 @@ async fn generate(
     // Inference
     let (response, best_of_responses) = match req.0.parameters.best_of {
         Some(best_of) if best_of > 1 => {
-            let (response, best_of_responses) = match infer.generate_best_of(req.0, best_of).await {
-                Ok(result) => result,
-                Err(err) => {
-                    infer.set_healthy(false);
-                    return Err(err)?;
-                }
-            };
+            let (response, best_of_responses) = infer.generate_best_of(req.0, best_of).await?;
             (response, Some(best_of_responses))
         }
-        _ => (
-            {
-                match infer.generate(req.0).await {
-                    Ok(result) => result,
-                    Err(err) => {
-                        infer.set_healthy(false);
-                        return Err(err)?;
-                    }
-                }
-            },
-            None,
-        ),
+        _ => (infer.generate(req.0).await?, None),
     };
 
     // Token details
@@ -483,7 +440,6 @@ async fn generate_stream(
                             // yield error
                             Err(err) => {
                                 error = true;
-                                infer.set_healthy(false);
                                 yield Ok(Event::from(err));
                                 break;
                             }
@@ -595,9 +551,8 @@ pub async fn run(
         max_input_length,
         max_total_tokens,
     );
-    let health_ext = Health {
-        client: client.clone(),
-    };
+    let healthy = Arc::new(AtomicBool::new(false));
+    let health_ext = Health::new(client.clone(), healthy.clone());
     let infer = Infer::new(
         client,
         validation,
@@ -606,6 +561,7 @@ pub async fn run(
         max_waiting_tokens,
         max_concurrent_requests,
         shard_info.requires_padding,
+        healthy,
     );
 
     // Duration buckets
