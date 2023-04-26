@@ -1,10 +1,11 @@
 /// Multi shard Client
 use crate::Result;
-use crate::{Batch, Client, Generation, Request, ShardInfo};
+use crate::{Batch, Client, Generation, HealthResponse, Request, ShardInfo};
 use futures::future::join_all;
 use tonic::transport::Uri;
 use tracing::instrument;
 
+#[derive(Debug, Clone)]
 /// Text Generation Inference gRPC multi client
 pub struct ShardedClient {
     clients: Vec<Client>,
@@ -44,6 +45,17 @@ impl ShardedClient {
             .clients
             .iter_mut()
             .map(|client| client.info())
+            .collect();
+        join_all(futures).await.pop().unwrap()
+    }
+
+    /// GRPC health check
+    #[instrument(skip(self))]
+    pub async fn health(&mut self) -> Result<HealthResponse> {
+        let futures: Vec<_> = self
+            .clients
+            .iter_mut()
+            .map(|client| client.health())
             .collect();
         join_all(futures).await.pop().unwrap()
     }

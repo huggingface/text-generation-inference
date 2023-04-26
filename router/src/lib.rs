@@ -1,3 +1,4 @@
+mod health;
 /// Text Generation Inference Webserver
 mod infer;
 mod queue;
@@ -278,17 +279,21 @@ pub(crate) struct ErrorResponse {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use std::io::Write;
     use tokenizers::Tokenizer;
 
-    pub(crate) async fn get_tokenizer() -> Tokenizer{
-        if !std::path::Path::new("tokenizer.json").exists(){
-            let content = reqwest::get("https://huggingface.co/gpt2/raw/main/tokenizer.json").await.unwrap().bytes().await.unwrap();
-             let mut file = std::fs::File::create("tokenizer.json").unwrap();
+    pub(crate) async fn get_tokenizer() -> Tokenizer {
+        if !std::path::Path::new("tokenizer.json").exists() {
+            let content = reqwest::get("https://huggingface.co/gpt2/raw/main/tokenizer.json")
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap();
+            let mut file = std::fs::File::create("tokenizer.json").unwrap();
             file.write_all(&content).unwrap();
         }
         Tokenizer::from_file("tokenizer.json").unwrap()
     }
 }
-

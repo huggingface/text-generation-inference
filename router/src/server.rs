@@ -1,3 +1,4 @@
+use crate::health::Health;
 /// HTTP Server logic
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
@@ -18,6 +19,8 @@ use futures::Stream;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use text_generation_client::{ShardInfo, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::signal;
@@ -82,36 +85,29 @@ async fn get_model_info(info: Extension<Info>) -> Json<Info> {
     Json(info.0)
 }
 
+#[utoipa::path(
+    get,
+    tag = "Text Generation Inference",
+    path = "/health",
+    responses(
+        (status = 200, description = "Everything is working fine"),
+        (status = 503, description = "Text generation inference is down", body = ErrorResponse,
+            example = json ! ({"error": "unhealthy", "error_type": "healthcheck"})),
+    )
+)]
+#[instrument(skip(health))]
 /// Health check method
-#[instrument(skip(infer))]
-async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
-    // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
-    //       be a bit too slow for a health check.
-    //       What we should do instead is check if the gRPC channels are still healthy.
-
-    // Send a small inference request
-    infer
-        .generate(GenerateRequest {
-            inputs: "liveness".to_string(),
-            parameters: GenerateParameters {
-                best_of: None,
-                temperature: None,
-                repetition_penalty: None,
-                top_k: None,
-                top_p: None,
-                typical_p: None,
-                do_sample: false,
-                max_new_tokens: 1,
-                return_full_text: None,
-                stop: Vec::new(),
-                truncate: None,
-                watermark: false,
-                details: false,
-                seed: None,
-            },
-        })
-        .await?;
-    Ok(())
+async fn health(mut health: Extension<Health>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    match health.check().await {
+        true => Ok(()),
+        false => Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "unhealthy".to_string(),
+                error_type: "healthcheck".to_string(),
+            }),
+        )),
+    }
 }
 
 /// Generate tokens
@@ -555,6 +551,8 @@ pub async fn run(
         max_input_length,
         max_total_tokens,
     );
+    let generation_health = Arc::new(AtomicBool::new(false));
+    let health_ext = Health::new(client.clone(), generation_health.clone());
     let infer = Infer::new(
         client,
         validation,
@@ -563,6 +561,7 @@ pub async fn run(
         max_waiting_tokens,
         max_concurrent_requests,
         shard_info.requires_padding,
+        generation_health,
     );
 
     // Duration buckets
@@ -657,6 +656,7 @@ pub async fn run(
         // Prometheus metrics route
         .route("/metrics", get(metrics))
         .layer(Extension(info))
+        .layer(Extension(health_ext))
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
         .layer(Extension(prom_handle))
@@ -741,4 +741,3 @@ impl From<InferError> for Event {
             .unwrap()
     }
 }
-

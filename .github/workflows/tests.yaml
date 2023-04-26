@@ -67,7 +67,10 @@ jobs:
         run: |
           pip install pytest
           HF_HUB_ENABLE_HF_TRANSFER=1 pytest -sv server/tests
-      - name: Run Clippy
+      - name: Run Rust fmt
+        run: |
+          cargo fmt --check
+      - name: Run Rust clippy
         run: |
           cargo clippy
       - name: Run Rust tests

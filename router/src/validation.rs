@@ -380,111 +380,154 @@ pub enum ValidationError {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
     use crate::default_parameters;
     use crate::tests::get_tokenizer;
 
     #[tokio::test]
-    async fn test_validation_max_new_tokens(){
+    async fn test_validation_max_new_tokens() {
         let tokenizer = None;
         let max_best_of = 2;
         let max_stop_sequence = 3;
         let max_input_length = 4;
         let max_total_tokens = 5;
         let workers = 1;
-        let validation = Validation::new(workers, tokenizer, max_best_of, max_stop_sequence, max_input_length, max_total_tokens);
+        let validation = Validation::new(
+            workers,
+            tokenizer,
+            max_best_of,
+            max_stop_sequence,
+            max_input_length,
+            max_total_tokens,
+        );
 
         let max_new_tokens = 10;
-        match validation.validate_input("Hello".to_string(), None, max_new_tokens).await{
+        match validation
+            .validate_input("Hello".to_string(), None, max_new_tokens)
+            .await
+        {
             Err(ValidationError::MaxNewTokens(1, 10)) => (),
-            _ => panic!("Unexpected not max new tokens")
+            _ => panic!("Unexpected not max new tokens"),
         }
     }
 
     #[tokio::test]
-    async fn test_validation_input_length(){
+    async fn test_validation_input_length() {
         let tokenizer = Some(get_tokenizer().await);
         let max_best_of = 2;
         let max_stop_sequence = 3;
         let max_input_length = 4;
         let max_total_tokens = 5;
         let workers = 1;
-        let validation = Validation::new(workers, tokenizer, max_best_of, max_stop_sequence, max_input_length, max_total_tokens);
+        let validation = Validation::new(
+            workers,
+            tokenizer,
+            max_best_of,
+            max_stop_sequence,
+            max_input_length,
+            max_total_tokens,
+        );
 
         let max_new_tokens = 10;
-        match validation.validate_input("Hello".to_string(), None, max_new_tokens).await{
+        match validation
+            .validate_input("Hello".to_string(), None, max_new_tokens)
+            .await
+        {
             Err(ValidationError::MaxTotalTokens(5, 1, 10)) => (),
-            _ => panic!("Unexpected not max new tokens")
+            _ => panic!("Unexpected not max new tokens"),
         }
     }
 
     #[tokio::test]
-    async fn test_validation_best_of_sampling(){
+    async fn test_validation_best_of_sampling() {
         let tokenizer = Some(get_tokenizer().await);
         let max_best_of = 2;
         let max_stop_sequence = 3;
         let max_input_length = 4;
         let max_total_tokens = 5;
         let workers = 1;
-        let validation = Validation::new(workers, tokenizer, max_best_of, max_stop_sequence, max_input_length, max_total_tokens);
-        match validation.validate(GenerateRequest{
-            inputs: "Hello".to_string(),
-            parameters: GenerateParameters{
-                best_of: Some(2),
-                do_sample: false,
-                ..default_parameters()
-            }
-        }).await{
+        let validation = Validation::new(
+            workers,
+            tokenizer,
+            max_best_of,
+            max_stop_sequence,
+            max_input_length,
+            max_total_tokens,
+        );
+        match validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                parameters: GenerateParameters {
+                    best_of: Some(2),
+                    do_sample: false,
+                    ..default_parameters()
+                },
+            })
+            .await
+        {
             Err(ValidationError::BestOfSampling) => (),
-            _ => panic!("Unexpected not best of sampling")
+            _ => panic!("Unexpected not best of sampling"),
         }
-
     }
 
     #[tokio::test]
-    async fn test_validation_top_p(){
+    async fn test_validation_top_p() {
         let tokenizer = Some(get_tokenizer().await);
         let max_best_of = 2;
         let max_stop_sequence = 3;
         let max_input_length = 4;
         let max_total_tokens = 5;
         let workers = 1;
-        let validation = Validation::new(workers, tokenizer, max_best_of, max_stop_sequence, max_input_length, max_total_tokens);
-        match validation.validate(GenerateRequest{
-            inputs: "Hello".to_string(),
-            parameters: GenerateParameters{
-                top_p: Some(1.0),
-                ..default_parameters()
-            }
-        }).await{
+        let validation = Validation::new(
+            workers,
+            tokenizer,
+            max_best_of,
+            max_stop_sequence,
+            max_input_length,
+            max_total_tokens,
+        );
+        match validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                parameters: GenerateParameters {
+                    top_p: Some(1.0),
+                    ..default_parameters()
+                },
+            })
+            .await
+        {
             Err(ValidationError::TopP) => (),
-            _ => panic!("Unexpected top_p")
+            _ => panic!("Unexpected top_p"),
         }
 
-        match validation.validate(GenerateRequest{
-            inputs: "Hello".to_string(),
-            parameters: GenerateParameters{
-                top_p: Some(0.99),
-                max_new_tokens: 1,
-                ..default_parameters()
-            }
-        }).await{
+        match validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                parameters: GenerateParameters {
+                    top_p: Some(0.99),
+                    max_new_tokens: 1,
+                    ..default_parameters()
+                },
+            })
+            .await
+        {
             Ok(_) => (),
-            _ => panic!("Unexpected top_p error")
+            _ => panic!("Unexpected top_p error"),
         }
 
-        let valid_request = validation.validate(GenerateRequest{
-            inputs: "Hello".to_string(),
-            parameters: GenerateParameters{
-                top_p: None,
-                max_new_tokens: 1,
-                ..default_parameters()
-            }
-        }).await.unwrap();
+        let valid_request = validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                parameters: GenerateParameters {
+                    top_p: None,
+                    max_new_tokens: 1,
+                    ..default_parameters()
+                },
+            })
+            .await
+            .unwrap();
         // top_p == 1.0 is invalid for users to ask for but it's the default resolved value.
         assert_eq!(valid_request.parameters.top_p, 1.0);
-        
-
     }
 }

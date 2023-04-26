@@ -29,6 +29,11 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     async def Info(self, request, context):
         return self.model.info
 
+    async def Health(self, request, context):
+        if self.model.device.type == "cuda":
+            torch.zeros((2, 2)).cuda()
+        return generate_pb2.HealthResponse()
+
     async def ServiceDiscovery(self, request, context):
         return generate_pb2.ServiceDiscoveryResponse(urls=self.server_urls)
 
