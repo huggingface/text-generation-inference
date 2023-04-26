@@ -7,7 +7,10 @@ use flume::SendError;
 use futures::future::try_join_all;
 use futures::stream::StreamExt;
 use nohash_hasher::IntMap;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use text_generation_client::{
     Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
 };
@@ -27,6 +30,8 @@ pub struct Infer {
     shared: Arc<Shared>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
+    /// Has done roundtrip valid run
+    healthy: Arc<AtomicBool>,
 }
 
 /// Infer shared state
@@ -63,13 +68,23 @@ impl Infer {
 
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
+        let healthy = Arc::new(AtomicBool::new(false));
 
         Self {
             validation,
             queue,
             shared,
             limit_concurrent_requests: semaphore,
+            healthy,
         }
+    }
+
+    pub(crate) fn healthy(&self) -> bool {
+        self.healthy.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn set_healthy(&self, value: bool) {
+        self.healthy.store(value, Ordering::SeqCst)
     }
 
     /// Add a new request to the queue and return a stream of InferStreamResponse
