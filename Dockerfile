@@ -164,6 +164,11 @@ FROM base as sagemaker
 COPY sagemaker-entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh
 
+# NVIDIA env vars
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
+
 ENTRYPOINT ["./entrypoint.sh"]
 
 # Final image
