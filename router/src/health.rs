@@ -5,6 +5,7 @@ use text_generation_client::{
 };
 
 const LIVENESS_ID: u64 = u64::MAX;
+const BATCH_ID: u64 = u64::MAX - 1;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Health {
@@ -49,7 +50,7 @@ impl Health {
                 }),
             };
             let batch = Batch {
-                id: u64::MAX,
+                id: BATCH_ID,
                 requests: vec![liveness_request],
                 size: 1,
                 max_tokens: 2,
