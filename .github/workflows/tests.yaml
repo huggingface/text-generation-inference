@@ -66,7 +66,7 @@ jobs:
       - name: Run server tests
         run: |
           pip install pytest
-          HF_HUB_ENABLE_HF_TRANSFER=1 pytest -sv server/tests
+          make python-server-tests
       - name: Run Rust fmt
         run: |
           cargo fmt --check

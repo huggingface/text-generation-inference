@@ -22,4 +22,4 @@ jobs:
       - name: Run tests
         run: |
           pip install pytest pytest-asyncio
-          cd clients/python && pytest tests
+          make python-client-tests
