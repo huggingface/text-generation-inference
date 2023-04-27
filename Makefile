@@ -21,8 +21,13 @@ router-dev:
 integration-tests: install-router install-launcher
 	cargo test
 
-python-tests:
-	cd server && HF_HUB_ENABLE_HF_TRANSFER=1 pytest tests
+python-server-tests:
+	HF_HUB_ENABLE_HF_TRANSFER=1 pytest server/tests
+
+python-client-tests:
+	pytest clients/python/tests
+
+python-tests: python-server-tests python-client-tests
 
 run-bloom-560m:
 	text-generation-launcher --model-id bigscience/bloom-560m --num-shard 2 --port 8080
