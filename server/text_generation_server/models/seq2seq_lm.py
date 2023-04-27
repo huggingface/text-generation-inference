@@ -177,7 +177,7 @@ class Seq2SeqLMBatch(Batch):
         max_decoder_input_length = 0
         padding_right_offset = 0
 
-        remaining_decode_tokens = 0
+        total_remaining_decode_tokens = 0
 
         for i, r in enumerate(requests):
             idx = self.requests_idx_mapping[r.id]
@@ -198,18 +198,15 @@ class Seq2SeqLMBatch(Batch):
             max_decoder_input_length = max(
                 max_decoder_input_length, request_decoder_input_length
             )
-            padding_right_offset = max(
-                padding_right_offset,
-                self.stopping_criterias[idx].max_new_tokens
-                - self.stopping_criterias[idx].current_tokens,
-            )
 
             next_token_choosers.append(self.next_token_choosers[idx])
             stopping_criteria = self.stopping_criterias[idx]
             stopping_criterias.append(stopping_criteria)
-            remaining_decode_tokens += (
+            remaining_decode_tokens = (
                 stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
             )
+            total_remaining_decode_tokens += remaining_decode_tokens
+            padding_right_offset = max(padding_right_offset, remaining_decode_tokens)
 
         # Apply indices to input_ids, attention mask, past key values and other items that need to be cached
         self.decoder_input_ids = self.decoder_input_ids[keep_indices]
@@ -397,7 +394,6 @@ class Seq2SeqLMBatch(Batch):
                     [t for t in layer] for layer in batch.past_key_values
                 ]
 
-            start_index = end_index
             # Add eventual padding tokens that were added while concatenating
             max_tokens += batch.max_tokens + (
                 max_input_length
@@ -405,6 +401,8 @@ class Seq2SeqLMBatch(Batch):
                 + max_decoder_input_length
                 - batch.max_decoder_input_length
             ) * len(batch)
+
+            start_index = end_index
 
         # Determine shapes for new past kv tensors
         first_past_kvs = batches[0].past_key_values
