@@ -21,23 +21,21 @@ to power LLMs api-inference widgets.
 
 ## Table of contents
 
-- [Text Generation Inference](#text-generation-inference)
-  - [Table of contents](#table-of-contents)
-  - [Features](#features)
-  - [Optimized architectures](#optimized-architectures)
-  - [Get started](#get-started)
-    - [Docker](#docker)
-    - [API documentation](#api-documentation)
-    - [Distributed Tracing](#distributed-tracing)
-    - [A note on Shared Memory (shm)](#a-note-on-shared-memory-shm)
-    - [Local install](#local-install)
-    - [CUDA Kernels](#cuda-kernels)
-  - [Run BLOOM](#run-bloom)
-    - [Download](#download)
-    - [Run](#run)
-    - [Quantization](#quantization)
-  - [Develop](#develop)
-  - [Testing](#testing)
+- [Features](#features)
+- [Optimized Architectures](#optimized-architectures)
+- [Get Started](#get-started)
+  - [Docker](#docker)
+  - [API Documentation](#api-documentation)
+  - [A note on Shared Memory](#a-note-on-shared-memory-shm)
+  - [Distributed Tracing](#distributed-tracing)
+  - [Local Install](#local-install)
+  - [CUDA Kernels](#cuda-kernels)
+- [Run BLOOM](#run-bloom)
+  - [Download](#download)
+  - [Run](#run)
+  - [Quantization](#quantization)
+- [Develop](#develop)
+- [Testing](#testing)
 
 ## Features
 
