@@ -1,10 +1,13 @@
+use std::cmp::max;
 use crate::infer::InferError;
 use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::collections::{BTreeSet, VecDeque};
+use std::marker::PhantomData;
 use std::ops::Add;
 use std::time::Duration;
+use num::integer::Roots;
 use text_generation_client::{Batch, Request};
 use tokio::sync::oneshot;
 use tokio::time::Instant;
@@ -31,20 +34,22 @@ pub(crate) struct Entry {
 
 /// Request Queue
 #[derive(Debug, Clone)]
-pub(crate) struct Queue {
+pub(crate) struct Queue<B: BatchType> {
     /// Channel to communicate with the background queue task
     queue_sender: flume::Sender<QueueCommand>,
+    /// Just for type inference
+    batch_type: PhantomData<B>,
 }
 
-impl Queue {
-    pub(crate) fn new(config: BatchingConfig) -> Self {
+impl<B: BatchType> Queue<B> {
+    pub(crate) fn new(config: BatchingConfig, batch_type: B) -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = flume::unbounded();
 
         // Launch background queue task
-        tokio::spawn(queue_task(queue_receiver, config));
+        tokio::spawn(queue_task(queue_receiver, config, batch_type));
 
-        Self { queue_sender }
+        Self { queue_sender, batch_type: PhantomData }
     }
 
     /// Append an entry to the queue
@@ -81,8 +86,10 @@ impl Queue {
 }
 
 // Background task responsible of the queue state
-async fn queue_task(receiver: flume::Receiver<QueueCommand>, config: BatchingConfig) {
-    let mut state = State::new(config);
+async fn queue_task<B: BatchType>(
+    receiver: flume::Receiver<QueueCommand>, config: BatchingConfig, batch_type: B
+) {
+    let mut state = State::new(config, batch_type);
 
     while let Ok(cmd) = receiver.recv_async().await {
         match cmd {
@@ -108,9 +115,10 @@ pub(crate) struct BatchingConfig {
 
 /// Queue State
 #[derive(Debug)]
-struct State {
+struct State<B: BatchType> {
     /// Batching configuration
     config: BatchingConfig,
+    batch_type: PhantomData<B>,
 
     /// Queue entries organized in a Vec
     entries: VecDeque<(u64, Entry)>,
@@ -149,10 +157,133 @@ const MAX_WAITING_DURATION: Duration = Duration::from_secs(1);
 /// ahead of larger ones in the queue
 const CUTOFF_DURATION: Duration = Duration::from_secs(1);
 
-impl State {
-    fn new(config: BatchingConfig) -> Self {
+pub(crate) trait BatchType: Send + Sync + Clone + 'static {
+    type Stats: Default;
+
+    /// Update batch statistics with an additional request
+    fn update_stats(stats: &Self::Stats, input_length: usize, output_length: usize) -> Self::Stats;
+    /// Calculate batch weight given batch statistics
+    fn batch_weight(stats: &Self::Stats, batch_size: usize) -> usize;
+    /// Calculate prefill batch weight given prefill batch statistics
+    fn prefill_weight(prefill_stats: &Self::Stats, batch_size: usize) -> usize;
+    /// Indicate whether a hypothetical batch will exceed the combined weight limit
+    fn exceeds_weight(
+        tree: &BTreeSet<(usize, usize, &u64)>, max_total_weight: usize, current_output_len: usize
+    ) -> bool;
+
+    /// Compute batch statistics given map of entries
+    fn compute_stats(entries: &IntMap<u64, Entry>) -> Self::Stats {
+        entries.iter().fold(
+            Self::Stats::default(),
+            |stats, (_, e)| Self::update_stats(
+                &stats,
+                e.request.truncate as usize,
+                e.request.stopping_parameters.max_new_tokens as usize,
+            )
+        )
+    }
+}
+
+/// Non-padded batch used in flash attention
+#[derive(Clone)]
+pub(crate) struct FlashBatch {}
+
+impl BatchType for FlashBatch {
+    /// Keep track of total number of tokens in the batch
+    type Stats = usize;
+
+    fn update_stats(
+        total_tokens: &Self::Stats, input_length: usize, output_length: usize
+    ) -> Self::Stats {
+        total_tokens + input_length + output_length
+    }
+
+    fn batch_weight(total_tokens: &Self::Stats, _batch_size: usize) -> usize {
+        *total_tokens
+    }
+
+    fn prefill_weight(total_tokens: &Self::Stats, _batch_size: usize) -> usize {
+        *total_tokens
+    }
+
+    fn exceeds_weight(
+        tree: &BTreeSet<(usize, usize, &u64)>, max_total_weight: usize, current_output_len: usize
+    ) -> bool {
+        let mut in_sum = 0;
+        // Work backwards from longest projected entry
+        for (bs, (ol, il, _)) in tree.iter().rev().enumerate() {
+            let this_ol = *ol;
+            in_sum += *il;
+            if this_ol <= current_output_len {
+                // Check if we breach max space for this segment
+                let token_count = in_sum + (bs + 1) * this_ol;
+                if token_count > max_total_weight {
+                    return true
+                }
+            }
+        }
+        false
+    }
+}
+
+/// Regular rectangular padded
+#[derive(Clone)]
+pub(crate) struct PaddedBatch {}
+
+impl BatchType for PaddedBatch {
+    /// Keep track of maximum input length, maximum output length
+    type Stats = (usize, usize);
+
+    fn update_stats(
+        max_in_out_lengths: &Self::Stats, input_length: usize, output_length: usize
+    ) -> Self::Stats {
+        let (max_input_length, max_output_length) = max_in_out_lengths;
+        (max(*max_input_length, input_length), max(*max_output_length, output_length))
+    }
+
+    fn batch_weight(max_in_out_lengths: &Self::Stats, batch_size: usize) -> usize {
+        let (max_input_length, max_output_length) = max_in_out_lengths;
+        let max_seq_len = max_input_length + max_output_length;
+        // Memory requirement roughly propotionall to batch_size * seq_len^2
+        batch_size * max_seq_len.pow(2)
+    }
+
+    fn prefill_weight(max_in_out_lengths: &Self::Stats, batch_size: usize) -> usize {
+        // Empirically, prefill latency is proportional to batch_size * seq_len^(3/2)
+        let (max_input_length, _) = max_in_out_lengths;
+        batch_size * max_input_length.pow(3).sqrt()
+    }
+
+    fn exceeds_weight(
+        tree: &BTreeSet<(usize, usize, &u64)>, max_total_weight: usize, current_output_len: usize
+    ) -> bool {
+        let mut max_in = 0;
+        let mut last_ol = 0;
+        // Work backwards from longest projected entry
+        for (bs, (ol, il, _)) in tree.iter().rev().enumerate() {
+            let this_ol = *ol;
+            if this_ol != last_ol {
+                max_in = max(max_in, *il);
+                if this_ol <= current_output_len {
+                    // Check if we breach max space for this segment
+                    let seq_len = max_in + this_ol;
+                    if seq_len.pow(2) * (bs + 1) > max_total_weight {
+                        return true
+                    }
+                }
+                last_ol = this_ol;
+            }
+        }
+        false
+    }
+}
+
+
+impl<B: BatchType> State<B> {
+    fn new(config: BatchingConfig, _batch_type: B) -> Self {
         Self {
             config,
+            batch_type: PhantomData,
             entries: VecDeque::with_capacity(128),
             next_id: 0,
             next_batch_id: 0,
@@ -226,11 +357,8 @@ impl State {
         let mut time_cutoff = None;
         let mut hit_prefill_weight_limit = false;
 
-        let mut total_token_count = existing_entries.iter().map(
-            |(_, e)| e.request.stopping_parameters.max_new_tokens + e.request.truncate
-        ).sum::<u32>() as usize;
-
-        let mut prefill_size = 0;
+        let mut batch_stats = <B as BatchType>::compute_stats(existing_entries);
+        let mut prefill_stats = <B as BatchType>::compute_stats(&self.empty_map);
         // We first do a read-only pass over the queue to allow skipping over large entries
         // that don't fit in the current batch to reach smaller entries that do
         let mut queue_index = checked_up_to_index;
@@ -252,10 +380,14 @@ impl State {
 
             let input_len = entry.request.truncate as usize;
             let output_len = entry.request.stopping_parameters.max_new_tokens as usize;
-            let next_total_token_count = total_token_count + input_len + output_len;
+            let next_stats = <B as BatchType>::update_stats(
+                &batch_stats, input_len, output_len
+            );
 
             // Avoid more granular analysis if possible
-            if next_total_token_count > config.weight_limit {
+            if <B as BatchType>::batch_weight(
+                &batch_stats, total_count + 1
+            ) > config.weight_limit {
                 // We aren't sure whether this next request will fit, so populate
                 // a btree with the current batch of requests, the set of
                 // requests already evaluated, and this one, and perform more
@@ -283,21 +415,13 @@ impl State {
                 tree.insert((output_len, input_len, entry_id));
 
                 // Perform analysis
-                let mut in_sum = 0;
-                // Work backwards from longest projected entry
-                for (bs, (ol, il, _)) in tree.iter().rev().enumerate() {
-                    let this_ol = *ol;
-                    in_sum += *il;
-                    if this_ol <= output_len {
-                        // Check if we breach max space for this segment
-                        let token_count = in_sum + (bs + 1) * this_ol;
-                        if token_count > config.weight_limit {
-                            // Remove our tuple from the set
-                            tree.remove(&(output_len, input_len, entry_id));
-                            time_cutoff.get_or_insert_with(|| entry.queue_time.add(CUTOFF_DURATION));
-                            continue 'queue_loop
-                        }
-                    }
+                if <B as BatchType>::exceeds_weight(
+                    tree, config.weight_limit, output_len,
+                ) {
+                    // Remove our tuple from the set
+                    tree.remove(&(output_len, input_len, entry_id));
+                    time_cutoff.get_or_insert_with(|| entry.queue_time.add(CUTOFF_DURATION));
+                    continue 'queue_loop
                 }
             } else if let Some(tree) = btree.as_mut() {
                 // If we initialized the btree for a prior request, keep it updated
@@ -308,7 +432,13 @@ impl State {
             // Also check whether adding this request will make the batch of new requests
             // too expensive latency-wise to perform in a single forward-pass.
             if config.prefill_weight_limit > 0 {
-                if prefill_size + input_len > config.prefill_weight_limit {
+                let next_prefill_stats = <B as BatchType>::update_stats(
+                    &prefill_stats, input_len, 0
+                );
+                let prefill_weight = <B as BatchType>::prefill_weight(
+                    &next_prefill_stats, chosen_indices.len() + 1
+                );
+                if prefill_weight > config.prefill_weight_limit {
                     if let Some(tree) = btree.as_mut() {
                         // Remove our tuple from the set
                         tree.remove(&(output_len, input_len, entry_id));
@@ -317,10 +447,10 @@ impl State {
                     time_cutoff.get_or_insert_with(|| entry.queue_time.add(CUTOFF_DURATION));
                     continue
                 }
+                prefill_stats = next_prefill_stats;
             }
 
-            total_token_count = next_total_token_count;
-            prefill_size += input_len;
+            batch_stats = next_stats;
 
             chosen_indices.push(queue_index - 1);
             total_count += 1;
@@ -349,7 +479,7 @@ impl State {
             // If this is to be added to an existing batch, ensure it meets urgency or size
             // requirements to avoid too frequent prefills
             if !self.next_entry_waiting_too_long() {
-                if total_token_count < config.weight_limit / 2 {
+                if <B as BatchType>::batch_weight(&batch_stats, total_count) < config.weight_limit / 2 {
                     // Don't add this new batch yet because it's not large enough
                     self.checked_request_count = checked_up_to_index;
                     self.buffer_contents_insufficient = true;

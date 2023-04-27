@@ -15,15 +15,15 @@ use thiserror::Error;
 use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
-use crate::queue::BatchingConfig;
+use crate::queue::{BatchingConfig, BatchType};
 
 /// Inference struct
 #[derive(Clone)]
-pub struct Infer {
+pub(crate) struct Infer<B: BatchType> {
     /// Validation
     validation: Validation,
     /// Request queue
-    queue: Queue,
+    queue: Queue<B>,
     /// Shared state
     shared: Arc<Shared>,
     /// Inference limit
@@ -36,7 +36,7 @@ struct Shared {
     batching_task: Notify,
 }
 
-impl Infer {
+impl<B: BatchType> Infer<B> {
     pub(crate) fn new(
         client: ShardedClient,
         validation: Validation,
@@ -45,13 +45,14 @@ impl Infer {
         max_prefill_weight: usize,
         max_waiting_tokens: usize,
         max_concurrent_requests: usize,
+        batch_type: B,
     ) -> Self {
         // Infer shared state
         let queue = Queue::new(BatchingConfig {
             size_limit: max_batch_size,
             weight_limit: max_batch_weight,
             prefill_weight_limit: max_prefill_weight,
-        });
+        }, batch_type);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });
@@ -237,11 +238,11 @@ impl Infer {
 /// Will be launched in a background Tokio task
 ///
 /// Batches requests and sends them to the inference server
-async fn batching_task(
+async fn batching_task<B: BatchType>(
     mut client: ShardedClient,
     // max_batch_size: usize,
     max_waiting_tokens: usize,
-    queue: Queue,
+    queue: Queue<B>,
     shared: Arc<Shared>,
 ) {
     // Infinite loop

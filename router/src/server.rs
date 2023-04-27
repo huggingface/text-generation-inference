@@ -17,15 +17,17 @@ use futures::stream::StreamExt;
 use futures::Stream;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::convert::Infallible;
+use std::marker::PhantomData;
 use std::net::SocketAddr;
 use text_generation_client::ShardedClient;
 use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::time::Instant;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use tracing::{info_span, instrument, Instrument};
+use tracing::{info_span, instrument, Instrument, warn};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+use crate::queue::{BatchType, FlashBatch, PaddedBatch};
 
 /// Generate tokens if `stream == false` or a stream of token if `stream == true`
 #[utoipa::path(
@@ -46,9 +48,9 @@ use utoipa_swagger_ui::SwaggerUi;
     )
 )]
 #[instrument(skip(infer))]
-async fn compat_generate(
+async fn compat_generate<B: BatchType>(
     default_return_full_text: Extension<bool>,
-    infer: Extension<Infer>,
+    infer: Extension<Infer<B>>,
     req: Json<CompatGenerateRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let mut req = req.0;
@@ -92,7 +94,9 @@ async fn get_model_info(model_info: Extension<ModelInfo>) -> Json<Info> {
 
 /// Health check method
 #[instrument(skip(infer))]
-async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+async fn health<B: BatchType>(
+    infer: Extension<Infer<B>>) -> Result<(), (StatusCode, Json<ErrorResponse>
+)> {
     // TODO: while this is the best health check we can do, it is a bit on the heavy side and might
     //       be a bit too slow for a health check.
     //       What we should do instead is check if the gRPC channels are still healthy.
@@ -151,8 +155,8 @@ async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorRe
         seed,
     )
 )]
-async fn generate(
-    infer: Extension<Infer>,
+async fn generate<B: BatchType>(
+    infer: Extension<Infer<B>>,
     req: Json<GenerateRequest>,
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
@@ -333,8 +337,8 @@ async fn generate(
         seed,
     )
 )]
-async fn generate_stream(
-    infer: Extension<Infer>,
+async fn generate_stream<B: BatchType + 'static> (
+    infer: Extension<Infer<B>>,
     req: Json<GenerateRequest>,
 ) -> (
     HeaderMap,
@@ -494,6 +498,59 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
     prom_handle.render()
 }
 
+struct BatchConfigValidator<B: BatchType> {
+    batch_type: PhantomData<B>
+}
+
+impl<B: BatchType> BatchConfigValidator<B> {
+    fn validate_batch_config(
+        &self,
+        max_total_tokens: usize,
+        max_batch_size: usize,
+        max_batch_weight: Option<usize>,
+        max_prefill_weight: Option<usize>,
+    ) -> (usize, usize) {
+        let single_request_stats = <B as BatchType>::update_stats(
+            &B::Stats::default(), max_total_tokens, 0
+        );
+        let single_request_weight = <B as BatchType>::batch_weight(
+            &single_request_stats, 1
+        );
+        let weight_upper_bound = single_request_weight * max_batch_size;
+
+        let max_prefill_weight = if let Some(max_prefill_weight) = max_prefill_weight {
+            let single_request_prefill_weight = <B as BatchType>::prefill_weight(
+                &single_request_stats, 1
+            );
+            if max_prefill_weight < single_request_prefill_weight {
+                panic!("max_prefill_weight not large enough for max_total_tokens")
+            }
+            max_prefill_weight
+        } else {
+            0
+        };
+
+        let max_batch_weight = if let Some(mut max_batch_weight) = max_batch_weight {
+            if max_batch_weight < single_request_weight {
+                panic!("max_batch_weight not large enough for max_total_tokens")
+            }
+            if max_batch_weight > weight_upper_bound {
+                warn!(
+                    "Reducing specified max_batch_weight ({}) to ({}) which is an \
+                    upper bound based on max_total_tokens ({}) and max_batch_size ({})",
+                    max_batch_weight, weight_upper_bound, max_total_tokens, max_batch_size
+                );
+                max_batch_weight = weight_upper_bound
+            }
+            max_batch_weight
+        } else {
+            weight_upper_bound
+        };
+
+        (max_batch_weight, max_prefill_weight)
+    }
+}
+
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
@@ -513,6 +570,72 @@ pub async fn run(
     validation_workers: usize,
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
+) {
+    //TODO get this from querying shard
+    let flash_attention = true;
+
+    if flash_attention {
+        do_run(
+            model_info,
+            compat_return_full_text,
+            max_concurrent_requests,
+            max_best_of,
+            max_stop_sequences,
+            max_input_length,
+            max_total_tokens,
+            max_batch_size,
+            max_batch_weight,
+            max_prefill_weight,
+            max_waiting_tokens,
+            client,
+            tokenizer,
+            validation_workers,
+            addr,
+            allow_origin,
+            FlashBatch{},
+        ).await
+    } else {
+        do_run(
+            model_info,
+            compat_return_full_text,
+            max_concurrent_requests,
+            max_best_of,
+            max_stop_sequences,
+            max_input_length,
+            max_total_tokens,
+            max_batch_size,
+            max_batch_weight,
+            max_prefill_weight,
+            max_waiting_tokens,
+            client,
+            tokenizer,
+            validation_workers,
+            addr,
+            allow_origin,
+            PaddedBatch{},
+        ).await
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn do_run<B: BatchType>(
+    model_info: ModelInfo,
+    compat_return_full_text: bool,
+    max_concurrent_requests: usize,
+    max_best_of: usize,
+    max_stop_sequences: usize,
+    max_input_length: usize,
+    max_total_tokens: usize,
+    max_batch_size: usize,
+    max_batch_weight: Option<usize>,
+    max_prefill_weight: Option<usize>,
+    max_waiting_tokens: usize,
+    client: ShardedClient,
+    tokenizer: Option<Tokenizer>,
+    validation_workers: usize,
+    addr: SocketAddr,
+    allow_origin: Option<AllowOrigin>,
+    _batch_type: B,
 ) {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -554,14 +677,12 @@ pub async fn run(
     )]
     struct ApiDoc;
 
-    // If max batch weight is not set, infer from max batch size and max seq length
-    let max_batch_weight = max_batch_weight
-        .unwrap_or(max_batch_size * max_total_tokens);
-    let max_prefill_weight = max_prefill_weight.unwrap_or_default();
+    let batch_config_validator = BatchConfigValidator::<B>{batch_type: PhantomData};
 
-    if max_total_tokens > max_batch_weight {
-        panic!("max_total_tokens cannot be greater than max_batch_weight");
-    }
+    // If max batch weight is not set, infer from max batch size and max seq length
+    let (max_batch_weight, max_prefill_weight) = batch_config_validator.validate_batch_config(
+        max_total_tokens, max_batch_size, max_batch_weight, max_prefill_weight,
+    );
 
     // Create state
     let validation = Validation::new(
@@ -580,6 +701,7 @@ pub async fn run(
         max_prefill_weight,
         max_waiting_tokens,
         max_concurrent_requests,
+        FlashBatch{}
     );
 
     // Duration buckets
@@ -639,18 +761,18 @@ pub async fn run(
     let app = Router::new()
         .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
         // Base routes
-        .route("/", post(compat_generate))
+        .route("/", post(compat_generate::<B>))
         .route("/info", get(get_model_info))
-        .route("/generate", post(generate))
-        .route("/generate_stream", post(generate_stream))
+        .route("/generate", post(generate::<B>))
+        .route("/generate_stream", post(generate_stream::<B>))
         // AWS Sagemaker route
-        .route("/invocations", post(compat_generate))
+        .route("/invocations", post(compat_generate::<B>))
         // Base Health route
-        .route("/health", get(health))
+        .route("/health", get(health::<B>))
         // Inference API health route
-        .route("/", get(health))
+        .route("/", get(health::<B>))
         // AWS Sagemaker health route
-        .route("/ping", get(health))
+        .route("/ping", get(health::<B>))
         // Prometheus metrics route
         .route("/metrics", get(metrics))
         .layer(Extension(model_info))
