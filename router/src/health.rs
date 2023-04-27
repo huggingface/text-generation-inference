@@ -4,6 +4,8 @@ use text_generation_client::{
     Batch, NextTokenChooserParameters, Request, ShardedClient, StoppingCriteriaParameters,
 };
 
+const LIVENESS_ID: u64 = u64::MAX;
+
 #[derive(Clone, Debug)]
 pub(crate) struct Health {
     client: ShardedClient,
@@ -27,7 +29,7 @@ impl Health {
 
             // Dummy batch of 1 token and 1 generated token
             let liveness_request = Request {
-                id: u64::MAX,
+                id: LIVENESS_ID,
                 inputs: "liveness".to_string(),
                 truncate: 10,
                 parameters: Some(NextTokenChooserParameters {
