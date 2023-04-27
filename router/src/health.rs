@@ -4,8 +4,9 @@ use text_generation_client::{
     Batch, NextTokenChooserParameters, Request, ShardedClient, StoppingCriteriaParameters,
 };
 
+// Note: Request ids and batch ids cannot collide.
 const LIVENESS_ID: u64 = u64::MAX;
-const BATCH_ID: u64 = u64::MAX - 1;
+const BATCH_ID: u64 = u64::MAX;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Health {
