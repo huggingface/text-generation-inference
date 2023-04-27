@@ -20,7 +20,7 @@ impl ShardedClient {
     /// the other shards and returns all uris/unix sockets with the `service_discovery` gRPC method.
     async fn from_master_client(mut master_client: Client) -> Result<Self> {
         // Get all uris/unix sockets from the master client
-        let uris = master_client.service_discovery().await.unwrap();
+        let uris = master_client.service_discovery().await?;
         let futures = uris.into_iter().map(Client::connect_uds);
         let clients: Result<Vec<Client>> = join_all(futures).await.into_iter().collect();
         Ok(Self::new(clients?))

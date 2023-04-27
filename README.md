@@ -36,7 +36,7 @@ to power LLMs api-inference widgets.
   - [Quantization](#quantization)
 - [Develop](#develop)
 - [Testing](#testing)
-  
+
 ## Features
 
 - Serve the most popular Large Language Models with a simple launcher
@@ -131,7 +131,7 @@ by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
 
 ### A note on Shared Memory (shm)
 
-[`NCCL`](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html) is a communication framework used by 
+[`NCCL`](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html) is a communication framework used by
 `PyTorch` to do distributed training/inference. `text-generation-inference` make
 use of `NCCL` to enable Tensor Parallelism to dramatically speed up inference for large language models.
 
@@ -152,14 +152,14 @@ creating a volume with:
 
 and mounting it to `/dev/shm`.
 
-Finally, you can also disable SHM sharing by using the `NCCL_SHM_DISABLE=1` environment variable. However, note that 
+Finally, you can also disable SHM sharing by using the `NCCL_SHM_DISABLE=1` environment variable. However, note that
 this will impact performance.
 
 ### Local install
 
-You can also opt to install `text-generation-inference` locally. 
+You can also opt to install `text-generation-inference` locally.
 
-First [install Rust](https://rustup.rs/) and create a Python virtual environment with at least 
+First [install Rust](https://rustup.rs/) and create a Python virtual environment with at least
 Python 3.9, e.g. using `conda`:
 
 ```shell
@@ -181,7 +181,7 @@ sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
 rm -f $PROTOC_ZIP
 ```
 
-On MacOS, using Homebrew: 
+On MacOS, using Homebrew:
 
 ```shell
 brew install protobuf
@@ -241,6 +241,11 @@ make router-dev
 ## Testing
 
 ```shell
+# python
+make python-server-tests
+make python-client-tests
+# or both server and client tests
 make python-tests
+# rust cargo tests
 make integration-tests
 ```

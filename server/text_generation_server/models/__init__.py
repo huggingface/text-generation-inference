@@ -58,8 +58,6 @@ __all__ = [
     "GalacticaSharded",
     "GPTNeoxSharded",
     "Seq2SeqLM",
-    "Galactica",
-    "GalacticaSharded",
     "SantaCoder",
     "OPT",
     "OPTSharded",
