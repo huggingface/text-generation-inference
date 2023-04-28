@@ -33,7 +33,14 @@
         },
         "responses": {
           "200": {
-            "description": "See /generate or /generate_stream"
+            "description": "Generated Text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Input validation error",
