@@ -1,3 +1,4 @@
+import os
 import torch
 
 from loguru import logger
@@ -17,7 +18,7 @@ from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
 
 try:
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and os.environ.get("NO_FLASH_ATTENTION") is None:
         major, minor = torch.cuda.get_device_capability()
         is_sm75 = major == 7 and minor == 5
         is_sm8x = major == 8 and minor >= 0
@@ -101,7 +102,7 @@ def get_model(
         else:
             return Galactica(model_id, revision, quantize=quantize)
 
-    if "bigcode" in model_id:
+    if "bigcode" in model_id and os.environ.get("NO_FAST_MODEL") is None:
         if sharded:
             if not FLASH_ATTENTION:
                 raise NotImplementedError(
@@ -112,7 +113,7 @@ def get_model(
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
             return santacoder_cls(model_id, revision, quantize=quantize)
 
-    config = AutoConfig.from_pretrained(model_id, revision=revision)
+    config = AutoConfig.from_pretrained(model_id, revision=revision, trust_remote_code=True)
     model_type = config.model_type
 
     if model_type == "bloom":

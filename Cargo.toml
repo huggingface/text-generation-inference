@@ -3,10 +3,10 @@ members = [
     "router",
     "router/client",
     "router/grpc-metadata",
-    "launcher"
+    "launcher",
+    "benchmark"
 ]
 exclude = [
-    "benchmark"
 ]
 
 [profile.release]

@@ -1,5 +1,7 @@
 import re
 import torch
+from loguru import logger
+
 
 from transformers import (
     LogitsProcessorList,
@@ -47,6 +49,7 @@ class NextTokenChooser:
         seed=0,
         device="cpu",
     ):
+        #logger.info(f"AAAA {watermark} {temperature} {repetition_penalty} {top_k} {top_p} {typical_p} {do_sample} {seed} {device}")
         warpers = LogitsProcessorList()
         # the following idea is largely copied from this PR: https://github.com/huggingface/transformers/pull/5420/files
         # all samplers can be found in `generation_utils_samplers.py`
