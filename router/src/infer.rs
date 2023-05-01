@@ -240,7 +240,6 @@ impl<B: BatchType> Infer<B> {
 /// Batches requests and sends them to the inference server
 async fn batching_task<B: BatchType>(
     mut client: ShardedClient,
-    // max_batch_size: usize,
     max_waiting_tokens: usize,
     queue: Queue<B>,
     shared: Arc<Shared>,

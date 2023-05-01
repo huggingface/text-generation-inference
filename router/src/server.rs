@@ -635,7 +635,7 @@ async fn do_run<B: BatchType>(
     validation_workers: usize,
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
-    _batch_type: B,
+    batch_type: B,
 ) {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -701,7 +701,7 @@ async fn do_run<B: BatchType>(
         max_prefill_weight,
         max_waiting_tokens,
         max_concurrent_requests,
-        FlashBatch{}
+        batch_type,
     );
 
     // Duration buckets

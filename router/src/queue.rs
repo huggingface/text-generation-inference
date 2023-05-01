@@ -108,8 +108,11 @@ async fn queue_task<B: BatchType>(
 
 #[derive(Debug)]
 pub(crate) struct BatchingConfig {
+    /// Upper bound on number of requests in a batch
     pub(crate) size_limit: usize,
+    /// Maximum batch "weight" at any point of time (takes sequence lengths into account)
     pub(crate) weight_limit: usize,
+    /// Maximum weight of individual prefill batches
     pub(crate) prefill_weight_limit: usize,
 }
 
@@ -214,6 +217,8 @@ impl BatchType for FlashBatch {
         for (bs, (ol, il, _)) in tree.iter().rev().enumerate() {
             let this_ol = *ol;
             in_sum += *il;
+            // Only need to check segments with output_len > current_output_len
+            // will have been checked in a prior iteration
             if this_ol <= current_output_len {
                 // Check if we breach max space for this segment
                 let token_count = in_sum + (bs + 1) * this_ol;
@@ -244,7 +249,7 @@ impl BatchType for PaddedBatch {
     fn batch_weight(max_in_out_lengths: &Self::Stats, batch_size: usize) -> usize {
         let (max_input_length, max_output_length) = max_in_out_lengths;
         let max_seq_len = max_input_length + max_output_length;
-        // Memory requirement roughly propotionall to batch_size * seq_len^2
+        // Memory requirement roughly proportional to batch_size * seq_len^2
         batch_size * max_seq_len.pow(2)
     }
 
