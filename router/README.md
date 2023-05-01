@@ -8,16 +8,16 @@ when to pass new `prefill` requests and pausing `decode` requests, which ones et
 It uses gRPC to communicate with the shards which can therefore be kept
 much simpler and focus on having the most efficient forward passes as possible.
 
-## Dynamic batching
+## Continuous batching
 
 One important feature of `text-generation-inference` is enabled
 by this `router`.
 
-Dynamic batching is the act of regularly running queries in the same
+Continuous batching is the act of regularly running queries in the same
 `forward` step of the LLM (a "batch") and also removing them when they are
 finished.
 
-In order for dynamic batching to be useful, you need to have more compute available
+In order for continuous batching to be useful, you need to have more compute available
 with respect to the memory requirements of your model. This is essentially true for
 LLMs and the larger the model, the truer it gets (since you have to pool multiple
 GPUs to load the model, you effectively have a lot of compute power at your hands).
@@ -34,7 +34,7 @@ compute the most efficiently. This is possible because for LLMs the total comput
 for running the model is much bigger than doing mix&match of the batches themselves.
 
 
-### Simple dynamic batching
+### Simple continuous batching
 
 text-generation works by feeding a prompt to a model, and iteratively calling
 `forward` on the model to produce new text, 1 token at a time.
@@ -65,19 +65,19 @@ What this means, is that the first "pass" of a prompt is different from the subs
 The first pass is called `prefill` throughout this codebase where as the follow-ups are called `decode`.
 
 Since `prefill` is much more expensive than `decode` we don't want to do it all the time,
-but a currently running query is probably doing `decode`. If we want to do the dynamic
+but a currently running query is probably doing `decode`. If we want to do the continuous
 batching as explained previously we need to run `prefill` at some point in order to create
 the attention matrix required to be able to join the `decode` group.
 
 `text-generation-inference` uses a bunch of different strategies and parameters in
 order to enable you to find the sweet spot between exploiting the hardware and perceived latency.
 
-With no dynamic batching at all, latency is going to be super good, but throughput (meaning
+With no continuous batching at all, latency is going to be super good, but throughput (meaning
 the total number of requests allowed in a given timeframe) is going to be super bad (since it's essentially 1).
 
 With static batching, you can probably reach the maximum throughput (by using the maximum total batch size applicable to your hardware), but the latency is super bad since in order to have maximum throughput you need to wait for requests to come in before processing.
 
-With dynamic batching you can find a sweet spot. In general latency is the most critical
+With continuous batching you can find a sweet spot. In general latency is the most critical
 parameter users care about. But a 2x latency slowdown for 10x more users on the same
 hardware is an acceptable tradeoff.
 
