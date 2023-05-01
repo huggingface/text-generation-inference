@@ -14,6 +14,9 @@ use std::time::{Duration, Instant};
 use std::{fs, io};
 use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 
+mod env_cli;
+mod versions;
+
 /// App Configuration
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -200,6 +203,11 @@ struct Args {
     watermark_gamma: Option<f32>,
     #[clap(long, env)]
     watermark_delta: Option<f32>,
+
+    /// Print a lot of information about your environment
+    /// and exits.
+    #[clap(long, short, action)]
+    env: bool,
 }
 
 #[derive(Debug)]
@@ -822,6 +830,11 @@ fn spawn_webserver(
 fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
     let args = Args::parse();
+
+    if args.env {
+        env_cli::print_env();
+        return Ok(());
+    }
 
     if args.json_output {
         tracing_subscriber::fmt().json().init();
