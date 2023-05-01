@@ -7,12 +7,6 @@ pub fn nvidia_smi() -> Option<String> {
     Some(output.trim().to_string())
 }
 
-pub fn cargo_version() -> Option<String> {
-    let output = Command::new("cargo").args(&["version"]).output().ok()?;
-    let output = String::from_utf8(output.stdout).ok()?;
-    Some(output.trim().to_string())
-}
-
 pub fn docker_image() -> Option<String> {
     let output = Command::new("docker")
         .args(&[
@@ -29,10 +23,7 @@ pub fn docker_image() -> Option<String> {
 }
 
 pub fn print_env() {
-    println!(
-        "Cargo version: {}",
-        cargo_version().unwrap_or("N/A".to_string())
-    );
+    println!("Cargo version: {}", crate::versions::CARGO_VERSION);
     println!("Commit SHA: {}", crate::versions::GIT_HASH);
     println!(
         "Docker image sha: {}",

@@ -1,1 +1,0 @@
-pub static GIT_HASH: &str = "61fd8c3c014d9ea31bc1df736fd276606ce29d66";
