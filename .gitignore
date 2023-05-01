@@ -1,4 +1,3 @@
 .idea
 target
 router/tokenizer.json
-launcher/src/versions.rs

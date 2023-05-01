@@ -23,8 +23,9 @@ pub fn docker_image() -> Option<String> {
 }
 
 pub fn print_env() {
-    println!("Cargo version: {}", crate::versions::CARGO_VERSION);
-    println!("Commit SHA: {}", crate::versions::GIT_HASH);
+    println!("Target: {}", env!("VERGEN_CARGO_TARGET_TRIPLE"));
+    println!("Cargo version: {}", env!("VERGEN_RUSTC_SEMVER"));
+    println!("Commit SHA: {}", env!("VERGEN_GIT_SHA"));
     println!(
         "Docker image sha: {}",
         docker_image().unwrap_or("N/A".to_string())

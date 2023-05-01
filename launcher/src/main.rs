@@ -15,7 +15,6 @@ use std::{fs, io};
 use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 
 mod env_cli;
-mod versions;
 
 /// App Configuration
 #[derive(Parser, Debug)]
