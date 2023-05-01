@@ -6,7 +6,7 @@ body:
     attributes:
       label: System Info
       description: | 
-        Please share your system info with us.
+        Please share your system info with us (`text-generation-launcher --env` if installed locally).
         The full command line used that causes issues: 
         OS version:
         Rust version (if self-compiling, `cargo version`):

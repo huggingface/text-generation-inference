@@ -40,4 +40,6 @@ pub fn print_env() {
     );
     let nvidia_smi = nvidia_smi().unwrap_or("N/A".to_string());
     println!("Nvidia-smi:\n     {}", nvidia_smi);
+    println!("Command line used: <FILL IN>");
+    println!("OS: <FILL IN>");
 }
