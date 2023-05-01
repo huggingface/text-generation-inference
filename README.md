@@ -42,7 +42,8 @@ to power LLMs api-inference widgets.
 - Serve the most popular Large Language Models with a simple launcher
 - Tensor Parallelism for faster inference on multiple GPUs
 - Token streaming using Server-Sent Events (SSE)
-- [Dynamic batching of incoming requests](https://github.com/huggingface/text-generation-inference/blob/main/router/src/batcher.rs#L88) for increased total throughput
+- [Continous batching of incoming requests](https://github.com/huggingface/text-generation-inference/tree/main/router) for increased total throughput
+- Optimized transformers code for inference using [flash-attention](https://github.com/HazyResearch/flash-attention) on the most popular architectures
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
