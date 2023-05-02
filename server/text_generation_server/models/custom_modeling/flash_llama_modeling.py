@@ -175,6 +175,7 @@ class FastLinear(nn.Linear):
                 return tensor.contiguous()
 
             if isinstance(self, TensorParallelRowLinear):
+                raise ValueError("This is currently not functionning")
                 get_slice = get_row_slice
             elif isinstance(self, TensorParallelColumnLinear):
                 get_slice = get_col_slice
@@ -202,6 +203,7 @@ class FastLinear(nn.Linear):
                     torch.testing.assert_close(f.get_tensor(f"{query_name}.q_proj.g_idx"), f.get_tensor(f"{query_name}.k_proj.g_idx"))
                     torch.testing.assert_close(f.get_tensor(f"{query_name}.q_proj.g_idx"), f.get_tensor(f"{query_name}.v_proj.g_idx"))
                     self.qlinear.g_idx[:] = f.get_tensor(f"{query_name}.q_proj.g_idx")
+
 
                 elif name == "self_attn.o_proj":
                     self.qlinear.qweight[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.qweight")
@@ -231,6 +233,11 @@ class FastLinear(nn.Linear):
                     self.qlinear.g_idx[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.g_idx")
                 else:
                     raise ValueError("Not handled")
+                print(layer, name)
+                if name == 'self_attn.query_key_value':
+                    out = self.qlinear(torch.zeros((6, self.in_features)).cuda().half())
+                if name == "self_attn.o_proj":
+                    out = self.qlinear(torch.zeros((6, self.in_features)).cuda().half())
 
             # Delete reference to data
             self.weight = None
