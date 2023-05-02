@@ -57,6 +57,8 @@ pub struct Info {
     pub version: &'static str,
     #[schema(nullable = true, example = "null")]
     pub sha: Option<&'static str>,
+    #[schema(nullable = true, example = "null")]
+    pub docker_label: Option<&'static str>,
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]

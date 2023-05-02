@@ -635,6 +635,7 @@ pub async fn run(
         validation_workers,
         version: env!("CARGO_PKG_VERSION"),
         sha: option_env!("VERGEN_GIT_SHA"),
+        docker_label: option_env!("DOCKER_LABEL"),
     };
 
     // Create router
