@@ -28,7 +28,7 @@ tracer = trace.get_tracer(__name__)
 
 
 class FlashLlama(FlashCausalLM):
-    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=None):
         self.past_pad = None
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -154,7 +154,7 @@ class FlashLlama(FlashCausalLM):
 
 class FlashLlamaSharded(FlashLlama):
     def __init__(
-        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
+        self, model_id: str, revision: Optional[str] = None, quantize: Optional[str] = None
     ):
         self.past_pad = None
         self.process_group, rank, world_size = initialize_torch_distributed()
@@ -177,13 +177,13 @@ class FlashLlamaSharded(FlashLlama):
             revision=revision,
         )
 
-        torch.distributed.barrier(group=self.process_group)
+        # torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
 
         with init_empty_weights():
             model = FlashLlamaForCausalLM(config, process_group=self.process_group)
 
-        torch.distributed.barrier(group=self.process_group)
+        # torch.distributed.barrier(group=self.process_group)
         self.load_weights(
             model,
             filenames,

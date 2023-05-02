@@ -4,6 +4,13 @@ import torch
 from datetime import timedelta
 
 
+class Fake:
+    def size(self):
+        return int(os.getenv("WORLD_SIZE", "1"))
+    def rank(self):
+        return int(os.getenv("RANK", "0"))
+
+
 def initialize_torch_distributed():
     rank = int(os.getenv("RANK", "0"))
     world_size = int(os.getenv("WORLD_SIZE", "1"))
@@ -33,3 +40,4 @@ def initialize_torch_distributed():
     )
 
     return torch.distributed.group.WORLD, rank, world_size
+    # return Fake(), rank, world_size

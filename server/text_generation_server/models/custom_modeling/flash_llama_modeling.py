@@ -18,6 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import torch
 import torch.distributed
 
@@ -33,12 +34,20 @@ import flash_attn_cuda
 import dropout_layer_norm
 
 from flash_attn.layers.rotary import RotaryEmbedding
+# from safetensors.torch import load_file
+from safetensors import safe_open
 
 HAS_BITS_AND_BYTES = True
 try:
     from bitsandbytes.nn import Linear8bitLt
 except ImportError as e:
     HAS_BITS_AND_BYTES = False
+
+HAS_GPTQ = True
+try:
+    from text_generation_server.quant.quant_linear import QuantLinear
+except ImportError as e:
+    HAS_GPTQ = False
 
 
 class LlamaRMSNorm(nn.Module):
@@ -102,10 +111,10 @@ class FastLinear(nn.Linear):
     ) -> None:
         super(FastLinear, self).__init__(in_features, out_features, bias, device, dtype)
         self.quantized = False
-        self.bnb_linear = None
+        self.qlinear = None
 
-    def prepare_weights(self, quantize: bool = False):
-        if quantize:
+    def prepare_weights(self, layer=None, name=None, quantize: Optional[str] = None):
+        if quantize == "bitsandbytes":
             if not HAS_BITS_AND_BYTES:
                 raise ImportError(
                     "bitsandbytes is not available on your machine either because it is not installed "
@@ -114,17 +123,114 @@ class FastLinear(nn.Linear):
                 )
 
             self.quantized = True
-            self.bnb_linear = Linear8bitLt(
+            self.qlinear = Linear8bitLt(
                 self.in_features,
                 self.out_features,
                 has_fp16_weights=False,
                 threshold=6.0,
                 bias=False,
             )
-            # Copy data to bnb_linear
-            self.bnb_linear.weight.data = self.weight.data
+            # Copy data to qlinear
+            self.qlinear.weight.data = self.weight.data
             if self.bias is not None:
-                self.bnb_linear.bias = nn.Parameter(self.bias)
+                self.qlinear.bias = nn.Parameter(self.bias)
+
+            # Delete reference to data
+            self.weight = None
+            self.bias = None
+        elif quantize == "gptq":
+            if not HAS_GPTQ:
+                raise ImportError(
+                    "gptq is not available on your machine either because it is not installed "
+                    "or you don't have a GPU.\n"
+                    "You can install it with `pip install gptq`."
+                )
+            self.quantized = True
+            self.qlinear = QuantLinear(
+                bits=4,
+                groupsize=128,
+                infeatures=self.in_features,
+                outfeatures=self.out_features,
+                bias=bool(self.bias),
+            )
+            rank = int(os.getenv("RANK"))
+            world_size = int(os.getenv("WORLD_SIZE"))
+
+            def get_row_slice(f, name):
+                slice_ = f.get_slice(name)
+                size = slice_.get_shape()[0]
+                block_size = size // world_size
+                start = rank * block_size
+                stop = (rank + 1) * block_size
+                tensor = slice_[start:stop]
+                return tensor.contiguous()
+
+            def get_col_slice(f, name):
+                slice_ = f.get_slice(name)
+                size = slice_.get_shape()[1]
+                block_size = size // world_size
+                start = rank * block_size
+                stop = (rank + 1) * block_size
+                tensor = slice_[:, start:stop]
+                return tensor.contiguous()
+
+            if isinstance(self, TensorParallelRowLinear):
+                get_slice = get_row_slice
+            elif isinstance(self, TensorParallelColumnLinear):
+                get_slice = get_col_slice
+            elif isinstance(self, FastLinear):
+                def get_slice(f, name):
+                    return f.get_tensor(name)
+            else:
+                raise ValueError("Need a specific class of Linear (TensorParallel, or regular Linear)")
+
+            with safe_open("/home/ubuntu/src/GPTQ-for-LLaMa/oasst-4bit-128g.safetensors", framework="pt", device=f"cuda:{rank}") as f:
+                if name == 'self_attn.query_key_value':
+                    query_name = f'model.layers.{layer}.self_attn'
+                    self.qlinear.qweight[:,                       : self.out_features // 3] = get_slice(f, f"{query_name}.q_proj.qweight")
+                    self.qlinear.qweight[:, self.out_features // 3:-self.out_features // 3] = get_slice(f, f"{query_name}.k_proj.qweight")
+                    self.qlinear.qweight[:,-self.out_features // 3:                       ] = get_slice(f, f"{query_name}.v_proj.qweight")
+
+                    N = self.qlinear.qzeros.shape[1]
+                    self.qlinear.qzeros[:,       : N // 3] = get_slice(f, f"{query_name}.q_proj.qzeros")
+                    self.qlinear.qzeros[:, N // 3:-N // 3] = get_slice(f, f"{query_name}.k_proj.qzeros")
+                    self.qlinear.qzeros[:,-N // 3:                       ] = get_slice(f, f"{query_name}.v_proj.qzeros")
+
+                    self.qlinear.scales[:,                       : self.out_features // 3] = get_slice(f, f"{query_name}.q_proj.scales")
+                    self.qlinear.scales[:, self.out_features // 3:-self.out_features // 3] = get_slice(f, f"{query_name}.k_proj.scales")
+                    self.qlinear.scales[:,-self.out_features // 3:                       ] = get_slice(f, f"{query_name}.v_proj.scales")
+                    torch.testing.assert_close(f.get_tensor(f"{query_name}.q_proj.g_idx"), f.get_tensor(f"{query_name}.k_proj.g_idx"))
+                    torch.testing.assert_close(f.get_tensor(f"{query_name}.q_proj.g_idx"), f.get_tensor(f"{query_name}.v_proj.g_idx"))
+                    self.qlinear.g_idx[:] = f.get_tensor(f"{query_name}.q_proj.g_idx")
+
+                elif name == "self_attn.o_proj":
+                    self.qlinear.qweight[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.qweight")
+                    self.qlinear.qzeros[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.qzeros")
+                    self.qlinear.scales[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.scales")
+                    self.qlinear.g_idx[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.g_idx")
+
+                elif name == "mlp.gate_up_proj":
+                    N = self.qlinear.qweight.shape[1] // 2
+                    self.qlinear.qweight[:, :N] = get_slice(f, f"model.layers.{layer}.mlp.gate_proj.qweight")
+                    self.qlinear.qweight[:, N:] = get_slice(f, f"model.layers.{layer}.mlp.up_proj.qweight")
+
+                    self.qlinear.scales[:, :N] = get_slice(f, f"model.layers.{layer}.mlp.gate_proj.scales")
+                    self.qlinear.scales[:, N:] = get_slice(f, f"model.layers.{layer}.mlp.up_proj.scales")
+
+                    torch.testing.assert_close(f.get_tensor(f"model.layers.{layer}.mlp.gate_proj.g_idx"), f.get_tensor(f"model.layers.{layer}.mlp.up_proj.g_idx"))
+                    self.qlinear.g_idx[:] = f.get_tensor(f"model.layers.{layer}.mlp.gate_proj.g_idx")
+
+                    N = self.qlinear.qzeros.shape[1] // 2
+                    self.qlinear.qzeros[:, N:] = get_slice(f, f"model.layers.{layer}.mlp.up_proj.qzeros")
+                    self.qlinear.qzeros[:, :N] = get_slice(f, f"model.layers.{layer}.mlp.gate_proj.qzeros")
+
+                elif name == "mlp.down_proj":
+                    self.qlinear.qweight[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.qweight")
+                    self.qlinear.qzeros[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.qzeros")
+                    self.qlinear.scales[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.scales")
+                    self.qlinear.g_idx[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.g_idx")
+                else:
+                    raise ValueError("Not handled")
 
             # Delete reference to data
             self.weight = None
@@ -134,7 +240,7 @@ class FastLinear(nn.Linear):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.quantized:
-            return self.bnb_linear(input)
+            return self.qlinear(input)
         else:
             if self.bias is not None:
                 return torch.addmm(self.bias, input, self.weight)
@@ -542,12 +648,12 @@ class FlashLlamaModel(torch.nn.Module):
     def post_load_weights(self, load_in_8bit: bool = False):
         if isinstance(self.embed_tokens, TensorParallelEmbedding):
             self.embed_tokens.add_null_idx()
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             layer: FlashLlamaLayer
-            layer.self_attn.query_key_value.prepare_weights(load_in_8bit)
-            layer.self_attn.o_proj.prepare_weights(load_in_8bit)
-            layer.mlp.gate_up_proj.prepare_weights(load_in_8bit)
-            layer.mlp.down_proj.prepare_weights(load_in_8bit)
+            layer.self_attn.query_key_value.prepare_weights(i, "self_attn.query_key_value", load_in_8bit)
+            layer.self_attn.o_proj.prepare_weights(i, "self_attn.o_proj", load_in_8bit)
+            layer.mlp.gate_up_proj.prepare_weights(i, "mlp.gate_up_proj", load_in_8bit)
+            layer.mlp.down_proj.prepare_weights(i, "mlp.down_proj", load_in_8bit)
 
     def forward(
         self,

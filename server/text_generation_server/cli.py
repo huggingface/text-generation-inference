@@ -15,7 +15,7 @@ def serve(
     model_id: str,
     revision: Optional[str] = None,
     sharded: bool = False,
-    quantize: bool = False,
+    quantize: Optional[str] = None,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
     json_output: bool = False,

@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
@@ -15,6 +15,26 @@ use std::{fs, io};
 use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 
 mod env_runtime;
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Quantization{
+    Bitsandbytes,
+    Gptq
+}
+
+impl std::fmt::Display for Quantization {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self{
+            Quantization::Bitsandbytes => {
+                    write!(f, "bitsandbytes")
+            },
+            Quantization::Gptq => {
+                    write!(f, "gptq")
+            }
+        }
+    }
+}
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -46,10 +66,10 @@ struct Args {
     #[clap(long, env)]
     num_shard: Option<usize>,
 
-    /// Wether you want the model to be quantized or not. This will use bitsandbytes for
-    /// quantization on the fly.
-    #[clap(long, env)]
-    quantize: bool,
+    /// Wether you want the model to be quantized or not. This will use `bitsandbytes` for
+    /// quantization on the fly, or `gptq`
+    #[clap(long, env, value_enum)]
+    quantize: Option<Quantization>,
 
     /// The maximum amount of concurrent requests for this particular deployment.
     /// Having a low limit will refuse clients requests instead of having them
@@ -218,7 +238,7 @@ enum ShardStatus {
 fn shard_manager(
     model_id: String,
     revision: Option<String>,
-    quantize: bool,
+    quantize: Option<Quantization>,
     uds_path: String,
     rank: usize,
     world_size: usize,
@@ -257,8 +277,9 @@ fn shard_manager(
         shard_argv.push("--sharded".to_string());
     }
 
-    if quantize {
-        shard_argv.push("--quantize".to_string())
+    if let Some(quantize) = quantize {
+        shard_argv.push("--quantize".to_string());
+        shard_argv.push(quantize.to_string())
     }
 
     // Model optional revision
@@ -330,6 +351,7 @@ fn shard_manager(
 
     // Start process
     tracing::info!("Starting shard {rank}");
+    tracing::info!("Command {}", shard_argv.join(" "));
     let mut p = match Popen::create(
         &shard_argv,
         PopenConfig {
@@ -747,7 +769,6 @@ fn spawn_webserver(
 ) -> Result<Popen, LauncherError> {
     // All shard started
     // Start webserver
-    tracing::info!("Starting Webserver");
     let mut argv = vec![
         "text-generation-router".to_string(),
         "--max-concurrent-requests".to_string(),
@@ -811,6 +832,9 @@ fn spawn_webserver(
         env.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
     };
 
+    tracing::info!("Starting Webserver");
+    tracing::info!("Command {}", argv.join(" "));
+    tracing::info!("Env {:?}", env);
     let mut webserver = match Popen::create(
         &argv,
         PopenConfig {
