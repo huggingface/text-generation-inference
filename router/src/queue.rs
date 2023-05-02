@@ -332,11 +332,10 @@ impl<B: BatchType> State<B> {
             self.last_seen_batch_size = total_count
         }
 
-        // Filter entries where the response receiver was dropped (== entries where the request
-        // was dropped by the client)
-        let queue_len_before = self.entries.len();
-        self.entries.retain_mut(|(_, entry)| !entry.response_tx.is_disconnected());
-        if queue_len_before != self.entries.len() {
+        // Filter cancelled entries from the front of the queue,
+        // so that next-entry waiting time is accurate
+        while matches!(self.entries.front(), Some((_,entry)) if entry.response_tx.is_disconnected()) {
+            self.entries.pop_front();
             // Reset the count of checked requests if any in the queue were cancelled since last check
             self.checked_request_count = 0;
         }
@@ -354,7 +353,7 @@ impl<B: BatchType> State<B> {
             }
         }
 
-        // Indices into buffer of entries chosen to add to next batch or remove due to expiry
+        // Indices into buffer of entries chosen to add to next batch
         let mut chosen_indices = vec![];
         // Indices to drop due to client cancellation
         let mut indices_to_drop = vec![];
