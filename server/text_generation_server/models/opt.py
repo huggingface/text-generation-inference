@@ -210,6 +210,15 @@ class OPTSharded(OPT):
                     if name == "model.decoder.embed_tokens.weight":
                         model.lm_head._parameters["weight"] = tensor
 
+        uninitialized_parameters = []
+        for n, p in model.named_parameters():
+            if p.data.device == torch.device("meta"):
+                uninitialized_parameters.append(n)
+        if uninitialized_parameters:
+            raise RuntimeError(
+                f"found uninitialized parameters in model: {uninitialized_parameters}"
+            )
+
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ):

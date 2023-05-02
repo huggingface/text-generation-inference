@@ -512,7 +512,11 @@ enum LauncherError {
     WebserverCannotStart,
 }
 
-fn download_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
+fn download_convert_model(
+    args: &Args,
+    auto_convert: bool,
+    running: Arc<AtomicBool>,
+) -> Result<(), LauncherError> {
     let mut download_argv = vec![
         "text-generation-server".to_string(),
         "download-weights".to_string(),
@@ -523,6 +527,11 @@ fn download_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherE
         "INFO".to_string(),
         "--json-output".to_string(),
     ];
+
+    // Auto convert weights to safetensors
+    if auto_convert {
+        download_argv.push("--auto-convert".to_string());
+    }
 
     // Model optional revision
     if let Some(revision) = &args.revision {
@@ -855,14 +864,11 @@ fn main() -> Result<(), LauncherError> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    // Check if model_id is a local model
-    let local_path = Path::new(&args.model_id);
-    let is_local_model = local_path.exists() && local_path.is_dir();
-
-    // Download weights for sharded models
-    if !is_local_model && args.weights_cache_override.is_none() && num_shard > 1 {
-        download_model(&args, running.clone())?;
-    }
+    // auto_convert is only needed for sharded models as we do not require safetensors in
+    // single shard mode
+    let auto_convert = num_shard > 1;
+    // Download and convert model weights
+    download_convert_model(&args, auto_convert, running.clone())?;
 
     // Shared shutdown bool
     let shutdown = Arc::new(Mutex::new(false));
