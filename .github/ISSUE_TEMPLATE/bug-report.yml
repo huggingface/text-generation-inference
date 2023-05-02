@@ -15,8 +15,6 @@ body:
         Hardware used (GPUs, how many, on which cloud) (`nvidia-smi`): 
         Deployment specificities (Kubernetes, EKS, AKS, any particular deployments):
         The current version being used:
-          For binary `git rev-parse HEAD`: 
-          For docker `docker image inspect --format '{{.RepoDigests}}' ghcr.io/huggingface/text-generation-inference:latest`: 
 
       placeholder: text-generation-inference version, platform, python version, ...
     validations:
