@@ -97,6 +97,7 @@ jobs:
           platforms: 'linux/amd64'
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
+            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max

@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 use std::{fs, io};
 use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 
+mod env_runtime;
+
 /// App Configuration
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -200,6 +202,10 @@ struct Args {
     watermark_gamma: Option<f32>,
     #[clap(long, env)]
     watermark_delta: Option<f32>,
+
+    /// Display a lot of information about your runtime environment
+    #[clap(long, short, action)]
+    env: bool,
 }
 
 #[derive(Debug)]
@@ -827,6 +833,11 @@ fn main() -> Result<(), LauncherError> {
         tracing_subscriber::fmt().json().init();
     } else {
         tracing_subscriber::fmt().compact().init();
+    }
+
+    if args.env {
+        let env_runtime = env_runtime::Env::new();
+        tracing::info!("{}", env_runtime);
     }
 
     tracing::info!("{:?}", args);
