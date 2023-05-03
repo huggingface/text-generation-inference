@@ -177,7 +177,8 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
-
+RUN git clone https://github.com/bigcode-project/bigcode-inference-benchmark.git && \
+    cd bigcode-inference-benchmark && git checkout text_gen_inference
 
 ENV HUGGINGFACE_HUB_CACHE=/usr/data/.hf_cache/
 ENV PYTHONPATH=/usr/src/server/

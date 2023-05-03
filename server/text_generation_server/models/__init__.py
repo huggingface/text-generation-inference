@@ -8,6 +8,7 @@ from typing import Optional
 
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
+from text_generation_server.models.vectorized_causal_lm import VectorizedCausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOM, BLOOMSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
@@ -155,6 +156,8 @@ def get_model(
         raise ValueError("sharded is not supported for AutoModel")
 
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+        if os.environ.get("VECTORIZED_LM") is not None:
+            return VectorizedCausalLM(model_id, revision, quantize=quantize)
         return CausalLM(model_id, revision, quantize=quantize)
     if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
         return Seq2SeqLM(model_id, revision, quantize=quantize)

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
-from loguru import logger
 
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
@@ -54,7 +53,6 @@ class CausalLMBatch(Batch):
     keys_head_dim_last: bool = True
 
     def to_pb(self) -> generate_pb2.Batch:
-        #logger.info(f"to_pb, id={self.batch_id}, requests={self.requests}, size={len(self)}, max_tokens={self.max_tokens}")
         return generate_pb2.Batch(
             id=self.batch_id,
             requests=self.requests,
@@ -69,7 +67,6 @@ class CausalLMBatch(Batch):
         tokenizer: PreTrainedTokenizerBase,
         device: torch.device,
     ) -> "CausalLMBatch":
-        #logger.info(f"from_pb, pb={pb}, tokenizer={tokenizer}, device={device}")
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
@@ -144,7 +141,6 @@ class CausalLMBatch(Batch):
 
     @tracer.start_as_current_span("filter")
     def filter(self, requests: List[generate_pb2.Request]) -> Optional["CausalLMBatch"]:
-        logger.info(f"filter, requests={requests}")
         if len(requests) == 0:
             raise ValueError("Batch must have at least one request")
         if len(requests) == len(self):
@@ -242,7 +238,6 @@ class CausalLMBatch(Batch):
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["CausalLMBatch"]) -> "CausalLMBatch":
-        logger.info(f"concatenate, batches={batches}")
         # Used for padding
         total_batch_size = 0
         max_input_length = 0
