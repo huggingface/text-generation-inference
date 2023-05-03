@@ -402,7 +402,7 @@ class FlashCausalLM(Model):
 
     def decode(self, generated_ids: Union[torch.Tensor, List[int]]) -> str:
         return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=True, cleanup_tokenization_spaces=False
+            generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
 
     def forward(
