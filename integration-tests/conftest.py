@@ -4,7 +4,10 @@ import contextlib
 import pytest
 import asyncio
 import os
+import docker
 
+from datetime import datetime
+from docker.errors import NotFound
 from typing import Optional, List
 from aiohttp import ClientConnectorError
 
@@ -23,8 +26,10 @@ def event_loop():
 
 @pytest.fixture(scope="module")
 def launcher(event_loop):
-    @contextlib.asynccontextmanager
-    async def local_launcher_inner(model_id: str, num_shard: Optional[int] = None, quantize: bool = False):
+    @contextlib.contextmanager
+    def local_launcher(
+        model_id: str, num_shard: Optional[int] = None, quantize: bool = False
+    ):
         port = 9999
         master_port = 19999
 
@@ -48,40 +53,12 @@ def launcher(event_loop):
             args.append("--quantize")
 
         with subprocess.Popen(
-                args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         ) as process:
-            client = AsyncClient(f"http://localhost:{port}")
-
-            healthy = False
-
-            for _ in range(60):
-                launcher_output = process.stdout.read1().decode("utf-8")
-                print(launcher_output)
-
-                exit_code = process.poll()
-                if exit_code is not None:
-                    launcher_error = process.stderr.read1().decode("utf-8")
-                    print(launcher_error)
-                    raise RuntimeError(
-                        f"text-generation-launcher terminated with exit code {exit_code}"
-                    )
-
-                try:
-                    await client.generate("test", max_new_tokens=1)
-                    healthy = True
-                    break
-                except ClientConnectorError:
-                    time.sleep(1)
-
-            if healthy:
-                yield client
+            yield AsyncClient(f"http://localhost:{port}")
 
             process.terminate()
-
-            for _ in range(60):
-                exit_code = process.wait(1)
-                if exit_code is not None:
-                    break
+            process.wait(60)
 
             launcher_output = process.stdout.read1().decode("utf-8")
             print(launcher_output)
@@ -89,16 +66,65 @@ def launcher(event_loop):
             process.stdout.close()
             process.stderr.close()
 
-            if not healthy:
-                raise RuntimeError(f"unable to start model {model_id} with command: {' '.join(args)}")
+    @contextlib.contextmanager
+    def docker_launcher(
+        model_id: str, num_shard: Optional[int] = None, quantize: bool = False
+    ):
+        port = 9999
 
-    return launcher_inner
+        args = ["--model-id", model_id, "--env"]
+
+        if num_shard is not None:
+            args.extend(["--num-shard", str(num_shard)])
+        if quantize:
+            args.append("--quantize")
+
+        client = docker.from_env()
+
+        container_name = f"tgi-tests-{model_id.split('/')[-1]}-{num_shard}-{quantize}"
+
+        try:
+            container = client.containers.get(container_name)
+            container.stop()
+            container.wait()
+        except NotFound:
+            pass
+
+        gpu_count = num_shard if num_shard is not None else 1
+
+        container = client.containers.run(
+            DOCKER_IMAGE,
+            command=args,
+            name=container_name,
+            auto_remove=True,
+            detach=True,
+            device_requests=[
+                docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
+            ],
+            volumes=["/data:/data"],
+            ports={"80/tcp": port},
+        )
+
+        yield AsyncClient(f"http://localhost:{port}")
+
+        container.stop()
+
+        container_output = container.logs().decode("utf-8")
+        print(container_output)
+
+    if DOCKER_IMAGE is not None:
+        return docker_launcher
+    return local_launcher
 
 
 @pytest.fixture(scope="module")
 def generate_load():
-    async def generate_load_inner(client: AsyncClient, prompt: str, max_new_tokens: int, n: int) -> List[Response]:
-        futures = [client.generate(prompt, max_new_tokens=max_new_tokens) for _ in range(n)]
+    async def generate_load_inner(
+        client: AsyncClient, prompt: str, max_new_tokens: int, n: int
+    ) -> List[Response]:
+        futures = [
+            client.generate(prompt, max_new_tokens=max_new_tokens) for _ in range(n)
+        ]
 
         results = await asyncio.gather(*futures)
         return results

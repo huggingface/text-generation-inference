@@ -1,3 +1,5 @@
-syrupy==0.4.2
+syrupy
 text-generation==0.5.1
-pytest==7.3.1
+pytest
+pytest-asyncio==0.17.2
+docker

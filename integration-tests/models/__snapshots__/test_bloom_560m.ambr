@@ -1,0 +1,94 @@
+# serializer version: 1
+# name: test_bloom_560m
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.Length: 'length'>,
+      'generated_tokens': 10,
+      'prefill': list([
+        dict({
+          'id': 10264,
+          'logprob': None,
+          'text': 'Test',
+        }),
+        dict({
+          'id': 8821,
+          'logprob': -11.3125,
+          'text': ' request',
+        }),
+      ]),
+      'seed': None,
+      'tokens': list([
+        dict({
+          'id': 11,
+          'logprob': -2.859375,
+          'special': False,
+          'text': '(',
+        }),
+        dict({
+          'id': 5,
+          'logprob': -2.34375,
+          'special': False,
+          'text': '"',
+        }),
+        dict({
+          'id': 1587,
+          'logprob': -3.25,
+          'special': False,
+          'text': 'get',
+        }),
+        dict({
+          'id': 5,
+          'logprob': -1.828125,
+          'special': False,
+          'text': '"',
+        }),
+        dict({
+          'id': 15,
+          'logprob': -0.35546875,
+          'special': False,
+          'text': ',',
+        }),
+        dict({
+          'id': 567,
+          'logprob': -2.4375,
+          'special': False,
+          'text': ' "',
+        }),
+        dict({
+          'id': 17,
+          'logprob': -4.40625,
+          'special': False,
+          'text': '.',
+        }),
+        dict({
+          'id': 5,
+          'logprob': -2.46875,
+          'special': False,
+          'text': '"',
+        }),
+        dict({
+          'id': 12,
+          'logprob': -1.6015625,
+          'special': False,
+          'text': ')',
+        }),
+        dict({
+          'id': 30,
+          'logprob': -0.14550781,
+          'special': False,
+          'text': ';',
+        }),
+      ]),
+    }),
+    'generated_text': '("get", ".");',
+  })
+# ---
+# name: test_bloom_560m_load
+  list([
+    Response(generated_text='("get", ".");', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=10264, text='Test', logprob=None), PrefillToken(id=8821, text=' request', logprob=-11.3125)], tokens=[Token(id=11, text='(', logprob=-2.859375, special=False), Token(id=5, text='"', logprob=-2.421875, special=False), Token(id=1587, text='get', logprob=-3.109375, special=False), Token(id=5, text='"', logprob=-2.046875, special=False), Token(id=15, text=',', logprob=-0.37890625, special=False), Token(id=567, text=' "', logprob=-2.65625, special=False), Token(id=17, text='.', logprob=-4.28125, special=False), Token(id=5, text='"', logprob=-2.1875, special=False), Token(id=12, text=')', logprob=-1.6328125, special=False), Token(id=30, text=';', logprob=-0.16113281, special=False)], best_of_sequences=None)),
+    Response(generated_text='("get", ".");', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=10264, text='Test', logprob=None), PrefillToken(id=8821, text=' request', logprob=-11.3125)], tokens=[Token(id=11, text='(', logprob=-2.859375, special=False), Token(id=5, text='"', logprob=-2.421875, special=False), Token(id=1587, text='get', logprob=-3.109375, special=False), Token(id=5, text='"', logprob=-2.046875, special=False), Token(id=15, text=',', logprob=-0.37890625, special=False), Token(id=567, text=' "', logprob=-2.65625, special=False), Token(id=17, text='.', logprob=-4.28125, special=False), Token(id=5, text='"', logprob=-2.1875, special=False), Token(id=12, text=')', logprob=-1.6328125, special=False), Token(id=30, text=';', logprob=-0.16113281, special=False)], best_of_sequences=None)),
+    Response(generated_text='("get", ".");', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=10264, text='Test', logprob=None), PrefillToken(id=8821, text=' request', logprob=-11.3125)], tokens=[Token(id=11, text='(', logprob=-2.859375, special=False), Token(id=5, text='"', logprob=-2.421875, special=False), Token(id=1587, text='get', logprob=-3.109375, special=False), Token(id=5, text='"', logprob=-2.046875, special=False), Token(id=15, text=',', logprob=-0.37890625, special=False), Token(id=567, text=' "', logprob=-2.65625, special=False), Token(id=17, text='.', logprob=-4.28125, special=False), Token(id=5, text='"', logprob=-2.1875, special=False), Token(id=12, text=')', logprob=-1.6328125, special=False), Token(id=30, text=';', logprob=-0.16113281, special=False)], best_of_sequences=None)),
+    Response(generated_text='("get", ".");', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=10264, text='Test', logprob=None), PrefillToken(id=8821, text=' request', logprob=-11.3125)], tokens=[Token(id=11, text='(', logprob=-2.859375, special=False), Token(id=5, text='"', logprob=-2.421875, special=False), Token(id=1587, text='get', logprob=-3.109375, special=False), Token(id=5, text='"', logprob=-2.046875, special=False), Token(id=15, text=',', logprob=-0.37890625, special=False), Token(id=567, text=' "', logprob=-2.65625, special=False), Token(id=17, text='.', logprob=-4.28125, special=False), Token(id=5, text='"', logprob=-2.1875, special=False), Token(id=12, text=')', logprob=-1.6328125, special=False), Token(id=30, text=';', logprob=-0.16113281, special=False)], best_of_sequences=None)),
+  ])
+# ---
