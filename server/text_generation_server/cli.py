@@ -63,6 +63,7 @@ def download_weights(
     model_id: str,
     revision: Optional[str] = None,
     extension: str = ".safetensors",
+    auto_convert: bool = True,
     logger_level: str = "INFO",
     json_output: bool = False,
 ):
@@ -84,31 +85,55 @@ def download_weights(
     # Test if files were already download
     try:
         utils.weight_files(model_id, revision, extension)
-        logger.info(
-            "Files are already present in the local cache. " "Skipping download."
-        )
+        logger.info("Files are already present on the host. " "Skipping download.")
         return
     # Local files not found
-    except utils.LocalEntryNotFoundError:
+    except (utils.LocalEntryNotFoundError, FileNotFoundError):
         pass
 
-    # Download weights directly
+    is_local_model = (Path(model_id).exists() and Path(model_id).is_dir()) or os.getenv(
+        "WEIGHTS_CACHE_OVERRIDE", None
+    ) is not None
+
+    if not is_local_model:
+        # Try to download weights from the hub
+        try:
+            filenames = utils.weight_hub_files(model_id, revision, extension)
+            utils.download_weights(filenames, model_id, revision)
+            # Successfully downloaded weights
+            return
+
+        # No weights found on the hub with this extension
+        except utils.EntryNotFoundError as e:
+            # Check if we want to automatically convert to safetensors or if we can use .bin weights instead
+            if not extension == ".safetensors" or not auto_convert:
+                raise e
+
+    # Try to see if there are local pytorch weights
     try:
-        filenames = utils.weight_hub_files(model_id, revision, extension)
-        utils.download_weights(filenames, model_id, revision)
-    except utils.EntryNotFoundError as e:
-        if not extension == ".safetensors":
-            raise e
+        # Get weights for a local model, a hub cached model and inside the WEIGHTS_CACHE_OVERRIDE
+        local_pt_files = utils.weight_files(model_id, revision, ".bin")
 
-        logger.warning(
-            f"No safetensors weights found for model {model_id} at revision {revision}. "
-            f"Converting PyTorch weights instead."
-        )
+    # No local pytorch weights
+    except utils.LocalEntryNotFoundError:
+        if extension == ".safetensors":
+            logger.warning(
+                f"No safetensors weights found for model {model_id} at revision {revision}. "
+                f"Downloading PyTorch weights."
+            )
 
-        # Try to see if there are pytorch weights
+        # Try to see if there are pytorch weights on the hub
         pt_filenames = utils.weight_hub_files(model_id, revision, ".bin")
         # Download pytorch weights
         local_pt_files = utils.download_weights(pt_filenames, model_id, revision)
+
+    if auto_convert:
+        logger.warning(
+            f"No safetensors weights found for model {model_id} at revision {revision}. "
+            f"Converting PyTorch weights to safetensors."
+        )
+
+        # Safetensors final filenames
         local_st_files = [
             p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors"
             for p in local_pt_files

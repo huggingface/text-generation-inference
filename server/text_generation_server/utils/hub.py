@@ -77,7 +77,12 @@ def weight_files(
     """Get the local files"""
     # Local model
     if Path(model_id).exists() and Path(model_id).is_dir():
-        return list(Path(model_id).glob(f"*{extension}"))
+        local_files = list(Path(model_id).glob(f"*{extension}"))
+        if not local_files:
+            raise FileNotFoundError(
+                f"No local weights found in {model_id} with extension {extension}"
+            )
+        return local_files
 
     try:
         filenames = weight_hub_files(model_id, revision, extension)
@@ -98,7 +103,7 @@ def weight_files(
         for filename in filenames:
             p = Path(WEIGHTS_CACHE_OVERRIDE) / filename
             if not p.exists():
-                raise LocalEntryNotFoundError(
+                raise FileNotFoundError(
                     f"File {p} not found in {WEIGHTS_CACHE_OVERRIDE}."
                 )
             files.append(p)
