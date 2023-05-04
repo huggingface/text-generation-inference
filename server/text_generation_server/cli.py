@@ -61,7 +61,9 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
 
-    server.serve(model_id, revision, sharded, quantize.value, uds_path)
+    # Downgrade enum into str for easier management later on
+    quantize = None if quantize is None else quantize.value
+    server.serve(model_id, revision, sharded, quantize, uds_path)
 
 
 @app.command()
