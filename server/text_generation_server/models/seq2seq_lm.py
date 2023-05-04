@@ -501,7 +501,7 @@ class Seq2SeqLM(Model):
         self,
         model_id: str,
         revision: Optional[str] = None,
-        quantize: bool = False,
+        quantize: Optional[str] = None,
         decode_buffer: int = 3,
     ):
         if torch.cuda.is_available():
@@ -519,7 +519,7 @@ class Seq2SeqLM(Model):
             revision=revision,
             torch_dtype=dtype,
             device_map="auto" if torch.cuda.is_available() else None,
-            load_in_8bit=quantize,
+            load_in_8bit=quantize == "bitsandbytes",
         ).eval()
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"

@@ -447,7 +447,7 @@ class CausalLM(Model):
         self,
         model_id: str,
         revision: Optional[str] = None,
-        quantize: bool = False,
+        quantize: Optional[str] = None,
         decode_buffer: int = 3,
     ):
         if torch.cuda.is_available():
@@ -468,7 +468,7 @@ class CausalLM(Model):
             revision=revision,
             torch_dtype=dtype,
             device_map="auto" if torch.cuda.is_available() else None,
-            load_in_8bit=quantize,
+            load_in_8bit=quantize == "bitsandbytes",
         ).eval()
         tokenizer.pad_token_id = (
             self.model.config.pad_token_id
