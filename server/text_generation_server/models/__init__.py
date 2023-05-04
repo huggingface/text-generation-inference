@@ -91,7 +91,7 @@ torch.set_grad_enabled(False)
 
 
 def get_model(
-    model_id: str, revision: Optional[str], sharded: bool, quantize: bool
+    model_id: str, revision: Optional[str], sharded: bool, quantize: Optional[str]
 ) -> Model:
     if "facebook/galactica" in model_id:
         if sharded:
