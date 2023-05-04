@@ -627,8 +627,8 @@ fn download_convert_model(
                         return Err(LauncherError::DownloadError);
                     }
                 }
-                _ => {
-                    tracing::error!("Download process exited with an unknown status.");
+                e => {
+                    tracing::error!("Download process exited with an unknown status.: {e:?}");
                     return Err(LauncherError::DownloadError);
                 }
             }
