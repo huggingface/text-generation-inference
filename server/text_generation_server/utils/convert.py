@@ -1,5 +1,6 @@
 import concurrent
 import time
+import datetime
 import torch
 
 from concurrent.futures import ThreadPoolExecutor
@@ -78,17 +79,9 @@ def convert_file(pt_file: Path, st_file: Path):
 def convert_files(pt_files: List[Path], st_files: List[Path]):
     assert len(pt_files) == len(st_files)
 
-    executor = ThreadPoolExecutor(max_workers=5)
-    futures = [
-        executor.submit(convert_file, pt_file=pt_file, st_file=st_file)
-        for pt_file, st_file in zip(pt_files, st_files)
-    ]
-
+    N = len(pt_files)
     # We do this instead of using tqdm because we want to parse the logs with the launcher
-    start_time = time.time()
-    for i, future in enumerate(concurrent.futures.as_completed(futures)):
-        elapsed = timedelta(seconds=int(time.time() - start_time))
-        remaining = len(futures) - (i + 1)
-        eta = (elapsed / (i + 1)) * remaining if remaining > 0 else 0
-
-        logger.info(f"Convert: [{i + 1}/{len(futures)}] -- ETA: {eta}")
+    start = datetime.datetime.now()
+    for i, (pt_file, sf_file) in enumerate(zip(pt_files, st_files)):
+        elapsed = datetime.datetime.now() - start
+        logger.info(f"Convert: [{i + 1}/{N}] -- Took: {elapsed}")
