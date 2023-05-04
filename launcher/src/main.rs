@@ -627,8 +627,21 @@ fn download_convert_model(
                         return Err(LauncherError::DownloadError);
                     }
                 }
-                _ => {
-                    tracing::error!("Download process exited with an unknown status.");
+                ExitStatus::Signaled(signal) => {
+                    let mut err = String::new();
+                    download_process
+                        .stderr
+                        .take()
+                        .unwrap()
+                        .read_to_string(&mut err)
+                        .unwrap();
+                    tracing::error!(
+                        "Download process was signaled to shutdown with signal {signal}: {err}"
+                    );
+                    return Err(LauncherError::DownloadError);
+                }
+                e => {
+                    tracing::error!("Download process exited with an unknown status.: {e:?}");
                     return Err(LauncherError::DownloadError);
                 }
             }
