@@ -1,0 +1,89 @@
+# serializer version: 1
+# name: test_flash_starcoder
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.Length: 'length'>,
+      'generated_tokens': 10,
+      'prefill': list([
+        dict({
+          'id': 1006,
+          'logprob': None,
+          'text': 'Test',
+        }),
+      ]),
+      'seed': None,
+      'tokens': list([
+        dict({
+          'id': 30,
+          'logprob': -2.734375,
+          'special': False,
+          'text': ',',
+        }),
+        dict({
+          'id': 892,
+          'logprob': -2.828125,
+          'special': False,
+          'text': ' String',
+        }),
+        dict({
+          'id': 1984,
+          'logprob': -3.28125,
+          'special': False,
+          'text': ' url',
+        }),
+        dict({
+          'id': 30,
+          'logprob': -0.796875,
+          'special': False,
+          'text': ',',
+        }),
+        dict({
+          'id': 892,
+          'logprob': -1.0390625,
+          'special': False,
+          'text': ' String',
+        }),
+        dict({
+          'id': 1411,
+          'logprob': -2.078125,
+          'special': False,
+          'text': ' method',
+        }),
+        dict({
+          'id': 30,
+          'logprob': -0.49609375,
+          'special': False,
+          'text': ',',
+        }),
+        dict({
+          'id': 892,
+          'logprob': -1.0546875,
+          'special': False,
+          'text': ' String',
+        }),
+        dict({
+          'id': 3361,
+          'logprob': -1.71875,
+          'special': False,
+          'text': ' body',
+        }),
+        dict({
+          'id': 27,
+          'logprob': -0.69921875,
+          'special': False,
+          'text': ')',
+        }),
+      ]),
+    }),
+    'generated_text': ', String url, String method, String body)',
+  })
+# ---
+# name: test_flash_starcoder_load
+  list([
+    Response(generated_text=', String url, String method, String body)', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=1006, text='Test', logprob=None)], tokens=[Token(id=30, text=',', logprob=-2.734375, special=False), Token(id=892, text=' String', logprob=-2.84375, special=False), Token(id=1984, text=' url', logprob=-3.28125, special=False), Token(id=30, text=',', logprob=-0.796875, special=False), Token(id=892, text=' String', logprob=-1.03125, special=False), Token(id=1411, text=' method', logprob=-2.09375, special=False), Token(id=30, text=',', logprob=-0.49804688, special=False), Token(id=892, text=' String', logprob=-1.0546875, special=False), Token(id=3361, text=' body', logprob=-1.7265625, special=False), Token(id=27, text=')', logprob=-0.703125, special=False)], best_of_sequences=None)),
+    Response(generated_text=', GetNext) {\n  std::vector<', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=1006, text='Test', logprob=None)], tokens=[Token(id=30, text=',', logprob=-2.734375, special=False), Token(id=1390, text=' Get', logprob=-3.421875, special=False), Token(id=3353, text='Next', logprob=-4.625, special=False), Token(id=27, text=')', logprob=-2.875, special=False), Token(id=301, text=' {', logprob=-0.14453125, special=False), Token(id=334, text='\n ', logprob=-0.17871094, special=False), Token(id=1230, text=' std', logprob=-2.328125, special=False), Token(id=403, text='::', logprob=-0.0007247925, special=False), Token(id=2402, text='vector', logprob=-0.81640625, special=False), Token(id=46, text='<', logprob=-0.0026397705, special=False)], best_of_sequences=None)),
+    Response(generated_text=', GetNext) {\n  std::vector<', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=1006, text='Test', logprob=None)], tokens=[Token(id=30, text=',', logprob=-2.734375, special=False), Token(id=1390, text=' Get', logprob=-3.421875, special=False), Token(id=3353, text='Next', logprob=-4.625, special=False), Token(id=27, text=')', logprob=-2.875, special=False), Token(id=301, text=' {', logprob=-0.14453125, special=False), Token(id=334, text='\n ', logprob=-0.17871094, special=False), Token(id=1230, text=' std', logprob=-2.328125, special=False), Token(id=403, text='::', logprob=-0.0007247925, special=False), Token(id=2402, text='vector', logprob=-0.81640625, special=False), Token(id=46, text='<', logprob=-0.0026397705, special=False)], best_of_sequences=None)),
+    Response(generated_text=', GetNext) {\n  std::vector<', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=1006, text='Test', logprob=None)], tokens=[Token(id=30, text=',', logprob=-2.734375, special=False), Token(id=1390, text=' Get', logprob=-3.421875, special=False), Token(id=3353, text='Next', logprob=-4.625, special=False), Token(id=27, text=')', logprob=-2.875, special=False), Token(id=301, text=' {', logprob=-0.14453125, special=False), Token(id=334, text='\n ', logprob=-0.17871094, special=False), Token(id=1230, text=' std', logprob=-2.328125, special=False), Token(id=403, text='::', logprob=-0.0007247925, special=False), Token(id=2402, text='vector', logprob=-0.81640625, special=False), Token(id=46, text='<', logprob=-0.0026397705, special=False)], best_of_sequences=None)),
+  ])
+# ---

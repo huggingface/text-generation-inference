@@ -1,20 +1,18 @@
 import subprocess
-import time
 import contextlib
 import pytest
 import asyncio
 import os
 import docker
 
-from datetime import datetime
 from docker.errors import NotFound
 from typing import Optional, List
-from aiohttp import ClientConnectorError
 
 from text_generation import AsyncClient
 from text_generation.types import Response
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
+HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
 
 
 @pytest.fixture(scope="module")
@@ -92,10 +90,15 @@ def launcher(event_loop):
 
         gpu_count = num_shard if num_shard is not None else 1
 
+        env = {}
+        if HUGGING_FACE_HUB_TOKEN is not None:
+            env["HUGGING_FACE_HUB_TOKEN"] = HUGGING_FACE_HUB_TOKEN
+
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
             name=container_name,
+            environment=env,
             auto_remove=True,
             detach=True,
             device_requests=[
