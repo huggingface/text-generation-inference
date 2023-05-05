@@ -117,7 +117,7 @@ class VectorizedCausalLMBatch(Batch):
             token_offsets=token_offsets,
             next_token_chooser=next_token_chooser,
             stopping_criterias=stopping_criterias,
-            max_input_length=max_input_length.item(),
+            max_input_length=max_input_length,
             max_tokens=max_tokens,
         )
 
@@ -481,8 +481,6 @@ class VectorizedNextTokenChooser:
             seeds=[x for next_token_chooser in next_token_choosers for x in next_token_chooser.seeds],
             device=next_token_choosers[0].device,
         )
-
-
 
 
 class VectorizedCausalLM(Model):
