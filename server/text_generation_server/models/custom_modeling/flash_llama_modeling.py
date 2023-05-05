@@ -1,4 +1,5 @@
 # coding=utf-8
+
 # Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
 #
 # This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
@@ -112,6 +113,9 @@ class FastLinear(nn.Linear):
     ) -> None:
         super(FastLinear, self).__init__(in_features, out_features, bias, device, dtype)
         self.quantized = False
+        self.weight = self.weight.to(device="meta")
+        if bias:
+            self.bias = self.bias.to(device="meta")
         self.qlinear = None
 
     def prepare_weights(self, layer=None, name=None, quantize: Optional[str] = None):
@@ -154,8 +158,12 @@ class FastLinear(nn.Linear):
                 outfeatures=self.out_features,
                 bias=bool(self.bias),
             )
-            rank = int(os.getenv("RANK"))
-            world_size = int(os.getenv("WORLD_SIZE"))
+            try:
+                rank = int(os.getenv("RANK"))
+                world_size = int(os.getenv("WORLD_SIZE"))
+            except:
+                rank = 0
+                world_size = 1
 
             def get_row_slice(f, name):
                 slice_ = f.get_slice(name)
