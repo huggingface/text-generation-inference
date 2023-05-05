@@ -367,9 +367,6 @@ class VectorizedNextTokenChooser:
         return values
 
     def __call__(self, input_ids, scores):
-        # Only process the last token
-        scores=scores[: -1, :]
-
         if self.repetition_penalty_t is not None:
             score = torch.gather(scores, 1, input_ids)
             # if score < 0 then repetition penalty has to be multiplied to reduce the previous token probability
@@ -420,8 +417,6 @@ class VectorizedNextTokenChooser:
             indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
             scores = scores.masked_fill(indices_to_remove, self.filter_value)
 
-        # Compute logprobs
-        logprobs = torch.log_softmax(scores, dim=-1)
 
         if self.num_do_sample:
             probs = torch.nn.functional.softmax(scores, -1)
@@ -430,6 +425,9 @@ class VectorizedNextTokenChooser:
                 next_token_ids=torch.where(self.do_sample_t, next_token_ids,torch.argmax(scores, dim=-1))
         else:
             next_token_ids = torch.argmax(scores, dim=-1)
+
+        # Compute logprobs
+        logprobs = torch.log_softmax(scores, dim=-1).gather(1, next_token_ids.unsqueeze(1)).squeeze(1)
 
         return next_token_ids, logprobs
 

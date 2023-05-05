@@ -74,6 +74,7 @@ class Client:
         truncate: Optional[int] = None,
         typical_p: Optional[float] = None,
         watermark: bool = False,
+        details: bool = True,
     ) -> Response:
         """
         Given a prompt, generate the following text
@@ -110,6 +111,8 @@ class Client:
                 See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
+            details (`bool`):
+                Return the generation details
 
         Returns:
             Response: generated response
@@ -117,7 +120,7 @@ class Client:
         # Validate parameters
         parameters = Parameters(
             best_of=best_of,
-            details=True,
+            details=details,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
@@ -160,6 +163,7 @@ class Client:
         truncate: Optional[int] = None,
         typical_p: Optional[float] = None,
         watermark: bool = False,
+        details: bool = True,
     ) -> Iterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens
@@ -194,6 +198,8 @@ class Client:
                 See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
+            details (`bool`):
+                Return the generation details
 
         Returns:
             Iterator[StreamResponse]: stream of generated tokens
@@ -201,7 +207,7 @@ class Client:
         # Validate parameters
         parameters = Parameters(
             best_of=None,
-            details=True,
+            details=details,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
@@ -311,6 +317,7 @@ class AsyncClient:
         truncate: Optional[int] = None,
         typical_p: Optional[float] = None,
         watermark: bool = False,
+        details: bool = True,
     ) -> Response:
         """
         Given a prompt, generate the following text asynchronously
@@ -347,6 +354,8 @@ class AsyncClient:
                 See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
+            details (`bool`):
+                Return the generation details
 
         Returns:
             Response: generated response
@@ -354,7 +363,7 @@ class AsyncClient:
         # Validate parameters
         parameters = Parameters(
             best_of=best_of,
-            details=True,
+            details=details,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
@@ -395,6 +404,7 @@ class AsyncClient:
         truncate: Optional[int] = None,
         typical_p: Optional[float] = None,
         watermark: bool = False,
+        details: bool = True,
     ) -> AsyncIterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens asynchronously
@@ -429,6 +439,8 @@ class AsyncClient:
                 See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
+            details (`bool`):
+                Return the generation details
 
         Returns:
             AsyncIterator[StreamResponse]: stream of generated tokens
@@ -436,7 +448,7 @@ class AsyncClient:
         # Validate parameters
         parameters = Parameters(
             best_of=None,
-            details=True,
+            details=details,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
