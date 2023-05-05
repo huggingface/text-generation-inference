@@ -114,7 +114,9 @@ def get_model(
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
             return santacoder_cls(model_id, revision, quantize=quantize)
 
-    config = AutoConfig.from_pretrained(model_id, revision=revision, trust_remote_code=True)
+    config = AutoConfig.from_pretrained(
+        model_id, revision=revision, trust_remote_code=True
+    )
     model_type = config.model_type
 
     if model_type == "bloom":
