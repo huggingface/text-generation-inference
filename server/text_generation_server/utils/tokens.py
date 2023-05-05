@@ -32,7 +32,7 @@ class Sampling:
 
 class Greedy:
     def __call__(self, logits):
-        return logits.argmax()
+        return logits.argmax(dim=-1)
 
 
 class NextTokenChooser:
