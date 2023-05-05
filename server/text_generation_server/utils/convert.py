@@ -84,6 +84,6 @@ def convert_files(pt_files: List[Path], st_files: List[Path]):
     
     for i, (pt_file, sf_file) in enumerate(zip(pt_files, st_files)):
         start = datetime.datetime.now()
-        convert_file(pt_file, sft_file)
+        convert_file(pt_file, sf_file)
         elapsed = datetime.datetime.now() - start
         logger.info(f"Convert: [{i + 1}/{N}] -- Took: {elapsed}")
