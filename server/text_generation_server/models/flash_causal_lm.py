@@ -521,11 +521,12 @@ class FlashCausalLM(Model):
                 end_index = cumulative_length + input_length
 
                 # Indices to copy present at the correct place in past_key_values
-                past_indices[start_index:end_index] = torch.arange(
+                torch.arange(
                     start_index + i,
                     end_index + i,
                     dtype=torch.int64,
                     device=self.device,
+                    out=past_indices[start_index:end_index],
                 )
                 cumulative_length += input_length
 
@@ -632,11 +633,11 @@ class FlashCausalLM(Model):
                 prefill_logprobs_tensor, 1, prefill_tokens_indices.unsqueeze(1)
             )
             # GPU <-> CPU sync
-            prefill_logprobs = prefill_logprobs.squeeze(1).to("cpu").numpy()
+            prefill_logprobs = prefill_logprobs.squeeze(1).tolist()
 
         # GPU <-> CPU sync
-        next_token_logprobs = next_token_logprobs.to("cpu").numpy()
-        next_token_ids = batch.input_ids.to("cpu").numpy()
+        next_token_logprobs = next_token_logprobs.tolist()
+        next_token_ids = batch.input_ids.tolist()
 
         cumulative_length = 0
 
@@ -709,7 +710,7 @@ class FlashCausalLM(Model):
                 # Remove generated token to only have prefill and add nan for first prompt token
                 request_prefill_logprobs = [float("nan")] + prefill_logprobs[
                     start_index : end_index - 1
-                ].tolist()
+                ]
                 prefill_token_ids = all_input_ids[:-1]
                 prefill_texts = self.tokenizer.batch_decode(
                     prefill_token_ids,
