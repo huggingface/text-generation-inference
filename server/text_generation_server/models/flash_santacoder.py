@@ -31,7 +31,7 @@ class FlashSantacoder(FlashCausalLM):
         self.past_pad = None
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+            dtype = torch.float16
         else:
             raise NotImplementedError("FlashSantacoder is only available on GPU")
 
@@ -178,7 +178,7 @@ class FlashSantacoderSharded(FlashSantacoder):
         self.master = self.rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+            dtype = torch.float16
         else:
             raise NotImplementedError("FlashSantacoderSharded is only available on GPU")
 
