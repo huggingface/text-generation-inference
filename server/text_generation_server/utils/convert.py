@@ -81,7 +81,9 @@ def convert_files(pt_files: List[Path], st_files: List[Path]):
 
     N = len(pt_files)
     # We do this instead of using tqdm because we want to parse the logs with the launcher
-    start = datetime.datetime.now()
+    
     for i, (pt_file, sf_file) in enumerate(zip(pt_files, st_files)):
+        start = datetime.datetime.now()
+        convert_file(pt_file, sf_file)
         elapsed = datetime.datetime.now() - start
         logger.info(f"Convert: [{i + 1}/{N}] -- Took: {elapsed}")
