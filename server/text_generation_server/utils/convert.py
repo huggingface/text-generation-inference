@@ -62,7 +62,7 @@ def convert_file(pt_file: Path, sf_file: Path):
     # Tensors need to be contiguous
     pt_state = {k: v.contiguous() for k, v in pt_state.items()}
 
-    sf_file.parent.mkdir(parents=True, exisf_ok=True)
+    sf_file.parent.mkdir(parents=True, exist_ok=True)
     save_file(pt_state, str(sf_file), metadata={"format": "pt"})
 
     # Check that both files are close in size
