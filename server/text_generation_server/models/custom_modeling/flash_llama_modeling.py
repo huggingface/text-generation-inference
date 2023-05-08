@@ -184,7 +184,6 @@ class FastLinear(nn.Linear):
                 return tensor.contiguous()
 
             if isinstance(self, TensorParallelRowLinear):
-                raise ValueError("This is currently not functionning")
                 get_slice = get_row_slice
             elif isinstance(self, TensorParallelColumnLinear):
                 get_slice = get_col_slice
@@ -216,10 +215,11 @@ class FastLinear(nn.Linear):
 
 
                 elif name == "self_attn.o_proj":
-                    self.qlinear.qweight[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.qweight")
-                    self.qlinear.qzeros[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.qzeros")
-                    self.qlinear.scales[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.scales")
+                    self.qlinear.qweight = f.get_tensor(f"model.layers.{layer}.self_attn.o_proj.qweight")
+                    self.qlinear.qzeros = f.get_tensor(f"model.layers.{layer}.self_attn.o_proj.qzeros")
+                    self.qlinear.scales = f.get_tensor(f"model.layers.{layer}.self_attn.o_proj.scales")
                     self.qlinear.g_idx[:] = get_slice(f, f"model.layers.{layer}.self_attn.o_proj.g_idx")
+                    import ipdb;ipdb.set_trace()
 
                 elif name == "mlp.gate_up_proj":
                     N = self.qlinear.qweight.shape[1] // 2
@@ -237,9 +237,9 @@ class FastLinear(nn.Linear):
                     self.qlinear.qzeros[:, :N] = get_slice(f, f"model.layers.{layer}.mlp.gate_proj.qzeros")
 
                 elif name == "mlp.down_proj":
-                    self.qlinear.qweight[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.qweight")
-                    self.qlinear.qzeros[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.qzeros")
-                    self.qlinear.scales[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.scales")
+                    self.qlinear.qweight = f.get_tensor(f"model.layers.{layer}.mlp.down_proj.qweight")
+                    self.qlinear.qzeros = f.get_tensor(f"model.layers.{layer}.mlp.down_proj.qzeros")
+                    self.qlinear.scales = f.get_tensor(f"model.layers.{layer}.mlp.down_proj.scales")
                     self.qlinear.g_idx[:] = get_slice(f, f"model.layers.{layer}.mlp.down_proj.g_idx")
                 else:
                     raise ValueError("Not handled")
