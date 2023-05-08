@@ -99,7 +99,10 @@ def get_model(
         else:
             return Galactica(model_id, revision, quantize=quantize)
 
-    if "bigcode" in model_id:
+    config = AutoConfig.from_pretrained(model_id, revision=revision)
+    model_type = config.model_type
+
+    if model_type == "gpt_bigcode": 
         if sharded:
             if not FLASH_ATTENTION:
                 raise NotImplementedError(
@@ -109,9 +112,6 @@ def get_model(
         else:
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
             return santacoder_cls(model_id, revision, quantize=quantize)
-
-    config = AutoConfig.from_pretrained(model_id, revision=revision)
-    model_type = config.model_type
 
     if model_type == "bloom":
         if sharded:
