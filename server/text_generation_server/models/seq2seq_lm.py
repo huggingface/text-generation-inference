@@ -506,7 +506,7 @@ class Seq2SeqLM(Model):
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            dtype = torch.float16
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")
