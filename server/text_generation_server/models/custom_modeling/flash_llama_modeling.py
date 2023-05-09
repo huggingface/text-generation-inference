@@ -554,6 +554,7 @@ class FlashLlamaModel(torch.nn.Module):
         input_ids,
         position_ids,
         cu_seqlens,
+        cu_seqlens_q,
         max_s,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
@@ -575,15 +576,11 @@ class FlashLlamaModel(torch.nn.Module):
                 )
             )
             layer_past_present_indices = None
-            cu_seqlens_q = None
             slice_past_index = len(hidden_states)
         # Decode
         else:
             # Create indices from cumulative sequence lengths
             layer_past_present_indices = cu_seqlens[1:] - 1
-            cu_seqlens_q = torch.arange(
-                cu_seqlens.shape[0], dtype=torch.int32, device=hidden_states.device
-            )
             slice_past_index = None
 
         # Get rotary cos and sin for this forward
@@ -650,6 +647,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         input_ids,
         position_ids,
         cu_seqlens,
+        cu_seqlens_q,
         max_s,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
@@ -658,6 +656,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             input_ids,
             position_ids,
             cu_seqlens,
+            cu_seqlens_q,
             max_s,
             past_key_values,
             pre_allocate_past_size,
