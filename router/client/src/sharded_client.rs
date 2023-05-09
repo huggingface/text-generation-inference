@@ -1,5 +1,5 @@
-use crate::{Batch, Client, Generation, HealthResponse, Request, ShardInfo};
 /// Multi shard Client
+use crate::{Batch, Client, Generation, HealthResponse, Request, ShardInfo};
 use crate::{ClientError, Result};
 use futures::future::join_all;
 use tonic::transport::Uri;
@@ -123,6 +123,7 @@ impl ShardedClient {
     }
 }
 
+/// Merge generations from the different model shards
 fn merge_generations(
     mut results: Vec<(Vec<Generation>, Option<Batch>)>,
 ) -> Result<(Vec<Generation>, Option<Batch>)> {

@@ -653,6 +653,8 @@ class Seq2SeqLM(Model):
             if not stop:
                 stopped = False
 
+            # Shard generations
+            # All generations will be appended in the rust sharded client
             if i % self.world_size == self.rank:
                 if stop:
                     # Slice with decoder_input_length to remove padding
