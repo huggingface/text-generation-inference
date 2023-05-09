@@ -165,6 +165,7 @@ COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bi
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
 
+RUN apt update && apt install build-essential g++ -y
 COPY proto proto
 COPY server/requirements.txt server/requirements.txt
 COPY server/pyproject.toml server/pyproject.toml
@@ -176,7 +177,6 @@ COPY server/Makefile-transformers server/Makefile-transformers
 RUN cd server && \
     make gen-server && \
     pip install ".[bnb, accelerate]" --no-cache-dir
-RUN apt update && apt install build-essential g++ -y
 
 # AWS Sagemaker compatbile image
 FROM base as sagemaker

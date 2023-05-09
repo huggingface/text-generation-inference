@@ -372,6 +372,7 @@ class QuantLinear(nn.Module):
 
     def forward(self, x):
         out_shape = x.shape[:-1] + (self.outfeatures, )
+        assert x.shape[-1] == self.infeatures
         out = QuantLinearFunction.apply(x.reshape(-1, x.shape[-1]), self.qweight, self.scales, self.qzeros, self.g_idx, self.bits, self.maxq)
         out = out + self.bias if self.bias is not None else out
         return out.reshape(out_shape)
