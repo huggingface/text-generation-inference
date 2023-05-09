@@ -37,7 +37,7 @@ use utoipa_swagger_ui::SwaggerUi;
     path = "/",
     request_body = CompatGenerateRequest,
     responses(
-        (status = 200, description = "See /generate or /generate_stream",
+        (status = 200, description = "Generated Text",
             content(
                 ("application/json" = GenerateResponse),
                 ("text/event-stream" = StreamResponse),

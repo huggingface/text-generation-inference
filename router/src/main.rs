@@ -9,6 +9,7 @@ use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
+use std::time::Duration;
 use text_generation_client::ShardedClient;
 use text_generation_router::{server, HubModelInfo};
 use tokenizers::{FromPretrainedParameters, Tokenizer};
@@ -125,7 +126,7 @@ fn main() -> Result<(), std::io::Error> {
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
 
-            if let Some(max_batch_size) = max_batch_size{
+            if let Some(max_batch_size) = max_batch_size {
                 tracing::warn!("`max-batch-size` is deprecated. Use `max-batch-total-tokens` instead");
                 max_batch_total_tokens = (max_batch_size * max_total_tokens) as u32;
                 tracing::warn!("Overriding `max-batch-total-tokens` value with `max-batch-size` * `max-total-tokens` = {max_batch_total_tokens}");
@@ -145,7 +146,10 @@ fn main() -> Result<(), std::io::Error> {
                     sha: None,
                     pipeline_tag: None,
                 },
-                false => get_model_info(&tokenizer_name, &revision, authorization_token).await,
+                false => get_model_info(&tokenizer_name, &revision, authorization_token).await.unwrap_or({
+                    tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
+                    HubModelInfo { model_id: tokenizer_name.to_string(), sha: None, pipeline_tag: None }
+                }),
             };
 
             // if pipeline-tag == text-generation we default to return_full_text = true
@@ -195,7 +199,7 @@ fn main() -> Result<(), std::io::Error> {
                 addr,
                 cors_allow_origin,
             )
-            .await;
+                .await;
             Ok(())
         })
 }
@@ -256,22 +260,24 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
 }
 
 /// get model info from the Huggingface Hub
-pub async fn get_model_info(model_id: &str, revision: &str, token: Option<String>) -> HubModelInfo {
+pub async fn get_model_info(
+    model_id: &str,
+    revision: &str,
+    token: Option<String>,
+) -> Option<HubModelInfo> {
     let client = reqwest::Client::new();
     // Poor man's urlencode
-    let revision = revision.replace("/", "%2F");
+    let revision = revision.replace('/', "%2F");
     let url = format!("https://huggingface.co/api/models/{model_id}/revision/{revision}");
-    let mut builder = client.get(url);
+    let mut builder = client.get(url).timeout(Duration::from_secs(5));
     if let Some(token) = token {
         builder = builder.bearer_auth(token);
     }
 
-    let model_info = builder
-        .send()
-        .await
-        .expect("Could not connect to hf.co")
-        .text()
-        .await
-        .expect("error when retrieving model info from hf.co");
-    serde_json::from_str(&model_info).expect("unable to parse model info")
+    let response = builder.send().await.ok()?;
+
+    if response.status().is_success() {
+        return serde_json::from_str(&response.text().await.ok()?).ok();
+    }
+    None
 }

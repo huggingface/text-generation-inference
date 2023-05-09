@@ -1,13 +1,17 @@
 [workspace]
 members = [
+    "benchmark",
     "router",
     "router/client",
     "router/grpc-metadata",
     "launcher"
 ]
-exclude = [
-    "benchmark"
-]
+
+[workspace.package]
+version = "0.7.0-dev"
+edition = "2021"
+authors = ["Olivier Dehaene"]
+homepage = "https://github.com/huggingface/text-generation-inference"
 
 [profile.release]
 debug = 1
