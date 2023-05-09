@@ -120,6 +120,16 @@ ENV HUGGINGFACE_HUB_CACHE=/data \
     NUM_SHARD=1 \
     PORT=80
 
+# NVIDIA env vars
+ENV NVIDIA_REQUIRE_CUDA cuda>=11.8
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+# Required for nvidia-docker v1
+RUN /bin/bash -c echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
+ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
+ENV PATH /usr/local/nvidia/bin:/usr/local/cuda/bin:$PATH
+
 LABEL com.nvidia.volumes.needed="nvidia_driver"
 
 WORKDIR /usr/src
@@ -164,11 +174,6 @@ FROM base as sagemaker
 
 COPY sagemaker-entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh
-
-# NVIDIA env vars
-ENV NVIDIA_VISIBLE_DEVICES all
-ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
-ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
 
 ENTRYPOINT ["./entrypoint.sh"]
 
