@@ -259,7 +259,7 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
 pub async fn get_model_info(model_id: &str, revision: &str, token: Option<String>) -> HubModelInfo {
     let client = reqwest::Client::new();
     // Poor man's urlencode
-    let revision = revision.replace("/", "%2F");
+    let revision = revision.replace('/', "%2F");
     let url = format!("https://huggingface.co/api/models/{model_id}/revision/{revision}");
     let mut builder = client.get(url);
     if let Some(token) = token {

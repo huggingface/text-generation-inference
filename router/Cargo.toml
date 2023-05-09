@@ -1,10 +1,11 @@
 [package]
 name = "text-generation-router"
-version = "0.6.0"
-edition = "2021"
-authors = ["Olivier Dehaene"]
 description = "Text Generation Webserver"
 build = "build.rs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
 
 [lib]
 path = "src/lib.rs"
