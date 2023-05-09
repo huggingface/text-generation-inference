@@ -622,10 +622,8 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         self.process_group = process_group
         if self.process_group is not None:
             self.world_size = self.process_group.size()
-            self.rank = self.process_group.rank()
         else:
             self.world_size = 1
-            self.rank = 0
 
         self.model = FlashLlamaModel(config, process_group)
 

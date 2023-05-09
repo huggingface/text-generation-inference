@@ -50,10 +50,10 @@ class OPTSharded(OPT):
     def __init__(
         self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
-        self.process_group, self.rank, self.world_size = initialize_torch_distributed()
-        self.master = self.rank == 0
+        self.process_group, rank, world_size = initialize_torch_distributed()
+        self.master = rank == 0
         if torch.cuda.is_available():
-            device = torch.device(f"cuda:{self.rank}")
+            device = torch.device(f"cuda:{rank}")
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
         else:
             device = torch.device("cpu")
@@ -81,8 +81,8 @@ class OPTSharded(OPT):
             quantize=quantize,
             device=device,
             dtype=dtype,
-            rank=self.rank,
-            world_size=self.world_size,
+            rank=rank,
+            world_size=world_size,
         )
         self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
@@ -91,6 +91,8 @@ class OPTSharded(OPT):
             requires_padding=True,
             dtype=dtype,
             device=device,
+            rank=rank,
+            world_size=world_size,
         )
 
     @staticmethod
