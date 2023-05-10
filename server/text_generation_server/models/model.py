@@ -18,6 +18,8 @@ class Model(ABC):
         dtype: torch.dtype,
         device: torch.device,
         decode_buffer: int = 3,
+        rank: int = 0,
+        world_size: int = 1,
     ):
         if decode_buffer < 1:
             raise ValueError("decode_buffer must be >= 1")
@@ -28,6 +30,8 @@ class Model(ABC):
         self.dtype = dtype
         self.device = device
         self.decode_buffer = decode_buffer
+        self.rank = rank
+        self.world_size = world_size
 
     @property
     def info(self) -> InfoResponse:

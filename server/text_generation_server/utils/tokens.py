@@ -75,11 +75,7 @@ class NextTokenChooser:
 
     def __call__(self, input_ids, scores):
         # Warp logits
-        if scores.shape[0] > 1:
-            # only warp the last token logits
-            scores[-1:, :] = self.warpers(input_ids, scores[-1:, :])
-        else:
-            scores = self.warpers(input_ids, scores)
+        scores = self.warpers(input_ids, scores)
 
         # Compute logprobs
         logprobs = torch.log_softmax(scores, -1)
