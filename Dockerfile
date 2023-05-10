@@ -123,7 +123,6 @@ ENV HUGGINGFACE_HUB_CACHE=/data \
     PORT=80
 
 # NVIDIA env vars
-ENV CUDA_VERSION=11.8.0
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 # Required for nvidia-docker v1
