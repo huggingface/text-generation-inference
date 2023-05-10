@@ -549,7 +549,7 @@ class CausalLM(Model):
         ) in enumerate(iterator):
             # Select next token
             next_token_id, logprobs = next_token_chooser(
-                all_input_ids.view(1, -1), logits
+                all_input_ids.view(1, -1), logits[-1:, :]
             )
 
             # Append next token to all tokens
@@ -569,54 +569,60 @@ class CausalLM(Model):
                 next_token_text,
             )
 
-            if stop:
-                # Decode generated tokens
-                output_text = self.decode(
-                    all_input_ids[-stopping_criteria.current_tokens :, 0]
-                )
-                # Get seed
-                if isinstance(next_token_chooser.choice, Sampling):
-                    seed = next_token_chooser.choice.seed
-                else:
-                    seed = None
-
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
-                )
-            else:
-                # Keep request in the batch
-                generated_text = None
+            if not stop:
                 stopped = False
 
-            # Prefill
-            if stopping_criteria.current_tokens == 1:
-                # Remove generated token to only have prefill and add nan for first prompt token
-                prefill_logprobs = [float("nan")] + logprobs.gather(
-                    1, all_input_ids[1:]
-                ).squeeze(1)[-new_input_length:-1].tolist()
-                prefill_token_ids = all_input_ids[-new_input_length:-1]
-                prefill_texts = self.tokenizer.batch_decode(
-                    prefill_token_ids,
-                    clean_up_tokenization_spaces=False,
-                    skip_special_tokens=False,
-                )
-                prefill_tokens = PrefillTokens(
-                    prefill_token_ids, prefill_logprobs, prefill_texts
-                )
-            else:
-                prefill_tokens = None
+            # Shard generations
+            # All generations will be appended in the rust sharded client
+            if i % self.world_size == self.rank:
+                if stop:
+                    # Decode generated tokens
+                    output_text = self.decode(
+                        all_input_ids[-stopping_criteria.current_tokens :, 0]
+                    )
+                    # Get seed
+                    if isinstance(next_token_chooser.choice, Sampling):
+                        seed = next_token_chooser.choice.seed
+                    else:
+                        seed = None
 
-            generation = Generation(
-                request.id,
-                prefill_tokens,
-                next_token_id_squeezed,
-                next_token_logprob,
-                next_token_text,
-                next_token_id_squeezed.item() in self.all_special_ids,
-                generated_text,
-            )
+                    generated_text = GeneratedText(
+                        output_text, stopping_criteria.current_tokens, reason, seed
+                    )
+                else:
+                    generated_text = None
 
-            generations.append(generation)
+                # Prefill
+                if stopping_criteria.current_tokens == 1:
+                    # Remove generated token to only have prefill and add nan for first prompt token
+                    prefill_logprobs = [float("nan")] + torch.log_softmax(
+                        logits, -1
+                    ).gather(1, all_input_ids[1:]).squeeze(1)[
+                        -new_input_length:-1
+                    ].tolist()
+                    prefill_token_ids = all_input_ids[-new_input_length:-1]
+                    prefill_texts = self.tokenizer.batch_decode(
+                        prefill_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    prefill_tokens = PrefillTokens(
+                        prefill_token_ids, prefill_logprobs, prefill_texts
+                    )
+                else:
+                    prefill_tokens = None
+
+                generation = Generation(
+                    request.id,
+                    prefill_tokens,
+                    next_token_id_squeezed,
+                    next_token_logprob,
+                    next_token_text,
+                    next_token_id_squeezed.item() in self.all_special_ids,
+                    generated_text,
+                )
+
+                generations.append(generation)
 
             # Update values
             batch.input_ids[i, 0] = next_token_id

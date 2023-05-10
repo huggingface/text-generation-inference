@@ -687,53 +687,59 @@ class FlashCausalLM(Model):
                 next_token_text,
             )
 
-            if stop:
-                # Decode generated tokens
-                output_text = self.decode(
-                    all_input_ids[-stopping_criteria.current_tokens :]
-                )
-                # Get seed
-                if isinstance(next_token_chooser.choice, Sampling):
-                    seed = next_token_chooser.choice.seed
-                else:
-                    seed = None
-
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
-                )
-            else:
+            if not stop:
                 stopped = False
-                generated_text = None
 
-            # Prefill
-            if prefill:
-                # Remove generated token to only have prefill and add nan for first prompt token
-                request_prefill_logprobs = [float("nan")] + prefill_logprobs[
-                    start_index : end_index - 1
-                ]
-                prefill_token_ids = all_input_ids[:-1]
-                prefill_texts = self.tokenizer.batch_decode(
-                    prefill_token_ids,
-                    clean_up_tokenization_spaces=False,
-                    skip_special_tokens=False,
+            # Shard generations
+            # All generations will be appended in the rust sharded client
+            if i % self.world_size == self.rank:
+                if stop:
+                    # Decode generated tokens
+                    output_text = self.decode(
+                        all_input_ids[-stopping_criteria.current_tokens :]
+                    )
+                    # Get seed
+                    if isinstance(next_token_chooser.choice, Sampling):
+                        seed = next_token_chooser.choice.seed
+                    else:
+                        seed = None
+
+                    generated_text = GeneratedText(
+                        output_text, stopping_criteria.current_tokens, reason, seed
+                    )
+                else:
+                    generated_text = None
+
+                # Prefill
+                if prefill:
+                    # Remove generated token to only have prefill and add nan for first prompt token
+                    request_prefill_logprobs = [float("nan")] + prefill_logprobs[
+                        start_index : end_index - 1
+                    ]
+                    prefill_token_ids = all_input_ids[:-1]
+                    prefill_texts = self.tokenizer.batch_decode(
+                        prefill_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    prefill_tokens = PrefillTokens(
+                        prefill_token_ids, request_prefill_logprobs, prefill_texts
+                    )
+                else:
+                    prefill_tokens = None
+
+                generation = Generation(
+                    request.id,
+                    prefill_tokens,
+                    next_token_id,
+                    next_token_logprob,
+                    next_token_text,
+                    next_token_id in self.all_special_ids,
+                    generated_text,
                 )
-                prefill_tokens = PrefillTokens(
-                    prefill_token_ids, request_prefill_logprobs, prefill_texts
-                )
-            else:
-                prefill_tokens = None
 
-            generation = Generation(
-                request.id,
-                prefill_tokens,
-                next_token_id,
-                next_token_logprob,
-                next_token_text,
-                next_token_id in self.all_special_ids,
-                generated_text,
-            )
+                generations.append(generation)
 
-            generations.append(generation)
             new_input_length = input_length + 1
 
             # Update values

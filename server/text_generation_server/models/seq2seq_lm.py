@@ -631,7 +631,7 @@ class Seq2SeqLM(Model):
         ) in enumerate(iterator):
             # Select next token
             next_token_id, logprobs = next_token_chooser(
-                all_decoder_input_ids.view(1, -1), logits
+                all_decoder_input_ids.view(1, -1), logits[-1:, :]
             )
 
             # Append next token to decoder tokens
@@ -650,46 +650,52 @@ class Seq2SeqLM(Model):
             # Evaluate stopping criteria
             stop, reason = stopping_criteria(next_token_id, next_token_text)
 
-            if stop:
-                # Slice with decoder_input_length to remove padding
-                # Decode all tokens
-                output_text = self.decode(all_decoder_input_ids[-decoder_input_length:])
-
-                # Get seed
-                if isinstance(next_token_chooser.choice, Sampling):
-                    seed = next_token_chooser.choice.seed
-                else:
-                    seed = None
-
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
-                )
-            else:
-                # Keep request in the batch
-                generated_text = None
+            if not stop:
                 stopped = False
 
-            # Prefill
-            if stopping_criteria.current_tokens == 1:
-                prefill_tokens = PrefillTokens(
-                    [self.tokenizer.bos_token_id],
-                    [float("nan")],
-                    [self.tokenizer.bos_token],
+            # Shard generations
+            # All generations will be appended in the rust sharded client
+            if i % self.world_size == self.rank:
+                if stop:
+                    # Slice with decoder_input_length to remove padding
+                    # Decode all tokens
+                    output_text = self.decode(
+                        all_decoder_input_ids[-decoder_input_length:]
+                    )
+
+                    # Get seed
+                    if isinstance(next_token_chooser.choice, Sampling):
+                        seed = next_token_chooser.choice.seed
+                    else:
+                        seed = None
+
+                    generated_text = GeneratedText(
+                        output_text, stopping_criteria.current_tokens, reason, seed
+                    )
+                else:
+                    generated_text = None
+
+                # Prefill
+                if stopping_criteria.current_tokens == 1:
+                    prefill_tokens = PrefillTokens(
+                        [self.tokenizer.bos_token_id],
+                        [float("nan")],
+                        [self.tokenizer.bos_token],
+                    )
+                else:
+                    prefill_tokens = None
+
+                generation = Generation(
+                    request.id,
+                    prefill_tokens,
+                    next_token_id_squeezed,
+                    next_token_logprob,
+                    next_token_text,
+                    next_token_id_squeezed.item() in self.all_special_ids,
+                    generated_text,
                 )
-            else:
-                prefill_tokens = None
 
-            generation = Generation(
-                request.id,
-                prefill_tokens,
-                next_token_id_squeezed,
-                next_token_logprob,
-                next_token_text,
-                next_token_id_squeezed.item() in self.all_special_ids,
-                generated_text,
-            )
-
-            generations.append(generation)
+                generations.append(generation)
 
             # Update values
             batch.decoder_input_ids[i] = next_token_id
