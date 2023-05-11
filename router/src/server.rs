@@ -515,6 +515,7 @@ pub async fn run(
             generate,
             generate_stream,
             metrics,
+            health,
         ),
         components(
             schemas(
