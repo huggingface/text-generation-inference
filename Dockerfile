@@ -108,7 +108,7 @@ COPY server/Makefile-transformers Makefile
 RUN BUILD_EXTENSIONS="True" make build-transformers
 
 # Text Generation Inference base image
-FROM nvidia/cuda:11.8.0-base-ubuntu22.04 as base
+FROM nvidia/cuda:11.8.0-base-ubuntu20.04 as base
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
@@ -117,8 +117,6 @@ ENV PATH=/opt/conda/bin:$PATH \
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
-    MODEL_ID=bigscience/bloom-560m \
-    NUM_SHARD=1 \
     PORT=80
 
 WORKDIR /usr/src
