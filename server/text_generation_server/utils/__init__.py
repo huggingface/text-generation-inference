@@ -9,13 +9,13 @@ from text_generation_server.utils.hub import (
     RevisionNotFoundError,
 )
 from text_generation_server.utils.tokens import (
-    Greedy,
     NextTokenChooser,
-    Sampling,
+    HeterogeneousNextTokenChooser,
     StoppingCriteria,
     StopSequenceCriteria,
     FinishReason,
 )
+from text_generation_server.utils.logits_process import Sampling, Greedy
 
 __all__ = [
     "convert_file",
@@ -25,6 +25,7 @@ __all__ = [
     "weight_hub_files",
     "download_weights",
     "EntryNotFoundError",
+    "HeterogeneousNextTokenChooser",
     "LocalEntryNotFoundError",
     "RevisionNotFoundError",
     "Greedy",

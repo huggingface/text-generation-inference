@@ -71,6 +71,7 @@ class Seq2SeqLMBatch(Batch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
         device: torch.device,
     ) -> "Seq2SeqLMBatch":
         """Convert a text_generation_server.v1.Batch protobuf to a Seq2SeqLMBatch"""
