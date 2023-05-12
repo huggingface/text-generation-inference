@@ -14,7 +14,12 @@ EOD = "<|endoftext|>"
 
 
 class SantaCoder(CausalLM):
-    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+    def __init__(
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+    ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16
@@ -46,7 +51,7 @@ class SantaCoder(CausalLM):
                 model_id,
                 revision=revision,
                 torch_dtype=dtype,
-                load_in_8bit=quantize,
+                load_in_8bit=quantize == "bitsandbytes",
                 trust_remote_code=True,  # required
             )
             .to(device)

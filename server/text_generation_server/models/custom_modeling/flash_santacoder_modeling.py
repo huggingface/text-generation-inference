@@ -67,8 +67,8 @@ class FastLinear(nn.Linear):
         self.quantized = False
         self.bnb_linear = None
 
-    def prepare_weights(self, quantize: bool = False):
-        if quantize:
+    def prepare_weights(self, quantize: Optional[str] = None):
+        if quantize == "bitsandbytes":
             if not HAS_BITS_AND_BYTES:
                 raise ImportError(
                     "bitsandbytes is not available on your machine either because it is not installed "
@@ -92,8 +92,12 @@ class FastLinear(nn.Linear):
             # Delete reference to data
             self.weight = None
             self.bias = None
-        else:
+        elif quantize == "gptq":
+            raise NotImplementedError("`gptq` is not implemented for now")
+        elif quantize is None:
             self.weight = nn.Parameter(self.weight.T)
+        else:
+            raise ValueError(f"Unexpected quantize `{quantize}`")
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.quantized:

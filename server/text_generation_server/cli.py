@@ -5,9 +5,15 @@ import typer
 from pathlib import Path
 from loguru import logger
 from typing import Optional
+from enum import Enum
 
 
 app = typer.Typer()
+
+
+class Quantization(str, Enum):
+    bitsandbytes = "bitsandbytes"
+    gptq = "gptq"
 
 
 @app.command()
@@ -15,7 +21,7 @@ def serve(
     model_id: str,
     revision: Optional[str] = None,
     sharded: bool = False,
-    quantize: bool = False,
+    quantize: Optional[Quantization] = None,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
     json_output: bool = False,
@@ -55,6 +61,8 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
 
+    # Downgrade enum into str for easier management later on
+    quantize = None if quantize is None else quantize.value
     server.serve(model_id, revision, sharded, quantize, uds_path)
 
 

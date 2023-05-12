@@ -32,7 +32,10 @@ except Exception as e:
 
 class GPTNeoxSharded(CausalLM):
     def __init__(
-        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         self.master = rank == 0
@@ -83,7 +86,7 @@ class GPTNeoxSharded(CausalLM):
     def load_weights(
         model,
         filenames: List[str],
-        quantize: bool,
+        quantize: Optional[str],
         device: torch.device,
         dtype: torch.dtype,
         rank: int,
@@ -148,7 +151,7 @@ class GPTNeoxSharded(CausalLM):
 
                     tensor = tensor.contiguous().to(dtype)
 
-                    if quantize:
+                    if quantize == "bitsandbytes":
                         if not HAS_BITS_AND_BYTES:
                             raise ImportError(
                                 "bitsandbytes is not available on your machine either because it is not installed "
@@ -198,9 +201,14 @@ class GPTNeoxSharded(CausalLM):
                                 return linear
 
                             module.linear = replace_linear(state)
-
-                        else:
+                        elif quantize == "gptq":
+                            raise NotImplementedError(
+                                "`gptq` is not implemented for now"
+                            )
+                        elif quantize is None:
                             tensor = tensor.to(device)
+                        else:
+                            raise ValueError(f"Unexpected quantize `{quantize}`")
 
                     if current_parameter_tensor is not None:
                         module._parameters[param_name] = tensor

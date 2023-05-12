@@ -393,7 +393,7 @@ class FlashCausalLM(Model):
         model_cls: Type[PreTrainedModel],
         model_id: str,
         revision: Optional[str] = None,
-        quantize: bool = False,
+        quantize: Optional[str] = None,
         decode_buffer: int = 3,
     ):
         if torch.cuda.is_available():
@@ -410,7 +410,7 @@ class FlashCausalLM(Model):
                 model_id,
                 revision=revision,
                 torch_dtype=dtype,
-                load_in_8bit=quantize,
+                load_in_8bit=quantize == "bitsandbytes",
             )
             .eval()
             .to(device)
