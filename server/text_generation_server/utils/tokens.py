@@ -187,7 +187,7 @@ class HeterogeneousNextTokenChooser:
 
         if any([x != 0 for x in top_k]):
             do_sample = [sample or x != 0 for x, sample in zip(top_k, do_sample)]
-            warpers.append(HeterogeneousTopKLogitsWarper(top_k, dtype, device))
+            warpers.append(HeterogeneousTopKLogitsWarper(top_k, device))
 
         if any([x < 1.0 for x in top_p]):
             do_sample = [sample or x < 1.0 for x, sample in zip(top_p, do_sample)]

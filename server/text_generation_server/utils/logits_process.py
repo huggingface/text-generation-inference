@@ -197,7 +197,6 @@ class HeterogeneousTopKLogitsWarper(LogitsWarper):
     def __init__(
         self,
         top_k: List[int],
-        dtype: torch.dtype,
         device: torch.device,
         filter_value: float = -math.inf,
         min_tokens_to_keep: int = 1,
