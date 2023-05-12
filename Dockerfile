@@ -118,7 +118,6 @@ ENV PATH=/opt/conda/bin:$PATH \
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     MODEL_ID=bigscience/bloom-560m \
-    QUANTIZE=false \
     NUM_SHARD=1 \
     PORT=80
 
