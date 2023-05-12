@@ -3,31 +3,36 @@ import torch
 
 from transformers import (
     RepetitionPenaltyLogitsProcessor,
-    PreTrainedTokenizerBase, LogitsProcessorList,
+    PreTrainedTokenizerBase,
+    LogitsProcessorList,
 )
 from typing import List, Tuple, Optional
 
 from text_generation_server.pb import generate_pb2
 from text_generation_server.pb.generate_pb2 import FinishReason
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
-from text_generation_server.utils import Sampling, Greedy
-from text_generation_server.utils.logits_process import static_warper, HeterogeneousRepetitionPenaltyLogitsProcessor, \
-    HeterogeneousTemperatureLogitsWarper, HeterogeneousTopKLogitsWarper, HeterogeneousTopPLogitsWarper, \
-    HeterogeneousTypicalLogitsWarper, HeterogeneousSampling
+from text_generation_server.utils.logits_process import (
+    static_warper,
+    HeterogeneousRepetitionPenaltyLogitsProcessor,
+    HeterogeneousTemperatureLogitsWarper,
+    HeterogeneousTopKLogitsWarper,
+    HeterogeneousTopPLogitsWarper,
+    HeterogeneousTypicalLogitsWarper,
+)
 
 
 class NextTokenChooser:
     def __init__(
-            self,
-            watermark=False,
-            temperature=1.0,
-            repetition_penalty=1.0,
-            top_k=None,
-            top_p=None,
-            typical_p=None,
-            do_sample=False,
-            seed=0,
-            device="cpu",
+        self,
+        watermark=False,
+        temperature=1.0,
+        repetition_penalty=1.0,
+        top_k=None,
+        top_p=None,
+        typical_p=None,
+        do_sample=False,
+        seed=0,
+        device="cpu",
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -39,10 +44,10 @@ class NextTokenChooser:
         )
 
         has_warpers = (
-                (temperature is not None and temperature != 1.0)
-                or (top_k is not None and top_k != 0)
-                or (top_p is not None and top_p < 1.0)
-                or (typical_p is not None and typical_p < 1.0)
+            (temperature is not None and temperature != 1.0)
+            or (top_k is not None and top_k != 0)
+            or (top_p is not None and top_p < 1.0)
+            or (typical_p is not None and typical_p < 1.0)
         )
         if has_warpers:
             self.static_warper = static_warper(
@@ -71,9 +76,9 @@ class NextTokenChooser:
 
     @classmethod
     def from_pb(
-            cls,
-            pb: generate_pb2.NextTokenChooserParameters,
-            device: torch.device,
+        cls,
+        pb: generate_pb2.NextTokenChooserParameters,
+        device: torch.device,
     ) -> "NextTokenChooser":
         return NextTokenChooser(
             watermark=pb.watermark,
@@ -101,11 +106,11 @@ class StopSequenceCriteria:
 
 class StoppingCriteria:
     def __init__(
-            self,
-            eos_token_id: int,
-            stop_sequence_criterias: List[StopSequenceCriteria],
-            max_new_tokens: int = 20,
-            ignore_eos_token: bool = False,
+        self,
+        eos_token_id: int,
+        stop_sequence_criterias: List[StopSequenceCriteria],
+        max_new_tokens: int = 20,
+        ignore_eos_token: bool = False,
     ):
         self.eos_token_id = eos_token_id
         self.stop_sequence_criterias = stop_sequence_criterias
@@ -131,9 +136,9 @@ class StoppingCriteria:
 
     @classmethod
     def from_pb(
-            cls,
-            pb: generate_pb2.StoppingCriteriaParameters,
-            tokenizer: PreTrainedTokenizerBase,
+        cls,
+        pb: generate_pb2.StoppingCriteriaParameters,
+        tokenizer: PreTrainedTokenizerBase,
     ) -> "StoppingCriteria":
         stop_sequence_criterias = [
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
@@ -148,17 +153,17 @@ class StoppingCriteria:
 
 class HeterogeneousNextTokenChooser:
     def __init__(
-            self,
-            dtype: torch.dtype,
-            device: torch.device,
-            watermark: List[bool],
-            temperature: List[float],
-            repetition_penalty: List[float],
-            top_k: List[int],
-            top_p: List[float],
-            typical_p: List[float],
-            do_sample: List[bool],
-            seeds: List[int],
+        self,
+        dtype: torch.dtype,
+        device: torch.device,
+        watermark: List[bool],
+        temperature: List[float],
+        repetition_penalty: List[float],
+        top_k: List[int],
+        top_p: List[float],
+        typical_p: List[float],
+        do_sample: List[bool],
+        seeds: List[int],
     ):
         warpers = LogitsProcessorList()
 
@@ -223,10 +228,10 @@ class HeterogeneousNextTokenChooser:
 
     @classmethod
     def from_pb(
-            cls,
-            pb: List[generate_pb2.NextTokenChooserParameters],
-            dtype: torch.dtype,
-            device: torch.device,
+        cls,
+        pb: List[generate_pb2.NextTokenChooserParameters],
+        dtype: torch.dtype,
+        device: torch.device,
     ) -> "HeterogeneousNextTokenChooser":
         return HeterogeneousNextTokenChooser(
             watermark=[pb_.watermark for pb_ in pb],
@@ -240,3 +245,63 @@ class HeterogeneousNextTokenChooser:
             device=device,
             dtype=dtype,
         )
+
+
+class Sampling:
+    def __init__(self, seed: int, device: str = "cpu"):
+        self.generator = torch.Generator(device)
+        self.generator.manual_seed(seed)
+        self.seed = seed
+
+    def __call__(self, logits):
+        probs = torch.nn.functional.softmax(logits, -1)
+        # Avoid GPU<->CPU sync done by torch multinomial
+        # See: https://github.com/pytorch/pytorch/blob/925a3788ec5c06db62ca732a0e9425a26a00916f/aten/src/ATen/native/Distributions.cpp#L631-L637
+        q = torch.empty_like(probs).exponential_(1, generator=self.generator)
+        return probs.div_(q).argmax()
+
+
+class Greedy:
+    def __call__(self, logits):
+        return logits.argmax(dim=-1)
+
+
+class HeterogeneousSampling:
+    r"""
+    Mixed greedy and probabilistic sampling. Compute both and pick the right one for each sample.
+    """
+
+    def __init__(self, do_sample: List[bool], seeds: List[int], device: torch.device):
+        self.seeds = seeds
+
+        self.greedy_indices = []
+        self.sampling_mapping = {}
+        for i, (sample, seed) in enumerate(zip(do_sample, seeds)):
+            if sample:
+                self.sampling_mapping[i] = Sampling(seed, device)
+            else:
+                self.greedy_indices.append(i)
+
+        self.greedy = Greedy()
+
+    def __call__(self, logits):
+        out = torch.empty(logits.shape[0], dtype=torch.int64, device=logits.device)
+        if self.greedy_indices:
+            out[self.greedy_indices] = torch.argmax(logits[self.greedy_indices], -1)
+
+        for i, sampling in self.sampling_mapping.items():
+            out[i] = sampling(logits[i])
+        return out
+
+    def filter(self, indices):
+        new_greedy_indices = []
+        new_sampling_mapping = {}
+        for i, idx in enumerate(indices):
+            if idx in self.sampling_mapping:
+                new_sampling_mapping[i] = self.sampling_mapping[idx]
+            else:
+                new_greedy_indices.append(i)
+
+        self.greedy_indices = new_greedy_indices
+        self.sampling_mapping = new_sampling_mapping
+        return self

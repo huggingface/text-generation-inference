@@ -18,10 +18,7 @@ from text_generation_server.models.types import (
     GeneratedText,
 )
 from text_generation_server.pb import generate_pb2
-from text_generation_server.utils import (
-    StoppingCriteria,
-    HeterogeneousNextTokenChooser
-)
+from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 
 tracer = trace.get_tracer(__name__)
 
@@ -71,11 +68,11 @@ class FlashCausalLMBatch(Batch):
 
     @classmethod
     def from_pb(
-            cls,
-            pb: generate_pb2.Batch,
-            tokenizer: PreTrainedTokenizerBase,
-            dtype: torch.dtype,
-            device: torch.device,
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
+        device: torch.device,
     ) -> "FlashCausalLMBatch":
         position_ids = []
         cu_seqlens = [0]
@@ -228,7 +225,7 @@ class FlashCausalLMBatch(Batch):
 
             # Slice from past
             past_key_values.append(
-                self.past_key_values[:, self.cu_seqlens[idx]: self.cu_seqlens[idx + 1]]
+                self.past_key_values[:, self.cu_seqlens[idx] : self.cu_seqlens[idx + 1]]
             )
 
             all_input_ids.append(self.all_input_ids[idx])
@@ -242,7 +239,7 @@ class FlashCausalLMBatch(Batch):
 
             cumulative_length += request_input_length
             max_tokens += request_input_length + (
-                    stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
+                stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
             )
 
         if single_request:
@@ -395,7 +392,7 @@ class FlashCausalLMBatch(Batch):
             end_index = cumulative_batch_size + len(batch)
 
             all_input_ids_tensor[
-            start_index:end_index, : batch.all_input_ids_tensor.shape[1]
+                start_index:end_index, : batch.all_input_ids_tensor.shape[1]
             ] = batch.all_input_ids_tensor
 
             cumulative_batch_size += len(batch)
@@ -481,14 +478,14 @@ class FlashCausalLM(Model):
         )
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            cu_seqlens: torch.Tensor,
-            cu_seqlens_q: Optional[torch.Tensor],
-            max_s: int,
-            past_key_values: Optional = None,
-            pre_allocate_past_size: Optional[int] = None,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        cu_seqlens: torch.Tensor,
+        cu_seqlens_q: Optional[torch.Tensor],
+        max_s: int,
+        past_key_values: Optional = None,
+        pre_allocate_past_size: Optional[int] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
         return self.model.forward(
@@ -503,7 +500,7 @@ class FlashCausalLM(Model):
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
-            self, batch: FlashCausalLMBatch
+        self, batch: FlashCausalLMBatch
     ) -> Tuple[List[Generation], Optional[FlashCausalLMBatch]]:
         prefill = batch.past_key_values is None
         single_request = len(batch) == 1
@@ -512,7 +509,7 @@ class FlashCausalLM(Model):
             # Ask to pre-allocate kv to its max size
             # == number of tokens + max_new_tokens
             pre_allocate_past_size = (
-                    batch.input_lengths[0] + batch.stopping_criterias[0].max_new_tokens
+                batch.input_lengths[0] + batch.stopping_criterias[0].max_new_tokens
             )
         else:
             pre_allocate_past_size = None
@@ -613,9 +610,9 @@ class FlashCausalLM(Model):
 
         # For each member of the batch
         for i, (
-                input_length,
-                stopping_criteria,
-                all_input_ids,
+            input_length,
+            stopping_criteria,
+            all_input_ids,
         ) in enumerate(iterator):
             # Indexing metadata
             start_index = cumulative_length
@@ -630,8 +627,8 @@ class FlashCausalLM(Model):
                 # Copy batch.input_ids to prefill_token_indices
                 if len(batch) > 1:
                     prefill_tokens_indices[
-                    start_index: end_index - 1
-                    ] = batch.input_ids[start_index + 1: end_index]
+                        start_index : end_index - 1
+                    ] = batch.input_ids[start_index + 1 : end_index]
                 else:
                     # Set prefill_tokens_indices to the correct slice
                     prefill_tokens_indices = batch.input_ids
@@ -717,7 +714,7 @@ class FlashCausalLM(Model):
                 if stop:
                     # Decode generated tokens
                     output_text = self.decode(
-                        all_input_ids[-stopping_criteria.current_tokens:]
+                        all_input_ids[-stopping_criteria.current_tokens :]
                     )
                     generated_text = GeneratedText(
                         output_text,
@@ -732,8 +729,8 @@ class FlashCausalLM(Model):
                 if prefill:
                     # Remove generated token to only have prefill and add nan for first prompt token
                     request_prefill_logprobs = [float("nan")] + prefill_logprobs[
-                                                                start_index: end_index - 1
-                                                                ]
+                        start_index : end_index - 1
+                    ]
                     prefill_token_ids = all_input_ids[:-1]
                     prefill_texts = self.tokenizer.batch_decode(
                         prefill_token_ids,

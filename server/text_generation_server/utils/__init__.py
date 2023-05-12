@@ -14,8 +14,9 @@ from text_generation_server.utils.tokens import (
     StoppingCriteria,
     StopSequenceCriteria,
     FinishReason,
+    Sampling,
+    Greedy,
 )
-from text_generation_server.utils.logits_process import Sampling, Greedy
 
 __all__ = [
     "convert_file",
