@@ -217,6 +217,7 @@ class FlashSantacoderSharded(FlashSantacoder):
             device=device,
             rank=rank,
             world_size=world_size,
+            decode_buffer=1,
         )
 
     @staticmethod

@@ -585,13 +585,25 @@ class FlashSantacoderForCausalLM(nn.Module):
 
         if self.transformer.tp_embeddings:
             # Logits are sharded, so we need to gather them
-            world_logits = [
-                torch.empty_like(logits) for _ in range(self.transformer.tp_world_size)
-            ]
-            torch.distributed.all_gather(
-                world_logits, logits, group=self.transformer.process_group
-            )
-            world_logits = torch.cat(world_logits, dim=1)
+            if logits.shape[0] == 1:
+                # Fast path when batch size is 1
+                world_logits = logits.new_empty(
+                    (logits.shape[1] * self.transformer.tp_world_size)
+                )
+                torch.distributed.all_gather_into_tensor(
+                    world_logits, logits.view(-1), group=self.transformer.process_group
+                )
+                world_logits = world_logits.view(1, -1)
+            else:
+                # We cannot use all_gather_into_tensor as it only support concatenating on the first dim
+                world_logits = [
+                    torch.empty_like(logits)
+                    for _ in range(self.transformer.tp_world_size)
+                ]
+                torch.distributed.all_gather(
+                    world_logits, logits, group=self.transformer.process_group
+                )
+                world_logits = torch.cat(world_logits, dim=1)
 
             return world_logits, present
 
