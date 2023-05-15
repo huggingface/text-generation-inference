@@ -1,0 +1,542 @@
+# serializer version: 1
+# name: test_bloom_560m_sharded
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.Length: 'length'>,
+      'generated_tokens': 10,
+      'prefill': list([
+        dict({
+          'id': 17934,
+          'text': 'Pour',
+        }),
+        dict({
+          'id': 49833,
+          'text': ' dég',
+        }),
+        dict({
+          'id': 21543,
+          'text': 'uster',
+        }),
+        dict({
+          'id': 447,
+          'text': ' un',
+        }),
+        dict({
+          'id': 46341,
+          'text': ' ort',
+        }),
+        dict({
+          'id': 35567,
+          'text': 'olan',
+        }),
+        dict({
+          'id': 15,
+          'text': ',',
+        }),
+        dict({
+          'id': 1669,
+          'text': ' il',
+        }),
+        dict({
+          'id': 11580,
+          'text': ' faut',
+        }),
+        dict({
+          'id': 3913,
+          'text': ' tout',
+        }),
+        dict({
+          'id': 39261,
+          'text': " d'abord",
+        }),
+      ]),
+      'seed': 0,
+      'tokens': list([
+        dict({
+          'id': 578,
+          'special': False,
+          'text': ' le',
+        }),
+        dict({
+          'id': 5608,
+          'special': False,
+          'text': ' faire',
+        }),
+        dict({
+          'id': 159570,
+          'special': False,
+          'text': ' réch',
+        }),
+        dict({
+          'id': 810,
+          'special': False,
+          'text': 'au',
+        }),
+        dict({
+          'id': 12736,
+          'special': False,
+          'text': 'ffer',
+        }),
+        dict({
+          'id': 1742,
+          'special': False,
+          'text': ' au',
+        }),
+        dict({
+          'id': 6105,
+          'special': False,
+          'text': ' bain',
+        }),
+        dict({
+          'id': 88254,
+          'special': False,
+          'text': '-mar',
+        }),
+        dict({
+          'id': 641,
+          'special': False,
+          'text': 'ie',
+        }),
+        dict({
+          'id': 2940,
+          'special': False,
+          'text': ' avec',
+        }),
+      ]),
+    }),
+    'generated_text': ' le faire réchauffer au bain-marie avec',
+  })
+# ---
+# name: test_bloom_560m_sharded_load
+  list([
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 17934,
+            'text': 'Pour',
+          }),
+          dict({
+            'id': 49833,
+            'text': ' dég',
+          }),
+          dict({
+            'id': 21543,
+            'text': 'uster',
+          }),
+          dict({
+            'id': 447,
+            'text': ' un',
+          }),
+          dict({
+            'id': 46341,
+            'text': ' ort',
+          }),
+          dict({
+            'id': 35567,
+            'text': 'olan',
+          }),
+          dict({
+            'id': 15,
+            'text': ',',
+          }),
+          dict({
+            'id': 1669,
+            'text': ' il',
+          }),
+          dict({
+            'id': 11580,
+            'text': ' faut',
+          }),
+          dict({
+            'id': 3913,
+            'text': ' tout',
+          }),
+          dict({
+            'id': 39261,
+            'text': " d'abord",
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 578,
+            'special': False,
+            'text': ' le',
+          }),
+          dict({
+            'id': 5608,
+            'special': False,
+            'text': ' faire',
+          }),
+          dict({
+            'id': 1767,
+            'special': False,
+            'text': ' cu',
+          }),
+          dict({
+            'id': 1273,
+            'special': False,
+            'text': 'ire',
+          }),
+          dict({
+            'id': 1486,
+            'special': False,
+            'text': ' dans',
+          }),
+          dict({
+            'id': 283,
+            'special': False,
+            'text': ' de',
+          }),
+          dict({
+            'id': 40410,
+            'special': False,
+            'text': " l'eau",
+          }),
+          dict({
+            'id': 20226,
+            'special': False,
+            'text': ' bou',
+          }),
+          dict({
+            'id': 172483,
+            'special': False,
+            'text': 'illante',
+          }),
+          dict({
+            'id': 2805,
+            'special': False,
+            'text': ' sal',
+          }),
+        ]),
+      }),
+      'generated_text': " le faire cuire dans de l'eau bouillante sal",
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 17934,
+            'text': 'Pour',
+          }),
+          dict({
+            'id': 49833,
+            'text': ' dég',
+          }),
+          dict({
+            'id': 21543,
+            'text': 'uster',
+          }),
+          dict({
+            'id': 447,
+            'text': ' un',
+          }),
+          dict({
+            'id': 46341,
+            'text': ' ort',
+          }),
+          dict({
+            'id': 35567,
+            'text': 'olan',
+          }),
+          dict({
+            'id': 15,
+            'text': ',',
+          }),
+          dict({
+            'id': 1669,
+            'text': ' il',
+          }),
+          dict({
+            'id': 11580,
+            'text': ' faut',
+          }),
+          dict({
+            'id': 3913,
+            'text': ' tout',
+          }),
+          dict({
+            'id': 39261,
+            'text': " d'abord",
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 578,
+            'special': False,
+            'text': ' le',
+          }),
+          dict({
+            'id': 5608,
+            'special': False,
+            'text': ' faire',
+          }),
+          dict({
+            'id': 1767,
+            'special': False,
+            'text': ' cu',
+          }),
+          dict({
+            'id': 1273,
+            'special': False,
+            'text': 'ire',
+          }),
+          dict({
+            'id': 1486,
+            'special': False,
+            'text': ' dans',
+          }),
+          dict({
+            'id': 283,
+            'special': False,
+            'text': ' de',
+          }),
+          dict({
+            'id': 40410,
+            'special': False,
+            'text': " l'eau",
+          }),
+          dict({
+            'id': 20226,
+            'special': False,
+            'text': ' bou',
+          }),
+          dict({
+            'id': 172483,
+            'special': False,
+            'text': 'illante',
+          }),
+          dict({
+            'id': 2805,
+            'special': False,
+            'text': ' sal',
+          }),
+        ]),
+      }),
+      'generated_text': " le faire cuire dans de l'eau bouillante sal",
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 17934,
+            'text': 'Pour',
+          }),
+          dict({
+            'id': 49833,
+            'text': ' dég',
+          }),
+          dict({
+            'id': 21543,
+            'text': 'uster',
+          }),
+          dict({
+            'id': 447,
+            'text': ' un',
+          }),
+          dict({
+            'id': 46341,
+            'text': ' ort',
+          }),
+          dict({
+            'id': 35567,
+            'text': 'olan',
+          }),
+          dict({
+            'id': 15,
+            'text': ',',
+          }),
+          dict({
+            'id': 1669,
+            'text': ' il',
+          }),
+          dict({
+            'id': 11580,
+            'text': ' faut',
+          }),
+          dict({
+            'id': 3913,
+            'text': ' tout',
+          }),
+          dict({
+            'id': 39261,
+            'text': " d'abord",
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 578,
+            'special': False,
+            'text': ' le',
+          }),
+          dict({
+            'id': 5608,
+            'special': False,
+            'text': ' faire',
+          }),
+          dict({
+            'id': 1767,
+            'special': False,
+            'text': ' cu',
+          }),
+          dict({
+            'id': 1273,
+            'special': False,
+            'text': 'ire',
+          }),
+          dict({
+            'id': 1486,
+            'special': False,
+            'text': ' dans',
+          }),
+          dict({
+            'id': 283,
+            'special': False,
+            'text': ' de',
+          }),
+          dict({
+            'id': 40410,
+            'special': False,
+            'text': " l'eau",
+          }),
+          dict({
+            'id': 20226,
+            'special': False,
+            'text': ' bou',
+          }),
+          dict({
+            'id': 172483,
+            'special': False,
+            'text': 'illante',
+          }),
+          dict({
+            'id': 2805,
+            'special': False,
+            'text': ' sal',
+          }),
+        ]),
+      }),
+      'generated_text': " le faire cuire dans de l'eau bouillante sal",
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 17934,
+            'text': 'Pour',
+          }),
+          dict({
+            'id': 49833,
+            'text': ' dég',
+          }),
+          dict({
+            'id': 21543,
+            'text': 'uster',
+          }),
+          dict({
+            'id': 447,
+            'text': ' un',
+          }),
+          dict({
+            'id': 46341,
+            'text': ' ort',
+          }),
+          dict({
+            'id': 35567,
+            'text': 'olan',
+          }),
+          dict({
+            'id': 15,
+            'text': ',',
+          }),
+          dict({
+            'id': 1669,
+            'text': ' il',
+          }),
+          dict({
+            'id': 11580,
+            'text': ' faut',
+          }),
+          dict({
+            'id': 3913,
+            'text': ' tout',
+          }),
+          dict({
+            'id': 39261,
+            'text': " d'abord",
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 578,
+            'special': False,
+            'text': ' le',
+          }),
+          dict({
+            'id': 5608,
+            'special': False,
+            'text': ' faire',
+          }),
+          dict({
+            'id': 1767,
+            'special': False,
+            'text': ' cu',
+          }),
+          dict({
+            'id': 1273,
+            'special': False,
+            'text': 'ire',
+          }),
+          dict({
+            'id': 1486,
+            'special': False,
+            'text': ' dans',
+          }),
+          dict({
+            'id': 283,
+            'special': False,
+            'text': ' de',
+          }),
+          dict({
+            'id': 40410,
+            'special': False,
+            'text': " l'eau",
+          }),
+          dict({
+            'id': 20226,
+            'special': False,
+            'text': ' bou',
+          }),
+          dict({
+            'id': 172483,
+            'special': False,
+            'text': 'illante',
+          }),
+          dict({
+            'id': 2805,
+            'special': False,
+            'text': ' sal',
+          }),
+        ]),
+      }),
+      'generated_text': " le faire cuire dans de l'eau bouillante sal",
+    }),
+  ])
+# ---

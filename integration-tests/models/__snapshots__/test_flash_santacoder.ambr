@@ -1,0 +1,472 @@
+# serializer version: 1
+# name: test_flash_santacoder
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.Length: 'length'>,
+      'generated_tokens': 10,
+      'prefill': list([
+        dict({
+          'id': 563,
+          'text': 'def',
+        }),
+        dict({
+          'id': 942,
+          'text': ' print',
+        }),
+        dict({
+          'id': 62,
+          'text': '_',
+        }),
+        dict({
+          'id': 7196,
+          'text': 'hello',
+        }),
+      ]),
+      'seed': None,
+      'tokens': list([
+        dict({
+          'id': 1241,
+          'special': False,
+          'text': '():',
+        }),
+        dict({
+          'id': 258,
+          'special': False,
+          'text': '''
+            
+               
+          ''',
+        }),
+        dict({
+          'id': 942,
+          'special': False,
+          'text': ' print',
+        }),
+        dict({
+          'id': 372,
+          'special': False,
+          'text': '("',
+        }),
+        dict({
+          'id': 7371,
+          'special': False,
+          'text': 'Hello',
+        }),
+        dict({
+          'id': 9956,
+          'special': False,
+          'text': ' World',
+        }),
+        dict({
+          'id': 8657,
+          'special': False,
+          'text': '!")',
+        }),
+        dict({
+          'id': 185,
+          'special': False,
+          'text': '''
+            
+  
+          ''',
+        }),
+        dict({
+          'id': 185,
+          'special': False,
+          'text': '''
+            
+  
+          ''',
+        }),
+        dict({
+          'id': 1018,
+          'special': False,
+          'text': 'print',
+        }),
+      ]),
+    }),
+    'generated_text': '''
+      ():
+          print("Hello World!")
+      
+      print
+    ''',
+  })
+# ---
+# name: test_flash_santacoder_load
+  list([
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 563,
+            'text': 'def',
+          }),
+          dict({
+            'id': 942,
+            'text': ' print',
+          }),
+          dict({
+            'id': 62,
+            'text': '_',
+          }),
+          dict({
+            'id': 7196,
+            'text': 'hello',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 1241,
+            'special': False,
+            'text': '():',
+          }),
+          dict({
+            'id': 258,
+            'special': False,
+            'text': '''
+              
+                 
+            ''',
+          }),
+          dict({
+            'id': 942,
+            'special': False,
+            'text': ' print',
+          }),
+          dict({
+            'id': 372,
+            'special': False,
+            'text': '("',
+          }),
+          dict({
+            'id': 7371,
+            'special': False,
+            'text': 'Hello',
+          }),
+          dict({
+            'id': 9956,
+            'special': False,
+            'text': ' World',
+          }),
+          dict({
+            'id': 8657,
+            'special': False,
+            'text': '!")',
+          }),
+          dict({
+            'id': 185,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 185,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 1018,
+            'special': False,
+            'text': 'print',
+          }),
+        ]),
+      }),
+      'generated_text': '''
+        ():
+            print("Hello World!")
+        
+        print
+      ''',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 563,
+            'text': 'def',
+          }),
+          dict({
+            'id': 942,
+            'text': ' print',
+          }),
+          dict({
+            'id': 62,
+            'text': '_',
+          }),
+          dict({
+            'id': 7196,
+            'text': 'hello',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 1241,
+            'special': False,
+            'text': '():',
+          }),
+          dict({
+            'id': 258,
+            'special': False,
+            'text': '''
+              
+                 
+            ''',
+          }),
+          dict({
+            'id': 942,
+            'special': False,
+            'text': ' print',
+          }),
+          dict({
+            'id': 372,
+            'special': False,
+            'text': '("',
+          }),
+          dict({
+            'id': 7371,
+            'special': False,
+            'text': 'Hello',
+          }),
+          dict({
+            'id': 9956,
+            'special': False,
+            'text': ' World',
+          }),
+          dict({
+            'id': 8657,
+            'special': False,
+            'text': '!")',
+          }),
+          dict({
+            'id': 185,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 185,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 1018,
+            'special': False,
+            'text': 'print',
+          }),
+        ]),
+      }),
+      'generated_text': '''
+        ():
+            print("Hello World!")
+        
+        print
+      ''',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 563,
+            'text': 'def',
+          }),
+          dict({
+            'id': 942,
+            'text': ' print',
+          }),
+          dict({
+            'id': 62,
+            'text': '_',
+          }),
+          dict({
+            'id': 7196,
+            'text': 'hello',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 1241,
+            'special': False,
+            'text': '():',
+          }),
+          dict({
+            'id': 258,
+            'special': False,
+            'text': '''
+              
+                 
+            ''',
+          }),
+          dict({
+            'id': 942,
+            'special': False,
+            'text': ' print',
+          }),
+          dict({
+            'id': 372,
+            'special': False,
+            'text': '("',
+          }),
+          dict({
+            'id': 7371,
+            'special': False,
+            'text': 'Hello',
+          }),
+          dict({
+            'id': 9956,
+            'special': False,
+            'text': ' World',
+          }),
+          dict({
+            'id': 8657,
+            'special': False,
+            'text': '!")',
+          }),
+          dict({
+            'id': 185,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 185,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 1018,
+            'special': False,
+            'text': 'print',
+          }),
+        ]),
+      }),
+      'generated_text': '''
+        ():
+            print("Hello World!")
+        
+        print
+      ''',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 563,
+            'text': 'def',
+          }),
+          dict({
+            'id': 942,
+            'text': ' print',
+          }),
+          dict({
+            'id': 62,
+            'text': '_',
+          }),
+          dict({
+            'id': 7196,
+            'text': 'hello',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 1241,
+            'special': False,
+            'text': '():',
+          }),
+          dict({
+            'id': 258,
+            'special': False,
+            'text': '''
+              
+                 
+            ''',
+          }),
+          dict({
+            'id': 942,
+            'special': False,
+            'text': ' print',
+          }),
+          dict({
+            'id': 372,
+            'special': False,
+            'text': '("',
+          }),
+          dict({
+            'id': 7371,
+            'special': False,
+            'text': 'Hello',
+          }),
+          dict({
+            'id': 9956,
+            'special': False,
+            'text': ' World',
+          }),
+          dict({
+            'id': 8657,
+            'special': False,
+            'text': '!")',
+          }),
+          dict({
+            'id': 185,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 185,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 1018,
+            'special': False,
+            'text': 'print',
+          }),
+        ]),
+      }),
+      'generated_text': '''
+        ():
+            print("Hello World!")
+        
+        print
+      ''',
+    }),
+  ])
+# ---

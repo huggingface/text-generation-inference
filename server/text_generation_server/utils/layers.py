@@ -1,6 +1,8 @@
 import torch
 
 from torch import nn
+from torch.nn import functional as F
+from typing import Optional
 
 HAS_BITS_AND_BYTES = True
 try:
@@ -22,7 +24,7 @@ class FastLinear(nn.Linear):
         self.quantized = False
         self.bnb_linear = None
 
-    def prepare_weights(self, quantize: bool = False):
+    def prepare_weights(self, quantize: Optional[str] = None):
         if quantize == "bitsandbytes":
             if not HAS_BITS_AND_BYTES:
                 raise ImportError(
@@ -126,6 +128,7 @@ class TensorParallelEmbedding(nn.Embedding):
         num_embeddings,
         embedding_dim,
         process_group: torch.distributed.ProcessGroup,
+        reduce=True,
         padding_idx=None,
         max_norm=None,
         norm_type=2.0,
@@ -135,6 +138,7 @@ class TensorParallelEmbedding(nn.Embedding):
         device=None,
         dtype=None,
     ):
+        self.reduce = reduce
         self.process_group = process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
@@ -177,7 +181,8 @@ class TensorParallelEmbedding(nn.Embedding):
             input - self.min_id,
         )
         out = super().forward(input)
-        torch.distributed.all_reduce(out, group=self.process_group)
+        if self.reduce:
+            torch.distributed.all_reduce(out, group=self.process_group)
         return out
 
 

@@ -21,8 +21,6 @@
 import torch
 import torch.distributed
 
-from torch.nn import functional as F
-
 from torch import nn
 from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
@@ -32,7 +30,6 @@ from typing import Optional
 # Flash attention imports
 import flash_attn_cuda
 
-from flash_attn.layers.rotary import RotaryEmbedding
 from text_generation_server.utils.layers import (
     FastLinear,
     TensorParallelRowLinear,
@@ -345,16 +342,16 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         self.head_size = self.layers[0].attention.head_size
         self.num_heads = self.layers[0].attention.num_heads
 
-    def post_load_weights(self, load_in_8bit=False):
+    def post_load_weights(self, quantize: Optional[str] = None):
         if isinstance(self.embed_in, TensorParallelEmbedding):
             self.embed_in.add_null_idx()
         for layer in self.layers:
             layer: FlashNeoXLayer
             layer.attention.shuffle_qkv_dims()
-            layer.attention.query_key_value.prepare_weights(load_in_8bit)
-            layer.attention.dense.prepare_weights(load_in_8bit)
-            layer.mlp.dense_h_to_4h.prepare_weights(load_in_8bit)
-            layer.mlp.dense_4h_to_h.prepare_weights(load_in_8bit)
+            layer.attention.query_key_value.prepare_weights(quantize)
+            layer.attention.dense.prepare_weights(quantize)
+            layer.mlp.dense_h_to_4h.prepare_weights(quantize)
+            layer.mlp.dense_4h_to_h.prepare_weights(quantize)
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
@@ -457,8 +454,8 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
                 config.hidden_size, config.vocab_size, bias=False
             )
 
-    def post_load_weights(self, load_in_8bit=False):
-        self.gpt_neox.post_load_weights(load_in_8bit)
+    def post_load_weights(self, quantize: Optional[str] = None):
+        self.gpt_neox.post_load_weights(quantize)
         self.embed_out.prepare_weights()
 
     @classmethod

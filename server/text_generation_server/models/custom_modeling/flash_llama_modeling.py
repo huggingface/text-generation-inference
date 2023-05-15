@@ -21,16 +21,14 @@
 import torch
 import torch.distributed
 
-from torch.nn import functional as F
-
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional
 
 # Flash attention imports
 import flash_attn_cuda
+import dropout_layer_norm
 
-from flash_attn.layers.rotary import RotaryEmbedding
 from text_generation_server.utils.layers import (
     FastLinear,
     TensorParallelRowLinear,
@@ -332,15 +330,15 @@ class FlashLlamaModel(torch.nn.Module):
         self.head_size = self.layers[0].self_attn.head_size
         self.num_heads = self.layers[0].self_attn.num_heads
 
-    def post_load_weights(self, load_in_8bit: bool = False):
+    def post_load_weights(self, quantize: Optional[str] = None):
         if isinstance(self.embed_tokens, TensorParallelEmbedding):
             self.embed_tokens.add_null_idx()
         for layer in self.layers:
             layer: FlashLlamaLayer
-            layer.self_attn.query_key_value.prepare_weights(load_in_8bit)
-            layer.self_attn.o_proj.prepare_weights(load_in_8bit)
-            layer.mlp.gate_up_proj.prepare_weights(load_in_8bit)
-            layer.mlp.down_proj.prepare_weights(load_in_8bit)
+            layer.self_attn.query_key_value.prepare_weights(quantize)
+            layer.self_attn.o_proj.prepare_weights(quantize)
+            layer.mlp.gate_up_proj.prepare_weights(quantize)
+            layer.mlp.down_proj.prepare_weights(quantize)
 
     def forward(
         self,
@@ -429,8 +427,8 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         else:
             self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
 
-    def post_load_weights(self, load_in_8bit: bool = False):
-        self.model.post_load_weights(load_in_8bit)
+    def post_load_weights(self, quantize: Optional[str] = None):
+        self.model.post_load_weights(quantize)
         self.lm_head.prepare_weights()
 
     def forward(

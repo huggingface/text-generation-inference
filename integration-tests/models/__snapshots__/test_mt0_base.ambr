@@ -1,0 +1,306 @@
+# serializer version: 1
+# name: test_mt0_base
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.EndOfSequenceToken: 'eos_token'>,
+      'generated_tokens': 5,
+      'prefill': list([
+        dict({
+          'id': 0,
+          'text': '<pad>',
+        }),
+      ]),
+      'seed': 0,
+      'tokens': list([
+        dict({
+          'id': 926,
+          'special': False,
+          'text': 'To',
+        }),
+        dict({
+          'id': 18295,
+          'special': False,
+          'text': ' sell',
+        }),
+        dict({
+          'id': 7868,
+          'special': False,
+          'text': ' things',
+        }),
+        dict({
+          'id': 260,
+          'special': False,
+          'text': '.',
+        }),
+        dict({
+          'id': 1,
+          'special': True,
+          'text': '</s>',
+        }),
+      ]),
+    }),
+    'generated_text': 'To sell things.',
+  })
+# ---
+# name: test_mt0_base_all_params
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.Length: 'length'>,
+      'generated_tokens': 10,
+      'prefill': list([
+        dict({
+          'id': 0,
+          'text': '<pad>',
+        }),
+      ]),
+      'seed': 0,
+      'tokens': list([
+        dict({
+          'id': 16017,
+          'special': False,
+          'text': 'blue',
+        }),
+        dict({
+          'id': 20495,
+          'special': False,
+          'text': ' sky',
+        }),
+        dict({
+          'id': 259,
+          'special': False,
+          'text': ' ',
+        }),
+        dict({
+          'id': 15484,
+          'special': False,
+          'text': 'appear',
+        }),
+        dict({
+          'id': 345,
+          'special': False,
+          'text': 'ed',
+        }),
+        dict({
+          'id': 288,
+          'special': False,
+          'text': ' to',
+        }),
+        dict({
+          'id': 35622,
+          'special': False,
+          'text': ' cloud',
+        }),
+        dict({
+          'id': 263,
+          'special': False,
+          'text': 's',
+        }),
+        dict({
+          'id': 14701,
+          'special': False,
+          'text': ' above',
+        }),
+        dict({
+          'id': 751,
+          'special': False,
+          'text': ' all',
+        }),
+      ]),
+    }),
+    'generated_text': 'Why is the sky blue?blue sky appeared to clouds above all',
+  })
+# ---
+# name: test_mt0_base_load
+  list([
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.EndOfSequenceToken: 'eos_token'>,
+        'generated_tokens': 6,
+        'prefill': list([
+          dict({
+            'id': 0,
+            'text': '<pad>',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 259,
+            'special': False,
+            'text': '',
+          }),
+          dict({
+            'id': 39261,
+            'special': False,
+            'text': 'Because',
+          }),
+          dict({
+            'id': 609,
+            'special': False,
+            'text': ' it',
+          }),
+          dict({
+            'id': 339,
+            'special': False,
+            'text': ' is',
+          }),
+          dict({
+            'id': 16017,
+            'special': False,
+            'text': ' blue',
+          }),
+          dict({
+            'id': 1,
+            'special': True,
+            'text': '</s>',
+          }),
+        ]),
+      }),
+      'generated_text': 'Because it is blue',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.EndOfSequenceToken: 'eos_token'>,
+        'generated_tokens': 6,
+        'prefill': list([
+          dict({
+            'id': 0,
+            'text': '<pad>',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 259,
+            'special': False,
+            'text': '',
+          }),
+          dict({
+            'id': 39261,
+            'special': False,
+            'text': 'Because',
+          }),
+          dict({
+            'id': 609,
+            'special': False,
+            'text': ' it',
+          }),
+          dict({
+            'id': 339,
+            'special': False,
+            'text': ' is',
+          }),
+          dict({
+            'id': 16017,
+            'special': False,
+            'text': ' blue',
+          }),
+          dict({
+            'id': 1,
+            'special': True,
+            'text': '</s>',
+          }),
+        ]),
+      }),
+      'generated_text': 'Because it is blue',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.EndOfSequenceToken: 'eos_token'>,
+        'generated_tokens': 6,
+        'prefill': list([
+          dict({
+            'id': 0,
+            'text': '<pad>',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 259,
+            'special': False,
+            'text': '',
+          }),
+          dict({
+            'id': 39261,
+            'special': False,
+            'text': 'Because',
+          }),
+          dict({
+            'id': 609,
+            'special': False,
+            'text': ' it',
+          }),
+          dict({
+            'id': 339,
+            'special': False,
+            'text': ' is',
+          }),
+          dict({
+            'id': 16017,
+            'special': False,
+            'text': ' blue',
+          }),
+          dict({
+            'id': 1,
+            'special': True,
+            'text': '</s>',
+          }),
+        ]),
+      }),
+      'generated_text': 'Because it is blue',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.EndOfSequenceToken: 'eos_token'>,
+        'generated_tokens': 6,
+        'prefill': list([
+          dict({
+            'id': 0,
+            'text': '<pad>',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 259,
+            'special': False,
+            'text': '',
+          }),
+          dict({
+            'id': 39261,
+            'special': False,
+            'text': 'Because',
+          }),
+          dict({
+            'id': 609,
+            'special': False,
+            'text': ' it',
+          }),
+          dict({
+            'id': 339,
+            'special': False,
+            'text': ' is',
+          }),
+          dict({
+            'id': 16017,
+            'special': False,
+            'text': ' blue',
+          }),
+          dict({
+            'id': 1,
+            'special': True,
+            'text': '</s>',
+          }),
+        ]),
+      }),
+      'generated_text': 'Because it is blue',
+    }),
+  ])
+# ---

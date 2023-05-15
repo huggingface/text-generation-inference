@@ -1,0 +1,682 @@
+# serializer version: 1
+# name: test_flash_neox
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.Length: 'length'>,
+      'generated_tokens': 10,
+      'prefill': list([
+        dict({
+          'id': 50278,
+          'text': '<|prompter|>',
+        }),
+        dict({
+          'id': 1276,
+          'text': 'What',
+        }),
+        dict({
+          'id': 310,
+          'text': ' is',
+        }),
+        dict({
+          'id': 247,
+          'text': ' a',
+        }),
+        dict({
+          'id': 1167,
+          'text': ' mem',
+        }),
+        dict({
+          'id': 70,
+          'text': 'e',
+        }),
+        dict({
+          'id': 13,
+          'text': ',',
+        }),
+        dict({
+          'id': 285,
+          'text': ' and',
+        }),
+        dict({
+          'id': 752,
+          'text': ' what',
+        }),
+        dict({
+          'id': 434,
+          'text': "'s",
+        }),
+        dict({
+          'id': 253,
+          'text': ' the',
+        }),
+        dict({
+          'id': 2892,
+          'text': ' history',
+        }),
+        dict({
+          'id': 3212,
+          'text': ' behind',
+        }),
+        dict({
+          'id': 436,
+          'text': ' this',
+        }),
+        dict({
+          'id': 3159,
+          'text': ' word',
+        }),
+        dict({
+          'id': 32,
+          'text': '?',
+        }),
+        dict({
+          'id': 0,
+          'text': '<|endoftext|>',
+        }),
+        dict({
+          'id': 50281,
+          'text': '<|assistant|>',
+        }),
+      ]),
+      'seed': None,
+      'tokens': list([
+        dict({
+          'id': 510,
+          'special': False,
+          'text': 'The',
+        }),
+        dict({
+          'id': 3159,
+          'special': False,
+          'text': ' word',
+        }),
+        dict({
+          'id': 346,
+          'special': False,
+          'text': ' "',
+        }),
+        dict({
+          'id': 6441,
+          'special': False,
+          'text': 'mem',
+        }),
+        dict({
+          'id': 70,
+          'special': False,
+          'text': 'e',
+        }),
+        dict({
+          'id': 3,
+          'special': False,
+          'text': '"',
+        }),
+        dict({
+          'id': 369,
+          'special': False,
+          'text': ' was',
+        }),
+        dict({
+          'id': 806,
+          'special': False,
+          'text': ' first',
+        }),
+        dict({
+          'id': 908,
+          'special': False,
+          'text': ' used',
+        }),
+        dict({
+          'id': 275,
+          'special': False,
+          'text': ' in',
+        }),
+      ]),
+    }),
+    'generated_text': 'The word "meme" was first used in',
+  })
+# ---
+# name: test_flash_neox_load
+  list([
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 50278,
+            'text': '<|prompter|>',
+          }),
+          dict({
+            'id': 1276,
+            'text': 'What',
+          }),
+          dict({
+            'id': 310,
+            'text': ' is',
+          }),
+          dict({
+            'id': 247,
+            'text': ' a',
+          }),
+          dict({
+            'id': 1167,
+            'text': ' mem',
+          }),
+          dict({
+            'id': 70,
+            'text': 'e',
+          }),
+          dict({
+            'id': 13,
+            'text': ',',
+          }),
+          dict({
+            'id': 285,
+            'text': ' and',
+          }),
+          dict({
+            'id': 752,
+            'text': ' what',
+          }),
+          dict({
+            'id': 434,
+            'text': "'s",
+          }),
+          dict({
+            'id': 253,
+            'text': ' the',
+          }),
+          dict({
+            'id': 2892,
+            'text': ' history',
+          }),
+          dict({
+            'id': 3212,
+            'text': ' behind',
+          }),
+          dict({
+            'id': 436,
+            'text': ' this',
+          }),
+          dict({
+            'id': 3159,
+            'text': ' word',
+          }),
+          dict({
+            'id': 32,
+            'text': '?',
+          }),
+          dict({
+            'id': 0,
+            'text': '<|endoftext|>',
+          }),
+          dict({
+            'id': 50281,
+            'text': '<|assistant|>',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 510,
+            'special': False,
+            'text': 'The',
+          }),
+          dict({
+            'id': 3159,
+            'special': False,
+            'text': ' word',
+          }),
+          dict({
+            'id': 346,
+            'special': False,
+            'text': ' "',
+          }),
+          dict({
+            'id': 6441,
+            'special': False,
+            'text': 'mem',
+          }),
+          dict({
+            'id': 70,
+            'special': False,
+            'text': 'e',
+          }),
+          dict({
+            'id': 3,
+            'special': False,
+            'text': '"',
+          }),
+          dict({
+            'id': 369,
+            'special': False,
+            'text': ' was',
+          }),
+          dict({
+            'id': 806,
+            'special': False,
+            'text': ' first',
+          }),
+          dict({
+            'id': 908,
+            'special': False,
+            'text': ' used',
+          }),
+          dict({
+            'id': 275,
+            'special': False,
+            'text': ' in',
+          }),
+        ]),
+      }),
+      'generated_text': 'The word "meme" was first used in',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 50278,
+            'text': '<|prompter|>',
+          }),
+          dict({
+            'id': 1276,
+            'text': 'What',
+          }),
+          dict({
+            'id': 310,
+            'text': ' is',
+          }),
+          dict({
+            'id': 247,
+            'text': ' a',
+          }),
+          dict({
+            'id': 1167,
+            'text': ' mem',
+          }),
+          dict({
+            'id': 70,
+            'text': 'e',
+          }),
+          dict({
+            'id': 13,
+            'text': ',',
+          }),
+          dict({
+            'id': 285,
+            'text': ' and',
+          }),
+          dict({
+            'id': 752,
+            'text': ' what',
+          }),
+          dict({
+            'id': 434,
+            'text': "'s",
+          }),
+          dict({
+            'id': 253,
+            'text': ' the',
+          }),
+          dict({
+            'id': 2892,
+            'text': ' history',
+          }),
+          dict({
+            'id': 3212,
+            'text': ' behind',
+          }),
+          dict({
+            'id': 436,
+            'text': ' this',
+          }),
+          dict({
+            'id': 3159,
+            'text': ' word',
+          }),
+          dict({
+            'id': 32,
+            'text': '?',
+          }),
+          dict({
+            'id': 0,
+            'text': '<|endoftext|>',
+          }),
+          dict({
+            'id': 50281,
+            'text': '<|assistant|>',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 510,
+            'special': False,
+            'text': 'The',
+          }),
+          dict({
+            'id': 3159,
+            'special': False,
+            'text': ' word',
+          }),
+          dict({
+            'id': 346,
+            'special': False,
+            'text': ' "',
+          }),
+          dict({
+            'id': 6441,
+            'special': False,
+            'text': 'mem',
+          }),
+          dict({
+            'id': 70,
+            'special': False,
+            'text': 'e',
+          }),
+          dict({
+            'id': 3,
+            'special': False,
+            'text': '"',
+          }),
+          dict({
+            'id': 369,
+            'special': False,
+            'text': ' was',
+          }),
+          dict({
+            'id': 806,
+            'special': False,
+            'text': ' first',
+          }),
+          dict({
+            'id': 908,
+            'special': False,
+            'text': ' used',
+          }),
+          dict({
+            'id': 275,
+            'special': False,
+            'text': ' in',
+          }),
+        ]),
+      }),
+      'generated_text': 'The word "meme" was first used in',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 50278,
+            'text': '<|prompter|>',
+          }),
+          dict({
+            'id': 1276,
+            'text': 'What',
+          }),
+          dict({
+            'id': 310,
+            'text': ' is',
+          }),
+          dict({
+            'id': 247,
+            'text': ' a',
+          }),
+          dict({
+            'id': 1167,
+            'text': ' mem',
+          }),
+          dict({
+            'id': 70,
+            'text': 'e',
+          }),
+          dict({
+            'id': 13,
+            'text': ',',
+          }),
+          dict({
+            'id': 285,
+            'text': ' and',
+          }),
+          dict({
+            'id': 752,
+            'text': ' what',
+          }),
+          dict({
+            'id': 434,
+            'text': "'s",
+          }),
+          dict({
+            'id': 253,
+            'text': ' the',
+          }),
+          dict({
+            'id': 2892,
+            'text': ' history',
+          }),
+          dict({
+            'id': 3212,
+            'text': ' behind',
+          }),
+          dict({
+            'id': 436,
+            'text': ' this',
+          }),
+          dict({
+            'id': 3159,
+            'text': ' word',
+          }),
+          dict({
+            'id': 32,
+            'text': '?',
+          }),
+          dict({
+            'id': 0,
+            'text': '<|endoftext|>',
+          }),
+          dict({
+            'id': 50281,
+            'text': '<|assistant|>',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 510,
+            'special': False,
+            'text': 'The',
+          }),
+          dict({
+            'id': 3159,
+            'special': False,
+            'text': ' word',
+          }),
+          dict({
+            'id': 346,
+            'special': False,
+            'text': ' "',
+          }),
+          dict({
+            'id': 6441,
+            'special': False,
+            'text': 'mem',
+          }),
+          dict({
+            'id': 70,
+            'special': False,
+            'text': 'e',
+          }),
+          dict({
+            'id': 3,
+            'special': False,
+            'text': '"',
+          }),
+          dict({
+            'id': 369,
+            'special': False,
+            'text': ' was',
+          }),
+          dict({
+            'id': 806,
+            'special': False,
+            'text': ' first',
+          }),
+          dict({
+            'id': 908,
+            'special': False,
+            'text': ' used',
+          }),
+          dict({
+            'id': 275,
+            'special': False,
+            'text': ' in',
+          }),
+        ]),
+      }),
+      'generated_text': 'The word "meme" was first used in',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 50278,
+            'text': '<|prompter|>',
+          }),
+          dict({
+            'id': 1276,
+            'text': 'What',
+          }),
+          dict({
+            'id': 310,
+            'text': ' is',
+          }),
+          dict({
+            'id': 247,
+            'text': ' a',
+          }),
+          dict({
+            'id': 1167,
+            'text': ' mem',
+          }),
+          dict({
+            'id': 70,
+            'text': 'e',
+          }),
+          dict({
+            'id': 13,
+            'text': ',',
+          }),
+          dict({
+            'id': 285,
+            'text': ' and',
+          }),
+          dict({
+            'id': 752,
+            'text': ' what',
+          }),
+          dict({
+            'id': 434,
+            'text': "'s",
+          }),
+          dict({
+            'id': 253,
+            'text': ' the',
+          }),
+          dict({
+            'id': 2892,
+            'text': ' history',
+          }),
+          dict({
+            'id': 3212,
+            'text': ' behind',
+          }),
+          dict({
+            'id': 436,
+            'text': ' this',
+          }),
+          dict({
+            'id': 3159,
+            'text': ' word',
+          }),
+          dict({
+            'id': 32,
+            'text': '?',
+          }),
+          dict({
+            'id': 0,
+            'text': '<|endoftext|>',
+          }),
+          dict({
+            'id': 50281,
+            'text': '<|assistant|>',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 510,
+            'special': False,
+            'text': 'The',
+          }),
+          dict({
+            'id': 3159,
+            'special': False,
+            'text': ' word',
+          }),
+          dict({
+            'id': 346,
+            'special': False,
+            'text': ' "',
+          }),
+          dict({
+            'id': 6441,
+            'special': False,
+            'text': 'mem',
+          }),
+          dict({
+            'id': 70,
+            'special': False,
+            'text': 'e',
+          }),
+          dict({
+            'id': 3,
+            'special': False,
+            'text': '"',
+          }),
+          dict({
+            'id': 369,
+            'special': False,
+            'text': ' was',
+          }),
+          dict({
+            'id': 806,
+            'special': False,
+            'text': ' first',
+          }),
+          dict({
+            'id': 908,
+            'special': False,
+            'text': ' used',
+          }),
+          dict({
+            'id': 275,
+            'special': False,
+            'text': ' in',
+          }),
+        ]),
+      }),
+      'generated_text': 'The word "meme" was first used in',
+    }),
+  ])
+# ---

@@ -1,8 +1,6 @@
 import torch
 import torch.distributed
 
-import torch.nn.functional as F
-
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional
@@ -261,16 +259,16 @@ class FlashSantacoderModel(nn.Module):
         self.head_size = self.h[0].attn.head_size
         self.num_heads = self.h[0].attn.num_heads
 
-    def post_load_weights(self, load_in_8bit: bool = False):
+    def post_load_weights(self, quantize: Optional[str] = None):
         if self.tp_embeddings:
             self.wte.add_null_idx()
             self.wpe.add_null_idx()
         for layer in self.h:
             layer: Block
-            layer.attn.c_attn.prepare_weights(load_in_8bit)
-            layer.attn.c_proj.prepare_weights(load_in_8bit)
-            layer.mlp.c_fc.prepare_weights(load_in_8bit)
-            layer.mlp.c_proj.prepare_weights(load_in_8bit)
+            layer.attn.c_attn.prepare_weights(quantize)
+            layer.attn.c_proj.prepare_weights(quantize)
+            layer.mlp.c_fc.prepare_weights(quantize)
+            layer.mlp.c_proj.prepare_weights(quantize)
 
     def forward(
         self,
@@ -347,8 +345,8 @@ class FlashSantacoderForCausalLM(nn.Module):
         else:
             self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
 
-    def post_load_weights(self, load_in_8bit: bool = False):
-        self.transformer.post_load_weights(load_in_8bit)
+    def post_load_weights(self, quantize: Optional[str] = None):
+        self.transformer.post_load_weights(quantize)
         self.lm_head.prepare_weights()
 
     def forward(

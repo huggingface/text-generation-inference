@@ -1,6 +1,9 @@
 install-server:
 	cd server && make install
 
+install-integration-tests:
+	cd integration-tests && pip install -r requirements.txt
+
 install-router:
 	cd router && cargo install --path .
 
@@ -18,8 +21,14 @@ server-dev:
 router-dev:
 	cd router && cargo run -- --port 8080
 
-integration-tests: install-router install-launcher
+rust-tests: install-router install-launcher
 	cargo test
+
+integration-tests: install-integration-tests
+	pytest -s -vv -m "not private" integration-tests
+
+update-integration-tests: install-integration-tests
+	pytest -s -vv --snapshot-update integration-tests
 
 python-server-tests:
 	HF_HUB_ENABLE_HF_TRANSFER=1 pytest server/tests
