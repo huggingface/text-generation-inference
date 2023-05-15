@@ -189,7 +189,6 @@ jobs:
       cancel-in-progress: true
     needs:
       - start-runner
-#      - build-and-push-image # Wait for the docker image to be built
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     steps:
       - uses: actions/checkout@v2
@@ -213,7 +212,6 @@ jobs:
       - name: Run tests
         run: |
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-65391ba
-#          export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
           export HUGGING_FACE_HUB_TOKEN={{ secrets.HUGGING_FACE_HUB_TOKEN }}
           make integration-tests
 
@@ -221,7 +219,6 @@ jobs:
     name: Stop self-hosted EC2 runner
     needs:
       - start-runner
-#      - build-and-push-image
       - integration-tests
     runs-on: ubuntu-latest
     env:
