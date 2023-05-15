@@ -376,6 +376,9 @@ class FlashSantacoderSharded(FlashSantacoder):
                     else:
                         module._buffers[param_name] = tensor
 
+
+        model.lm_head.weight = torch.nn.Parameter(model.transformer.wte.weight)
+
         uninitialized_parameters = []
         for n, p in model.named_parameters():
             if p.data.device == torch.device("meta"):
