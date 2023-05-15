@@ -136,11 +136,8 @@ jobs:
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: |
-            type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
-            type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache-${{ github.ref_name }},mode=max
-            type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache-${{ github.head_ref || github.run_id }},mode=max
-          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache-${{ github.ref_name }},mode=max
+          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
+          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=max
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker
       # repository is public to avoid leaking data.
