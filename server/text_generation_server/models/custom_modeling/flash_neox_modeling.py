@@ -21,8 +21,6 @@
 import torch
 import torch.distributed
 
-from torch.nn import functional as F
-
 from torch import nn
 from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
@@ -32,7 +30,6 @@ from typing import Optional
 # Flash attention imports
 import flash_attn_cuda
 
-from flash_attn.layers.rotary import RotaryEmbedding
 from text_generation_server.utils.layers import (
     FastLinear,
     TensorParallelRowLinear,
