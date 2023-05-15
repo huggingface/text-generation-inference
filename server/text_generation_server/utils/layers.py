@@ -1,7 +1,7 @@
 import torch
 
 from torch import nn
-import dropout_layer_norm
+import torch.nn.functional as F
 
 HAS_BITS_AND_BYTES = True
 try:
@@ -18,12 +18,11 @@ class FastLinear(nn.Linear):
         bias: bool = True,
         device=None,
         dtype=None,
+        quantize=None,
     ) -> None:
-        super(FastLinear, self).__init__(in_features, out_features, bias, device, dtype)
-        self.quantized = False
+        self.quantize = quantize
         self.bnb_linear = None
 
-    def prepare_weights(self, quantize: bool = False):
         if quantize == "bitsandbytes":
             if not HAS_BITS_AND_BYTES:
                 raise ImportError(
@@ -33,6 +32,7 @@ class FastLinear(nn.Linear):
                 )
 
             self.quantized = True
+            super().__init__(in_features, out_features, bias, device, dtype)
             self.bnb_linear = Linear8bitLt(
                 self.in_features,
                 self.out_features,
@@ -51,12 +51,13 @@ class FastLinear(nn.Linear):
         elif quantize == "gptq":
             raise NotImplementedError("`gptq` is not implemented for now")
         elif quantize is None:
+            super().__init__(in_features, out_features, bias, device, dtype)
             self.weight = nn.Parameter(self.weight.T)
         else:
             raise ValueError(f"Unexpected quantize `{quantize}`")
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.quantized:
+        if self.quantize:
             return self.bnb_linear(input)
         else:
             if self.bias is not None:
@@ -73,6 +74,7 @@ class TensorParallelColumnLinear(FastLinear):
         bias=True,
         device=None,
         dtype=None,
+        quantize=None,
     ):
         self.process_group = process_group
         self.tp_world_size = process_group.size()
@@ -85,6 +87,7 @@ class TensorParallelColumnLinear(FastLinear):
             bias=bias,
             device=device,
             dtype=dtype,
+            quantize=quantize,
         )
 
 
@@ -98,6 +101,7 @@ class TensorParallelRowLinear(FastLinear):
         bias=True,
         device=None,
         dtype=None,
+        quantize=None,
     ):
         self.process_group = process_group
         self.tp_world_size = process_group.size()
@@ -111,6 +115,7 @@ class TensorParallelRowLinear(FastLinear):
             bias=bias,
             device=device,
             dtype=dtype,
+            quantize=quantize,
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
@@ -182,40 +187,46 @@ class TensorParallelEmbedding(nn.Embedding):
         return out
 
 
-class FastLayerNorm(nn.LayerNorm):
-    def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 8192:
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
+try:
+    import dropout_layer_norm
 
-            return super(FastLayerNorm, self).forward(hidden_states), residual
-        else:
-            (
-                normed_hidden_states,
-                residual,
-                *rest,
-            ) = dropout_layer_norm.dropout_add_ln_fwd(
-                hidden_states,
-                residual,
-                self.weight,
-                self.bias,
-                None,
-                None,
-                None,
-                None,
-                0.0,
-                self.eps,
-                1.0,
-                0,
-                None,
-                False,
-                False,
-            )
-            if residual is None:
+    class FastLayerNorm(nn.LayerNorm):
+        def forward(self, hidden_states, residual=None):
+            if hidden_states.shape[-1] > 8192:
+                if residual is not None:
+                    hidden_states += residual
                 residual = hidden_states
 
-            return normed_hidden_states, residual
+                return super().forward(hidden_states), residual
+            else:
+                (
+                    normed_hidden_states,
+                    residual,
+                    *rest,
+                ) = dropout_layer_norm.dropout_add_ln_fwd(
+                    hidden_states,
+                    residual,
+                    self.weight,
+                    self.bias,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0.0,
+                    self.eps,
+                    1.0,
+                    0,
+                    None,
+                    False,
+                    False,
+                )
+                if residual is None:
+                    residual = hidden_states
+
+                return normed_hidden_states, residual
+
+except ImportError:
+    pass
 
 
 try:

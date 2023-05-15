@@ -29,6 +29,7 @@ from typing import Optional
 
 # Flash attention imports
 import flash_attn_cuda
+import dropout_layer_norm
 
 from flash_attn.layers.rotary import RotaryEmbedding
 from text_generation_server.utils.layers import (
@@ -91,12 +92,7 @@ class LlamaRMSNorm(nn.Module):
 
 
 class FlashLlamaAttention(torch.nn.Module):
-    def __init__(
-        self,
-        num_heads,
-        hidden_size,
-        process_group=None,
-    ):
+    def __init__(self, num_heads, hidden_size, process_group=None, quantize=None):
         super().__init__()
         self.num_heads = num_heads
         self.hidden_size = hidden_size
@@ -106,8 +102,12 @@ class FlashLlamaAttention(torch.nn.Module):
         self.softmax_scale = self.head_size ** (-0.5)
 
         if process_group is None:
-            self.query_key_value = FastLinear(hidden_size, 3 * hidden_size, bias=False)
-            self.o_proj = FastLinear(hidden_size, hidden_size, bias=False)
+            self.query_key_value = FastLinear(
+                hidden_size, 3 * hidden_size, bias=False, quantize=quantize
+            )
+            self.o_proj = FastLinear(
+                hidden_size, hidden_size, bias=False, quantize=quantize
+            )
         else:
             self.num_heads = self.num_heads // process_group.size()
             self.query_key_value = TensorParallelColumnLinear(
@@ -115,12 +115,14 @@ class FlashLlamaAttention(torch.nn.Module):
                 3 * hidden_size,
                 bias=False,
                 process_group=process_group,
+                quantize=quantize,
             )
             self.o_proj = TensorParallelRowLinear(
                 hidden_size,
                 hidden_size,
                 bias=False,
                 process_group=process_group,
+                quantize=quantize,
             )
 
     def forward(
@@ -194,7 +196,9 @@ class FlashLlamaAttention(torch.nn.Module):
 
 
 class LlamaMLP(nn.Module):
-    def __init__(self, act, hidden_size, intermediate_size, process_group=None):
+    def __init__(
+        self, act, hidden_size, intermediate_size, process_group=None, quantize=None
+    ):
         super().__init__()
         self.act = (
             ACT2FN[act]
@@ -210,9 +214,11 @@ class LlamaMLP(nn.Module):
         if process_group is None:
             # Fuse gate and up proj
             self.gate_up_proj = FastLinear(
-                hidden_size, 2 * intermediate_size, bias=False
+                hidden_size, 2 * intermediate_size, bias=False, quantize=quantize
             )
-            self.down_proj = FastLinear(intermediate_size, hidden_size, bias=False)
+            self.down_proj = FastLinear(
+                intermediate_size, hidden_size, bias=False, quantize=quantize
+            )
             self.intermediate_size = intermediate_size
         else:
             # Fuse gate and up proj
@@ -221,6 +227,7 @@ class LlamaMLP(nn.Module):
                 2 * intermediate_size,
                 bias=False,
                 process_group=process_group,
+                quantize=quantize,
             )
             self.down_proj = TensorParallelRowLinear(
                 intermediate_size,
@@ -228,6 +235,7 @@ class LlamaMLP(nn.Module):
                 bias=False,
                 process_group=process_group,
                 reduce=True,
+                quantize=quantize,
             )
             self.intermediate_size = self.down_proj.in_features
 
@@ -248,11 +256,16 @@ class FlashLlamaLayer(nn.Module):
         intermediate_size,
         rms_norm_eps,
         process_group=None,
+        quantize=None,
     ):
         super().__init__()
 
-        self.self_attn = FlashLlamaAttention(num_heads, hidden_size, process_group)
-        self.mlp = LlamaMLP(act, hidden_size, intermediate_size, process_group)
+        self.self_attn = FlashLlamaAttention(
+            num_heads, hidden_size, process_group, quantize=quantize
+        )
+        self.mlp = LlamaMLP(
+            act, hidden_size, intermediate_size, process_group, quantize=quantize
+        )
 
         self.input_layernorm = LlamaRMSNorm(hidden_size, eps=rms_norm_eps)
         self.post_attention_layernorm = LlamaRMSNorm(hidden_size, eps=rms_norm_eps)
@@ -309,6 +322,7 @@ class FlashLlamaModel(torch.nn.Module):
             self.embed_tokens = TensorParallelEmbedding(
                 config.vocab_size, config.hidden_size, process_group=process_group
             )
+            self.embed_tokens.add_null_idx()
         else:
             self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
 
@@ -321,6 +335,7 @@ class FlashLlamaModel(torch.nn.Module):
                     config.intermediate_size,
                     config.rms_norm_eps,
                     process_group,
+                    quantize=config.quantize,
                 )
                 for _ in range(config.num_hidden_layers)
             ]
@@ -332,15 +347,15 @@ class FlashLlamaModel(torch.nn.Module):
         self.head_size = self.layers[0].self_attn.head_size
         self.num_heads = self.layers[0].self_attn.num_heads
 
-    def post_load_weights(self, load_in_8bit: bool = False):
-        if isinstance(self.embed_tokens, TensorParallelEmbedding):
-            self.embed_tokens.add_null_idx()
-        for layer in self.layers:
-            layer: FlashLlamaLayer
-            layer.self_attn.query_key_value.prepare_weights(load_in_8bit)
-            layer.self_attn.o_proj.prepare_weights(load_in_8bit)
-            layer.mlp.gate_up_proj.prepare_weights(load_in_8bit)
-            layer.mlp.down_proj.prepare_weights(load_in_8bit)
+    # def post_load_weights(self, load_in_8bit: bool = False):
+    #     if isinstance(self.embed_tokens, TensorParallelEmbedding):
+    #         self.embed_tokens.add_null_idx()
+    #     for layer in self.layers:
+    #         layer: FlashLlamaLayer
+    #         layer.self_attn.query_key_value.prepare_weights(load_in_8bit)
+    #         layer.self_attn.o_proj.prepare_weights(load_in_8bit)
+    #         layer.mlp.gate_up_proj.prepare_weights(load_in_8bit)
+    #         layer.mlp.down_proj.prepare_weights(load_in_8bit)
 
     def forward(
         self,
@@ -429,9 +444,9 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         else:
             self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
 
-    def post_load_weights(self, load_in_8bit: bool = False):
-        self.model.post_load_weights(load_in_8bit)
-        self.lm_head.prepare_weights()
+    # def post_load_weights(self, load_in_8bit: bool = False):
+    #     self.model.post_load_weights(load_in_8bit)
+    #     self.lm_head.prepare_weights()
 
     def forward(
         self,

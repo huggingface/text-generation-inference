@@ -140,7 +140,7 @@ class FlashLlama(FlashCausalLM):
                 del value
 
         torch.cuda.empty_cache()
-        model.post_load_weights(quantize)
+        # model.post_load_weights(quantize)
 
 
 class FlashLlamaSharded(FlashLlama):
@@ -307,4 +307,4 @@ class FlashLlamaSharded(FlashLlama):
                         module._buffers[param_name] = tensor
 
         torch.cuda.empty_cache()
-        model.post_load_weights(quantize)
+        # model.post_load_weights(quantize)

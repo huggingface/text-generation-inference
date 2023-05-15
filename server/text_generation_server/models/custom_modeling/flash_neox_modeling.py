@@ -76,20 +76,20 @@ class FlashNeoxAttention(torch.nn.Module):
                 hidden_size, hidden_size, process_group=process_group, reduce=reduce
             )
 
-    def shuffle_qkv_dims(self):
-        """Swap dims to avoid an additional permute"""
-        self.query_key_value.weight = torch.nn.Parameter(
-            self.query_key_value.weight.view(
-                self.num_heads, 3, self.head_size, self.hidden_size
-            )
-            .permute(1, 0, 2, 3)
-            .reshape(-1, self.hidden_size)
-        )
-        self.query_key_value.bias = torch.nn.Parameter(
-            self.query_key_value.bias.view(self.num_heads, 3, self.head_size)
-            .permute(1, 0, 2)
-            .reshape(-1)
-        )
+    # def shuffle_qkv_dims(self):
+    #     """Swap dims to avoid an additional permute"""
+    #     self.query_key_value.weight = torch.nn.Parameter(
+    #         self.query_key_value.weight.view(
+    #             self.num_heads, 3, self.head_size, self.hidden_size
+    #         )
+    #         .permute(1, 0, 2, 3)
+    #         .reshape(-1, self.hidden_size)
+    #     )
+    #     self.query_key_value.bias = torch.nn.Parameter(
+    #         self.query_key_value.bias.view(self.num_heads, 3, self.head_size)
+    #         .permute(1, 0, 2)
+    #         .reshape(-1)
+    #     )
 
     def forward(
         self,
@@ -317,6 +317,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             self.embed_in = TensorParallelEmbedding(
                 config.vocab_size, config.hidden_size, process_group=process_group
             )
+            self.embed_in.add_null_idx()
         else:
             self.embed_in = nn.Embedding(config.vocab_size, config.hidden_size)
 
@@ -345,28 +346,28 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         self.head_size = self.layers[0].attention.head_size
         self.num_heads = self.layers[0].attention.num_heads
 
-    def post_load_weights(self, load_in_8bit=False):
-        if isinstance(self.embed_in, TensorParallelEmbedding):
-            self.embed_in.add_null_idx()
-        for layer in self.layers:
-            layer: FlashNeoXLayer
-            layer.attention.shuffle_qkv_dims()
-            layer.attention.query_key_value.prepare_weights(load_in_8bit)
-            layer.attention.dense.prepare_weights(load_in_8bit)
-            layer.mlp.dense_h_to_4h.prepare_weights(load_in_8bit)
-            layer.mlp.dense_4h_to_h.prepare_weights(load_in_8bit)
+    # def post_load_weights(self, load_in_8bit=False):
+    #     if isinstance(self.embed_in, TensorParallelEmbedding):
+    #         self.embed_in.add_null_idx()
+    #     for layer in self.layers:
+    #         layer: FlashNeoXLayer
+    #         layer.attention.shuffle_qkv_dims()
+    #         layer.attention.query_key_value.prepare_weights(load_in_8bit)
+    #         layer.attention.dense.prepare_weights(load_in_8bit)
+    #         layer.mlp.dense_h_to_4h.prepare_weights(load_in_8bit)
+    #         layer.mlp.dense_4h_to_h.prepare_weights(load_in_8bit)
 
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
-        # Pop here as we will replace the layer in our own logic and don't want from_pretrained
-        # to do it for us
-        load_in_8bit = kwargs.pop("load_in_8bit", False)
-        model = super(FlashGPTNeoXModel, cls).from_pretrained(
-            pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
-        )
+    # @classmethod
+    # def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+    #     # Pop here as we will replace the layer in our own logic and don't want from_pretrained
+    #     # to do it for us
+    #     load_in_8bit = kwargs.pop("load_in_8bit", False)
+    #     model = super(FlashGPTNeoXModel, cls).from_pretrained(
+    #         pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
+    #     )
 
-        model.post_load_weights(load_in_8bit)
-        return model
+    #     model.post_load_weights(load_in_8bit)
+    #     return model
 
     def forward(
         self,
@@ -451,26 +452,30 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
                 config.hidden_size,
                 config.vocab_size // process_group.size(),
                 bias=False,
+                quantize=config.quantize,
             )
         else:
             self.embed_out = FastLinear(
-                config.hidden_size, config.vocab_size, bias=False
+                config.hidden_size,
+                config.vocab_size,
+                bias=False,
+                quantize=config.quantize,
             )
 
-    def post_load_weights(self, load_in_8bit=False):
-        self.gpt_neox.post_load_weights(load_in_8bit)
-        self.embed_out.prepare_weights()
+    # def post_load_weights(self, load_in_8bit=False):
+    #     self.gpt_neox.post_load_weights(load_in_8bit)
+    #     self.embed_out.prepare_weights()
 
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
-        # Pop here as we will replace the layer in our own logic and don't want from_pretrained
-        # to do it for us
-        load_in_8bit = kwargs.pop("load_in_8bit", False)
-        model = super(FlashGPTNeoXForCausalLM, cls).from_pretrained(
-            pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
-        )
-        model.post_load_weights(load_in_8bit)
-        return model
+    # @classmethod
+    # def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+    #     # Pop here as we will replace the layer in our own logic and don't want from_pretrained
+    #     # to do it for us
+    #     load_in_8bit = kwargs.pop("load_in_8bit", False)
+    #     model = super(FlashGPTNeoXForCausalLM, cls).from_pretrained(
+    #         pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
+    #     )
+    #     model.post_load_weights(load_in_8bit)
+    #     return model
 
     def forward(
         self,

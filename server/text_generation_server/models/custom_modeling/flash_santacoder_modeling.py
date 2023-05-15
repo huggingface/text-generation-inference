@@ -24,6 +24,7 @@ class FlashMQAttention(torch.nn.Module):
         num_heads,
         hidden_size,
         process_group=None,
+        quantize=None,
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -33,15 +34,20 @@ class FlashMQAttention(torch.nn.Module):
         self.softmax_scale = self.head_size ** (-0.5)
 
         if process_group is None:
-            self.c_attn = FastLinear(hidden_size, hidden_size + 2 * self.head_size)
-            self.c_proj = FastLinear(hidden_size, hidden_size)
+            self.c_attn = FastLinear(
+                hidden_size, hidden_size + 2 * self.head_size, quantize=quantize
+            )
+            self.c_proj = FastLinear(hidden_size, hidden_size, quantize=quantize)
         else:
             self.num_heads = self.num_heads // process_group.size()
-            self.c_attn = FastLinear(hidden_size, self.head_size * (self.num_heads + 2))
+            self.c_attn = FastLinear(
+                hidden_size, self.head_size * (self.num_heads + 2), quantize=quantize
+            )
             self.c_proj = TensorParallelRowLinear(
                 hidden_size,
                 hidden_size,
                 process_group=process_group,
+                quantize=quantize,
             )
 
     def forward(
@@ -123,7 +129,9 @@ class FlashMQAttention(torch.nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, act, hidden_size, intermediate_size, process_group=None):
+    def __init__(
+        self, act, hidden_size, intermediate_size, process_group=None, quantize=None
+    ):
         super().__init__()
         self.act = (
             ACT2FN[act]
@@ -137,18 +145,20 @@ class MLP(nn.Module):
         )
 
         if process_group is None:
-            self.c_fc = FastLinear(hidden_size, intermediate_size)
-            self.c_proj = FastLinear(intermediate_size, hidden_size)
+            self.c_fc = FastLinear(hidden_size, intermediate_size, quantize=quantize)
+            self.c_proj = FastLinear(intermediate_size, hidden_size, quantize=quantize)
         else:
             self.c_fc = TensorParallelColumnLinear(
                 hidden_size,
                 intermediate_size,
                 process_group=process_group,
+                quantize=quantize,
             )
             self.c_proj = TensorParallelRowLinear(
                 intermediate_size,
                 hidden_size,
                 process_group=process_group,
+                quantize=quantize,
             )
 
     def forward(self, hidden_states):
@@ -167,20 +177,20 @@ class Block(nn.Module):
         intermediate_size,
         layer_norm_eps,
         process_group=None,
+        quantize=None,
     ):
         super().__init__()
         self.ln_1 = FastLayerNorm(hidden_size, eps=layer_norm_eps)
         self.ln_2 = FastLayerNorm(hidden_size, eps=layer_norm_eps)
         self.attn = FlashMQAttention(
-            num_heads,
-            hidden_size,
-            process_group,
+            num_heads, hidden_size, process_group, quantize=quantize
         )
         self.mlp = MLP(
             act,
             hidden_size,
             intermediate_size,
             process_group,
+            quantize=quantize,
         )
 
     def forward(
@@ -231,12 +241,14 @@ class FlashSantacoderModel(nn.Module):
                 reduce=False,
                 process_group=process_group,
             )
+            self.wte.add_null_idx()
             self.wpe = TensorParallelEmbedding(
                 config.max_position_embeddings,
                 config.hidden_size,
                 reduce=False,
                 process_group=process_group,
             )
+            self.wpe.add_null_idx()
         else:
             self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
             self.wpe = nn.Embedding(config.max_position_embeddings, config.hidden_size)
@@ -252,6 +264,7 @@ class FlashSantacoderModel(nn.Module):
                     else 4 * config.hidden_size,
                     config.layer_norm_epsilon,
                     process_group,
+                    quantize=config.quantize,
                 )
                 for _ in range(config.num_hidden_layers)
             ]
@@ -261,16 +274,13 @@ class FlashSantacoderModel(nn.Module):
         self.head_size = self.h[0].attn.head_size
         self.num_heads = self.h[0].attn.num_heads
 
-    def post_load_weights(self, load_in_8bit: bool = False):
-        if self.tp_embeddings:
-            self.wte.add_null_idx()
-            self.wpe.add_null_idx()
-        for layer in self.h:
-            layer: Block
-            layer.attn.c_attn.prepare_weights(load_in_8bit)
-            layer.attn.c_proj.prepare_weights(load_in_8bit)
-            layer.mlp.c_fc.prepare_weights(load_in_8bit)
-            layer.mlp.c_proj.prepare_weights(load_in_8bit)
+    # def post_load_weights(self, load_in_8bit: bool = False):
+    #     for layer in self.h:
+    #         layer: Block
+    #         layer.attn.c_attn.prepare_weights(load_in_8bit)
+    #         layer.attn.c_proj.prepare_weights(load_in_8bit)
+    #         layer.mlp.c_fc.prepare_weights(load_in_8bit)
+    #         layer.mlp.c_proj.prepare_weights(load_in_8bit)
 
     def forward(
         self,
@@ -343,13 +353,16 @@ class FlashSantacoderForCausalLM(nn.Module):
                 config.hidden_size,
                 config.vocab_size // process_group.size(),
                 bias=False,
+                quantize=None,
             )
         else:
-            self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
+            self.lm_head = FastLinear(
+                config.hidden_size, config.vocab_size, bias=False, quantize=None
+            )
 
-    def post_load_weights(self, load_in_8bit: bool = False):
-        self.transformer.post_load_weights(load_in_8bit)
-        self.lm_head.prepare_weights()
+    # def post_load_weights(self, load_in_8bit: bool = False):
+    #     self.transformer.post_load_weights(load_in_8bit)
+    #     self.lm_head.prepare_weights()
 
     def forward(
         self,

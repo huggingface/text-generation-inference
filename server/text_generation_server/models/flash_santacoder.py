@@ -160,7 +160,7 @@ class FlashSantacoder(FlashCausalLM):
                 del value
 
         torch.cuda.empty_cache()
-        model.post_load_weights(quantize)
+        # model.post_load_weights(quantize)
 
     def decode(self, generated_ids: List[int]) -> str:
         # Do not skip special tokens as they are used for custom parsing rules of the generated text
@@ -378,4 +378,4 @@ class FlashSantacoderSharded(FlashSantacoder):
 
         model.lm_head.weight = torch.nn.Parameter(model.transformer.wte.weight)
         torch.cuda.empty_cache()
-        model.post_load_weights(quantize)
+        # model.post_load_weights(quantize)
