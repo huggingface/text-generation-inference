@@ -85,7 +85,7 @@ jobs:
         with:
           cosign-release: 'v1.13.1'
       - name: Tailscale
-        uses: tailscale/github-action@v1
+        uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Login to GitHub Container Registry
