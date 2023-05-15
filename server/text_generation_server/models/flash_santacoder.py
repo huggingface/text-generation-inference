@@ -376,17 +376,6 @@ class FlashSantacoderSharded(FlashSantacoder):
                     else:
                         module._buffers[param_name] = tensor
 
-
         model.lm_head.weight = torch.nn.Parameter(model.transformer.wte.weight)
-
-        uninitialized_parameters = []
-        for n, p in model.named_parameters():
-            if p.data.device == torch.device("meta"):
-                uninitialized_parameters.append(n)
-        if uninitialized_parameters:
-            raise RuntimeError(
-                f"found uninitialized parameters in model: {uninitialized_parameters}"
-            )
-
         torch.cuda.empty_cache()
         model.post_load_weights(quantize)
