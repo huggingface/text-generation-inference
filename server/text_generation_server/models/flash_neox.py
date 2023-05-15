@@ -150,4 +150,4 @@ class FlashNeoXSharded(FlashNeoX):
                     else:
                         module._buffers[param_name] = tensor
 
-        # model.post_load_weights(quantize)
+        model.post_load_weights(quantize)
