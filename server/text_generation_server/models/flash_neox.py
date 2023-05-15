@@ -152,5 +152,4 @@ class FlashNeoXSharded(FlashNeoX):
                     else:
                         module._buffers[param_name] = tensor
 
-        model.check_initialized()
         model.post_load_weights(quantize)

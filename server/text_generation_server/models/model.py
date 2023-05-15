@@ -32,6 +32,7 @@ class Model(ABC):
         self.decode_buffer = decode_buffer
         self.rank = rank
         self.world_size = world_size
+        self.check_initialized()
 
     @property
     def info(self) -> InfoResponse:
@@ -107,5 +108,5 @@ class Model(ABC):
                 uninitialized_parameters.append(n)
         if uninitialized_parameters:
             raise RuntimeError(
-                f"found uninitialized parameters in model: {uninitialized_parameters}"
+                f"found uninitialized parameters in model {self.__class__.__name__}: {uninitialized_parameters}"
             )

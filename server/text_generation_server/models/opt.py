@@ -212,8 +212,6 @@ class OPTSharded(OPT):
                     if name == "model.decoder.embed_tokens.weight":
                         model.lm_head._parameters["weight"] = tensor
 
-        model.check_initialized()
-
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ):

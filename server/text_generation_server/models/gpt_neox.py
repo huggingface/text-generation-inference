@@ -215,8 +215,6 @@ class GPTNeoxSharded(CausalLM):
                     else:
                         module._buffers[param_name] = tensor
 
-        model.check_initialized()
-
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ):

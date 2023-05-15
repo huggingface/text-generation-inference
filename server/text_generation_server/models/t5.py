@@ -222,8 +222,6 @@ class T5Sharded(Seq2SeqLM):
                     else:
                         module._buffers[param_name] = tensor
 
-        model.check_initialized()
-
     def forward(
         self,
         input_ids,

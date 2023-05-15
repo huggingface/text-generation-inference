@@ -377,6 +377,5 @@ class FlashSantacoderSharded(FlashSantacoder):
                         module._buffers[param_name] = tensor
 
         model.lm_head.weight = torch.nn.Parameter(model.transformer.wte.weight)
-
         torch.cuda.empty_cache()
         model.post_load_weights(quantize)
