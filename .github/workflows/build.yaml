@@ -20,9 +20,7 @@ on:
     branches:
       - 'main'
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+
 
 jobs:
   start-runner:
@@ -61,6 +59,9 @@ jobs:
             ]
 
   build-and-push-image:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
     needs: start-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     permissions:
@@ -70,8 +71,6 @@ jobs:
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
       security-events: write
-    outputs:
-      image:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -187,6 +186,9 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
   integration-tests:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
     needs:
       - start-runner
       - build-and-push-image # Wait for the docker image to be built
