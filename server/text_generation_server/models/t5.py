@@ -10,23 +10,26 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     AutoConfig,
 )
-from transformers.models.t5.parallel_layers import (
-    TensorParallelColumnLinear,
-    TensorParallelEmbedding,
-    TensorParallelRowLinear,
-)
 
 from text_generation_server.models import Seq2SeqLM
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
 )
+from text_generation_server.utils.layers import (
+    FastLinear,
+)
+from transformers.models.t5.parallel_layers import (
+    TensorParallelRowLinear,
+    TensorParallelColumnLinear,
+    TensorParallelEmbedding,
+)
 
 HAS_BITS_AND_BYTES = True
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn import Int8Params
-except Exception as e:
+except ImportError as e:
     HAS_BITS_AND_BYTES = False
 
 
