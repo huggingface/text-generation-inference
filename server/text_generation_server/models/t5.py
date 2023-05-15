@@ -18,10 +18,19 @@ from text_generation_server.utils import (
 )
 from text_generation_server.utils.layers import (
     FastLinear,
+)
+from transformers.models.t5.parallel_layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
 )
+
+HAS_BITS_AND_BYTES = True
+try:
+    import bitsandbytes as bnb
+    from bitsandbytes.nn import Int8Params
+except ImportError as e:
+    HAS_BITS_AND_BYTES = False
 
 
 class T5Sharded(Seq2SeqLM):
