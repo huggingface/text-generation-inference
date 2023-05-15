@@ -51,7 +51,6 @@ class OPTSharded(OPT):
         self, model_id: str, revision: Optional[str] = None, quantize: bool = False
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
-        self.master = rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16

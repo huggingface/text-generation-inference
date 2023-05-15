@@ -199,7 +199,6 @@ class GalacticaSharded(Galactica):
         quantize: Optional[str] = None,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
-        self.master = rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16

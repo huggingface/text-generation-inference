@@ -29,7 +29,6 @@ tracer = trace.get_tracer(__name__)
 
 class FlashLlama(FlashCausalLM):
     def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
-        self.past_pad = None
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16
@@ -150,9 +149,7 @@ class FlashLlamaSharded(FlashLlama):
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
     ):
-        self.past_pad = None
         self.process_group, rank, world_size = initialize_torch_distributed()
-        self.master = rank == 0
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16
