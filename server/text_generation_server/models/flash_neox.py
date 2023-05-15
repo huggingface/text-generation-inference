@@ -152,13 +152,5 @@ class FlashNeoXSharded(FlashNeoX):
                     else:
                         module._buffers[param_name] = tensor
 
-        uninitialized_parameters = []
-        for n, p in model.named_parameters():
-            if p.data.device == torch.device("meta"):
-                uninitialized_parameters.append(n)
-        if uninitialized_parameters:
-            raise RuntimeError(
-                f"found uninitialized parameters in model: {uninitialized_parameters}"
-            )
-
+        model.check_initialized()
         model.post_load_weights(quantize)

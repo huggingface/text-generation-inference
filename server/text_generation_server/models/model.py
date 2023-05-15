@@ -99,3 +99,13 @@ class Model(ABC):
             return token_text, None, None
         else:
             return "", offset, token_offset
+
+    def check_initialized(self):
+        uninitialized_parameters = []
+        for n, p in self.named_parameters():
+            if p.data.device == torch.device("meta"):
+                uninitialized_parameters.append(n)
+        if uninitialized_parameters:
+            raise RuntimeError(
+                f"found uninitialized parameters in model: {uninitialized_parameters}"
+            )
