@@ -103,7 +103,7 @@ class Model(ABC):
 
     def check_initialized(self):
         uninitialized_parameters = []
-        for n, p in self.named_parameters():
+        for n, p in self.model.named_parameters():
             if p.data.device == torch.device("meta"):
                 uninitialized_parameters.append(n)
         if uninitialized_parameters:
