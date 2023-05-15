@@ -253,5 +253,7 @@ make python-client-tests
 # or both server and client tests
 make python-tests
 # rust cargo tests
+make rust-tests
+# integration tests
 make integration-tests
 ```

@@ -12,4 +12,4 @@ async def health_check(client: AsyncClient, timeout: int = 60):
             return
         except (ClientConnectorError, ClientOSError, ServerDisconnectedError) as e:
             time.sleep(1)
-    raise e
+    raise RuntimeError("Health check failed")

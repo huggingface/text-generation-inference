@@ -28,7 +28,12 @@ tracer = trace.get_tracer(__name__)
 
 
 class FlashLlama(FlashCausalLM):
-    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+    def __init__(
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+    ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16

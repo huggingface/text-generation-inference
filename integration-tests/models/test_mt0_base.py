@@ -4,32 +4,32 @@ from utils import health_check
 
 
 @pytest.fixture(scope="module")
-def bloom_560(launcher):
-    with launcher("bigscience/bloom-560m") as client:
+def mt0_base(launcher):
+    with launcher("bigscience/mt0-base") as client:
         yield client
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m(bloom_560, snapshot):
-    await health_check(bloom_560, 60)
+async def test_mt0_base(mt0_base, snapshot):
+    await health_check(mt0_base, 60)
 
-    response = await bloom_560.generate(
-        "Pour déguster un ortolan, il faut tout d'abord",
+    response = await mt0_base.generate(
+        "Why is the sky blue?",
         max_new_tokens=10,
         top_p=0.9,
         seed=0,
     )
 
-    assert response.details.generated_tokens == 10
+    assert response.details.generated_tokens == 5
     assert response == snapshot
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_all_params(bloom_560, snapshot):
-    await health_check(bloom_560, 60)
+async def test_mt0_base_all_params(mt0_base, snapshot):
+    await health_check(mt0_base, 60)
 
-    response = await bloom_560.generate(
-        "Pour déguster un ortolan, il faut tout d'abord",
+    response = await mt0_base.generate(
+        "Why is the sky blue?",
         max_new_tokens=10,
         repetition_penalty=1.2,
         return_full_text=True,
@@ -48,12 +48,12 @@ async def test_bloom_560m_all_params(bloom_560, snapshot):
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_load(bloom_560, generate_load, snapshot):
-    await health_check(bloom_560, 60)
+async def test_mt0_base_load(mt0_base, generate_load, snapshot):
+    await health_check(mt0_base, 60)
 
     responses = await generate_load(
-        bloom_560,
-        "Pour déguster un ortolan, il faut tout d'abord",
+        mt0_base,
+        "Why is the sky blue?",
         max_new_tokens=10,
         n=4,
     )

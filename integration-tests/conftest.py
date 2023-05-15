@@ -13,6 +13,7 @@ from text_generation.types import Response
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
+DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +27,7 @@ def event_loop():
 def launcher(event_loop):
     @contextlib.contextmanager
     def local_launcher(
-        model_id: str, num_shard: Optional[int] = None, quantize: bool = False
+        model_id: str, num_shard: Optional[int] = None, quantize: Optional[str] = None
     ):
         port = 9999
         master_port = 19999
@@ -66,7 +67,7 @@ def launcher(event_loop):
 
     @contextlib.contextmanager
     def docker_launcher(
-        model_id: str, num_shard: Optional[int] = None, quantize: bool = False
+        model_id: str, num_shard: Optional[int] = None, quantize: Optional[str] = None
     ):
         port = 9999
 
@@ -94,6 +95,10 @@ def launcher(event_loop):
         if HUGGING_FACE_HUB_TOKEN is not None:
             env["HUGGING_FACE_HUB_TOKEN"] = HUGGING_FACE_HUB_TOKEN
 
+        volumes = []
+        if DOCKER_VOLUME:
+            volumes = [f"{DOCKER_VOLUME}:/data"]
+
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
@@ -104,7 +109,7 @@ def launcher(event_loop):
             device_requests=[
                 docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
             ],
-            volumes=["/data:/data"],
+            volumes=volumes,
             ports={"80/tcp": port},
         )
 
@@ -130,6 +135,6 @@ def generate_load():
         ]
 
         results = await asyncio.gather(*futures)
-        return results
+        return [r.generated_text for r in results]
 
     return generate_load_inner

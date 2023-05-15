@@ -70,6 +70,8 @@ jobs:
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
       security-events: write
+    outputs:
+      image:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -108,7 +110,19 @@ jobs:
           username: ${{ secrets.AZURE_DOCKER_USERNAME }}
           password: ${{ secrets.AZURE_DOCKER_PASSWORD }}
           registry: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io
+      # If pull request
       - name: Extract metadata (tags, labels) for Docker
+        if: ${{ github.event_name == 'pull_request' }}
+        id: meta
+        uses: docker/metadata-action@v4.3.0
+        with:
+          images: |
+            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+          tags: |
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}
+      # If main, release or tag
+      - name: Extract metadata (tags, labels) for Docker
+        if: ${{ github.event_name != 'pull_request' }}
         id: meta
         uses: docker/metadata-action@v4.3.0
         with:
@@ -129,7 +143,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           platforms: 'linux/amd64'
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
@@ -172,11 +186,42 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
+  integration-tests:
+    needs:
+      - start-runner
+      - build-and-push-image # Wait for the docker image to be built
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
+    env:
+      DOCKER_IMAGE: registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
+      - name: Tailscale
+        uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+      - name: Prepare disks
+        run: |
+          sudo mkfs -t ext4 /dev/nvme1n1
+          sudo mkdir /data
+          sudo mount /dev/nvme1n1 /data
+          sudo chown -R $USER:$USER /data
+      - name: Install
+        run: |
+          make install-integration-tests
+      - name: Run tests
+        run: |
+          make integration-tests
+
   stop-runner:
     name: Stop self-hosted EC2 runner
     needs:
       - start-runner
       - build-and-push-image
+      - integration-tests
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1

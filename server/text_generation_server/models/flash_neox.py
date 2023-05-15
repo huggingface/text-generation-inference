@@ -23,7 +23,12 @@ tracer = trace.get_tracer(__name__)
 
 
 class FlashNeoX(FlashCausalLM):
-    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+    def __init__(
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+    ):
         super(FlashNeoX, self).__init__(
             FlashGPTNeoXForCausalLM, model_id, revision, quantize
         )
@@ -31,7 +36,10 @@ class FlashNeoX(FlashCausalLM):
 
 class FlashNeoXSharded(FlashNeoX):
     def __init__(
-        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():

@@ -7,83 +7,249 @@
       'generated_tokens': 10,
       'prefill': list([
         dict({
-          'id': 1006,
+          'id': 589,
           'logprob': None,
-          'text': 'Test',
+          'text': 'def',
+        }),
+        dict({
+          'id': 1459,
+          'logprob': -5.6289062,
+          'text': ' print',
+        }),
+        dict({
+          'id': 81,
+          'logprob': -1.6005859,
+          'text': '_',
+        }),
+        dict({
+          'id': 7656,
+          'logprob': -5.9921875,
+          'text': 'hello',
         }),
       ]),
       'seed': None,
       'tokens': list([
         dict({
-          'id': 30,
-          'logprob': -2.734375,
+          'id': 2262,
+          'logprob': -0.7705078,
           'special': False,
-          'text': ',',
+          'text': '():',
         }),
         dict({
-          'id': 892,
-          'logprob': -2.828125,
+          'id': 284,
+          'logprob': -0.2590332,
           'special': False,
-          'text': ' String',
+          'text': '''
+            
+               
+          ''',
         }),
         dict({
-          'id': 1984,
-          'logprob': -3.28125,
+          'id': 1459,
+          'logprob': -0.39379883,
           'special': False,
-          'text': ' url',
+          'text': ' print',
         }),
         dict({
-          'id': 30,
-          'logprob': -0.796875,
+          'id': 440,
+          'logprob': -0.61376953,
           'special': False,
-          'text': ',',
+          'text': '("',
         }),
         dict({
-          'id': 892,
-          'logprob': -1.0390625,
+          'id': 8279,
+          'logprob': -0.47338867,
           'special': False,
-          'text': ' String',
+          'text': 'Hello',
         }),
         dict({
-          'id': 1411,
-          'logprob': -2.078125,
+          'id': 10896,
+          'logprob': -1.5068359,
           'special': False,
-          'text': ' method',
+          'text': ' World',
         }),
         dict({
-          'id': 30,
-          'logprob': -0.49609375,
+          'id': 657,
+          'logprob': -0.80810547,
           'special': False,
-          'text': ',',
+          'text': '")',
         }),
         dict({
-          'id': 892,
-          'logprob': -1.0546875,
+          'id': 203,
+          'logprob': -0.7397461,
           'special': False,
-          'text': ' String',
+          'text': '''
+            
+  
+          ''',
         }),
         dict({
-          'id': 3361,
-          'logprob': -1.71875,
+          'id': 203,
+          'logprob': -0.35229492,
           'special': False,
-          'text': ' body',
+          'text': '''
+            
+  
+          ''',
         }),
         dict({
-          'id': 27,
-          'logprob': -0.69921875,
+          'id': 589,
+          'logprob': -1.0371094,
           'special': False,
-          'text': ')',
+          'text': 'def',
         }),
       ]),
     }),
-    'generated_text': ', String url, String method, String body)',
+    'generated_text': '''
+      ():
+          print("Hello World")
+      
+      def
+    ''',
+  })
+# ---
+# name: test_flash_starcoder_default_params
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.EndOfSequenceToken: 'eos_token'>,
+      'generated_tokens': 12,
+      'prefill': list([
+        dict({
+          'id': 589,
+          'logprob': None,
+          'text': 'def',
+        }),
+        dict({
+          'id': 1459,
+          'logprob': -5.6289062,
+          'text': ' print',
+        }),
+        dict({
+          'id': 81,
+          'logprob': -1.6005859,
+          'text': '_',
+        }),
+        dict({
+          'id': 7656,
+          'logprob': -5.9921875,
+          'text': 'hello',
+        }),
+      ]),
+      'seed': 0,
+      'tokens': list([
+        dict({
+          'id': 2262,
+          'logprob': -0.7451172,
+          'special': False,
+          'text': '():',
+        }),
+        dict({
+          'id': 284,
+          'logprob': -0.21325684,
+          'special': False,
+          'text': '''
+            
+               
+          ''',
+        }),
+        dict({
+          'id': 5741,
+          'logprob': -5.734375,
+          'special': False,
+          'text': ' logging',
+        }),
+        dict({
+          'id': 32,
+          'logprob': 0.0,
+          'special': False,
+          'text': '.',
+        }),
+        dict({
+          'id': 1338,
+          'logprob': -0.3232422,
+          'special': False,
+          'text': 'info',
+        }),
+        dict({
+          'id': 463,
+          'logprob': -1.0380859,
+          'special': False,
+          'text': "('",
+        }),
+        dict({
+          'id': 8279,
+          'logprob': -0.8378906,
+          'special': False,
+          'text': 'Hello',
+        }),
+        dict({
+          'id': 30,
+          'logprob': -1.9501953,
+          'special': False,
+          'text': ',',
+        }),
+        dict({
+          'id': 10896,
+          'logprob': -1.3476562,
+          'special': False,
+          'text': ' World',
+        }),
+        dict({
+          'id': 683,
+          'logprob': -1.796875,
+          'special': False,
+          'text': "')",
+        }),
+        dict({
+          'id': 203,
+          'logprob': -0.9873047,
+          'special': False,
+          'text': '''
+            
+  
+          ''',
+        }),
+        dict({
+          'id': 0,
+          'logprob': -0.7495117,
+          'special': True,
+          'text': '<|endoftext|>',
+        }),
+      ]),
+    }),
+    'generated_text': '''
+      ():
+          logging.info('Hello, World')
+      <|endoftext|>
+    ''',
   })
 # ---
 # name: test_flash_starcoder_load
   list([
-    Response(generated_text=', String url, String method, String body)', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=1006, text='Test', logprob=None)], tokens=[Token(id=30, text=',', logprob=-2.734375, special=False), Token(id=892, text=' String', logprob=-2.84375, special=False), Token(id=1984, text=' url', logprob=-3.28125, special=False), Token(id=30, text=',', logprob=-0.796875, special=False), Token(id=892, text=' String', logprob=-1.03125, special=False), Token(id=1411, text=' method', logprob=-2.09375, special=False), Token(id=30, text=',', logprob=-0.49804688, special=False), Token(id=892, text=' String', logprob=-1.0546875, special=False), Token(id=3361, text=' body', logprob=-1.7265625, special=False), Token(id=27, text=')', logprob=-0.703125, special=False)], best_of_sequences=None)),
-    Response(generated_text=', GetNext) {\n  std::vector<', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=1006, text='Test', logprob=None)], tokens=[Token(id=30, text=',', logprob=-2.734375, special=False), Token(id=1390, text=' Get', logprob=-3.421875, special=False), Token(id=3353, text='Next', logprob=-4.625, special=False), Token(id=27, text=')', logprob=-2.875, special=False), Token(id=301, text=' {', logprob=-0.14453125, special=False), Token(id=334, text='\n ', logprob=-0.17871094, special=False), Token(id=1230, text=' std', logprob=-2.328125, special=False), Token(id=403, text='::', logprob=-0.0007247925, special=False), Token(id=2402, text='vector', logprob=-0.81640625, special=False), Token(id=46, text='<', logprob=-0.0026397705, special=False)], best_of_sequences=None)),
-    Response(generated_text=', GetNext) {\n  std::vector<', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=1006, text='Test', logprob=None)], tokens=[Token(id=30, text=',', logprob=-2.734375, special=False), Token(id=1390, text=' Get', logprob=-3.421875, special=False), Token(id=3353, text='Next', logprob=-4.625, special=False), Token(id=27, text=')', logprob=-2.875, special=False), Token(id=301, text=' {', logprob=-0.14453125, special=False), Token(id=334, text='\n ', logprob=-0.17871094, special=False), Token(id=1230, text=' std', logprob=-2.328125, special=False), Token(id=403, text='::', logprob=-0.0007247925, special=False), Token(id=2402, text='vector', logprob=-0.81640625, special=False), Token(id=46, text='<', logprob=-0.0026397705, special=False)], best_of_sequences=None)),
-    Response(generated_text=', GetNext) {\n  std::vector<', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=1006, text='Test', logprob=None)], tokens=[Token(id=30, text=',', logprob=-2.734375, special=False), Token(id=1390, text=' Get', logprob=-3.421875, special=False), Token(id=3353, text='Next', logprob=-4.625, special=False), Token(id=27, text=')', logprob=-2.875, special=False), Token(id=301, text=' {', logprob=-0.14453125, special=False), Token(id=334, text='\n ', logprob=-0.17871094, special=False), Token(id=1230, text=' std', logprob=-2.328125, special=False), Token(id=403, text='::', logprob=-0.0007247925, special=False), Token(id=2402, text='vector', logprob=-0.81640625, special=False), Token(id=46, text='<', logprob=-0.0026397705, special=False)], best_of_sequences=None)),
+    '''
+      ():
+          print("Hello World")
+      
+      def
+    ''',
+    '''
+      ():
+          print("Hello World")
+      
+      def
+    ''',
+    '''
+      ():
+          print("Hello World")
+      
+      def
+    ''',
+    '''
+      ():
+          print("Hello World")
+      
+      def
+    ''',
   ])
 # ---

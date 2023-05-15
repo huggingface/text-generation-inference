@@ -13,7 +13,12 @@ def bloom_560m_sharded(launcher):
 async def test_bloom_560m_sharded(bloom_560m_sharded, snapshot):
     await health_check(bloom_560m_sharded, 60)
 
-    response = await bloom_560m_sharded.generate("Test request", max_new_tokens=10)
+    response = await bloom_560m_sharded.generate(
+        "Pour déguster un ortolan, il faut tout d'abord",
+        max_new_tokens=10,
+        top_p=0.9,
+        seed=0,
+    )
 
     assert response.details.generated_tokens == 10
     assert response == snapshot
@@ -24,7 +29,10 @@ async def test_bloom_560m_sharded_load(bloom_560m_sharded, generate_load, snapsh
     await health_check(bloom_560m_sharded, 60)
 
     responses = await generate_load(
-        bloom_560m_sharded, "Test request", max_new_tokens=10, n=4
+        bloom_560m_sharded,
+        "Pour déguster un ortolan, il faut tout d'abord",
+        max_new_tokens=10,
+        n=4,
     )
 
     assert len(responses) == 4

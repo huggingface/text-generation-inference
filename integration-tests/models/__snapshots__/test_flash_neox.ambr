@@ -1,0 +1,174 @@
+# serializer version: 1
+# name: test_flash_neox
+  dict({
+    'details': dict({
+      'best_of_sequences': None,
+      'finish_reason': <FinishReason.Length: 'length'>,
+      'generated_tokens': 10,
+      'prefill': list([
+        dict({
+          'id': 50278,
+          'logprob': None,
+          'text': '<|prompter|>',
+        }),
+        dict({
+          'id': 1276,
+          'logprob': -8.03125,
+          'text': 'What',
+        }),
+        dict({
+          'id': 310,
+          'logprob': -5.421875,
+          'text': ' is',
+        }),
+        dict({
+          'id': 247,
+          'logprob': -2.1601562,
+          'text': ' a',
+        }),
+        dict({
+          'id': 1167,
+          'logprob': -5.4609375,
+          'text': ' mem',
+        }),
+        dict({
+          'id': 70,
+          'logprob': -0.005657196,
+          'text': 'e',
+        }),
+        dict({
+          'id': 13,
+          'logprob': -7.28125,
+          'text': ',',
+        }),
+        dict({
+          'id': 285,
+          'logprob': -0.2980957,
+          'text': ' and',
+        }),
+        dict({
+          'id': 752,
+          'logprob': -2.1679688,
+          'text': ' what',
+        }),
+        dict({
+          'id': 434,
+          'logprob': -5.6210938,
+          'text': "'s",
+        }),
+        dict({
+          'id': 253,
+          'logprob': -0.81103516,
+          'text': ' the',
+        }),
+        dict({
+          'id': 2892,
+          'logprob': -6.6640625,
+          'text': ' history',
+        }),
+        dict({
+          'id': 3212,
+          'logprob': -2.265625,
+          'text': ' behind',
+        }),
+        dict({
+          'id': 436,
+          'logprob': -11.5078125,
+          'text': ' this',
+        }),
+        dict({
+          'id': 3159,
+          'logprob': -2.1582031,
+          'text': ' word',
+        }),
+        dict({
+          'id': 32,
+          'logprob': -0.008720398,
+          'text': '?',
+        }),
+        dict({
+          'id': 0,
+          'logprob': -2.4726562,
+          'text': '<|endoftext|>',
+        }),
+        dict({
+          'id': 50281,
+          'logprob': -18.265625,
+          'text': '<|assistant|>',
+        }),
+      ]),
+      'seed': None,
+      'tokens': list([
+        dict({
+          'id': 510,
+          'logprob': -0.63183594,
+          'special': False,
+          'text': 'The',
+        }),
+        dict({
+          'id': 3159,
+          'logprob': -0.5390625,
+          'special': False,
+          'text': ' word',
+        }),
+        dict({
+          'id': 346,
+          'logprob': -0.045684814,
+          'special': False,
+          'text': ' "',
+        }),
+        dict({
+          'id': 6441,
+          'logprob': -0.002090454,
+          'special': False,
+          'text': 'mem',
+        }),
+        dict({
+          'id': 70,
+          'logprob': -1.3589859e-05,
+          'special': False,
+          'text': 'e',
+        }),
+        dict({
+          'id': 3,
+          'logprob': -0.0009455681,
+          'special': False,
+          'text': '"',
+        }),
+        dict({
+          'id': 369,
+          'logprob': -0.088012695,
+          'special': False,
+          'text': ' was',
+        }),
+        dict({
+          'id': 806,
+          'logprob': -0.12585449,
+          'special': False,
+          'text': ' first',
+        }),
+        dict({
+          'id': 908,
+          'logprob': -0.017196655,
+          'special': False,
+          'text': ' used',
+        }),
+        dict({
+          'id': 275,
+          'logprob': -0.49731445,
+          'special': False,
+          'text': ' in',
+        }),
+      ]),
+    }),
+    'generated_text': 'The word "meme" was first used in',
+  })
+# ---
+# name: test_flash_neox_load
+  list([
+    'The word "meme" was first used in',
+    'The word "meme" was first used in',
+    'The word "meme" was first used in',
+    'The word "meme" was first used in',
+  ])
+# ---

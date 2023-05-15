@@ -7,95 +7,132 @@
       'generated_tokens': 10,
       'prefill': list([
         dict({
-          'id': 804,
+          'id': 563,
           'logprob': None,
-          'text': 'Test',
+          'text': 'def',
+        }),
+        dict({
+          'id': 942,
+          'logprob': -5.1367188,
+          'text': ' print',
+        }),
+        dict({
+          'id': 62,
+          'logprob': -0.24450684,
+          'text': '_',
+        }),
+        dict({
+          'id': 7196,
+          'logprob': -6.9609375,
+          'text': 'hello',
         }),
       ]),
       'seed': None,
       'tokens': list([
         dict({
-          'id': 25,
-          'logprob': -2.828125,
+          'id': 1241,
+          'logprob': -0.9863281,
           'special': False,
-          'text': ':',
+          'text': '():',
         }),
         dict({
-          'id': 287,
-          'logprob': -1.5703125,
-          'special': False,
-          'text': ' "',
-        }),
-        dict({
-          'id': 385,
-          'logprob': -0.03955078,
-          'special': False,
-          'text': ' +',
-        }),
-        dict({
-          'id': 1028,
-          'logprob': -1.453125,
-          'special': False,
-          'text': ' request',
-        }),
-        dict({
-          'id': 13,
-          'logprob': -0.796875,
-          'special': False,
-          'text': '.',
-        }),
-        dict({
-          'id': 1832,
-          'logprob': -1.4296875,
-          'special': False,
-          'text': 'toString',
-        }),
-        dict({
-          'id': 782,
-          'logprob': -0.17871094,
-          'special': False,
-          'text': '());',
-        }),
-        dict({
-          'id': 259,
-          'logprob': -1.359375,
+          'id': 258,
+          'logprob': -0.21447754,
           'special': False,
           'text': '''
             
-                   
+               
           ''',
         }),
         dict({
-          'id': 294,
-          'logprob': -1.6484375,
+          'id': 942,
+          'logprob': -0.43701172,
           'special': False,
-          'text': ' }',
+          'text': ' print',
         }),
         dict({
-          'id': 437,
-          'logprob': -1.0625,
+          'id': 372,
+          'logprob': -0.5361328,
+          'special': False,
+          'text': '("',
+        }),
+        dict({
+          'id': 7371,
+          'logprob': -0.44555664,
+          'special': False,
+          'text': 'Hello',
+        }),
+        dict({
+          'id': 9956,
+          'logprob': -1.2412109,
+          'special': False,
+          'text': ' World',
+        }),
+        dict({
+          'id': 8657,
+          'logprob': -0.7583008,
+          'special': False,
+          'text': '!")',
+        }),
+        dict({
+          'id': 185,
+          'logprob': -0.76171875,
           'special': False,
           'text': '''
             
-            
-                   
+  
           ''',
+        }),
+        dict({
+          'id': 185,
+          'logprob': -0.20837402,
+          'special': False,
+          'text': '''
+            
+  
+          ''',
+        }),
+        dict({
+          'id': 1018,
+          'logprob': -1.2470703,
+          'special': False,
+          'text': 'print',
         }),
       ]),
     }),
     'generated_text': '''
-      : " + request.toString());
-              }
+      ():
+          print("Hello World!")
       
-             
+      print
     ''',
   })
 # ---
 # name: test_flash_santacoder_load
   list([
-    Response(generated_text=':\n    def __init__(self, name,', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=804, text='Test', logprob=None)], tokens=[Token(id=25, text=':', logprob=-2.828125, special=False), Token(id=258, text='\n   ', logprob=-2.828125, special=False), Token(id=458, text=' def', logprob=-0.7421875, special=False), Token(id=945, text=' __', logprob=-0.46679688, special=False), Token(id=955, text='init', logprob=-0.00680542, special=False), Token(id=1218, text='__(', logprob=-0.0049743652, special=False), Token(id=314, text='self', logprob=-0.020629883, special=False), Token(id=11, text=',', logprob=-0.34179688, special=False), Token(id=693, text=' name', logprob=-3.40625, special=False), Token(id=11, text=',', logprob=-0.6875, special=False)], best_of_sequences=None)),
-    Response(generated_text=':\n    def __init__(self, name,', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=804, text='Test', logprob=None)], tokens=[Token(id=25, text=':', logprob=-2.828125, special=False), Token(id=258, text='\n   ', logprob=-2.828125, special=False), Token(id=458, text=' def', logprob=-0.7421875, special=False), Token(id=945, text=' __', logprob=-0.46679688, special=False), Token(id=955, text='init', logprob=-0.00680542, special=False), Token(id=1218, text='__(', logprob=-0.0049743652, special=False), Token(id=314, text='self', logprob=-0.020629883, special=False), Token(id=11, text=',', logprob=-0.34179688, special=False), Token(id=693, text=' name', logprob=-3.40625, special=False), Token(id=11, text=',', logprob=-0.6875, special=False)], best_of_sequences=None)),
-    Response(generated_text=': " + request.toString());\n        }\n\n       ', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=804, text='Test', logprob=None)], tokens=[Token(id=25, text=':', logprob=-2.828125, special=False), Token(id=287, text=' "', logprob=-1.5859375, special=False), Token(id=385, text=' +', logprob=-0.037841797, special=False), Token(id=1028, text=' request', logprob=-1.4453125, special=False), Token(id=13, text='.', logprob=-0.79296875, special=False), Token(id=1832, text='toString', logprob=-1.4375, special=False), Token(id=782, text='());', logprob=-0.19335938, special=False), Token(id=259, text='\n       ', logprob=-1.359375, special=False), Token(id=294, text=' }', logprob=-1.609375, special=False), Token(id=437, text='\n\n       ', logprob=-1.0546875, special=False)], best_of_sequences=None)),
-    Response(generated_text=':\n    def __init__(self, name,', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=10, seed=None, prefill=[PrefillToken(id=804, text='Test', logprob=None)], tokens=[Token(id=25, text=':', logprob=-2.828125, special=False), Token(id=258, text='\n   ', logprob=-2.828125, special=False), Token(id=458, text=' def', logprob=-0.7421875, special=False), Token(id=945, text=' __', logprob=-0.46679688, special=False), Token(id=955, text='init', logprob=-0.00680542, special=False), Token(id=1218, text='__(', logprob=-0.0049743652, special=False), Token(id=314, text='self', logprob=-0.020629883, special=False), Token(id=11, text=',', logprob=-0.34179688, special=False), Token(id=693, text=' name', logprob=-3.40625, special=False), Token(id=11, text=',', logprob=-0.6875, special=False)], best_of_sequences=None)),
+    '''
+      ():
+          print("Hello World!")
+      
+      print
+    ''',
+    '''
+      ():
+          print("Hello World!")
+      
+      print
+    ''',
+    '''
+      ():
+          print("Hello World!")
+      
+      print
+    ''',
+    '''
+      ():
+          print("Hello World!")
+      
+      print
+    ''',
   ])
 # ---

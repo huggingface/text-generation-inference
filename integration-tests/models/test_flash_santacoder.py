@@ -13,7 +13,7 @@ def flash_santacoder(launcher):
 async def test_flash_santacoder(flash_santacoder, snapshot):
     await health_check(flash_santacoder, 60)
 
-    response = await flash_santacoder.generate("Test request", max_new_tokens=10)
+    response = await flash_santacoder.generate("def print_hello", max_new_tokens=10)
 
     assert response.details.generated_tokens == 10
     assert response == snapshot
@@ -24,7 +24,7 @@ async def test_flash_santacoder_load(flash_santacoder, generate_load, snapshot):
     await health_check(flash_santacoder, 60)
 
     responses = await generate_load(
-        flash_santacoder, "Test request", max_new_tokens=10, n=4
+        flash_santacoder, "def print_hello", max_new_tokens=10, n=4
     )
 
     assert len(responses) == 4

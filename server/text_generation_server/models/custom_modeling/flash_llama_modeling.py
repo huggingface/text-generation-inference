@@ -30,7 +30,6 @@ from typing import Optional
 # Flash attention imports
 import flash_attn_cuda
 
-from flash_attn.layers.rotary import RotaryEmbedding
 from text_generation_server.utils.layers import (
     FastLinear,
     TensorParallelRowLinear,
