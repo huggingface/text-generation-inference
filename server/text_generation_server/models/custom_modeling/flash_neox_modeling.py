@@ -30,9 +30,7 @@ from transformers.models.gpt_neox import GPTNeoXConfig
 from typing import Optional
 
 # Flash attention imports
-import rotary_emb
 import flash_attn_cuda
-import dropout_layer_norm
 
 from flash_attn.layers.rotary import RotaryEmbedding
 from text_generation_server.utils.layers import (
