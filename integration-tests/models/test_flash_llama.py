@@ -10,6 +10,7 @@ def flash_llama(launcher):
 
 
 @pytest.mark.asyncio
+@pytest.mark.private
 async def test_flash_llama(flash_llama, snapshot):
     await health_check(flash_llama, 120)
 
@@ -20,6 +21,7 @@ async def test_flash_llama(flash_llama, snapshot):
 
 
 @pytest.mark.asyncio
+@pytest.mark.private
 async def test_flash_llama_all_params(flash_llama, snapshot):
     await health_check(flash_llama, 120)
 
@@ -43,6 +45,7 @@ async def test_flash_llama_all_params(flash_llama, snapshot):
 
 
 @pytest.mark.asyncio
+@pytest.mark.private
 async def test_flash_llama_load(flash_llama, generate_load, snapshot):
     await health_check(flash_llama, 120)
 

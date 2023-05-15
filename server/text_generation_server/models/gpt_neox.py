@@ -94,7 +94,7 @@ class GPTNeoxSharded(CausalLM):
         parameters = dict(model.named_parameters())
         for file in filenames:
             with safe_open(
-                file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if quantize is None else "cpu"
             ) as f:
                 for name in f.keys():
                     module_name, param_name = name.rsplit(".", 1)

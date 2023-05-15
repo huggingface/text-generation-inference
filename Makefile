@@ -25,7 +25,7 @@ rust-tests: install-router install-launcher
 	cargo test
 
 integration-tests: install-integration-tests
-	pytest -s -vv integration-tests
+	pytest -s -vv -m "not private" integration-tests
 
 update-integration-tests: install-integration-tests
 	pytest -s -vv --snapshot-update integration-tests

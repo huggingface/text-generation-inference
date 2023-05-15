@@ -1,6 +1,8 @@
 import torch
 
 from torch import nn
+from torch.nn import functional as F
+from typing import Optional
 
 HAS_BITS_AND_BYTES = True
 try:
@@ -22,7 +24,7 @@ class FastLinear(nn.Linear):
         self.quantized = False
         self.bnb_linear = None
 
-    def prepare_weights(self, quantize: bool = False):
+    def prepare_weights(self, quantize: Optional[str] = None):
         if quantize == "bitsandbytes":
             if not HAS_BITS_AND_BYTES:
                 raise ImportError(

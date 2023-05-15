@@ -59,7 +59,7 @@ def launcher(event_loop):
             process.terminate()
             process.wait(60)
 
-            launcher_output = process.stdout.read1().decode("utf-8")
+            launcher_output = process.stdout.read().decode("utf-8")
             print(launcher_output)
 
             process.stdout.close()

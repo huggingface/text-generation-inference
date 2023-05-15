@@ -89,7 +89,7 @@ class FlashSantacoder(FlashCausalLM):
         for filename in filenames:
             state_dict = torch.load(filename, map_location="cpu")
             for key, value in state_dict.items():
-                value = value.to(device if not quantize else "cpu").to(dtype)
+                value = value.to(device if quantize is None else "cpu").to(dtype)
 
                 layer_name = ".".join(key.split(".")[:4])
 
@@ -229,7 +229,7 @@ class FlashSantacoderSharded(FlashSantacoder):
     def load_weights(
         model,
         filenames: List[str],
-        quantize: bool,
+        quantize: Optional[str],
         device: torch.device,
         dtype: torch.dtype,
         rank: int,
@@ -238,7 +238,7 @@ class FlashSantacoderSharded(FlashSantacoder):
     ):
         for file in filenames:
             with safe_open(
-                file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if quantize is None else "cpu"
             ) as f:
                 for key in f.keys():
                     slice_ = f.get_slice(key)

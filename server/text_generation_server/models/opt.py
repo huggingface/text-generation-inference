@@ -110,7 +110,7 @@ class OPTSharded(OPT):
         parameters = dict(model.named_parameters())
         for file in filenames:
             with safe_open(
-                file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if quantize is None else "cpu"
             ) as f:
                 for name in f.keys():
                     if name == "lm_head.weight":

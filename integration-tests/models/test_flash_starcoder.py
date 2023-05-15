@@ -10,6 +10,7 @@ def flash_starcoder(launcher):
 
 
 @pytest.mark.asyncio
+@pytest.mark.private
 async def test_flash_starcoder(flash_starcoder, snapshot):
     await health_check(flash_starcoder, 240)
 
@@ -20,6 +21,7 @@ async def test_flash_starcoder(flash_starcoder, snapshot):
 
 
 @pytest.mark.asyncio
+@pytest.mark.private
 async def test_flash_starcoder_default_params(flash_starcoder, snapshot):
     await health_check(flash_starcoder, 240)
 
@@ -32,6 +34,7 @@ async def test_flash_starcoder_default_params(flash_starcoder, snapshot):
 
 
 @pytest.mark.asyncio
+@pytest.mark.private
 async def test_flash_starcoder_load(flash_starcoder, generate_load, snapshot):
     await health_check(flash_starcoder, 240)
 
