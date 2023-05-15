@@ -194,7 +194,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python
-        uses: actions/setup-python@v4.6
+        uses: actions/setup-python@4.6
         with:
           python-version: 3.9
       - name: Tailscale
