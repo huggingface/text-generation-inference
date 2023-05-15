@@ -10,7 +10,7 @@ def flash_neox(launcher):
 
 
 @pytest.mark.asyncio
-async def test_flash_neox(flash_neox, snapshot):
+async def test_flash_neox(flash_neox, snapshot_test):
     await health_check(flash_neox, 240)
 
     response = await flash_neox.generate(
@@ -19,11 +19,11 @@ async def test_flash_neox(flash_neox, snapshot):
     )
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
-async def test_flash_neox_load(flash_neox, generate_load, snapshot):
+async def test_flash_neox_load(flash_neox, generate_load, snapshot_test):
     await health_check(flash_neox, 240)
 
     responses = await generate_load(
@@ -35,4 +35,4 @@ async def test_flash_neox_load(flash_neox, generate_load, snapshot):
 
     assert len(responses) == 4
 
-    assert responses == snapshot
+    assert snapshot_test(responses)

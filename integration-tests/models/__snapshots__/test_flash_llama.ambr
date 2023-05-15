@@ -8,17 +8,14 @@
       'prefill': list([
         dict({
           'id': 1,
-          'logprob': None,
           'text': '<s>',
         }),
         dict({
           'id': 4321,
-          'logprob': -8.6875,
           'text': 'Test',
         }),
         dict({
           'id': 2009,
-          'logprob': -11.5546875,
           'text': 'request',
         }),
       ]),
@@ -26,61 +23,51 @@
       'tokens': list([
         dict({
           'id': 363,
-          'logprob': -1.5380859,
           'special': False,
           'text': ' for',
         }),
         dict({
           'id': 847,
-          'logprob': -2.5917969,
           'special': False,
           'text': ' /',
         }),
         dict({
           'id': 2754,
-          'logprob': -2.2773438,
           'special': False,
           'text': 'api',
         }),
         dict({
           'id': 29914,
-          'logprob': -0.034362793,
           'special': False,
           'text': '/',
         }),
         dict({
           'id': 29894,
-          'logprob': -0.96533203,
           'special': False,
           'text': 'v',
         }),
         dict({
           'id': 29896,
-          'logprob': -0.36669922,
           'special': False,
           'text': '1',
         }),
         dict({
           'id': 29914,
-          'logprob': -0.013122559,
           'special': False,
           'text': '/',
         }),
         dict({
           'id': 16418,
-          'logprob': -3.1503906,
           'special': False,
           'text': 'projects',
         }),
         dict({
           'id': 29914,
-          'logprob': -0.43652344,
           'special': False,
           'text': '/',
         }),
         dict({
           'id': 29896,
-          'logprob': -1.9404297,
           'special': False,
           'text': '1',
         }),
@@ -98,17 +85,14 @@
       'prefill': list([
         dict({
           'id': 1,
-          'logprob': None,
           'text': '<s>',
         }),
         dict({
           'id': 4321,
-          'logprob': -8.6875,
           'text': 'Test',
         }),
         dict({
           'id': 2009,
-          'logprob': -11.5546875,
           'text': 'request',
         }),
       ]),
@@ -116,55 +100,46 @@
       'tokens': list([
         dict({
           'id': 5229,
-          'logprob': -3.3085938,
           'special': False,
           'text': ' failed',
         }),
         dict({
           'id': 363,
-          'logprob': -3.984375,
           'special': False,
           'text': ' for',
         }),
         dict({
           'id': 5641,
-          'logprob': -6.53125,
           'special': False,
           'text': ' IP',
         }),
         dict({
           'id': 16428,
-          'logprob': -3.1835938,
           'special': False,
           'text': ' Address',
         }),
         dict({
           'id': 29901,
-          'logprob': -1.2324219,
           'special': False,
           'text': ':',
         }),
         dict({
           'id': 525,
-          'logprob': -2.6855469,
           'special': False,
           'text': " '",
         }),
         dict({
           'id': 8516,
-          'logprob': -7.1601562,
           'special': False,
           'text': 'None',
         }),
         dict({
           'id': 4286,
-          'logprob': -2.4433594,
           'special': False,
           'text': "'.",
         }),
         dict({
           'id': 13,
-          'logprob': -0.06530762,
           'special': False,
           'text': '''
             
@@ -173,7 +148,6 @@
         }),
         dict({
           'id': 294,
-          'logprob': -7.953125,
           'special': False,
           'text': 'as',
         }),
@@ -187,9 +161,305 @@
 # ---
 # name: test_flash_llama_load
   list([
-    'for /api/v1/projects/1',
-    'for /api/v1/projects/1',
-    'for /api/v1/projects/1',
-    'for /api/v1/projects/1',
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 1,
+            'text': '<s>',
+          }),
+          dict({
+            'id': 4321,
+            'text': 'Test',
+          }),
+          dict({
+            'id': 2009,
+            'text': 'request',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 363,
+            'special': False,
+            'text': ' for',
+          }),
+          dict({
+            'id': 847,
+            'special': False,
+            'text': ' /',
+          }),
+          dict({
+            'id': 2754,
+            'special': False,
+            'text': 'api',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 29894,
+            'special': False,
+            'text': 'v',
+          }),
+          dict({
+            'id': 29896,
+            'special': False,
+            'text': '1',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 16418,
+            'special': False,
+            'text': 'projects',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 29896,
+            'special': False,
+            'text': '1',
+          }),
+        ]),
+      }),
+      'generated_text': 'for /api/v1/projects/1',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 1,
+            'text': '<s>',
+          }),
+          dict({
+            'id': 4321,
+            'text': 'Test',
+          }),
+          dict({
+            'id': 2009,
+            'text': 'request',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 363,
+            'special': False,
+            'text': ' for',
+          }),
+          dict({
+            'id': 847,
+            'special': False,
+            'text': ' /',
+          }),
+          dict({
+            'id': 2754,
+            'special': False,
+            'text': 'api',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 29894,
+            'special': False,
+            'text': 'v',
+          }),
+          dict({
+            'id': 29896,
+            'special': False,
+            'text': '1',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 16418,
+            'special': False,
+            'text': 'projects',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 29896,
+            'special': False,
+            'text': '1',
+          }),
+        ]),
+      }),
+      'generated_text': 'for /api/v1/projects/1',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 1,
+            'text': '<s>',
+          }),
+          dict({
+            'id': 4321,
+            'text': 'Test',
+          }),
+          dict({
+            'id': 2009,
+            'text': 'request',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 363,
+            'special': False,
+            'text': ' for',
+          }),
+          dict({
+            'id': 847,
+            'special': False,
+            'text': ' /',
+          }),
+          dict({
+            'id': 2754,
+            'special': False,
+            'text': 'api',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 29894,
+            'special': False,
+            'text': 'v',
+          }),
+          dict({
+            'id': 29896,
+            'special': False,
+            'text': '1',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 16418,
+            'special': False,
+            'text': 'projects',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 29896,
+            'special': False,
+            'text': '1',
+          }),
+        ]),
+      }),
+      'generated_text': 'for /api/v1/projects/1',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 1,
+            'text': '<s>',
+          }),
+          dict({
+            'id': 4321,
+            'text': 'Test',
+          }),
+          dict({
+            'id': 2009,
+            'text': 'request',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 363,
+            'special': False,
+            'text': ' for',
+          }),
+          dict({
+            'id': 847,
+            'special': False,
+            'text': ' /',
+          }),
+          dict({
+            'id': 2754,
+            'special': False,
+            'text': 'api',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 29894,
+            'special': False,
+            'text': 'v',
+          }),
+          dict({
+            'id': 29896,
+            'special': False,
+            'text': '1',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 16418,
+            'special': False,
+            'text': 'projects',
+          }),
+          dict({
+            'id': 29914,
+            'special': False,
+            'text': '/',
+          }),
+          dict({
+            'id': 29896,
+            'special': False,
+            'text': '1',
+          }),
+        ]),
+      }),
+      'generated_text': 'for /api/v1/projects/1',
+    }),
   ])
 # ---

@@ -11,18 +11,18 @@ def flash_llama(launcher):
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama(flash_llama, snapshot):
+async def test_flash_llama(flash_llama, snapshot_test):
     await health_check(flash_llama, 120)
 
     response = await flash_llama.generate("Test request", max_new_tokens=10)
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_all_params(flash_llama, snapshot):
+async def test_flash_llama_all_params(flash_llama, snapshot_test):
     await health_check(flash_llama, 120)
 
     response = await flash_llama.generate(
@@ -41,16 +41,16 @@ async def test_flash_llama_all_params(flash_llama, snapshot):
     )
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_load(flash_llama, generate_load, snapshot):
+async def test_flash_llama_load(flash_llama, generate_load, snapshot_test):
     await health_check(flash_llama, 120)
 
     responses = await generate_load(flash_llama, "Test request", max_new_tokens=10, n=4)
 
     assert len(responses) == 4
 
-    assert responses == snapshot
+    assert snapshot_test(responses)

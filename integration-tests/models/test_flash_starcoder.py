@@ -11,18 +11,18 @@ def flash_starcoder(launcher):
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_starcoder(flash_starcoder, snapshot):
+async def test_flash_starcoder(flash_starcoder, snapshot_test):
     await health_check(flash_starcoder, 240)
 
     response = await flash_starcoder.generate("def print_hello", max_new_tokens=10)
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_starcoder_default_params(flash_starcoder, snapshot):
+async def test_flash_starcoder_default_params(flash_starcoder, snapshot_test):
     await health_check(flash_starcoder, 240)
 
     response = await flash_starcoder.generate(
@@ -30,12 +30,12 @@ async def test_flash_starcoder_default_params(flash_starcoder, snapshot):
     )
 
     assert response.details.generated_tokens == 12
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_starcoder_load(flash_starcoder, generate_load, snapshot):
+async def test_flash_starcoder_load(flash_starcoder, generate_load, snapshot_test):
     await health_check(flash_starcoder, 240)
 
     responses = await generate_load(
@@ -44,4 +44,4 @@ async def test_flash_starcoder_load(flash_starcoder, generate_load, snapshot):
 
     assert len(responses) == 4
 
-    assert responses == snapshot
+    assert snapshot_test(responses)

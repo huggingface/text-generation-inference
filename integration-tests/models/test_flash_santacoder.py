@@ -10,17 +10,17 @@ def flash_santacoder(launcher):
 
 
 @pytest.mark.asyncio
-async def test_flash_santacoder(flash_santacoder, snapshot):
+async def test_flash_santacoder(flash_santacoder, snapshot_test):
     await health_check(flash_santacoder, 60)
 
     response = await flash_santacoder.generate("def print_hello", max_new_tokens=10)
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
-async def test_flash_santacoder_load(flash_santacoder, generate_load, snapshot):
+async def test_flash_santacoder_load(flash_santacoder, generate_load, snapshot_test):
     await health_check(flash_santacoder, 60)
 
     responses = await generate_load(
@@ -29,4 +29,4 @@ async def test_flash_santacoder_load(flash_santacoder, generate_load, snapshot):
 
     assert len(responses) == 4
 
-    assert responses == snapshot
+    assert snapshot_test(responses)

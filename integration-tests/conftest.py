@@ -7,6 +7,7 @@ import docker
 
 from docker.errors import NotFound
 from typing import Optional, List
+from syrupy.filters import props
 
 from text_generation import AsyncClient
 from text_generation.types import Response
@@ -14,6 +15,11 @@ from text_generation.types import Response
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
+
+
+@pytest.fixture
+def snapshot_test(snapshot):
+    return lambda value: value == snapshot(exclude=props("logprob"))
 
 
 @pytest.fixture(scope="module")
@@ -135,6 +141,6 @@ def generate_load():
         ]
 
         results = await asyncio.gather(*futures)
-        return [r.generated_text for r in results]
+        return [r.dict() for r in results]
 
     return generate_load_inner

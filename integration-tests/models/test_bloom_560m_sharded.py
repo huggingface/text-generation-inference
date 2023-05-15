@@ -10,7 +10,7 @@ def bloom_560m_sharded(launcher):
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_sharded(bloom_560m_sharded, snapshot):
+async def test_bloom_560m_sharded(bloom_560m_sharded, snapshot_test):
     await health_check(bloom_560m_sharded, 60)
 
     response = await bloom_560m_sharded.generate(
@@ -21,11 +21,13 @@ async def test_bloom_560m_sharded(bloom_560m_sharded, snapshot):
     )
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_sharded_load(bloom_560m_sharded, generate_load, snapshot):
+async def test_bloom_560m_sharded_load(
+    bloom_560m_sharded, generate_load, snapshot_test
+):
     await health_check(bloom_560m_sharded, 60)
 
     responses = await generate_load(
@@ -37,4 +39,4 @@ async def test_bloom_560m_sharded_load(bloom_560m_sharded, generate_load, snapsh
 
     assert len(responses) == 4
 
-    assert responses == snapshot
+    assert snapshot_test(responses)

@@ -10,7 +10,7 @@ def bloom_560(launcher):
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m(bloom_560, snapshot):
+async def test_bloom_560m(bloom_560, snapshot_test):
     await health_check(bloom_560, 60)
 
     response = await bloom_560.generate(
@@ -21,11 +21,11 @@ async def test_bloom_560m(bloom_560, snapshot):
     )
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_all_params(bloom_560, snapshot):
+async def test_bloom_560m_all_params(bloom_560, snapshot_test):
     await health_check(bloom_560, 60)
 
     response = await bloom_560.generate(
@@ -44,11 +44,11 @@ async def test_bloom_560m_all_params(bloom_560, snapshot):
     )
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_load(bloom_560, generate_load, snapshot):
+async def test_bloom_560m_load(bloom_560, generate_load, snapshot_test):
     await health_check(bloom_560, 60)
 
     responses = await generate_load(
@@ -60,4 +60,4 @@ async def test_bloom_560m_load(bloom_560, generate_load, snapshot):
 
     assert len(responses) == 4
 
-    assert responses == snapshot
+    assert snapshot_test(responses)

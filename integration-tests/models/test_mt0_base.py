@@ -10,7 +10,7 @@ def mt0_base(launcher):
 
 
 @pytest.mark.asyncio
-async def test_mt0_base(mt0_base, snapshot):
+async def test_mt0_base(mt0_base, snapshot_test):
     await health_check(mt0_base, 60)
 
     response = await mt0_base.generate(
@@ -21,11 +21,11 @@ async def test_mt0_base(mt0_base, snapshot):
     )
 
     assert response.details.generated_tokens == 5
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
-async def test_mt0_base_all_params(mt0_base, snapshot):
+async def test_mt0_base_all_params(mt0_base, snapshot_test):
     await health_check(mt0_base, 60)
 
     response = await mt0_base.generate(
@@ -44,11 +44,11 @@ async def test_mt0_base_all_params(mt0_base, snapshot):
     )
 
     assert response.details.generated_tokens == 10
-    assert response == snapshot
+    assert snapshot_test(response)
 
 
 @pytest.mark.asyncio
-async def test_mt0_base_load(mt0_base, generate_load, snapshot):
+async def test_mt0_base_load(mt0_base, generate_load, snapshot_test):
     await health_check(mt0_base, 60)
 
     responses = await generate_load(
@@ -60,4 +60,4 @@ async def test_mt0_base_load(mt0_base, generate_load, snapshot):
 
     assert len(responses) == 4
 
-    assert responses == snapshot
+    assert snapshot_test(responses)

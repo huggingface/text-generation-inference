@@ -8,22 +8,18 @@
       'prefill': list([
         dict({
           'id': 589,
-          'logprob': None,
           'text': 'def',
         }),
         dict({
           'id': 1459,
-          'logprob': -5.6289062,
           'text': ' print',
         }),
         dict({
           'id': 81,
-          'logprob': -1.6005859,
           'text': '_',
         }),
         dict({
           'id': 7656,
-          'logprob': -5.9921875,
           'text': 'hello',
         }),
       ]),
@@ -31,13 +27,11 @@
       'tokens': list([
         dict({
           'id': 2262,
-          'logprob': -0.7705078,
           'special': False,
           'text': '():',
         }),
         dict({
           'id': 284,
-          'logprob': -0.2590332,
           'special': False,
           'text': '''
             
@@ -46,37 +40,31 @@
         }),
         dict({
           'id': 1459,
-          'logprob': -0.39379883,
           'special': False,
           'text': ' print',
         }),
         dict({
           'id': 440,
-          'logprob': -0.61376953,
           'special': False,
           'text': '("',
         }),
         dict({
           'id': 8279,
-          'logprob': -0.47338867,
           'special': False,
           'text': 'Hello',
         }),
         dict({
           'id': 10896,
-          'logprob': -1.5068359,
           'special': False,
           'text': ' World',
         }),
         dict({
           'id': 657,
-          'logprob': -0.80810547,
           'special': False,
           'text': '")',
         }),
         dict({
           'id': 203,
-          'logprob': -0.7397461,
           'special': False,
           'text': '''
             
@@ -85,7 +73,6 @@
         }),
         dict({
           'id': 203,
-          'logprob': -0.35229492,
           'special': False,
           'text': '''
             
@@ -94,7 +81,6 @@
         }),
         dict({
           'id': 589,
-          'logprob': -1.0371094,
           'special': False,
           'text': 'def',
         }),
@@ -117,22 +103,18 @@
       'prefill': list([
         dict({
           'id': 589,
-          'logprob': None,
           'text': 'def',
         }),
         dict({
           'id': 1459,
-          'logprob': -5.6289062,
           'text': ' print',
         }),
         dict({
           'id': 81,
-          'logprob': -1.6005859,
           'text': '_',
         }),
         dict({
           'id': 7656,
-          'logprob': -5.9921875,
           'text': 'hello',
         }),
       ]),
@@ -140,13 +122,11 @@
       'tokens': list([
         dict({
           'id': 2262,
-          'logprob': -0.7451172,
           'special': False,
           'text': '():',
         }),
         dict({
           'id': 284,
-          'logprob': -0.21325684,
           'special': False,
           'text': '''
             
@@ -155,55 +135,46 @@
         }),
         dict({
           'id': 5741,
-          'logprob': -5.734375,
           'special': False,
           'text': ' logging',
         }),
         dict({
           'id': 32,
-          'logprob': 0.0,
           'special': False,
           'text': '.',
         }),
         dict({
           'id': 1338,
-          'logprob': -0.3232422,
           'special': False,
           'text': 'info',
         }),
         dict({
           'id': 463,
-          'logprob': -1.0380859,
           'special': False,
           'text': "('",
         }),
         dict({
           'id': 8279,
-          'logprob': -0.8378906,
           'special': False,
           'text': 'Hello',
         }),
         dict({
           'id': 30,
-          'logprob': -1.9501953,
           'special': False,
           'text': ',',
         }),
         dict({
           'id': 10896,
-          'logprob': -1.3476562,
           'special': False,
           'text': ' World',
         }),
         dict({
           'id': 683,
-          'logprob': -1.796875,
           'special': False,
           'text': "')",
         }),
         dict({
           'id': 203,
-          'logprob': -0.9873047,
           'special': False,
           'text': '''
             
@@ -212,7 +183,6 @@
         }),
         dict({
           'id': 0,
-          'logprob': -0.7495117,
           'special': True,
           'text': '<|endoftext|>',
         }),
@@ -227,29 +197,377 @@
 # ---
 # name: test_flash_starcoder_load
   list([
-    '''
-      ():
-          print("Hello World")
-      
-      def
-    ''',
-    '''
-      ():
-          print("Hello World")
-      
-      def
-    ''',
-    '''
-      ():
-          print("Hello World")
-      
-      def
-    ''',
-    '''
-      ():
-          print("Hello World")
-      
-      def
-    ''',
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 589,
+            'text': 'def',
+          }),
+          dict({
+            'id': 1459,
+            'text': ' print',
+          }),
+          dict({
+            'id': 81,
+            'text': '_',
+          }),
+          dict({
+            'id': 7656,
+            'text': 'hello',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 2262,
+            'special': False,
+            'text': '():',
+          }),
+          dict({
+            'id': 284,
+            'special': False,
+            'text': '''
+              
+                 
+            ''',
+          }),
+          dict({
+            'id': 1459,
+            'special': False,
+            'text': ' print',
+          }),
+          dict({
+            'id': 440,
+            'special': False,
+            'text': '("',
+          }),
+          dict({
+            'id': 8279,
+            'special': False,
+            'text': 'Hello',
+          }),
+          dict({
+            'id': 10896,
+            'special': False,
+            'text': ' World',
+          }),
+          dict({
+            'id': 657,
+            'special': False,
+            'text': '")',
+          }),
+          dict({
+            'id': 203,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 203,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 589,
+            'special': False,
+            'text': 'def',
+          }),
+        ]),
+      }),
+      'generated_text': '''
+        ():
+            print("Hello World")
+        
+        def
+      ''',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 589,
+            'text': 'def',
+          }),
+          dict({
+            'id': 1459,
+            'text': ' print',
+          }),
+          dict({
+            'id': 81,
+            'text': '_',
+          }),
+          dict({
+            'id': 7656,
+            'text': 'hello',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 2262,
+            'special': False,
+            'text': '():',
+          }),
+          dict({
+            'id': 284,
+            'special': False,
+            'text': '''
+              
+                 
+            ''',
+          }),
+          dict({
+            'id': 1459,
+            'special': False,
+            'text': ' print',
+          }),
+          dict({
+            'id': 440,
+            'special': False,
+            'text': '("',
+          }),
+          dict({
+            'id': 8279,
+            'special': False,
+            'text': 'Hello',
+          }),
+          dict({
+            'id': 10896,
+            'special': False,
+            'text': ' World',
+          }),
+          dict({
+            'id': 657,
+            'special': False,
+            'text': '")',
+          }),
+          dict({
+            'id': 203,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 203,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 589,
+            'special': False,
+            'text': 'def',
+          }),
+        ]),
+      }),
+      'generated_text': '''
+        ():
+            print("Hello World")
+        
+        def
+      ''',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 589,
+            'text': 'def',
+          }),
+          dict({
+            'id': 1459,
+            'text': ' print',
+          }),
+          dict({
+            'id': 81,
+            'text': '_',
+          }),
+          dict({
+            'id': 7656,
+            'text': 'hello',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 2262,
+            'special': False,
+            'text': '():',
+          }),
+          dict({
+            'id': 284,
+            'special': False,
+            'text': '''
+              
+                 
+            ''',
+          }),
+          dict({
+            'id': 1459,
+            'special': False,
+            'text': ' print',
+          }),
+          dict({
+            'id': 440,
+            'special': False,
+            'text': '("',
+          }),
+          dict({
+            'id': 8279,
+            'special': False,
+            'text': 'Hello',
+          }),
+          dict({
+            'id': 10896,
+            'special': False,
+            'text': ' World',
+          }),
+          dict({
+            'id': 657,
+            'special': False,
+            'text': '")',
+          }),
+          dict({
+            'id': 203,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 203,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 589,
+            'special': False,
+            'text': 'def',
+          }),
+        ]),
+      }),
+      'generated_text': '''
+        ():
+            print("Hello World")
+        
+        def
+      ''',
+    }),
+    dict({
+      'details': dict({
+        'best_of_sequences': None,
+        'finish_reason': <FinishReason.Length: 'length'>,
+        'generated_tokens': 10,
+        'prefill': list([
+          dict({
+            'id': 589,
+            'text': 'def',
+          }),
+          dict({
+            'id': 1459,
+            'text': ' print',
+          }),
+          dict({
+            'id': 81,
+            'text': '_',
+          }),
+          dict({
+            'id': 7656,
+            'text': 'hello',
+          }),
+        ]),
+        'seed': None,
+        'tokens': list([
+          dict({
+            'id': 2262,
+            'special': False,
+            'text': '():',
+          }),
+          dict({
+            'id': 284,
+            'special': False,
+            'text': '''
+              
+                 
+            ''',
+          }),
+          dict({
+            'id': 1459,
+            'special': False,
+            'text': ' print',
+          }),
+          dict({
+            'id': 440,
+            'special': False,
+            'text': '("',
+          }),
+          dict({
+            'id': 8279,
+            'special': False,
+            'text': 'Hello',
+          }),
+          dict({
+            'id': 10896,
+            'special': False,
+            'text': ' World',
+          }),
+          dict({
+            'id': 657,
+            'special': False,
+            'text': '")',
+          }),
+          dict({
+            'id': 203,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 203,
+            'special': False,
+            'text': '''
+              
+  
+            ''',
+          }),
+          dict({
+            'id': 589,
+            'special': False,
+            'text': 'def',
+          }),
+        ]),
+      }),
+      'generated_text': '''
+        ():
+            print("Hello World")
+        
+        def
+      ''',
+    }),
   ])
 # ---
