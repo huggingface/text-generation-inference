@@ -191,8 +191,6 @@ jobs:
       - start-runner
       - build-and-push-image # Wait for the docker image to be built
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
-    env:
-      DOCKER_IMAGE: registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python
@@ -214,6 +212,7 @@ jobs:
           make install-integration-tests
       - name: Run tests
         run: |
+          export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
           make integration-tests
 
   stop-runner:
