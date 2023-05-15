@@ -214,7 +214,7 @@ jobs:
       - name: Run tests
         run: |
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
-          export HUGGING_FACE_HUB_TOKEN={{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
           make integration-tests
 
   stop-runner:
