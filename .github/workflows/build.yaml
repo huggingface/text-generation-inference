@@ -195,6 +195,8 @@ jobs:
       DOCKER_VOLUME: /cache
     steps:
       - uses: actions/checkout@v2
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
