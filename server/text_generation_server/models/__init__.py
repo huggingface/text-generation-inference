@@ -113,7 +113,7 @@ def get_model(
     config = AutoConfig.from_pretrained(model_id, revision=revision)
     model_type = config.model_type
 
-    if model_type == "gpt_bigcode" or model_id.startswith("bigcode/"):
+    if model_type == "gpt_bigcode":
         if sharded:
             if not FLASH_ATTENTION:
                 raise NotImplementedError(
