@@ -20,8 +20,6 @@ on:
     branches:
       - 'main'
 
-
-
 jobs:
   start-runner:
     name: Start self-hosted EC2 runner
@@ -60,7 +58,7 @@ jobs:
 
   build-and-push-image:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     needs: start-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
@@ -187,7 +185,7 @@ jobs:
 
   integration-tests:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     needs:
       - start-runner
