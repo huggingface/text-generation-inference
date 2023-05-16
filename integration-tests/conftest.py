@@ -1,3 +1,4 @@
+import sys
 import subprocess
 import contextlib
 import pytest
@@ -7,6 +8,7 @@ import docker
 import json
 import math
 import time
+import random
 
 from docker.errors import NotFound
 from typing import Optional, List, Dict
@@ -205,10 +207,12 @@ def launcher(event_loop):
     def local_launcher(
         model_id: str, num_shard: Optional[int] = None, quantize: Optional[str] = None
     ):
-        port = 9999
-        master_port = 19999
+        port = random.randint(8000, 10_000)
+        master_port = random.randint(10_000, 20_000)
 
-        shard_uds_path = f"/tmp/{model_id.replace('/', '--')}-server"
+        shard_uds_path = (
+            f"/tmp/tgi-tests-{model_id.split('/')[-1]}-{num_shard}-{quantize}-server"
+        )
 
         args = [
             "text-generation-launcher",
@@ -236,7 +240,7 @@ def launcher(event_loop):
             process.wait(60)
 
             launcher_output = process.stdout.read().decode("utf-8")
-            print(launcher_output)
+            print(launcher_output, file=sys.stderr)
 
             process.stdout.close()
             process.stderr.close()
@@ -245,7 +249,7 @@ def launcher(event_loop):
     def docker_launcher(
         model_id: str, num_shard: Optional[int] = None, quantize: Optional[str] = None
     ):
-        port = 9999
+        port = random.randint(8000, 10_000)
 
         args = ["--model-id", model_id, "--env"]
 
@@ -298,7 +302,7 @@ def launcher(event_loop):
             pass
 
         container_output = container.logs().decode("utf-8")
-        print(container_output)
+        print(container_output, file=sys.stderr)
 
         container.remove()
 

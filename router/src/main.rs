@@ -146,7 +146,7 @@ fn main() -> Result<(), std::io::Error> {
                     sha: None,
                     pipeline_tag: None,
                 },
-                false => get_model_info(&tokenizer_name, &revision, authorization_token).await.unwrap_or({
+                false => get_model_info(&tokenizer_name, &revision, authorization_token).await.unwrap_or_else(|| {
                     tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
                     HubModelInfo { model_id: tokenizer_name.to_string(), sha: None, pipeline_tag: None }
                 }),

@@ -2,7 +2,7 @@ include Makefile-transformers
 include Makefile-flash-att
 
 unit-tests:
-	python -m pytest tests
+	pytest -s -vv -m "not private" tests
 
 gen-server:
 	# Compile protos

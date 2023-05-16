@@ -67,14 +67,13 @@ class FlashSantacoder(FlashCausalLM):
             dtype,
             config.architectures[0].startswith("GPT2"),
         )
-        self.model = model.eval().to(device)
 
         super(FlashCausalLM, self).__init__(
+            model=model.to(device),
             tokenizer=tokenizer,
             requires_padding=False,
             dtype=dtype,
             device=device,
-            decode_buffer=1,
         )
 
     @staticmethod
@@ -213,16 +212,15 @@ class FlashSantacoderSharded(FlashSantacoder):
             world_size=world_size,
             transpose=config.architectures[0].startswith("GPT2"),
         )
-        self.model = model.eval().to(device)
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
+            model=model.to(device),
             tokenizer=tokenizer,
             requires_padding=False,
             dtype=dtype,
             device=device,
             rank=rank,
             world_size=world_size,
-            decode_buffer=1,
         )
 
     @staticmethod

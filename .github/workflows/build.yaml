@@ -213,12 +213,13 @@ jobs:
           sudo mount /dev/nvme1n1 ${{ env.DOCKER_VOLUME }}
       - name: Install
         run: |
+          pip install pytest-xdist 
           make install-integration-tests
       - name: Run tests
         run: |
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-          pytest -s -vv integration-tests
+          pytest -s -vv -n 2 --dist loadfile integration-tests
 
   stop-runner:
     name: Stop self-hosted EC2 runner

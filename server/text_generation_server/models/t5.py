@@ -16,9 +16,6 @@ from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
 )
-from text_generation_server.utils.layers import (
-    FastLinear,
-)
 from transformers.models.t5.parallel_layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -73,9 +70,9 @@ class T5Sharded(Seq2SeqLM):
             rank=rank,
             world_size=world_size,
         )
-        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(Seq2SeqLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,

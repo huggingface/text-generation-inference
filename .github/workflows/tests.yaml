@@ -66,7 +66,8 @@ jobs:
       - name: Run server tests
         run: |
           pip install pytest
-          make python-server-tests
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          pytest -s -vv server/tests
       - name: Run Rust fmt
         run: |
           cargo fmt --check

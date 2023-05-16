@@ -73,9 +73,9 @@ class FlashNeoXSharded(FlashNeoX):
             rank=rank,
             world_size=world_size,
         )
-        self.model = model.eval().to(device)
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
+            model=model.to(device),
             tokenizer=tokenizer,
             requires_padding=False,
             dtype=dtype,

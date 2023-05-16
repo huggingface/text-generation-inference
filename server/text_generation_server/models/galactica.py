@@ -94,8 +94,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
-        offsets = []
-        token_offsets = []
+        prefix_offsets = []
+        read_offsets = []
         requests_idx_mapping = {}
 
         # Parse batch
@@ -106,8 +106,6 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             requests_idx_mapping[r.id] = i
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
-            offsets.append(None)
-            token_offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -127,6 +125,10 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             truncation=True,
             max_length=max_truncation,
         ).to(device)
+        for _ in pb.requests:
+            input_len = tokenized_inputs["input_ids"].shape[1]
+            prefix_offsets.append(0)
+            read_offsets.append(input_len)
 
         input_lengths = tokenized_inputs["attention_mask"].sum(1)
         max_input_length = input_lengths.max()
@@ -155,8 +157,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             past_key_values=None,
             all_input_ids=list(all_input_ids),
             input_lengths=input_lengths.tolist(),
-            offsets=offsets,
-            token_offsets=token_offsets,
+            prefix_offsets=prefix_offsets,
+            read_offsets=read_offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             max_input_length=max_input_length.item(),
@@ -231,9 +233,9 @@ class GalacticaSharded(Galactica):
             rank=rank,
             world_size=world_size,
         )
-        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,

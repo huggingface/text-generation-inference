@@ -64,9 +64,9 @@ class FlashLlama(FlashCausalLM):
             model = FlashLlamaForCausalLM(config)
 
         self.load_weights(model, filenames, quantize, device, dtype)
-        self.model = model.eval().to(device)
 
         super(FlashCausalLM, self).__init__(
+            model=model.to(device),
             tokenizer=tokenizer,
             requires_padding=False,
             dtype=dtype,
@@ -189,9 +189,9 @@ class FlashLlamaSharded(FlashLlama):
             rank=rank,
             world_size=world_size,
         )
-        self.model = model.eval().to(device)
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
+            model=model.to(device),
             tokenizer=tokenizer,
             requires_padding=False,
             dtype=dtype,

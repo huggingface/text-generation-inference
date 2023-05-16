@@ -13,23 +13,20 @@ B = TypeVar("B", bound=Batch)
 class Model(ABC):
     def __init__(
         self,
+        model: torch.nn.Module,
         tokenizer: PreTrainedTokenizerBase,
         requires_padding: bool,
         dtype: torch.dtype,
         device: torch.device,
-        decode_buffer: int = 3,
         rank: int = 0,
         world_size: int = 1,
     ):
-        if decode_buffer < 1:
-            raise ValueError("decode_buffer must be >= 1")
-
+        self.model = model.eval()
         self.tokenizer = tokenizer
         self.all_special_ids = set(tokenizer.all_special_ids)
         self.requires_padding = requires_padding
         self.dtype = dtype
         self.device = device
-        self.decode_buffer = decode_buffer
         self.rank = rank
         self.world_size = world_size
         self.check_initialized()
@@ -54,52 +51,29 @@ class Model(ABC):
     def decode_token(
         self,
         all_input_ids: List[int],
-        offset: Optional[int] = None,
-        token_offset: Optional[int] = None,
-    ) -> Tuple[str, Optional[int], Optional[int]]:
+        prefix_offset: int = 0,
+        read_offset: int = 0,
+    ) -> Tuple[str, int, int]:
         """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
-        if all_input_ids[-1] in self.all_special_ids:
-            return (
-                self.tokenizer.decode(all_input_ids[-1], skip_special_tokens=False),
-                None,
-                None,
-            )
 
-        if token_offset is None:
-            token_offset = len(all_input_ids) - self.decode_buffer
-            # left token buffer
-            if self.decode_buffer > 1:
-                # Decode token_offset token minus last one and token_offset tokens
-                raw_texts = self.tokenizer.batch_decode(
-                    [all_input_ids[token_offset:-1], all_input_ids[token_offset:]],
-                    skip_special_tokens=False,
-                )
+        # The prefix text is necessary only to defeat cleanup algorithms in the decode
+        # which decide to add a space or not depending on the surrounding ids.
+        prefix_text = self.tokenizer.decode(
+            all_input_ids[prefix_offset:read_offset], skip_special_tokens=False
+        )
+        new_text = self.tokenizer.decode(
+            all_input_ids[prefix_offset:], skip_special_tokens=False
+        )
 
-                # default offset is only the last token
-                offset = len(raw_texts[0])
-                sequence_text = raw_texts[1]
-            else:
-                # Only decode the last token without using a token buffer
-                sequence_text = self.tokenizer.decode(
-                    all_input_ids[-1], skip_special_tokens=False
-                )
-                # no offset in this case
-                offset = 0
+        if len(new_text) > len(prefix_text) and not new_text.endswith("�"):
+            # utf-8 char at the end means it's a potential unfinished byte sequence
+            # from byte fallback tokenization.
+            # If it's in the middle, it's probably a real invalid id generated
+            # by the model
+            new_text = new_text[len(prefix_text) :]
+            return new_text, read_offset, len(all_input_ids)
         else:
-            assert offset is not None
-            sequence_text = self.tokenizer.decode(
-                all_input_ids[token_offset:],
-                skip_special_tokens=False,
-            )
-
-        # get text
-        token_text = sequence_text[offset:]
-
-        # if text is utf-8
-        if token_text and token_text[-1] != "�":
-            return token_text, None, None
-        else:
-            return "", offset, token_offset
+            return "", prefix_offset, read_offset
 
     def check_initialized(self):
         uninitialized_parameters = []
