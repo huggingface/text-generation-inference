@@ -35,8 +35,8 @@ class CausalLMBatch(Batch):
 
     # Lengths of all generations present in the batch
     input_lengths: List[int]
-    offsets: List[Optional[int]]
-    token_offsets: List[Optional[int]]
+    offsets: List[int]
+    token_offsets: List[int]
 
     # Generation helpers
     next_token_choosers: List[NextTokenChooser]
@@ -81,8 +81,8 @@ class CausalLMBatch(Batch):
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             inputs.append(r.inputs)
-            offsets.append(None)
-            token_offsets.append(None)
+            # offsets.append(None)
+            # token_offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -102,6 +102,10 @@ class CausalLMBatch(Batch):
             truncation=True,
             max_length=max_truncation,
         ).to(device)
+        for i, r in enumerate(pb.requests):
+            input_len = tokenized_inputs["input_ids"].shape[1]
+            offsets.append(input_len)
+            token_offsets.append(input_len)
 
         input_lengths = tokenized_inputs["attention_mask"].sum(1)
         max_input_length = input_lengths.max()

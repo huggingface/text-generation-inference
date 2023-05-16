@@ -67,10 +67,20 @@ class Model(ABC):
         if read_offset is None:
             read_offset = 0
 
-        prefix_text = self.tokenizer.decode(all_input_ids[prefix_offset:read_offset])
-        new_text = self.tokenizer.decode(all_input_ids[prefix_offset:])
+        # The prefix text is necessary only to defeat cleanup algorithms in the decode
+        # which decide to add a space or not depending on the surrounding ids.
+        prefix_text = self.tokenizer.decode(
+            all_input_ids[prefix_offset:read_offset], skip_special_tokens=False
+        )
+        new_text = self.tokenizer.decode(
+            all_input_ids[prefix_offset:], skip_special_tokens=False
+        )
 
-        if len(new_text) > len(prefix_text) and "�" not in new_text:
+        if len(new_text) > len(prefix_text) and not new_text.endswith("�"):
+            # utf-8 char at the end means it's a potential unfinished byte sequence
+            # from byte fallback tokenization.
+            # If it's in the middle, it's probably a real invalid id generated
+            # by the model
             new_text = new_text[len(prefix_text) :]
             return new_text, read_offset, len(all_input_ids)
         else:
