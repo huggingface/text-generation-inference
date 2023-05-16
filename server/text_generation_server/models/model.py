@@ -18,20 +18,15 @@ class Model(ABC):
         requires_padding: bool,
         dtype: torch.dtype,
         device: torch.device,
-        decode_buffer: int = 4,
         rank: int = 0,
         world_size: int = 1,
     ):
-        if decode_buffer < 1:
-            raise ValueError("decode_buffer must be >= 1")
-
-        self.model = model.eval().to(device)
+        self.model = model.eval()
         self.tokenizer = tokenizer
         self.all_special_ids = set(tokenizer.all_special_ids)
         self.requires_padding = requires_padding
         self.dtype = dtype
         self.device = device
-        self.decode_buffer = decode_buffer
         self.rank = rank
         self.world_size = world_size
         self.check_initialized()
@@ -60,12 +55,6 @@ class Model(ABC):
         read_offset: int = 0,
     ) -> Tuple[str, int, int]:
         """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
-
-        # Compatibility layer for old None values.
-        if prefix_offset is None:
-            prefix_offset = 0
-        if read_offset is None:
-            read_offset = 0
 
         # The prefix text is necessary only to defeat cleanup algorithms in the decode
         # which decide to add a space or not depending on the surrounding ids.

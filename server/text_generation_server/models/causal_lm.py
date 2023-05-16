@@ -81,8 +81,6 @@ class CausalLMBatch(Batch):
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             inputs.append(r.inputs)
-            # offsets.append(None)
-            # token_offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -102,7 +100,7 @@ class CausalLMBatch(Batch):
             truncation=True,
             max_length=max_truncation,
         ).to(device)
-        for i, r in enumerate(pb.requests):
+        for _ in pb.requests:
             input_len = tokenized_inputs["input_ids"].shape[1]
             offsets.append(0)
             token_offsets.append(input_len)
@@ -452,7 +450,6 @@ class CausalLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        decode_buffer: int = 4,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -486,7 +483,6 @@ class CausalLM(Model):
             requires_padding=True,
             dtype=dtype,
             device=device,
-            decode_buffer=decode_buffer,
         )
 
     @property

@@ -108,8 +108,8 @@ class FlashCausalLMBatch(Batch):
             max_seqlen = max(max_seqlen, input_length)
             input_lengths.append(input_length)
 
-            offsets.append(None)
-            token_offsets.append(None)
+            offsets.append(0)
+            token_offsets.append(input_length)
 
             all_input_ids.append(tokenized_input)
 
@@ -394,7 +394,6 @@ class FlashCausalLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        decode_buffer: int = 4,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -410,7 +409,7 @@ class FlashCausalLM(Model):
             revision=revision,
             torch_dtype=dtype,
             load_in_8bit=quantize == "bitsandbytes",
-        )
+        ).to(device)
 
         super(FlashCausalLM, self).__init__(
             model=model,
@@ -418,7 +417,6 @@ class FlashCausalLM(Model):
             requires_padding=False,
             dtype=dtype,
             device=device,
-            decode_buffer=decode_buffer,
         )
 
     @property

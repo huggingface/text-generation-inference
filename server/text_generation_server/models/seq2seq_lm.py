@@ -91,8 +91,6 @@ class Seq2SeqLMBatch(Batch):
             inputs.append(r.inputs)
             requests_idx_mapping[r.id] = i
             decoder_input_lengths.append(1)
-            # offsets.append(None)
-            # token_offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -123,7 +121,7 @@ class Seq2SeqLMBatch(Batch):
             .repeat(len(pb.requests))
             .view(-1, 1)
         )
-        for i, r in enumerate(pb.requests):
+        for _ in pb.requests:
             offsets.append(0)
             token_offsets.append(1)
         all_decoder_input_ids = decoder_input_ids.view(-1).split(1)
@@ -505,7 +503,6 @@ class Seq2SeqLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        decode_buffer: int = 4,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -535,7 +532,6 @@ class Seq2SeqLM(Model):
             requires_padding=True,
             dtype=dtype,
             device=device,
-            decode_buffer=decode_buffer,
         )
 
     @property

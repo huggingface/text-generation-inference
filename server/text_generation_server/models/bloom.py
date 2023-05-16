@@ -56,7 +56,7 @@ class BLOOM(CausalLM):
         quantize: Optional[str] = None,
     ):
         super(BLOOM, self).__init__(
-            model_id=model_id, revision=revision, quantize=quantize, decode_buffer=1
+            model_id=model_id, revision=revision, quantize=quantize
         )
 
     @property
@@ -111,7 +111,6 @@ class BLOOMSharded(BLOOM):
             requires_padding=True,
             dtype=dtype,
             device=device,
-            decode_buffer=1,
             rank=rank,
             world_size=world_size,
         )

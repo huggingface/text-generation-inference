@@ -52,7 +52,7 @@ class SantaCoder(CausalLM):
             torch_dtype=dtype,
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=True,  # required
-        )
+        ).to(device)
 
         super(CausalLM, self).__init__(
             model=model,
@@ -60,7 +60,6 @@ class SantaCoder(CausalLM):
             requires_padding=True,
             dtype=dtype,
             device=device,
-            decode_buffer=1,
         )
 
     def decode(self, generated_ids: List[int]) -> str:
