@@ -456,7 +456,7 @@ impl<B: BatchType> State<B> {
 
             batch_stats = next_stats;
 
-            chosen_indices.push(queue_index - 1);
+            chosen_indices.push(checked_up_to_index - 1);
             total_count += 1;
             if total_count >= config.size_limit {
                 break
