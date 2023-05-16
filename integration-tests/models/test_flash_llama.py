@@ -1,30 +1,30 @@
 import pytest
 
-from utils import health_check
+
+@pytest.fixture(scope="module")
+def flash_llama_handle(launcher):
+    with launcher("huggingface/llama-7b", num_shard=2) as handle:
+        yield handle
 
 
 @pytest.fixture(scope="module")
-def flash_llama(launcher):
-    with launcher("huggingface/llama-7b", num_shard=2) as client:
-        yield client
+async def flash_llama(flash_llama_handle):
+    await flash_llama_handle.health(120)
+    return flash_llama_handle.client
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama(flash_llama, snapshot_test):
-    await health_check(flash_llama, 120)
-
+async def test_flash_llama(flash_llama, response_snapshot):
     response = await flash_llama.generate("Test request", max_new_tokens=10)
 
     assert response.details.generated_tokens == 10
-    assert snapshot_test(response)
+    assert response == response_snapshot
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_all_params(flash_llama, snapshot_test):
-    await health_check(flash_llama, 120)
-
+async def test_flash_llama_all_params(flash_llama, response_snapshot):
     response = await flash_llama.generate(
         "Test request",
         max_new_tokens=10,
@@ -41,16 +41,15 @@ async def test_flash_llama_all_params(flash_llama, snapshot_test):
     )
 
     assert response.details.generated_tokens == 10
-    assert snapshot_test(response)
+    assert response == response_snapshot
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_load(flash_llama, generate_load, snapshot_test):
-    await health_check(flash_llama, 120)
-
+async def test_flash_llama_load(flash_llama, generate_load, response_snapshot):
     responses = await generate_load(flash_llama, "Test request", max_new_tokens=10, n=4)
 
     assert len(responses) == 4
+    assert all([r.generated_text == responses[0].generated_text for r in responses])
 
-    assert snapshot_test(responses)
+    assert responses == response_snapshot

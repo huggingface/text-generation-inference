@@ -1,18 +1,20 @@
 import pytest
 
-from utils import health_check
+
+@pytest.fixture(scope="module")
+def mt0_base_handle(launcher):
+    with launcher("bigscience/mt0-base") as handle:
+        yield handle
 
 
 @pytest.fixture(scope="module")
-def mt0_base(launcher):
-    with launcher("bigscience/mt0-base") as client:
-        yield client
+async def mt0_base(mt0_base_handle):
+    await mt0_base_handle.health(60)
+    return mt0_base_handle.client
 
 
 @pytest.mark.asyncio
-async def test_mt0_base(mt0_base, snapshot_test):
-    await health_check(mt0_base, 60)
-
+async def test_mt0_base(mt0_base, response_snapshot):
     response = await mt0_base.generate(
         "Why is the sky blue?",
         max_new_tokens=10,
@@ -21,13 +23,11 @@ async def test_mt0_base(mt0_base, snapshot_test):
     )
 
     assert response.details.generated_tokens == 5
-    assert snapshot_test(response)
+    assert response == response_snapshot
 
 
 @pytest.mark.asyncio
-async def test_mt0_base_all_params(mt0_base, snapshot_test):
-    await health_check(mt0_base, 60)
-
+async def test_mt0_base_all_params(mt0_base, response_snapshot):
     response = await mt0_base.generate(
         "Why is the sky blue?",
         max_new_tokens=10,
@@ -44,13 +44,11 @@ async def test_mt0_base_all_params(mt0_base, snapshot_test):
     )
 
     assert response.details.generated_tokens == 10
-    assert snapshot_test(response)
+    assert response == response_snapshot
 
 
 @pytest.mark.asyncio
-async def test_mt0_base_load(mt0_base, generate_load, snapshot_test):
-    await health_check(mt0_base, 60)
-
+async def test_mt0_base_load(mt0_base, generate_load, response_snapshot):
     responses = await generate_load(
         mt0_base,
         "Why is the sky blue?",
@@ -59,5 +57,6 @@ async def test_mt0_base_load(mt0_base, generate_load, snapshot_test):
     )
 
     assert len(responses) == 4
+    assert all([r.generated_text == responses[0].generated_text for r in responses])
 
-    assert snapshot_test(responses)
+    assert responses == response_snapshot

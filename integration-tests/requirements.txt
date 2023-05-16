@@ -1,5 +1,5 @@
 syrupy
-text-generation==0.5.1
+text-generation==0.5.2
 pytest
 pytest-asyncio==0.17.2
 docker

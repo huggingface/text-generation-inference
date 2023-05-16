@@ -1,0 +1,93 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 589,
+        "logprob": null,
+        "text": "def"
+      },
+      {
+        "id": 1459,
+        "logprob": -5.6289062,
+        "text": " print"
+      },
+      {
+        "id": 81,
+        "logprob": -1.6005859,
+        "text": "_"
+      },
+      {
+        "id": 7656,
+        "logprob": -5.9921875,
+        "text": "hello"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 2262,
+        "logprob": -0.7705078,
+        "special": false,
+        "text": "():"
+      },
+      {
+        "id": 284,
+        "logprob": -0.2590332,
+        "special": false,
+        "text": "\n   "
+      },
+      {
+        "id": 1459,
+        "logprob": -0.39379883,
+        "special": false,
+        "text": " print"
+      },
+      {
+        "id": 440,
+        "logprob": -0.61376953,
+        "special": false,
+        "text": "(\""
+      },
+      {
+        "id": 8279,
+        "logprob": -0.47338867,
+        "special": false,
+        "text": "Hello"
+      },
+      {
+        "id": 10896,
+        "logprob": -1.5068359,
+        "special": false,
+        "text": " World"
+      },
+      {
+        "id": 657,
+        "logprob": -0.80810547,
+        "special": false,
+        "text": "\")"
+      },
+      {
+        "id": 203,
+        "logprob": -0.7397461,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 203,
+        "logprob": -0.35229492,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 589,
+        "logprob": -1.0371094,
+        "special": false,
+        "text": "def"
+      }
+    ]
+  },
+  "generated_text": "():\n    print(\"Hello World\")\n\ndef"
+}

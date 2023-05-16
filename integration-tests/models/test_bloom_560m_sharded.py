@@ -1,18 +1,20 @@
 import pytest
 
-from utils import health_check
+
+@pytest.fixture(scope="module")
+def bloom_560m_sharded_handle(launcher):
+    with launcher("bigscience/bloom-560m", num_shard=2) as handle:
+        yield handle
 
 
 @pytest.fixture(scope="module")
-def bloom_560m_sharded(launcher):
-    with launcher("bigscience/bloom-560m", num_shard=2) as client:
-        yield client
+async def bloom_560m_sharded(bloom_560m_sharded_handle):
+    await bloom_560m_sharded_handle.health(60)
+    return bloom_560m_sharded_handle.client
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_sharded(bloom_560m_sharded, snapshot_test):
-    await health_check(bloom_560m_sharded, 60)
-
+async def test_bloom_560m_sharded(bloom_560m_sharded, response_snapshot):
     response = await bloom_560m_sharded.generate(
         "Pour déguster un ortolan, il faut tout d'abord",
         max_new_tokens=10,
@@ -21,15 +23,13 @@ async def test_bloom_560m_sharded(bloom_560m_sharded, snapshot_test):
     )
 
     assert response.details.generated_tokens == 10
-    assert snapshot_test(response)
+    assert response == response_snapshot
 
 
 @pytest.mark.asyncio
 async def test_bloom_560m_sharded_load(
-    bloom_560m_sharded, generate_load, snapshot_test
+    bloom_560m_sharded, generate_load, response_snapshot
 ):
-    await health_check(bloom_560m_sharded, 60)
-
     responses = await generate_load(
         bloom_560m_sharded,
         "Pour déguster un ortolan, il faut tout d'abord",
@@ -38,5 +38,6 @@ async def test_bloom_560m_sharded_load(
     )
 
     assert len(responses) == 4
+    assert all([r.generated_text == responses[0].generated_text for r in responses])
 
-    assert snapshot_test(responses)
+    assert responses == response_snapshot

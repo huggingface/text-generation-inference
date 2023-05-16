@@ -1,0 +1,98 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 15,
+        "logprob": null,
+        "text": ","
+      },
+      {
+        "id": 1669,
+        "logprob": -5.4414062,
+        "text": " il"
+      },
+      {
+        "id": 11580,
+        "logprob": -2.3378906,
+        "text": " faut"
+      },
+      {
+        "id": 3913,
+        "logprob": -4.3554688,
+        "text": " tout"
+      },
+      {
+        "id": 39261,
+        "logprob": -2.9238281,
+        "text": " d'abord"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 408,
+        "logprob": -1.9267578,
+        "special": false,
+        "text": " que"
+      },
+      {
+        "id": 20288,
+        "logprob": -2.9257812,
+        "special": false,
+        "text": " l'on"
+      },
+      {
+        "id": 22255,
+        "logprob": -2.8964844,
+        "special": false,
+        "text": " trouve"
+      },
+      {
+        "id": 1622,
+        "logprob": -1.1083984,
+        "special": false,
+        "text": " une"
+      },
+      {
+        "id": 187079,
+        "logprob": -7.796875,
+        "special": false,
+        "text": " posture"
+      },
+      {
+        "id": 501,
+        "logprob": -5.390625,
+        "special": false,
+        "text": " par"
+      },
+      {
+        "id": 8741,
+        "logprob": -0.34936523,
+        "special": false,
+        "text": " rapport"
+      },
+      {
+        "id": 693,
+        "logprob": 0.0,
+        "special": false,
+        "text": " à"
+      },
+      {
+        "id": 366,
+        "logprob": -2.3378906,
+        "special": false,
+        "text": " la"
+      },
+      {
+        "id": 36503,
+        "logprob": -3.6640625,
+        "special": false,
+        "text": " pratique"
+      }
+    ]
+  },
+  "generated_text": "Pour déguster un ortolan, il faut tout d'abord que l'on trouve une posture par rapport à la pratique"
+}

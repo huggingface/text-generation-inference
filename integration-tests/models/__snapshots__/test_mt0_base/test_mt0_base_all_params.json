@@ -1,0 +1,78 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 0,
+        "logprob": null,
+        "text": "<pad>"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 16017,
+        "logprob": -1.3505859,
+        "special": false,
+        "text": "blue"
+      },
+      {
+        "id": 20495,
+        "logprob": -0.50439453,
+        "special": false,
+        "text": " sky"
+      },
+      {
+        "id": 259,
+        "logprob": -1.2011719,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 15484,
+        "logprob": -2.8378906,
+        "special": false,
+        "text": "appear"
+      },
+      {
+        "id": 345,
+        "logprob": -0.87597656,
+        "special": false,
+        "text": "ed"
+      },
+      {
+        "id": 288,
+        "logprob": -1.8447266,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 35622,
+        "logprob": -7.1445312,
+        "special": false,
+        "text": " cloud"
+      },
+      {
+        "id": 263,
+        "logprob": -1.2929688,
+        "special": false,
+        "text": "s"
+      },
+      {
+        "id": 14701,
+        "logprob": -3.0761719,
+        "special": false,
+        "text": " above"
+      },
+      {
+        "id": 751,
+        "logprob": -4.4375,
+        "special": false,
+        "text": " all"
+      }
+    ]
+  },
+  "generated_text": "Why is the sky blue?blue sky appeared to clouds above all"
+}

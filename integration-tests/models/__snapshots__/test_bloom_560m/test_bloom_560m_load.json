@@ -1,0 +1,514 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 17934,
+          "logprob": null,
+          "text": "Pour"
+        },
+        {
+          "id": 49833,
+          "logprob": -10.5625,
+          "text": " dég"
+        },
+        {
+          "id": 21543,
+          "logprob": -0.14770508,
+          "text": "uster"
+        },
+        {
+          "id": 447,
+          "logprob": -1.9287109,
+          "text": " un"
+        },
+        {
+          "id": 46341,
+          "logprob": -15.4609375,
+          "text": " ort"
+        },
+        {
+          "id": 35567,
+          "logprob": -7.5585938,
+          "text": "olan"
+        },
+        {
+          "id": 15,
+          "logprob": -1.4003906,
+          "text": ","
+        },
+        {
+          "id": 1669,
+          "logprob": -1.5673828,
+          "text": " il"
+        },
+        {
+          "id": 11580,
+          "logprob": -0.94628906,
+          "text": " faut"
+        },
+        {
+          "id": 3913,
+          "logprob": -3.703125,
+          "text": " tout"
+        },
+        {
+          "id": 39261,
+          "logprob": -1.5732422,
+          "text": " d'abord"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 578,
+          "logprob": -1.7646484,
+          "special": false,
+          "text": " le"
+        },
+        {
+          "id": 5608,
+          "logprob": -2.6113281,
+          "special": false,
+          "text": " faire"
+        },
+        {
+          "id": 1767,
+          "logprob": -1.5263672,
+          "special": false,
+          "text": " cu"
+        },
+        {
+          "id": 1273,
+          "logprob": -0.00010049343,
+          "special": false,
+          "text": "ire"
+        },
+        {
+          "id": 1486,
+          "logprob": -1.4707031,
+          "special": false,
+          "text": " dans"
+        },
+        {
+          "id": 283,
+          "logprob": -1.2119141,
+          "special": false,
+          "text": " de"
+        },
+        {
+          "id": 40410,
+          "logprob": -0.11883545,
+          "special": false,
+          "text": " l'eau"
+        },
+        {
+          "id": 20226,
+          "logprob": -0.40844727,
+          "special": false,
+          "text": " bou"
+        },
+        {
+          "id": 172483,
+          "logprob": -0.0037841797,
+          "special": false,
+          "text": "illante"
+        },
+        {
+          "id": 2805,
+          "logprob": -1.0195312,
+          "special": false,
+          "text": " sal"
+        }
+      ]
+    },
+    "generated_text": " le faire cuire dans de l'eau bouillante sal"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 17934,
+          "logprob": null,
+          "text": "Pour"
+        },
+        {
+          "id": 49833,
+          "logprob": -10.53125,
+          "text": " dég"
+        },
+        {
+          "id": 21543,
+          "logprob": -0.14770508,
+          "text": "uster"
+        },
+        {
+          "id": 447,
+          "logprob": -1.9287109,
+          "text": " un"
+        },
+        {
+          "id": 46341,
+          "logprob": -15.4140625,
+          "text": " ort"
+        },
+        {
+          "id": 35567,
+          "logprob": -7.5234375,
+          "text": "olan"
+        },
+        {
+          "id": 15,
+          "logprob": -1.3613281,
+          "text": ","
+        },
+        {
+          "id": 1669,
+          "logprob": -1.5458984,
+          "text": " il"
+        },
+        {
+          "id": 11580,
+          "logprob": -0.94189453,
+          "text": " faut"
+        },
+        {
+          "id": 3913,
+          "logprob": -3.7011719,
+          "text": " tout"
+        },
+        {
+          "id": 39261,
+          "logprob": -1.5732422,
+          "text": " d'abord"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 578,
+          "logprob": -1.7548828,
+          "special": false,
+          "text": " le"
+        },
+        {
+          "id": 5608,
+          "logprob": -2.578125,
+          "special": false,
+          "text": " faire"
+        },
+        {
+          "id": 1767,
+          "logprob": -1.5117188,
+          "special": false,
+          "text": " cu"
+        },
+        {
+          "id": 1273,
+          "logprob": -0.00010049343,
+          "special": false,
+          "text": "ire"
+        },
+        {
+          "id": 1486,
+          "logprob": -1.4707031,
+          "special": false,
+          "text": " dans"
+        },
+        {
+          "id": 283,
+          "logprob": -1.1982422,
+          "special": false,
+          "text": " de"
+        },
+        {
+          "id": 40410,
+          "logprob": -0.11004639,
+          "special": false,
+          "text": " l'eau"
+        },
+        {
+          "id": 20226,
+          "logprob": -0.4506836,
+          "special": false,
+          "text": " bou"
+        },
+        {
+          "id": 172483,
+          "logprob": -0.003047943,
+          "special": false,
+          "text": "illante"
+        },
+        {
+          "id": 2805,
+          "logprob": -1.0185547,
+          "special": false,
+          "text": " sal"
+        }
+      ]
+    },
+    "generated_text": " le faire cuire dans de l'eau bouillante sal"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 17934,
+          "logprob": null,
+          "text": "Pour"
+        },
+        {
+          "id": 49833,
+          "logprob": -10.53125,
+          "text": " dég"
+        },
+        {
+          "id": 21543,
+          "logprob": -0.14770508,
+          "text": "uster"
+        },
+        {
+          "id": 447,
+          "logprob": -1.9287109,
+          "text": " un"
+        },
+        {
+          "id": 46341,
+          "logprob": -15.4140625,
+          "text": " ort"
+        },
+        {
+          "id": 35567,
+          "logprob": -7.5234375,
+          "text": "olan"
+        },
+        {
+          "id": 15,
+          "logprob": -1.3613281,
+          "text": ","
+        },
+        {
+          "id": 1669,
+          "logprob": -1.5458984,
+          "text": " il"
+        },
+        {
+          "id": 11580,
+          "logprob": -0.94189453,
+          "text": " faut"
+        },
+        {
+          "id": 3913,
+          "logprob": -3.7011719,
+          "text": " tout"
+        },
+        {
+          "id": 39261,
+          "logprob": -1.5732422,
+          "text": " d'abord"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 578,
+          "logprob": -1.7548828,
+          "special": false,
+          "text": " le"
+        },
+        {
+          "id": 5608,
+          "logprob": -2.578125,
+          "special": false,
+          "text": " faire"
+        },
+        {
+          "id": 1767,
+          "logprob": -1.5117188,
+          "special": false,
+          "text": " cu"
+        },
+        {
+          "id": 1273,
+          "logprob": -0.00010049343,
+          "special": false,
+          "text": "ire"
+        },
+        {
+          "id": 1486,
+          "logprob": -1.4707031,
+          "special": false,
+          "text": " dans"
+        },
+        {
+          "id": 283,
+          "logprob": -1.1982422,
+          "special": false,
+          "text": " de"
+        },
+        {
+          "id": 40410,
+          "logprob": -0.11004639,
+          "special": false,
+          "text": " l'eau"
+        },
+        {
+          "id": 20226,
+          "logprob": -0.4506836,
+          "special": false,
+          "text": " bou"
+        },
+        {
+          "id": 172483,
+          "logprob": -0.003047943,
+          "special": false,
+          "text": "illante"
+        },
+        {
+          "id": 2805,
+          "logprob": -1.0185547,
+          "special": false,
+          "text": " sal"
+        }
+      ]
+    },
+    "generated_text": " le faire cuire dans de l'eau bouillante sal"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 17934,
+          "logprob": null,
+          "text": "Pour"
+        },
+        {
+          "id": 49833,
+          "logprob": -10.53125,
+          "text": " dég"
+        },
+        {
+          "id": 21543,
+          "logprob": -0.14770508,
+          "text": "uster"
+        },
+        {
+          "id": 447,
+          "logprob": -1.9287109,
+          "text": " un"
+        },
+        {
+          "id": 46341,
+          "logprob": -15.4140625,
+          "text": " ort"
+        },
+        {
+          "id": 35567,
+          "logprob": -7.5234375,
+          "text": "olan"
+        },
+        {
+          "id": 15,
+          "logprob": -1.3613281,
+          "text": ","
+        },
+        {
+          "id": 1669,
+          "logprob": -1.5458984,
+          "text": " il"
+        },
+        {
+          "id": 11580,
+          "logprob": -0.94189453,
+          "text": " faut"
+        },
+        {
+          "id": 3913,
+          "logprob": -3.7011719,
+          "text": " tout"
+        },
+        {
+          "id": 39261,
+          "logprob": -1.5732422,
+          "text": " d'abord"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 578,
+          "logprob": -1.7548828,
+          "special": false,
+          "text": " le"
+        },
+        {
+          "id": 5608,
+          "logprob": -2.578125,
+          "special": false,
+          "text": " faire"
+        },
+        {
+          "id": 1767,
+          "logprob": -1.5117188,
+          "special": false,
+          "text": " cu"
+        },
+        {
+          "id": 1273,
+          "logprob": -0.00010049343,
+          "special": false,
+          "text": "ire"
+        },
+        {
+          "id": 1486,
+          "logprob": -1.4707031,
+          "special": false,
+          "text": " dans"
+        },
+        {
+          "id": 283,
+          "logprob": -1.1982422,
+          "special": false,
+          "text": " de"
+        },
+        {
+          "id": 40410,
+          "logprob": -0.11004639,
+          "special": false,
+          "text": " l'eau"
+        },
+        {
+          "id": 20226,
+          "logprob": -0.4506836,
+          "special": false,
+          "text": " bou"
+        },
+        {
+          "id": 172483,
+          "logprob": -0.003047943,
+          "special": false,
+          "text": "illante"
+        },
+        {
+          "id": 2805,
+          "logprob": -1.0185547,
+          "special": false,
+          "text": " sal"
+        }
+      ]
+    },
+    "generated_text": " le faire cuire dans de l'eau bouillante sal"
+  }
+]
