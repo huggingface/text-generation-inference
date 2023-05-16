@@ -104,7 +104,7 @@ class CausalLMBatch(Batch):
         ).to(device)
         for i, r in enumerate(pb.requests):
             input_len = tokenized_inputs["input_ids"].shape[1]
-            offsets.append(input_len)
+            offsets.append(0)
             token_offsets.append(input_len)
 
         input_lengths = tokenized_inputs["attention_mask"].sum(1)
