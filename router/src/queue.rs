@@ -375,7 +375,7 @@ impl<B: BatchType> State<B> {
             queue_index += 1;
             if entry.response_tx.is_disconnected() {
                 // Eject cancelled entry from queue
-                indices_to_drop.push(queue_index);
+                indices_to_drop.push(queue_index - 1);
                 continue
             }
             // This is the index into the queue after cancelled entries
@@ -465,7 +465,8 @@ impl<B: BatchType> State<B> {
 
         // Drop any cancelled requests
         if !indices_to_drop.is_empty() {
-            indices_to_drop.iter().for_each(|i| {
+            // Iterate in reverse so that indices remain correct
+            indices_to_drop.iter().rev().for_each(|i| {
                 self.entries.remove(*i);
             });
             metrics::gauge!("tgi_queue_size", self.entries.len() as f64);
