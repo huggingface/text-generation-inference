@@ -1,18 +1,20 @@
 import pytest
 
-from utils import health_check
+
+@pytest.fixture(scope="module")
+def bloom_560_handle(launcher):
+    with launcher("bigscience/bloom-560m") as handle:
+        yield handle
 
 
 @pytest.fixture(scope="module")
-def bloom_560(launcher):
-    with launcher("bigscience/bloom-560m") as client:
-        yield client
+async def bloom_560(bloom_560_handle):
+    await bloom_560_handle.health(60)
+    return bloom_560_handle.client
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m(bloom_560, snapshot_test):
-    await health_check(bloom_560, 60)
-
+async def test_bloom_560m(bloom_560, response_snapshot):
     response = await bloom_560.generate(
         "Pour déguster un ortolan, il faut tout d'abord",
         max_new_tokens=10,
@@ -21,13 +23,11 @@ async def test_bloom_560m(bloom_560, snapshot_test):
     )
 
     assert response.details.generated_tokens == 10
-    assert snapshot_test(response)
+    assert response == response_snapshot
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_all_params(bloom_560, snapshot_test):
-    await health_check(bloom_560, 60)
-
+async def test_bloom_560m_all_params(bloom_560, response_snapshot):
     response = await bloom_560.generate(
         "Pour déguster un ortolan, il faut tout d'abord",
         max_new_tokens=10,
@@ -44,13 +44,11 @@ async def test_bloom_560m_all_params(bloom_560, snapshot_test):
     )
 
     assert response.details.generated_tokens == 10
-    assert snapshot_test(response)
+    assert response == response_snapshot
 
 
 @pytest.mark.asyncio
-async def test_bloom_560m_load(bloom_560, generate_load, snapshot_test):
-    await health_check(bloom_560, 60)
-
+async def test_bloom_560m_load(bloom_560, generate_load, response_snapshot):
     responses = await generate_load(
         bloom_560,
         "Pour déguster un ortolan, il faut tout d'abord",
@@ -59,5 +57,6 @@ async def test_bloom_560m_load(bloom_560, generate_load, snapshot_test):
     )
 
     assert len(responses) == 4
+    assert all([r.generated_text == responses[0].generated_text for r in responses])
 
-    assert snapshot_test(responses)
+    assert responses == response_snapshot

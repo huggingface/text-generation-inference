@@ -10,6 +10,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/build.yaml"
+      - "integration-tests/**"
       - "server/**"
       - "proto/**"
       - "router/**"

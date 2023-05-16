@@ -1,0 +1,105 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 12,
+    "prefill": [
+      {
+        "id": 589,
+        "logprob": null,
+        "text": "def"
+      },
+      {
+        "id": 1459,
+        "logprob": -5.6289062,
+        "text": " print"
+      },
+      {
+        "id": 81,
+        "logprob": -1.6005859,
+        "text": "_"
+      },
+      {
+        "id": 7656,
+        "logprob": -5.9921875,
+        "text": "hello"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 2262,
+        "logprob": -0.7451172,
+        "special": false,
+        "text": "():"
+      },
+      {
+        "id": 284,
+        "logprob": -0.21325684,
+        "special": false,
+        "text": "\n   "
+      },
+      {
+        "id": 5741,
+        "logprob": -5.734375,
+        "special": false,
+        "text": " logging"
+      },
+      {
+        "id": 32,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 1338,
+        "logprob": -0.3232422,
+        "special": false,
+        "text": "info"
+      },
+      {
+        "id": 463,
+        "logprob": -1.0380859,
+        "special": false,
+        "text": "('"
+      },
+      {
+        "id": 8279,
+        "logprob": -0.8378906,
+        "special": false,
+        "text": "Hello"
+      },
+      {
+        "id": 30,
+        "logprob": -1.9501953,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 10896,
+        "logprob": -1.3476562,
+        "special": false,
+        "text": " World"
+      },
+      {
+        "id": 683,
+        "logprob": -1.796875,
+        "special": false,
+        "text": "')"
+      },
+      {
+        "id": 203,
+        "logprob": -0.9873047,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 0,
+        "logprob": -0.7495117,
+        "special": true,
+        "text": "<|endoftext|>"
+      }
+    ]
+  },
+  "generated_text": "():\n    logging.info('Hello, World')\n<|endoftext|>"
+}
