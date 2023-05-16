@@ -13,17 +13,19 @@ B = TypeVar("B", bound=Batch)
 class Model(ABC):
     def __init__(
         self,
+        model: torch.nn.Module,
         tokenizer: PreTrainedTokenizerBase,
         requires_padding: bool,
         dtype: torch.dtype,
         device: torch.device,
-        decode_buffer: int = 3,
+        decode_buffer: int = 4,
         rank: int = 0,
         world_size: int = 1,
     ):
         if decode_buffer < 1:
             raise ValueError("decode_buffer must be >= 1")
 
+        self.model = model.eval().to(device)
         self.tokenizer = tokenizer
         self.all_special_ids = set(tokenizer.all_special_ids)
         self.requires_padding = requires_padding
@@ -66,7 +68,7 @@ class Model(ABC):
             )
 
         if token_offset is None:
-            token_offset = len(all_input_ids) - self.decode_buffer
+            token_offset = max(len(all_input_ids) - self.decode_buffer, 0)
             # left token buffer
             if self.decode_buffer > 1:
                 # Decode token_offset token minus last one and token_offset tokens

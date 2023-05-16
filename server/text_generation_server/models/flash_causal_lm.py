@@ -394,7 +394,7 @@ class FlashCausalLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        decode_buffer: int = 3,
+        decode_buffer: int = 4,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -405,18 +405,15 @@ class FlashCausalLM(Model):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
         )
-        self.model = (
-            model_cls.from_pretrained(
-                model_id,
-                revision=revision,
-                torch_dtype=dtype,
-                load_in_8bit=quantize == "bitsandbytes",
-            )
-            .eval()
-            .to(device)
+        model = model_cls.from_pretrained(
+            model_id,
+            revision=revision,
+            torch_dtype=dtype,
+            load_in_8bit=quantize == "bitsandbytes",
         )
 
         super(FlashCausalLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=False,
             dtype=dtype,

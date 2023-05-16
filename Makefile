@@ -31,7 +31,7 @@ update-integration-tests: install-integration-tests
 	pytest -s -vv --snapshot-update integration-tests
 
 python-server-tests:
-	HF_HUB_ENABLE_HF_TRANSFER=1 pytest server/tests
+	HF_HUB_ENABLE_HF_TRANSFER=1 pytest -s -vv -m "not private" server/tests
 
 python-client-tests:
 	pytest clients/python/tests

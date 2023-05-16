@@ -448,7 +448,7 @@ class CausalLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        decode_buffer: int = 3,
+        decode_buffer: int = 4,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -463,20 +463,21 @@ class CausalLM(Model):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
         )
-        self.model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
             device_map="auto" if torch.cuda.is_available() else None,
             load_in_8bit=quantize == "bitsandbytes",
-        ).eval()
+        )
         tokenizer.pad_token_id = (
-            self.model.config.pad_token_id
-            if self.model.config.pad_token_id is not None
-            else self.model.config.eos_token_id
+            model.config.pad_token_id
+            if model.config.pad_token_id is not None
+            else model.config.eos_token_id
         )
 
         super(CausalLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
