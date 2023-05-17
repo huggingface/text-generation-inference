@@ -1,5 +1,5 @@
 import math
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 
 from transformers import (
     LogitsWarper,
@@ -10,6 +10,7 @@ import torch
 
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils.tokens import Greedy, Sampling
+from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 
 
 class HeterogeneousRepetitionPenaltyLogitsProcessor(LogitsProcessor):
@@ -213,6 +214,27 @@ class HeterogeneousTypicalLogitsWarper(LogitsWarper):
         scores = scores.masked_fill_(indices_to_remove, self.filter_value)
         return scores
 
+class HeterogeneousProcessorWrapper(LogitsProcessor):
+    r"""
+    A wrapper for logit warpers or processors without heterogeneous parameter support.
+
+    Args:
+        processors (`Dict[int, Union[LogitsProcessor, LogitsWarper]]`):
+            A mapping of sample indices to logit warpers or processors, to be run sequentially.
+    """
+
+    def __init__(
+        self,
+        processors: Dict[int, Union[LogitsProcessor, LogitsWarper]],
+    ):
+        self.processors=processors
+        self.max_index=max(processors)
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
+        for i, processor in self.processors.items():
+            scores[i:i+1]=processor(input_ids[i:i+1], scores[i:i+1])
+        return scores
+
 
 class HeterogeneousSampling:
     r"""
@@ -253,7 +275,9 @@ class HeterogeneousNextTokenChooser:
 
         watermark = self._standardize(watermark, batch_size, False)
         if any(watermark):
-            raise NotImplementedError("Watermarking not implemented")
+            warpers.append(HeterogeneousProcessorWrapper(
+                {i:WatermarkLogitsProcessor(device=device) for i, x in watermark if x}
+            ))
 
         repetition_penalty = self._standardize(repetition_penalty, batch_size, 1.0)
         if any([x != 1.0 for x in repetition_penalty]):
