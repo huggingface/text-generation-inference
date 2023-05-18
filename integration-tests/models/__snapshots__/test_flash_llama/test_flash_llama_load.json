@@ -1,0 +1,354 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -8.6875,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -11.5546875,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 363,
+          "logprob": -1.5380859,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 847,
+          "logprob": -2.5859375,
+          "special": false,
+          "text": " /"
+        },
+        {
+          "id": 2754,
+          "logprob": -2.2695312,
+          "special": false,
+          "text": "api"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.03439331,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 29894,
+          "logprob": -0.96240234,
+          "special": false,
+          "text": "v"
+        },
+        {
+          "id": 29896,
+          "logprob": -0.36694336,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.013114929,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 16418,
+          "logprob": -3.1542969,
+          "special": false,
+          "text": "projects"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.43847656,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 29896,
+          "logprob": -1.9433594,
+          "special": false,
+          "text": "1"
+        }
+      ]
+    },
+    "generated_text": "for /api/v1/projects/1"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -8.6875,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -11.5546875,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 363,
+          "logprob": -1.5322266,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 847,
+          "logprob": -2.5585938,
+          "special": false,
+          "text": " /"
+        },
+        {
+          "id": 2754,
+          "logprob": -2.265625,
+          "special": false,
+          "text": "api"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.034088135,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 29894,
+          "logprob": -0.96240234,
+          "special": false,
+          "text": "v"
+        },
+        {
+          "id": 29896,
+          "logprob": -0.36816406,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.013191223,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 16418,
+          "logprob": -3.15625,
+          "special": false,
+          "text": "projects"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.43774414,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 29896,
+          "logprob": -1.9443359,
+          "special": false,
+          "text": "1"
+        }
+      ]
+    },
+    "generated_text": "for /api/v1/projects/1"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -8.6875,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -11.5546875,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 363,
+          "logprob": -1.5322266,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 847,
+          "logprob": -2.5585938,
+          "special": false,
+          "text": " /"
+        },
+        {
+          "id": 2754,
+          "logprob": -2.265625,
+          "special": false,
+          "text": "api"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.034088135,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 29894,
+          "logprob": -0.96240234,
+          "special": false,
+          "text": "v"
+        },
+        {
+          "id": 29896,
+          "logprob": -0.36816406,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.013191223,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 16418,
+          "logprob": -3.15625,
+          "special": false,
+          "text": "projects"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.43774414,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 29896,
+          "logprob": -1.9443359,
+          "special": false,
+          "text": "1"
+        }
+      ]
+    },
+    "generated_text": "for /api/v1/projects/1"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -8.6875,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -11.5546875,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 363,
+          "logprob": -1.5322266,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 847,
+          "logprob": -2.5585938,
+          "special": false,
+          "text": " /"
+        },
+        {
+          "id": 2754,
+          "logprob": -2.265625,
+          "special": false,
+          "text": "api"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.034088135,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 29894,
+          "logprob": -0.96240234,
+          "special": false,
+          "text": "v"
+        },
+        {
+          "id": 29896,
+          "logprob": -0.36816406,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.013191223,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 16418,
+          "logprob": -3.15625,
+          "special": false,
+          "text": "projects"
+        },
+        {
+          "id": 29914,
+          "logprob": -0.43774414,
+          "special": false,
+          "text": "/"
+        },
+        {
+          "id": 29896,
+          "logprob": -1.9443359,
+          "special": false,
+          "text": "1"
+        }
+      ]
+    },
+    "generated_text": "for /api/v1/projects/1"
+  }
+]

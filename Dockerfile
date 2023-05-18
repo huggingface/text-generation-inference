@@ -6,6 +6,7 @@ FROM chef as planner
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
+COPY benchmark benchmark
 COPY router router
 COPY launcher launcher
 COPY benchmark benchmark
@@ -14,6 +15,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 
 ARG GIT_SHA
+ARG DOCKER_LABEL
 
 RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
@@ -27,6 +29,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
+COPY benchmark benchmark
 COPY router router
 COPY launcher launcher
 COPY benchmark benchmark
@@ -107,7 +110,7 @@ COPY server/Makefile-transformers Makefile
 RUN BUILD_EXTENSIONS="True" make build-transformers
 
 # Text Generation Inference base image
-FROM debian:bullseye-slim as base
+FROM nvidia/cuda:11.8.0-base-ubuntu20.04 as base
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
@@ -116,12 +119,7 @@ ENV PATH=/opt/conda/bin:$PATH \
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
-    MODEL_ID=bigscience/bloom-560m \
-    QUANTIZE=false \
-    NUM_SHARD=1 \
     PORT=80
-
-LABEL com.nvidia.volumes.needed="nvidia_driver"
 
 WORKDIR /usr/src
 
@@ -159,6 +157,8 @@ RUN cd server && \
     pip install -r requirements.txt && \
     pip install ".[bnb, accelerate]" --no-cache-dir
 
+# Install benchmarker
+COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router
 COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher

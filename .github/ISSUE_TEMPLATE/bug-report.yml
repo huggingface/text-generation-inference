@@ -1,0 +1,67 @@
+name: "\U0001F41B Bug Report"
+description: Submit a bug report to help us improve text-generation-inference
+body:
+  - type: textarea
+    id: system-info
+    attributes:
+      label: System Info
+      description: | 
+        Please share your system info with us (`text-generation-launcher --env` if installed locally).
+        The full command line used that causes issues: 
+        OS version:
+        Rust version (if self-compiling, `cargo version`):
+        Model being used (`curl 127.0.0.1:8080/info | jq`):
+          If local model please explicit the kind of model and/or equivalents.
+        Hardware used (GPUs, how many, on which cloud) (`nvidia-smi`): 
+        Deployment specificities (Kubernetes, EKS, AKS, any particular deployments):
+        The current version being used:
+
+      placeholder: text-generation-inference version, platform, python version, ...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: information-scripts-examples
+    attributes:
+      label: Information
+      description: 'The problem arises when using:'
+      options:
+        - label: "Docker"
+        - label: "The CLI directly"
+
+  - type: checkboxes
+    id: information-tasks
+    attributes:
+      label: Tasks
+      description: "The thing I am working on is:"
+      options:
+        - label: "An officially supported command"
+        - label: "My own modifications"
+
+  - type: textarea
+    id: reproduction
+    validations:
+      required: true
+    attributes:
+      label: Reproduction
+      description: |
+        Please provide a code sample that reproduces the problem you ran into. It can be a Colab link or just a code snippet.
+        If you have code snippets, error messages, stack traces please provide them here as well.
+        Important! Use code tags to correctly format your code. See https://help.github.com/en/github/writing-on-github/creating-and-highlighting-code-blocks#syntax-highlighting
+        Do not use screenshots, as they are hard to read and (more importantly) don't allow others to copy-and-paste your code.
+
+      placeholder: |
+        Steps to reproduce the behavior:
+          
+          1.
+          2.
+          3.
+          
+
+  - type: textarea
+    id: expected-behavior
+    validations:
+      required: true
+    attributes:
+      label: Expected behavior
+      description: "A clear and concise description of what you would expect to happen."

@@ -60,8 +60,6 @@ __all__ = [
     "GalacticaSharded",
     "GPTNeoxSharded",
     "Seq2SeqLM",
-    "Galactica",
-    "GalacticaSharded",
     "SantaCoder",
     "OPT",
     "OPTSharded",
@@ -95,7 +93,7 @@ torch.set_grad_enabled(False)
 
 
 def get_model(
-    model_id: str, revision: Optional[str], sharded: bool, quantize: bool
+    model_id: str, revision: Optional[str], sharded: bool, quantize: Optional[str]
 ) -> Model:
     if "facebook/galactica" in model_id:
         if sharded:
@@ -103,7 +101,7 @@ def get_model(
         else:
             return Galactica(model_id, revision, quantize=quantize)
 
-    if "bigcode" in model_id and os.environ.get("NO_FAST_MODEL") is None:
+    if model_id.startswith("bigcode/") and os.environ.get("NO_FAST_MODEL") is None:
         if sharded:
             if not FLASH_ATTENTION:
                 raise NotImplementedError(
@@ -118,6 +116,17 @@ def get_model(
         model_id, revision=revision, trust_remote_code=True
     )
     model_type = config.model_type
+
+    if model_type == "gpt_bigcode":
+        if sharded:
+            if not FLASH_ATTENTION:
+                raise NotImplementedError(
+                    FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Santacoder")
+                )
+            return FlashSantacoderSharded(model_id, revision, quantize=quantize)
+        else:
+            santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
+            return santacoder_cls(model_id, revision, quantize=quantize)
 
     if model_type == "bloom":
         if sharded:

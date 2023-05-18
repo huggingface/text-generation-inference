@@ -49,9 +49,14 @@ class BloomCausalLMBatch(CausalLMBatch):
 
 
 class BLOOM(CausalLM):
-    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+    def __init__(
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+    ):
         super(BLOOM, self).__init__(
-            model_id=model_id, revision=revision, quantize=quantize, decode_buffer=1
+            model_id=model_id, revision=revision, quantize=quantize
         )
 
     @property
@@ -61,13 +66,15 @@ class BLOOM(CausalLM):
 
 class BLOOMSharded(BLOOM):
     def __init__(
-        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
     ):
-        self.process_group, self.rank, self.world_size = initialize_torch_distributed()
-        self.master = self.rank == 0
+        self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
-            device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16
         else:
             device = torch.device("cpu")
             dtype = torch.float32
@@ -94,24 +101,25 @@ class BLOOMSharded(BLOOM):
             quantize=quantize,
             device=device,
             dtype=dtype,
-            rank=self.rank,
-            world_size=self.world_size,
+            rank=rank,
+            world_size=world_size,
         )
-        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
-            decode_buffer=1,
+            rank=rank,
+            world_size=world_size,
         )
 
     @staticmethod
     def load_weights(
         model,
         filenames: List[str],
-        quantize: bool,
+        quantize: Optional[str],
         device: torch.device,
         dtype: torch.dtype,
         rank: int,
@@ -120,7 +128,7 @@ class BLOOMSharded(BLOOM):
         parameters = dict(model.named_parameters())
         for file in filenames:
             with safe_open(
-                file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if quantize is None else "cpu"
             ) as f:
                 for name in f.keys():
                     full_name = f"transformer.{name}"
@@ -165,7 +173,7 @@ class BLOOMSharded(BLOOM):
 
                     tensor = tensor.contiguous().to(dtype)
 
-                    if quantize:
+                    if quantize == "bitsandbytes":
                         if not HAS_BITS_AND_BYTES:
                             raise ImportError(
                                 "bitsandbytes is not available on your machine either because it is not installed "
@@ -215,9 +223,14 @@ class BLOOMSharded(BLOOM):
                                 return linear
 
                             module.linear = replace_linear(state)
-
-                        else:
+                        elif quantize == "gptq":
+                            raise NotImplementedError(
+                                "`gptq` is not implemented for now"
+                            )
+                        elif quantize is None:
                             tensor = tensor.to(device)
+                        else:
+                            raise ValueError(f"Unexpected quantize `{quantize}`")
 
                     module._parameters[param_name] = tensor
                     if name == "word_embeddings.weight":

@@ -14,10 +14,15 @@ EOD = "<|endoftext|>"
 
 
 class SantaCoder(CausalLM):
-    def __init__(self, model_id: str, revision: Optional[str] = None, quantize=False):
+    def __init__(
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+    ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            dtype = torch.float16
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")
@@ -41,28 +46,24 @@ class SantaCoder(CausalLM):
             }
         )
 
-        self.model = (
-            AutoModelForCausalLM.from_pretrained(
-                model_id,
-                revision=revision,
-                torch_dtype=dtype,
-                load_in_8bit=quantize,
-                trust_remote_code=True,  # required
-            )
-            .to(device)
-            .eval()
-        )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            revision=revision,
+            torch_dtype=dtype,
+            load_in_8bit=quantize == "bitsandbytes",
+            trust_remote_code=True,  # required
+        ).to(device)
 
         super(CausalLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
-            decode_buffer=1,
         )
 
     def decode(self, generated_ids: List[int]) -> str:
         # Do not skip special tokens as they are used for custom parsing rules of the generated text
         return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=False, cleanup_tokenization_spaces=False
+            generated_ids, skip_special_tokens=False, clean_up_tokenization_spaces=False
         )

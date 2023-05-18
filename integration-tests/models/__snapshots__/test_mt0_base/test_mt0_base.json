@@ -1,0 +1,48 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 5,
+    "prefill": [
+      {
+        "id": 0,
+        "logprob": null,
+        "text": "<pad>"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 926,
+        "logprob": -4.3554688,
+        "special": false,
+        "text": " To"
+      },
+      {
+        "id": 18295,
+        "logprob": -7.7734375,
+        "special": false,
+        "text": " sell"
+      },
+      {
+        "id": 7868,
+        "logprob": -3.9257812,
+        "special": false,
+        "text": " things"
+      },
+      {
+        "id": 260,
+        "logprob": -2.4179688,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 1,
+        "logprob": 0.0,
+        "special": true,
+        "text": "</s>"
+      }
+    ]
+  },
+  "generated_text": "To sell things."
+}

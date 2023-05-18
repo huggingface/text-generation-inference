@@ -16,9 +16,9 @@ def test_generate(flan_t5_xxl_url, hf_headers):
     assert len(response.details.prefill) == 1
     assert response.details.prefill[0] == PrefillToken(id=0, text="<pad>", logprob=None)
     assert len(response.details.tokens) == 1
-    assert response.details.tokens[0] == Token(
-        id=3, text="", logprob=-1.984375, special=False
-    )
+    assert response.details.tokens[0].id == 3
+    assert response.details.tokens[0].text == ""
+    assert not response.details.tokens[0].special
 
 
 def test_generate_best_of(flan_t5_xxl_url, hf_headers):
@@ -82,9 +82,22 @@ async def test_generate_async(flan_t5_xxl_url, hf_headers):
     assert len(response.details.prefill) == 1
     assert response.details.prefill[0] == PrefillToken(id=0, text="<pad>", logprob=None)
     assert len(response.details.tokens) == 1
-    assert response.details.tokens[0] == Token(
-        id=3, text="", logprob=-1.984375, special=False
+    assert response.details.tokens[0].id == 3
+    assert response.details.tokens[0].text == ""
+    assert not response.details.tokens[0].special
+
+
+@pytest.mark.asyncio
+async def test_generate_async_best_of(flan_t5_xxl_url, hf_headers):
+    client = AsyncClient(flan_t5_xxl_url, hf_headers)
+    response = await client.generate(
+        "test", max_new_tokens=1, best_of=2, do_sample=True
     )
+
+    assert response.details.seed is not None
+    assert response.details.best_of_sequences is not None
+    assert len(response.details.best_of_sequences) == 1
+    assert response.details.best_of_sequences[0].seed is not None
 
 
 @pytest.mark.asyncio

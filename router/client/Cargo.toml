@@ -1,7 +1,9 @@
 [package]
 name = "text-generation-client"
-version = "0.6.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
 
 [dependencies]
 futures = "^0.3"
@@ -12,7 +14,6 @@ tokio = { version = "^1.25", features = ["sync"] }
 tonic = "^0.8"
 tower = "^0.4"
 tracing = "^0.1"
-tracing-error = "^0.2"
 
 [build-dependencies]
 tonic-build = "0.8.4"

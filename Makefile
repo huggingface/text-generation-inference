@@ -1,6 +1,9 @@
 install-server:
 	cd server && make install
 
+install-integration-tests:
+	cd integration-tests && pip install -r requirements.txt
+
 install-router:
 	cd router && cargo install --path .
 
@@ -18,11 +21,22 @@ server-dev:
 router-dev:
 	cd router && cargo run -- --port 8080
 
-integration-tests: install-router install-launcher
+rust-tests: install-router install-launcher
 	cargo test
 
-python-tests:
-	cd server && HF_HUB_ENABLE_HF_TRANSFER=1 pytest tests
+integration-tests: install-integration-tests
+	pytest -s -vv -m "not private" integration-tests
+
+update-integration-tests: install-integration-tests
+	pytest -s -vv --snapshot-update integration-tests
+
+python-server-tests:
+	HF_HUB_ENABLE_HF_TRANSFER=1 pytest -s -vv -m "not private" server/tests
+
+python-client-tests:
+	pytest clients/python/tests
+
+python-tests: python-server-tests python-client-tests
 
 run-bloom-560m:
 	text-generation-launcher --model-id bigscience/bloom-560m --num-shard 2 --port 8080

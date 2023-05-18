@@ -100,14 +100,14 @@ def serve(
     model_id: str,
     revision: Optional[str],
     sharded: bool,
-    quantize: bool,
+    quantize: Optional[str],
     uds_path: Path,
 ):
     async def serve_inner(
         model_id: str,
         revision: Optional[str],
         sharded: bool = False,
-        quantize: bool = False,
+        quantize: Optional[str] = None,
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:

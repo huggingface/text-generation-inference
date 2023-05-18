@@ -37,7 +37,11 @@ use utoipa_swagger_ui::SwaggerUi;
     path = "/",
     request_body = CompatGenerateRequest,
     responses(
-        (status = 200, description = "See /generate or /generate_stream"),
+        (status = 200, description = "Generated Text",
+            content(
+                ("application/json" = GenerateResponse),
+                ("text/event-stream" = StreamResponse),
+            )),
         (status = 424, description = "Generation Error", body = ErrorResponse,
             example = json ! ({"error": "Request failed during generation"})),
         (status = 429, description = "Model is overloaded", body = ErrorResponse,
@@ -635,6 +639,7 @@ pub async fn run(
         validation_workers,
         version: env!("CARGO_PKG_VERSION"),
         sha: option_env!("VERGEN_GIT_SHA"),
+        docker_label: option_env!("DOCKER_LABEL"),
     };
 
     // Create router

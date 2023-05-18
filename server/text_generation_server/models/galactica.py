@@ -94,8 +94,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         inputs = []
         next_token_choosers = []
         stopping_criterias = []
-        offsets = []
-        token_offsets = []
+        prefix_offsets = []
+        read_offsets = []
         requests_idx_mapping = {}
 
         # Parse batch
@@ -106,8 +106,6 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             requests_idx_mapping[r.id] = i
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
-            offsets.append(None)
-            token_offsets.append(None)
             next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
@@ -127,6 +125,10 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             truncation=True,
             max_length=max_truncation,
         ).to(device)
+        for _ in pb.requests:
+            input_len = tokenized_inputs["input_ids"].shape[1]
+            prefix_offsets.append(0)
+            read_offsets.append(input_len)
 
         input_lengths = tokenized_inputs["attention_mask"].sum(1)
         max_input_length = input_lengths.max()
@@ -155,8 +157,8 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             past_key_values=None,
             all_input_ids=list(all_input_ids),
             input_lengths=input_lengths.tolist(),
-            offsets=offsets,
-            token_offsets=token_offsets,
+            prefix_offsets=prefix_offsets,
+            read_offsets=read_offsets,
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             max_input_length=max_input_length.item(),
@@ -173,7 +175,7 @@ class Galactica(OPT):
     def decode(self, generated_ids: List[int]) -> str:
         # Do not skip special tokens as they are used for custom parsing rules of the generated text
         return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=False, cleanup_tokenization_spaces=False
+            generated_ids, skip_special_tokens=False, clean_up_tokenization_spaces=False
         )
 
     def forward(
@@ -193,13 +195,15 @@ class Galactica(OPT):
 
 class GalacticaSharded(Galactica):
     def __init__(
-        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
     ):
-        self.process_group, self.rank, self.world_size = initialize_torch_distributed()
-        self.master = self.rank == 0
+        self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
-            device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16
         else:
             device = torch.device("cpu")
             dtype = torch.float32
@@ -226,23 +230,25 @@ class GalacticaSharded(Galactica):
             quantize=quantize,
             device=device,
             dtype=dtype,
-            rank=self.rank,
-            world_size=self.world_size,
+            rank=rank,
+            world_size=world_size,
         )
-        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
+            rank=rank,
+            world_size=world_size,
         )
 
     @staticmethod
     def load_weights(
         model,
         filenames: List[str],
-        quantize: bool,
+        quantize: Optional[str],
         device: torch.device,
         dtype: torch.dtype,
         rank: int,
@@ -251,7 +257,7 @@ class GalacticaSharded(Galactica):
         parameters = dict(model.named_parameters())
         for file in filenames:
             with safe_open(
-                file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if quantize is None else "cpu"
             ) as f:
                 for name in f.keys():
                     if name == "lm_head.weight":
@@ -297,7 +303,7 @@ class GalacticaSharded(Galactica):
 
                     tensor = tensor.contiguous().to(dtype)
 
-                    if quantize:
+                    if quantize == "bitsandbytes":
                         if not HAS_BITS_AND_BYTES:
                             raise ImportError(
                                 "bitsandbytes is not available on your machine either because it is not installed "
@@ -347,9 +353,14 @@ class GalacticaSharded(Galactica):
                                 return linear
 
                             module.linear = replace_linear(state)
-
-                        else:
+                        elif quantize == "gptq":
+                            raise NotImplementedError(
+                                "`gptq` is not implemented for now"
+                            )
+                        elif quantize is None:
                             tensor = tensor.to(device)
+                        else:
+                            raise ValueError(f"Unexpected quantize `{quantize}`")
 
                     module._parameters[param_name] = tensor
                     if name == "model.decoder.embed_tokens.weight":

@@ -1,228 +1,19 @@
 import torch
 import torch.distributed
 
-import torch.nn.functional as F
-
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional
 
 # Flash attention imports
 import flash_attn_cuda
-import dropout_layer_norm
-
-HAS_BITS_AND_BYTES = True
-try:
-    from bitsandbytes.nn import Linear8bitLt
-except ImportError as e:
-    HAS_BITS_AND_BYTES = False
-
-
-class FastLayerNorm(nn.LayerNorm):
-    def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 8192:
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
-
-            return super(FastLayerNorm, self).forward(hidden_states), residual
-        else:
-            (
-                normed_hidden_states,
-                residual,
-                *rest,
-            ) = dropout_layer_norm.dropout_add_ln_fwd(
-                hidden_states,
-                residual,
-                self.weight,
-                self.bias,
-                None,
-                None,
-                None,
-                None,
-                0.0,
-                self.eps,
-                1.0,
-                0,
-                None,
-                False,
-                False,
-            )
-            if residual is None:
-                residual = hidden_states
-
-            return normed_hidden_states, residual
-
-
-class FastLinear(nn.Linear):
-    def __init__(
-        self,
-        in_features: int,
-        out_features: int,
-        bias: bool = True,
-        device=None,
-        dtype=None,
-    ) -> None:
-        super(FastLinear, self).__init__(in_features, out_features, bias, device, dtype)
-        self.quantized = False
-        self.bnb_linear = None
-
-    def prepare_weights(self, quantize: bool = False):
-        if quantize:
-            if not HAS_BITS_AND_BYTES:
-                raise ImportError(
-                    "bitsandbytes is not available on your machine either because it is not installed "
-                    "or you don't have a GPU.\n"
-                    "You can install it with `pip install bitsandbytes`."
-                )
-
-            self.quantized = True
-            self.bnb_linear = Linear8bitLt(
-                self.in_features,
-                self.out_features,
-                has_fp16_weights=False,
-                threshold=6.0,
-                bias=False,
-            )
-            # Copy data to bnb_linear
-            self.bnb_linear.weight.data = self.weight.data
-            if self.bias is not None:
-                self.bnb_linear.bias = nn.Parameter(self.bias)
-
-            # Delete reference to data
-            self.weight = None
-            self.bias = None
-        else:
-            self.weight = nn.Parameter(self.weight.T)
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.quantized:
-            return self.bnb_linear(input)
-        else:
-            if self.bias is not None:
-                return torch.addmm(self.bias, input, self.weight)
-            return torch.matmul(input, self.weight)
-
-
-class TensorParallelColumnLinear(FastLinear):
-    def __init__(
-        self,
-        in_features,
-        out_features,
-        process_group: torch.distributed.ProcessGroup,
-        bias=True,
-        device=None,
-        dtype=None,
-    ):
-        self.process_group = process_group
-        self.tp_world_size = process_group.size()
-        assert out_features % self.tp_world_size == 0
-        out_features = out_features // self.tp_world_size
-
-        super().__init__(
-            in_features=in_features,
-            out_features=out_features,
-            bias=bias,
-            device=device,
-            dtype=dtype,
-        )
-
-
-class TensorParallelRowLinear(FastLinear):
-    def __init__(
-        self,
-        in_features,
-        out_features,
-        process_group: torch.distributed.ProcessGroup,
-        reduce=True,
-        bias=True,
-        device=None,
-        dtype=None,
-    ):
-        self.process_group = process_group
-        self.tp_world_size = process_group.size()
-        self.reduce = reduce
-        assert in_features % self.tp_world_size == 0
-        in_features = in_features // self.tp_world_size
-
-        super().__init__(
-            in_features=in_features,
-            out_features=out_features,
-            bias=bias,
-            device=device,
-            dtype=dtype,
-        )
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        out = super(TensorParallelRowLinear, self).forward(input)
-        if self.reduce:
-            torch.distributed.all_reduce(out, group=self.process_group)
-
-        return out
-
-
-class TensorParallelEmbedding(nn.Embedding):
-    def __init__(
-        self,
-        num_embeddings,
-        embedding_dim,
-        process_group: torch.distributed.ProcessGroup,
-        reduce=True,
-        padding_idx=None,
-        max_norm=None,
-        norm_type=2.0,
-        scale_grad_by_freq=False,
-        sparse=False,
-        _weight=None,
-        device=None,
-        dtype=None,
-    ):
-        self.process_group = process_group
-        self.tp_rank = process_group.rank()
-        self.tp_world_size = process_group.size()
-        self.reduce = reduce
-
-        self.original_num_embeddings = num_embeddings
-
-        assert num_embeddings % self.tp_world_size == 0
-        block_size = num_embeddings // self.tp_world_size
-        # inputs in `[min_id, max_id[` are handled by `self` to get embeddings
-        self.min_id = self.tp_rank * block_size
-        self.max_id = (self.tp_rank + 1) * block_size
-
-        # Additional entry that will map to zero
-        # Used for masking
-        self.null_idx = block_size
-
-        super().__init__(
-            block_size,
-            embedding_dim,
-            padding_idx=padding_idx,
-            max_norm=max_norm,
-            norm_type=norm_type,
-            scale_grad_by_freq=scale_grad_by_freq,
-            sparse=sparse,
-            _weight=_weight,
-            device=device,
-            dtype=dtype,
-        )
-
-    def add_null_idx(self):
-        """Additional 0 entry used for masking"""
-        self.weight = nn.Parameter(F.pad(self.weight, (0, 0, 0, 1)))
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # default all out of bounds values to `self.null_idx` that will then be mapped to 0
-        # translate for [0, self.max_id - self.min_id[
-        input = torch.where(
-            (self.min_id > input) | (input >= self.max_id),
-            self.null_idx,
-            input - self.min_id,
-        )
-        out = super().forward(input)
-        if self.reduce:
-            torch.distributed.all_reduce(out, group=self.process_group)
-        return out
+from text_generation_server.utils.layers import (
+    FastLinear,
+    TensorParallelRowLinear,
+    TensorParallelColumnLinear,
+    TensorParallelEmbedding,
+    FastLayerNorm,
+)
 
 
 class FlashMQAttention(torch.nn.Module):
@@ -468,22 +259,23 @@ class FlashSantacoderModel(nn.Module):
         self.head_size = self.h[0].attn.head_size
         self.num_heads = self.h[0].attn.num_heads
 
-    def post_load_weights(self, load_in_8bit: bool = False):
+    def post_load_weights(self, quantize: Optional[str] = None):
         if self.tp_embeddings:
             self.wte.add_null_idx()
             self.wpe.add_null_idx()
         for layer in self.h:
             layer: Block
-            layer.attn.c_attn.prepare_weights(load_in_8bit)
-            layer.attn.c_proj.prepare_weights(load_in_8bit)
-            layer.mlp.c_fc.prepare_weights(load_in_8bit)
-            layer.mlp.c_proj.prepare_weights(load_in_8bit)
+            layer.attn.c_attn.prepare_weights(quantize)
+            layer.attn.c_proj.prepare_weights(quantize)
+            layer.mlp.c_fc.prepare_weights(quantize)
+            layer.mlp.c_proj.prepare_weights(quantize)
 
     def forward(
         self,
         input_ids,
         position_ids,
         cu_seqlens,
+        cu_seqlens_q,
         max_s,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
@@ -507,15 +299,11 @@ class FlashSantacoderModel(nn.Module):
                 )
             )
             layer_past_present_indices = None
-            cu_seqlens_q = None
             slice_past_index = len(hidden_states)
         # Decode
         else:
             # Create indices from cumulative sequence lengths
             layer_past_present_indices = cu_seqlens[1:] - 1
-            cu_seqlens_q = torch.arange(
-                cu_seqlens.shape[0], dtype=torch.int32, device=hidden_states.device
-            )
             slice_past_index = None
 
         residual = None
@@ -557,8 +345,8 @@ class FlashSantacoderForCausalLM(nn.Module):
         else:
             self.lm_head = FastLinear(config.hidden_size, config.vocab_size, bias=False)
 
-    def post_load_weights(self, load_in_8bit: bool = False):
-        self.transformer.post_load_weights(load_in_8bit)
+    def post_load_weights(self, quantize: Optional[str] = None):
+        self.transformer.post_load_weights(quantize)
         self.lm_head.prepare_weights()
 
     def forward(
@@ -566,6 +354,7 @@ class FlashSantacoderForCausalLM(nn.Module):
         input_ids,
         position_ids,
         cu_seqlens,
+        cu_seqlens_q,
         max_s,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
@@ -574,6 +363,7 @@ class FlashSantacoderForCausalLM(nn.Module):
             input_ids,
             position_ids,
             cu_seqlens,
+            cu_seqlens_q,
             max_s,
             past_key_values,
             pre_allocate_past_size,
@@ -582,13 +372,25 @@ class FlashSantacoderForCausalLM(nn.Module):
 
         if self.transformer.tp_embeddings:
             # Logits are sharded, so we need to gather them
-            world_logits = [
-                torch.empty_like(logits) for _ in range(self.transformer.tp_world_size)
-            ]
-            torch.distributed.all_gather(
-                world_logits, logits, group=self.transformer.process_group
-            )
-            world_logits = torch.cat(world_logits, dim=1)
+            if logits.shape[0] == 1:
+                # Fast path when batch size is 1
+                world_logits = logits.new_empty(
+                    (logits.shape[1] * self.transformer.tp_world_size)
+                )
+                torch.distributed.all_gather_into_tensor(
+                    world_logits, logits.view(-1), group=self.transformer.process_group
+                )
+                world_logits = world_logits.view(1, -1)
+            else:
+                # We cannot use all_gather_into_tensor as it only support concatenating on the first dim
+                world_logits = [
+                    torch.empty_like(logits)
+                    for _ in range(self.transformer.tp_world_size)
+                ]
+                torch.distributed.all_gather(
+                    world_logits, logits, group=self.transformer.process_group
+                )
+                world_logits = torch.cat(world_logits, dim=1)
 
             return world_logits, present
 

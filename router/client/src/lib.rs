@@ -23,6 +23,8 @@ pub enum ClientError {
     Connection(String),
     #[error("Server error: {0}")]
     Generation(String),
+    #[error("Sharded results are empty")]
+    EmptyResults,
 }
 
 impl From<Status> for ClientError {

@@ -10,35 +10,37 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     AutoConfig,
 )
-from transformers.models.t5.parallel_layers import (
-    TensorParallelColumnLinear,
-    TensorParallelEmbedding,
-    TensorParallelRowLinear,
-)
 
 from text_generation_server.models import Seq2SeqLM
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
 )
+from transformers.models.t5.parallel_layers import (
+    TensorParallelRowLinear,
+    TensorParallelColumnLinear,
+    TensorParallelEmbedding,
+)
 
 HAS_BITS_AND_BYTES = True
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn import Int8Params
-except Exception as e:
+except ImportError as e:
     HAS_BITS_AND_BYTES = False
 
 
 class T5Sharded(Seq2SeqLM):
     def __init__(
-        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
     ):
-        self.process_group, self.rank, self.world_size = initialize_torch_distributed()
-        self.master = self.rank == 0
+        self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
-            device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16
         else:
             device = torch.device("cpu")
             dtype = torch.float32
@@ -65,23 +67,25 @@ class T5Sharded(Seq2SeqLM):
             quantize=quantize,
             device=device,
             dtype=dtype,
-            rank=self.rank,
-            world_size=self.world_size,
+            rank=rank,
+            world_size=world_size,
         )
-        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(Seq2SeqLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
+            rank=rank,
+            world_size=world_size,
         )
 
     @staticmethod
     def load_weights(
         model,
         filenames: List[str],
-        quantize: bool,
+        quantize: Optional[str],
         device: torch.device,
         dtype: torch.dtype,
         rank: int,
@@ -90,7 +94,7 @@ class T5Sharded(Seq2SeqLM):
         parameters = dict(model.named_parameters())
         for file in filenames:
             with safe_open(
-                file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if quantize is None else "cpu"
             ) as f:
                 for name in f.keys():
                     module_name, param_name = name.rsplit(".", 1)
@@ -152,7 +156,7 @@ class T5Sharded(Seq2SeqLM):
 
                     tensor = tensor.contiguous().to(dtype)
 
-                    if quantize:
+                    if quantize == "bitsandbytes":
                         if not HAS_BITS_AND_BYTES:
                             raise ImportError(
                                 "bitsandbytes is not available on your machine either because it is not installed "
@@ -203,8 +207,14 @@ class T5Sharded(Seq2SeqLM):
 
                             module.linear = replace_linear(state)
 
-                        else:
+                        elif quantize == "gptq":
+                            raise NotImplementedError(
+                                "`gptq` is not implemented for now"
+                            )
+                        elif quantize is None:
                             tensor = tensor.to(device)
+                        else:
+                            raise ValueError(f"Unexpected quantize `{quantize}`")
 
                     if current_parameter_tensor is not None:
                         module._parameters[param_name] = tensor

@@ -154,7 +154,7 @@ class Token(BaseModel):
 
 
 # Generation finish reason
-class FinishReason(Enum):
+class FinishReason(str, Enum):
     # number of generated tokens == `max_new_tokens`
     Length = "length"
     # the model generated its end of sequence token

@@ -48,13 +48,15 @@ class OPT(CausalLM):
 
 class OPTSharded(OPT):
     def __init__(
-        self, model_id: str, revision: Optional[str] = None, quantize: bool = False
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
     ):
-        self.process_group, self.rank, self.world_size = initialize_torch_distributed()
-        self.master = self.rank == 0
+        self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
-            device = torch.device(f"cuda:{self.rank}")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16
         else:
             device = torch.device("cpu")
             dtype = torch.float32
@@ -81,16 +83,18 @@ class OPTSharded(OPT):
             quantize=quantize,
             device=device,
             dtype=dtype,
-            rank=self.rank,
-            world_size=self.world_size,
+            rank=rank,
+            world_size=world_size,
         )
-        self.model = model.eval()
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
+            rank=rank,
+            world_size=world_size,
         )
 
     @staticmethod
@@ -106,7 +110,7 @@ class OPTSharded(OPT):
         parameters = dict(model.named_parameters())
         for file in filenames:
             with safe_open(
-                file, framework="pt", device=str(device) if not quantize else "cpu"
+                file, framework="pt", device=str(device) if quantize is None else "cpu"
             ) as f:
                 for name in f.keys():
                     if name == "lm_head.weight":

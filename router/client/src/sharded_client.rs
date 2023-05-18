@@ -1,6 +1,6 @@
 /// Multi shard Client
-use crate::Result;
 use crate::{Batch, Client, Generation, HealthResponse, Request, ShardInfo};
+use crate::{ClientError, Result};
 use futures::future::join_all;
 use tonic::transport::Uri;
 use tracing::instrument;
@@ -20,7 +20,7 @@ impl ShardedClient {
     /// the other shards and returns all uris/unix sockets with the `service_discovery` gRPC method.
     async fn from_master_client(mut master_client: Client) -> Result<Self> {
         // Get all uris/unix sockets from the master client
-        let uris = master_client.service_discovery().await.unwrap();
+        let uris = master_client.service_discovery().await?;
         let futures = uris.into_iter().map(Client::connect_uds);
         let clients: Result<Vec<Client>> = join_all(futures).await.into_iter().collect();
         Ok(Self::new(clients?))
@@ -98,8 +98,9 @@ impl ShardedClient {
             .iter_mut()
             .map(|client| Box::pin(client.prefill(batch.clone())))
             .collect();
-        // all shards return the same message
-        join_all(futures).await.pop().unwrap()
+        let results: Result<Vec<(Vec<Generation>, Option<Batch>)>> =
+            join_all(futures).await.into_iter().collect();
+        merge_generations(results?)
     }
 
     /// Generate one token for each request in the given cached batches
@@ -116,7 +117,20 @@ impl ShardedClient {
             .iter_mut()
             .map(|client| Box::pin(client.decode(batches.clone())))
             .collect();
-        // all shards return the same message
-        join_all(futures).await.pop().unwrap()
+        let results: Result<Vec<(Vec<Generation>, Option<Batch>)>> =
+            join_all(futures).await.into_iter().collect();
+        merge_generations(results?)
     }
+}
+
+/// Merge generations from the different model shards
+fn merge_generations(
+    mut results: Vec<(Vec<Generation>, Option<Batch>)>,
+) -> Result<(Vec<Generation>, Option<Batch>)> {
+    let (mut generations, next_batch) = results.pop().ok_or(ClientError::EmptyResults)?;
+
+    for (mut shard_generations, _) in results.into_iter() {
+        generations.append(&mut shard_generations);
+    }
+    Ok((generations, next_batch))
 }

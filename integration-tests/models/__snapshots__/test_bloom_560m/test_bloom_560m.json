@@ -1,0 +1,128 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 17934,
+        "logprob": null,
+        "text": "Pour"
+      },
+      {
+        "id": 49833,
+        "logprob": -10.5625,
+        "text": " dég"
+      },
+      {
+        "id": 21543,
+        "logprob": -0.14770508,
+        "text": "uster"
+      },
+      {
+        "id": 447,
+        "logprob": -1.9287109,
+        "text": " un"
+      },
+      {
+        "id": 46341,
+        "logprob": -15.4609375,
+        "text": " ort"
+      },
+      {
+        "id": 35567,
+        "logprob": -7.5585938,
+        "text": "olan"
+      },
+      {
+        "id": 15,
+        "logprob": -1.4003906,
+        "text": ","
+      },
+      {
+        "id": 1669,
+        "logprob": -1.5673828,
+        "text": " il"
+      },
+      {
+        "id": 11580,
+        "logprob": -0.94628906,
+        "text": " faut"
+      },
+      {
+        "id": 3913,
+        "logprob": -3.703125,
+        "text": " tout"
+      },
+      {
+        "id": 39261,
+        "logprob": -1.5732422,
+        "text": " d'abord"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 578,
+        "logprob": -1.6591797,
+        "special": false,
+        "text": " le"
+      },
+      {
+        "id": 5608,
+        "logprob": -2.4492188,
+        "special": false,
+        "text": " faire"
+      },
+      {
+        "id": 159570,
+        "logprob": -6.6835938,
+        "special": false,
+        "text": " réch"
+      },
+      {
+        "id": 810,
+        "logprob": 0.0,
+        "special": false,
+        "text": "au"
+      },
+      {
+        "id": 12736,
+        "logprob": 0.0,
+        "special": false,
+        "text": "ffer"
+      },
+      {
+        "id": 1742,
+        "logprob": -2.5175781,
+        "special": false,
+        "text": " au"
+      },
+      {
+        "id": 6105,
+        "logprob": -2.0078125,
+        "special": false,
+        "text": " bain"
+      },
+      {
+        "id": 88254,
+        "logprob": -0.12695312,
+        "special": false,
+        "text": "-mar"
+      },
+      {
+        "id": 641,
+        "logprob": 0.0,
+        "special": false,
+        "text": "ie"
+      },
+      {
+        "id": 2940,
+        "logprob": -3.5175781,
+        "special": false,
+        "text": " avec"
+      }
+    ]
+  },
+  "generated_text": " le faire réchauffer au bain-marie avec"
+}

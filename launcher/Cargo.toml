@@ -1,9 +1,10 @@
 [package]
 name = "text-generation-launcher"
-version = "0.6.0"
-edition = "2021"
-authors = ["Olivier Dehaene"]
 description = "Text Generation Launcher"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
 
 [dependencies]
 clap = { version = "4.1.4", features = ["derive", "env"] }
@@ -17,3 +18,6 @@ tracing-subscriber = { version = "0.3.16", features = ["json"] }
 [dev-dependencies]
 float_eq = "1.0.1"
 reqwest = { version = "0.11.14", features = ["blocking", "json"] }
+
+[build-dependencies]
+vergen = { version = "8.0.0", features = ["build", "cargo", "git", "gitcl", "rustc", "si"] }

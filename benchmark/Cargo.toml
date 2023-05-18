@@ -1,15 +1,10 @@
 [package]
 name = "text-generation-benchmark"
-version = "0.1.0"
-edition = "2021"
-authors = ["Olivier Dehaene"]
 description = "Text Generation Benchmarking tool"
-
-[profile.release]
-debug = 1
-incremental = true
-lto = "off"
-panic = "abort"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
 
 [lib]
 path = "src/lib.rs"
