@@ -212,7 +212,7 @@ class VectorizedCausalLMBatch(Batch):
         ]
         for tensor in tensors_to_update:
             # Update tensors in-place to allow incremental garbage collection
-            tensors_to_update.data = tensor[kv_cache_slice]
+            tensor.data = tensor[kv_cache_slice]
 
         return self
 
@@ -320,7 +320,12 @@ class VectorizedCausalLMBatch(Batch):
         past_key_values = []
         for i, kv_format in enumerate(kv_formats):
             for j in range(1 if kv_format is None else kv_format):
-                tensors_to_merge = [batch.past_key_values[i] for batch in batches]
+                tensors_to_merge = [
+                    batch.past_key_values[i]
+                    if kv_format is None
+                    else batch.past_key_values[i][j]
+                    for batch in batches
+                ]
                 # Generally `max_input_length`, unless the model allocates more than needed.
                 right_indices = [
                     left_index + tensor.size(kv_cache_seq_dim)
@@ -461,7 +466,8 @@ class VectorizedCausalLM(Model):
                 .squeeze(1)
                 .tolist()
             )
-            if query_length > 1:
+            is_prefill = batch.past_key_values is None
+            if is_prefill:
                 prefill_token_ids = batch.input_ids[:, :key_length].tolist()
                 prefill_logprobs = (
                     logprobs.gather(2, batch.input_ids[:, 1:key_length, None])
@@ -509,7 +515,11 @@ class VectorizedCausalLM(Model):
                 # Decode generated tokens
                 # TODO: Same as stopping_criteria.current_output?
                 output_text = self.decode(
-                    batch.input_ids[i, -stopping_criterias.current_tokens :]
+                    batch.input_ids[
+                        i,
+                        batch.max_input_length
+                        - stopping_criterias.current_tokens : batch.max_input_length,
+                    ]
                 )
                 # TODO: Seed
                 generated_text = GeneratedText(
@@ -522,7 +532,7 @@ class VectorizedCausalLM(Model):
 
             generation = Generation(
                 batch.requests[i].id,
-                prefill_tokens[i] if batch.details and query_length > 1 else None,
+                prefill_tokens[i] if batch.details and is_prefill else None,
                 next_token_id,
                 token_logprobs[i] if batch.details else 0.0,
                 next_token_text,

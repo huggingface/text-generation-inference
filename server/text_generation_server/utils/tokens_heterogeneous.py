@@ -214,6 +214,7 @@ class HeterogeneousTypicalLogitsWarper(LogitsWarper):
         scores = scores.masked_fill_(indices_to_remove, self.filter_value)
         return scores
 
+
 class HeterogeneousProcessorWrapper(LogitsProcessor):
     r"""
     A wrapper for logit warpers or processors without heterogeneous parameter support.
@@ -227,12 +228,12 @@ class HeterogeneousProcessorWrapper(LogitsProcessor):
         self,
         processors: Dict[int, Union[LogitsProcessor, LogitsWarper]],
     ):
-        self.processors=processors
-        self.max_index=max(processors)
+        self.processors = processors
+        self.max_index = max(processors)
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
         for i, processor in self.processors.items():
-            scores[i:i+1]=processor(input_ids[i:i+1], scores[i:i+1])
+            scores[i : i + 1] = processor(input_ids[i : i + 1], scores[i : i + 1])
         return scores
 
 
@@ -275,9 +276,15 @@ class HeterogeneousNextTokenChooser:
 
         watermark = self._standardize(watermark, batch_size, False)
         if any(watermark):
-            warpers.append(HeterogeneousProcessorWrapper(
-                {i:WatermarkLogitsProcessor(device=device) for i, x in watermark if x}
-            ))
+            warpers.append(
+                HeterogeneousProcessorWrapper(
+                    {
+                        i: WatermarkLogitsProcessor(device=device)
+                        for i, x in watermark
+                        if x
+                    }
+                )
+            )
 
         repetition_penalty = self._standardize(repetition_penalty, batch_size, 1.0)
         if any([x != 1.0 for x in repetition_penalty]):
