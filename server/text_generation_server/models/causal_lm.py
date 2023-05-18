@@ -495,7 +495,7 @@ class CausalLM(Model):
         )
 
     def forward(
-        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+        self, input_ids, attention_mask, position_ids, past_key_values = None
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
         outputs = self.model.forward(
