@@ -1,35 +1,30 @@
 import torch
 import torch.distributed
 
-from typing import List, Optional, Type
+from typing import Optional, Type
 
-from accelerate import init_empty_weights
-from safetensors import safe_open
 from transformers import (
     AutoTokenizer,
-    AutoModelForCausalLM,
     AutoConfig,
     PreTrainedTokenizerBase,
 )
-from transformers.models.bloom.parallel_layers import (
-    TensorParallelColumnLinear,
-    TensorParallelEmbedding,
-    TensorParallelRowLinear,
-)
 
+from text_generation_server.models.custom_modeling.bloom_modeling import (
+    BloomForCausalLM,
+)
 from text_generation_server.models import CausalLM
 from text_generation_server.models.causal_lm import CausalLMBatch
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
+    Weights,
 )
 
 HAS_BITS_AND_BYTES = True
 try:
-    import bitsandbytes as bnb
-    from bitsandbytes.nn import Int8Params
-except Exception as e:
+    pass
+except Exception:
     HAS_BITS_AND_BYTES = False
 
 
@@ -42,34 +37,12 @@ class BloomCausalLMBatch(CausalLMBatch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "CausalLMBatch":
-        batch = super(BloomCausalLMBatch, cls).from_pb(
-            pb=pb, tokenizer=tokenizer, dtype=dtype, device=device
-        )
+        batch = super().from_pb(pb=pb, tokenizer=tokenizer, dtype=dtype, device=device)
         batch.keys_head_dim_last = False
         return batch
 
 
-class BLOOM(CausalLM):
-    def __init__(
-        self,
-        model_id: str,
-        revision: Optional[str] = None,
-        quantize: Optional[str] = None,
-        trust_remote_code: bool = False,
-    ):
-        super(BLOOM, self).__init__(
-            model_id=model_id,
-            revision=revision,
-            quantize=quantize,
-            trust_remote_code=trust_remote_code,
-        )
-
-    @property
-    def batch_type(self) -> Type[CausalLMBatch]:
-        return BloomCausalLMBatch
-
-
-class BLOOMSharded(BLOOM):
+class BLOOMSharded(CausalLM):
     def __init__(
         self,
         model_id: str,
@@ -101,25 +74,16 @@ class BLOOMSharded(BLOOM):
             trust_remote_code=trust_remote_code,
         )
         config.pad_token_id = 3
+        config.quantize = quantize
 
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-
-        with init_empty_weights():
-            model = AutoModelForCausalLM.from_config(
-                config, trust_remote_code=trust_remote_code
-            )
-
-        torch.distributed.barrier(group=self.process_group)
-        self.load_weights(
-            model,
-            filenames,
-            quantize=quantize,
-            device=device,
-            dtype=dtype,
-            rank=rank,
-            world_size=world_size,
+        weights = Weights(
+            filenames, device=device, dtype=dtype, process_group=self.process_group
         )
+
+        model = BloomForCausalLM(config, weights)
+
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
             model=model,
@@ -131,6 +95,7 @@ class BLOOMSharded(BLOOM):
             world_size=world_size,
         )
 
+<<<<<<< HEAD
     @staticmethod
     def load_weights(
         model,
@@ -257,6 +222,11 @@ class BLOOMSharded(BLOOM):
                     module._parameters[param_name] = tensor
                     if name == "word_embeddings.weight":
                         model.lm_head._parameters["weight"] = tensor
+=======
+    @property
+    def batch_type(self) -> Type[CausalLMBatch]:
+        return BloomCausalLMBatch
+>>>>>>> ba30033 (Fused all commits for saner rebase..)
 
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
@@ -269,9 +239,5 @@ class BLOOMSharded(BLOOM):
             use_cache=True,
         )
 
-        # Logits are sharded, so we need to gather them
-        logits = [torch.empty_like(outputs.logits) for _ in range(self.world_size)]
-        torch.distributed.all_gather(logits, outputs.logits, group=self.process_group)
-        logits = torch.cat(logits, dim=2)
-
+        logits = outputs.logits
         return logits, outputs.past_key_values

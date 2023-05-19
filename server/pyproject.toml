@@ -25,7 +25,8 @@ opentelemetry-instrumentation-grpc = "^0.36b0"
 hf-transfer = "^0.1.2"
 sentencepiece = "^0.1.97"
 tokenizers = "0.13.3"
-huggingface-hub = "0.14.0"
+huggingface-hub = "^0.14.1"
+transformers = "^4.29.2"
 
 [tool.poetry.extras]
 accelerate = ["accelerate"]
