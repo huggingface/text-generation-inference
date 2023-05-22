@@ -7,157 +7,107 @@
       {
         "id": 50278,
         "logprob": null,
-        "text": "<|prompter|>"
+        "text": "<|USER|>"
       },
       {
         "id": 1276,
-        "logprob": -8.03125,
+        "logprob": -4.5546875,
         "text": "What"
       },
       {
-        "id": 310,
-        "logprob": -5.421875,
-        "text": " is"
-      },
-      {
-        "id": 247,
-        "logprob": -2.1601562,
-        "text": " a"
-      },
-      {
-        "id": 1167,
-        "logprob": -5.4609375,
-        "text": " mem"
-      },
-      {
-        "id": 70,
-        "logprob": -0.005657196,
-        "text": "e"
-      },
-      {
-        "id": 13,
-        "logprob": -7.28125,
-        "text": ","
-      },
-      {
-        "id": 285,
-        "logprob": -0.2980957,
-        "text": " and"
-      },
-      {
-        "id": 752,
-        "logprob": -2.1679688,
-        "text": " what"
-      },
-      {
         "id": 434,
-        "logprob": -5.6210938,
+        "logprob": -4.234375,
         "text": "'s"
       },
       {
-        "id": 253,
-        "logprob": -0.81103516,
-        "text": " the"
+        "id": 634,
+        "logprob": -5.1054688,
+        "text": " your"
       },
       {
-        "id": 2892,
-        "logprob": -6.6640625,
-        "text": " history"
+        "id": 12315,
+        "logprob": -9.953125,
+        "text": " mood"
       },
       {
-        "id": 3212,
-        "logprob": -2.265625,
-        "text": " behind"
-      },
-      {
-        "id": 436,
-        "logprob": -11.5078125,
-        "text": " this"
-      },
-      {
-        "id": 3159,
-        "logprob": -2.1582031,
-        "text": " word"
+        "id": 3063,
+        "logprob": -4.0820312,
+        "text": " today"
       },
       {
         "id": 32,
-        "logprob": -0.008720398,
+        "logprob": -0.15148926,
         "text": "?"
       },
       {
-        "id": 0,
-        "logprob": -2.4726562,
-        "text": "<|endoftext|>"
-      },
-      {
-        "id": 50281,
-        "logprob": -18.265625,
-        "text": "<|assistant|>"
+        "id": 50279,
+        "logprob": -0.27026367,
+        "text": "<|ASSISTANT|>"
       }
     ],
     "seed": null,
     "tokens": [
       {
-        "id": 510,
-        "logprob": -0.63183594,
+        "id": 42,
+        "logprob": -0.88378906,
         "special": false,
-        "text": "The"
+        "text": "I"
       },
       {
-        "id": 3159,
-        "logprob": -0.5390625,
+        "id": 1353,
+        "logprob": -0.94921875,
         "special": false,
-        "text": " word"
+        "text": "'m"
       },
       {
-        "id": 346,
-        "logprob": -0.045684814,
+        "id": 417,
+        "logprob": -2.2402344,
         "special": false,
-        "text": " \""
+        "text": " not"
       },
       {
-        "id": 6441,
-        "logprob": -0.002090454,
+        "id": 2119,
+        "logprob": -0.3725586,
         "special": false,
-        "text": "mem"
+        "text": " sure"
       },
       {
-        "id": 70,
-        "logprob": -1.3589859e-05,
+        "id": 13,
+        "logprob": -1.078125,
         "special": false,
-        "text": "e"
+        "text": ","
       },
       {
-        "id": 3,
-        "logprob": -0.0009455681,
+        "id": 534,
+        "logprob": -0.67822266,
         "special": false,
-        "text": "\""
+        "text": " which"
       },
       {
-        "id": 369,
-        "logprob": -0.088012695,
+        "id": 310,
+        "logprob": -1.3837891,
         "special": false,
-        "text": " was"
+        "text": " is"
       },
       {
-        "id": 806,
-        "logprob": -0.12585449,
+        "id": 253,
+        "logprob": -1.7050781,
         "special": false,
-        "text": " first"
+        "text": " the"
       },
       {
-        "id": 908,
-        "logprob": -0.017196655,
+        "id": 1682,
+        "logprob": -0.052001953,
         "special": false,
-        "text": " used"
+        "text": " best"
       },
       {
-        "id": 275,
-        "logprob": -0.49731445,
+        "id": 1039,
+        "logprob": -2.0390625,
         "special": false,
-        "text": " in"
+        "text": " way"
       }
     ]
   },
-  "generated_text": "The word \"meme\" was first used in"
+  "generated_text": "I'm not sure, which is the best way"
 }
