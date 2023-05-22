@@ -72,7 +72,7 @@ def download_weights(
     model_id: str,
     revision: Optional[str] = None,
     extension: str = ".safetensors",
-    auto_convert: bool = True,
+    auto_convert: bool = False,
     logger_level: str = "INFO",
     json_output: bool = False,
 ):
