@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_neox_handle(launcher):
-    with launcher("OpenAssistant/oasst-sft-1-pythia-12b", num_shard=2) as handle:
+    with launcher("stabilityai/stablelm-tuned-alpha-3b", num_shard=1) as handle:
         yield handle
 
 
@@ -16,7 +16,7 @@ async def flash_neox(flash_neox_handle):
 @pytest.mark.asyncio
 async def test_flash_neox(flash_neox, response_snapshot):
     response = await flash_neox.generate(
-        "<|prompter|>What is a meme, and what's the history behind this word?<|endoftext|><|assistant|>",
+        "<|USER|>What's your mood today?<|ASSISTANT|>",
         max_new_tokens=10,
     )
 
@@ -28,12 +28,14 @@ async def test_flash_neox(flash_neox, response_snapshot):
 async def test_flash_neox_load(flash_neox, generate_load, response_snapshot):
     responses = await generate_load(
         flash_neox,
-        "<|prompter|>What is a meme, and what's the history behind this word?<|endoftext|><|assistant|>",
+        "<|USER|>What's your mood today?<|ASSISTANT|>",
         max_new_tokens=10,
         n=4,
     )
 
-    assert len(responses) == 4
-    assert all([r.generated_text == responses[0].generated_text for r in responses])
+    generated_texts = [r.generated_text for r in responses]
+
+    assert len(generated_texts) == 4
+    assert generated_texts, all([text == generated_texts[0] for text in generated_texts])
 
     assert responses == response_snapshot

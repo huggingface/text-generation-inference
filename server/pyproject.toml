@@ -35,6 +35,9 @@ bnb = ["bitsandbytes"]
 grpcio-tools = "^1.51.1"
 pytest = "^7.3.0"
 
+[tool.pytest.ini_options]
+markers = ["private: marks tests as requiring an admin hf token (deselect with '-m \"not private\"')"]
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

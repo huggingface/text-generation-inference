@@ -80,7 +80,7 @@ class FlashSantacoder(FlashCausalLM):
     def load_weights(
         model: FlashSantacoderForCausalLM,
         filenames: List[Path],
-        quantize: bool,
+        quantize: Optional[str],
         device: torch.device,
         dtype: torch.dtype,
         transpose: bool,

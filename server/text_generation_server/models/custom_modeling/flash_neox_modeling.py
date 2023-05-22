@@ -362,7 +362,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
         )
 
-        model.post_load_weights(load_in_8bit)
+        model.post_load_weights("bitsandbytes" if load_in_8bit else None)
         return model
 
     def forward(
@@ -466,7 +466,7 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         model = super(FlashGPTNeoXForCausalLM, cls).from_pretrained(
             pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
         )
-        model.post_load_weights(load_in_8bit)
+        model.post_load_weights("bitsandbytes" if load_in_8bit else None)
         return model
 
     def forward(
