@@ -9,6 +9,7 @@ COPY proto proto
 COPY benchmark benchmark
 COPY router router
 COPY launcher launcher
+COPY benchmark benchmark
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
@@ -31,6 +32,7 @@ COPY proto proto
 COPY benchmark benchmark
 COPY router router
 COPY launcher launcher
+COPY benchmark benchmark
 RUN cargo build --release
 
 # Python builder
@@ -125,6 +127,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         libssl-dev \
         ca-certificates \
         make \
+        git \
+        git-lfs \
+        vim \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
@@ -145,6 +150,7 @@ RUN cd /usr/src/transformers && pip install -e . --no-cache-dir && pip install e
 # Install server
 COPY proto proto
 COPY server server
+COPY benchmark benchmark
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
@@ -157,6 +163,8 @@ COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local
 COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+# Install benchmark
+COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 
 # AWS Sagemaker compatbile image
 FROM base as sagemaker
@@ -168,6 +176,13 @@ ENTRYPOINT ["./entrypoint.sh"]
 
 # Final image
 FROM base
+
+RUN git clone https://github.com/bigcode-project/bigcode-inference-benchmark.git && \
+    cd bigcode-inference-benchmark && git checkout text_gen_inference
+
+ENV HUGGINGFACE_HUB_CACHE=/usr/data/.hf_cache/
+ENV PYTHONPATH=/usr/src/server/
+RUN chmod -R 777 /usr
 
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]

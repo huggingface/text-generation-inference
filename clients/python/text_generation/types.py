@@ -200,7 +200,7 @@ class Response(BaseModel):
     # Generated text
     generated_text: str
     # Generation details
-    details: Details
+    details: Optional[Details]
 
 
 # `generate_stream` details

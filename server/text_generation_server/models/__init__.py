@@ -1,3 +1,4 @@
+import os
 import torch
 
 from loguru import logger
@@ -7,6 +8,7 @@ from typing import Optional
 
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
+from text_generation_server.models.vectorized_causal_lm import VectorizedCausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOM, BLOOMSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
@@ -17,7 +19,7 @@ from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
 
 try:
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and os.environ.get("NO_FLASH_ATTENTION") is None:
         major, minor = torch.cuda.get_device_capability()
         is_sm75 = major == 7 and minor == 5
         is_sm8x = major == 8 and minor >= 0
@@ -99,7 +101,7 @@ def get_model(
         else:
             return Galactica(model_id, revision, quantize=quantize)
 
-    if model_id.startswith("bigcode/"):
+    if model_id.startswith("bigcode/") and os.environ.get("NO_FAST_MODEL") is None:
         if sharded:
             if not FLASH_ATTENTION:
                 raise NotImplementedError(
@@ -110,7 +112,9 @@ def get_model(
             santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
             return santacoder_cls(model_id, revision, quantize=quantize)
 
-    config = AutoConfig.from_pretrained(model_id, revision=revision)
+    config = AutoConfig.from_pretrained(
+        model_id, revision=revision, trust_remote_code=True
+    )
     model_type = config.model_type
 
     if model_type == "gpt_bigcode":
@@ -163,6 +167,8 @@ def get_model(
         raise ValueError("sharded is not supported for AutoModel")
 
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+        if os.environ.get("VECTORIZED_LM") is not None:
+            return VectorizedCausalLM(model_id, revision, quantize=quantize)
         return CausalLM(model_id, revision, quantize=quantize)
     if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
         return Seq2SeqLM(model_id, revision, quantize=quantize)

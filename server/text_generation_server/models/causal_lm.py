@@ -470,6 +470,7 @@ class CausalLM(Model):
             torch_dtype=dtype,
             device_map="auto" if torch.cuda.is_available() else None,
             load_in_8bit=quantize == "bitsandbytes",
+            trust_remote_code=True,
         )
         tokenizer.pad_token_id = (
             model.config.pad_token_id
