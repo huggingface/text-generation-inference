@@ -504,6 +504,7 @@ class CausalLM(Model):
             position_ids=position_ids,
             past_key_values=past_key_values,
             use_cache=True,
+            return_dict=True,
         )
         return outputs.logits, outputs.past_key_values
 
