@@ -52,6 +52,7 @@ class OPTSharded(OPT):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -62,11 +63,18 @@ class OPTSharded(OPT):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left", truncation_side="left"
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
 
         config = AutoConfig.from_pretrained(
-            model_id, revision=revision, tp_parallel=True
+            model_id,
+            revision=revision,
+            tp_parallel=True,
+            trust_remote_code=trust_remote_code,
         )
         tokenizer.pad_token_id = config.pad_token_id
 
@@ -74,7 +82,9 @@ class OPTSharded(OPT):
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
 
         with init_empty_weights():
-            model = AutoModelForCausalLM.from_config(config)
+            model = AutoModelForCausalLM.from_config(
+                config, trust_remote_code=trust_remote_code
+            )
 
         torch.distributed.barrier(group=self.process_group)
         self.load_weights(

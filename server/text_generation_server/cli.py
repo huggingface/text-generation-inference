@@ -22,6 +22,7 @@ def serve(
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: Optional[Quantization] = None,
+    trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
     json_output: bool = False,
@@ -63,7 +64,7 @@ def serve(
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
-    server.serve(model_id, revision, sharded, quantize, uds_path)
+    server.serve(model_id, revision, sharded, quantize, trust_remote_code, uds_path)
 
 
 @app.command()

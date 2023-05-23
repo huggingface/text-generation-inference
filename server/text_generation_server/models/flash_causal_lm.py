@@ -394,6 +394,7 @@ class FlashCausalLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -402,13 +403,18 @@ class FlashCausalLM(Model):
             raise NotImplementedError("FlashCausalLM is only available on GPU")
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left", truncation_side="left"
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
         model = model_cls.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
             load_in_8bit=quantize == "bitsandbytes",
+            trust_remote_code=trust_remote_code,
         ).to(device)
 
         super(FlashCausalLM, self).__init__(

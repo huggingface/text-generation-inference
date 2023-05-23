@@ -32,6 +32,7 @@ class FlashSantacoder(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -40,7 +41,11 @@ class FlashSantacoder(FlashCausalLM):
             raise NotImplementedError("FlashSantacoder is only available on GPU")
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left", truncation_side="left"
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
 
         config = GPT2Config.from_pretrained(
@@ -178,6 +183,7 @@ class FlashSantacoderSharded(FlashSantacoder):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -187,7 +193,11 @@ class FlashSantacoderSharded(FlashSantacoder):
             raise NotImplementedError("FlashSantacoderSharded is only available on GPU")
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left", truncation_side="left"
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
 
         config = GPT2Config.from_pretrained(

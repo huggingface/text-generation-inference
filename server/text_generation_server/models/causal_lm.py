@@ -1,4 +1,5 @@
 import torch
+import inspect
 
 from dataclasses import dataclass
 from opentelemetry import trace
@@ -450,6 +451,7 @@ class CausalLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -462,22 +464,38 @@ class CausalLM(Model):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left", truncation_side="left"
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map="auto" if torch.cuda.is_available() and torch.cuda.device_count() > 1 else None,
+            device_map="auto"
+            if torch.cuda.is_available() and torch.cuda.device_count() > 1
+            else None,
             load_in_8bit=quantize == "bitsandbytes",
+            trust_remote_code=trust_remote_code,
         )
         if torch.cuda.is_available() and torch.cuda.device_count() == 1:
             model = model.cuda()
 
-        tokenizer.pad_token_id = (
-            model.config.pad_token_id
-            if model.config.pad_token_id is not None
-            else model.config.eos_token_id
+        if tokenizer.pad_token_id is None:
+            if model.config.pad_token_id is not None:
+                tokenizer.pad_token_id = model.config.pad_token_id
+            elif model.config.eos_token_id is not None:
+                tokenizer.pad_token_id = model.config.eos_token_id
+            elif tokenizer.eos_token_id is not None:
+                tokenizer.pad_token_id = tokenizer.eos_token_id
+            else:
+                tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+
+        self.has_position_ids = (
+            inspect.signature(model.forward).parameters.get("position_ids", None)
+            is not None
         )
 
         super(CausalLM, self).__init__(
@@ -501,14 +519,17 @@ class CausalLM(Model):
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
-        outputs = self.model.forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            use_cache=True,
-            return_dict=True,
-        )
+        kwargs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "past_key_values": past_key_values,
+            "use_cache": True,
+            "return_dict": True,
+        }
+        if self.has_position_ids:
+            kwargs["position_ids"] = position_ids
+
+        outputs = self.model.forward(**kwargs)
         return outputs.logits, outputs.past_key_values
 
     @tracer.start_as_current_span("generate_token")

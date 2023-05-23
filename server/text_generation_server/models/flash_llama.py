@@ -33,6 +33,7 @@ class FlashLlama(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -45,11 +46,11 @@ class FlashLlama(FlashCausalLM):
             revision=revision,
             padding_side="left",
             truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
 
         config = AutoConfig.from_pretrained(
-            model_id,
-            revision=revision,
+            model_id, revision=revision, trust_remote_code=trust_remote_code
         )
 
         # We do not use from_pretrained as we modified the model internal module layout
@@ -153,6 +154,7 @@ class FlashLlamaSharded(FlashLlama):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -166,11 +168,11 @@ class FlashLlamaSharded(FlashLlama):
             revision=revision,
             padding_side="left",
             truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
 
         config = AutoConfig.from_pretrained(
-            model_id,
-            revision=revision,
+            model_id, revision=revision, trust_remote_code=trust_remote_code
         )
 
         torch.distributed.barrier(group=self.process_group)
