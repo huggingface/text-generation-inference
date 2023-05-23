@@ -40,7 +40,7 @@ class T5Sharded(Seq2SeqLM):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            dtype = torch.float16
         else:
             device = torch.device("cpu")
             dtype = torch.float32
@@ -154,9 +154,15 @@ class T5Sharded(Seq2SeqLM):
                             f"Name {name} -- Current {current_parameter_tensor.shape} and got {tensor.shape}"
                         )
 
-                    tensor = tensor.contiguous().to(dtype)
+                    tensor = tensor.contiguous()
 
-                    if quantize == "bitsandbytes":
+                    # See: https://github.com/huggingface/transformers/blob/1fe1e3caa44617047f149bcc0c0b566343b714a7/src/transformers/models/t5/modeling_t5.py#LL316C15-L316C71
+                    if module_name.endswith("wo"):
+                        tensor = tensor.to(torch.float32)
+                    else:
+                        tensor = tensor.to(dtype)
+
+                    if quantize == "bitsandbytes" and not module_name.endswith("wo"):
                         if not HAS_BITS_AND_BYTES:
                             raise ImportError(
                                 "bitsandbytes is not available on your machine either because it is not installed "
@@ -207,7 +213,7 @@ class T5Sharded(Seq2SeqLM):
 
                             module.linear = replace_linear(state)
 
-                        elif quantize == "gptq":
+                        elif quantize == "gptq" and not module_name.endswith("wo"):
                             raise NotImplementedError(
                                 "`gptq` is not implemented for now"
                             )
