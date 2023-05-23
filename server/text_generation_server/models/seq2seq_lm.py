@@ -519,7 +519,9 @@ class Seq2SeqLM(Model):
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map="auto" if torch.cuda.is_available() and torch.cuda.device_count() > 1 else None,
+            device_map="auto"
+            if torch.cuda.is_available() and torch.cuda.device_count() > 1
+            else None,
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )

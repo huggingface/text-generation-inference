@@ -261,12 +261,17 @@ def get_model(
     if trust_remote_code and auto_map is not None:
         if "AutoModelForCausalLM" in auto_map.keys():
             return CausalLM(
-                model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+                model_id,
+                revision,
+                quantize=quantize,
+                trust_remote_code=trust_remote_code,
             )
         if "AutoModelForSeq2SeqLM" in auto_map.keys:
             return Seq2SeqLM(
-                model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+                model_id,
+                revision,
+                quantize=quantize,
+                trust_remote_code=trust_remote_code,
             )
-
 
     raise ValueError(f"Unsupported model type {model_type}")
