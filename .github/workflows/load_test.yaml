@@ -64,16 +64,19 @@ jobs:
           sudo mkdir ${{ env.DOCKER_VOLUME }}
           sudo mount /dev/nvme1n1 ${{ env.DOCKER_VOLUME }}
 
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.44.0/k6-v0.44.0-linux-amd64.tar.gz -L | tar xvz --strip-components 1
+
       - name: Start starcoder
         run: |
           docker run --name tgi-starcoder --rm --gpus all -p 3000:80 -v ${{ env.DOCKER_VOLUME }}:/data -e HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }} --pull always -d ghcr.io/huggingface/text-generation-inference:latest --model-id bigcode/starcoder --num-shard 2 --max-batch-total-tokens 32768
           sleep 10
           wget --timeout 10 --retry-on-http-error --waitretry=1 --tries=240 http://localhost:3000/health
 
-      - name: Run k6 cloud test
-        uses: k6io/action@v0.1
-        with:
-          filename: k6/starcoder_load.js
+      - name: Run k6
+        run: |
+          ./k6 run k6/starcoder_load.js
 
       - name: Stop starcoder
         if: ${{ always() }}
