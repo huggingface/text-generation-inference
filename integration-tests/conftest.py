@@ -231,8 +231,11 @@ def launcher(event_loop):
         if quantize:
             args.append("--quantize")
 
+        env = os.environ
+        env["LOG_LEVEL"] = "info,text_generation_router=debug"
+
         with subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
         ) as process:
             yield ProcessLauncherHandle(process, port)
 
@@ -271,7 +274,7 @@ def launcher(event_loop):
 
         gpu_count = num_shard if num_shard is not None else 1
 
-        env = {}
+        env = {"LOG_LEVEL": "info,text_generation_router=debug"}
         if HUGGING_FACE_HUB_TOKEN is not None:
             env["HUGGING_FACE_HUB_TOKEN"] = HUGGING_FACE_HUB_TOKEN
 
