@@ -52,7 +52,7 @@ use utoipa_swagger_ui::SwaggerUi;
             example = json ! ({"error": "Incomplete generation"})),
     )
 )]
-#[instrument(skip(infer))]
+#[instrument(skip(infer, req))]
 async fn compat_generate(
     default_return_full_text: Extension<bool>,
     infer: Extension<Infer>,
@@ -133,8 +133,9 @@ async fn health(mut health: Extension<Health>) -> Result<(), (StatusCode, Json<E
     )
 )]
 #[instrument(
-    skip(infer),
+    skip_all,
     fields(
+        parameters = ?req.0.parameters,
         total_time,
         validation_time,
         queue_time,
@@ -150,6 +151,8 @@ async fn generate(
     let span = tracing::Span::current();
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
+
+    tracing::debug!("Input: {}", req.0.inputs);
 
     let compute_characters = req.0.inputs.chars().count();
     let mut add_prompt = None;
@@ -282,7 +285,8 @@ async fn generate(
         output_text = prompt + &output_text;
     }
 
-    tracing::info!("Output: {}", output_text);
+    tracing::debug!("Output: {}", output_text);
+    tracing::info!("Success");
 
     let response = GenerateResponse {
         generated_text: output_text,
@@ -315,8 +319,9 @@ async fn generate(
     )
 )]
 #[instrument(
-    skip(infer),
+    skip_all,
     fields(
+        parameters = ?req.0.parameters,
         total_time,
         validation_time,
         queue_time,
@@ -335,6 +340,8 @@ async fn generate_stream(
     let span = tracing::Span::current();
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
+
+    tracing::debug!("Input: {}", req.0.inputs);
 
     let compute_characters = req.0.inputs.chars().count();
 
@@ -370,6 +377,8 @@ async fn generate_stream(
                                     InferStreamResponse::Prefill(_) => {}
                                     // Yield event for every new token
                                     InferStreamResponse::Token(token) => {
+                                        tracing::debug!(parent: &span, "Token: {:?}", token);
+
                                         // StreamResponse
                                         let stream_token = StreamResponse {
                                             token,
@@ -428,7 +437,8 @@ async fn generate_stream(
                                             output_text = prompt + &output_text;
                                         }
 
-                                        tracing::info!(parent: &span, "Output: {}", output_text);
+                                        tracing::debug!(parent: &span, "Output: {}", output_text);
+                                        tracing::info!(parent: &span, "Success");
 
                                         let stream_token = StreamResponse {
                                             token,
