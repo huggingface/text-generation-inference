@@ -76,7 +76,7 @@ jobs:
 
       - name: Run k6
         run: |
-          ./k6 run k6/starcoder_load.js
+          ./k6 run load_tests/starcoder_load.js
 
       - name: Stop starcoder
         if: ${{ always() }}
