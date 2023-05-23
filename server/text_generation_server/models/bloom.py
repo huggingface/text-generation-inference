@@ -160,7 +160,10 @@ class BLOOMSharded(BLOOM):
                             # XXX: Hack for Rowlinear to add the bias only once.
                             if rank != 0:
                                 tensor = torch.zeros_like(tensor)
-                    elif isinstance(module, TensorParallelEmbedding) or name == "lm_head.weight":
+                    elif (
+                        isinstance(module, TensorParallelEmbedding)
+                        or name == "lm_head.weight"
+                    ):
                         size = slice_.get_shape()[0]
                         block_size = size // world_size
                         start = rank * block_size

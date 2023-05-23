@@ -1,0 +1,242 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "eos_token",
+      "generated_tokens": 7,
+      "prefill": [
+        {
+          "id": 0,
+          "logprob": null,
+          "text": "<pad>"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 3,
+          "logprob": -0.7001953,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 18,
+          "logprob": -1.1943359,
+          "special": false,
+          "text": "-"
+        },
+        {
+          "id": 26937,
+          "logprob": -1.2119141,
+          "special": false,
+          "text": "196"
+        },
+        {
+          "id": 3,
+          "logprob": -1.2480469,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 1956,
+          "logprob": -0.33203125,
+          "special": false,
+          "text": "°"
+        },
+        {
+          "id": 254,
+          "logprob": -0.19250488,
+          "special": false,
+          "text": "C"
+        },
+        {
+          "id": 1,
+          "logprob": -0.030166626,
+          "special": true,
+          "text": "</s>"
+        }
+      ]
+    },
+    "generated_text": "-196 °C"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "eos_token",
+      "generated_tokens": 7,
+      "prefill": [
+        {
+          "id": 0,
+          "logprob": null,
+          "text": "<pad>"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 3,
+          "logprob": -0.7001953,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 18,
+          "logprob": -1.1943359,
+          "special": false,
+          "text": "-"
+        },
+        {
+          "id": 26937,
+          "logprob": -1.2119141,
+          "special": false,
+          "text": "196"
+        },
+        {
+          "id": 3,
+          "logprob": -1.2480469,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 1956,
+          "logprob": -0.33203125,
+          "special": false,
+          "text": "°"
+        },
+        {
+          "id": 254,
+          "logprob": -0.19250488,
+          "special": false,
+          "text": "C"
+        },
+        {
+          "id": 1,
+          "logprob": -0.030166626,
+          "special": true,
+          "text": "</s>"
+        }
+      ]
+    },
+    "generated_text": "-196 °C"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "eos_token",
+      "generated_tokens": 7,
+      "prefill": [
+        {
+          "id": 0,
+          "logprob": null,
+          "text": "<pad>"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 3,
+          "logprob": -0.7001953,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 18,
+          "logprob": -1.1943359,
+          "special": false,
+          "text": "-"
+        },
+        {
+          "id": 26937,
+          "logprob": -1.2119141,
+          "special": false,
+          "text": "196"
+        },
+        {
+          "id": 3,
+          "logprob": -1.2480469,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 1956,
+          "logprob": -0.33203125,
+          "special": false,
+          "text": "°"
+        },
+        {
+          "id": 254,
+          "logprob": -0.19250488,
+          "special": false,
+          "text": "C"
+        },
+        {
+          "id": 1,
+          "logprob": -0.030166626,
+          "special": true,
+          "text": "</s>"
+        }
+      ]
+    },
+    "generated_text": "-196 °C"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "eos_token",
+      "generated_tokens": 7,
+      "prefill": [
+        {
+          "id": 0,
+          "logprob": null,
+          "text": "<pad>"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 3,
+          "logprob": -0.7001953,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 18,
+          "logprob": -1.1943359,
+          "special": false,
+          "text": "-"
+        },
+        {
+          "id": 26937,
+          "logprob": -1.2099609,
+          "special": false,
+          "text": "196"
+        },
+        {
+          "id": 3,
+          "logprob": -1.2451172,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 1956,
+          "logprob": -0.3322754,
+          "special": false,
+          "text": "°"
+        },
+        {
+          "id": 254,
+          "logprob": -0.19213867,
+          "special": false,
+          "text": "C"
+        },
+        {
+          "id": 1,
+          "logprob": -0.030151367,
+          "special": true,
+          "text": "</s>"
+        }
+      ]
+    },
+    "generated_text": "-196 °C"
+  }
+]
