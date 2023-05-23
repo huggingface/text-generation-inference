@@ -28,9 +28,14 @@ class FlashNeoX(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         super(FlashNeoX, self).__init__(
-            FlashGPTNeoXForCausalLM, model_id, revision, quantize
+            FlashGPTNeoXForCausalLM,
+            model_id,
+            revision,
+            quantize,
+            trust_remote_code=trust_remote_code,
         )
 
 
@@ -40,6 +45,7 @@ class FlashNeoXSharded(FlashNeoX):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -49,12 +55,15 @@ class FlashNeoXSharded(FlashNeoX):
             raise NotImplementedError("FlashNeoX is only available on GPU")
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left", truncation_side="left"
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
 
         config = AutoConfig.from_pretrained(
-            model_id,
-            revision=revision,
+            model_id, revision=revision, trust_remote_code=trust_remote_code
         )
 
         torch.distributed.barrier(group=self.process_group)

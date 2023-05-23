@@ -450,6 +450,7 @@ class CausalLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -462,7 +463,11 @@ class CausalLM(Model):
             dtype = torch.float32
 
         tokenizer = AutoTokenizer.from_pretrained(
-            model_id, revision=revision, padding_side="left", truncation_side="left"
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
@@ -470,6 +475,7 @@ class CausalLM(Model):
             torch_dtype=dtype,
             device_map="auto" if torch.cuda.is_available() and torch.cuda.device_count() > 1 else None,
             load_in_8bit=quantize == "bitsandbytes",
+            trust_remote_code=trust_remote_code,
         )
         if torch.cuda.is_available() and torch.cuda.device_count() == 1:
             model = model.cuda()

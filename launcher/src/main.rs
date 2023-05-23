@@ -53,7 +53,7 @@ struct Args {
     #[clap(long, env)]
     revision: Option<String>,
 
-    /// Wether to shard or not the model across multiple GPUs
+    /// Whether to shard the model across multiple GPUs
     /// By default text-generation-inference will use all available GPUs to run
     /// the model. Setting it to `false` deactivates `num_shard`.
     #[clap(long, env)]
@@ -66,10 +66,16 @@ struct Args {
     #[clap(long, env)]
     num_shard: Option<usize>,
 
-    /// Wether you want the model to be quantized or not. This will use `bitsandbytes` for
+    /// Whether you want the model to be quantized. This will use `bitsandbytes` for
     /// quantization on the fly, or `gptq`.
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
+
+    /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
+    /// encouraged when loading a model with custom code to ensure no malicious code has been
+    /// contributed in a newer revision.
+    #[clap(long, env, value_enum)]
+    trust_remote_code: bool,
 
     /// The maximum amount of concurrent requests for this particular deployment.
     /// Having a low limit will refuse clients requests instead of having them
@@ -239,6 +245,7 @@ fn shard_manager(
     model_id: String,
     revision: Option<String>,
     quantize: Option<Quantization>,
+    trust_remote_code: bool,
     uds_path: String,
     rank: usize,
     world_size: usize,
@@ -271,6 +278,11 @@ fn shard_manager(
         "INFO".to_string(),
         "--json-output".to_string(),
     ];
+
+    // Activate trust remote code
+    if trust_remote_code {
+        shard_argv.push("--trust-remote-code".to_string());
+    }
 
     // Activate tensor parallelism
     if world_size > 1 {
@@ -692,6 +704,16 @@ fn spawn_shards(
     status_sender: mpsc::Sender<ShardStatus>,
     running: Arc<AtomicBool>,
 ) -> Result<(), LauncherError> {
+    if args.trust_remote_code {
+        tracing::warn!(
+            "`trust_remote_code` is set. Trusting that model `{}` do not contain malicious code.",
+            args.model_id
+        );
+        if args.revision.is_none() {
+            tracing::warn!("Explicitly passing a `revision` is encouraged when loading a model with custom code to ensure no malicious code has been contributed in a newer revision.");
+        }
+    }
+
     // Start shard processes
     for rank in 0..num_shard {
         let model_id = args.model_id.clone();
@@ -705,6 +727,7 @@ fn spawn_shards(
         let shutdown_sender = shutdown_sender.clone();
         let otlp_endpoint = args.otlp_endpoint.clone();
         let quantize = args.quantize;
+        let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
         let watermark_gamma = args.watermark_gamma;
@@ -714,6 +737,7 @@ fn spawn_shards(
                 model_id,
                 revision,
                 quantize,
+                trust_remote_code,
                 uds_path,
                 rank,
                 num_shard,
