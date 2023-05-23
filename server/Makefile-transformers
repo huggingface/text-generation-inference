@@ -1,4 +1,4 @@
-transformers_commit := 63d5605212c5d88c0cc29996b3bf76840bdd1489
+transformers_commit := 69009822aa7897ffab97afb814e38126b83f639e
 
 transformers:
 	# Clone fork of transformers with custom CUDA kernels and sharding logic
