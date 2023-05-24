@@ -1,13 +1,12 @@
-from typing import List, Union
+from typing import List, Union, Tuple
 
 import torch
 
 from transformers import GPTBigCodeConfig
-from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.gpt_bigcode.configuration_gpt_bigcode import (
     InferenceRunnerType,
 )
-from transformers.models.gpt_bigcode.modeling_gpt_bigcode import GPTBigCodeBlock, softmax_function
+from text_generation_server.models.custom_modeling.gpt_bigcode_modeling import GPTBigCodeBlock, softmax_function
 
 
 def _align_tensor(x):
@@ -291,7 +290,7 @@ class GPTBigCodeInferenceRunner:
         attention_mask: torch.Tensor,
         position_ids: torch.Tensor,
         past_key_values: Union[List[torch.Tensor], int],
-    ) -> BaseModelOutputWithPastAndCrossAttentions:
+    ) -> Tuple:
         batch_size, query_length = input_ids.shape
         assert query_length == 1
         if self.batch_size is None:
@@ -333,7 +332,4 @@ class GPTBigCodeInferenceRunner:
         else:
             hidden_states = self._forward(key_length)
 
-        return BaseModelOutputWithPastAndCrossAttentions(
-            last_hidden_state=hidden_states,
-            past_key_values=key_length,
-        )
+        return hidden_states, key_length

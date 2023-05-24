@@ -449,6 +449,49 @@ class FlashCausalLM(Model):
             pre_allocate_past_size=pre_allocate_past_size,
         )
 
+    def fast_forward(self, batch: FlashCausalLMBatch, max_input_length: int, use_cache: Optional[torch.dtype]):
+        diff = max_input_length - max(batch.input_lengths)
+        for i in range(len(batch)):
+            batch.input_lengths[i] += diff
+            batch.prefix_offsets[i] = 0
+            batch.read_offsets[i] = 0
+            batch.all_input_ids[i] = batch.all_input_ids[i] + [self.tokenizer.pad_token_id] * diff if diff >= 0 else batch.all_input_ids[i][:diff]
+            # TODO: Bug!?!
+            batch.stopping_criterias[i].current_tokens += diff
+
+        if use_cache:
+            assert len(batch.all_input_ids_tensor)>0, "Must run prefill first"
+            batch.input_ids.fill_(self.tokenizer.pad_token_id)
+            batch.position_ids += diff
+            batch.cu_seqlens += diff * batch.cu_seqlens_q
+            # TODO: Bug!?!
+            batch.max_seqlen += batch.max_seqlen + diff*len(batch)
+
+            for i in range(len(batch)):
+                batch.all_input_ids_tensor[i][batch.input_lengths[i]-diff:batch.input_lengths[i]].fill_(self.tokenizer.pad_token_id)
+
+            batch.past_key_values = batch.past_key_values = torch.randn(
+                (
+                    batch.past_key_values.shape[0],
+                    batch.past_key_values.shape[1] + len(batch.requests),
+                    *batch.past_key_values.shape[2:],
+                ), device=batch.past_key_values.device, dtype= batch.past_key_values.dtype
+            )
+        else:
+            batch.max_seqlen = max(batch.input_lengths)
+            batch.all_input_ids_tensor=[]
+
+            batch.input_ids = torch.tensor(
+                np.concatenate([np.arange(0, input_length) for input_length in batch.input_lengths]), dtype=torch.int64, device=batch.input_ids.device
+            )
+            batch.position_ids = torch.tensor(
+                np.concatenate([np.arange(0, input_length) for input_length in batch.input_lengths]), dtype=torch.int32, device=batch.input_ids.device
+            )
+            batch.cu_seqlens = torch.tensor(np.pad(np.cumsum(batch.input_lengths),(1,0)), device=batch.input_ids.device, dtype=torch.int32)
+            batch.past_key_values=None
+
+
+
     @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: FlashCausalLMBatch

@@ -223,6 +223,7 @@ class FlashSantacoderSharded(FlashSantacoder):
             world_size=world_size,
         )
 
+
     @staticmethod
     def load_weights(
         model,

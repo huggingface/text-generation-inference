@@ -17,6 +17,8 @@ from text_generation_server.models.galactica import Galactica, GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
+from text_generation_server.models.gpt_bigcode import BigcodeCausalLM
+from text_generation_server.models.gpt_bigcode2 import Bigcode2CausalLM
 
 try:
     if torch.cuda.is_available() and os.environ.get("NO_FLASH_ATTENTION") is None:
@@ -91,10 +93,25 @@ torch.backends.cudnn.allow_tf32 = True
 # Disable gradients
 torch.set_grad_enabled(False)
 
+model_type_map={
+    "flash":FlashSantacoder,
+    "santa":SantaCoder,
+    "causal":CausalLM,
+    "vector":VectorizedCausalLM,
+    "bigcode":BigcodeCausalLM,
+    "bigcode2":Bigcode2CausalLM,
+}
+
 
 def get_model(
     model_id: str, revision: Optional[str], sharded: bool, quantize: Optional[str]
 ) -> Model:
+    model_type=os.environ.get("MODEL_TYPE")
+    if model_type is not None:
+        if model_type not in model_type_map:
+            raise NotImplementedError(model_type)
+        return model_type_map[model_type](model_id, revision, quantize=quantize)
+
     if "facebook/galactica" in model_id:
         if sharded:
             return GalacticaSharded(model_id, revision, quantize=quantize)
@@ -167,8 +184,6 @@ def get_model(
         raise ValueError("sharded is not supported for AutoModel")
 
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        if os.environ.get("VECTORIZED_LM") is not None:
-            return VectorizedCausalLM(model_id, revision, quantize=quantize)
         return CausalLM(model_id, revision, quantize=quantize)
     if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
         return Seq2SeqLM(model_id, revision, quantize=quantize)

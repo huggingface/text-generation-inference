@@ -58,6 +58,9 @@ class VectorizedCausalLMBatch(Batch):
 
     kv_cache_seq_dim: int = 2
 
+    # Prefill the attention mask for the generated tokens
+    attention_mask_fill_value=True
+
     # TODO: Get from requests (should these be lists?)
     details: bool = os.environ.get("RETURN_DETAILS") is not None
     generate_stream: bool = os.environ.get("GENERATE_STREAM") is not None
@@ -113,7 +116,7 @@ class VectorizedCausalLMBatch(Batch):
         attention_mask = torch.empty(input_shape, dtype=torch.bool, device=device)
         # Copy tokenizer attention_mask into fully allocated attention_mask
         attention_mask[:, :max_input_length].copy_(tokenized_inputs["attention_mask"])
-        attention_mask[:, max_input_length:].fill_(1)
+        attention_mask[:, max_input_length:].fill_(cls.attention_mask_fill_value)
 
         position_ids = attention_mask.cumsum(-1).sub_(1)
         position_ids[:, :max_input_length].relu_()
@@ -268,7 +271,7 @@ class VectorizedCausalLMBatch(Batch):
         # Allocate maximum attention_mask
         attention_mask = torch.empty(input_shape, dtype=torch.bool, device=device)
         attention_mask[:, :max_input_length].fill_(0)
-        attention_mask[:, max_input_length:].fill_(1)
+        attention_mask[:, max_input_length:].fill_(cls.attention_mask_fill_value)
 
         input_ids = torch.empty(input_shape, dtype=torch.int64, device=device)
         # TODO : only needed for prefill
@@ -293,7 +296,7 @@ class VectorizedCausalLMBatch(Batch):
         )
 
         kv_cache_seq_dim = batches[0].kv_cache_seq_dim
-        past_key_values=cls._concatenate_key_values(batches, start_indices, end_indices, left_indices)
+        past_key_values=cls._concatenate_key_values(batches, start_indices, end_indices, left_indices, max_input_length)
 
         return cls(
             batch_id=batches[0].batch_id,
@@ -314,7 +317,7 @@ class VectorizedCausalLMBatch(Batch):
         )
 
     @classmethod
-    def _concatenate_key_values(cls, batches, start_indices, end_indices, left_indices):
+    def _concatenate_key_values(cls, batches, start_indices, end_indices, left_indices, max_input_length):
         device = batches[0].input_ids.device
         batch_size = sum([len(batch.requests) for batch in batches])
 
@@ -355,29 +358,23 @@ class VectorizedCausalLMBatch(Batch):
                     else batch.past_key_values[i][j]
                     for batch in batches
                 ]
-                # Generally `max_input_length`, unless the model allocates more than needed.
-                right_indices = [
-                    left_index + tensor.size(kv_cache_seq_dim)
-                    for tensor, left_index in zip(tensors_to_merge, left_indices)
-                ]
                 combined_shape = [batch_size] + list(tensors_to_merge[0].shape[1:])
-                combined_shape[kv_cache_seq_dim] = max(right_indices)
+                combined_shape[kv_cache_seq_dim] = max_input_length
                 # Set to zero to avoid propagating nans in padded values.
                 kv_cache = torch.zeros(
                     combined_shape, dtype=tensors_to_merge[0].dtype, device=device
                 )
-                for tensor, start_index, end_index, left_index, right_index in zip(
+                for tensor, start_index, end_index, left_index in zip(
                     tensors_to_merge,
                     start_indices,
                     end_indices,
                     left_indices,
-                    right_indices,
                 ):
                     kv_cache[
                         [
                             slice(start_index, end_index),
                             *(slice(None) for _ in range(1, kv_cache_seq_dim)),
-                            slice(left_index, right_index),
+                            slice(left_index, max_input_length),
                         ]
                     ].copy_(tensor)
                 if kv_format is None:
@@ -398,13 +395,11 @@ class VectorizedCausalLM(Model):
         self,
         model_id: str,
         revision: Optional[str] = None,
-        quantize: bool = False,
-        decode_buffer: int = 3,
+        quantize: Optional[str] = None,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            # TODO: Choose dtype (fp16?)
-            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            dtype = torch.float16
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")
@@ -415,26 +410,26 @@ class VectorizedCausalLM(Model):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
         )
-        self.model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
             device_map="auto" if torch.cuda.is_available() else None,
-            load_in_8bit=quantize,
+            load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=True,
-        ).eval()
+        )
         tokenizer.pad_token_id = (
-            self.model.config.pad_token_id
-            if self.model.config.pad_token_id is not None
-            else self.model.config.eos_token_id
+            model.config.pad_token_id
+            if model.config.pad_token_id is not None
+            else model.config.eos_token_id
         )
 
         super().__init__(
+            model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
-            decode_buffer=decode_buffer,
         )
 
     @property
@@ -446,6 +441,30 @@ class VectorizedCausalLM(Model):
             generated_ids, skip_special_tokens=True, cleanup_tokenization_spaces=False
         )
 
+    def forward(self, batch:VectorizedCausalLMBatch):
+        key_length = batch.max_input_length
+        query_length = key_length if batch.past_key_values is None else 1
+        input_ids = batch.input_ids[:, key_length - query_length : key_length]
+        # Model Forward
+        logits, batch.past_key_values, *_ = self.model.forward(
+            input_ids=input_ids,
+            attention_mask=batch.attention_mask[:, :key_length],
+            position_ids=batch.position_ids[:, key_length - query_length : key_length],
+            past_key_values=batch.past_key_values,
+            return_dict=False,
+            use_cache=True,
+        )
+        next_token_ids, logprobs = batch.next_token_chooser(
+            input_ids, logits, batch.details
+        )
+        # Update batch
+        # TODO: Why do we need all input ids?
+        batch.input_ids[:, key_length].copy_(next_token_ids)
+        batch.input_lengths = [length + 1 for length in batch.input_lengths]
+        batch.max_input_length += 1
+
+        return next_token_ids, logprobs
+
     @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: VectorizedCausalLMBatch
@@ -453,20 +472,9 @@ class VectorizedCausalLM(Model):
         key_length = batch.max_input_length
         if key_length > batch.input_ids.size(1):
             raise RuntimeError("Cannot generate more than `max_tokens`.")
+        is_prefill = batch.past_key_values is None
 
-        query_length = key_length if batch.past_key_values is None else 1
-        input_ids = batch.input_ids[:, key_length - query_length : key_length]
-
-        outputs = self.model.forward(
-            input_ids=input_ids,
-            attention_mask=batch.attention_mask[:, :key_length],
-            position_ids=batch.position_ids[:, key_length - query_length : key_length],
-            past_key_values=batch.past_key_values,
-        )
-        # TODO: Post-processing
-        next_token_ids, logprobs = batch.next_token_chooser(
-            input_ids, outputs.logits, batch.details
-        )
+        next_token_ids, logprobs = self.forward(batch)
 
         if batch.generate_stream:
             # TODO: self.decode_token, offsets?
@@ -479,7 +487,6 @@ class VectorizedCausalLM(Model):
                 .squeeze(1)
                 .tolist()
             )
-            is_prefill = batch.past_key_values is None
             if is_prefill:
                 prefill_token_ids = batch.input_ids[:, :key_length].tolist()
                 prefill_logprobs = (
@@ -491,7 +498,8 @@ class VectorizedCausalLM(Model):
                 for prefill_token_ids_, prefill_logprobs_, input_length in zip(
                     prefill_token_ids, prefill_logprobs, batch.input_lengths
                 ):
-                    prefill_token_ids_ = prefill_token_ids_[-input_length:]
+                    # Input length has already been incremented so we subtract 1.
+                    prefill_token_ids_ = prefill_token_ids_[-(input_length-1):]
                     prefill_texts = self.tokenizer.batch_decode(
                         prefill_token_ids_,
                         clean_up_tokenization_spaces=False,
@@ -504,13 +512,6 @@ class VectorizedCausalLM(Model):
                             prefill_texts,
                         )
                     )
-
-        # Update batch
-        # TODO: Why do we need all input ids?
-        batch.input_ids[:, key_length].copy_(next_token_ids)
-        batch.past_key_values = outputs.past_key_values
-        batch.input_lengths = [length + 1 for length in batch.input_lengths]
-        batch.max_input_length += 1
 
         # TODO: Vectorize some of this?
 
@@ -556,3 +557,24 @@ class VectorizedCausalLM(Model):
             generations.append(generation)
 
         return generations, next_batch
+
+    def mock_kv_cache(self, batch: VectorizedCausalLMBatch, dtype:Optional[torch.dtype]):
+        from transformers.models.gpt_bigcode.modeling_gpt_bigcode import GPTBigCodeForCausalLM
+        if not isinstance(self.model, GPTBigCodeForCausalLM):
+            raise NotImplementedError()
+        return [torch.empty(
+            [len(batch), batch.max_input_length-1, 2 * self.model.config.n_embd // self.model.config.n_head],
+            dtype=dtype,
+            device=batch.input_ids.device,
+        ) for _ in range(self.model.config.n_layer)]
+
+    def fast_forward(self, batch: VectorizedCausalLMBatch, max_input_length: int, cache_dtype:Optional[torch.dtype]):
+        diff=max_input_length-batch.max_input_length
+        batch.input_ids[:, batch.max_input_length:max_input_length].fill_(self.tokenizer.pad_token_id)
+        batch.input_lengths = [length + diff for length in batch.input_lengths]
+        batch.max_input_length += diff
+        for stopping_criteria in batch.stopping_criterias:
+            stopping_criteria.current_tokens+=diff
+        batch.past_key_values = None if cache_dtype is None else self.mock_kv_cache(batch, cache_dtype)
+
+

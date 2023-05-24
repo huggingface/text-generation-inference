@@ -20,8 +20,6 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 
-import dropout_layer_norm
-
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging
 from transformers.models.gpt_bigcode.configuration_gpt_bigcode import (
@@ -39,8 +37,6 @@ class InferenceRunnerType(IntEnum):
     # Note: only useful for small batches and models, graphs take some time to generate, flaky.
     # Crashes with jit on A100 but seems to work without jit (PYTORCH_JIT=0) and on V100.
     FULL_GRAPH = 3
-
-
 
 try:
     from flash_attn.bert_padding import pad_input, unpad_input
@@ -80,6 +76,7 @@ def masked_softmax(x: torch.Tensor, mask: torch.Tensor, mask_value: torch.Tensor
     return x
 
 
+@torch.profiler.record_function("softmax_function")
 def softmax_function(
     x: torch.Tensor,
     mask: torch.Tensor,
@@ -121,12 +118,14 @@ class GPTBigCodeAttention(nn.Module):
         self.c_attn = nn.Linear(self.embed_dim, self.embed_dim + 2 * self.head_dim, dtype=dtype, device=device)
         self.c_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=dtype, device=device)
 
+    @torch.profiler.record_function("GPTBigCodeAttention._get_mask_value")
     def _get_mask_value(self, device, dtype):
         # torch.where expects a tensor. We use a cache to avoid recreating it every time.
         if self.mask_value is None or self.mask_value.dtype != dtype or self.mask_value.device != device:
             self.mask_value = torch.full([], torch.finfo(dtype).min, dtype=dtype, device=device)
         return self.mask_value
 
+    @torch.profiler.record_function("GPTBigCodeAttention._attn")
     def _attn(self, query, key, value, attention_mask):
         softmax_dtype = torch.float32
         upcast = query.dtype != softmax_dtype
@@ -171,6 +170,7 @@ class GPTBigCodeAttention(nn.Module):
 
         return attn_output
 
+    @torch.profiler.record_function("GPTBigCodeAttention._attn_flash")
     def _attn_flash(self, query, key, value, flash_params):
 
         query_shape = query.shape
@@ -197,6 +197,7 @@ class GPTBigCodeAttention(nn.Module):
 
         return attn_output
 
+    @torch.profiler.record_function("GPTBigCodeAttention._merge_kv_caches")
     def _merge_kv_caches(self, key_value, layer_past, attention_mask, flash_params):
 
         # Convert to standard KV cache format.
@@ -250,6 +251,7 @@ class GPTBigCodeAttention(nn.Module):
         present = allocated_kv_cache, key_length
         return key_value, present
 
+    @torch.profiler.record_function("GPTBigCodeAttention.forward")
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -282,6 +284,7 @@ class GPTBigCodeMLP(nn.Module):
         self.c_fc = nn.Linear(embed_dim, inner_dim)
         self.c_proj = nn.Linear(inner_dim, embed_dim)
 
+    @torch.profiler.record_function("GPTBigCodeMLP.forward")
     # Copied from transformers.models.gpt2.modeling_gpt2.GPT2MLP.forward
     def forward(self, hidden_states: Optional[Tuple[torch.Tensor]]) -> torch.Tensor:
         return self.c_proj(nn.functional.gelu(self.c_fc(hidden_states), approximate="tanh"))
@@ -295,6 +298,7 @@ class GPTBigCodeBlock(nn.Module):
         self.ln_2 = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_epsilon, dtype=dtype, device=device)
         self.mlp = GPTBigCodeMLP(config)
 
+    @torch.profiler.record_function("GPTBigCodeBlock.forward")
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -302,14 +306,24 @@ class GPTBigCodeBlock(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         flash_params: Optional[Tuple] = None
     ) -> Tuple[torch.Tensor, Any]:
+        with torch.profiler.record_function("GPTBigCodeAttention.ln"):
+            ai=self.ln_1(hidden_states)
         attn_output, present = self.attn(
-            self.ln_1(hidden_states),
+            ai,
             layer_past=layer_past,
             attention_mask=attention_mask,
             flash_params=flash_params,
         )
-        hidden_states.add_(attn_output)
-        hidden_states.add_(self.mlp(self.ln_2(hidden_states)))
+        with torch.profiler.record_function("GPTBigCodeAttention.residual"):
+            hidden_states.add_(attn_output)
+
+        with torch.profiler.record_function("GPTBigCodeAttention.dummy"):
+            pass
+        with torch.profiler.record_function("GPTBigCodeAttention.ln"):
+            ai=self.ln_2(hidden_states)
+        ai=self.mlp(ai)
+        with torch.profiler.record_function("GPTBigCodeAttention.residual"):
+            hidden_states.add_(ai)
         return hidden_states, present
 
 
@@ -391,6 +405,7 @@ class GPTBigCodeModel(GPTBigCodePreTrainedModel):
             "bias", torch.empty((config.max_position_embeddings, config.max_position_embeddings), dtype=torch.bool, device=device)
         )
 
+    #@torch.profiler.record_function("GPTBigCodeModel._get_causal_mask")
     def _get_causal_mask(self, padding_mask, query_length, key_length):
         # Self-attention mask.
         attention_mask = self.bias[None, key_length - query_length : key_length, :key_length]
@@ -406,6 +421,7 @@ class GPTBigCodeModel(GPTBigCodePreTrainedModel):
         # (batch_size, query_length, n_heads, key_length)
         return attention_mask.unsqueeze(2)
 
+    #@torch.profiler.record_function("GPTBigCodeModel.forward")
     def forward(
         self,
         *,
@@ -477,6 +493,7 @@ class GPTBigCodeForCausalLM(GPTBigCodePreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
+    #@torch.profiler.record_function("GPTBigCodeForCausalLM.forward")
     def forward(
         self,
         *,
@@ -493,7 +510,7 @@ class GPTBigCodeForCausalLM(GPTBigCodePreTrainedModel):
             attention_mask=attention_mask,
             position_ids=position_ids
         )
-
+        #with torch.profiler.record_function("GPTBigCodeForCausalLM.head"):
         if not predict_all_tokens:
             # We only care about the last token.
             hidden_states = hidden_states[:, -1:]
