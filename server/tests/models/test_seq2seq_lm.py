@@ -190,7 +190,7 @@ def test_seq2seq_lm_generate_token_completion_multi(
     )
     assert generations[1].generated_text.generated_tokens == 5
 
-    next_batch = next_batch.filter([next_batch.requests[0]])
+    next_batch = next_batch.filter([next_batch.requests[0].id])
 
     generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert len(generations) == len(next_batch)
@@ -323,7 +323,7 @@ def test_batch_concatenate(
     )
     assert generations[2].generated_text.generated_tokens == 5
 
-    next_batch = next_batch.filter([next_batch.requests[0], next_batch.requests[1]])
+    next_batch = next_batch.filter([next_batch.requests[0].id, next_batch.requests[1].id])
 
     generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None
@@ -333,7 +333,7 @@ def test_batch_concatenate(
     assert generations[0].request_id == default_seq2seq_lm_batch.requests[0].id
     assert generations[0].generated_text.generated_tokens == 7
 
-    next_batch = next_batch.filter([next_batch.requests[1]])
+    next_batch = next_batch.filter([next_batch.requests[1].id])
 
     generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is None
