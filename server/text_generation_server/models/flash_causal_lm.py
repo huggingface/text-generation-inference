@@ -393,7 +393,7 @@ class FlashCausalLMBatch(Batch):
 
             all_input_ids_tensor[
                 start_index:end_index, : batch.all_input_ids_tensor.shape[1]
-            ] = batch.all_input_ids_tensor
+            ] = batch.all_input_ids_tensor[:, :max_length]
 
             cumulative_batch_size += len(batch)
 
