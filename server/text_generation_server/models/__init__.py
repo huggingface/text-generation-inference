@@ -147,7 +147,7 @@ def get_model(
         )
 
     elif model_type == "gpt_neox":
-        if FLASH_ATTENTION or shard:
+        if FLASH_ATTENTION:
             return FlashNeoXSharded(
                 model_id,
                 revision,
