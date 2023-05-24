@@ -62,10 +62,10 @@ class FlashCausalLMBatch(Batch):
     # Maximum number of tokens this batch will grow to
     max_tokens: int
 
-    def to_pb(self) -> generate_pb2.Batch:
-        return generate_pb2.Batch(
+    def to_pb(self) -> generate_pb2.CachedBatch:
+        return generate_pb2.CachedBatch(
             id=self.batch_id,
-            requests=self.requests,
+            request_ids=[r.id for r in self.requests],
             size=len(self),
             max_tokens=self.max_tokens,
         )
@@ -161,14 +161,14 @@ class FlashCausalLMBatch(Batch):
         )
 
     @tracer.start_as_current_span("filter")
-    def filter(self, requests: List[generate_pb2.Request]) -> "FlashCausalLMBatch":
-        if len(requests) == 0:
+    def filter(self, request_ids: List[int]) -> "FlashCausalLMBatch":
+        if len(request_ids) == 0:
             raise ValueError("Batch must have at least one request")
         # We assume that if len(requests) == len(self) then the requests are the same
-        if len(requests) == len(self):
+        if len(request_ids) == len(self):
             return self
 
-        single_request = len(requests) == 1
+        single_request = len(request_ids) == 1
 
         # Cumulative length
         cumulative_length = 0
@@ -176,16 +176,17 @@ class FlashCausalLMBatch(Batch):
         # New values after filtering
         requests_idx_mapping = {}
 
-        input_ids = self.input_ids.new_empty(len(requests))
-        position_ids = self.position_ids.new_empty(len(requests))
+        input_ids = self.input_ids.new_empty(len(request_ids))
+        position_ids = self.position_ids.new_empty(len(request_ids))
         # Create on CPU to only move to GPU once instead of at every copy
-        cu_seqlens = torch.zeros(len(requests) + 1, dtype=torch.int32)
+        cu_seqlens = torch.zeros(len(request_ids) + 1, dtype=torch.int32)
         cu_seqlens_q = torch.arange(
-            0, len(requests) + 1, device=self.cu_seqlens_q.device, dtype=torch.int32
+            0, len(request_ids) + 1, device=self.cu_seqlens_q.device, dtype=torch.int32
         )
         max_seqlen = 0
         past_key_values = []
 
+        requests = []
         all_input_ids = []
         all_input_ids_tensor = []
 
@@ -198,9 +199,11 @@ class FlashCausalLMBatch(Batch):
 
         max_tokens = 0
 
-        for i, r in enumerate(requests):
-            idx = self.requests_idx_mapping[r.id]
-            requests_idx_mapping[r.id] = i
+        for i, request_id in enumerate(request_ids):
+            idx = self.requests_idx_mapping[request_id]
+            requests_idx_mapping[request_id] = i
+
+            requests.append(self.requests[idx])
 
             # Get length
             request_input_length = self.input_lengths[idx]

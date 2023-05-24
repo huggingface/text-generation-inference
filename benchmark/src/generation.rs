@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use text_generation_client::{
-    Batch, ClientError, NextTokenChooserParameters, Request, ShardedClient,
+    Batch, CachedBatch, ClientError, NextTokenChooserParameters, Request, ShardedClient,
     StoppingCriteriaParameters,
 };
 use tokenizers::{Tokenizer, TruncationDirection};
@@ -126,7 +126,7 @@ async fn prefill(
     batch_size: u32,
     decode_length: u32,
     client: &mut ShardedClient,
-) -> Result<(Prefill, Batch), ClientError> {
+) -> Result<(Prefill, CachedBatch), ClientError> {
     // Create requests
     let requests = (0..batch_size)
         .map(|id| Request {
@@ -180,7 +180,7 @@ async fn prefill(
 }
 
 /// Run a full decode
-async fn decode(batch: Batch, client: &mut ShardedClient) -> Result<Decode, ClientError> {
+async fn decode(batch: CachedBatch, client: &mut ShardedClient) -> Result<Decode, ClientError> {
     let mut decode_length = 0;
     let batch_size = batch.size;
 

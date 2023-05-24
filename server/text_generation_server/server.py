@@ -42,15 +42,13 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             self.cache.delete(request.id)
         else:
             self.cache.clear()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
         return generate_pb2.ClearCacheResponse()
 
     async def FilterBatch(self, request, context):
         batch = self.cache.pop(request.batch_id)
         if batch is None:
             raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
-        filtered_batch = batch.filter(request.keep_requests)
+        filtered_batch = batch.filter(request.request_ids)
         self.cache.set(filtered_batch)
 
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
