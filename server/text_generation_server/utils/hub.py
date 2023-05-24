@@ -11,6 +11,7 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from huggingface_hub.utils import (
     LocalEntryNotFoundError,
     EntryNotFoundError,  # Import here to ease try/except in other part of the lib
+    RevisionNotFoundError
 )
 
 WEIGHTS_CACHE_OVERRIDE = os.getenv("WEIGHTS_CACHE_OVERRIDE", None)
