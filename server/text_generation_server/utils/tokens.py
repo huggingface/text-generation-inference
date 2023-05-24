@@ -67,9 +67,11 @@ class StaticWarper:
             self.cuda_graph = torch.cuda.CUDAGraph()
 
             with torch.cuda.graph(self.cuda_graph):
+                local_scores = self.static_scores
                 for warper in self.warpers:
-                    self.static_warped_scores = warper(None, self.static_scores)
+                    local_scores = warper(None, local_scores)
 
+                self.static_warped_scores = local_scores
                 # Compute logprobs
                 self.static_next_logprob = torch.log_softmax(
                     self.static_warped_scores, -1
