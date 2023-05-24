@@ -57,11 +57,11 @@ class Seq2SeqLMBatch(Batch):
     # Maximum number of tokens this batch will grow to
     max_tokens: int
 
-    def to_pb(self) -> generate_pb2.Batch:
-        """Convert a Seq2SeqLMBatch to a text_generation_server.v1.Batch protobuf"""
-        return generate_pb2.Batch(
+    def to_pb(self) -> generate_pb2.CachedBatch:
+        """Convert a Seq2SeqLMBatch to a text_generation_server.v1.CachedBatch protobuf"""
+        return generate_pb2.CachedBatch(
             id=self.batch_id,
-            requests=self.requests,
+            request_ids=[r.id for r in self.requests],
             size=len(self),
             max_tokens=self.max_tokens,
         )
@@ -152,18 +152,17 @@ class Seq2SeqLMBatch(Batch):
         )
 
     @tracer.start_as_current_span("filter")
-    def filter(
-        self, requests: List[generate_pb2.Request]
-    ) -> Optional["Seq2SeqLMBatch"]:
-        if len(requests) == 0:
+    def filter(self, request_ids: List[int]) -> Optional["Seq2SeqLMBatch"]:
+        if len(request_ids) == 0:
             raise ValueError("Batch must have at least one request")
-        if len(requests) == len(self):
+        if len(request_ids) == len(self):
             return self
 
         keep_indices = []
 
         # New values after filtering
         requests_idx_mapping = {}
+        requests = []
         input_lengths = []
         decoder_input_lengths = []
         prefix_offsets = []
@@ -180,11 +179,12 @@ class Seq2SeqLMBatch(Batch):
 
         total_remaining_decode_tokens = 0
 
-        for i, r in enumerate(requests):
-            idx = self.requests_idx_mapping[r.id]
-            requests_idx_mapping[r.id] = i
+        for i, request_id in enumerate(request_ids):
+            idx = self.requests_idx_mapping[request_id]
+            requests_idx_mapping[request_id] = i
             keep_indices.append(idx)
 
+            requests.append(self.requests[idx])
             prefix_offsets.append(self.prefix_offsets[idx])
             read_offsets.append(self.read_offsets[idx])
 
@@ -239,7 +239,7 @@ class Seq2SeqLMBatch(Batch):
             layer[3] = layer[3][keep_indices, :, -max_input_length:]
 
         max_tokens = (
-            len(requests) * (max_input_length + max_decoder_input_length)
+            len(request_ids) * (max_input_length + max_decoder_input_length)
             + remaining_decode_tokens
         )
 

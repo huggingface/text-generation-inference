@@ -12,7 +12,7 @@ use std::sync::{
     Arc,
 };
 use text_generation_client::{
-    Batch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
+    Batch, CachedBatch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
 };
 use thiserror::Error;
 use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
@@ -352,7 +352,7 @@ async fn prefill(
     batch: Batch,
     entries: &mut IntMap<u64, Entry>,
     generation_health: &Arc<AtomicBool>,
-) -> Option<Batch> {
+) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "prefill");
@@ -386,10 +386,10 @@ async fn prefill(
 #[instrument(skip_all)]
 async fn decode(
     client: &mut ShardedClient,
-    batches: Vec<Batch>,
+    batches: Vec<CachedBatch>,
     entries: &mut IntMap<u64, Entry>,
     generation_health: &Arc<AtomicBool>,
-) -> Option<Batch> {
+) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "decode");
@@ -425,9 +425,9 @@ async fn decode(
 #[instrument(skip_all)]
 async fn filter_batch(
     client: &mut ShardedClient,
-    next_batch: Option<Batch>,
+    next_batch: Option<CachedBatch>,
     entries: &IntMap<u64, Entry>,
-) -> Option<Batch> {
+) -> Option<CachedBatch> {
     let mut batch = next_batch?;
 
     // No need to filter
@@ -438,9 +438,9 @@ async fn filter_batch(
     let id = batch.id;
 
     // Retain only requests that are still in entries
-    batch.requests.retain(|r| entries.contains_key(&r.id));
+    batch.request_ids.retain(|id| entries.contains_key(id));
 
-    if batch.requests.is_empty() {
+    if batch.request_ids.is_empty() {
         // All requests have been filtered out
         // Next batch is now empty
         // Clear it from the Python shards cache
@@ -450,7 +450,7 @@ async fn filter_batch(
     } else {
         // Filter Python shard cache
         // We unwrap here as we need to panic since we cannot recover if this method fails
-        client.filter_batch(id, batch.requests).await.unwrap()
+        client.filter_batch(id, batch.request_ids).await.unwrap()
     }
 }
 

@@ -53,10 +53,10 @@ class CausalLMBatch(Batch):
     # Past metadata
     keys_head_dim_last: bool = True
 
-    def to_pb(self) -> generate_pb2.Batch:
-        return generate_pb2.Batch(
+    def to_pb(self) -> generate_pb2.CachedBatch:
+        return generate_pb2.CachedBatch(
             id=self.batch_id,
-            requests=self.requests,
+            request_ids=[r.id for r in self.requests],
             size=len(self),
             max_tokens=self.max_tokens,
         )
@@ -143,16 +143,17 @@ class CausalLMBatch(Batch):
         )
 
     @tracer.start_as_current_span("filter")
-    def filter(self, requests: List[generate_pb2.Request]) -> Optional["CausalLMBatch"]:
-        if len(requests) == 0:
+    def filter(self, request_ids: List[int]) -> Optional["CausalLMBatch"]:
+        if len(request_ids) == 0:
             raise ValueError("Batch must have at least one request")
-        if len(requests) == len(self):
+        if len(request_ids) == len(self):
             return self
 
         keep_indices = []
 
         # New values after filtering
         requests_idx_mapping = {}
+        requests = []
         input_lengths = []
         prefix_offsets = []
         read_offsets = []
@@ -165,11 +166,12 @@ class CausalLMBatch(Batch):
         total_remaining_decode_tokens = 0
         new_padding_right_offset = 0
 
-        for i, r in enumerate(requests):
-            idx = self.requests_idx_mapping[r.id]
-            requests_idx_mapping[r.id] = i
+        for i, request_id in enumerate(request_ids):
+            idx = self.requests_idx_mapping[request_id]
+            requests_idx_mapping[request_id] = i
             keep_indices.append(idx)
 
+            requests.append(self.requests[idx])
             prefix_offsets.append(self.prefix_offsets[idx])
             read_offsets.append(self.read_offsets[idx])
             all_input_ids.append(self.all_input_ids[idx])
@@ -220,7 +222,7 @@ class CausalLMBatch(Batch):
             layer[1] = past_values[keep_indices, :, -past_kv_length:, :]
             del past_values
 
-        max_tokens = len(requests) * max_input_length + total_remaining_decode_tokens
+        max_tokens = len(request_ids) * max_input_length + total_remaining_decode_tokens
 
         self.requests = requests
         self.requests_idx_mapping = requests_idx_mapping

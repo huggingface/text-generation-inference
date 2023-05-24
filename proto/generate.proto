@@ -100,6 +100,17 @@ message Batch {
     uint32 max_tokens = 4;
 }
 
+message CachedBatch {
+    /// Batch ID
+    uint64 id = 1;
+    /// Individual requests ids
+    repeated uint64 request_ids = 2;
+    /// Batch size (==len(requests))
+    uint32 size = 3;
+    /// Maximum number of tokens this batch will grow to
+    uint32 max_tokens = 4;
+}
+
 enum FinishReason {
     FINISH_REASON_LENGTH = 0;
     FINISH_REASON_EOS_TOKEN = 1;
@@ -140,19 +151,19 @@ message Generation {
     /// Is it a special token
     bool token_is_special = 6;
     /// Complete generated text
-    GeneratedText generated_text = 7;
+    optional GeneratedText generated_text = 7;
 }
 
 message FilterBatchRequest {
     /// Batch ID
     uint64 batch_id = 1;
     /// Requests to keep
-    repeated Request keep_requests = 2;
+    repeated uint64 request_ids = 2;
 }
 
 message FilterBatchResponse {
     /// Filtered Batch (cached)
-    Batch batch = 1;
+    CachedBatch batch = 1;
 }
 
 
@@ -165,17 +176,17 @@ message PrefillResponse {
     /// Generation
     repeated Generation generations = 1;
     /// Next batch (cached)
-    optional Batch batch = 2;
+    optional CachedBatch batch = 2;
 }
 
 message DecodeRequest {
     /// Cached batches
-    repeated Batch batches = 1;
+    repeated CachedBatch batches = 1;
 }
 
 message DecodeResponse {
     /// Decodes
     repeated Generation generations = 1;
     /// Next batch (cached)
-    optional Batch batch = 2;
+    optional CachedBatch batch = 2;
 }

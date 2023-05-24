@@ -9,8 +9,8 @@ pub use client::Client;
 pub use pb::generate::v1::HealthResponse;
 pub use pb::generate::v1::InfoResponse as ShardInfo;
 pub use pb::generate::v1::{
-    Batch, FinishReason, GeneratedText, Generation, NextTokenChooserParameters, PrefillTokens,
-    Request, StoppingCriteriaParameters,
+    Batch, CachedBatch, FinishReason, GeneratedText, Generation, NextTokenChooserParameters,
+    PrefillTokens, Request, StoppingCriteriaParameters,
 };
 pub use sharded_client::ShardedClient;
 use thiserror::Error;
