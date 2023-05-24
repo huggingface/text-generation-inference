@@ -1,6 +1,7 @@
 from pathlib import Path
-from typing import Optional, List
+from typing import List
 from safetensors import safe_open
+
 
 class Weights:
     def __init__(self, filenames: List[Path], device, dtype, process_group):
@@ -25,8 +26,6 @@ class Weights:
             self._handles[filename] = f
 
         return self._handles[filename]
-
-
 
     def get_filename(self, tensor_name: str) -> str:
         filename = self.routing.get(tensor_name, None)
@@ -63,7 +62,9 @@ class Weights:
         start = rank * block_size
         stop = (rank + 1) * block_size
 
-        assert size % world_size == 0, f"The choosen size {size} is not compatible with sharding on {world_size} shards"
+        assert (
+            size % world_size == 0
+        ), f"The choosen size {size} is not compatible with sharding on {world_size} shards"
 
         if dim == 0:
             tensor = slice_[start:stop]
@@ -74,5 +75,3 @@ class Weights:
         tensor = tensor.to(dtype=self.dtype)
         tensor = tensor.to(device=self.device)
         return tensor
-
-

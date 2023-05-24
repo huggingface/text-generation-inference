@@ -37,7 +37,6 @@ from text_generation_server.utils.layers import (
     TensorParallelEmbedding,
     TensorParallelRowLinear,
     TensorParallelHead,
-    FastLinear
 )
 
 CUSTOM_KERNELS_ENABLED = False

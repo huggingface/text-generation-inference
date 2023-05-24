@@ -60,11 +60,17 @@ def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
     weight = weights.get_sharded(f"{prefix}.weight", dim=0)
     bias = weights.get_sharded(f"{prefix}.bias", dim=0)
 
-    weight = weight.view(
-        num_heads, 3, head_size, hidden_size,
-        ).permute(1, 0, 2, 3).reshape(-1, hidden_size)
+    weight = (
+        weight.view(
+            num_heads,
+            3,
+            head_size,
+            hidden_size,
+        )
+        .permute(1, 0, 2, 3)
+        .reshape(-1, hidden_size)
+    )
     bias = bias.view(num_heads, 3, head_size).permute(1, 0, 2).reshape(-1)
-
 
     linear = get_linear(weight, bias, config.quantize)
     if config.use_parallel_residual:
@@ -88,17 +94,23 @@ class FlashNeoxAttention(torch.nn.Module):
 
         rotary_ndims = int(self.head_size * rotary_pct)
         self.rotary_emb = PositionRotaryEmbedding(rotary_ndims, base=rotary_emb_base)
-        self.rotary_emb.inv_freq = nn.Parameter(weights.get_tensor(f"{prefix}.rotary_emb.inv_freq"))
+        self.rotary_emb.inv_freq = nn.Parameter(
+            weights.get_tensor(f"{prefix}.rotary_emb.inv_freq")
+        )
         self.softmax_scale = self.head_size ** (-0.5)
 
         self.query_key_value = load_qkv(
-            config, prefix=f"{prefix}.query_key_value", weights=weights,
-            num_heads = self.num_heads, head_size = self.head_size, hidden_size = self.hidden_size
+            config,
+            prefix=f"{prefix}.query_key_value",
+            weights=weights,
+            num_heads=self.num_heads,
+            head_size=self.head_size,
+            hidden_size=self.hidden_size,
         )
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=True
         )
-         
+
     def forward(
         self,
         hidden_states,

@@ -2,14 +2,14 @@ import torch
 
 from torch import nn
 from torch.nn import functional as F
-from typing import Optional, List
+from typing import List
 
 HAS_BITS_AND_BYTES = True
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn import Int8Params
 
-except ImportError as e:
+except ImportError:
     HAS_BITS_AND_BYTES = False
 
 from accelerate import init_empty_weights
@@ -27,14 +27,16 @@ def load_layer_norm(cls, prefix, weights, eps):
     ln.bias = nn.Parameter(bias)
     return ln
 
+
 torch.nn.LayerNorm.load = load_layer_norm
 
 
 class FastLinear(nn.Module):
     def __init__(
         self,
-        weight, bias,
-        ) -> None:
+        weight,
+        bias,
+    ) -> None:
         super().__init__()
         self.weight = nn.Parameter(weight)
         if bias is not None:
@@ -44,9 +46,9 @@ class FastLinear(nn.Module):
 
     @staticmethod
     def load(config, prefix: str, weights, bias: bool):
-        weight = weights.get_tensor(f"{prefix}.weight") 
+        weight = weights.get_tensor(f"{prefix}.weight")
         if bias:
-            bias = weights.get_tensor(f"{prefix}.bias") 
+            bias = weights.get_tensor(f"{prefix}.bias")
         else:
             bias = None
         return FastLinear(weight, bias)
@@ -56,10 +58,19 @@ class FastLinear(nn.Module):
 
 
 class Linear8bitLt(nn.Module):
-    def __init__(self, weight, bias, has_fp16_weights=True,
-                       memory_efficient_backward=False, threshold=0.0, index=None):
+    def __init__(
+        self,
+        weight,
+        bias,
+        has_fp16_weights=True,
+        memory_efficient_backward=False,
+        threshold=0.0,
+        index=None,
+    ):
         super().__init__()
-        assert not memory_efficient_backward, "memory_efficient_backward is no longer required and the argument is deprecated in 0.37.0 and will be removed in 0.39.0"
+        assert (
+            not memory_efficient_backward
+        ), "memory_efficient_backward is no longer required and the argument is deprecated in 0.37.0 and will be removed in 0.39.0"
         self.state = bnb.MatmulLtState()
         self.index = index
 
@@ -70,7 +81,11 @@ class Linear8bitLt(nn.Module):
         if threshold > 0.0 and not has_fp16_weights:
             self.state.use_pool = True
 
-        self.weight = Int8Params(weight.data, has_fp16_weights=has_fp16_weights, requires_grad=has_fp16_weights)
+        self.weight = Int8Params(
+            weight.data,
+            has_fp16_weights=has_fp16_weights,
+            requires_grad=has_fp16_weights,
+        )
         self.weight.cuda(weight.device)
         self.bias = bias
 
@@ -105,7 +120,8 @@ def get_linear(weight, bias, quantize):
         linear = FastLinear(weight, bias)
     elif quantize == "bitsandbytes":
         linear = Linear8bitLt(
-            weight, bias,
+            weight,
+            bias,
             has_fp16_weights=False,
             threshold=6.0,
         )
@@ -114,7 +130,9 @@ def get_linear(weight, bias, quantize):
     elif quantize == "gptq":
         raise NotImplementedError("Soon")
     else:
-        raise NotImplementedError(f"Quantization `{config.quantize}` is not implemented yet.")
+        raise NotImplementedError(
+            f"Quantization `{config.quantize}` is not implemented yet."
+        )
     return linear
 
 
@@ -126,6 +144,7 @@ class SuperLayer(nn.Module):
     def forward(self, x):
         return self.linear.forward(x)
 
+
 class TensorParallelHead(SuperLayer):
     def __init__(self, linear, process_group):
         super().__init__(linear)
@@ -133,13 +152,18 @@ class TensorParallelHead(SuperLayer):
 
     @staticmethod
     def load(config, prefix: str, weights):
-        weight = weights.get_sharded(f"{prefix}.weight", dim=0) 
-        return TensorParallelHead(get_linear(weight, bias=None, quantize=config.quantize), process_group = weights.process_group)
+        weight = weights.get_sharded(f"{prefix}.weight", dim=0)
+        return TensorParallelHead(
+            get_linear(weight, bias=None, quantize=config.quantize),
+            process_group=weights.process_group,
+        )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         output = super().forward(input)
         # Logits are sharded, so we need to gather them
-        world_output = [torch.empty_like(output) for _ in range(self.process_group.size())]
+        world_output = [
+            torch.empty_like(output) for _ in range(self.process_group.size())
+        ]
         torch.distributed.all_gather(world_output, output, group=self.process_group)
         world_output = torch.cat(world_output, dim=-1)
         return world_output
@@ -148,9 +172,9 @@ class TensorParallelHead(SuperLayer):
 class TensorParallelColumnLinear(SuperLayer):
     @staticmethod
     def load(config, prefix: str, weights, bias: bool):
-        weight = weights.get_sharded(f"{prefix}.weight", dim=0) 
+        weight = weights.get_sharded(f"{prefix}.weight", dim=0)
         if bias:
-            bias = weights.get_sharded(f"{prefix}.bias", dim=0) 
+            bias = weights.get_sharded(f"{prefix}.bias", dim=0)
         else:
             bias = None
         return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
@@ -175,23 +199,27 @@ class TensorParallelRowLinear(SuperLayer):
 
     @staticmethod
     def load(config, prefix: str, weights, bias: bool):
-        weight = weights.get_sharded(f"{prefix}.weight", dim=1) 
+        weight = weights.get_sharded(f"{prefix}.weight", dim=1)
         if bias and weights.process_group.rank() == 0:
             # Rank is only on the first rank process
-            bias = weights.get_tensor(f"{prefix}.bias") 
+            bias = weights.get_tensor(f"{prefix}.bias")
         else:
             bias = None
-        return TensorParallelRowLinear(get_linear(weight, bias, config.quantize), process_group=weights.process_group)
+        return TensorParallelRowLinear(
+            get_linear(weight, bias, config.quantize),
+            process_group=weights.process_group,
+        )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         out = super().forward(input)
         torch.distributed.all_reduce(out, group=self.process_group)
         return out
 
+
 class TensorParallelEmbedding(nn.Module):
     def __init__(self, prefix: str, weights, reduce=True):
         super().__init__()
-        weight = weights.get_sharded(f"{prefix}.weight", dim=0) 
+        weight = weights.get_sharded(f"{prefix}.weight", dim=0)
         num_embeddings = weights.get_shape(f"{prefix}.weight")[0]
 
         process_group = weights.process_group
@@ -221,6 +249,7 @@ class TensorParallelEmbedding(nn.Module):
         if self.reduce:
             torch.distributed.all_reduce(out, group=self.process_group)
         return out
+
 
 try:
     import dropout_layer_norm

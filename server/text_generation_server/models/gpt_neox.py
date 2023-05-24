@@ -26,7 +26,7 @@ HAS_BITS_AND_BYTES = True
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn import Int8Params
-except Exception as e:
+except Exception:
     HAS_BITS_AND_BYTES = False
 
 

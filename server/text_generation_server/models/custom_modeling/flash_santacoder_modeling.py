@@ -3,7 +3,7 @@ import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-from typing import Optional, List
+from typing import Optional
 
 # Flash attention imports
 import flash_attn_cuda
@@ -17,8 +17,9 @@ from text_generation_server.utils.layers import (
 )
 
 
-
-def load_multi_mqa(config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size):
+def load_multi_mqa(
+    config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
+):
     if any("c_attn" in k for k in weights.routing.keys()):
         slice_ = weights._get_slice(f"{prefix}.c_attn.weight")
         shape = slice_.get_shape()
@@ -55,30 +56,35 @@ def load_multi_mqa(config, prefix: str, weights, bias: bool, head_size, num_head
         if config.transpose:
             w = [
                 weights.get_sharded(f"{prefix}.q_attn.weight", dim=1).T,
-                weights.get_tensor(f"{prefix}.kv_attn.weight").T
+                weights.get_tensor(f"{prefix}.kv_attn.weight").T,
             ]
             weight = torch.cat(w, dim=0)
         else:
             w = [
                 weights.get_sharded(f"{prefix}.q_attn.weight", dim=0),
-                weights.get_tensor(f"{prefix}.kv_attn.weight")
+                weights.get_tensor(f"{prefix}.kv_attn.weight"),
             ]
             weight = torch.cat(w, dim=1)
 
         if bias:
             b = [
                 weights.get_sharded(f"{prefix}.q_attn.bias", dim=0),
-                weights.get_tensor(f"{prefix}.kv_attn.bias")
+                weights.get_tensor(f"{prefix}.kv_attn.bias"),
             ]
             bias = torch.cat(b, dim=0)
         else:
             bias = None
 
     weight = weight.to(dtype=weights.dtype).to(device=weights.device)
-    assert list(weight.shape) == [(num_heads + 2) * head_size, hidden_size], f"{weight.shape} != {[(num_heads + 2) * head_size, hidden_size]}"
+    assert list(weight.shape) == [
+        (num_heads + 2) * head_size,
+        hidden_size,
+    ], f"{weight.shape} != {[(num_heads + 2) * head_size, hidden_size]}"
     if bias is not None:
         bias = bias.to(dtype=weights.dtype).to(device=weights.device)
-        assert list(bias.shape) == [(num_heads + 2) * head_size], f"{weight.shape} != {[(num_heads + 2) * head_size]}"
+        assert list(bias.shape) == [
+            (num_heads + 2) * head_size
+        ], f"{weight.shape} != {[(num_heads + 2) * head_size]}"
     return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
 
 
@@ -106,7 +112,9 @@ def load_row(config, prefix: str, weights, bias: bool):
         bias = weights.get_tensor(f"{prefix}.bias")
     else:
         bias = None
-    return TensorParallelRowLinear(get_linear(weight, bias, config.quantize), process_group=weights.process_group)
+    return TensorParallelRowLinear(
+        get_linear(weight, bias, config.quantize), process_group=weights.process_group
+    )
 
 
 class FlashMQAttention(torch.nn.Module):
@@ -131,7 +139,7 @@ class FlashMQAttention(torch.nn.Module):
             bias=True,
             head_size=self.head_size,
             hidden_size=hidden_size,
-            num_heads=self.num_heads
+            num_heads=self.num_heads,
         )
         self.c_proj = load_row(
             config, prefix=f"{prefix}.c_proj", weights=weights, bias=True

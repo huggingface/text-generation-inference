@@ -40,10 +40,11 @@ class OPTSharded(CausalLM):
             trust_remote_code=trust_remote_code,
         )
 
-        )
-        config = AutoConfig.from_pretrained(model_id, revision=revision,
+        config = AutoConfig.from_pretrained(
+            model_id,
+            revision=revision,
             trust_remote_code=trust_remote_code,
-                )
+        )
         config.quantize = quantize
         tokenizer.pad_token_id = config.pad_token_id
 

@@ -109,9 +109,21 @@ class T5DenseActDense(nn.Module):
         self.wi = TensorParallelColumnLinear.load(
             config, prefix=f"{prefix}.wi", weights=weights, bias=False
         )
+
+        ### XXX: T5 models do not handle well both f16 and quantization.
+        ### Overidding specifically this layer for that reason.
+        ### https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L316
+        ### https://github.com/huggingface/transformers/issues/20287
+        _q = config.quantize
+        _dtype = weights.dtype
+        weights.dtype = torch.float32
+        config.quantize = None
+        self.wo_cast = (torch.float32, _dtype)
         self.wo = TensorParallelRowLinear.load(
             config, prefix=f"{prefix}.wo", weights=weights, bias=False
         )
+        weights.dtype = _dtype
+        config.quantize = _q
 
         self.dropout = nn.Dropout(config.dropout_rate)
         self.act = (
@@ -124,7 +136,10 @@ class T5DenseActDense(nn.Module):
         hidden_states = self.wi(hidden_states)
         hidden_states = self.act(hidden_states)
         hidden_states = self.dropout(hidden_states)
+
+        hidden_states = hidden_states.to(dtype=self.wo_cast[0])
         hidden_states = self.wo(hidden_states)
+        hidden_states = hidden_states.to(dtype=self.wo_cast[1])
         return hidden_states
 
 
@@ -137,9 +152,20 @@ class T5DenseGatedActDense(nn.Module):
         self.wi_1 = TensorParallelColumnLinear.load(
             config, prefix=f"{prefix}.wi_1", weights=weights, bias=False
         )
+        ### XXX: T5 models do not handle well both f16 and quantization.
+        ### Overidding specifically this layer for that reason.
+        ### https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py#L316
+        ### https://github.com/huggingface/transformers/issues/20287
+        _q = config.quantize
+        _dtype = weights.dtype
+        weights.dtype = torch.float32
+        config.quantize = None
+        self.wo_cast = (torch.float32, _dtype)
         self.wo = TensorParallelRowLinear.load(
             config, prefix=f"{prefix}.wo", weights=weights, bias=False
         )
+        weights.dtype = _dtype
+        config.quantize = _q
 
         self.dropout = nn.Dropout(config.dropout_rate)
         self.act = (
@@ -154,18 +180,9 @@ class T5DenseGatedActDense(nn.Module):
         hidden_states = hidden_gelu * hidden_linear
         hidden_states = self.dropout(hidden_states)
 
-        # TODO Support this again mayber
-        # To make 8bit quantization work for google/flan-t5-xxl, self.wo is kept in float32.
-        # See https://github.com/huggingface/transformers/issues/20287
-        # we also make sure the weights are not in `int8` in case users will force `_keep_in_fp32_modules` to be `None``
-        # if (
-        #     isinstance(self.wo.weight, torch.Tensor)
-        #     and hidden_states.dtype != self.wo.weight.dtype
-        #     and self.wo.weight.dtype != torch.int8
-        # ):
-        #     hidden_states = hidden_states.to(self.wo.weight.dtype)
-
+        hidden_states = hidden_states.to(dtype=self.wo_cast[0])
         hidden_states = self.wo(hidden_states)
+        hidden_states = hidden_states.to(dtype=self.wo_cast[1])
         return hidden_states
 
 

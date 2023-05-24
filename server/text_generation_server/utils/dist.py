@@ -3,6 +3,7 @@ import torch
 
 from datetime import timedelta
 
+
 class FakeBarrier:
     def wait(self):
         pass
@@ -17,7 +18,9 @@ class FakeGroup:
         return FakeBarrier()
 
     def allgather(self, inputs, local_tensor, **kwargs):
-        assert len(inputs[0]) == len(local_tensor) == 1, f"{len(inputs[0])} != {len(local_tensor)} != 1, and the FakeGroup is supposed to join on simple tensors"
+        assert (
+            len(inputs[0]) == len(local_tensor) == 1
+        ), f"{len(inputs[0])} != {len(local_tensor)} != 1, and the FakeGroup is supposed to join on simple tensors"
         for input_ in inputs:
             input_[0].data = local_tensor[0].data
         return FakeBarrier()
