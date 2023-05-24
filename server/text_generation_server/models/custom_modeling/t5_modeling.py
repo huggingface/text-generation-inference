@@ -840,6 +840,11 @@ class T5Stack(T5PreTrainedModel):
             ), "You have to initialize the model with valid token embeddings"
             inputs_embeds = self.embed_tokens(input_ids)
 
+        
+        from safetensors.torch import save_file
+        save_file({"inputs_embeds": inputs_embeds}, f"inputs_embeds_{self.rank}_layer.safetensors")
+
+
         batch_size, seq_length = input_shape
 
         # required mask seq length can be calculated via length of past
@@ -936,6 +941,8 @@ class T5Stack(T5PreTrainedModel):
                 use_cache=use_cache,
                 output_attentions=output_attentions,
             )
+            from safetensors.torch import save_file
+            save_file({"layer": layer_outputs[0]}, f"layer_outputs_{self.rank}_layer_{i}.safetensors")
 
             # layer_outputs is a tuple with:
             # hidden-states, key-value-states, (self-attention position bias), (self-attention weights), (cross-attention position bias), (cross-attention weights)

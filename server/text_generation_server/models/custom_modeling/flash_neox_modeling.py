@@ -268,9 +268,7 @@ class FlashNeoXLayer(nn.Module):
             mlp_output = self.mlp(ln2_hidden_states)
             intermediate = mlp_output + attn_output
 
-            # Only reduce once and after the addition instead of once per layer
-            if self.process_group is not None:
-                torch.distributed.all_reduce(intermediate, group=self.process_group)
+            torch.distributed.all_reduce(intermediate, group=self.process_group)
 
             return intermediate + hidden_states, None
         else:

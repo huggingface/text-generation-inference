@@ -15,6 +15,7 @@ from text_generation_server.models.opt import OPTSharded
 from text_generation_server.models.galactica import GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.t5 import T5Sharded
+from text_generation_server.models.gpt_neox import GPTNeoxSharded
 
 try:
     if torch.cuda.is_available():
@@ -147,7 +148,7 @@ def get_model(
         )
 
     elif model_type == "gpt_neox":
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and False:
             return FlashNeoXSharded(
                 model_id,
                 revision,
@@ -155,7 +156,12 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
         elif sharded:
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Neox"))
+            return GPTNeoxSharded(
+                model_id,
+                revision,
+                quantize=quantize,
+                trust_remote_code=trust_remote_code,
+            )
         else:
             return CausalLM(
                 model_id,
