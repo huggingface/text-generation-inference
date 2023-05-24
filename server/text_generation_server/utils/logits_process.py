@@ -2,7 +2,7 @@ import math
 import torch
 
 from functools import lru_cache
-from typing import Optional, List
+from typing import Optional, List, Dict, Union
 
 from transformers import (
     LogitsWarper,
@@ -45,9 +45,11 @@ class StaticWarper:
             self.cuda_graph = torch.cuda.CUDAGraph()
 
             with torch.cuda.graph(self.cuda_graph):
+                local_scores = self.static_scores
                 for warper in self.warpers:
-                    self.static_warped_scores = warper(None, self.static_scores)
+                    local_scores = warper(None, local_scores)
 
+                self.static_warped_scores = local_scores
                 # Compute logprobs
                 self.static_next_logprob = torch.log_softmax(
                     self.static_warped_scores, -1
@@ -308,4 +310,33 @@ class HeterogeneousTypicalLogitsWarper(LogitsWarper):
 
     def filter(self, indices):
         self.mass = self.mass[indices]
+        return self
+
+
+class HeterogeneousProcessorWrapper(LogitsProcessor):
+    r"""
+    A wrapper for logit warpers or processors without heterogeneous parameter support.
+    Args:
+        processors (`Dict[int, Union[LogitsProcessor, LogitsWarper]]`):
+            A mapping of sample indices to logit warpers or processors, to be run sequentially.
+    """
+
+    def __init__(
+        self,
+        processors: Dict[int, Union[LogitsProcessor, LogitsWarper]],
+    ):
+        self.processors = processors
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
+        for i, processor in self.processors.items():
+            scores[i : i + 1] = processor(input_ids[i : i + 1], scores[i : i + 1])
+        return scores
+
+    def filter(self, indices):
+        new_processors = {}
+        for i, idx in enumerate(indices):
+            if idx in self.processors:
+                new_processors[i] = self.processors[idx]
+
+        self.processors = new_processors
         return self

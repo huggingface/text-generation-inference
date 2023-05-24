@@ -631,7 +631,9 @@ class FlashCausalLM(Model):
                     ] = batch.input_ids[start_index + 1 : end_index]
                 else:
                     # Set prefill_tokens_indices to the correct slice
-                    prefill_tokens_indices = batch.input_ids
+                    prefill_tokens_indices = batch.input_ids[
+                        start_index + 1 : end_index
+                    ]
 
             batch.all_input_ids_tensor[i, input_length] = next_input_ids[i]
 

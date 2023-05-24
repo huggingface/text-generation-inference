@@ -29,7 +29,7 @@ async def test_flash_starcoder_default_params(flash_starcoder, response_snapshot
         "def print_hello", max_new_tokens=60, temperature=0.2, top_p=0.95, seed=0
     )
 
-    assert response.details.generated_tokens == 12
+    assert response.details.generated_tokens == 60
     assert response == response_snapshot
 
 

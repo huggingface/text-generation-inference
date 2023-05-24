@@ -18,6 +18,7 @@ from text_generation_server.utils.logits_process import (
     HeterogeneousTopKLogitsWarper,
     HeterogeneousTopPLogitsWarper,
     HeterogeneousTypicalLogitsWarper,
+    HeterogeneousProcessorWrapper,
 )
 
 
@@ -168,7 +169,15 @@ class HeterogeneousNextTokenChooser:
         warpers = LogitsProcessorList()
 
         if any(watermark):
-            raise NotImplementedError("Watermarking not implemented")
+            warpers.append(
+                HeterogeneousProcessorWrapper(
+                    {
+                        i: WatermarkLogitsProcessor(device=device)
+                        for i, do_watermark in enumerate(watermark)
+                        if do_watermark
+                    }
+                )
+            )
 
         if any([x != 1.0 for x in repetition_penalty]):
             warpers.append(
