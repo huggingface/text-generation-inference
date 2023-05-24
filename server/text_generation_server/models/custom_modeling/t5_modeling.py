@@ -729,7 +729,6 @@ class T5PreTrainedModel(PreTrainedModel):
     """
 
     config_class = T5Config
-    base_model_prefix = "transformer"
 
     def _shift_right(self, input_ids):
         decoder_start_token_id = self.config.decoder_start_token_id
@@ -1021,7 +1020,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             embed_tokens=self.shared,
         )
 
-        self.lm_head = TensorParallelHead.load(config, prefix="shared", weights=weights)
+        self.lm_head = TensorParallelHead.load(config, prefix="lm_head", weights=weights)
 
     def forward(
         self,

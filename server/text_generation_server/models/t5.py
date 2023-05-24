@@ -35,7 +35,9 @@ class T5Sharded(Seq2SeqLM):
             device = torch.device("cpu")
             dtype = torch.float32
 
-        config = AutoConfig.from_pretrained(model_id, revision=revision)
+        config = AutoConfig.from_pretrained(model_id, revision=revision, 
+            trust_remote_code=trust_remote_code,
+        )
         config.quantize = quantize
 
         tokenizer = AutoTokenizer.from_pretrained(
