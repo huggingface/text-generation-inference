@@ -94,9 +94,6 @@ class FlashNeoxAttention(torch.nn.Module):
 
         rotary_ndims = int(self.head_size * rotary_pct)
         self.rotary_emb = PositionRotaryEmbedding(rotary_ndims, base=rotary_emb_base)
-        self.rotary_emb.inv_freq = nn.Parameter(
-            weights.get_tensor(f"{prefix}.rotary_emb.inv_freq")
-        )
         self.softmax_scale = self.head_size ** (-0.5)
 
         self.query_key_value = load_qkv(
