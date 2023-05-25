@@ -266,7 +266,7 @@ def get_model(
                 quantize=quantize,
                 trust_remote_code=trust_remote_code,
             )
-        if "AutoModelForSeq2SeqLM" in auto_map.keys:
+        if "AutoModelForSeq2SeqLM" in auto_map.keys():
             return Seq2SeqLM(
                 model_id,
                 revision,
