@@ -297,7 +297,27 @@ try:
     from flash_attn.layers.rotary import RotaryEmbedding
     import rotary_emb
 
-    class PositionRotaryEmbedding(RotaryEmbedding):
+    class PositionRotaryEmbedding(nn.Module):
+        def __init__(self, inv_freq):
+            super().__init__()
+
+            self.register_buffer("inv_freq", inv_freq)
+            self._seq_len_cached = 0
+            self._cos_cached = None
+            self._sin_cached = None
+            self._cos_k_cached = None
+            self._sin_k_cached = None
+
+        @staticmethod
+        def load(prefix, weights):
+            # XXX: Always load this in float32 !
+            dtype = weights.dtype
+            weights.dtype = torch.float32
+            inv_freq = weights.get_tensor(f"{prefix}.inv_freq")
+            weights.dtype = dtype
+            return PositionRotaryEmbedding(inv_freq)
+
+
         def _update_cos_sin_cache(self, dtype, device, seqlen):
             # Reset the tables if the sequence length has changed,
             # or if we're on a new device (possibly due to tracing for instance)

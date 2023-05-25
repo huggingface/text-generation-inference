@@ -103,7 +103,8 @@ class FlashLlamaAttention(torch.nn.Module):
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
-        self.rotary_emb = PositionRotaryEmbedding(self.head_size, base=10000)
+        self.rotary_emb = PositionRotaryEmbedding.load(prefix=f"{prefix}.rotary_emb", weights=weights)
+
         self.softmax_scale = self.head_size ** (-0.5)
 
         self.num_heads = self.num_heads // weights.process_group.size()
