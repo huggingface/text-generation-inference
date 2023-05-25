@@ -218,10 +218,6 @@ class HeterogeneousNextTokenChooser:
         self.seeds = seeds
         self.do_sample = do_sample
 
-        self.cuda_graph = None
-        self.static_scores = None
-        self.static_warped_scores = None
-
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor):
         if self.watermark_processor:
             scores = self.watermark_processor(input_ids, scores)
