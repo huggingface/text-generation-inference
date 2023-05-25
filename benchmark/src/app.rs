@@ -15,6 +15,7 @@ use tui::{symbols, Frame};
 /// TUI powered App
 pub(crate) struct App {
     pub(crate) running: bool,
+    pub(crate) data: Data,
     completed_runs: Vec<usize>,
     completed_batch: usize,
     current_batch: usize,
@@ -22,12 +23,10 @@ pub(crate) struct App {
     touched_tab: bool,
     zoom: bool,
     is_error: bool,
-    data: Data,
     tokenizer_name: String,
     sequence_length: u32,
     decode_length: u32,
     n_run: usize,
-    batch_size: Vec<u32>,
     receiver: mpsc::Receiver<Result<Message, ClientError>>,
 }
 
@@ -40,7 +39,6 @@ impl App {
         n_run: usize,
         batch_size: Vec<u32>,
     ) -> Self {
-        let data = Data::new(n_run, batch_size.len());
         let current_tab = 0;
 
         let completed_runs: Vec<usize> = (0..batch_size.len()).map(|_| 0).collect();
@@ -48,8 +46,11 @@ impl App {
         let current_batch = 0;
         let is_error = false;
 
+        let data = Data::new(n_run, batch_size);
+
         Self {
             running: true,
+            data,
             completed_runs,
             completed_batch,
             current_batch,
@@ -57,12 +58,10 @@ impl App {
             touched_tab: false,
             zoom: false,
             is_error,
-            data,
             tokenizer_name,
             sequence_length,
             decode_length,
             n_run,
-            batch_size,
             receiver,
         }
     }
@@ -79,7 +78,7 @@ impl App {
                 code: KeyCode::Tab, ..
             } => {
                 self.touched_tab = true;
-                self.current_tab = (self.current_tab + 1) % self.batch_size.len();
+                self.current_tab = (self.current_tab + 1) % self.data.batch_size.len();
             }
             // Decrease and wrap tab
             KeyEvent {
@@ -90,7 +89,7 @@ impl App {
                 if self.current_tab > 0 {
                     self.current_tab -= 1;
                 } else {
-                    self.current_tab = self.batch_size.len() - 1;
+                    self.current_tab = self.data.batch_size.len() - 1;
                 }
             }
             // Zoom on throughput/latency fig
@@ -137,7 +136,7 @@ impl App {
                         self.data.end_batch(self.current_batch);
                         self.completed_batch += 1;
 
-                        if self.current_batch < self.batch_size.len() - 1 {
+                        if self.current_batch < self.data.batch_size.len() - 1 {
                             // Only go to next tab if the user never touched the tab keys
                             if !self.touched_tab {
                                 self.current_tab += 1;
@@ -156,7 +155,7 @@ impl App {
     /// Render frame
     pub fn render<B: Backend>(&mut self, f: &mut Frame<'_, B>) {
         let batch_progress =
-            (self.completed_batch as f64 / self.batch_size.len() as f64).clamp(0.0, 1.0);
+            (self.completed_batch as f64 / self.data.batch_size.len() as f64).clamp(0.0, 1.0);
         let run_progress =
             (self.completed_runs[self.current_batch] as f64 / self.n_run as f64).clamp(0.0, 1.0);
 
@@ -241,6 +240,7 @@ impl App {
 
         // Batch tabs
         let titles = self
+            .data
             .batch_size
             .iter()
             .map(|b| {
@@ -269,7 +269,7 @@ impl App {
         };
         let batch_gauge = progress_gauge(
             "Total Progress",
-            format!("{} / {}", self.completed_batch, self.batch_size.len()),
+            format!("{} / {}", self.completed_batch, self.data.batch_size.len()),
             batch_progress,
             color,
         );
@@ -347,7 +347,7 @@ impl App {
         // Prefill latency/throughput chart
         let prefill_latency_throughput_chart = latency_throughput_chart(
             &self.data.prefill_batch_latency_throughput,
-            &self.batch_size,
+            &self.data.batch_size,
             self.zoom,
             "Prefill",
         );
@@ -356,7 +356,7 @@ impl App {
         // Decode latency/throughput chart
         let decode_latency_throughput_chart = latency_throughput_chart(
             &self.data.decode_batch_latency_throughput,
-            &self.batch_size,
+            &self.data.batch_size,
             self.zoom,
             "Decode",
         );
@@ -365,31 +365,35 @@ impl App {
 }
 
 /// App internal data struct
-struct Data {
-    prefill_latencies: Vec<Vec<f64>>,
-    prefill_throughputs: Vec<Vec<f64>>,
-    decode_latencies: Vec<Vec<f64>>,
-    decode_token_latencies: Vec<Vec<f64>>,
-    decode_throughputs: Vec<Vec<f64>>,
-    prefill_batch_latency_throughput: Vec<(f64, f64)>,
-    decode_batch_latency_throughput: Vec<(f64, f64)>,
+pub(crate) struct Data {
+    pub(crate) batch_size: Vec<u32>,
+    pub(crate) prefill_latencies: Vec<Vec<f64>>,
+    pub(crate) prefill_throughputs: Vec<Vec<f64>>,
+    pub(crate) decode_latencies: Vec<Vec<f64>>,
+    pub(crate) decode_token_latencies: Vec<Vec<f64>>,
+    pub(crate) decode_throughputs: Vec<Vec<f64>>,
+    pub(crate) prefill_batch_latency_throughput: Vec<(f64, f64)>,
+    pub(crate) decode_batch_latency_throughput: Vec<(f64, f64)>,
 }
 
 impl Data {
-    fn new(n_run: usize, n_batch: usize) -> Self {
-        let prefill_latencies: Vec<Vec<f64>> =
-            (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
+    fn new(n_run: usize, batch_size: Vec<u32>) -> Self {
+        let prefill_latencies: Vec<Vec<f64>> = (0..batch_size.len())
+            .map(|_| Vec::with_capacity(n_run))
+            .collect();
         let prefill_throughputs: Vec<Vec<f64>> = prefill_latencies.clone();
 
         let decode_latencies: Vec<Vec<f64>> = prefill_latencies.clone();
         let decode_token_latencies: Vec<Vec<f64>> = decode_latencies.clone();
         let decode_throughputs: Vec<Vec<f64>> = prefill_throughputs.clone();
 
-        let prefill_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
+        let prefill_batch_latency_throughput: Vec<(f64, f64)> =
+            Vec::with_capacity(batch_size.len());
         let decode_batch_latency_throughput: Vec<(f64, f64)> =
             prefill_batch_latency_throughput.clone();
 
         Self {
+            batch_size,
             prefill_latencies,
             prefill_throughputs,
             decode_latencies,
@@ -401,14 +405,14 @@ impl Data {
     }
 
     fn push_prefill(&mut self, prefill: Prefill, batch_idx: usize) {
-        let latency = prefill.latency.as_millis() as f64;
+        let latency = prefill.latency.as_micros() as f64 / 1000.0;
         self.prefill_latencies[batch_idx].push(latency);
         self.prefill_throughputs[batch_idx].push(prefill.throughput);
     }
 
     fn push_decode(&mut self, decode: Decode, batch_idx: usize) {
-        let latency = decode.latency.as_millis() as f64;
-        let token_latency = decode.token_latency.as_millis() as f64;
+        let latency = decode.latency.as_micros() as f64 / 1000.0;
+        let token_latency = decode.token_latency.as_micros() as f64 / 1000.0;
         self.decode_latencies[batch_idx].push(latency);
         self.decode_token_latencies[batch_idx].push(token_latency);
         self.decode_throughputs[batch_idx].push(decode.throughput);
