@@ -4,7 +4,6 @@ import torch
 from transformers import (
     RepetitionPenaltyLogitsProcessor,
     PreTrainedTokenizerBase,
-    LogitsProcessorList,
 )
 from typing import List, Tuple, Optional
 
@@ -166,25 +165,27 @@ class HeterogeneousNextTokenChooser:
         do_sample: List[bool],
         seeds: List[int],
     ):
-        warpers = LogitsProcessorList()
+        warpers = []
 
-        if any(watermark):
-            warpers.append(
-                HeterogeneousProcessorWrapper(
-                    {
-                        i: WatermarkLogitsProcessor(device=device)
-                        for i, do_watermark in enumerate(watermark)
-                        if do_watermark
-                    }
-                )
+        self.watermark_processor = (
+            HeterogeneousProcessorWrapper(
+                {
+                    i: WatermarkLogitsProcessor(device=device)
+                    for i, do_watermark in enumerate(watermark)
+                    if do_watermark
+                }
             )
+            if any(watermark)
+            else None
+        )
 
-        if any([x != 1.0 for x in repetition_penalty]):
-            warpers.append(
-                HeterogeneousRepetitionPenaltyLogitsProcessor(
-                    repetition_penalty, dtype, device
-                )
+        self.repetition_processor = (
+            HeterogeneousRepetitionPenaltyLogitsProcessor(
+                repetition_penalty, dtype, device
             )
+            if any([x != 1.0 for x in repetition_penalty])
+            else None
+        )
 
         if any([x != 1.0 for x in temperature]):
             do_sample = [
@@ -217,11 +218,22 @@ class HeterogeneousNextTokenChooser:
         self.seeds = seeds
         self.do_sample = do_sample
 
+        self.cuda_graph = None
+        self.static_scores = None
+        self.static_warped_scores = None
+
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor):
-        last_token_scores = self.warpers(input_ids, scores)
-        next_ids = self.choice(last_token_scores)
+        if self.watermark_processor:
+            scores = self.watermark_processor(input_ids, scores)
+        if self.repetition_processor:
+            scores = self.repetition_processor(input_ids, scores)
+
+        for warper in self.warpers:
+            scores = warper(input_ids, scores)
+
+        next_ids = self.choice(scores)
         next_logprobs = torch.gather(
-            torch.log_softmax(last_token_scores, -1), 1, next_ids.view(-1, 1)
+            torch.log_softmax(scores, -1), 1, next_ids.view(-1, 1)
         ).view(-1)
 
         return next_ids, next_logprobs

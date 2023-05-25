@@ -129,6 +129,18 @@ class HeterogeneousTemperatureLogitsWarper:
         return self
 
 
+class CUDAGraphWrapper:
+    def __init__(self):
+        self.cuda_graph = None
+        self.static_tensors = {}
+
+
+@lru_cache(512)
+def get_cuda_graph_wrapper(warper_name, batch_size):
+    """warper_name and batch_size are only used as keys"""
+    return CUDAGraphWrapper()
+
+
 class HeterogeneousTopPLogitsWarper(LogitsWarper):
     """
     [`LogitsWarper`] that performs top-p, i.e. restricting to top tokens summing to prob_cut_off <= prob_cut_off.
@@ -158,26 +170,56 @@ class HeterogeneousTopPLogitsWarper(LogitsWarper):
         ).unsqueeze(1)
         self.filter_value = filter_value
         self.min_tokens_to_keep = min_tokens_to_keep
+        self.cuda_graph_wrapper = get_cuda_graph_wrapper("top_p_warper", len(top_p))
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
-        sorted_logits, sorted_indices = torch.sort(scores, descending=False)
-        cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
+        if self.cuda_graph_wrapper.cuda_graph is None:
+            self.cuda_graph_wrapper.static_tensors["scores"] = scores
+            self.cuda_graph_wrapper.static_tensors[
+                "top_p_opposite"
+            ] = self.top_p_opposite
 
-        # Remove tokens with cumulative top_p above the threshold (token with 0 are kept)
-        sorted_indices_to_remove = cumulative_probs <= self.top_p_opposite
-        if self.min_tokens_to_keep > 1:
-            # Keep at least min_tokens_to_keep
-            sorted_indices_to_remove[..., -self.min_tokens_to_keep :] = 0
+            self.cuda_graph_wrapper.cuda_graph = torch.cuda.CUDAGraph()
 
-        # scatter sorted tensors to original indexing
-        indices_to_remove = sorted_indices_to_remove.scatter(
-            1, sorted_indices, sorted_indices_to_remove
+            with torch.cuda.graph(self.cuda_graph_wrapper.cuda_graph):
+                local_scores = self.cuda_graph_wrapper.static_tensors["scores"]
+
+                sorted_logits, sorted_indices = torch.sort(
+                    local_scores, descending=False
+                )
+                probs = sorted_logits.softmax(dim=-1)
+                # This is way faster for some reason
+                for i in range(probs.shape[0]):
+                    probs[i] = probs[i].cumsum(dim=-1)
+
+                # Remove tokens with cumulative top_p above the threshold (token with 0 are kept)
+                sorted_indices_to_remove = probs <= self.top_p_opposite
+                if self.min_tokens_to_keep > 1:
+                    # Keep at least min_tokens_to_keep
+                    sorted_indices_to_remove[..., -self.min_tokens_to_keep :] = 0
+
+                # scatter sorted tensors to original indexing
+                indices_to_remove = sorted_indices_to_remove.scatter(
+                    1, sorted_indices, sorted_indices_to_remove
+                )
+                local_scores = local_scores.masked_fill_(
+                    indices_to_remove, self.filter_value
+                )
+                self.cuda_graph_wrapper.static_tensors["warped_scores"] = local_scores
+
+        self.cuda_graph_wrapper.static_tensors["scores"].copy_(scores)
+        self.cuda_graph_wrapper.static_tensors["top_p_opposite"].copy_(
+            self.top_p_opposite
         )
-        scores.masked_fill_(indices_to_remove, self.filter_value)
-        return scores
+        self.cuda_graph_wrapper.cuda_graph.replay()
+
+        return self.cuda_graph_wrapper.static_tensors["warped_scores"]
 
     def filter(self, indices):
         self.top_p_opposite = self.top_p_opposite[indices]
+        self.cuda_graph_wrapper = get_cuda_graph_wrapper(
+            "top_p_warper", len(self.top_p_opposite)
+        )
         return self
 
 
@@ -279,37 +321,63 @@ class HeterogeneousTypicalLogitsWarper(LogitsWarper):
         self.filter_value = filter_value
         self.mass = torch.tensor(mass, dtype=dtype, device=device).unsqueeze(1)
         self.min_tokens_to_keep = min_tokens_to_keep
+        self.cuda_graph_wrapper = get_cuda_graph_wrapper("typical_p_warper", len(mass))
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
-        # calculate entropy
-        normalized = torch.nn.functional.log_softmax(scores, dim=-1)
-        p = torch.exp(normalized)
-        ent = -(normalized * p).nansum(-1, keepdim=True)
+        if self.cuda_graph_wrapper.cuda_graph is None:
+            self.cuda_graph_wrapper.static_tensors["scores"] = scores
+            self.cuda_graph_wrapper.static_tensors["mass"] = self.mass
 
-        # shift and sort
-        shifted_scores = torch.abs((-normalized) - ent)
-        sorted_scores, sorted_indices = torch.sort(shifted_scores, descending=False)
-        sorted_logits = scores.gather(-1, sorted_indices)
-        cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
+            self.cuda_graph_wrapper.cuda_graph = torch.cuda.CUDAGraph()
 
-        # Remove tokens with cumulative mass above the threshold
-        last_ind = (cumulative_probs < self.mass).sum(dim=1)
-        last_ind[last_ind < 0] = 0
-        sorted_indices_to_remove = sorted_scores > sorted_scores.gather(
-            1, last_ind.view(-1, 1)
-        )
-        if self.min_tokens_to_keep > 1:
-            # Keep at least min_tokens_to_keep (set to min_tokens_to_keep-1 because we add the first one below)
-            sorted_indices_to_remove[..., : self.min_tokens_to_keep] = 0
-        indices_to_remove = sorted_indices_to_remove.scatter(
-            1, sorted_indices, sorted_indices_to_remove
-        )
+            with torch.cuda.graph(self.cuda_graph_wrapper.cuda_graph):
+                local_scores = self.cuda_graph_wrapper.static_tensors["scores"]
 
-        scores = scores.masked_fill_(indices_to_remove, self.filter_value)
-        return scores
+                # calculate entropy
+                normalized = torch.nn.functional.log_softmax(local_scores, dim=-1)
+                p = torch.exp(normalized)
+                ent = -(normalized * p).nansum(-1, keepdim=True)
+
+                # shift and sort
+                shifted_scores = torch.abs((-normalized) - ent)
+                sorted_scores, sorted_indices = torch.sort(
+                    shifted_scores, descending=False
+                )
+                sorted_logits = local_scores.gather(-1, sorted_indices)
+                probs = sorted_logits.softmax(dim=-1)
+                # This is way faster for some reason
+                for i in range(probs.shape[0]):
+                    probs[i] = probs[i].cumsum(dim=-1)
+
+                # Remove tokens with cumulative mass above the threshold
+                last_ind = (probs < self.mass).sum(dim=1)
+                last_ind[last_ind < 0] = 0
+                sorted_indices_to_remove = sorted_scores > sorted_scores.gather(
+                    1, last_ind.view(-1, 1)
+                )
+                if self.min_tokens_to_keep > 1:
+                    # Keep at least min_tokens_to_keep (set to min_tokens_to_keep-1 because we add the first one below)
+                    sorted_indices_to_remove[..., : self.min_tokens_to_keep] = 0
+                indices_to_remove = sorted_indices_to_remove.scatter(
+                    1, sorted_indices, sorted_indices_to_remove
+                )
+
+                local_scores = local_scores.masked_fill_(
+                    indices_to_remove, self.filter_value
+                )
+                self.cuda_graph_wrapper.static_tensors["warped_scores"] = local_scores
+
+        self.cuda_graph_wrapper.static_tensors["scores"].copy_(scores)
+        self.cuda_graph_wrapper.static_tensors["mass"].copy_(self.mass)
+        self.cuda_graph_wrapper.cuda_graph.replay()
+
+        return self.cuda_graph_wrapper.static_tensors["warped_scores"]
 
     def filter(self, indices):
         self.mass = self.mass[indices]
+        self.cuda_graph_wrapper = get_cuda_graph_wrapper(
+            "typical_p_warper", len(self.mass)
+        )
         return self
 
 

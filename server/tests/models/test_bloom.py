@@ -286,7 +286,9 @@ def test_batch_concatenate(
         == default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
     )
 
-    next_batch = next_batch.filter([next_batch.requests[0].id, next_batch.requests[1].id])
+    next_batch = next_batch.filter(
+        [next_batch.requests[0].id, next_batch.requests[1].id]
+    )
 
     for _ in range(
         default_bloom_batch.stopping_criterias[0].max_new_tokens
