@@ -38,7 +38,9 @@ def default_pb_batch(default_pb_request):
 
 @pytest.fixture
 def default_causal_lm_batch(default_pb_batch, gpt2_tokenizer):
-    return CausalLMBatch.from_pb(default_pb_batch, gpt2_tokenizer, torch.device("cpu"))
+    return CausalLMBatch.from_pb(
+        default_pb_batch, gpt2_tokenizer, torch.float32, torch.device("cpu")
+    )
 
 
 @pytest.fixture
@@ -50,7 +52,9 @@ def default_multi_requests_causal_lm_batch(default_pb_request, gpt2_tokenizer):
     req_1.stopping_parameters.max_new_tokens = 5
 
     batch_pb = generate_pb2.Batch(id=1, requests=[req_0, req_1], size=2)
-    return CausalLMBatch.from_pb(batch_pb, gpt2_tokenizer, torch.device("cpu"))
+    return CausalLMBatch.from_pb(
+        batch_pb, gpt2_tokenizer, torch.float32, torch.device("cpu")
+    )
 
 
 def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):
@@ -285,7 +289,9 @@ def test_batch_concatenate(
         == default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
     )
 
-    next_batch = next_batch.filter([next_batch.requests[0].id, next_batch.requests[1].id])
+    next_batch = next_batch.filter(
+        [next_batch.requests[0].id, next_batch.requests[1].id]
+    )
 
     for _ in range(
         default_causal_lm_batch.stopping_criterias[0].max_new_tokens
