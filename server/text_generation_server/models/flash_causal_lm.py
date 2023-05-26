@@ -451,11 +451,17 @@ class FlashCausalLM(Model):
 
     def fast_forward(self, batch: FlashCausalLMBatch, max_input_length: int, cache_dtype: Optional[torch.dtype]):
         diff = max_input_length - max(batch.input_lengths)
+        fill_value=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
         for i in range(len(batch)):
             batch.input_lengths[i] += diff
-            batch.prefix_offsets[i] = 0
-            batch.read_offsets[i] = 0
-            batch.all_input_ids[i] = batch.all_input_ids[i] + [self.tokenizer.pad_token_id] * diff if diff >= 0 else batch.all_input_ids[i][:diff]
+            for _ in range(diff):
+                batch.all_input_ids[i].append(fill_value)
+                # For some reason just resetting the offsets makes things way slower.
+                _, batch.prefix_offsets[i], batch.read_offsets[i] = self.decode_token(
+                    batch.all_input_ids[i],
+                    batch.prefix_offsets[i],
+                    batch.read_offsets[i],
+                )
             # TODO: Bug!?!
             batch.stopping_criterias[i].current_tokens += diff
 
@@ -473,19 +479,19 @@ class FlashCausalLM(Model):
             batch.past_key_values=None
         else:
             assert len(batch.all_input_ids_tensor)>0, "Must run prefill first"
-            batch.input_ids.fill_(self.tokenizer.pad_token_id)
+            batch.input_ids.fill_(fill_value)
             batch.position_ids += diff
             batch.cu_seqlens += diff * batch.cu_seqlens_q
             # TODO: Bug!?!
-            batch.max_seqlen += batch.max_seqlen + diff*len(batch)
+            batch.max_seqlen += diff*len(batch)
 
             for i in range(len(batch)):
-                batch.all_input_ids_tensor[i][batch.input_lengths[i]-diff:batch.input_lengths[i]].fill_(self.tokenizer.pad_token_id)
+                batch.all_input_ids_tensor[i][batch.input_lengths[i]-diff:batch.input_lengths[i]].fill_(fill_value)
 
             batch.past_key_values = batch.past_key_values = torch.randn(
                 (
                     batch.past_key_values.shape[0],
-                    batch.past_key_values.shape[1] + len(batch.requests),
+                    batch.past_key_values.shape[1] + diff*len(batch.requests),
                     *batch.past_key_values.shape[2:],
                 ), device=batch.past_key_values.device, dtype= cache_dtype
             )

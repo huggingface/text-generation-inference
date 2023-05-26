@@ -100,6 +100,8 @@ model_type_map={
     "vector":VectorizedCausalLM,
     "bigcode":BigcodeCausalLM,
     "bigcode2":Bigcode2CausalLM,
+    "bigcode3":Bigcode2CausalLM,
+    "bigcode4":Bigcode2CausalLM,
 }
 
 

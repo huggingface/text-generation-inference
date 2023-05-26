@@ -106,6 +106,7 @@ class GPTBigCodeAttention(nn.Module):
             self.embed_dim, self.embed_dim, dtype=dtype, device="meta"
         )
 
+    @torch.profiler.record_function("GPTBigCodeAttention.prefill")
     def prefill(
         self,
         hidden_states: torch.Tensor,
@@ -141,15 +142,15 @@ class GPTBigCodeAttention(nn.Module):
 
         return hidden_states, key_value
 
+    @torch.profiler.record_function("GPTBigCodeAttention.decode")
     def decode(
         self,
         hidden_states: torch.Tensor,
         layer_past: torch.Tensor,
         attention_mask: torch.Tensor,
+        batch_size: int,
         key_length: int,
     ) -> Tuple[torch.Tensor, Any]:
-        batch_size=hidden_states.size(0)
-
         query, key_value = self.c_attn.forward(hidden_states).split(
             (self.embed_dim, 2 * self.head_dim), dim=-1
         )
@@ -184,6 +185,7 @@ class GPTBigCodeAttention(nn.Module):
         unscale = self.layer_idx + 1 if upcast else 1
         scale_factor = unscale**-1 / self.head_dim**0.5
 
+        # TODO: No need to unsqueeze?
         hidden_states = torch.baddbmm(
             torch.empty(
                 (batch_size, self.num_heads, padded_key_length),
@@ -194,7 +196,7 @@ class GPTBigCodeAttention(nn.Module):
             key.transpose(-1, -2),
             beta=0,
             alpha=scale_factor,
-        )
+        ).unsqueeze_(1)
 
         if upcast:
             hidden_states = upcast_masked_softmax(
@@ -205,7 +207,7 @@ class GPTBigCodeAttention(nn.Module):
                 hidden_states, attention_mask, self.mask_value
             )
 
-        hidden_states = torch.bmm(hidden_states, value).view(query.shape)
+        hidden_states = torch.bmm(hidden_states.squeeze_(1), value).view(query.shape)
 
         hidden_states = self.c_proj.forward(hidden_states)
 
@@ -240,6 +242,25 @@ class GPTBigCodeBlock(nn.Module):
         )
         self.mlp = GPTBigCodeMLP(config, dtype=dtype)
 
+    def post_load_weights(self, mask_value):
+        self.attn.mask_value = mask_value
+        self.attn.c_attn.weight.t_()
+        self.attn.c_proj.weight.t_()
+
+        self.l1w=self.ln_1.weight
+        self.l1b=self.ln_1.bias
+        self.e1=self.ln_1.eps
+        self.l2w=self.ln_2.weight
+        self.l2b=self.ln_2.bias
+        self.e2=self.ln_2.eps
+        self.mfb=self.mlp.c_fc.bias
+        self.mfw=self.mlp.c_fc.weight.t_()
+        self.mfb=self.mlp.c_fc.bias
+        self.mpw=self.mlp.c_proj.weight.t_()
+        self.mpb=self.mlp.c_proj.bias
+
+
+    @torch.profiler.record_function("GPTBigCodeBlock.prefill")
     def prefill(
         self,
         hidden_states: torch.Tensor,
@@ -250,8 +271,8 @@ class GPTBigCodeBlock(nn.Module):
         hidden_states, residual, *_ = self.ln_1.forward(hidden_states, residual)
         hidden_states, present = self.attn.prefill(
             hidden_states,
-            sequence_lengths=sequence_lengths,
-            key_length=key_length,
+            sequence_lengths,
+            key_length,
         )
         hidden_states, residual, *_ = self.ln_2.forward(hidden_states, residual)
         hidden_states = self.mlp.c_proj.forward(
@@ -259,25 +280,79 @@ class GPTBigCodeBlock(nn.Module):
         )
         return hidden_states, residual, present
 
+    @torch.profiler.record_function("GPTBigCodeBlock.decode")
     def decode(
         self,
         hidden_states: torch.Tensor,
         residual: Optional[torch.Tensor],
         layer_past: torch.Tensor,
         attention_mask: torch.Tensor,
+        batch_size: int,
         key_length: int,
     ) -> Tuple[torch.Tensor, torch.Tensor, Any]:
-        hidden_states, residual, *_ = self.ln_1.forward(hidden_states, residual)
+        if residual is None:
+            residual = hidden_states
+            hidden_states, *_ = dropout_add_ln_fwd(
+                hidden_states,
+                residual,
+                self.l1w,
+                self.l1b,
+                None,
+                None,
+                None,
+                None,
+                0.0,
+                self.e1,
+                1.0,
+                0,
+                None,
+                False,
+                False,
+            )
+        else:
+            hidden_states, residual, *_ = dropout_add_ln_fwd(
+                hidden_states,
+                residual,
+                self.l1w,
+                self.l1b,
+                None,
+                None,
+                None,
+                None,
+                0.0,
+                self.e1,
+                1.0,
+                0,
+                None,
+                False,
+                False,
+            )
+
         hidden_states, present = self.attn.decode(
             hidden_states,
-            layer_past=layer_past,
-            attention_mask=attention_mask,
-            key_length=key_length,
+            layer_past,
+            attention_mask,
+            batch_size,
+            key_length,
         )
-        hidden_states, residual, *_ = self.ln_2.forward(hidden_states, residual)
-        hidden_states = self.mlp.c_proj.forward(
-            nn.functional.gelu(self.mlp.c_fc.forward(hidden_states), approximate="tanh")
+        hidden_states, residual, *_ = dropout_add_ln_fwd(
+            hidden_states,
+            residual,
+            self.l2w,
+            self.l2b,
+            None,
+            None,
+            None,
+            None,
+            0.0,
+            self.e2,
+            1.0,
+            0,
+            None,
+            False,
+            False,
         )
+        hidden_states = torch.addmm(self.mpb, nn.functional.gelu(torch.addmm(self.mfb, hidden_states, self.mfw), approximate="tanh"), self.mpw, out=hidden_states)
         return hidden_states, residual, present
 
 
@@ -368,6 +443,12 @@ class GPTBigCodeForCausalLM(GPTBigCodePreTrainedModel):
             config.n_embd, config.vocab_size, bias=False, dtype=dtype, device="meta"
         )
 
+        # Causal mask
+        self.causal_mask = torch.ones(
+            (config.max_position_embeddings, config.max_position_embeddings),
+            dtype=torch.bool,
+            device=device,
+        ).tril_()
         self.mask_value = torch.full(
             (), torch.finfo(torch.float32).min, dtype=torch.float32, device=device
         )
@@ -435,11 +516,7 @@ class GPTBigCodeForCausalLM(GPTBigCodePreTrainedModel):
     def post_load_weights(self):
         layer: GPTBigCodeBlock
         for layer in self.transformer.h:
-            layer.attn.mask_value = self.mask_value
-            layer.attn.c_attn.weight.t_()
-            layer.attn.c_proj.weight.t_()
-            layer.mlp.c_fc.weight.t_()
-            layer.mlp.c_proj.weight.t_()
+            layer.post_load_weights(self.mask_value)
         self.lm_head.weight.t_()
 
     def decode(
@@ -451,12 +528,22 @@ class GPTBigCodeForCausalLM(GPTBigCodePreTrainedModel):
         position_ids: torch.Tensor,
         key_length: int,
     ) -> Tuple:
+        batch_size, query_length = input_ids.shape
+        assert query_length == 1
+
         hidden_states = self.transformer.wte.forward(
             input_ids
         ) + self.transformer.wpe.forward(position_ids)
 
         # Standardize shape to (batch_size, hidden_size)
         hidden_states.squeeze_(1)
+
+        # Self-attention mask (padding + causal).
+        # TODO: Avoid unsqueeze
+        attention_mask = self.causal_mask[
+            None, key_length - 1 : key_length, : attention_mask.size(-1)
+        ] * attention_mask.unsqueeze(1)
+        attention_mask.unsqueeze_(2)
 
         residual = None
         block: GPTBigCodeBlock
@@ -468,10 +555,11 @@ class GPTBigCodeForCausalLM(GPTBigCodePreTrainedModel):
                 residual=residual,
                 layer_past=layer_past,
                 attention_mask=attention_mask,
+                batch_size=batch_size,
                 key_length=key_length,
             )
 
         hidden_states, *_ = self.transformer.ln_f.forward(hidden_states, residual)
-        hidden_states = self.lm_head.forward(hidden_states)
+        hidden_states = self.lm_head.forward(hidden_states).unsqueeze_(1)
 
-        return hidden_states.unsqueeze_(1), past_key_values
+        return hidden_states, past_key_values

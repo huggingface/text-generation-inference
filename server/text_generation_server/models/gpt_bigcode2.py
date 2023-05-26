@@ -13,8 +13,15 @@ from text_generation_server.models.vectorized_causal_lm import (
     VectorizedCausalLMBatch,
 )
 from text_generation_server.models.custom_modeling.gpt_bigcode2_modeling import (
-    GPTBigCodeForCausalLM,
+    GPTBigCodeForCausalLM as GPTBigCode2ForCausalLM,
 )
+from text_generation_server.models.custom_modeling.gpt_bigcode3_modeling import (
+    GPTBigCodeForCausalLM as GPTBigCode3ForCausalLM,
+)
+from text_generation_server.models.custom_modeling.gpt_bigcode4_modeling import (
+    GPTBigCodeForCausalLM as GPTBigCode4ForCausalLM,
+)
+from transformers.modeling_utils import PreTrainedModel
 
 tracer = trace.get_tracer(__name__)
 
@@ -96,8 +103,9 @@ class Bigcode2Batch(VectorizedCausalLMBatch):
         return len(self.requests)
 
 
-class Bigcode2CausalLM(VectorizedCausalLM):
-    model: GPTBigCodeForCausalLM
+class Bigcode2CausalLMBase(VectorizedCausalLM):
+    #model: GPTBigCode2ForCausalLM
+    _model_class:Type[PreTrainedModel]
 
     def __init__(
         self,
@@ -118,7 +126,7 @@ class Bigcode2CausalLM(VectorizedCausalLM):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, revision=revision, padding_side="left", truncation_side="left"
         )
-        model = GPTBigCodeForCausalLM.from_pretrained(
+        model = self._model_class.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
@@ -163,18 +171,18 @@ class Bigcode2CausalLM(VectorizedCausalLM):
             padded_key_length = (
                 key_length + -key_length % batch.pad_key_length_to_multiple
             )
-            input_ids = batch.input_ids[:, key_length - 1 : key_length]
+            input_ids = batch.input_ids[:, key_length - 1]
             # Model Forward
             logits, batch.past_key_values = self.model.decode(
                 input_ids=input_ids,
-                attention_mask=batch.attention_mask[:, :padded_key_length],
-                position_ids=batch.position_ids[:, key_length - 1 : key_length],
+                attention_mask=batch.attention_mask[:, None, :padded_key_length],
+                position_ids=batch.position_ids[:, key_length - 1],
                 past_key_values=batch.past_key_values,
                 key_length=key_length,
             )
 
         next_token_ids, logprobs = batch.next_token_chooser(
-            input_ids, logits, batch.details
+            input_ids.unsqueeze(1), logits.unsqueeze(1), batch.details
         )
         # Update batch
         # TODO: Why do we need all input ids?
@@ -201,3 +209,14 @@ class Bigcode2CausalLM(VectorizedCausalLM):
             )
             for _ in range(self.model.config.n_layer)
         ]
+
+class Bigcode2CausalLM(Bigcode2CausalLMBase):
+    _model_class=GPTBigCode2ForCausalLM
+
+
+class Bigcode3CausalLM(Bigcode2CausalLMBase):
+    _model_class=GPTBigCode3ForCausalLM
+
+
+class Bigcode4CausalLM(Bigcode2CausalLMBase):
+    _model_class = GPTBigCode4ForCausalLM

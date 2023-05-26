@@ -508,12 +508,72 @@ class CausalLM(Model):
         )
         return outputs.logits, outputs.past_key_values
 
+
+    def fast_forward(
+        self,
+        batch: CausalLMBatch,
+        max_input_length: int,
+        cache_dtype: Optional[torch.dtype],
+    ):
+        diff = max_input_length - batch.max_input_length
+        batch.max_input_length+=diff
+        fill_value=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+
+        for i in range(len(batch)):
+            batch.all_input_ids[i]=torch.nn.functional.pad(batch.all_input_ids[i], (0, 0, 0, diff), value=fill_value)[:batch.max_input_length]
+            batch.input_lengths[i]+=diff
+            batch.prefix_offsets[i] = 0
+            batch.read_offsets[i] = 0
+
+        batch.attention_mask[:, -batch.padding_right_offset:batch.padding_right_offset+diff] = 1
+        batch.padding_right_offset -= diff
+
+        if cache_dtype is None:
+            assert batch.input_ids.shape==(len(batch),batch.max_input_length-diff)
+            batch.input_ids=torch.nn.functional.pad(batch.input_ids, (0,diff), value=fill_value)[:, :batch.max_input_length]
+            batch.position_ids = batch.attention_mask[:, :batch.max_input_length].long().cumsum(-1) - 1
+            batch.past_key_values=None
+        else:
+            from transformers import GPTBigCodeForCausalLM
+            batch.input_ids=batch.input_ids[:,:1].fill_(fill_value)
+            batch.position_ids = batch.position_ids[:, -1:] + diff
+            if isinstance(self.model, GPTBigCodeForCausalLM):
+                batch.past_key_values=[
+                    torch.randn(
+                        [
+                            len(batch),
+                            batch.max_input_length - 1,
+                            2 * self.model.config.n_embd // self.model.config.n_head,
+                        ],
+                        dtype=cache_dtype,
+                        device=batch.input_ids.device,
+                    )
+                    for _ in range(self.model.config.n_layer)
+                ]
+            else:
+                batch.past_key_values=[
+                    [torch.randn(
+                        [
+                            len(batch),
+                            batch.max_input_length - 1,
+                            self.model.config.n_embd // self.model.config.n_head,
+                        ],
+                        dtype=cache_dtype,
+                        device=batch.input_ids.device,
+                    )
+                    for _ in range(2)] for _ in range(self.model.config.n_layer)
+                ]
+
+
     @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: CausalLMBatch
     ) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
         # slice the attention mask to the correct shape
         attention_mask = batch.attention_mask[:, : -batch.padding_right_offset]
+
+        #print("AAA", batch.max_input_length, batch.input_ids, batch.position_ids, batch.all_input_ids, batch.all_input_ids[0].shape)
+        #print("BBB", batch.max_input_length, batch.input_lengths, batch.padding_right_offset, batch.past_key_values is None)
 
         logits, past = self.forward(
             batch.input_ids,
