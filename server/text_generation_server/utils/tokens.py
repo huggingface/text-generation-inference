@@ -60,9 +60,9 @@ class NextTokenChooser:
         self.choice = Sampling(seed, device) if sampling else Greedy()
 
     def __call__(self, input_ids, scores):
-        if self.watermark_processor:
+        if self.watermark_processor is not None:
             scores = self.watermark_processor(input_ids, scores)
-        if self.repetition_processor:
+        if self.repetition_processor is not None:
             scores = self.repetition_processor(input_ids, scores)
 
         if self.static_warper is None:
@@ -209,19 +209,18 @@ class HeterogeneousNextTokenChooser:
 
         self.warpers = warpers
 
-        num_do_sample = sum(do_sample)
-        if num_do_sample == 0:
-            self.choice = Greedy()
-        else:
+        if any(do_sample):
             self.choice = HeterogeneousSampling(do_sample, seeds, device)
+        else:
+            self.choice = Greedy()
 
         self.seeds = seeds
         self.do_sample = do_sample
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor):
-        if self.watermark_processor:
+        if self.watermark_processor is not None:
             scores = self.watermark_processor(input_ids, scores)
-        if self.repetition_processor:
+        if self.repetition_processor is not None:
             scores = self.repetition_processor(input_ids, scores)
 
         for warper in self.warpers:
@@ -235,12 +234,27 @@ class HeterogeneousNextTokenChooser:
         return next_ids, next_logprobs
 
     def filter(self, indices):
+        if self.watermark_processor is not None:
+            self.watermark_processor = self.watermark_processor.filter(indices)
+
+        if self.repetition_processor is not None:
+            self.repetition_processor = self.repetition_processor.filter(indices)
+
+        filtered_warpers = []
         for warper in self.warpers:
-            warper.filter(indices)
-        if isinstance(self.choice, HeterogeneousSampling):
-            self.choice.filter(indices)
+            filtered_warper = warper.filter(indices)
+            if filtered_warper is not None:
+                filtered_warpers.append(filtered_warper)
+        self.warpers = filtered_warpers
+
         self.seeds = [self.seeds[i] for i in indices]
         self.do_sample = [self.do_sample[i] for i in indices]
+
+        if any(self.do_sample):
+            self.choice.filter(indices)
+        else:
+            self.choice = Greedy()
+
         return self
 
     @classmethod
