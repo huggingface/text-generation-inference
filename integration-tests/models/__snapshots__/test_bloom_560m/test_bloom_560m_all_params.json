@@ -34,65 +34,65 @@
     "tokens": [
       {
         "id": 408,
-        "logprob": -1.9267578,
+        "logprob": -0.07891846,
         "special": false,
         "text": " que"
       },
       {
-        "id": 20288,
-        "logprob": -2.9257812,
-        "special": false,
-        "text": " l'on"
-      },
-      {
-        "id": 22255,
-        "logprob": -2.8964844,
-        "special": false,
-        "text": " trouve"
-      },
-      {
-        "id": 1622,
-        "logprob": -1.1083984,
-        "special": false,
-        "text": " une"
-      },
-      {
-        "id": 187079,
-        "logprob": -7.796875,
-        "special": false,
-        "text": " posture"
-      },
-      {
-        "id": 501,
-        "logprob": -5.390625,
-        "special": false,
-        "text": " par"
-      },
-      {
-        "id": 8741,
-        "logprob": -0.34936523,
-        "special": false,
-        "text": " rapport"
-      },
-      {
-        "id": 693,
-        "logprob": 0.0,
-        "special": false,
-        "text": " à"
-      },
-      {
         "id": 366,
-        "logprob": -2.3378906,
+        "logprob": -1.2939453,
         "special": false,
         "text": " la"
       },
       {
-        "id": 36503,
-        "logprob": -3.6640625,
+        "id": 8769,
+        "logprob": -0.3708496,
         "special": false,
-        "text": " pratique"
+        "text": " personne"
+      },
+      {
+        "id": 1479,
+        "logprob": -2.2871094,
+        "special": false,
+        "text": " qui"
+      },
+      {
+        "id": 2997,
+        "logprob": -0.8671875,
+        "special": false,
+        "text": " vous"
+      },
+      {
+        "id": 35977,
+        "logprob": -1.5097656,
+        "special": false,
+        "text": " suit"
+      },
+      {
+        "id": 21558,
+        "logprob": -0.07891846,
+        "special": false,
+        "text": " ait"
+      },
+      {
+        "id": 447,
+        "logprob": -0.12695312,
+        "special": false,
+        "text": " un"
+      },
+      {
+        "id": 78606,
+        "logprob": -2.21875,
+        "special": false,
+        "text": " profil"
+      },
+      {
+        "id": 3899,
+        "logprob": -1.3535156,
+        "special": false,
+        "text": " bien"
       }
     ]
   },
-  "generated_text": "Pour déguster un ortolan, il faut tout d'abord que l'on trouve une posture par rapport à la pratique"
+  "generated_text": "Pour déguster un ortolan, il faut tout d'abord que la personne qui vous suit ait un profil bien"
 }

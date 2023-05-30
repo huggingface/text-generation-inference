@@ -38,7 +38,7 @@ def default_pb_batch(default_pb_request):
 @pytest.fixture
 def default_bloom_batch(default_pb_batch, bloom_560m_tokenizer):
     return BloomCausalLMBatch.from_pb(
-        default_pb_batch, bloom_560m_tokenizer, torch.device("cpu")
+        default_pb_batch, bloom_560m_tokenizer, torch.float32, torch.device("cpu")
     )
 
 
@@ -52,7 +52,7 @@ def default_multi_requests_bloom_batch(default_pb_request, bloom_560m_tokenizer)
 
     batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return BloomCausalLMBatch.from_pb(
-        batch_pb, bloom_560m_tokenizer, torch.device("cpu")
+        batch_pb, bloom_560m_tokenizer, torch.float32, torch.device("cpu")
     )
 
 
