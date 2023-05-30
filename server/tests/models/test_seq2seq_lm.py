@@ -323,7 +323,9 @@ def test_batch_concatenate(
     )
     assert generations[2].generated_text.generated_tokens == 5
 
-    next_batch = next_batch.filter([next_batch.requests[0].id, next_batch.requests[1].id])
+    next_batch = next_batch.filter(
+        [next_batch.requests[0].id, next_batch.requests[1].id]
+    )
 
     generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None

@@ -8,11 +8,11 @@ from text_generation_server.models import CausalLM
 
 class RW(CausalLM):
     def __init__(
-            self,
-            model_id: str,
-            revision: Optional[str] = None,
-            quantize: Optional[str] = None,
-            trust_remote_code: bool = False,
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -63,7 +63,7 @@ class RW(CausalLM):
         )
 
     def forward(
-            self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
         if past_key_values is not None:
@@ -71,10 +71,16 @@ class RW(CausalLM):
             for layer in past_key_values:
                 past_keys, past_values = layer
                 reshaped_past_key_values.append(
-                    (past_keys.view(-1, *past_keys.shape[-2:]), past_values.view(-1, *past_values.shape[-2:]))
+                    (
+                        past_keys.view(-1, *past_keys.shape[-2:]),
+                        past_values.view(-1, *past_values.shape[-2:]),
+                    )
                 )
             past_key_values = reshaped_past_key_values
 
-        outputs = self.model.forward(input_ids=input_ids, attention_mask=attention_mask,
-                                     past_key_values=past_key_values)
+        outputs = self.model.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            past_key_values=past_key_values,
+        )
         return outputs.logits, outputs.past_key_values

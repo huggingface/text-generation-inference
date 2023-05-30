@@ -31,7 +31,7 @@ try:
             )
 
         from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
-        from text_generation_server.models.flash_rw import FlashRW
+        from text_generation_server.models.flash_rw import FlashRW, FlashRWSharded
         from text_generation_server.models.flash_llama import (
             FlashLlama,
             FlashLlamaSharded,
@@ -71,6 +71,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashNeoX)
     __all__.append(FlashNeoXSharded)
     __all__.append(FlashRW)
+    __all__.append(FlashRWSharded)
     __all__.append(FlashSantacoder)
     __all__.append(FlashSantacoderSharded)
     __all__.append(FlashLlama)
@@ -202,13 +203,15 @@ def get_model(
             if FLASH_ATTENTION:
                 if config.alibi:
                     raise NotImplementedError("sharded is not supported for this model")
-                # return FlashRWSharded(
-                #     model_id,
-                #     revision,
-                #     quantize=quantize,
-                #     trust_remote_code=trust_remote_code,
-                # )
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded RefinedWeb"))
+                return FlashRWSharded(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    trust_remote_code=trust_remote_code,
+                )
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded RefinedWeb")
+            )
         else:
             if FLASH_ATTENTION and not config.alibi:
                 return FlashRW(
