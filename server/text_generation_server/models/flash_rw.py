@@ -113,7 +113,6 @@ class FlashRW(FlashCausalLM):
         model.post_load_weights(quantize)
 
 
-
 class FlashRWSharded(FlashRW):
     def __init__(
         self,

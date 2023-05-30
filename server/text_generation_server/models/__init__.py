@@ -201,7 +201,10 @@ def get_model(
     if model_type in ["RefinedWeb", "RefinedWebModel"]:
         if sharded:
             if FLASH_ATTENTION:
-                if config.alibi:
+                if config.alibi or (
+                    config.model_type == "RefinedWebModel"
+                    and config.n_head_kv != config.n_head
+                ):
                     raise NotImplementedError("sharded is not supported for this model")
                 return FlashRWSharded(
                     model_id,
