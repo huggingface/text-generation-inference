@@ -1,0 +1,98 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 330,
+        "logprob": null,
+        "text": "ir"
+      },
+      {
+        "id": 1622,
+        "logprob": -7.8125,
+        "text": "af"
+      },
+      {
+        "id": 249,
+        "logprob": -4.5,
+        "text": "at"
+      },
+      {
+        "id": 1480,
+        "logprob": -10.875,
+        "text": "ron"
+      },
+      {
+        "id": 37,
+        "logprob": -3.6875,
+        "text": ":"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 836,
+        "logprob": -1.265625,
+        "special": false,
+        "text": " i"
+      },
+      {
+        "id": 18,
+        "logprob": -0.11621094,
+        "special": false,
+        "text": "'"
+      },
+      {
+        "id": 88,
+        "logprob": 0.0,
+        "special": false,
+        "text": "m"
+      },
+      {
+        "id": 1241,
+        "logprob": -0.953125,
+        "special": false,
+        "text": " using"
+      },
+      {
+        "id": 248,
+        "logprob": -2.5,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 204,
+        "logprob": -0.62890625,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 2485,
+        "logprob": -0.54296875,
+        "special": false,
+        "text": "32"
+      },
+      {
+        "id": 24,
+        "logprob": 0.0,
+        "special": false,
+        "text": "-"
+      },
+      {
+        "id": 3882,
+        "logprob": 0.0,
+        "special": false,
+        "text": "bit"
+      },
+      {
+        "id": 2684,
+        "logprob": 0.0,
+        "special": false,
+        "text": " version"
+      }
+    ]
+  },
+  "generated_text": "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron: i'm using the 32-bit version"
+}

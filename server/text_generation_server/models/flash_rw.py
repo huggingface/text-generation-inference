@@ -37,7 +37,7 @@ class FlashRW(FlashCausalLM):
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.float16
+            dtype = torch.bfloat16
         else:
             raise NotImplementedError("RW is only available on GPU")
 
@@ -54,7 +54,7 @@ class FlashRW(FlashCausalLM):
             revision=revision,
         )
 
-        # We do not use from_pretrained as we modified the model internal module layout
+        # We do not use from_pretrained as it is too slow
         try:
             filenames = weight_files(model_id, revision, ".bin")
         # Local files not found
@@ -124,7 +124,7 @@ class FlashRWSharded(FlashRW):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.float16
+            dtype = torch.bfloat16
         else:
             raise NotImplementedError("FlashRW is only available on GPU")
 
