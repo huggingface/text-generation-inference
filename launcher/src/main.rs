@@ -455,9 +455,10 @@ fn shutdown_shards(shutdown: Arc<Mutex<bool>>, shutdown_receiver: &mpsc::Receive
 }
 
 fn num_cuda_devices() -> Option<usize> {
-    let devices = env::var("CUDA_VISIBLE_DEVICES")
-        .map_err(|_| env::var("NVIDIA_VISIBLE_DEVICES"))
-        .ok()?;
+    let devices = match env::var("CUDA_VISIBLE_DEVICES") {
+        Ok(devices) => devices,
+        Err(_) => env::var("NVIDIA_VISIBLE_DEVICES").ok()?,
+    };
     let n_devices = devices.split(',').count();
     Some(n_devices)
 }
