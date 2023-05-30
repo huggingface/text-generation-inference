@@ -42,7 +42,7 @@ to power LLMs api-inference widgets.
 - Serve the most popular Large Language Models with a simple launcher
 - Tensor Parallelism for faster inference on multiple GPUs
 - Token streaming using Server-Sent Events (SSE)
-- [Continous batching of incoming requests](https://github.com/huggingface/text-generation-inference/tree/main/router) for increased total throughput
+- [Continuous batching of incoming requests](https://github.com/huggingface/text-generation-inference/tree/main/router) for increased total throughput
 - Optimized transformers code for inference using [flash-attention](https://github.com/HazyResearch/flash-attention) on the most popular architectures
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
@@ -61,6 +61,9 @@ to power LLMs api-inference widgets.
 - [Llama](https://github.com/facebookresearch/llama)
 - [OPT](https://huggingface.co/facebook/opt-66b)
 - [SantaCoder](https://huggingface.co/bigcode/santacoder)
+- [Starcoder](https://huggingface.co/bigcode/starcoder)
+- [Falcon 7B](https://huggingface.co/tiiuae/falcon-7b)
+- [Falcon 40B](https://huggingface.co/tiiuae/falcon-40b)
 
 Other architectures are supported on a best effort basis using:
 
@@ -81,7 +84,7 @@ model=bigscience/bloom-560m
 num_shard=2
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:0.7 --model-id $model --num-shard $num_shard
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:0.8 --model-id $model --num-shard $num_shard
 ```
 **Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 11.8 or higher.
 
