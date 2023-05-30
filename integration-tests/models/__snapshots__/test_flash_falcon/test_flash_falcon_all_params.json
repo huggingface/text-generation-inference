@@ -1,0 +1,98 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 330,
+        "logprob": null,
+        "text": "ir"
+      },
+      {
+        "id": 1622,
+        "logprob": -7.8125,
+        "text": "af"
+      },
+      {
+        "id": 249,
+        "logprob": -4.5,
+        "text": "at"
+      },
+      {
+        "id": 1480,
+        "logprob": -10.875,
+        "text": "ron"
+      },
+      {
+        "id": 37,
+        "logprob": -3.6875,
+        "text": ":"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 836,
+        "logprob": -1.265625,
+        "special": false,
+        "text": " i"
+      },
+      {
+        "id": 18,
+        "logprob": -0.119628906,
+        "special": false,
+        "text": "'"
+      },
+      {
+        "id": 298,
+        "logprob": -2.265625,
+        "special": false,
+        "text": "ve"
+      },
+      {
+        "id": 650,
+        "logprob": -0.49804688,
+        "special": false,
+        "text": " been"
+      },
+      {
+        "id": 1241,
+        "logprob": 0.0,
+        "special": false,
+        "text": " using"
+      },
+      {
+        "id": 334,
+        "logprob": 0.0,
+        "special": false,
+        "text": " it"
+      },
+      {
+        "id": 312,
+        "logprob": -1.2421875,
+        "special": false,
+        "text": " for"
+      },
+      {
+        "id": 909,
+        "logprob": -0.99609375,
+        "special": false,
+        "text": " years"
+      },
+      {
+        "id": 193,
+        "logprob": -0.30273438,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 807,
+        "logprob": -1.078125,
+        "special": false,
+        "text": "ik"
+      }
+    ]
+  },
+  "generated_text": "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron: i've been using it for years\nik"
+}

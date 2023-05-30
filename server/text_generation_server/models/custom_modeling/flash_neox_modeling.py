@@ -101,20 +101,23 @@ class FlashNeoxAttention(torch.nn.Module):
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
-        qkv_rot = self.rotary_emb(qkv, cos, sin)
+
+        # Inplace rotary
+        self.rotary_emb(qkv[:, 0], cos, sin)
+        self.rotary_emb(qkv[:, 1], cos, sin)
 
         # Prefill
         if layer_past_present_indices is None:
             # Copy to layer past
-            layer_past[...] = qkv_rot[:, 1:]
+            layer_past[...] = qkv[:, 1:]
 
             # output
-            attn_output = torch.empty_like(qkv_rot[:, 0])
+            attn_output = torch.empty_like(qkv[:, 0])
             # flash attention
             flash_attn_cuda.fwd(
-                qkv_rot[:, 0],
-                qkv_rot[:, 1],
-                qkv_rot[:, 2],
+                qkv[:, 0],
+                qkv[:, 1],
+                qkv[:, 2],
                 attn_output,
                 cu_seqlens,
                 cu_seqlens,
@@ -130,9 +133,9 @@ class FlashNeoxAttention(torch.nn.Module):
             )
         # Decode
         else:
-            query = qkv_rot[:, 0]
+            query = qkv[:, 0]
             # Add present to the layer_past tensor at the correct indices
-            layer_past[layer_past_present_indices] = qkv_rot[:, 1:]
+            layer_past[layer_past_present_indices] = qkv[:, 1:]
 
             # output
             attn_output = torch.empty_like(query)

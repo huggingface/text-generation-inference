@@ -262,16 +262,13 @@ try:
             sin = torch.index_select(self._sin_cached, 0, position_ids)
             return cos.unsqueeze(1), sin.unsqueeze(1)
 
-        def forward(self, qkv: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
+        def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
             rotary_dim = cos.shape[-1]
-            q1 = qkv[:, 0, :, :rotary_dim]
-            q2 = qkv[:, 0, :, rotary_dim : 2 * rotary_dim]
-            k1 = qkv[:, 1, :, :rotary_dim]
-            k2 = qkv[:, 1, :, rotary_dim : 2 * rotary_dim]
+            x1 = x[..., :rotary_dim]
+            x2 = x[..., rotary_dim : 2 * rotary_dim]
 
-            rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, False)
-            rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
-            return qkv
+            rotary_emb.apply_rotary(x1, x2, cos, sin, x1, x2, False)
+            return x
 
 except ImportError:
     pass

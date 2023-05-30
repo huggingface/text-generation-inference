@@ -10,6 +10,7 @@ from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOM, BLOOMSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
+from text_generation_server.models.rw import RW
 from text_generation_server.models.opt import OPT, OPTSharded
 from text_generation_server.models.galactica import Galactica, GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
@@ -30,6 +31,7 @@ try:
             )
 
         from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
+        from text_generation_server.models.flash_rw import FlashRW, FlashRWSharded
         from text_generation_server.models.flash_llama import (
             FlashLlama,
             FlashLlamaSharded,
@@ -68,6 +70,8 @@ __all__ = [
 if FLASH_ATTENTION:
     __all__.append(FlashNeoX)
     __all__.append(FlashNeoXSharded)
+    __all__.append(FlashRW)
+    __all__.append(FlashRWSharded)
     __all__.append(FlashSantacoder)
     __all__.append(FlashSantacoderSharded)
     __all__.append(FlashLlama)
@@ -193,6 +197,39 @@ def get_model(
                 quantize=quantize,
                 trust_remote_code=trust_remote_code,
             )
+
+    if model_type in ["RefinedWeb", "RefinedWebModel"]:
+        if sharded:
+            if FLASH_ATTENTION:
+                if config.alibi or (
+                    config.model_type == "RefinedWebModel"
+                    and config.n_head_kv != config.n_head
+                ):
+                    raise NotImplementedError("sharded is not supported for this model")
+                return FlashRWSharded(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    trust_remote_code=trust_remote_code,
+                )
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded RefinedWeb")
+            )
+        else:
+            if FLASH_ATTENTION and not config.alibi:
+                return FlashRW(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    trust_remote_code=trust_remote_code,
+                )
+            else:
+                return RW(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    trust_remote_code=trust_remote_code,
+                )
 
     if model_type == "llama":
         if sharded:

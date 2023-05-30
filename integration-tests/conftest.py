@@ -205,7 +205,10 @@ def event_loop():
 def launcher(event_loop):
     @contextlib.contextmanager
     def local_launcher(
-        model_id: str, num_shard: Optional[int] = None, quantize: Optional[str] = None
+        model_id: str,
+        num_shard: Optional[int] = None,
+        quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -230,6 +233,9 @@ def launcher(event_loop):
             args.extend(["--num-shard", str(num_shard)])
         if quantize:
             args.append("--quantize")
+            args.append("bitsandbytes")
+        if trust_remote_code:
+            args.append("--trust-remote-code")
 
         env = os.environ
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
@@ -250,7 +256,10 @@ def launcher(event_loop):
 
     @contextlib.contextmanager
     def docker_launcher(
-        model_id: str, num_shard: Optional[int] = None, quantize: Optional[str] = None
+        model_id: str,
+        num_shard: Optional[int] = None,
+        quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         port = random.randint(8000, 10_000)
 
@@ -260,6 +269,9 @@ def launcher(event_loop):
             args.extend(["--num-shard", str(num_shard)])
         if quantize:
             args.append("--quantize")
+            args.append("bitsandbytes")
+        if trust_remote_code:
+            args.append("--trust-remote-code")
 
         client = docker.from_env()
 
