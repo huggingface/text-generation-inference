@@ -16,7 +16,7 @@ class RW(CausalLM):
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.bfloat16
+            dtype = torch.float16
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")
