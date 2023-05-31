@@ -166,7 +166,7 @@ class OPTSharded(OPT):
 
                     tensor = tensor.contiguous().to(dtype)
 
-                    if quantize:
+                    if quantize == "bitsandbytes":
                         if not HAS_BITS_AND_BYTES:
                             raise ImportError(
                                 "bitsandbytes is not available on your machine either because it is not installed "
@@ -216,9 +216,14 @@ class OPTSharded(OPT):
                                 return linear
 
                             module.linear = replace_linear(state)
-
                         else:
                             tensor = tensor.to(device)
+                    elif quantize == "gptq":
+                        raise NotImplementedError("`gptq` is not implemented for now")
+                    elif quantize is None:
+                        tensor = tensor.to(device)
+                    else:
+                        raise ValueError(f"Unexpected quantize `{quantize}`")
 
                     module._parameters[param_name] = tensor
                     if name == "model.decoder.embed_tokens.weight":

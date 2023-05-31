@@ -245,6 +245,8 @@ class BLOOMSharded(BLOOM):
                                 return linear
 
                             module.linear = replace_linear(state)
+                        else:
+                            tensor = tensor.to(device)
                     elif quantize == "gptq":
                         raise NotImplementedError("`gptq` is not implemented for now")
                     elif quantize is None:

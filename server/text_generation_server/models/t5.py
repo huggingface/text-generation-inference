@@ -222,7 +222,8 @@ class T5Sharded(Seq2SeqLM):
                                 return linear
 
                             module.linear = replace_linear(state)
-
+                        else:
+                            tensor = tensor.to(device)
                     elif quantize == "gptq" and not module_name.endswith("wo"):
                         raise NotImplementedError("`gptq` is not implemented for now")
                     elif quantize is None or module_name.endswith("wo"):
