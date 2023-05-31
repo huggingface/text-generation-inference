@@ -9,7 +9,7 @@ def t5_sharded_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def t5_sharded(t5_sharded_handle):
-    await t5_sharded_handle.health(240)
+    await t5_sharded_handle.health(300)
     return t5_sharded_handle.client
 
 

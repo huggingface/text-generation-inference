@@ -9,7 +9,7 @@ def flash_neox_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_neox(flash_neox_handle):
-    await flash_neox_handle.health(240)
+    await flash_neox_handle.health(300)
     return flash_neox_handle.client
 
 

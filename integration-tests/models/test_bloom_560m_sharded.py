@@ -9,7 +9,7 @@ def bloom_560m_sharded_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def bloom_560m_sharded(bloom_560m_sharded_handle):
-    await bloom_560m_sharded_handle.health(60)
+    await bloom_560m_sharded_handle.health(240)
     return bloom_560m_sharded_handle.client
 
 

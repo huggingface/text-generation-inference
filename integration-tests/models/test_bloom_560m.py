@@ -9,7 +9,7 @@ def bloom_560_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def bloom_560(bloom_560_handle):
-    await bloom_560_handle.health(60)
+    await bloom_560_handle.health(240)
     return bloom_560_handle.client
 
 

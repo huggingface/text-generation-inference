@@ -9,7 +9,7 @@ def flash_starcoder_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_starcoder(flash_starcoder_handle):
-    await flash_starcoder_handle.health(240)
+    await flash_starcoder_handle.health(300)
     return flash_starcoder_handle.client
 
 

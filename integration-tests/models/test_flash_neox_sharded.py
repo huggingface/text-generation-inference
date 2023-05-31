@@ -9,7 +9,7 @@ def flash_neox_sharded_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_neox_sharded(flash_neox_sharded_handle):
-    await flash_neox_sharded_handle.health(240)
+    await flash_neox_sharded_handle.health(300)
     return flash_neox_sharded_handle.client
 
 

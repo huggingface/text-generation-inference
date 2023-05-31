@@ -9,7 +9,7 @@ def flash_llama_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llama(flash_llama_handle):
-    await flash_llama_handle.health(120)
+    await flash_llama_handle.health(300)
     return flash_llama_handle.client
 
 

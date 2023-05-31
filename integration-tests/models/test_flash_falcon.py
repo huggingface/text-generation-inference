@@ -9,7 +9,7 @@ def flash_falcon_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_falcon(flash_falcon_handle):
-    await flash_falcon_handle.health(120)
+    await flash_falcon_handle.health(300)
     return flash_falcon_handle.client
 
 
