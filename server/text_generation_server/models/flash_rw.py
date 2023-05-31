@@ -37,7 +37,7 @@ class FlashRW(FlashCausalLM):
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.bfloat16
+            dtype = torch.float16
         else:
             raise NotImplementedError("RW is only available on GPU")
 
@@ -124,7 +124,7 @@ class FlashRWSharded(FlashRW):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.bfloat16
+            dtype = torch.float16
         else:
             raise NotImplementedError("FlashRW is only available on GPU")
 
