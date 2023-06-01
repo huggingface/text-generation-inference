@@ -1,3 +1,4 @@
+import inspect
 import torch
 
 from abc import ABC, abstractmethod
@@ -29,6 +30,12 @@ class Model(ABC):
         self.device = device
         self.rank = rank
         self.world_size = world_size
+
+        self.has_position_ids = (
+            inspect.signature(model.forward).parameters.get("position_ids", None)
+            is not None
+        )
+
         self.check_initialized()
 
     @property

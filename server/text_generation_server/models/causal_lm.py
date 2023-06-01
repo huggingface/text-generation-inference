@@ -496,11 +496,6 @@ class CausalLM(Model):
             else:
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
-        self.has_position_ids = (
-            inspect.signature(model.forward).parameters.get("position_ids", None)
-            is not None
-        )
-
         super(CausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
