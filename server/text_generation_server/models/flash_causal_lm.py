@@ -112,7 +112,7 @@ class FlashCausalLMBatch(Batch):
             all_input_ids.append(tokenized_input)
 
             # Position ids
-            position_ids.append(np.arange(0, input_length))
+            position_ids.append(np.arange(0, input_length, dtype=np.int32))
 
             # Add cumulative lengths of all previous inputs
             cu_seqlens.append(cumulative_length + input_length)
@@ -141,16 +141,19 @@ class FlashCausalLMBatch(Batch):
         for i, input_ids in enumerate(all_input_ids):
             all_input_ids_tensor[i, : len(input_ids)] = input_ids
 
+        if len(pb.requests) > 1:
+            input_ids = np.concatenate(all_input_ids, dtype=np.int64)
+            position_ids = np.concatenate(position_ids, dtype=np.int32)
+        else:
+            input_ids = all_input_ids[0]
+            position_ids = position_ids[0]
+
         # Create tensors on device
-        input_ids = torch.tensor(
-            np.concatenate(all_input_ids), dtype=torch.int64, device=device
-        )
+        input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         all_input_ids_tensor = torch.tensor(
             all_input_ids_tensor, dtype=torch.int64, device=device
         )
-        position_ids = torch.tensor(
-            np.concatenate(position_ids), dtype=torch.int32, device=device
-        )
+        position_ids = torch.tensor(position_ids, dtype=torch.int32, device=device)
         cu_seqlens = torch.tensor(cu_seqlens, device=device, dtype=torch.int32)
 
         return cls(

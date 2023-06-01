@@ -74,8 +74,8 @@ class FlashMQAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda.fwd(
                 query,
-                key_value[:, 0],
-                key_value[:, 1],
+                torch.select(key_value, dim=1, index=0),
+                torch.select(key_value, dim=1, index=1),
                 attn_output,
                 cu_seqlens,
                 cu_seqlens,
@@ -101,8 +101,8 @@ class FlashMQAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda.fwd(
                 query,
-                key_value[:, 0],
-                key_value[:, 1],
+                torch.select(key_value, dim=1, index=0),
+                torch.select(key_value, dim=1, index=1),
                 attn_output,
                 cu_seqlens_q,
                 cu_seqlens,

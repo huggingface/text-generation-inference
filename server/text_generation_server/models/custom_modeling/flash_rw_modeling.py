@@ -149,7 +149,7 @@ class FlashRWAttention(torch.nn.Module):
 
         # Inplace rotary
         self.rotary_emb(query, cos, sin)
-        self.rotary_emb(kv[:, 0], cos, sin)
+        self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
 
         # Prefill
         if layer_past_present_indices is None:
@@ -163,8 +163,8 @@ class FlashRWAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda.fwd(
                 query,
-                kv[:, 0],
-                kv[:, 1],
+                torch.select(kv, dim=1, index=0),
+                torch.select(kv, dim=1, index=1),
                 attn_output,
                 cu_seqlens,
                 cu_seqlens,
@@ -190,8 +190,8 @@ class FlashRWAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda.fwd(
                 query,
-                kv[:, 0],
-                kv[:, 1],
+                torch.select(kv, dim=1, index=0),
+                torch.select(kv, dim=1, index=1),
                 attn_output,
                 cu_seqlens_q,
                 cu_seqlens,
@@ -288,7 +288,7 @@ class FlashRWLargeAttention(torch.nn.Module):
 
         # Inplace rotary
         self.rotary_emb(query, cos, sin)
-        self.rotary_emb(kv[:, :, 0], cos, sin)
+        self.rotary_emb(torch.select(kv, dim=2, index=0), cos, sin)
 
         # Prefill
         if layer_past_present_indices is None:
@@ -306,8 +306,8 @@ class FlashRWLargeAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda.fwd(
                 query,
-                kv[:, :, 0],
-                kv[:, :, 1],
+                torch.select(kv, dim=2, index=0),
+                torch.select(kv, dim=2, index=1),
                 attn_output,
                 cu_seqlens,
                 cu_seqlens,
@@ -337,8 +337,8 @@ class FlashRWLargeAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda.fwd(
                 query,
-                kv[:, :, 0],
-                kv[:, :, 1],
+                torch.select(kv, dim=2, index=0),
+                torch.select(kv, dim=2, index=1),
                 attn_output,
                 cu_seqlens_q,
                 cu_seqlens,

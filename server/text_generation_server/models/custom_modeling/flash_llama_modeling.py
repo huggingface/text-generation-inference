@@ -134,23 +134,25 @@ class FlashLlamaAttention(torch.nn.Module):
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
+        q, kv = qkv.split([1, 2], dim=1)
+        q = q.squeeze(1)
 
         # Inplace rotary
-        self.rotary_emb(qkv[:, 0], cos, sin)
-        self.rotary_emb(qkv[:, 1], cos, sin)
+        self.rotary_emb(q, cos, sin)
+        self.rotary_emb(torch.select(kv, dim=1, index=1), cos, sin)
 
         # Prefill
         if layer_past_present_indices is None:
             # Copy to layer past
-            layer_past[...] = qkv[:, 1:]
+            layer_past[...] = kv
 
             # output
-            attn_output = torch.empty_like(qkv[:, 0])
+            attn_output = torch.empty_like(q)
             # flash attention
             flash_attn_cuda.fwd(
-                qkv[:, 0],
-                qkv[:, 1],
-                qkv[:, 2],
+                q,
+                torch.select(kv, dim=1, index=0),
+                torch.select(kv, dim=1, index=1),
                 attn_output,
                 cu_seqlens,
                 cu_seqlens,
@@ -166,17 +168,16 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            query = qkv[:, 0]
             # Add present to the layer_past tensor at the correct indices
-            layer_past[layer_past_present_indices] = qkv[:, 1:]
+            layer_past[layer_past_present_indices] = kv
 
             # output
-            attn_output = torch.empty_like(query)
+            attn_output = torch.empty_like(q)
             # flash attention
             flash_attn_cuda.fwd(
-                query,
-                layer_past[:, 0],
-                layer_past[:, 1],
+                q,
+                torch.select(layer_past, dim=1, index=0),
+                torch.select(layer_past, dim=1, index=1),
                 attn_output,
                 cu_seqlens_q,
                 cu_seqlens,
@@ -237,7 +238,10 @@ class LlamaMLP(nn.Module):
     def forward(self, hidden_states):
         gate_up_states = self.gate_up_proj(hidden_states)
         gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-        return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
+        return self.down_proj(
+            self.act(torch.select(gate_up_states, dim=1, index=0))
+            * torch.select(gate_up_states, dim=1, index=1)
+        )
 
 
 class FlashLlamaLayer(nn.Module):
