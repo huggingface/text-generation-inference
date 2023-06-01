@@ -138,7 +138,9 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    config_dict, _ = PretrainedConfig.get_config_dict(model_id, revision=revision, trust_remote_code=trust_remote_code)
+    config_dict, _ = PretrainedConfig.get_config_dict(
+        model_id, revision=revision, trust_remote_code=trust_remote_code
+    )
     model_type = config_dict["model_type"]
 
     if model_type == "gpt_bigcode":

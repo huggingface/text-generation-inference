@@ -87,7 +87,9 @@ class FlashSantacoder(FlashCausalLM):
     ):
         for filename in filenames:
             with safe_open(
-                    filename, framework="pt", device=str(device) if quantize is None else "cpu"
+                filename,
+                framework="pt",
+                device=str(device) if quantize is None else "cpu",
             ) as f:
                 for key in f.keys():
                     value = f.get_tensor(key)
@@ -148,11 +150,13 @@ class FlashSantacoder(FlashCausalLM):
                             module._parameters[param_name][: value.shape[0]] = value
                         elif "kv_attn.weight" in key:
                             module._parameters[param_name][
-                                model.transformer.head_size * model.transformer.num_heads :
+                                model.transformer.head_size
+                                * model.transformer.num_heads :
                             ] = value
                         elif "kv_attn.bias" in key:
                             module._parameters[param_name][
-                                model.transformer.head_size * model.transformer.num_heads :
+                                model.transformer.head_size
+                                * model.transformer.num_heads :
                             ] = value
                         else:
                             if current_parameter_tensor.shape != value.shape:
