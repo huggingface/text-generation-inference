@@ -136,7 +136,7 @@ class FlashRWAttention(torch.nn.Module):
             end_seq_q,
             max_s,
             layer_past,
-            layer_past_present_indices,
+            past_present_indices,
             prefill,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -153,12 +153,12 @@ class FlashRWAttention(torch.nn.Module):
 
         # Inplace rotary
         self.rotary_emb(query, cos, sin)
-        self.rotary_emb(kv[:, 0], cos, sin)
+        self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
 
         # Prefill
         if prefill:
             # Copy to layer past
-            layer_past[layer_past_present_indices] = kv
+            layer_past[past_present_indices] = kv
             # Expand to query shape
             kv = kv.expand(-1, 2, self.num_heads, self.head_size)
 
@@ -167,8 +167,8 @@ class FlashRWAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda_modif.fwd(
                 query,
-                kv[:, 0],
-                kv[:, 1],
+                torch.select(kv, dim=1, index=0),
+                torch.select(kv, dim=1, index=1),
                 attn_output,
                 start_seq,
                 end_seq,
@@ -187,7 +187,7 @@ class FlashRWAttention(torch.nn.Module):
         # Decode
         else:
             # Add present to the layer_past tensor at the correct indices
-            layer_past[layer_past_present_indices] = kv
+            layer_past[past_present_indices] = kv
             # Expand to query shape
             kv = layer_past.expand(-1, 2, self.num_heads, self.head_size)
 
@@ -196,8 +196,8 @@ class FlashRWAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda_modif.fwd(
                 query,
-                kv[:, 0],
-                kv[:, 1],
+                torch.select(kv, dim=1, index=0),
+                torch.select(kv, dim=1, index=1),
                 attn_output,
                 start_seq_q,
                 end_seq_q,
@@ -271,7 +271,7 @@ class FlashRWLargeAttention(torch.nn.Module):
             cu_seqlens,
             max_s,
             layer_past,
-            layer_past_present_indices,
+            past_present_indices,
             cu_seqlens_q,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -290,7 +290,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         self.rotary_emb(kv[:, :, 0], cos, sin)
 
         # Prefill
-        if layer_past_present_indices is None:
+        if past_present_indices is None:
             # Copy to layer past
             layer_past[...] = kv
             # Expand to query shape
@@ -323,7 +323,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         # Decode
         else:
             # Add present to the layer_past tensor at the correct indices
-            layer_past[layer_past_present_indices] = kv
+            layer_past[past_present_indices] = kv
             # Expand to query shape
             kv = (
                 layer_past.unsqueeze(2)
@@ -430,7 +430,7 @@ class FlashRWLayer(nn.Module):
             end_seq_q,
             max_s,
             layer_past,
-            layer_past_present_indices,
+            past_present_indices,
             prefill,
     ):
         if self.parallel_attn:
@@ -446,7 +446,7 @@ class FlashRWLayer(nn.Module):
                 end_seq_q,
                 max_s,
                 layer_past,
-                layer_past_present_indices,
+                past_present_indices,
                 prefill,
             )
 
@@ -469,7 +469,7 @@ class FlashRWLayer(nn.Module):
                 end_seq_q,
                 max_s,
                 layer_past,
-                layer_past_present_indices,
+                past_present_indices,
                 prefill,
             )
 
@@ -517,7 +517,7 @@ class FlashRWLargeLayer(nn.Module):
             cu_seqlens,
             max_s,
             layer_past,
-            layer_past_present_indices,
+            past_present_indices,
             cu_seqlens_q,
     ):
         ln_attn, residual = self.ln_attn(hidden_states, residual)
@@ -531,7 +531,7 @@ class FlashRWLargeLayer(nn.Module):
             cu_seqlens,
             max_s,
             layer_past,
-            layer_past_present_indices,
+            past_present_indices,
             cu_seqlens_q,
         )
 
@@ -619,8 +619,8 @@ class FlashRWModel(FlashRWPreTrainedModel):
             # Create past tensor
             past_key_values = hidden_states.new_zeros(
                 (
-                    len(self.h),
                     pre_allocate_past_size,
+                    len(self.h),
                     *self.cache_size,
                 )
             )
@@ -646,7 +646,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 start_seq_q,
                 end_seq_q,
                 max_s,
-                past_key_values[i],
+                past_key_values[:, i],
                 past_present_indices,
                 prefill,
             )
