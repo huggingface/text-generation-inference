@@ -6,7 +6,7 @@ from transformers.activations import ACT2FN
 from typing import Optional
 
 # Flash attention imports
-import flash_attn_cuda
+import flash_attn_cuda_modif
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -175,7 +175,7 @@ class FlashMQAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 query,
                 key_value[:, 0],
                 key_value[:, 1],
@@ -202,7 +202,7 @@ class FlashMQAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 query,
                 key_value[:, 0],
                 key_value[:, 1],

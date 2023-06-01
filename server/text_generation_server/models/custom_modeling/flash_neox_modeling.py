@@ -28,7 +28,7 @@ from transformers.models.gpt_neox import GPTNeoXConfig
 from typing import Optional
 
 # Flash attention imports
-import flash_attn_cuda
+import flash_attn_cuda_modif
 
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -134,7 +134,7 @@ class FlashNeoxAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(qkv[:, 0])
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],
@@ -160,7 +160,7 @@ class FlashNeoxAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 query,
                 layer_past[:, 0],
                 layer_past[:, 1],

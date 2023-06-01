@@ -26,7 +26,7 @@ from transformers.activations import ACT2FN
 from typing import Optional
 
 # Flash attention imports
-import flash_attn_cuda
+import flash_attn_cuda_modif
 import dropout_layer_norm
 
 from text_generation_server.utils.layers import (
@@ -149,7 +149,7 @@ class FlashLlamaAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(qkv[:, 0])
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],
@@ -175,7 +175,7 @@ class FlashLlamaAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 query,
                 layer_past[:, 0],
                 layer_past[:, 1],

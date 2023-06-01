@@ -1,13 +1,14 @@
 import torch
 import torch.distributed
 
+from loguru import logger
 from torch import nn
 from transformers.modeling_utils import PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional
 
 # Flash attention imports
-import flash_attn_cuda
+import flash_attn_cuda_modif
 
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -42,25 +43,25 @@ class RWConfig(PretrainedConfig):
     }
 
     def __init__(
-        self,
-        model_type="RefinedWeb",
-        vocab_size=250880,
-        hidden_size=64,
-        n_layer=2,
-        n_head=8,
-        layer_norm_epsilon=1e-5,
-        initializer_range=0.02,
-        use_cache=True,
-        bos_token_id=1,
-        eos_token_id=2,
-        hidden_dropout=0.0,
-        attention_dropout=0.0,
-        n_head_kv=None,
-        multi_query=False,
-        alibi=False,
-        bias=False,
-        parallel_attn=False,
-        **kwargs,
+            self,
+            model_type="RefinedWeb",
+            vocab_size=250880,
+            hidden_size=64,
+            n_layer=2,
+            n_head=8,
+            layer_norm_epsilon=1e-5,
+            initializer_range=0.02,
+            use_cache=True,
+            bos_token_id=1,
+            eos_token_id=2,
+            hidden_dropout=0.0,
+            attention_dropout=0.0,
+            n_head_kv=None,
+            multi_query=False,
+            alibi=False,
+            bias=False,
+            parallel_attn=False,
+            **kwargs,
     ):
         if alibi:
             raise NotImplementedError(
@@ -126,15 +127,19 @@ class FlashRWAttention(torch.nn.Module):
         )
 
     def forward(
-        self,
-        hidden_states,
-        cos,
-        sin,
-        cu_seqlens,
-        max_s,
-        layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+            self,
+            hidden_states,
+            cos,
+            sin,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
+            max_s,
+            layer_past,
+            layer_past_present_indices,
+            prefill,
+            past_stream
     ):
         qkv = self.query_key_value(hidden_states)
 
@@ -153,22 +158,26 @@ class FlashRWAttention(torch.nn.Module):
         self.rotary_emb(kv[:, 0], cos, sin)
 
         # Prefill
-        if layer_past_present_indices is None:
-            # Copy to layer past
-            layer_past[...] = kv
+        if prefill:
+            past_stream.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(past_stream):
+                # Copy to layer past
+                layer_past[layer_past_present_indices] = kv
             # Expand to query shape
             kv = kv.expand(-1, 2, self.num_heads, self.head_size)
 
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 query,
                 kv[:, 0],
                 kv[:, 1],
                 attn_output,
-                cu_seqlens,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq,
+                end_seq,
                 max_s,
                 max_s,
                 0.0,
@@ -181,6 +190,7 @@ class FlashRWAttention(torch.nn.Module):
             )
         # Decode
         else:
+            torch.cuda.current_stream().wait_stream(past_stream)
             # Add present to the layer_past tensor at the correct indices
             layer_past[layer_past_present_indices] = kv
             # Expand to query shape
@@ -189,13 +199,15 @@ class FlashRWAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 query,
                 kv[:, 0],
                 kv[:, 1],
                 attn_output,
-                cu_seqlens_q,
-                cu_seqlens,
+                start_seq_q,
+                end_seq_q,
+                start_seq,
+                end_seq,
                 1,
                 max_s,
                 0.0,
@@ -257,15 +269,15 @@ class FlashRWLargeAttention(torch.nn.Module):
         )
 
     def forward(
-        self,
-        hidden_states,
-        cos,
-        sin,
-        cu_seqlens,
-        max_s,
-        layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+            self,
+            hidden_states,
+            cos,
+            sin,
+            cu_seqlens,
+            max_s,
+            layer_past,
+            layer_past_present_indices,
+            cu_seqlens_q,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, self.num_groups, self.num_heads + 2, self.head_size)
@@ -296,7 +308,7 @@ class FlashRWLargeAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 query,
                 kv[:, :, 0],
                 kv[:, :, 1],
@@ -327,7 +339,7 @@ class FlashRWLargeAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_cuda_modif.fwd(
                 query,
                 kv[:, :, 0],
                 kv[:, :, 1],
@@ -412,16 +424,20 @@ class FlashRWLayer(nn.Module):
         self.process_group = weights.process_group
 
     def forward(
-        self,
-        hidden_states,
-        residual,
-        cos,
-        sin,
-        cu_seqlens,
-        max_s,
-        layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+            self,
+            hidden_states,
+            residual,
+            cos,
+            sin,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
+            max_s,
+            layer_past,
+            layer_past_present_indices,
+            prefill,
+            past_stream,
     ):
         if self.parallel_attn:
             ln_hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -430,11 +446,15 @@ class FlashRWLayer(nn.Module):
                 ln_hidden_states,
                 cos,
                 sin,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq_q,
+                end_seq_q,
                 max_s,
                 layer_past,
                 layer_past_present_indices,
-                cu_seqlens_q,
+                prefill,
+                past_stream
             )
 
             mlp_output = self.mlp(ln_hidden_states)
@@ -450,11 +470,14 @@ class FlashRWLayer(nn.Module):
                 hidden_states,
                 cos,
                 sin,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq_q,
+                end_seq_q,
                 max_s,
                 layer_past,
                 layer_past_present_indices,
-                cu_seqlens_q,
+                prefill,
             )
 
             hidden_states, residual = self.post_attention_layernorm(
@@ -493,16 +516,16 @@ class FlashRWLargeLayer(nn.Module):
         self.process_group = weights.process_group
 
     def forward(
-        self,
-        hidden_states,
-        residual,
-        cos,
-        sin,
-        cu_seqlens,
-        max_s,
-        layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+            self,
+            hidden_states,
+            residual,
+            cos,
+            sin,
+            cu_seqlens,
+            max_s,
+            layer_past,
+            layer_past_present_indices,
+            cu_seqlens_q,
     ):
         ln_attn, residual = self.ln_attn(hidden_states, residual)
         ln_mlp, _ = self.ln_mlp(residual)
@@ -554,6 +577,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 self.h[0].self_attention.head_size,
             )
         elif config.model_type == "RefinedWeb":
+            raise NotImplementedError
             self.h = nn.ModuleList(
                 [
                     FlashRWLargeLayer(layer_id, config, weights)
@@ -577,38 +601,55 @@ class FlashRWModel(FlashRWPreTrainedModel):
         )
 
         self.head_size = self.h[0].self_attention.head_size
+        self.past_stream = torch.cuda.Stream()
 
     def forward(
-        self,
-        input_ids,
-        position_ids,
-        cu_seqlens,
-        cu_seqlens_q,
-        max_s,
-        past_key_values=None,
-        pre_allocate_past_size: Optional[int] = None,
+            self,
+            input_ids,
+            position_ids,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
+            max_s,
+            past_key_values=None,
+            pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states = self.word_embeddings(input_ids)
 
         # Prefill
         if past_key_values is None:
-            # Create past tensor
-            past_key_values = hidden_states.new_empty(
-                (
-                    len(self.h),
-                    len(hidden_states)
-                    if pre_allocate_past_size is None
-                    else pre_allocate_past_size,
-                    *self.cache_size,
+            assert pre_allocate_past_size is not None
+
+            prefill = True
+
+            with torch.cuda.stream(self.past_stream):
+                # Create past tensor
+                past_key_values = hidden_states.new_zeros(
+                    (
+                        len(self.h),
+                        pre_allocate_past_size,
+                        *self.cache_size,
+                    )
                 )
-            )
-            layer_past_present_indices = None
-            slice_past_index = len(hidden_states)
+                seq_indices = []
+                for s, e in zip(start_seq, end_seq):
+                    seq_indices.append(
+                        torch.arange(
+                            s,
+                            e,
+                            dtype=torch.int64,
+                            device=self.device
+                        )
+                    )
+                layer_past_present_indices = torch.cat(seq_indices)
+                from loguru import logger
+                logger.error(f"layer past: {layer_past_present_indices}")
         # Decode
         else:
+            prefill = False
             # Create indices from cumulative sequence lengths
-            layer_past_present_indices = cu_seqlens[1:] - 1
-            slice_past_index = None
+            layer_past_present_indices = end_seq - 1
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -618,23 +659,20 @@ class FlashRWModel(FlashRWPreTrainedModel):
 
         residual = None
         for i, layer in enumerate(self.h):
-            # We added padding that we now need to slice
-            layer_past_key_values = (
-                past_key_values[i]
-                if slice_past_index is None
-                else past_key_values[i, :slice_past_index]
-            )
-
             hidden_states, residual = layer(
                 hidden_states,
                 residual,
                 cos,
                 sin,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq_q,
+                end_seq_q,
                 max_s,
-                layer_past_key_values,
+                past_key_values[i],
                 layer_past_present_indices,
-                cu_seqlens_q,
+                prefill,
+                self.past_stream
             )
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
@@ -653,21 +691,25 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
         )
 
     def forward(
-        self,
-        input_ids,
-        position_ids,
-        cu_seqlens,
-        cu_seqlens_q,
-        max_s,
-        past_key_values: Optional[torch.Tensor] = None,
-        pre_allocate_past_size: Optional[int] = None,
-        lm_head_indices: Optional[torch.Tensor] = None,
+            self,
+            input_ids,
+            position_ids,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
+            max_s,
+            past_key_values: Optional[torch.Tensor] = None,
+            pre_allocate_past_size: Optional[int] = None,
+            lm_head_indices: Optional[torch.Tensor] = None,
     ):
         hidden_states, present = self.transformer(
             input_ids,
             position_ids,
-            cu_seqlens,
-            cu_seqlens_q,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
             max_s,
             past_key_values,
             pre_allocate_past_size,
