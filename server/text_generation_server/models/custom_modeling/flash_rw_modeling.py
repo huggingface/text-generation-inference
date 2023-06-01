@@ -1,7 +1,6 @@
 import torch
 import torch.distributed
 
-from loguru import logger
 from torch import nn
 from transformers.modeling_utils import PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
@@ -139,7 +138,6 @@ class FlashRWAttention(torch.nn.Module):
             layer_past,
             layer_past_present_indices,
             prefill,
-            past_stream
     ):
         qkv = self.query_key_value(hidden_states)
 
@@ -159,10 +157,8 @@ class FlashRWAttention(torch.nn.Module):
 
         # Prefill
         if prefill:
-            past_stream.wait_stream(torch.cuda.current_stream())
-            with torch.cuda.stream(past_stream):
-                # Copy to layer past
-                layer_past[layer_past_present_indices] = kv
+            # Copy to layer past
+            layer_past[layer_past_present_indices] = kv
             # Expand to query shape
             kv = kv.expand(-1, 2, self.num_heads, self.head_size)
 
@@ -190,7 +186,6 @@ class FlashRWAttention(torch.nn.Module):
             )
         # Decode
         else:
-            torch.cuda.current_stream().wait_stream(past_stream)
             # Add present to the layer_past tensor at the correct indices
             layer_past[layer_past_present_indices] = kv
             # Expand to query shape
@@ -437,7 +432,6 @@ class FlashRWLayer(nn.Module):
             layer_past,
             layer_past_present_indices,
             prefill,
-            past_stream,
     ):
         if self.parallel_attn:
             ln_hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -454,7 +448,6 @@ class FlashRWLayer(nn.Module):
                 layer_past,
                 layer_past_present_indices,
                 prefill,
-                past_stream
             )
 
             mlp_output = self.mlp(ln_hidden_states)
@@ -601,7 +594,6 @@ class FlashRWModel(FlashRWPreTrainedModel):
         )
 
         self.head_size = self.h[0].self_attention.head_size
-        self.past_stream = torch.cuda.Stream()
 
     def forward(
             self,
@@ -612,6 +604,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
             start_seq_q,
             end_seq_q,
             max_s,
+            past_present_indices,
             past_key_values=None,
             pre_allocate_past_size: Optional[int] = None,
     ):
@@ -623,33 +616,17 @@ class FlashRWModel(FlashRWPreTrainedModel):
 
             prefill = True
 
-            with torch.cuda.stream(self.past_stream):
-                # Create past tensor
-                past_key_values = hidden_states.new_zeros(
-                    (
-                        len(self.h),
-                        pre_allocate_past_size,
-                        *self.cache_size,
-                    )
+            # Create past tensor
+            past_key_values = hidden_states.new_zeros(
+                (
+                    len(self.h),
+                    pre_allocate_past_size,
+                    *self.cache_size,
                 )
-                seq_indices = []
-                for s, e in zip(start_seq, end_seq):
-                    seq_indices.append(
-                        torch.arange(
-                            s,
-                            e,
-                            dtype=torch.int64,
-                            device=self.device
-                        )
-                    )
-                layer_past_present_indices = torch.cat(seq_indices)
-                from loguru import logger
-                logger.error(f"layer past: {layer_past_present_indices}")
+            )
         # Decode
         else:
             prefill = False
-            # Create indices from cumulative sequence lengths
-            layer_past_present_indices = end_seq - 1
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -670,9 +647,8 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 end_seq_q,
                 max_s,
                 past_key_values[i],
-                layer_past_present_indices,
+                past_present_indices,
                 prefill,
-                self.past_stream
             )
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
@@ -699,6 +675,7 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
             start_seq_q,
             end_seq_q,
             max_s,
+            past_present_indices,
             past_key_values: Optional[torch.Tensor] = None,
             pre_allocate_past_size: Optional[int] = None,
             lm_head_indices: Optional[torch.Tensor] = None,
@@ -711,6 +688,7 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
             start_seq_q,
             end_seq_q,
             max_s,
+            past_present_indices,
             past_key_values,
             pre_allocate_past_size,
         )
