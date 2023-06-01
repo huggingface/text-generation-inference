@@ -90,7 +90,7 @@ class FlashSantacoder(FlashCausalLM):
                     filename, framework="pt", device=str(device) if quantize is None else "cpu"
             ) as f:
                 for key in f.keys():
-                    value = f.get_slice(key)
+                    value = f.get_tensor(key)
                     value = value.to(device if quantize is None else "cpu").to(dtype)
 
                     layer_name = ".".join(key.split(".")[:4])
