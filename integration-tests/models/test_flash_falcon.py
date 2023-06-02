@@ -19,6 +19,7 @@ async def test_flash_falcon(flash_falcon, response_snapshot):
     response = await flash_falcon.generate(
         "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:",
         max_new_tokens=10,
+        decoder_input_details=True,
     )
 
     assert response.details.generated_tokens == 10
@@ -40,6 +41,7 @@ async def test_flash_falcon_all_params(flash_falcon, response_snapshot):
         truncate=5,
         typical_p=0.9,
         watermark=True,
+        decoder_input_details=True,
         seed=0,
     )
 

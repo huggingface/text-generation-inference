@@ -42,6 +42,11 @@ class FlashCausalLMBatch(Batch):
     past_key_values: Optional[torch.Tensor]
     max_seqlen: int
 
+    # Prefill metadata tensors to efficiently compute logprobs
+    prefill_head_indices: Optional[torch.Tensor]
+    prefill_next_token_indices: Optional[torch.tensor]
+    prefill_cu_outlens: Optional[List[int]]
+
     # All tokens
     all_input_ids: List[List[int]]
     all_input_ids_tensor: torch.Tensor
@@ -84,11 +89,18 @@ class FlashCausalLMBatch(Batch):
         all_input_ids = []
         requests_idx_mapping = {}
 
+        all_prefill_logprobs = True
+        no_prefill_logprobs = True
+        prefill_head_indices = []
+        prefill_next_token_indices = []
+        prefill_cu_outlens = [0]
+
         next_token_chooser_parameters = []
         stopping_criterias = []
 
         # Cumulative length
         cumulative_length = 0
+        prefill_out_cumulative_length = 0
 
         max_tokens = 0
         max_length = 0
@@ -106,13 +118,14 @@ class FlashCausalLMBatch(Batch):
             max_seqlen = max(max_seqlen, input_length)
             input_lengths.append(input_length)
 
-            prefix_offsets.append(0)
+            prefix_offsets.append(input_length - 5)
             read_offsets.append(input_length)
 
             all_input_ids.append(tokenized_input)
 
             # Position ids
-            position_ids.append(np.arange(0, input_length))
+            request_position_ids = torch.arange(0, input_length, dtype=torch.int32)
+            position_ids.append(request_position_ids)
 
             # Add cumulative lengths of all previous inputs
             cu_seqlens.append(cumulative_length + input_length)
@@ -124,6 +137,26 @@ class FlashCausalLMBatch(Batch):
             )
             max_new_tokens = stopping_criteria.max_new_tokens
             stopping_criterias.append(stopping_criteria)
+
+            all_prefill_logprobs = all_prefill_logprobs and r.prefill_logprobs
+            no_prefill_logprobs = no_prefill_logprobs and not r.prefill_logprobs
+
+            if r.prefill_logprobs:
+                prefill_head_indices.append(request_position_ids + cumulative_length)
+                prefill_next_token_indices.append(
+                    prefill_out_cumulative_length + input_length - 1
+                )
+                prefill_cu_outlens.append(prefill_out_cumulative_length + input_length)
+                prefill_out_cumulative_length += input_length
+            else:
+                prefill_head_indices.append(
+                    torch.tensor(
+                        [cumulative_length + input_length - 1], dtype=torch.int32
+                    )
+                )
+                prefill_next_token_indices.append(prefill_out_cumulative_length)
+                prefill_cu_outlens.append(prefill_out_cumulative_length + 1)
+                prefill_out_cumulative_length += 1
 
             # Update
             cumulative_length += input_length
@@ -141,17 +174,34 @@ class FlashCausalLMBatch(Batch):
         for i, input_ids in enumerate(all_input_ids):
             all_input_ids_tensor[i, : len(input_ids)] = input_ids
 
+        if len(pb.requests) > 1:
+            input_ids = np.concatenate(all_input_ids, dtype=np.int64)
+            position_ids = torch.cat(position_ids)
+        else:
+            input_ids = all_input_ids[0]
+            position_ids = position_ids[0]
+
         # Create tensors on device
-        input_ids = torch.tensor(
-            np.concatenate(all_input_ids), dtype=torch.int64, device=device
-        )
+        input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         all_input_ids_tensor = torch.tensor(
             all_input_ids_tensor, dtype=torch.int64, device=device
         )
-        position_ids = torch.tensor(
-            np.concatenate(position_ids), dtype=torch.int32, device=device
-        )
+        position_ids = torch.tensor(position_ids, dtype=torch.int32, device=device)
         cu_seqlens = torch.tensor(cu_seqlens, device=device, dtype=torch.int32)
+
+        if all_prefill_logprobs:
+            prefill_head_indices = None
+            prefill_next_token_indices = cu_seqlens[1:] - 1
+        elif no_prefill_logprobs:
+            prefill_head_indices = cu_seqlens[1:] - 1
+            prefill_next_token_indices = None
+        else:
+            prefill_head_indices = torch.tensor(
+                torch.cat(prefill_head_indices), dtype=torch.int64, device=device
+            )
+            prefill_next_token_indices = torch.tensor(
+                prefill_next_token_indices, dtype=torch.int64, device=device
+            )
 
         return cls(
             batch_id=pb.id,
@@ -162,6 +212,9 @@ class FlashCausalLMBatch(Batch):
             cu_seqlens=cu_seqlens,
             cu_seqlens_q=None,
             max_seqlen=max_seqlen,
+            prefill_head_indices=prefill_head_indices,
+            prefill_next_token_indices=prefill_next_token_indices,
+            prefill_cu_outlens=prefill_cu_outlens,
             past_key_values=None,
             input_lengths=input_lengths,
             prefix_offsets=prefix_offsets,
@@ -280,6 +333,9 @@ class FlashCausalLMBatch(Batch):
             cu_seqlens=cu_seqlens,
             cu_seqlens_q=cu_seqlens_q,
             max_seqlen=max_seqlen,
+            prefill_head_indices=None,
+            prefill_next_token_indices=None,
+            prefill_cu_outlens=None,
             past_key_values=past_key_values,
             input_lengths=input_lengths,
             prefix_offsets=prefix_offsets,
@@ -415,6 +471,9 @@ class FlashCausalLMBatch(Batch):
             cu_seqlens=cu_seqlens,
             cu_seqlens_q=cu_seqlens_q,
             max_seqlen=max_seqlen,
+            prefill_head_indices=None,
+            prefill_next_token_indices=None,
+            prefill_cu_outlens=None,
             past_key_values=past_key_values,
             input_lengths=input_lengths,
             prefix_offsets=prefix_offsets,
@@ -486,6 +545,7 @@ class FlashCausalLM(Model):
         max_s: int,
         past_key_values: Optional = None,
         pre_allocate_past_size: Optional[int] = None,
+        lm_head_indices: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
         return self.model.forward(
@@ -496,6 +556,7 @@ class FlashCausalLM(Model):
             max_s=max_s,
             past_key_values=past_key_values,
             pre_allocate_past_size=pre_allocate_past_size,
+            lm_head_indices=lm_head_indices,
         )
 
     @tracer.start_as_current_span("generate_token")
@@ -503,9 +564,10 @@ class FlashCausalLM(Model):
         self, batch: FlashCausalLMBatch
     ) -> Tuple[List[Generation], Optional[FlashCausalLMBatch]]:
         prefill = batch.past_key_values is None
+        prefill_logprobs = batch.prefill_next_token_indices is not None
         single_request = len(batch) == 1
 
-        if prefill and len(batch) == 1:
+        if prefill and single_request:
             # Ask to pre-allocate kv to its max size
             # == number of tokens + max_new_tokens
             pre_allocate_past_size = (
@@ -522,11 +584,12 @@ class FlashCausalLM(Model):
             batch.max_seqlen,
             batch.past_key_values,
             pre_allocate_past_size,
+            batch.prefill_head_indices,
         )
 
         if prefill:
             next_token_logits = (
-                out[-1:] if single_request else out[batch.cu_seqlens[1:] - 1]
+                out[batch.prefill_next_token_indices] if prefill_logprobs else out
             )
         else:
             next_token_logits = out
@@ -536,10 +599,10 @@ class FlashCausalLM(Model):
         )
 
         if prefill:
-            if len(batch) > 1:
+            if len(batch) > 1 and prefill_logprobs:
                 # We create the prefill_tokens_indices tensor that will be used to gather prefill logprobs
                 # When batch == 1, we will just use the batch.input_ids values directly
-                prefill_tokens_indices = batch.input_ids.new_zeros(len(batch.input_ids))
+                prefill_tokens_indices = batch.input_ids.new_zeros(len(out))
 
             # Create batch.cu_seqlens_q for decode
             batch.cu_seqlens_q = torch.arange(
@@ -600,7 +663,6 @@ class FlashCausalLM(Model):
         # Zipped iterator
         iterator = zip(
             batch.input_lengths,
-            batch.stopping_criterias,
             batch.all_input_ids,
         )
 
@@ -611,29 +673,33 @@ class FlashCausalLM(Model):
         # For each member of the batch
         for i, (
             input_length,
-            stopping_criteria,
             all_input_ids,
         ) in enumerate(iterator):
-            # Indexing metadata
             start_index = cumulative_length
             end_index = cumulative_length + input_length
 
             if prefill:
+                # Indexing metadata
+                out_start_index = batch.prefill_cu_outlens[i]
+                out_end_index = batch.prefill_cu_outlens[i + 1]
+                out_length = out_end_index - out_start_index
+
                 # Initialize position_ids
                 # In decode, we do not need this as we can just increment position ids
                 next_position_ids[i] = batch.position_ids[end_index - 1]
 
                 # Used to gather prefill logprobs
                 # Copy batch.input_ids to prefill_token_indices
-                if len(batch) > 1:
-                    prefill_tokens_indices[
-                        start_index : end_index - 1
-                    ] = batch.input_ids[start_index + 1 : end_index]
-                else:
-                    # Set prefill_tokens_indices to the correct slice
-                    prefill_tokens_indices = batch.input_ids[
-                        start_index + 1 : end_index
-                    ]
+                if prefill_logprobs:
+                    if len(batch) > 1:
+                        prefill_tokens_indices[
+                            out_start_index : out_end_index - 1
+                        ] = batch.input_ids[start_index + 1 : start_index + out_length]
+                    else:
+                        # Set prefill_tokens_indices to the correct slice
+                        prefill_tokens_indices = batch.input_ids[
+                            start_index + 1 : start_index + out_length
+                        ]
 
             batch.all_input_ids_tensor[i, input_length] = next_input_ids[i]
 
@@ -644,7 +710,7 @@ class FlashCausalLM(Model):
         batch.position_ids = next_position_ids + 1
         batch.cu_seqlens = batch.cu_seqlens + batch.cu_seqlens_q
 
-        if prefill:
+        if prefill and prefill_logprobs:
             # Get prefill logprobs
             prefill_logprobs_tensor = torch.log_softmax(out, -1)
             prefill_logprobs = torch.gather(
@@ -656,8 +722,6 @@ class FlashCausalLM(Model):
         # GPU <-> CPU sync
         next_token_logprobs = next_token_logprobs.tolist()
         next_token_ids = batch.input_ids.tolist()
-
-        cumulative_length = 0
 
         # Zipped iterator
         iterator = zip(
@@ -688,9 +752,6 @@ class FlashCausalLM(Model):
             next_token_id,
             next_token_logprob,
         ) in enumerate(iterator):
-            start_index = cumulative_length
-            end_index = cumulative_length + input_length
-
             # Append next token to all tokens
             all_input_ids.append(next_token_id)
 
@@ -728,10 +789,13 @@ class FlashCausalLM(Model):
                     generated_text = None
 
                 # Prefill
-                if prefill:
+                if prefill and request.prefill_logprobs:
+                    out_start_index = batch.prefill_cu_outlens[i]
+                    out_end_index = batch.prefill_cu_outlens[i + 1]
+
                     # Remove generated token to only have prefill and add nan for first prompt token
                     request_prefill_logprobs = [float("nan")] + prefill_logprobs[
-                        start_index : end_index - 1
+                        out_start_index : out_end_index - 1
                     ]
                     prefill_token_ids = all_input_ids[:-1]
                     prefill_texts = self.tokenizer.batch_decode(
@@ -764,8 +828,10 @@ class FlashCausalLM(Model):
             batch.prefix_offsets[i] = prefix_offset
             batch.read_offsets[i] = read_offset
             batch.all_input_ids[i] = all_input_ids
-            cumulative_length += input_length
 
+        batch.prefill_cu_outlens = None
+        batch.prefill_head_indices = None
+        batch.prefill_next_token_indices = None
         batch.max_seqlen = batch.max_seqlen + 1
 
         # No need to return a batch if we know that all requests stopped

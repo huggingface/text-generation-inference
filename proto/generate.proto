@@ -87,6 +87,8 @@ message Request {
     NextTokenChooserParameters parameters = 4;
     /// Stopping Criteria Parameters
     StoppingCriteriaParameters stopping_parameters = 5;
+    /// Return prefill logprobs
+    bool prefill_logprobs = 6;
 }
 
 message Batch {

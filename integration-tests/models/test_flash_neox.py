@@ -18,6 +18,7 @@ async def test_flash_neox(flash_neox, response_snapshot):
     response = await flash_neox.generate(
         "<|USER|>What's your mood today?<|ASSISTANT|>",
         max_new_tokens=10,
+        decoder_input_details=True,
     )
 
     assert response.details.generated_tokens == 10

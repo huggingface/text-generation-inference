@@ -2,28 +2,30 @@ import pytest
 
 from text_generation import Client, AsyncClient
 from text_generation.errors import NotFoundError, ValidationError
-from text_generation.types import FinishReason, PrefillToken, Token
+from text_generation.types import FinishReason, InputToken
 
 
 def test_generate(flan_t5_xxl_url, hf_headers):
     client = Client(flan_t5_xxl_url, hf_headers)
-    response = client.generate("test", max_new_tokens=1)
+    response = client.generate("test", max_new_tokens=1, decoder_input_details=True)
 
     assert response.generated_text == ""
     assert response.details.finish_reason == FinishReason.Length
     assert response.details.generated_tokens == 1
     assert response.details.seed is None
     assert len(response.details.prefill) == 1
-    assert response.details.prefill[0] == PrefillToken(id=0, text="<pad>", logprob=None)
+    assert response.details.prefill[0] == InputToken(id=0, text="<pad>", logprob=None)
     assert len(response.details.tokens) == 1
     assert response.details.tokens[0].id == 3
-    assert response.details.tokens[0].text == ""
+    assert response.details.tokens[0].text == " "
     assert not response.details.tokens[0].special
 
 
 def test_generate_best_of(flan_t5_xxl_url, hf_headers):
     client = Client(flan_t5_xxl_url, hf_headers)
-    response = client.generate("test", max_new_tokens=1, best_of=2, do_sample=True)
+    response = client.generate(
+        "test", max_new_tokens=1, best_of=2, do_sample=True, decoder_input_details=True
+    )
 
     assert response.details.seed is not None
     assert response.details.best_of_sequences is not None
@@ -73,17 +75,19 @@ def test_generate_stream_validation_error(flan_t5_xxl_url, hf_headers):
 @pytest.mark.asyncio
 async def test_generate_async(flan_t5_xxl_url, hf_headers):
     client = AsyncClient(flan_t5_xxl_url, hf_headers)
-    response = await client.generate("test", max_new_tokens=1)
+    response = await client.generate(
+        "test", max_new_tokens=1, decoder_input_details=True
+    )
 
     assert response.generated_text == ""
     assert response.details.finish_reason == FinishReason.Length
     assert response.details.generated_tokens == 1
     assert response.details.seed is None
     assert len(response.details.prefill) == 1
-    assert response.details.prefill[0] == PrefillToken(id=0, text="<pad>", logprob=None)
+    assert response.details.prefill[0] == InputToken(id=0, text="<pad>", logprob=None)
     assert len(response.details.tokens) == 1
     assert response.details.tokens[0].id == 3
-    assert response.details.tokens[0].text == ""
+    assert response.details.tokens[0].text == " "
     assert not response.details.tokens[0].special
 
 
@@ -91,7 +95,7 @@ async def test_generate_async(flan_t5_xxl_url, hf_headers):
 async def test_generate_async_best_of(flan_t5_xxl_url, hf_headers):
     client = AsyncClient(flan_t5_xxl_url, hf_headers)
     response = await client.generate(
-        "test", max_new_tokens=1, best_of=2, do_sample=True
+        "test", max_new_tokens=1, best_of=2, do_sample=True, decoder_input_details=True
     )
 
     assert response.details.seed is not None

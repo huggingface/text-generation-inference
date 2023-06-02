@@ -201,6 +201,7 @@ impl State {
 
             batch_requests.push(Request {
                 id,
+                prefill_logprobs: entry.request.decoder_input_details,
                 inputs: entry.request.inputs.clone(),
                 truncate: entry.request.truncate,
                 parameters: Some(entry.request.parameters.clone()),
@@ -281,6 +282,7 @@ mod tests {
                 inputs: "".to_string(),
                 input_length: 0,
                 truncate: 0,
+                decoder_input_details: false,
                 parameters: NextTokenChooserParameters {
                     temperature: 0.0,
                     top_k: 0,

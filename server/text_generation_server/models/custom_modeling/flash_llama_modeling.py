@@ -443,6 +443,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         max_s,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
+        lm_head_indices: Optional[torch.Tensor] = None,
     ):
         hidden_states, present = self.model(
             input_ids,
@@ -453,6 +454,8 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             past_key_values,
             pre_allocate_past_size,
         )
+        if lm_head_indices is not None:
+            hidden_states = hidden_states[lm_head_indices]
         logits = self.lm_head(hidden_states)
 
         if self.model.tp_embeddings:

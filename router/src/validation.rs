@@ -145,6 +145,7 @@ impl Validation {
             truncate,
             seed,
             watermark,
+            decoder_input_details,
             ..
         } = request.parameters;
 
@@ -261,6 +262,7 @@ impl Validation {
 
         Ok(ValidGenerateRequest {
             inputs,
+            decoder_input_details,
             input_length: input_length as u32,
             truncate: truncate.unwrap_or(self.max_input_length) as u32,
             parameters,
@@ -335,6 +337,7 @@ pub(crate) struct ValidGenerateRequest {
     pub inputs: String,
     pub input_length: u32,
     pub truncate: u32,
+    pub decoder_input_details: bool,
     pub parameters: NextTokenChooserParameters,
     pub stopping_parameters: StoppingCriteriaParameters,
 }
@@ -351,6 +354,8 @@ pub enum ValidationError {
     BestOfSeed,
     #[error("`best_of` != 1 is not supported when streaming tokens")]
     BestOfStream,
+    #[error("`decoder_input_details` == true is not supported when streaming tokens")]
+    PrefillDetailsStream,
     #[error("`temperature` must be strictly positive")]
     Temperature,
     #[error("`repetition_penalty` must be strictly positive")]

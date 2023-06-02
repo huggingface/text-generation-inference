@@ -752,6 +752,7 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
         max_s,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
+        lm_head_indices: Optional[torch.Tensor] = None,
     ):
         hidden_states, present = self.transformer(
             input_ids,
@@ -762,6 +763,8 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
             past_key_values,
             pre_allocate_past_size,
         )
+        if lm_head_indices is not None:
+            hidden_states = hidden_states[lm_head_indices]
         logits = self.lm_head(hidden_states)
 
         if self.transformer.tp_embeddings:

@@ -125,6 +125,9 @@ pub(crate) struct GenerateParameters {
     #[schema(default = "true")]
     pub details: bool,
     #[serde(default)]
+    #[schema(default = "true")]
+    pub decoder_input_details: bool,
+    #[serde(default)]
     #[schema(
         exclusive_minimum = 0,
         nullable = true,
@@ -153,6 +156,7 @@ fn default_parameters() -> GenerateParameters {
         truncate: None,
         watermark: false,
         details: false,
+        decoder_input_details: false,
         seed: None,
     }
 }

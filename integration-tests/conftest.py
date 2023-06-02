@@ -16,7 +16,7 @@ from syrupy.extensions.json import JSONSnapshotExtension
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 
 from text_generation import AsyncClient
-from text_generation.types import Response, Details, PrefillToken, Token, BestOfSequence
+from text_generation.types import Response, Details, InputToken, Token, BestOfSequence
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
@@ -62,7 +62,7 @@ class ResponseComparator(JSONSnapshotExtension):
                 and token.special == other.special
             )
 
-        def eq_prefill_token(prefill_token: PrefillToken, other: PrefillToken) -> bool:
+        def eq_prefill_token(prefill_token: InputToken, other: InputToken) -> bool:
             try:
                 return (
                     prefill_token.id == other.id
@@ -332,7 +332,10 @@ def generate_load():
         client: AsyncClient, prompt: str, max_new_tokens: int, n: int
     ) -> List[Response]:
         futures = [
-            client.generate(prompt, max_new_tokens=max_new_tokens) for _ in range(n)
+            client.generate(
+                prompt, max_new_tokens=max_new_tokens, decoder_input_details=True
+            )
+            for _ in range(n)
         ]
 
         return await asyncio.gather(*futures)
