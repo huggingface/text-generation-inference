@@ -3,6 +3,7 @@ install-server:
 
 install-integration-tests:
 	cd integration-tests && pip install -r requirements.txt
+	cd clients/python && pip install .
 
 install-router:
 	cd router && cargo install --path .

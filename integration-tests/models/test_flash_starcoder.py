@@ -17,7 +17,7 @@ async def flash_starcoder(flash_starcoder_handle):
 @pytest.mark.private
 async def test_flash_starcoder(flash_starcoder, response_snapshot):
     response = await flash_starcoder.generate(
-        "def print_hello", max_new_tokens=10, prefill_details=True
+        "def print_hello", max_new_tokens=10, decoder_input_details=True
     )
 
     assert response.details.generated_tokens == 10
@@ -32,7 +32,7 @@ async def test_flash_starcoder_default_params(flash_starcoder, response_snapshot
         max_new_tokens=60,
         temperature=0.2,
         top_p=0.95,
-        prefill_details=True,
+        decoder_input_details=True,
         seed=0,
     )
 

@@ -332,7 +332,9 @@ def generate_load():
         client: AsyncClient, prompt: str, max_new_tokens: int, n: int
     ) -> List[Response]:
         futures = [
-            client.generate(prompt, max_new_tokens=max_new_tokens, prefill_details=True)
+            client.generate(
+                prompt, max_new_tokens=max_new_tokens, decoder_input_details=True
+            )
             for _ in range(n)
         ]
 

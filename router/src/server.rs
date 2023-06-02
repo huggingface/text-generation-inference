@@ -160,7 +160,7 @@ async fn generate(
         add_prompt = Some(req.0.inputs.clone());
     }
 
-    let details = req.0.parameters.details;
+    let details = req.0.parameters.details || req.0.parameters.decoder_input_details;
 
     // Inference
     let (response, best_of_responses) = match req.0.parameters.best_of {
@@ -369,7 +369,7 @@ async fn generate_stream(
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
             tracing::error!("{err}");
             yield Ok(Event::from(err));
-        } else if req.0.parameters.prefill_details {
+        } else if req.0.parameters.decoder_input_details {
             let err = InferError::from(ValidationError::PrefillDetailsStream);
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
             tracing::error!("{err}");

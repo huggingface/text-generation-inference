@@ -37,8 +37,8 @@ class Parameters(BaseModel):
     watermark: bool = False
     # Get generation details
     details: bool = False
-    # Get prefill details
-    prefill_details: bool = False
+    # Get decoder input token logprobs and ids
+    decoder_input_details: bool = False
 
     @validator("best_of")
     def valid_best_of(cls, field_value, values):
@@ -131,8 +131,8 @@ class Request(BaseModel):
         return field_value
 
 
-# Prompt tokens
-class PrefillToken(BaseModel):
+# Decoder input tokens
+class InputToken(BaseModel):
     # Token ID from the model tokenizer
     id: int
     # Token text
@@ -175,8 +175,8 @@ class BestOfSequence(BaseModel):
     generated_tokens: int
     # Sampling seed if sampling was activated
     seed: Optional[int]
-    # Prompt tokens, empty if prefill_details is False
-    prefill: List[PrefillToken]
+    # Decoder input tokens, empty if decoder_input_details is False
+    prefill: List[InputToken]
     # Generated tokens
     tokens: List[Token]
 
@@ -189,8 +189,8 @@ class Details(BaseModel):
     generated_tokens: int
     # Sampling seed if sampling was activated
     seed: Optional[int]
-    # Prompt tokens, empty if prefill_details is False
-    prefill: List[PrefillToken]
+    # Decoder input tokens, empty if decoder_input_details is False
+    prefill: List[InputToken]
     # Generated tokens
     tokens: List[Token]
     # Additional sequences when using the `best_of` parameter

@@ -138,11 +138,11 @@ class Parameters:
     best_of: Optional[int]
     # Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
     watermark: bool
-    # Get prompt token logprobs and ids
-    prefill_details: bool
+    # Get decoder input token logprobs and ids
+    decoder_input_details: bool
 
-# Prompt tokens
-class PrefillToken:
+# Decoder input tokens
+class InputToken:
     # Token ID from the model tokenizer
     id: int
     # Token text
@@ -185,8 +185,8 @@ class BestOfSequence:
     generated_tokens: int
     # Sampling seed if sampling was activated
     seed: Optional[int]
-    # Prompt tokens, empty if prefill_details is False
-    prefill: Optional[List[PrefillToken]]
+    # Decoder input tokens, empty if decoder_input_details is False
+    prefill: List[InputToken]
     # Generated tokens
     tokens: List[Token]
 
@@ -199,8 +199,8 @@ class Details:
     generated_tokens: int
     # Sampling seed if sampling was activated
     seed: Optional[int]
-    # Prompt tokens, empty if prefill_details is False
-    prefill: List[PrefillToken]
+    # Decoder input tokens, empty if decoder_input_details is False
+    prefill: List[InputToken]
     # Generated tokens
     tokens: List[Token]
     # Additional sequences when using the `best_of` parameter

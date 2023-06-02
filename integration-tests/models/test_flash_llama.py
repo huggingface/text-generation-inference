@@ -17,7 +17,7 @@ async def flash_llama(flash_llama_handle):
 @pytest.mark.private
 async def test_flash_llama(flash_llama, response_snapshot):
     response = await flash_llama.generate(
-        "Test request", max_new_tokens=10, prefill_details=True
+        "Test request", max_new_tokens=10, decoder_input_details=True
     )
 
     assert response.details.generated_tokens == 10
@@ -39,7 +39,7 @@ async def test_flash_llama_all_params(flash_llama, response_snapshot):
         truncate=5,
         typical_p=0.9,
         watermark=True,
-        prefill_details=True,
+        decoder_input_details=True,
         seed=0,
     )
 

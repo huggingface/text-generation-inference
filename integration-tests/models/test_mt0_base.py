@@ -19,7 +19,7 @@ async def test_mt0_base(mt0_base, response_snapshot):
         "Why is the sky blue?",
         max_new_tokens=10,
         top_p=0.9,
-        prefill_details=True,
+        decoder_input_details=True,
         seed=0,
     )
 
@@ -41,7 +41,7 @@ async def test_mt0_base_all_params(mt0_base, response_snapshot):
         truncate=5,
         typical_p=0.9,
         watermark=True,
-        prefill_details=True,
+        decoder_input_details=True,
         seed=0,
     )
 

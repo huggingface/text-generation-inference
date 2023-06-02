@@ -74,7 +74,7 @@ class Client:
         truncate: Optional[int] = None,
         typical_p: Optional[float] = None,
         watermark: bool = False,
-        prefill_details: bool = False,
+        decoder_input_details: bool = False,
     ) -> Response:
         """
         Given a prompt, generate the following text
@@ -111,8 +111,8 @@ class Client:
                 See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
-            prefill_details (`bool`):
-                Return the prefill token log probabilities
+            decoder_input_details (`bool`):
+                Return the decoder input token logprobs and ids
 
         Returns:
             Response: generated response
@@ -133,7 +133,7 @@ class Client:
             truncate=truncate,
             typical_p=typical_p,
             watermark=watermark,
-            prefill_details=prefill_details,
+            decoder_input_details=decoder_input_details,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
@@ -206,7 +206,7 @@ class Client:
         parameters = Parameters(
             best_of=None,
             details=True,
-            prefill_details=False,
+            decoder_input_details=False,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
@@ -316,7 +316,7 @@ class AsyncClient:
         truncate: Optional[int] = None,
         typical_p: Optional[float] = None,
         watermark: bool = False,
-        prefill_details: bool = False,
+        decoder_input_details: bool = False,
     ) -> Response:
         """
         Given a prompt, generate the following text asynchronously
@@ -353,8 +353,8 @@ class AsyncClient:
                 See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
-            prefill_details (`bool`):
-                Return the prefill token log probabilities
+            decoder_input_details (`bool`):
+                Return the decoder input token logprobs and ids
 
         Returns:
             Response: generated response
@@ -363,7 +363,7 @@ class AsyncClient:
         parameters = Parameters(
             best_of=best_of,
             details=True,
-            prefill_details=prefill_details,
+            decoder_input_details=decoder_input_details,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
@@ -446,7 +446,7 @@ class AsyncClient:
         parameters = Parameters(
             best_of=None,
             details=True,
-            prefill_details=False,
+            decoder_input_details=False,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
