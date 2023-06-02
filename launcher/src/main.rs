@@ -410,9 +410,14 @@ fn shard_manager(
     let mut wait_time = Instant::now();
     loop {
         // Process exited
-        if p.poll().is_some() {
+        if let Some(exit_status) = p.poll() {
             let mut err = String::new();
             p.stderr.take().unwrap().read_to_string(&mut err).unwrap();
+
+            if let ExitStatus::Signaled(signal) = exit_status {
+                tracing::error!("Shard process was signaled to shutdown with signal {signal}");
+            }
+
             status_sender
                 .send(ShardStatus::Failed((rank, err)))
                 .unwrap();
