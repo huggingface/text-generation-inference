@@ -201,6 +201,7 @@ impl State {
 
             batch_requests.push(Request {
                 id,
+                prefill_logprobs: entry.request.prefill_details,
                 inputs: entry.request.inputs.clone(),
                 truncate: entry.request.truncate,
                 parameters: Some(entry.request.parameters.clone()),

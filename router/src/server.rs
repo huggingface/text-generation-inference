@@ -364,7 +364,17 @@ async fn generate_stream(
         let details = req.0.parameters.details;
 
         let best_of = req.0.parameters.best_of.unwrap_or(1);
-        if best_of == 1 {
+        if best_of != 1 {
+            let err = InferError::from(ValidationError::BestOfStream);
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            tracing::error!("{err}");
+            yield Ok(Event::from(err));
+        } else if req.0.parameters.prefill_details {
+            let err = InferError::from(ValidationError::PrefillDetailsStream);
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            tracing::error!("{err}");
+            yield Ok(Event::from(err));
+        } else {
             match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, mut response_stream)) => {
@@ -474,11 +484,6 @@ async fn generate_stream(
                 tracing::error!("{err}");
                 yield Ok(Event::from(err));
             }
-        } else {
-            let err = InferError::from(ValidationError::BestOfStream);
-            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
-            tracing::error!("{err}");
-            yield Ok(Event::from(err));
         }
     };
 

@@ -107,6 +107,40 @@ print(text)
 ### Types
 
 ```python
+# Request Parameters
+class Parameters:
+    # Activate logits sampling
+    do_sample: bool
+    # Maximum number of generated tokens
+    max_new_tokens: int
+    # The parameter for repetition penalty. 1.0 means no penalty.
+    # See [this paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+    repetition_penalty: Optional[float]
+    # Whether to prepend the prompt to the generated text
+    return_full_text: bool
+    # Stop generating tokens if a member of `stop_sequences` is generated
+    stop: List[str]
+    # Random sampling seed
+    seed: Optional[int]
+    # The value used to module the logits distribution.
+    temperature: Optional[float]
+    # The number of highest probability vocabulary tokens to keep for top-k-filtering.
+    top_k: Optional[int]
+    # If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
+    # higher are kept for generation.
+    top_p: Optional[float]
+    # truncate inputs tokens to the given size
+    truncate: Optional[int]
+    # Typical Decoding mass
+    # See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
+    typical_p: Optional[float]
+    # Generate best_of sequences and return the one if the highest token logprobs
+    best_of: Optional[int]
+    # Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
+    watermark: bool
+    # Get prompt token logprobs and ids
+    prefill_details: bool
+
 # Prompt tokens
 class PrefillToken:
     # Token ID from the model tokenizer
@@ -151,8 +185,8 @@ class BestOfSequence:
     generated_tokens: int
     # Sampling seed if sampling was activated
     seed: Optional[int]
-    # Prompt tokens
-    prefill: List[PrefillToken]
+    # Prompt tokens, empty if prefill_details is False
+    prefill: Optional[List[PrefillToken]]
     # Generated tokens
     tokens: List[Token]
 
@@ -165,7 +199,7 @@ class Details:
     generated_tokens: int
     # Sampling seed if sampling was activated
     seed: Optional[int]
-    # Prompt tokens
+    # Prompt tokens, empty if prefill_details is False
     prefill: List[PrefillToken]
     # Generated tokens
     tokens: List[Token]
