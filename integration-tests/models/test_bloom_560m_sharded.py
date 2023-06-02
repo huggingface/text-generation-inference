@@ -19,6 +19,7 @@ async def test_bloom_560m_sharded(bloom_560m_sharded, response_snapshot):
         "Pour déguster un ortolan, il faut tout d'abord",
         max_new_tokens=10,
         top_p=0.9,
+        prefill_details=True,
         seed=0,
     )
 

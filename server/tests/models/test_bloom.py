@@ -24,6 +24,7 @@ def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="Test",
+        prefill_logprobs=True,
         truncate=100,
         parameters=default_pb_parameters,
         stopping_parameters=default_pb_stop_parameters,
