@@ -255,7 +255,7 @@ class BLOOMSharded(BLOOM):
                         raise ValueError(f"Unexpected quantize `{quantize}`")
 
                     module._parameters[param_name] = tensor
-                    if name == "word_embeddings.weight":
+                    if "word_embeddings.weight" in name:
                         model.lm_head._parameters["weight"] = tensor
 
     def forward(
