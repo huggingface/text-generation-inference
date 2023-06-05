@@ -116,11 +116,13 @@ class FlashCausalLMBatch(Batch):
         max_length = 0
 
         # Parse batch
-        for i, (r, tokenized_input) in enumerate(zip(pb.requests, batch_tokenized_inputs)):
+        for i, (r, tokenized_input) in enumerate(
+            zip(pb.requests, batch_tokenized_inputs)
+        ):
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 
-            tokenized_input = tokenized_input[-r.truncate:]
+            tokenized_input = tokenized_input[-r.truncate :]
 
             input_length = len(tokenized_input)
             max_seqlen = max(max_seqlen, input_length)
