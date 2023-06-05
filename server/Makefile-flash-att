@@ -1,4 +1,4 @@
-flash_att_commit := c5b2a9b7baba2d3059888dbeb03a3cea7aba6e1d
+flash_att_commit := 06ece1a1525ebcf4e183ac76b1e5108d2872f57f
 
 flash-attention:
     # Clone flash attention
