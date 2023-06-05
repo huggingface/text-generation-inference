@@ -26,7 +26,7 @@ from transformers.activations import ACT2FN
 from typing import Optional
 
 # Flash attention imports
-import flash_attn_cuda_modif
+import flash_attn_cuda
 import dropout_layer_norm
 
 from text_generation_server.utils.layers import (
@@ -128,34 +128,42 @@ class FlashLlamaAttention(torch.nn.Module):
         hidden_states,
         cos,
         sin,
-        cu_seqlens,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
         layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+        past_present_indices,
+        prefill,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
 
+        query, kv = qkv.split([1, 2], dim=1)
+        query = query.view(-1, self.num_heads, self.head_size)
+
         # Inplace rotary
-        self.rotary_emb(qkv[:, 0], cos, sin)
-        self.rotary_emb(qkv[:, 1], cos, sin)
+        self.rotary_emb(query, cos, sin)
+        self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
 
         # Prefill
-        if layer_past_present_indices is None:
+        if prefill:
             # Copy to layer past
-            layer_past[...] = qkv[:, 1:]
+            layer_past[past_present_indices] = kv
 
             # output
-            attn_output = torch.empty_like(qkv[:, 0])
+            attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda_modif.fwd(
-                qkv[:, 0],
-                qkv[:, 1],
-                qkv[:, 2],
+            flash_attn_cuda.fwd(
+                query,
+                torch.select(kv, dim=1, index=0),
+                torch.select(kv, dim=1, index=1),
                 attn_output,
-                cu_seqlens,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq,
+                end_seq,
                 max_s,
                 max_s,
                 0.0,
@@ -168,20 +176,21 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            query = qkv[:, 0]
             # Add present to the layer_past tensor at the correct indices
-            layer_past[layer_past_present_indices] = qkv[:, 1:]
+            layer_past[past_present_indices] = kv
 
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda_modif.fwd(
+            flash_attn_cuda.fwd(
                 query,
-                layer_past[:, 0],
-                layer_past[:, 1],
+                torch.select(kv, dim=1, index=0),
+                torch.select(kv, dim=1, index=1),
                 attn_output,
-                cu_seqlens_q,
-                cu_seqlens,
+                start_seq_q,
+                end_seq_q,
+                start_seq,
+                end_seq,
                 1,
                 max_s,
                 0.0,
@@ -258,11 +267,14 @@ class FlashLlamaLayer(nn.Module):
         residual,
         cos,
         sin,
-        cu_seqlens,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
         layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+        past_present_indices,
+        prefill,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -271,11 +283,14 @@ class FlashLlamaLayer(nn.Module):
             normed_hidden_states,
             cos,
             sin,
-            cu_seqlens,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
             max_s,
             layer_past,
-            layer_past_present_indices,
-            cu_seqlens_q,
+            past_present_indices,
+            prefill,
         )
 
         # faster post attention rms norm
@@ -322,35 +337,36 @@ class FlashLlamaModel(torch.nn.Module):
         self,
         input_ids,
         position_ids,
-        cu_seqlens,
-        cu_seqlens_q,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
-        past_key_values: Optional[torch.Tensor] = None,
+        past_present_indices,
+        past_key_values=None,
         pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states = self.embed_tokens(input_ids)
 
         # Prefill
         if past_key_values is None:
+            assert pre_allocate_past_size is not None
+
+            prefill = True
+
             # Create past tensor
             past_key_values = hidden_states.new_empty(
                 (
+                    pre_allocate_past_size,
                     len(self.layers),
-                    len(hidden_states)
-                    if pre_allocate_past_size is None
-                    else pre_allocate_past_size,
                     2,
                     self.num_heads,
                     self.head_size,
                 )
             )
-            layer_past_present_indices = None
-            slice_past_index = len(hidden_states)
         # Decode
         else:
-            # Create indices from cumulative sequence lengths
-            layer_past_present_indices = cu_seqlens[1:] - 1
-            slice_past_index = None
+            prefill = False
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -360,23 +376,19 @@ class FlashLlamaModel(torch.nn.Module):
 
         residual = None
         for i, layer in enumerate(self.layers):
-            # We added padding that we now need to slice
-            layer_past_key_values = (
-                past_key_values[i]
-                if slice_past_index is None
-                else past_key_values[i, :slice_past_index]
-            )
-
             hidden_states, residual = layer(
                 hidden_states,
                 residual,
                 cos,
                 sin,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq_q,
+                end_seq_q,
                 max_s,
-                layer_past_key_values,
-                layer_past_present_indices,
-                cu_seqlens_q,
+                torch.select(past_key_values, dim=1, index=i),
+                past_present_indices,
+                prefill,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -399,9 +411,12 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         self,
         input_ids,
         position_ids,
-        cu_seqlens,
-        cu_seqlens_q,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
+        past_present_indices,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -409,9 +424,12 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         hidden_states, present = self.model(
             input_ids,
             position_ids,
-            cu_seqlens,
-            cu_seqlens_q,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
             max_s,
+            past_present_indices,
             past_key_values,
             pre_allocate_past_size,
         )

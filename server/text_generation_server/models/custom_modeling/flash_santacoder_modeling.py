@@ -6,7 +6,7 @@ from transformers.activations import ACT2FN
 from typing import Optional
 
 # Flash attention imports
-import flash_attn_cuda_modif
+import flash_attn_cuda
 
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -179,7 +179,7 @@ class FlashMQAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda_modif.fwd(
+            flash_attn_cuda.fwd(
                 query,
                 torch.select(key_value, dim=1, index=0),
                 torch.select(key_value, dim=1, index=1),
@@ -208,7 +208,7 @@ class FlashMQAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda_modif.fwd(
+            flash_attn_cuda.fwd(
                 query,
                 torch.select(key_value, dim=1, index=0),
                 torch.select(key_value, dim=1, index=1),
@@ -373,13 +373,7 @@ class FlashSantacoderModel(nn.Module):
 
             # Create past tensor
             past_key_values = hidden_states.new_zeros(
-                (
-                    pre_allocate_past_size,
-                    len(self.h),
-                    2,
-                    1,
-                    self.head_size
-                )
+                (pre_allocate_past_size, len(self.h), 2, 1, self.head_size)
             )
         # Decode
         else:
@@ -415,17 +409,17 @@ class FlashSantacoderForCausalLM(nn.Module):
 
     def forward(
         self,
-            input_ids,
-            position_ids,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
-            max_s,
-            past_present_indices,
-            past_key_values: Optional[torch.Tensor] = None,
-            pre_allocate_past_size: Optional[int] = None,
-            lm_head_indices: Optional[torch.Tensor] = None,
+        input_ids,
+        position_ids,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
+        max_s,
+        past_present_indices,
+        past_key_values: Optional[torch.Tensor] = None,
+        pre_allocate_past_size: Optional[int] = None,
+        lm_head_indices: Optional[torch.Tensor] = None,
     ):
         hidden_states, present = self.transformer(
             input_ids,

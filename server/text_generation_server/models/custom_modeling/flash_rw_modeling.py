@@ -7,7 +7,7 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional
 
 # Flash attention imports
-import flash_attn_cuda_modif
+import flash_attn_cuda
 
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -42,25 +42,25 @@ class RWConfig(PretrainedConfig):
     }
 
     def __init__(
-            self,
-            model_type="RefinedWeb",
-            vocab_size=250880,
-            hidden_size=64,
-            n_layer=2,
-            n_head=8,
-            layer_norm_epsilon=1e-5,
-            initializer_range=0.02,
-            use_cache=True,
-            bos_token_id=1,
-            eos_token_id=2,
-            hidden_dropout=0.0,
-            attention_dropout=0.0,
-            n_head_kv=None,
-            multi_query=False,
-            alibi=False,
-            bias=False,
-            parallel_attn=False,
-            **kwargs,
+        self,
+        model_type="RefinedWeb",
+        vocab_size=250880,
+        hidden_size=64,
+        n_layer=2,
+        n_head=8,
+        layer_norm_epsilon=1e-5,
+        initializer_range=0.02,
+        use_cache=True,
+        bos_token_id=1,
+        eos_token_id=2,
+        hidden_dropout=0.0,
+        attention_dropout=0.0,
+        n_head_kv=None,
+        multi_query=False,
+        alibi=False,
+        bias=False,
+        parallel_attn=False,
+        **kwargs,
     ):
         if alibi:
             raise NotImplementedError(
@@ -126,18 +126,18 @@ class FlashRWAttention(torch.nn.Module):
         )
 
     def forward(
-            self,
-            hidden_states,
-            cos,
-            sin,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
-            max_s,
-            layer_past,
-            past_present_indices,
-            prefill,
+        self,
+        hidden_states,
+        cos,
+        sin,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
+        max_s,
+        layer_past,
+        past_present_indices,
+        prefill,
     ):
         qkv = self.query_key_value(hidden_states)
 
@@ -165,7 +165,7 @@ class FlashRWAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda_modif.fwd(
+            flash_attn_cuda.fwd(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
@@ -194,7 +194,7 @@ class FlashRWAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda_modif.fwd(
+            flash_attn_cuda.fwd(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
@@ -264,15 +264,18 @@ class FlashRWLargeAttention(torch.nn.Module):
         )
 
     def forward(
-            self,
-            hidden_states,
-            cos,
-            sin,
-            cu_seqlens,
-            max_s,
-            layer_past,
-            past_present_indices,
-            cu_seqlens_q,
+        self,
+        hidden_states,
+        cos,
+        sin,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
+        max_s,
+        layer_past,
+        past_present_indices,
+        prefill,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, self.num_groups, self.num_heads + 2, self.head_size)
@@ -287,12 +290,12 @@ class FlashRWLargeAttention(torch.nn.Module):
 
         # Inplace rotary
         self.rotary_emb(query, cos, sin)
-        self.rotary_emb(kv[:, :, 0], cos, sin)
+        self.rotary_emb(torch.select(kv, dim=2, index=0), cos, sin)
 
         # Prefill
-        if past_present_indices is None:
+        if prefill:
             # Copy to layer past
-            layer_past[...] = kv
+            layer_past[past_present_indices] = kv
             # Expand to query shape
             kv = (
                 kv.unsqueeze(2)
@@ -303,13 +306,15 @@ class FlashRWLargeAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda_modif.fwd(
+            flash_attn_cuda.fwd(
                 query,
-                kv[:, :, 0],
-                kv[:, :, 1],
+                torch.select(kv, dim=2, index=0),
+                torch.select(kv, dim=2, index=1),
                 attn_output,
-                cu_seqlens,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq,
+                end_seq,
                 max_s,
                 max_s,
                 0.0,
@@ -334,13 +339,15 @@ class FlashRWLargeAttention(torch.nn.Module):
             # output
             attn_output = torch.empty_like(query)
             # flash attention
-            flash_attn_cuda_modif.fwd(
+            flash_attn_cuda.fwd(
                 query,
-                kv[:, :, 0],
-                kv[:, :, 1],
+                torch.select(kv, dim=2, index=0),
+                torch.select(kv, dim=2, index=1),
                 attn_output,
-                cu_seqlens_q,
-                cu_seqlens,
+                start_seq_q,
+                end_seq_q,
+                start_seq,
+                end_seq,
                 1,
                 max_s,
                 0.0,
@@ -419,19 +426,19 @@ class FlashRWLayer(nn.Module):
         self.process_group = weights.process_group
 
     def forward(
-            self,
-            hidden_states,
-            residual,
-            cos,
-            sin,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
-            max_s,
-            layer_past,
-            past_present_indices,
-            prefill,
+        self,
+        hidden_states,
+        residual,
+        cos,
+        sin,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
+        max_s,
+        layer_past,
+        past_present_indices,
+        prefill,
     ):
         if self.parallel_attn:
             ln_hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -509,16 +516,19 @@ class FlashRWLargeLayer(nn.Module):
         self.process_group = weights.process_group
 
     def forward(
-            self,
-            hidden_states,
-            residual,
-            cos,
-            sin,
-            cu_seqlens,
-            max_s,
-            layer_past,
-            past_present_indices,
-            cu_seqlens_q,
+        self,
+        hidden_states,
+        residual,
+        cos,
+        sin,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
+        max_s,
+        layer_past,
+        past_present_indices,
+        prefill,
     ):
         ln_attn, residual = self.ln_attn(hidden_states, residual)
         ln_mlp, _ = self.ln_mlp(residual)
@@ -528,11 +538,14 @@ class FlashRWLargeLayer(nn.Module):
             ln_attn,
             cos,
             sin,
-            cu_seqlens,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
             max_s,
             layer_past,
             past_present_indices,
-            cu_seqlens_q,
+            prefill,
         )
 
         # MLP.
@@ -570,7 +583,6 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 self.h[0].self_attention.head_size,
             )
         elif config.model_type == "RefinedWeb":
-            raise NotImplementedError
             self.h = nn.ModuleList(
                 [
                     FlashRWLargeLayer(layer_id, config, weights)
@@ -596,17 +608,17 @@ class FlashRWModel(FlashRWPreTrainedModel):
         self.head_size = self.h[0].self_attention.head_size
 
     def forward(
-            self,
-            input_ids,
-            position_ids,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
-            max_s,
-            past_present_indices,
-            past_key_values=None,
-            pre_allocate_past_size: Optional[int] = None,
+        self,
+        input_ids,
+        position_ids,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
+        max_s,
+        past_present_indices,
+        past_key_values=None,
+        pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states = self.word_embeddings(input_ids)
 
@@ -617,7 +629,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
             prefill = True
 
             # Create past tensor
-            past_key_values = hidden_states.new_zeros(
+            past_key_values = hidden_states.new_empty(
                 (
                     pre_allocate_past_size,
                     len(self.h),
@@ -646,7 +658,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 start_seq_q,
                 end_seq_q,
                 max_s,
-                past_key_values[:, i],
+                torch.select(past_key_values, dim=1, index=i),
                 past_present_indices,
                 prefill,
             )
@@ -667,18 +679,18 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
         )
 
     def forward(
-            self,
-            input_ids,
-            position_ids,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
-            max_s,
-            past_present_indices,
-            past_key_values: Optional[torch.Tensor] = None,
-            pre_allocate_past_size: Optional[int] = None,
-            lm_head_indices: Optional[torch.Tensor] = None,
+        self,
+        input_ids,
+        position_ids,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
+        max_s,
+        past_present_indices,
+        past_key_values: Optional[torch.Tensor] = None,
+        pre_allocate_past_size: Optional[int] = None,
+        lm_head_indices: Optional[torch.Tensor] = None,
     ):
         hidden_states, present = self.transformer(
             input_ids,

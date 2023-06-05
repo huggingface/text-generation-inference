@@ -82,11 +82,11 @@ class FlashCausalLMBatch(Batch):
 
     @classmethod
     def from_pb(
-            cls,
-            pb: generate_pb2.Batch,
-            tokenizer: PreTrainedTokenizerBase,
-            dtype: torch.dtype,
-            device: torch.device,
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
+        device: torch.device,
     ) -> "FlashCausalLMBatch":
         batch_inputs = []
         max_truncation = 0
@@ -184,7 +184,11 @@ class FlashCausalLMBatch(Batch):
                 prefill_cu_outlens.append(prefill_out_cumulative_length + 1)
                 prefill_out_cumulative_length += 1
 
-            request_past_present_indices = torch.arange(cumulative_max_length, cumulative_max_length + input_length, dtype=torch.int64)
+            request_past_present_indices = torch.arange(
+                cumulative_max_length,
+                cumulative_max_length + input_length,
+                dtype=torch.int64,
+            )
             past_present_indices.append(request_past_present_indices)
 
             # Update
@@ -217,8 +221,12 @@ class FlashCausalLMBatch(Batch):
 
             past_present_indices = np.concatenate(past_present_indices, dtype=np.int64)
 
-            start_seq_prefill = torch.tensor(start_seq_prefill, device=device, dtype=torch.int32)
-            end_seq_prefill = torch.tensor(end_seq_prefill, device=device, dtype=torch.int32)
+            start_seq_prefill = torch.tensor(
+                start_seq_prefill, device=device, dtype=torch.int32
+            )
+            end_seq_prefill = torch.tensor(
+                end_seq_prefill, device=device, dtype=torch.int32
+            )
         else:
             input_ids = all_input_ids[0]
             position_ids = position_ids[0]
@@ -230,7 +238,9 @@ class FlashCausalLMBatch(Batch):
 
         input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         position_ids = torch.tensor(position_ids, dtype=torch.int32, device=device)
-        past_present_indices = torch.tensor(past_present_indices, device=device, dtype=torch.int64)
+        past_present_indices = torch.tensor(
+            past_present_indices, device=device, dtype=torch.int64
+        )
 
         if all_prefill_logprobs:
             prefill_head_indices = None
@@ -294,7 +304,9 @@ class FlashCausalLMBatch(Batch):
         indices = []
 
         # past indices to keep
-        past_indices = torch.zeros(self.past_key_values.shape[0], dtype=torch.bool, device=device)
+        past_indices = torch.zeros(
+            self.past_key_values.shape[0], dtype=torch.bool, device=device
+        )
 
         # Create on CPU to only move to GPU once instead of at every copy
         start_seq = torch.empty(len(request_ids), dtype=torch.int32)
@@ -332,14 +344,18 @@ class FlashCausalLMBatch(Batch):
             stopping_criteria = self.stopping_criterias[idx]
             stopping_criterias.append(stopping_criteria)
 
-            remaining_tokens = stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
+            remaining_tokens = (
+                stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
+            )
 
             # Copy to tensor (CPU)
             start_seq[i] = cumulative_max_length
             end_seq[i] = cumulative_max_length + request_input_length
 
             # Set slice
-            past_indices[self.start_seq[idx]: self.end_seq[idx] + remaining_tokens - 1] = True
+            past_indices[
+                self.start_seq[idx] : self.end_seq[idx] + remaining_tokens - 1
+            ] = True
 
             cumulative_max_length += request_input_length + remaining_tokens - 1
 
@@ -480,7 +496,7 @@ class FlashCausalLMBatch(Batch):
             end_index = cumulative_batch_size + len(batch)
 
             all_input_ids_tensor[
-            start_index:end_index, : batch.all_input_ids_tensor.shape[1]
+                start_index:end_index, : batch.all_input_ids_tensor.shape[1]
             ] = batch.all_input_ids_tensor[:, :max_length]
 
             cumulative_batch_size += len(batch)
@@ -523,12 +539,12 @@ class FlashCausalLMBatch(Batch):
 
 class FlashCausalLM(Model):
     def __init__(
-            self,
-            model_cls: Type[PreTrainedModel],
-            model_id: str,
-            revision: Optional[str] = None,
-            quantize: Optional[str] = None,
-            trust_remote_code: bool = False,
+        self,
+        model_cls: Type[PreTrainedModel],
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -569,18 +585,18 @@ class FlashCausalLM(Model):
         )
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            start_seq: torch.Tensor,
-            end_seq: torch.Tensor,
-            start_seq_q: Optional[torch.Tensor],
-            end_seq_q: Optional[torch.Tensor],
-            max_s: int,
-            past_present_indices: torch.Tensor,
-            past_key_values: Optional = None,
-            pre_allocate_past_size: Optional[int] = None,
-            lm_head_indices: Optional[torch.Tensor] = None,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        start_seq: torch.Tensor,
+        end_seq: torch.Tensor,
+        start_seq_q: Optional[torch.Tensor],
+        end_seq_q: Optional[torch.Tensor],
+        max_s: int,
+        past_present_indices: torch.Tensor,
+        past_key_values: Optional = None,
+        pre_allocate_past_size: Optional[int] = None,
+        lm_head_indices: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
         return self.model.forward(
@@ -599,7 +615,7 @@ class FlashCausalLM(Model):
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
-            self, batch: FlashCausalLMBatch
+        self, batch: FlashCausalLMBatch
     ) -> Tuple[List[Generation], Optional[FlashCausalLMBatch]]:
         prefill = batch.past_key_values is None
         prefill_logprobs = batch.prefill_next_token_indices is not None
@@ -647,7 +663,9 @@ class FlashCausalLM(Model):
                 prefill_tokens_indices = batch.input_ids.new_zeros(len(out))
 
             # Create batch.start_seq_q and batch.end_seq_q for decode
-            batch.start_seq_q = torch.arange(0, len(batch), device=self.device, dtype=torch.int32)
+            batch.start_seq_q = torch.arange(
+                0, len(batch), device=self.device, dtype=torch.int32
+            )
             batch.end_seq_q = batch.start_seq_q + 1
             next_position_ids = batch.position_ids.new_empty(len(batch))
             # We do not need start_seq_prefill and end_seq_prefill anymore
@@ -783,7 +801,7 @@ class FlashCausalLM(Model):
                 if stop:
                     # Decode generated tokens
                     output_text = self.decode(
-                        all_input_ids[-stopping_criteria.current_tokens:]
+                        all_input_ids[-stopping_criteria.current_tokens :]
                     )
                     generated_text = GeneratedText(
                         output_text,
