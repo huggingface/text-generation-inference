@@ -176,7 +176,7 @@ pub(crate) struct CompatGenerateRequest {
     #[serde(default = "default_parameters")]
     pub parameters: GenerateParameters,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[schema(default = "false")]
     pub stream: bool,
 }
 

@@ -375,7 +375,8 @@
             "$ref": "#/components/schemas/GenerateParameters"
           },
           "stream": {
-            "type": "boolean"
+            "type": "boolean",
+            "default": "false"
           }
         }
       },
@@ -458,6 +459,10 @@
             "nullable": true,
             "minimum": 0.0,
             "exclusiveMinimum": 0.0
+          },
+          "decoder_input_details": {
+            "type": "boolean",
+            "default": "true"
           },
           "details": {
             "type": "boolean",
