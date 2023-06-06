@@ -11,17 +11,17 @@
       },
       {
         "id": 1459,
-        "logprob": -5.6289062,
+        "logprob": -5.6328125,
         "text": " print"
       },
       {
         "id": 81,
-        "logprob": -1.6005859,
+        "logprob": -1.6035156,
         "text": "_"
       },
       {
         "id": 7656,
-        "logprob": -5.9921875,
+        "logprob": -5.9882812,
         "text": "hello"
       }
     ],
@@ -59,19 +59,19 @@
       },
       {
         "id": 10896,
-        "logprob": -0.3659668,
+        "logprob": -0.38549805,
         "special": false,
         "text": " World"
       },
       {
         "id": 657,
-        "logprob": -0.49804688,
+        "logprob": -0.5229492,
         "special": false,
         "text": "\")"
       },
       {
         "id": 203,
-        "logprob": -0.11279297,
+        "logprob": -0.10632324,
         "special": false,
         "text": "\n"
       },
@@ -113,7 +113,7 @@
       },
       {
         "id": 426,
-        "logprob": -0.051635742,
+        "logprob": 0.0,
         "special": false,
         "text": "name"
       },
