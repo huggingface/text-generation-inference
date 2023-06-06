@@ -292,20 +292,12 @@ class FlashLlamaModel(torch.nn.Module):
         super().__init__()
         self.config = config
 
-        self.tp_embeddings = False
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        if config.vocab_size % self.tp_world_size == 0:
-            self.tp_embeddings = True
-
-        if self.tp_embeddings:
-            self.embed_tokens = TensorParallelEmbedding(
-                prefix="model.embed_tokens", weights=weights
-            )
-        else:
-            self.embed_tokens = Embedding(prefix="model.embed_tokens", weights=weights)
-
+        self.embed_tokens = TensorParallelEmbedding(
+            prefix="model.embed_tokens", weights=weights
+        )
         self.layers = nn.ModuleList(
             [
                 FlashLlamaLayer(

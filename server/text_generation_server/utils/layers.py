@@ -309,6 +309,13 @@ try:
             self._sin_k_cached = None
 
         @staticmethod
+        def static(dim, base, device):
+            inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, device=device,
+                                                dtype=torch.float32) / dim))
+            return PositionRotaryEmbedding(inv_freq)
+
+
+        @staticmethod
         def load(prefix, weights):
             # XXX: Always load this in float32 !
             dtype = weights.dtype
