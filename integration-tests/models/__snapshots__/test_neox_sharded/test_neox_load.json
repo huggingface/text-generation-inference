@@ -1,0 +1,654 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 50278,
+          "logprob": null,
+          "text": "<|prompter|>"
+        },
+        {
+          "id": 1276,
+          "logprob": -8.0234375,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -5.4140625,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -2.1621094,
+          "text": " a"
+        },
+        {
+          "id": 1167,
+          "logprob": -5.453125,
+          "text": " mem"
+        },
+        {
+          "id": 70,
+          "logprob": -0.005393982,
+          "text": "e"
+        },
+        {
+          "id": 13,
+          "logprob": -7.390625,
+          "text": ","
+        },
+        {
+          "id": 285,
+          "logprob": -0.33691406,
+          "text": " and"
+        },
+        {
+          "id": 752,
+          "logprob": -2.2207031,
+          "text": " what"
+        },
+        {
+          "id": 434,
+          "logprob": -5.5976562,
+          "text": "'s"
+        },
+        {
+          "id": 253,
+          "logprob": -0.7661133,
+          "text": " the"
+        },
+        {
+          "id": 2892,
+          "logprob": -6.515625,
+          "text": " history"
+        },
+        {
+          "id": 3212,
+          "logprob": -2.3085938,
+          "text": " behind"
+        },
+        {
+          "id": 436,
+          "logprob": -11.3203125,
+          "text": " this"
+        },
+        {
+          "id": 3159,
+          "logprob": -2.1230469,
+          "text": " word"
+        },
+        {
+          "id": 32,
+          "logprob": -0.00856781,
+          "text": "?"
+        },
+        {
+          "id": 0,
+          "logprob": -2.4296875,
+          "text": "<|endoftext|>"
+        },
+        {
+          "id": 50281,
+          "logprob": -18.1875,
+          "text": "<|assistant|>"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 510,
+          "logprob": -0.64208984,
+          "special": false,
+          "text": "The"
+        },
+        {
+          "id": 3159,
+          "logprob": -0.5839844,
+          "special": false,
+          "text": " word"
+        },
+        {
+          "id": 346,
+          "logprob": -0.04989624,
+          "special": false,
+          "text": " \""
+        },
+        {
+          "id": 6441,
+          "logprob": -0.0021305084,
+          "special": false,
+          "text": "mem"
+        },
+        {
+          "id": 70,
+          "logprob": -1.180172e-05,
+          "special": false,
+          "text": "e"
+        },
+        {
+          "id": 3,
+          "logprob": -0.00092983246,
+          "special": false,
+          "text": "\""
+        },
+        {
+          "id": 369,
+          "logprob": -0.08496094,
+          "special": false,
+          "text": " was"
+        },
+        {
+          "id": 806,
+          "logprob": -0.13256836,
+          "special": false,
+          "text": " first"
+        },
+        {
+          "id": 908,
+          "logprob": -0.017059326,
+          "special": false,
+          "text": " used"
+        },
+        {
+          "id": 275,
+          "logprob": -0.4921875,
+          "special": false,
+          "text": " in"
+        }
+      ]
+    },
+    "generated_text": "The word \"meme\" was first used in"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 50278,
+          "logprob": null,
+          "text": "<|prompter|>"
+        },
+        {
+          "id": 1276,
+          "logprob": -8.0234375,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -5.421875,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -2.1640625,
+          "text": " a"
+        },
+        {
+          "id": 1167,
+          "logprob": -5.40625,
+          "text": " mem"
+        },
+        {
+          "id": 70,
+          "logprob": -0.005420685,
+          "text": "e"
+        },
+        {
+          "id": 13,
+          "logprob": -7.2226562,
+          "text": ","
+        },
+        {
+          "id": 285,
+          "logprob": -0.26879883,
+          "text": " and"
+        },
+        {
+          "id": 752,
+          "logprob": -2.1992188,
+          "text": " what"
+        },
+        {
+          "id": 434,
+          "logprob": -5.46875,
+          "text": "'s"
+        },
+        {
+          "id": 253,
+          "logprob": -0.8017578,
+          "text": " the"
+        },
+        {
+          "id": 2892,
+          "logprob": -6.6796875,
+          "text": " history"
+        },
+        {
+          "id": 3212,
+          "logprob": -2.1972656,
+          "text": " behind"
+        },
+        {
+          "id": 436,
+          "logprob": -11.4453125,
+          "text": " this"
+        },
+        {
+          "id": 3159,
+          "logprob": -2.1933594,
+          "text": " word"
+        },
+        {
+          "id": 32,
+          "logprob": -0.007858276,
+          "text": "?"
+        },
+        {
+          "id": 0,
+          "logprob": -2.328125,
+          "text": "<|endoftext|>"
+        },
+        {
+          "id": 50281,
+          "logprob": -18.21875,
+          "text": "<|assistant|>"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 510,
+          "logprob": -0.6201172,
+          "special": false,
+          "text": "The"
+        },
+        {
+          "id": 3159,
+          "logprob": -0.546875,
+          "special": false,
+          "text": " word"
+        },
+        {
+          "id": 346,
+          "logprob": -0.051879883,
+          "special": false,
+          "text": " \""
+        },
+        {
+          "id": 6441,
+          "logprob": -0.0020179749,
+          "special": false,
+          "text": "mem"
+        },
+        {
+          "id": 70,
+          "logprob": -9.059906e-06,
+          "special": false,
+          "text": "e"
+        },
+        {
+          "id": 3,
+          "logprob": -0.00096797943,
+          "special": false,
+          "text": "\""
+        },
+        {
+          "id": 369,
+          "logprob": -0.07940674,
+          "special": false,
+          "text": " was"
+        },
+        {
+          "id": 806,
+          "logprob": -0.12182617,
+          "special": false,
+          "text": " first"
+        },
+        {
+          "id": 908,
+          "logprob": -0.017227173,
+          "special": false,
+          "text": " used"
+        },
+        {
+          "id": 275,
+          "logprob": -0.44482422,
+          "special": false,
+          "text": " in"
+        }
+      ]
+    },
+    "generated_text": "The word \"meme\" was first used in"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 50278,
+          "logprob": null,
+          "text": "<|prompter|>"
+        },
+        {
+          "id": 1276,
+          "logprob": -8.0234375,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -5.421875,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -2.1640625,
+          "text": " a"
+        },
+        {
+          "id": 1167,
+          "logprob": -5.40625,
+          "text": " mem"
+        },
+        {
+          "id": 70,
+          "logprob": -0.005420685,
+          "text": "e"
+        },
+        {
+          "id": 13,
+          "logprob": -7.2226562,
+          "text": ","
+        },
+        {
+          "id": 285,
+          "logprob": -0.26879883,
+          "text": " and"
+        },
+        {
+          "id": 752,
+          "logprob": -2.1992188,
+          "text": " what"
+        },
+        {
+          "id": 434,
+          "logprob": -5.46875,
+          "text": "'s"
+        },
+        {
+          "id": 253,
+          "logprob": -0.8017578,
+          "text": " the"
+        },
+        {
+          "id": 2892,
+          "logprob": -6.6796875,
+          "text": " history"
+        },
+        {
+          "id": 3212,
+          "logprob": -2.1972656,
+          "text": " behind"
+        },
+        {
+          "id": 436,
+          "logprob": -11.4453125,
+          "text": " this"
+        },
+        {
+          "id": 3159,
+          "logprob": -2.1933594,
+          "text": " word"
+        },
+        {
+          "id": 32,
+          "logprob": -0.007858276,
+          "text": "?"
+        },
+        {
+          "id": 0,
+          "logprob": -2.328125,
+          "text": "<|endoftext|>"
+        },
+        {
+          "id": 50281,
+          "logprob": -18.21875,
+          "text": "<|assistant|>"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 510,
+          "logprob": -0.6201172,
+          "special": false,
+          "text": "The"
+        },
+        {
+          "id": 3159,
+          "logprob": -0.546875,
+          "special": false,
+          "text": " word"
+        },
+        {
+          "id": 346,
+          "logprob": -0.051879883,
+          "special": false,
+          "text": " \""
+        },
+        {
+          "id": 6441,
+          "logprob": -0.0020179749,
+          "special": false,
+          "text": "mem"
+        },
+        {
+          "id": 70,
+          "logprob": -1.04904175e-05,
+          "special": false,
+          "text": "e"
+        },
+        {
+          "id": 3,
+          "logprob": -0.0009560585,
+          "special": false,
+          "text": "\""
+        },
+        {
+          "id": 369,
+          "logprob": -0.08557129,
+          "special": false,
+          "text": " was"
+        },
+        {
+          "id": 806,
+          "logprob": -0.12084961,
+          "special": false,
+          "text": " first"
+        },
+        {
+          "id": 908,
+          "logprob": -0.01737976,
+          "special": false,
+          "text": " used"
+        },
+        {
+          "id": 275,
+          "logprob": -0.4025879,
+          "special": false,
+          "text": " in"
+        }
+      ]
+    },
+    "generated_text": "The word \"meme\" was first used in"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 50278,
+          "logprob": null,
+          "text": "<|prompter|>"
+        },
+        {
+          "id": 1276,
+          "logprob": -8.0234375,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -5.421875,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -2.1640625,
+          "text": " a"
+        },
+        {
+          "id": 1167,
+          "logprob": -5.40625,
+          "text": " mem"
+        },
+        {
+          "id": 70,
+          "logprob": -0.005420685,
+          "text": "e"
+        },
+        {
+          "id": 13,
+          "logprob": -7.2226562,
+          "text": ","
+        },
+        {
+          "id": 285,
+          "logprob": -0.26879883,
+          "text": " and"
+        },
+        {
+          "id": 752,
+          "logprob": -2.1992188,
+          "text": " what"
+        },
+        {
+          "id": 434,
+          "logprob": -5.46875,
+          "text": "'s"
+        },
+        {
+          "id": 253,
+          "logprob": -0.8017578,
+          "text": " the"
+        },
+        {
+          "id": 2892,
+          "logprob": -6.6796875,
+          "text": " history"
+        },
+        {
+          "id": 3212,
+          "logprob": -2.1972656,
+          "text": " behind"
+        },
+        {
+          "id": 436,
+          "logprob": -11.4453125,
+          "text": " this"
+        },
+        {
+          "id": 3159,
+          "logprob": -2.1933594,
+          "text": " word"
+        },
+        {
+          "id": 32,
+          "logprob": -0.007858276,
+          "text": "?"
+        },
+        {
+          "id": 0,
+          "logprob": -2.328125,
+          "text": "<|endoftext|>"
+        },
+        {
+          "id": 50281,
+          "logprob": -18.21875,
+          "text": "<|assistant|>"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 510,
+          "logprob": -0.6201172,
+          "special": false,
+          "text": "The"
+        },
+        {
+          "id": 3159,
+          "logprob": -0.546875,
+          "special": false,
+          "text": " word"
+        },
+        {
+          "id": 346,
+          "logprob": -0.051879883,
+          "special": false,
+          "text": " \""
+        },
+        {
+          "id": 6441,
+          "logprob": -0.0020179749,
+          "special": false,
+          "text": "mem"
+        },
+        {
+          "id": 70,
+          "logprob": -9.059906e-06,
+          "special": false,
+          "text": "e"
+        },
+        {
+          "id": 3,
+          "logprob": -0.00096797943,
+          "special": false,
+          "text": "\""
+        },
+        {
+          "id": 369,
+          "logprob": -0.07940674,
+          "special": false,
+          "text": " was"
+        },
+        {
+          "id": 806,
+          "logprob": -0.12182617,
+          "special": false,
+          "text": " first"
+        },
+        {
+          "id": 908,
+          "logprob": -0.017227173,
+          "special": false,
+          "text": " used"
+        },
+        {
+          "id": 275,
+          "logprob": -0.44482422,
+          "special": false,
+          "text": " in"
+        }
+      ]
+    },
+    "generated_text": "The word \"meme\" was first used in"
+  }
+]

@@ -357,7 +357,7 @@ class GPTNeoXMLP(nn.Module):
             config, prefix=f"{prefix}.dense_h_to_4h", weights=weights, bias=True
         )
         self.dense_4h_to_h = TensorParallelRowLinear.load(
-            config, prefix=f"{prefix}.dense_h_to_4h", weights=weights, bias=True
+            config, prefix=f"{prefix}.dense_4h_to_h", weights=weights, bias=True
         )
 
     def forward(self, hidden_states):
@@ -430,6 +430,7 @@ class GPTNeoXModel(GPTNeoXPreTrainedModel):
         self.embed_in = TensorParallelEmbedding(prefix="gpt_neox.embed_in", weights=weights)
         self.layers = nn.ModuleList([GPTNeoXLayer(layer_id, config, weights) for layer_id in range(config.num_hidden_layers)])
         self.final_layer_norm = nn.LayerNorm.load(prefix="gpt_neox.final_layer_norm", weights=weights, eps=config.layer_norm_eps)
+        self.tp_world_size = weights.process_group.size()
 
 
     def forward(
@@ -508,12 +509,9 @@ class GPTNeoXModel(GPTNeoXPreTrainedModel):
             past_key_values_length=past_key_values_length,
         )
 
-        if hasattr(self, "tp_rank"):
-            assert self.num_attention_heads % self.tp_world_size == 0
-            block_size = self.num_attention_heads // self.tp_world_size
-            causal_mask = torch.repeat_interleave(causal_mask, block_size, dim=0)
-        else:
-            causal_mask = torch.repeat_interleave(causal_mask, self.num_attention_heads, dim=0)
+        assert self.num_attention_heads % self.tp_world_size == 0
+        block_size = self.num_attention_heads // self.tp_world_size
+        causal_mask = torch.repeat_interleave(causal_mask, block_size, dim=0)
 
         # Prepare head mask if needed
         # 1.0 in head_mask indicate we keep the head

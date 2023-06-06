@@ -1,0 +1,113 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 50278,
+        "logprob": null,
+        "text": "<|USER|>"
+      },
+      {
+        "id": 1276,
+        "logprob": -4.5546875,
+        "text": "What"
+      },
+      {
+        "id": 434,
+        "logprob": -4.1992188,
+        "text": "'s"
+      },
+      {
+        "id": 634,
+        "logprob": -5.125,
+        "text": " your"
+      },
+      {
+        "id": 12315,
+        "logprob": -9.8984375,
+        "text": " mood"
+      },
+      {
+        "id": 3063,
+        "logprob": -4.0976562,
+        "text": " today"
+      },
+      {
+        "id": 32,
+        "logprob": -0.14562988,
+        "text": "?"
+      },
+      {
+        "id": 50279,
+        "logprob": -0.26733398,
+        "text": "<|ASSISTANT|>"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 42,
+        "logprob": -0.86279297,
+        "special": false,
+        "text": "I"
+      },
+      {
+        "id": 1353,
+        "logprob": -0.94921875,
+        "special": false,
+        "text": "'m"
+      },
+      {
+        "id": 7016,
+        "logprob": -2.1835938,
+        "special": false,
+        "text": " sorry"
+      },
+      {
+        "id": 13,
+        "logprob": -0.074035645,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 1394,
+        "logprob": -0.86376953,
+        "special": false,
+        "text": "You"
+      },
+      {
+        "id": 452,
+        "logprob": -1.2070312,
+        "special": false,
+        "text": " have"
+      },
+      {
+        "id": 247,
+        "logprob": -1.4365234,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 4327,
+        "logprob": -1.109375,
+        "special": false,
+        "text": " choice"
+      },
+      {
+        "id": 273,
+        "logprob": -0.93408203,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 752,
+        "logprob": -1.8808594,
+        "special": false,
+        "text": " what"
+      }
+    ]
+  },
+  "generated_text": "I'm sorry,You have a choice of what"
+}
