@@ -1,6 +1,9 @@
 install-server:
 	cd server && make install
 
+install-custom-kernels:
+	cd server/custom_kernels && python setup.py install
+
 install-integration-tests:
 	cd integration-tests && pip install -r requirements.txt
 	cd clients/python && pip install .
@@ -14,7 +17,7 @@ install-launcher:
 install-benchmark:
 	cd benchmark && cargo install --path .
 
-install: install-server install-router install-launcher
+install: install-server install-router install-launcher install-custom-kernels
 
 server-dev:
 	cd server && make run-dev

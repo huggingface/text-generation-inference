@@ -31,7 +31,7 @@ class Weights:
         filename = self.routing.get(tensor_name, None)
         if filename is None:
             raise RuntimeError(f"weight {tensor_name} does not exist")
-        return filename
+        return str(filename)
 
     def _get_slice(self, tensor_name: str):
         filename = self.get_filename(tensor_name)

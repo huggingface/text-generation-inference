@@ -84,8 +84,6 @@ class FlashNeoxAttention(torch.nn.Module):
         super().__init__()
         num_heads = config.num_attention_heads
         hidden_size = config.hidden_size
-        rotary_pct = config.rotary_pct
-        rotary_emb_base = config.rotary_emb_base
 
         self.num_heads = num_heads
         self.hidden_size = hidden_size
