@@ -101,11 +101,6 @@ class FlashRWAttention(torch.nn.Module):
     def __init__(
         self,
         config, prefix, weights,
-        # num_heads,
-        # num_heads_kv,
-        # hidden_size,
-        # bias,
-        # process_group=None,
         reduce=True,
     ):
         super().__init__()
