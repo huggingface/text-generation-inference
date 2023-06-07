@@ -105,7 +105,6 @@ WORKDIR /usr/src
 COPY server/custom_kernels/ .
 
 # Build specific version of transformers
-RUN pip install ninja
 RUN python setup.py build
 
 # Text Generation Inference base image
@@ -137,7 +136,6 @@ COPY --from=flash-att-builder /usr/src/flash-attention/csrc/layer_norm/build/lib
 COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 
 # Copy build artifacts from transformers builder
-COPY --from=custom-kernels-builder /usr/src/custom_kernels /usr/src/custom_kernels
 COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39/custom_kernels /usr/src/custom-kernels/src/custom_kernels
 
 # Install transformers dependencies

@@ -301,14 +301,9 @@ class FlashLlamaModel(torch.nn.Module):
         self.layers = nn.ModuleList(
             [
                 FlashLlamaLayer(
-                    # config.num_attention_heads,
-                    # config.hidden_act,
-                    # config.hidden_size,
-                    # config.intermediate_size,
                     layer_id,
                     config,
                     weights,
-                    # config.rms_norm_eps,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

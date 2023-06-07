@@ -54,7 +54,6 @@ __all__ = [
     "BLOOMSharded",
     "CausalLM",
     "FlashCausalLM",
-    "Galactica",
     "GalacticaSharded",
     "Seq2SeqLM",
     "SantaCoder",
