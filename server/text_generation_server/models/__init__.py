@@ -19,7 +19,7 @@ from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 
 try:
-    if torch.cuda.is_available() and not os.getenv("USE_FLASH_ATTENTION").lower() == "false":
+    if torch.cuda.is_available() and not os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
         major, minor = torch.cuda.get_device_capability()
         is_sm75 = major == 7 and minor == 5
         is_sm8x = major == 8 and minor >= 0
