@@ -411,7 +411,6 @@ class FlashRWLayer(nn.Module):
             config,
             prefix=f"{prefix}.mlp",
             weights=weights,
-            reduce=False,
         )
 
         self.process_group = weights.process_group
