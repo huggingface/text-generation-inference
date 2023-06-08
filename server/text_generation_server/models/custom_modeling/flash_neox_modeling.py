@@ -31,61 +31,81 @@ from typing import Optional
 import flash_attn_cuda
 
 from text_generation_server.utils.layers import (
-    FastLinear,
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
+    TensorParallelHead,
     FastLayerNorm,
     PositionRotaryEmbedding,
+    get_linear,
 )
 
 
+def load_row(config, prefix: str, weights, bias: bool):
+    weight = weights.get_sharded(f"{prefix}.weight", dim=1)
+    if bias and weights.process_group.rank() == 0:
+        # Rank is only on the first rank process
+        bias = weights.get_tensor(f"{prefix}.bias")
+    else:
+        bias = None
+
+    linear = get_linear(weight, bias, config.quantize)
+    if config.use_parallel_residual:
+        return linear
+    else:
+        return TensorParallelRowLinear(linear, process_group=weights.process_group)
+
+
+def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
+    weight = weights.get_sharded(f"{prefix}.weight", dim=0)
+    bias = weights.get_sharded(f"{prefix}.bias", dim=0)
+
+    weight = (
+        weight.view(
+            num_heads,
+            3,
+            head_size,
+            hidden_size,
+        )
+        .permute(1, 0, 2, 3)
+        .reshape(-1, hidden_size)
+    )
+    bias = bias.view(num_heads, 3, head_size).permute(1, 0, 2).reshape(-1)
+
+    linear = get_linear(weight, bias, config.quantize)
+    if config.use_parallel_residual:
+        return linear
+    else:
+        return TensorParallelColumnLinear(linear)
+
+
 class FlashNeoxAttention(torch.nn.Module):
-    def __init__(
-        self,
-        num_heads,
-        hidden_size,
-        rotary_pct,
-        rotary_emb_base,
-        process_group=None,
-        reduce=True,
-    ):
+    def __init__(self, config, prefix, weights):
         super().__init__()
+        num_heads = config.num_attention_heads
+        hidden_size = config.hidden_size
+
         self.num_heads = num_heads
         self.hidden_size = hidden_size
         self.head_size = hidden_size // num_heads
+        self.num_heads = self.num_heads // weights.process_group.size()
 
-        rotary_ndims = int(self.head_size * rotary_pct)
-        self.rotary_emb = PositionRotaryEmbedding(rotary_ndims, base=rotary_emb_base)
+        self.rotary_emb = PositionRotaryEmbedding.load(
+            prefix=f"{prefix}.rotary_emb", weights=weights
+        )
+
         self.softmax_scale = self.head_size ** (-0.5)
 
-        if process_group is None:
-            self.query_key_value = FastLinear(hidden_size, 3 * hidden_size)
-            self.dense = FastLinear(hidden_size, hidden_size)
-        else:
-            self.num_heads = self.num_heads // process_group.size()
-            self.query_key_value = TensorParallelColumnLinear(
-                hidden_size,
-                3 * hidden_size,
-                process_group=process_group,
-            )
-            self.dense = TensorParallelRowLinear(
-                hidden_size, hidden_size, process_group=process_group, reduce=reduce
-            )
-
-    def shuffle_qkv_dims(self):
-        """Swap dims to avoid an additional permute"""
-        self.query_key_value.weight = torch.nn.Parameter(
-            self.query_key_value.weight.view(
-                self.num_heads, 3, self.head_size, self.hidden_size
-            )
-            .permute(1, 0, 2, 3)
-            .reshape(-1, self.hidden_size)
+        self.query_key_value = load_qkv(
+            config,
+            prefix=f"{prefix}.query_key_value",
+            weights=weights,
+            num_heads=self.num_heads,
+            head_size=self.head_size,
+            hidden_size=self.hidden_size,
         )
-        self.query_key_value.bias = torch.nn.Parameter(
-            self.query_key_value.bias.view(self.num_heads, 3, self.head_size)
-            .permute(1, 0, 2)
-            .reshape(-1)
+        self.dense = load_row(
+            config, prefix=f"{prefix}.dense", weights=weights, bias=True
         )
 
     def forward(
@@ -162,10 +182,9 @@ class FlashNeoxAttention(torch.nn.Module):
 
 
 class FlashMLP(nn.Module):
-    def __init__(
-        self, act, hidden_size, intermediate_size, process_group=None, reduce=True
-    ):
+    def __init__(self, config, prefix, weights):
         super().__init__()
+        act = config.hidden_act
         self.act = (
             ACT2FN[act]
             if "gelu" not in act
@@ -177,22 +196,12 @@ class FlashMLP(nn.Module):
             )
         )
 
-        if process_group is None:
-            self.dense_h_to_4h = FastLinear(hidden_size, intermediate_size)
-            self.dense_4h_to_h = FastLinear(intermediate_size, hidden_size)
-        else:
-            self.dense_h_to_4h = TensorParallelColumnLinear(
-                hidden_size,
-                intermediate_size,
-                process_group=process_group,
-            )
-            self.dense_4h_to_h = TensorParallelRowLinear(
-                intermediate_size,
-                hidden_size,
-                process_group=process_group,
-                reduce=reduce,
-            )
-        self.process_group = process_group
+        self.dense_h_to_4h = TensorParallelColumnLinear.load(
+            config, prefix=f"{prefix}.dense_h_to_4h", weights=weights, bias=True
+        )
+        self.dense_4h_to_h = load_row(
+            config, prefix=f"{prefix}.dense_4h_to_h", weights=weights, bias=True
+        )
 
     def forward(self, hidden_states):
         hidden_states = self.dense_h_to_4h(hidden_states)
@@ -202,38 +211,28 @@ class FlashMLP(nn.Module):
 
 
 class FlashNeoXLayer(nn.Module):
-    def __init__(
-        self,
-        num_heads,
-        act,
-        hidden_size,
-        intermediate_size,
-        rotary_pct,
-        rotary_emb_base,
-        layer_norm_eps,
-        use_parallel_residual,
-        process_group=None,
-    ):
+    def __init__(self, layer_id, config, weights):
         super().__init__()
-        self.use_parallel_residual = use_parallel_residual
-        self.input_layernorm = FastLayerNorm(hidden_size, eps=layer_norm_eps)
-        self.post_attention_layernorm = FastLayerNorm(hidden_size, eps=layer_norm_eps)
+
+        layer_norm_eps = config.layer_norm_eps
+
+        prefix = f"gpt_neox.layers.{layer_id}"
+
+        self.use_parallel_residual = config.use_parallel_residual
+        self.input_layernorm = FastLayerNorm.load(
+            prefix=f"{prefix}.input_layernorm", weights=weights, eps=layer_norm_eps
+        )
+        self.post_attention_layernorm = FastLayerNorm.load(
+            prefix=f"{prefix}.post_attention_layernorm",
+            weights=weights,
+            eps=layer_norm_eps,
+        )
         self.attention = FlashNeoxAttention(
-            num_heads,
-            hidden_size,
-            rotary_pct,
-            rotary_emb_base,
-            process_group,
-            reduce=not use_parallel_residual,
+            config, prefix=f"{prefix}.attention", weights=weights
         )
-        self.mlp = FlashMLP(
-            act,
-            hidden_size,
-            intermediate_size,
-            process_group,
-            reduce=not use_parallel_residual,
-        )
-        self.process_group = process_group
+
+        self.mlp = FlashMLP(config, prefix=f"{prefix}.mlp", weights=weights)
+        self.process_group = weights.process_group
 
     def forward(
         self,
@@ -266,9 +265,7 @@ class FlashNeoXLayer(nn.Module):
             mlp_output = self.mlp(ln2_hidden_states)
             intermediate = mlp_output + attn_output
 
-            # Only reduce once and after the addition instead of once per layer
-            if self.process_group is not None:
-                torch.distributed.all_reduce(intermediate, group=self.process_group)
+            torch.distributed.all_reduce(intermediate, group=self.process_group)
 
             return intermediate + hidden_states, None
         else:
@@ -302,71 +299,30 @@ class FlashGPTNeoXPreTrainedModel(PreTrainedModel):
 
 
 class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config, process_group=None):
+    def __init__(self, config, weights):
         super().__init__(config)
         self.config = config
 
-        self.tp_embeddings = False
-        if process_group is not None:
-            self.tp_rank = process_group.rank()
-            self.tp_world_size = process_group.size()
-            if config.vocab_size % self.tp_world_size == 0:
-                self.tp_embeddings = True
-
-        if self.tp_embeddings:
-            self.embed_in = TensorParallelEmbedding(
-                config.vocab_size, config.hidden_size, process_group=process_group
-            )
-        else:
-            self.embed_in = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embed_in = TensorParallelEmbedding(
+            prefix="gpt_neox.embed_in", weights=weights
+        )
 
         self.layers = nn.ModuleList(
             [
-                FlashNeoXLayer(
-                    config.num_attention_heads,
-                    config.hidden_act,
-                    config.hidden_size,
-                    config.intermediate_size,
-                    config.rotary_pct,
-                    config.rotary_emb_base,
-                    config.layer_norm_eps,
-                    config.use_parallel_residual,
-                    process_group,
-                )
-                for _ in range(config.num_hidden_layers)
+                FlashNeoXLayer(layer_id, config, weights)
+                for layer_id in range(config.num_hidden_layers)
             ]
         )
-        self.final_layer_norm = FastLayerNorm(
-            config.hidden_size, eps=config.layer_norm_eps
+        self.final_layer_norm = FastLayerNorm.load(
+            prefix="gpt_neox.final_layer_norm",
+            weights=weights,
+            eps=config.layer_norm_eps,
         )
 
         self.gradient_checkpointing = False
 
         self.head_size = self.layers[0].attention.head_size
         self.num_heads = self.layers[0].attention.num_heads
-
-    def post_load_weights(self, quantize: Optional[str] = None):
-        if isinstance(self.embed_in, TensorParallelEmbedding):
-            self.embed_in.add_null_idx()
-        for layer in self.layers:
-            layer: FlashNeoXLayer
-            layer.attention.shuffle_qkv_dims()
-            layer.attention.query_key_value.prepare_weights(quantize)
-            layer.attention.dense.prepare_weights(quantize)
-            layer.mlp.dense_h_to_4h.prepare_weights(quantize)
-            layer.mlp.dense_4h_to_h.prepare_weights(quantize)
-
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
-        # Pop here as we will replace the layer in our own logic and don't want from_pretrained
-        # to do it for us
-        load_in_8bit = kwargs.pop("load_in_8bit", False)
-        model = super(FlashGPTNeoXModel, cls).from_pretrained(
-            pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
-        )
-
-        model.post_load_weights("bitsandbytes" if load_in_8bit else None)
-        return model
 
     def forward(
         self,
@@ -435,42 +391,13 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
 
 class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config, process_group=None):
+    def __init__(self, config, weights):
         super().__init__(config)
+        self.gpt_neox = FlashGPTNeoXModel(config, weights)
 
-        self.process_group = process_group
-        if self.process_group is not None:
-            self.world_size = self.process_group.size()
-        else:
-            self.world_size = 1
-
-        self.gpt_neox = FlashGPTNeoXModel(config, process_group)
-
-        if self.gpt_neox.tp_embeddings:
-            self.embed_out = FastLinear(
-                config.hidden_size,
-                config.vocab_size // process_group.size(),
-                bias=False,
-            )
-        else:
-            self.embed_out = FastLinear(
-                config.hidden_size, config.vocab_size, bias=False
-            )
-
-    def post_load_weights(self, quantize: Optional[str] = None):
-        self.gpt_neox.post_load_weights(quantize)
-        self.embed_out.prepare_weights()
-
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
-        # Pop here as we will replace the layer in our own logic and don't want from_pretrained
-        # to do it for us
-        load_in_8bit = kwargs.pop("load_in_8bit", False)
-        model = super(FlashGPTNeoXForCausalLM, cls).from_pretrained(
-            pretrained_model_name_or_path, load_in_8bit=False, *model_args, **kwargs
+        self.embed_out = TensorParallelHead.load(
+            config, prefix="embed_out", weights=weights
         )
-        model.post_load_weights("bitsandbytes" if load_in_8bit else None)
-        return model
 
     def forward(
         self,
@@ -495,12 +422,4 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits = self.embed_out(hidden_states)
-
-        if self.gpt_neox.tp_embeddings:
-            # Logits are sharded, so we need to gather them
-            world_logits = [torch.empty_like(logits) for _ in range(self.world_size)]
-            torch.distributed.all_gather(world_logits, logits, group=self.process_group)
-            world_logits = torch.cat(world_logits, dim=1)
-
-            return world_logits, present
         return logits, present

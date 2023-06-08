@@ -209,6 +209,7 @@ def launcher(event_loop):
         num_shard: Optional[int] = None,
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
+        use_flash_attention: bool = True,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -240,6 +241,9 @@ def launcher(event_loop):
         env = os.environ
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
 
+        if not use_flash_attention:
+            env["USE_FLASH_ATTENTION"] = "false"
+
         with subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
         ) as process:
@@ -254,12 +258,16 @@ def launcher(event_loop):
             process.stdout.close()
             process.stderr.close()
 
+        if not use_flash_attention:
+            del env["USE_FLASH_ATTENTION"]
+
     @contextlib.contextmanager
     def docker_launcher(
         model_id: str,
         num_shard: Optional[int] = None,
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
+        use_flash_attention: bool = True,
     ):
         port = random.randint(8000, 10_000)
 
@@ -287,6 +295,9 @@ def launcher(event_loop):
         gpu_count = num_shard if num_shard is not None else 1
 
         env = {"LOG_LEVEL": "info,text_generation_router=debug"}
+        if not use_flash_attention:
+            env["USE_FLASH_ATTENTION"] = "false"
+
         if HUGGING_FACE_HUB_TOKEN is not None:
             env["HUGGING_FACE_HUB_TOKEN"] = HUGGING_FACE_HUB_TOKEN
 
@@ -309,6 +320,9 @@ def launcher(event_loop):
         )
 
         yield ContainerLauncherHandle(client, container.name, port)
+
+        if not use_flash_attention:
+            del env["USE_FLASH_ATTENTION"]
 
         try:
             container.stop()

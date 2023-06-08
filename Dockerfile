@@ -2,6 +2,8 @@
 FROM lukemathwalker/cargo-chef:latest-rust-1.69 AS chef
 WORKDIR /usr/src
 
+ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
 FROM chef as planner
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
@@ -98,14 +100,14 @@ COPY server/Makefile-flash-att Makefile
 RUN make build-flash-attention
 
 # Build Transformers CUDA kernels
-FROM kernel-builder as transformers-builder
+FROM kernel-builder as custom-kernels-builder
 
 WORKDIR /usr/src
 
-COPY server/Makefile-transformers Makefile
+COPY server/custom_kernels/ .
 
 # Build specific version of transformers
-RUN BUILD_EXTENSIONS="True" make build-transformers
+RUN python setup.py build
 
 # Text Generation Inference base image
 FROM nvidia/cuda:11.8.0-base-ubuntu20.04 as base
@@ -136,11 +138,10 @@ COPY --from=flash-att-builder /usr/src/flash-attention/csrc/layer_norm/build/lib
 COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 
 # Copy build artifacts from transformers builder
-COPY --from=transformers-builder /usr/src/transformers /usr/src/transformers
-COPY --from=transformers-builder /usr/src/transformers/build/lib.linux-x86_64-cpython-39/transformers /usr/src/transformers/src/transformers
+COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39/custom_kernels /usr/src/custom-kernels/src/custom_kernels
 
-# Install transformers dependencies
-RUN cd /usr/src/transformers && pip install -e . --no-cache-dir && pip install einops --no-cache-dir
+# Install flash-attention dependencies
+RUN pip install einops --no-cache-dir
 
 # Install server
 COPY proto proto

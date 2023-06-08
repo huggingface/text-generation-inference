@@ -1,6 +1,9 @@
 install-server:
 	cd server && make install
 
+install-custom-kernels:
+	if [ "$$BUILD_EXTENSIONS" == "True" ]; then cd server/custom_kernels && python setup.py install; else echo "Custom kernels are disabled, you need set to BUILD_EXTENSION environment variable to 'True' in order to build them. (Please read the docs, kernels might not work on all hardware)"; fi
+
 install-integration-tests:
 	cd integration-tests && pip install -r requirements.txt
 	cd clients/python && pip install .
@@ -14,7 +17,7 @@ install-launcher:
 install-benchmark:
 	cd benchmark && cargo install --path .
 
-install: install-server install-router install-launcher
+install: install-server install-router install-launcher install-custom-kernels
 
 server-dev:
 	cd server && make run-dev

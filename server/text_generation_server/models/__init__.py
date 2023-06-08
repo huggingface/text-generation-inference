@@ -1,3 +1,4 @@
+import os
 import torch
 
 from loguru import logger
@@ -8,17 +9,20 @@ from typing import Optional
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
-from text_generation_server.models.bloom import BLOOM, BLOOMSharded
+from text_generation_server.models.bloom import BLOOMSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
 from text_generation_server.models.rw import RW
-from text_generation_server.models.opt import OPT, OPTSharded
-from text_generation_server.models.galactica import Galactica, GalacticaSharded
+from text_generation_server.models.opt import OPTSharded
+from text_generation_server.models.galactica import GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
-from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.t5 import T5Sharded
+from text_generation_server.models.gpt_neox import GPTNeoxSharded
 
 try:
-    if torch.cuda.is_available():
+    if (
+        torch.cuda.is_available()
+        and not os.getenv("USE_FLASH_ATTENTION", "").lower() == "false"
+    ):
         major, minor = torch.cuda.get_device_capability()
         is_sm75 = major == 7 and minor == 5
         is_sm8x = major == 8 and minor >= 0
@@ -30,14 +34,12 @@ try:
                 f"GPU with CUDA capability {major} {minor} is not supported"
             )
 
-        from text_generation_server.models.flash_neox import FlashNeoX, FlashNeoXSharded
-        from text_generation_server.models.flash_rw import FlashRW, FlashRWSharded
+        from text_generation_server.models.flash_rw import FlashRWSharded
+        from text_generation_server.models.flash_neox import FlashNeoXSharded
         from text_generation_server.models.flash_llama import (
             FlashLlama,
-            FlashLlamaSharded,
         )
         from text_generation_server.models.flash_santacoder import (
-            FlashSantacoder,
             FlashSantacoderSharded,
         )
 
@@ -52,30 +54,22 @@ except ImportError:
 
 __all__ = [
     "Model",
-    "BLOOM",
     "BLOOMSharded",
     "CausalLM",
     "FlashCausalLM",
-    "Galactica",
     "GalacticaSharded",
-    "GPTNeoxSharded",
     "Seq2SeqLM",
     "SantaCoder",
-    "OPT",
     "OPTSharded",
     "T5Sharded",
     "get_model",
 ]
 
 if FLASH_ATTENTION:
-    __all__.append(FlashNeoX)
     __all__.append(FlashNeoXSharded)
-    __all__.append(FlashRW)
     __all__.append(FlashRWSharded)
-    __all__.append(FlashSantacoder)
     __all__.append(FlashSantacoderSharded)
     __all__.append(FlashLlama)
-    __all__.append(FlashLlamaSharded)
 
 FLASH_ATT_ERROR_MESSAGE = (
     "{} requires Flash Attention CUDA kernels to be installed.\n"
@@ -102,36 +96,24 @@ def get_model(
     trust_remote_code: bool,
 ) -> Model:
     if "facebook/galactica" in model_id:
-        if sharded:
-            return GalacticaSharded(
-                model_id,
-                revision,
-                quantize=quantize,
-                trust_remote_code=trust_remote_code,
-            )
-        else:
-            return Galactica(
-                model_id,
-                revision,
-                quantize=quantize,
-                trust_remote_code=trust_remote_code,
-            )
+        return GalacticaSharded(
+            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+        )
 
     if model_id.startswith("bigcode/"):
-        if sharded:
-            if not FLASH_ATTENTION:
-                raise NotImplementedError(
-                    FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Santacoder")
-                )
+        if FLASH_ATTENTION:
             return FlashSantacoderSharded(
                 model_id,
                 revision,
                 quantize=quantize,
                 trust_remote_code=trust_remote_code,
             )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Santacoder")
+            )
         else:
-            santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
-            return santacoder_cls(
+            return SantaCoder(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -144,20 +126,19 @@ def get_model(
     model_type = config_dict["model_type"]
 
     if model_type == "gpt_bigcode":
-        if sharded:
-            if not FLASH_ATTENTION:
-                raise NotImplementedError(
-                    FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Santacoder")
-                )
+        if FLASH_ATTENTION:
             return FlashSantacoderSharded(
                 model_id,
                 revision,
                 quantize=quantize,
                 trust_remote_code=trust_remote_code,
             )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Santacoder")
+            )
         else:
-            santacoder_cls = FlashSantacoder if FLASH_ATTENTION else SantaCoder
-            return santacoder_cls(
+            return SantaCoder(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -165,33 +146,45 @@ def get_model(
             )
 
     if model_type == "bloom":
-        if sharded:
-            return BLOOMSharded(
+        return BLOOMSharded(
+            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+        )
+
+    elif model_type == "gpt_neox":
+        if FLASH_ATTENTION:
+            return FlashNeoXSharded(
+                model_id,
+                revision,
+                quantize=quantize,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            return GPTNeoxSharded(
                 model_id,
                 revision,
                 quantize=quantize,
                 trust_remote_code=trust_remote_code,
             )
         else:
-            return BLOOM(
+            return CausalLM(
                 model_id,
                 revision,
                 quantize=quantize,
                 trust_remote_code=trust_remote_code,
             )
 
-    if model_type == "gpt_neox":
-        if sharded:
-            neox_cls = FlashNeoXSharded if FLASH_ATTENTION else GPTNeoxSharded
-            return neox_cls(
+    elif model_type == "llama":
+        if FLASH_ATTENTION:
+            return FlashLlama(
                 model_id,
                 revision,
                 quantize=quantize,
                 trust_remote_code=trust_remote_code,
             )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
         else:
-            neox_cls = FlashNeoX if FLASH_ATTENTION else CausalLM
-            return neox_cls(
+            return CausalLM(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -217,7 +210,7 @@ def get_model(
             )
         else:
             if FLASH_ATTENTION and not config_dict.get("alibi", False):
-                return FlashRW(
+                return FlashRWSharded(
                     model_id,
                     revision,
                     quantize=quantize,
@@ -231,42 +224,12 @@ def get_model(
                     trust_remote_code=trust_remote_code,
                 )
 
-    if model_type == "llama":
-        if sharded:
-            if FLASH_ATTENTION:
-                return FlashLlamaSharded(
-                    model_id,
-                    revision,
-                    quantize=quantize,
-                    trust_remote_code=trust_remote_code,
-                )
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Llama"))
-        else:
-            llama_cls = FlashLlama if FLASH_ATTENTION else CausalLM
-            return llama_cls(
-                model_id,
-                revision,
-                quantize=quantize,
-                trust_remote_code=trust_remote_code,
-            )
+    elif model_type == "opt":
+        return OPTSharded(
+            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+        )
 
-    if model_type == "opt":
-        if sharded:
-            return OPTSharded(
-                model_id,
-                revision,
-                quantize=quantize,
-                trust_remote_code=trust_remote_code,
-            )
-        else:
-            return OPT(
-                model_id,
-                revision,
-                quantize=quantize,
-                trust_remote_code=trust_remote_code,
-            )
-
-    if model_type == "t5":
+    elif model_type == "t5":
         if sharded:
             return T5Sharded(
                 model_id,
