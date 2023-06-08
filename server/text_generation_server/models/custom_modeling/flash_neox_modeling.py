@@ -265,7 +265,8 @@ class FlashNeoXLayer(nn.Module):
             mlp_output = self.mlp(ln2_hidden_states)
             intermediate = mlp_output + attn_output
 
-            torch.distributed.all_reduce(intermediate, group=self.process_group)
+            if self.process_group.size() > 1:
+                torch.distributed.all_reduce(intermediate, group=self.process_group)
 
             return intermediate + hidden_states, None
         else:

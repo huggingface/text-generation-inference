@@ -346,7 +346,9 @@ class FlashSantacoderModel(nn.Module):
         pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states = self.wte(input_ids) + self.wpe(position_ids)
-        torch.distributed.all_reduce(hidden_states, group=self.process_group)
+
+        if self.process_group.size() > 1:
+            torch.distributed.all_reduce(hidden_states, group=self.process_group)
 
         # Prefill
         if past_key_values is None:
