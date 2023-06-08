@@ -3,7 +3,9 @@ import pytest
 
 @pytest.fixture(scope="module")
 def neox_sharded_handle(launcher):
-    with launcher("OpenAssistant/oasst-sft-1-pythia-12b", num_shard=2, use_flash_attention=False) as handle:
+    with launcher(
+        "OpenAssistant/oasst-sft-1-pythia-12b", num_shard=2, use_flash_attention=False
+    ) as handle:
         yield handle
 
 

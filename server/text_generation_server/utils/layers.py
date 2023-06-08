@@ -1,4 +1,5 @@
 import torch
+import torch.distributed
 
 from torch import nn
 from torch.nn import functional as F
@@ -44,14 +45,14 @@ class FastLinear(nn.Module):
         else:
             self.bias = None
 
-    @staticmethod
-    def load(config, prefix: str, weights, bias: bool):
+    @classmethod
+    def load(cls, config, prefix: str, weights, bias: bool):
         weight = weights.get_tensor(f"{prefix}.weight")
         if bias:
             bias = weights.get_tensor(f"{prefix}.bias")
         else:
             bias = None
-        return FastLinear(weight, bias)
+        return cls(weight, bias)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return F.linear(input, self.weight, self.bias)
@@ -130,9 +131,7 @@ def get_linear(weight, bias, quantize):
     elif quantize == "gptq":
         raise NotImplementedError("Soon")
     else:
-        raise NotImplementedError(
-            f"Quantization `{config.quantize}` is not implemented yet."
-        )
+        raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
 
 
@@ -170,17 +169,17 @@ class TensorParallelHead(SuperLayer):
 
 
 class TensorParallelColumnLinear(SuperLayer):
-    @staticmethod
-    def load(config, prefix: str, weights, bias: bool):
+    @classmethod
+    def load(cls, config, prefix: str, weights, bias: bool):
         weight = weights.get_sharded(f"{prefix}.weight", dim=0)
         if bias:
             bias = weights.get_sharded(f"{prefix}.bias", dim=0)
         else:
             bias = None
-        return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+        return cls(get_linear(weight, bias, config.quantize))
 
-    @staticmethod
-    def load_multi(config, prefixes: List[str], weights, bias: bool, dim: int):
+    @classmethod
+    def load_multi(cls, config, prefixes: List[str], weights, bias: bool, dim: int):
         w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
         weight = torch.cat(w, dim=dim)
 
@@ -189,7 +188,7 @@ class TensorParallelColumnLinear(SuperLayer):
             bias = torch.cat(b, dim=0)
         else:
             bias = None
-        return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+        return cls(get_linear(weight, bias, config.quantize))
 
 
 class TensorParallelRowLinear(SuperLayer):
@@ -197,15 +196,15 @@ class TensorParallelRowLinear(SuperLayer):
         super().__init__(linear)
         self.process_group = process_group
 
-    @staticmethod
-    def load(config, prefix: str, weights, bias: bool):
+    @classmethod
+    def load(cls, config, prefix: str, weights, bias: bool):
         weight = weights.get_sharded(f"{prefix}.weight", dim=1)
         if bias and weights.process_group.rank() == 0:
             # Rank is only on the first rank process
             bias = weights.get_tensor(f"{prefix}.bias")
         else:
             bias = None
-        return TensorParallelRowLinear(
+        return cls(
             get_linear(weight, bias, config.quantize),
             process_group=weights.process_group,
         )
@@ -308,22 +307,22 @@ try:
             self._cos_k_cached = None
             self._sin_k_cached = None
 
-        @staticmethod
-        def static(dim, base, device):
+        @classmethod
+        def static(cls, dim, base, device):
             inv_freq = 1.0 / (
                 base
                 ** (torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim)
             )
-            return PositionRotaryEmbedding(inv_freq)
+            return cls(inv_freq)
 
-        @staticmethod
-        def load(prefix, weights):
+        @classmethod
+        def load(cls, prefix, weights):
             # XXX: Always load this in float32 !
             dtype = weights.dtype
             weights.dtype = torch.float32
             inv_freq = weights.get_tensor(f"{prefix}.inv_freq")
             weights.dtype = dtype
-            return PositionRotaryEmbedding(inv_freq)
+            return cls(inv_freq)
 
         def _update_cos_sin_cache(self, dtype, device, seqlen):
             # Reset the tables if the sequence length has changed,

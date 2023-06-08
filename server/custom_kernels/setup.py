@@ -13,7 +13,7 @@ setup(
             name="custom_kernels.fused_attention_cuda",
             sources=["custom_kernels/fused_attention_cuda.cu"],
             extra_compile_args=["-arch=compute_80", "-std=c++17"],
-        )
+        ),
     ],
     cmdclass={"build_ext": BuildExtension},
 )

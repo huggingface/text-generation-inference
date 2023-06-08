@@ -1,13 +1,10 @@
 import torch
 import torch.distributed
 
-from typing import List, Optional
+from typing import Optional
 
-from accelerate import init_empty_weights
-from safetensors import safe_open
 from transformers import (
     AutoTokenizer,
-    AutoModelForCausalLM,
     AutoConfig,
 )
 from text_generation_server.models import CausalLM

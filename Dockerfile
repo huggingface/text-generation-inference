@@ -138,7 +138,7 @@ COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.lin
 # Copy build artifacts from transformers builder
 COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39/custom_kernels /usr/src/custom-kernels/src/custom_kernels
 
-# Install transformers dependencies
+# Install flash-attention dependencies
 RUN pip install einops --no-cache-dir
 
 # Install server

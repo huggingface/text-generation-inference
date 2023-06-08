@@ -182,6 +182,7 @@ class GalacticaSharded(CausalLM):
             tp_parallel=True,
             trust_remote_code=trust_remote_code,
         )
+        config.quantize = quantize
         tokenizer.pad_token_id = config.pad_token_id
 
         torch.distributed.barrier(group=self.process_group)

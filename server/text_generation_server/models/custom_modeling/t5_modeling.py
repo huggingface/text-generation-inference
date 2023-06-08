@@ -845,7 +845,6 @@ class T5Stack(T5PreTrainedModel):
             ), "You have to initialize the model with valid token embeddings"
             inputs_embeds = self.embed_tokens(input_ids)
 
-        
         batch_size, seq_length = input_shape
 
         # required mask seq length can be calculated via length of past
@@ -1026,7 +1025,9 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             embed_tokens=self.shared,
         )
 
-        self.lm_head = TensorParallelHead.load(config, prefix="lm_head", weights=weights)
+        self.lm_head = TensorParallelHead.load(
+            config, prefix="lm_head", weights=weights
+        )
 
     def forward(
         self,

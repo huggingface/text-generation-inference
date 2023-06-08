@@ -3,7 +3,9 @@ import pytest
 
 @pytest.fixture(scope="module")
 def neox_handle(launcher):
-    with launcher("stabilityai/stablelm-tuned-alpha-3b", num_shard=1, use_flash_attention=False) as handle:
+    with launcher(
+        "stabilityai/stablelm-tuned-alpha-3b", num_shard=1, use_flash_attention=False
+    ) as handle:
         yield handle
 
 

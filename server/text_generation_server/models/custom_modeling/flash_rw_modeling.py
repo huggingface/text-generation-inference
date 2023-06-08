@@ -1,5 +1,3 @@
-import os
-
 import torch
 import torch.distributed
 
@@ -104,7 +102,6 @@ class FlashRWAttention(torch.nn.Module):
         config,
         prefix,
         weights,
-        reduce=True,
     ):
         super().__init__()
         self.num_heads = config.n_head
@@ -395,7 +392,6 @@ class FlashRWLayer(nn.Module):
             config,
             prefix=f"{prefix}.self_attention",
             weights=weights,
-            reduce=False,
         )
         self.post_attention_layernorm = (
             FastLayerNorm.load(
@@ -548,18 +544,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
         if config.model_type == "RefinedWebModel":
             self.h = nn.ModuleList(
                 [
-                    FlashRWLayer(
-                        layer_id,
-                        config,
-                        weights
-                        # config.n_head,
-                        # config.n_head_kv,
-                        # config.hidden_size,
-                        # config.bias,
-                        # config.layer_norm_epsilon,
-                        # config.parallel_attn,
-                        # process_group,
-                    )
+                    FlashRWLayer(layer_id, config, weights)
                     for layer_id in range(config.num_hidden_layers)
                 ]
             )

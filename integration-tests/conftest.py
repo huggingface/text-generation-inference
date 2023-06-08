@@ -249,7 +249,6 @@ def launcher(event_loop):
         ) as process:
             yield ProcessLauncherHandle(process, port)
 
-
             process.terminate()
             process.wait(60)
 
@@ -261,6 +260,7 @@ def launcher(event_loop):
 
         if not use_flash_attention:
             del env["USE_FLASH_ATTENTION"]
+
     @contextlib.contextmanager
     def docker_launcher(
         model_id: str,
