@@ -2,6 +2,8 @@
 FROM lukemathwalker/cargo-chef:latest-rust-1.69 AS chef
 WORKDIR /usr/src
 
+ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
 FROM chef as planner
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
