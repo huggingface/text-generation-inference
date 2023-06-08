@@ -184,7 +184,6 @@ class TensorParallelHead(SuperLayer):
                 return world_out
             return world_out.T
 
-
         output = super().forward(input)
         world_output = [
             torch.empty_like(output) for _ in range(self.process_group.size())
