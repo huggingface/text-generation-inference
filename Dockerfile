@@ -159,11 +159,14 @@ COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bi
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
 
+RUN apt update && apt install build-essential g++ -y
+
 # AWS Sagemaker compatbile image
 FROM base as sagemaker
 
 COPY sagemaker-entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh
+RUN pip install triton
 
 ENTRYPOINT ["./entrypoint.sh"]
 
