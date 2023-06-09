@@ -440,7 +440,8 @@ class FlashRWLayer(nn.Module):
             mlp_output = self.mlp(ln_hidden_states)
             intermediate = mlp_output + attn_output
 
-            torch.distributed.all_reduce(intermediate, group=self.process_group)
+            if self.process_group.size() > 1:
+                torch.distributed.all_reduce(intermediate, group=self.process_group)
 
             return intermediate, residual
         else:
@@ -524,7 +525,8 @@ class FlashRWLargeLayer(nn.Module):
 
         intermediate = attn_output + mlp_output
 
-        torch.distributed.all_reduce(intermediate, group=self.process_group)
+        if self.process_group.size() > 1:
+            torch.distributed.all_reduce(intermediate, group=self.process_group)
 
         return intermediate, residual
 
