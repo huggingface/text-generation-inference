@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List
 from safetensors import safe_open
+import torch
 
 
 class Weights:
@@ -46,7 +47,10 @@ class Weights:
         filename = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         tensor = f.get_tensor(tensor_name)
-        tensor = tensor.to(dtype=self.dtype)
+        # Special case for gptq which shouldn't convert
+        # u4 which are disguised as int32
+        if tensor.dtype != torch.int32:
+            tensor = tensor.to(dtype=self.dtype)
         tensor = tensor.to(device=self.device)
         return tensor
 
@@ -72,6 +76,9 @@ class Weights:
             tensor = slice_[:, start:stop]
         else:
             raise NotImplementedError("Let's make that generic when needed")
-        tensor = tensor.to(dtype=self.dtype)
+        # Special case for gptq which shouldn't convert
+        # u4 which are disguised as int32
+        if tensor.dtype != torch.int32:
+            tensor = tensor.to(dtype=self.dtype)
         tensor = tensor.to(device=self.device)
         return tensor
