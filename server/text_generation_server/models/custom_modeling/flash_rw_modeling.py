@@ -158,7 +158,7 @@ class FlashRWAttention(torch.nn.Module):
         # Prefill
         if prefill:
             # Copy to layer past
-            layer_past[past_present_indices] = kv
+            layer_past[...] = kv
             # Expand to query shape
             kv = kv.expand(-1, 2, self.num_heads, self.head_size)
 
@@ -295,7 +295,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         # Prefill
         if prefill:
             # Copy to layer past
-            layer_past[past_present_indices] = kv
+            layer_past[...] = kv
             # Expand to query shape
             kv = (
                 kv.unsqueeze(2)
@@ -629,9 +629,10 @@ class FlashRWModel(FlashRWPreTrainedModel):
             prefill = True
 
             # Create past tensor
+            # We create a tensor of the same size as input_ids as we don't want to slice at every layer
             past_key_values = hidden_states.new_empty(
                 (
-                    pre_allocate_past_size,
+                    len(input_ids),
                     len(self.h),
                     *self.cache_size,
                 )
@@ -662,6 +663,19 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 past_present_indices,
                 prefill,
             )
+
+        if prefill:
+            present = past_key_values
+            # Create padded past tensor
+            past_key_values = hidden_states.new_empty(
+                (
+                    pre_allocate_past_size,
+                    len(self.h),
+                    *self.cache_size,
+                )
+            )
+            # We slice only once instead of at every layer
+            past_key_values[past_present_indices] = present
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
 

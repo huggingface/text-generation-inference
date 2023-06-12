@@ -132,7 +132,7 @@ class FlashNeoxAttention(torch.nn.Module):
         # Prefill
         if prefill:
             # Copy to layer past
-            layer_past[past_present_indices] = qkv[:, 1:]
+            layer_past[...] = qkv[:, 1:]
 
             # output
             attn_output = torch.empty_like(qkv[:, 0])
@@ -362,9 +362,10 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             prefill = True
 
             # Create past tensor
+            # We create a tensor of the same size as input_ids as we don't want to slice at every layer
             past_key_values = hidden_states.new_empty(
                 (
-                    pre_allocate_past_size,
+                    len(input_ids),
                     len(self.layers),
                     2,
                     self.num_heads,
@@ -397,6 +398,21 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 past_present_indices,
                 prefill,
             )
+
+        if prefill:
+            present = past_key_values
+            # Create padded past tensor
+            past_key_values = hidden_states.new_empty(
+                (
+                    pre_allocate_past_size,
+                    len(self.layers),
+                    2,
+                    self.num_heads,
+                    self.head_size,
+                )
+            )
+            # We slice only once instead of at every layer
+            past_key_values[past_present_indices] = present
 
         hidden_states, _ = self.final_layer_norm(hidden_states, residual)
 
