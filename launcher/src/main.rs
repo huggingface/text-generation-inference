@@ -60,8 +60,8 @@ struct Args {
     sharded: Option<bool>,
 
     /// The number of shards to use if you don't want to use all GPUs on a given machine.
-    /// You can use `CUDA_VISIBLE_DEVICE=0,1 text-generation-launcher... --num_shard 2`
-    /// and `CUDA_VISIBLE_DEVICE=2,3 text-generation-launcher... --num_shard 2` to
+    /// You can use `CUDA_VISIBLE_DEVICES=0,1 text-generation-launcher... --num_shard 2`
+    /// and `CUDA_VISIBLE_DEVICES=2,3 text-generation-launcher... --num_shard 2` to
     /// launch 2 copies with 2 shard each on a given machine with 4 GPUs for instance.
     #[clap(long, env)]
     num_shard: Option<usize>,
