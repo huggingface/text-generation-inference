@@ -217,30 +217,11 @@ class TensorParallelHead(SuperLayer):
 class TensorParallelColumnLinear(SuperLayer):
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
-        weight = weights.get_sharded(f"{prefix}.weight", dim=0)
-        if bias:
-            bias = weights.get_sharded(f"{prefix}.bias", dim=0)
-        else:
-            bias = None
-        return cls(get_linear(weight, bias, config.quantize))
+        return cls.load_multi(config, [prefix], weights, bias, dim=0)
 
     @classmethod
     def load_multi(cls, config, prefixes: List[str], weights, bias: bool, dim: int):
-        if config.quantize == "gptq":
-            qweight = torch.cat([weights.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1)
-            qzeros = torch.cat([weights.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1)
-            scales = torch.cat([weights.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1)
-            w = [weights.get_tensor(f"{p}.g_idx") for p in prefixes]
-            for w2 in w[1:]:
-                torch.testing.assert_close(w2, w[0])
-            g_idx = w[0]
-            # TODO Get that from file to be more generic
-            bits = 4
-            groupsize = 128
-            weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
-        else:
-            w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
-            weight = torch.cat(w, dim=dim)
+        weight = weights.get_multi_weight_col(prefixes, quantize=config.quantize)
 
         if bias:
             b = [weights.get_sharded(f"{p}.bias", dim=0) for p in prefixes]
@@ -258,19 +239,7 @@ class TensorParallelRowLinear(SuperLayer):
 
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
-        if config.quantize == "gptq":
-            qweight = weights.get_sharded(f"{prefix}.qweight", dim=0)
-            qzeros = weights.get_tensor(f"{prefix}.qzeros")
-            scales = weights.get_tensor(f"{prefix}.scales")
-            g_idx = weights.get_sharded(f"{prefix}.g_idx", dim=0)
-
-            # TODO Get that from file to be more generic
-            bits = 4
-            groupsize = 128
-
-            weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
-        else:
-            weight = weights.get_sharded(f"{prefix}.weight", dim=1)
+        weight = weights.get_multi_weight_row(prefix, quantize=config.quantize)
 
         if bias and weights.process_group.rank() == 0:
             # Rank is only on the first rank process
