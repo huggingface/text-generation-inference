@@ -7,6 +7,7 @@ from typing import Optional
 
 # Flash attention imports
 import flash_attn_cuda
+
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -148,11 +149,14 @@ class FlashMQAttention(torch.nn.Module):
     def forward(
         self,
         hidden_states,
-        cu_seqlens,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
         layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+        past_present_indices,
+        prefill,
     ):
         qkv = self.c_attn(hidden_states)
 
@@ -166,7 +170,7 @@ class FlashMQAttention(torch.nn.Module):
         key_value = key_value.view(-1, 2, 1, self.head_size)
 
         # Prefill
-        if layer_past_present_indices is None:
+        if prefill:
             # Copy to layer past
             layer_past[...] = key_value
             # Expand from 1 to num_heads
@@ -177,11 +181,13 @@ class FlashMQAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda.fwd(
                 query,
-                key_value[:, 0],
-                key_value[:, 1],
+                torch.select(key_value, dim=1, index=0),
+                torch.select(key_value, dim=1, index=1),
                 attn_output,
-                cu_seqlens,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq,
+                end_seq,
                 max_s,
                 max_s,
                 0.0,
@@ -195,7 +201,7 @@ class FlashMQAttention(torch.nn.Module):
         # Decode
         else:
             # Add present to the layer_past tensor at the correct indices
-            layer_past[layer_past_present_indices] = key_value
+            layer_past[past_present_indices] = key_value
             # Expand from 1 to num_heads
             key_value = layer_past.expand(-1, 2, self.num_heads, self.head_size)
 
@@ -204,11 +210,13 @@ class FlashMQAttention(torch.nn.Module):
             # flash attention
             flash_attn_cuda.fwd(
                 query,
-                key_value[:, 0],
-                key_value[:, 1],
+                torch.select(key_value, dim=1, index=0),
+                torch.select(key_value, dim=1, index=1),
                 attn_output,
-                cu_seqlens_q,
-                cu_seqlens,
+                start_seq_q,
+                end_seq_q,
+                start_seq,
+                end_seq,
                 1,
                 max_s,
                 0.0,
@@ -277,21 +285,27 @@ class Block(nn.Module):
         self,
         hidden_states,
         residual,
-        cu_seqlens,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
         layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+        past_present_indices,
+        prefill,
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
 
         hidden_states = self.attn(
             hidden_states,
-            cu_seqlens,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
             max_s,
             layer_past,
-            layer_past_present_indices,
-            cu_seqlens_q,
+            past_present_indices,
+            prefill,
         )
 
         hidden_states, residual = self.ln_2(hidden_states, residual)
@@ -339,10 +353,13 @@ class FlashSantacoderModel(nn.Module):
         self,
         input_ids,
         position_ids,
-        cu_seqlens,
-        cu_seqlens_q,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
-        past_key_values: Optional[torch.Tensor] = None,
+        past_present_indices,
+        past_key_values=None,
         pre_allocate_past_size: Optional[int] = None,
     ):
         hidden_states = self.wte(input_ids) + self.wpe(position_ids)
@@ -352,44 +369,42 @@ class FlashSantacoderModel(nn.Module):
 
         # Prefill
         if past_key_values is None:
+            assert pre_allocate_past_size is not None
+
+            prefill = True
+
             # Create past tensor
-            past_key_values = hidden_states.new_empty(
-                (
-                    len(self.h),
-                    len(hidden_states)
-                    if pre_allocate_past_size is None
-                    else pre_allocate_past_size,
-                    2,
-                    1,
-                    self.head_size,
-                )
+            # We create a tensor of the same size as input_ids as we don't want to slice at every layer
+            past_key_values = hidden_states.new_zeros(
+                (len(input_ids), len(self.h), 2, 1, self.head_size)
             )
-            layer_past_present_indices = None
-            slice_past_index = len(hidden_states)
         # Decode
         else:
-            # Create indices from cumulative sequence lengths
-            layer_past_present_indices = cu_seqlens[1:] - 1
-            slice_past_index = None
+            prefill = False
 
         residual = None
         for i, layer in enumerate(self.h):
-            # We added padding that we now need to slice
-            layer_past_key_values = (
-                past_key_values[i]
-                if slice_past_index is None
-                else past_key_values[i, :slice_past_index]
-            )
-
             hidden_states, residual = layer(
                 hidden_states,
                 residual,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq_q,
+                end_seq_q,
                 max_s,
-                layer_past_key_values,
-                layer_past_present_indices,
-                cu_seqlens_q,
+                torch.select(past_key_values, dim=1, index=i),
+                past_present_indices,
+                prefill,
             )
+
+        if prefill:
+            present = past_key_values
+            # Create padded past tensor
+            past_key_values = hidden_states.new_empty(
+                (pre_allocate_past_size, len(self.h), 2, 1, self.head_size)
+            )
+            # We slice only once instead of at every layer
+            past_key_values[past_present_indices] = present
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
 
@@ -408,9 +423,12 @@ class FlashSantacoderForCausalLM(nn.Module):
         self,
         input_ids,
         position_ids,
-        cu_seqlens,
-        cu_seqlens_q,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
+        past_present_indices,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -418,9 +436,12 @@ class FlashSantacoderForCausalLM(nn.Module):
         hidden_states, present = self.transformer(
             input_ids,
             position_ids,
-            cu_seqlens,
-            cu_seqlens_q,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
             max_s,
+            past_present_indices,
             past_key_values,
             pre_allocate_past_size,
         )

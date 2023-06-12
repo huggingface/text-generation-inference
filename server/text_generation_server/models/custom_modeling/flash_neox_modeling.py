@@ -113,11 +113,14 @@ class FlashNeoxAttention(torch.nn.Module):
         hidden_states,
         cos,
         sin,
-        cu_seqlens,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
         layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+        past_present_indices,
+        prefill,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
@@ -127,7 +130,7 @@ class FlashNeoxAttention(torch.nn.Module):
         self.rotary_emb(qkv[:, 1], cos, sin)
 
         # Prefill
-        if layer_past_present_indices is None:
+        if prefill:
             # Copy to layer past
             layer_past[...] = qkv[:, 1:]
 
@@ -139,8 +142,10 @@ class FlashNeoxAttention(torch.nn.Module):
                 qkv[:, 1],
                 qkv[:, 2],
                 attn_output,
-                cu_seqlens,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq,
+                end_seq,
                 max_s,
                 max_s,
                 0.0,
@@ -155,7 +160,7 @@ class FlashNeoxAttention(torch.nn.Module):
         else:
             query = qkv[:, 0]
             # Add present to the layer_past tensor at the correct indices
-            layer_past[layer_past_present_indices] = qkv[:, 1:]
+            layer_past[past_present_indices] = qkv[:, 1:]
 
             # output
             attn_output = torch.empty_like(query)
@@ -165,8 +170,10 @@ class FlashNeoxAttention(torch.nn.Module):
                 layer_past[:, 0],
                 layer_past[:, 1],
                 attn_output,
-                cu_seqlens_q,
-                cu_seqlens,
+                start_seq_q,
+                end_seq_q,
+                start_seq,
+                end_seq,
                 1,
                 max_s,
                 0.0,
@@ -240,11 +247,14 @@ class FlashNeoXLayer(nn.Module):
         residual,
         cos,
         sin,
-        cu_seqlens,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
         layer_past,
-        layer_past_present_indices,
-        cu_seqlens_q,
+        past_present_indices,
+        prefill,
     ):
         if self.use_parallel_residual:
             ln1_hidden_states, _ = self.input_layernorm(hidden_states)
@@ -253,11 +263,14 @@ class FlashNeoXLayer(nn.Module):
                 ln1_hidden_states,
                 cos,
                 sin,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq_q,
+                end_seq_q,
                 max_s,
                 layer_past,
-                layer_past_present_indices,
-                cu_seqlens_q,
+                past_present_indices,
+                prefill,
             )
 
             ln2_hidden_states, _ = self.post_attention_layernorm(hidden_states)
@@ -276,11 +289,14 @@ class FlashNeoXLayer(nn.Module):
                 hidden_states,
                 cos,
                 sin,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq_q,
+                end_seq_q,
                 max_s,
                 layer_past,
-                layer_past_present_indices,
-                cu_seqlens_q,
+                past_present_indices,
+                prefill,
             )
 
             hidden_states, residual = self.post_attention_layernorm(
@@ -329,9 +345,12 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         self,
         input_ids,
         position_ids,
-        cu_seqlens,
-        cu_seqlens_q,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
+        past_present_indices,
         past_key_values=None,
         pre_allocate_past_size: Optional[int] = None,
     ):
@@ -339,25 +358,24 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
         # Prefill
         if past_key_values is None:
+            assert pre_allocate_past_size is not None
+
+            prefill = True
+
             # Create past tensor
+            # We create a tensor of the same size as input_ids as we don't want to slice at every layer
             past_key_values = hidden_states.new_empty(
                 (
+                    len(input_ids),
                     len(self.layers),
-                    len(hidden_states)
-                    if pre_allocate_past_size is None
-                    else pre_allocate_past_size,
                     2,
                     self.num_heads,
                     self.head_size,
                 )
             )
-            layer_past_present_indices = None
-            slice_past_index = len(hidden_states)
         # Decode
         else:
-            # Create indices from cumulative sequence lengths
-            layer_past_present_indices = cu_seqlens[1:] - 1
-            slice_past_index = None
+            prefill = False
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -367,24 +385,35 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
         residual = None
         for i, layer in enumerate(self.layers):
-            # We added padding that we now need to slice
-            layer_past_key_values = (
-                past_key_values[i]
-                if slice_past_index is None
-                else past_key_values[i, :slice_past_index]
-            )
-
             hidden_states, residual = layer(
                 hidden_states,
                 residual,
                 cos,
                 sin,
-                cu_seqlens,
+                start_seq,
+                end_seq,
+                start_seq_q,
+                end_seq_q,
                 max_s,
-                layer_past_key_values,
-                layer_past_present_indices,
-                cu_seqlens_q,
+                past_key_values[:, i],
+                past_present_indices,
+                prefill,
             )
+
+        if prefill:
+            present = past_key_values
+            # Create padded past tensor
+            past_key_values = hidden_states.new_empty(
+                (
+                    pre_allocate_past_size,
+                    len(self.layers),
+                    2,
+                    self.num_heads,
+                    self.head_size,
+                )
+            )
+            # We slice only once instead of at every layer
+            past_key_values[past_present_indices] = present
 
         hidden_states, _ = self.final_layer_norm(hidden_states, residual)
 
@@ -404,9 +433,12 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         self,
         input_ids,
         position_ids,
-        cu_seqlens,
-        cu_seqlens_q,
+        start_seq,
+        end_seq,
+        start_seq_q,
+        end_seq_q,
         max_s,
+        past_present_indices,
         past_key_values: Optional[torch.Tensor] = None,
         pre_allocate_past_size: Optional[int] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -414,9 +446,12 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         hidden_states, present = self.gpt_neox(
             input_ids,
             position_ids,
-            cu_seqlens,
-            cu_seqlens_q,
+            start_seq,
+            end_seq,
+            start_seq_q,
+            end_seq_q,
             max_s,
+            past_present_indices,
             past_key_values,
             pre_allocate_past_size,
         )
