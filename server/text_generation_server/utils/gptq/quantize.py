@@ -937,9 +937,9 @@ def pack(model, quantizers, bits, groupsize):
 #             print('max memory(MiB):', max_memory)
 
 
-def quantize(model_id: str, bits: int, groupsize: int, output_dir: str):
+def quantize(model_id: str, bits: int, groupsize: int, output_dir: str, trust_remote_code: bool):
     print("loading model")
-    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="balanced_low_0")
+    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="balanced_low_0", trust_remote_code=trust_remote_code)
     print("LOADED model")
     model.seqlen = 2048
 
@@ -1002,8 +1002,8 @@ def quantize(model_id: str, bits: int, groupsize: int, output_dir: str):
     from transformers.modeling_utils import shard_checkpoint
     state_dict = model.state_dict()
     state_dict = {k: v.cpu().contiguous() for k, v in state_dict.items()}
-    state_dict["gptq_bits"] = torch.LongTensor(bits)
-    state_dict["gptq_groupsize"] = torch.LongTensor(groupsize)
+    state_dict["gptq_bits"] = torch.LongTensor([bits])
+    state_dict["gptq_groupsize"] = torch.LongTensor([groupsize])
 
     max_shard_size = "10GB"
     shards, index = shard_checkpoint(state_dict, max_shard_size=max_shard_size, weights_name="model.safetensors")

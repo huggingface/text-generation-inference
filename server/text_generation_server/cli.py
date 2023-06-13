@@ -150,7 +150,6 @@ def download_weights(
         # Convert pytorch weights to safetensors
         utils.convert_files(local_pt_files, local_st_files)
 
-
 @app.command()
 def quantize(
     model_id: str,
@@ -158,8 +157,9 @@ def quantize(
     revision: Optional[str] = None,
     logger_level: str = "INFO",
     json_output: bool = False,
+    trust_remote_code: bool = False,
 ):
-    extension: str = (".safetensors",)
+    extension: str = ".safetensors",
     # Remove default handler
     logger.remove()
     logger.add(
@@ -171,15 +171,12 @@ def quantize(
         backtrace=True,
         diagnose=False,
     )
-    download_weights(
-        model_id=model_id,
-        revision=revision,
-        logger_level=logger_level,
-        json_output=json_output,
-    )
+    download_weights(model_id=model_id, revision=revision, logger_level=logger_level, json_output=json_output)
     from text_generation_server.utils.gptq.quantize import quantize
+    quantize(model_id=model_id, bits=4, groupsize=128, output_dir=output_dir, trust_remote_code=trust_remote_code)
 
-    quantize(model_id=model_id, bits=4, groupsize=128, output_dir=output_dir)
+
+
 
 
 if __name__ == "__main__":
