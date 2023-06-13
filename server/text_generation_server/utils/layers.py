@@ -134,13 +134,15 @@ def get_linear(weight, bias, quantize):
         try:
             qweight, qzeros, scales, g_idx, bits, groupsize = weight
         except Exception:
-            raise NotImplementedError(f"The passed weight is not `gptq` compatible, loader needs to be updated.")
+            raise NotImplementedError(
+                f"The passed weight is not `gptq` compatible, loader needs to be updated."
+            )
 
         linear = QuantLinear(
             qweight,
             qzeros,
             scales,
-            g_idx, 
+            g_idx,
             bias,
             bits,
             groupsize,

@@ -59,7 +59,7 @@ def load_row(config, prefix: str, weights, bias: bool):
 
 def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
     weight = weights.get_multi_weights_col([prefix], quantize=config.quantize)
-    if isinstance(weight, torch.Tensor): 
+    if isinstance(weight, torch.Tensor):
         # Only on non quantized versions
         weight = (
             weight.view(
@@ -74,7 +74,6 @@ def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
 
     bias = weights.get_sharded(f"{prefix}.bias", dim=0)
     bias = bias.view(num_heads, 3, head_size).permute(1, 0, 2).reshape(-1)
-
 
     linear = get_linear(weight, bias, config.quantize)
     if config.use_parallel_residual:
