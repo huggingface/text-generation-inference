@@ -304,12 +304,12 @@ class QuantLinearFunction(torch.autograd.Function):
 class QuantLinear(nn.Module):
     def __init__(self, qweight, qzeros, scales, g_idx, bias, bits, groupsize):
         super().__init__()
-        self.qweight = self.register_buffer("qweight", qweight)
-        self.qzeros = self.register_buffer("qzeros", qzeros)
-        self.scales = self.register_buffer("scales", scales)
-        self.g_idx = self.register_buffer("g_idx", g_idx)
+        self.register_buffer("qweight", qweight)
+        self.register_buffer("qzeros", qzeros)
+        self.register_buffer("scales", scales)
+        self.register_buffer("g_idx", g_idx)
         if bias is not None:
-            self.bias = self.register_buffer("bias", bias)
+            self.register_buffer("bias", bias)
         else:
             self.bias = None
         if bits not in [2, 4, 8]:

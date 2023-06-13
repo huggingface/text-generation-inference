@@ -49,7 +49,7 @@ class Weights:
         tensor = f.get_tensor(tensor_name)
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32
-        if tensor.dtype != torch.int32:
+        if tensor.dtype not in [torch.int32, torch.int64]:
             tensor = tensor.to(dtype=self.dtype)
         tensor = tensor.to(device=self.device)
         return tensor
