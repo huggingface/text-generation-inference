@@ -83,7 +83,7 @@ class Weights:
         tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_multi_weights_col(self, prefixes: List[str], quantize: str):
+    def get_multi_weights_col(self, prefixes: List[str], quantize: str, dim: int):
         if quantize == "gptq":
             try:
                 qweight = torch.cat([self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1)
@@ -102,7 +102,7 @@ class Weights:
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
-            weight = torch.cat(w, dim=1)
+            weight = torch.cat(w, dim=dim)
         return weight
 
     def get_multi_weights_row(self, prefix: str, quantize: str):
