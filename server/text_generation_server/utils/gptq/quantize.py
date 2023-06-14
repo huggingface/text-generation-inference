@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
 from loguru import logger
-from typings import Optional
+from typing import Optional
 
 DEV = torch.device("cuda:0")
 
