@@ -27,7 +27,6 @@ sentencepiece = "^0.1.97"
 tokenizers = "0.13.3"
 huggingface-hub = "^0.14.1"
 transformers = "^4.29.2"
-triton = "^2.0.0"
 
 [tool.poetry.extras]
 accelerate = ["accelerate"]
