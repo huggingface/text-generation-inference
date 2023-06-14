@@ -21,7 +21,7 @@ from text_generation_server.utils.layers import (
 
 
 def load_row(config, prefix: str, weights, bias: bool):
-    weight = weights.get_multi_weights_col([prefix], quantize=config.quantize, dim=1)
+    weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
 
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
