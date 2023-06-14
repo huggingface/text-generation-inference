@@ -166,7 +166,6 @@ FROM base as sagemaker
 
 COPY sagemaker-entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh
-RUN pip install triton
 
 ENTRYPOINT ["./entrypoint.sh"]
 

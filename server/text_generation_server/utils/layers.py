@@ -134,13 +134,15 @@ def get_linear(weight, bias, quantize):
         try:
             qweight, qzeros, scales, g_idx, bits, groupsize = weight
         except Exception:
-            raise NotImplementedError(f"The passed weight is not `gptq` compatible, loader needs to be updated.")
+            raise NotImplementedError(
+                f"The passed weight is not `gptq` compatible, loader needs to be updated."
+            )
 
         linear = QuantLinear(
             qweight,
             qzeros,
             scales,
-            g_idx, 
+            g_idx,
             bias,
             bits,
             groupsize,
@@ -221,7 +223,9 @@ class TensorParallelColumnLinear(SuperLayer):
 
     @classmethod
     def load_multi(cls, config, prefixes: List[str], weights, bias: bool, dim: int):
-        weight = weights.get_multi_weights_col(prefixes, quantize=config.quantize, dim=dim)
+        weight = weights.get_multi_weights_col(
+            prefixes, quantize=config.quantize, dim=dim
+        )
 
         if bias:
             b = [weights.get_sharded(f"{p}.bias", dim=0) for p in prefixes]
