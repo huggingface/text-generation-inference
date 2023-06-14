@@ -1,5 +1,5 @@
-use crate::health::Health;
 /// HTTP Server logic
+use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
@@ -17,7 +17,10 @@ use axum_tracing_opentelemetry::opentelemetry_tracing_layer;
 use futures::stream::StreamExt;
 use futures::Stream;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use ngrok::config::TunnelBuilder;
+use ngrok::tunnel::UrlTunnel;
 use std::convert::Infallible;
+use std::env;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -683,13 +686,45 @@ pub async fn run(
         .layer(opentelemetry_tracing_layer())
         .layer(cors_layer);
 
-    // Run server
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        // Wait until all requests are finished to shut down
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+    if let Ok(ngrok_token) = env::var("NGROK_AUTHTOKEN") {
+        let _ = addr;
+
+        let mut tunnel = ngrok::Session::builder()
+            .authtoken(ngrok_token)
+            .connect()
+            .await
+            .unwrap()
+            .http_endpoint();
+
+        if let Ok(domain) = env::var("NGROK_DOMAIN") {
+            tunnel = tunnel.domain(domain);
+        }
+
+        if let (Ok(username), Ok(password)) =
+            (env::var("NGROK_USERNAME"), env::var("NGROK_PASSWORD"))
+        {
+            tunnel = tunnel.basic_auth(username, password);
+        }
+
+        let listener = tunnel.listen().await.unwrap();
+
+        // Run server
+        tracing::info!("Ingress URL: {:?}", listener.url());
+        axum::Server::builder(listener)
+            .serve(app.into_make_service())
+            //Wait until all requests are finished to shut down
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .unwrap();
+    } else {
+        // Run server
+        axum::Server::bind(&addr)
+            .serve(app.into_make_service())
+            // Wait until all requests are finished to shut down
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .unwrap();
+    }
 }
 
 /// Shutdown signal handler
