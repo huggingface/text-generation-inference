@@ -205,7 +205,7 @@ class GPTQ:
 
     def print_loss(self, name, q_weight, weight_error, timecost):
         table = Texttable()
-        length = 30
+        length = 28
         name = (
             (name + " " * (length - len(name)))
             if len(name) <= length
@@ -1165,10 +1165,12 @@ def quantize(
             f"split in {len(shards)} checkpoint shards. You can find where each parameters has been saved in the "
             f"index located at {save_index_file}."
         )
-    config = AutoConfig.from_pretrained(model_id)
+    config = AutoConfig.from_pretrained(model_id, trust_remote_code=trust_remote_code)
     config.save_pretrained(output_dir)
     logger.info("Saved config")
     logger.info("Saving tokenizer")
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_id, trust_remote_code=trust_remote_code
+    )
     tokenizer.save_pretrained(output_dir)
     logger.info("Saved tokenizer")
