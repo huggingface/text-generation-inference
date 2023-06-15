@@ -160,6 +160,8 @@ def quantize(
     json_output: bool = False,
     trust_remote_code: bool = False,
     upload_to_model_id: Optional[str] = None,
+    percdamp: float = 0.01,
+    act_order: bool = False,
 ):
     download_weights(
         model_id=model_id,
@@ -176,6 +178,8 @@ def quantize(
         output_dir=output_dir,
         trust_remote_code=trust_remote_code,
         upload_to_model_id=upload_to_model_id,
+        percdamp=percdamp,
+        act_order=act_order,
     )
 
 

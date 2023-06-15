@@ -240,7 +240,7 @@ class GPTQ:
         print(table.draw().split("\n")[-2])
 
     def fasterquant(
-        self, blocksize=128, percdamp=0.01, groupsize=-1, actorder=False, name=""
+        self, blocksize=128, percdamp=0.01, groupsize=-1, act_order=False, name=""
     ):
         self.layer.to(self.dev)
 
@@ -263,7 +263,7 @@ class GPTQ:
         H[dead, dead] = 1
         W[:, dead] = 0
 
-        if actorder:
+        if act_order:
             perm = torch.argsort(torch.diag(H), descending=True)
             W = W[:, perm]
             H = H[perm][:, perm]
@@ -334,7 +334,7 @@ class GPTQ:
         groupsize = groupsize if groupsize != -1 else self.columns
         g_idx = [i // groupsize for i in range(self.columns)]
         g_idx = torch.tensor(g_idx, dtype=torch.int32, device=Q.device)
-        if actorder:
+        if act_order:
             invperm = torch.argsort(perm)
             Q = Q[:, invperm]
             g_idx = g_idx[invperm]
@@ -697,7 +697,7 @@ def sequential(
                 scale, zero, g_idx, error = gptq[name].fasterquant(
                     percdamp=percdamp,
                     groupsize=groupsize,
-                    actorder=act_order,
+                    act_order=act_order,
                     name=name,
                 )
                 quantizers[f"{prefix}.{i}.{name}"] = (
@@ -775,6 +775,8 @@ def quantize(
     output_dir: str,
     trust_remote_code: bool,
     upload_to_model_id: Optional[str],
+    percdamp: float,
+    act_order: bool,
 ):
     print("loading model")
     model = AutoModelForCausalLM.from_pretrained(
@@ -795,7 +797,16 @@ def quantize(
     )
 
     tick = time.time()
-    quantizers = sequential(model, dataloader, DEV, nsamples, bits, groupsize)
+    quantizers = sequential(
+        model,
+        dataloader,
+        DEV,
+        nsamples,
+        bits,
+        groupsize,
+        percdamp=percdamp,
+        act_order=act_order,
+    )
     print(time.time() - tick)
 
     pack(model, quantizers, bits, groupsize)
