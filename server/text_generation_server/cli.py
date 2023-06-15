@@ -161,8 +161,23 @@ def quantize(
     trust_remote_code: bool = False,
     upload_to_model_id: Optional[str] = None,
     percdamp: float = 0.01,
-    act_order: bool = False,
+    act_order: bool = True,
 ):
+    """
+    `quantize` will download a non quantized model MODEL_ID, quantize it locally using gptq
+    and output the new weights into the specified OUTPUT_DIR.
+
+    This quantization does depend on showing examples to the model.
+    It is impossible to be fully agnostic to it (some models require preprompting,
+    some not, some are made for English).
+    If the quantized model is performing poorer than expected this is one way to investigate.
+    This CLI doesn't aim to enable all and every use cases, but the minimal subset that should
+    work most of the time, for advanced usage, please modify the script directly.
+
+    The quantization script and inference code was taken from https://github.com/qwopqwop200/GPTQ-for-LLaMa
+    and updated to be more generic to support more easily a wider range of models.
+    """
+
     download_weights(
         model_id=model_id,
         revision=revision,

@@ -45,6 +45,7 @@ to power LLMs api-inference widgets.
 - [Continuous batching of incoming requests](https://github.com/huggingface/text-generation-inference/tree/main/router) for increased total throughput
 - Optimized transformers code for inference using [flash-attention](https://github.com/HazyResearch/flash-attention) on the most popular architectures
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
+- Quantization with [gptq](https://github.com/qwopqwop200/GPTQ-for-LLaMa). 4x less RAM usage, with same latency
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 - Logits warper (temperature scaling, top-p, top-k, repetition penalty, more details see [transformers.LogitsProcessor](https://huggingface.co/docs/transformers/internal/generation_utils#transformers.LogitsProcessor))
@@ -215,6 +216,25 @@ The custom CUDA kernels are only tested on NVIDIA A100s. If you have any install
 the kernels by using the `BUILD_EXTENSIONS=False` environment variable.
 
 Be aware that the official Docker image has them enabled by default.
+
+
+### Quantization with GPTQ
+
+GPTQ quantization requires sending data to the model, therefore we cannot quantize
+the model on the fly.
+
+Instead we provide a script to create a new quantized model
+```
+text-generation-server quantize tiiuae/falcon-40b /data/falcon-40b-gptq
+# Add --upload-to-model-id MYUSERNAME/falcon-40b to upload to the hub directly
+```
+
+This will create a new directory with the quantized files which you can send use with
+```
+text-generation-launcher --model-id /data/falcon-40b-gptq/ --sharded true --num-shard 2 --quantize gptq
+```
+Use `text-generation-server quantize --help` for detailed usage and more options
+during quantization.
 
 ## Run BLOOM
 

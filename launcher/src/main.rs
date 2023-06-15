@@ -68,6 +68,7 @@ struct Args {
 
     /// Whether you want the model to be quantized. This will use `bitsandbytes` for
     /// quantization on the fly, or `gptq`.
+    /// For `gptq` please check `text-generation-server quantize --help` for more information
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
 
