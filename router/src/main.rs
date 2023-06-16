@@ -56,6 +56,16 @@ struct Args {
     otlp_endpoint: Option<String>,
     #[clap(long, env)]
     cors_allow_origin: Option<Vec<String>>,
+    #[clap(long, env)]
+    ngrok: bool,
+    #[clap(long, env)]
+    ngrok_authtoken: Option<String>,
+    #[clap(long, env)]
+    ngrok_domain: Option<String>,
+    #[clap(long, env)]
+    ngrok_username: Option<String>,
+    #[clap(long, env)]
+    ngrok_password: Option<String>,
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -80,6 +90,11 @@ fn main() -> Result<(), std::io::Error> {
         json_output,
         otlp_endpoint,
         cors_allow_origin,
+        ngrok,
+        ngrok_authtoken,
+        ngrok_domain,
+        ngrok_username,
+        ngrok_password,
     } = args;
 
     if validation_workers == 0 {
@@ -198,6 +213,11 @@ fn main() -> Result<(), std::io::Error> {
                 validation_workers,
                 addr,
                 cors_allow_origin,
+                ngrok,
+                ngrok_authtoken,
+                ngrok_domain,
+                ngrok_username,
+                ngrok_password,
             )
                 .await;
             Ok(())

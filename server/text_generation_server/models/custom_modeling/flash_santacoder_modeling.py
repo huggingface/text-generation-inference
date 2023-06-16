@@ -47,7 +47,6 @@ def load_multi_mqa(
             shape = slice_.get_shape()
             block_size = (shape[0] - 2 * head_size) // world_size
             assert (shape[0] - 2 * head_size) % world_size == 0
-            q_tensor = slice_[start:stop]
             start = rank * block_size
             stop = (rank + 1) * block_size
             q_tensor = slice_[start:stop]

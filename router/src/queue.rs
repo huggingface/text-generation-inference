@@ -49,7 +49,7 @@ impl Queue {
         // Send append command to the background task managing the state
         // Unwrap is safe here
         self.queue_sender
-            .send(QueueCommand::Append(entry, Span::current()))
+            .send(QueueCommand::Append(Box::new(entry), Span::current()))
             .unwrap();
     }
 
@@ -85,7 +85,7 @@ async fn queue_task(requires_padding: bool, receiver: flume::Receiver<QueueComma
     while let Ok(cmd) = receiver.recv_async().await {
         match cmd {
             QueueCommand::Append(entry, span) => {
-                span.in_scope(|| state.append(entry));
+                span.in_scope(|| state.append(*entry));
                 metrics::increment_gauge!("tgi_queue_size", 1.0);
             }
             QueueCommand::NextBatch {
@@ -256,7 +256,7 @@ type NextBatch = (IntMap<u64, Entry>, Batch, Span);
 
 #[derive(Debug)]
 enum QueueCommand {
-    Append(Entry, Span),
+    Append(Box<Entry>, Span),
     NextBatch {
         min_size: Option<usize>,
         token_budget: u32,
