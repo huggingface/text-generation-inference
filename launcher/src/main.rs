@@ -229,6 +229,26 @@ struct Args {
     #[clap(long, env)]
     watermark_delta: Option<f32>,
 
+    /// Enable ngrok tunneling
+    #[clap(long, env)]
+    ngrok: bool,
+
+    /// ngrok authentication token
+    #[clap(long, env)]
+    ngrok_authtoken: Option<String>,
+
+    /// ngrok domain name where the axum webserver will be available at
+    #[clap(long, env)]
+    ngrok_domain: Option<String>,
+
+    /// ngrok basic auth username
+    #[clap(long, env)]
+    ngrok_username: Option<String>,
+
+    /// ngrok basic auth password
+    #[clap(long, env)]
+    ngrok_password: Option<String>,
+
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
     env: bool,
@@ -843,6 +863,30 @@ fn spawn_webserver(
     for origin in args.cors_allow_origin.into_iter() {
         argv.push("--cors-allow-origin".to_string());
         argv.push(origin);
+    }
+
+    // Ngrok
+    if args.ngrok {
+        let authtoken = args.ngrok_authtoken.ok_or_else(|| {
+            tracing::error!("`ngrok-authtoken` must be set when using ngrok tunneling");
+            LauncherError::WebserverCannotStart
+        })?;
+
+        argv.push("--ngrok".to_string());
+        argv.push("--ngrok-authtoken".to_string());
+        argv.push(authtoken);
+
+        if let Some(domain) = args.ngrok_domain {
+            argv.push("--ngrok-domain".to_string());
+            argv.push(domain);
+        }
+
+        if let (Some(username), Some(password)) = (args.ngrok_username, args.ngrok_password) {
+            argv.push("--ngrok-username".to_string());
+            argv.push(username);
+            argv.push("--ngrok-password".to_string());
+            argv.push(password);
+        }
     }
 
     // Copy current process env
