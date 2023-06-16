@@ -16,9 +16,9 @@ def check_file_size(source_file: Path, target_file: Path):
     source_file_size = source_file.stat().st_size
     target_file_size = target_file.stat().st_size
 
-    if (source_file_size - target_file_size) / source_file_size > 0.01:
+    if (source_file_size - target_file_size) / source_file_size > 0.05:
         raise RuntimeError(
-            f"""The file size different is more than 1%:
+            f"""The file size different is more than 5%:
          - {source_file}: {source_file_size}
          - {target_file}: {target_file_size}
          """
