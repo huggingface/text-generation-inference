@@ -232,9 +232,9 @@ def launcher(event_loop):
 
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
-        if quantize:
+        if quantize is not None:
             args.append("--quantize")
-            args.append("bitsandbytes")
+            args.append(quantize)
         if trust_remote_code:
             args.append("--trust-remote-code")
 

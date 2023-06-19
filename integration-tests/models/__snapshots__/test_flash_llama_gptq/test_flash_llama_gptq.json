@@ -1,0 +1,103 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 1724,
+        "logprob": -9.953125,
+        "text": "What"
+      },
+      {
+        "id": 338,
+        "logprob": -1.4121094,
+        "text": "is"
+      },
+      {
+        "id": 6483,
+        "logprob": -9.9765625,
+        "text": "deep"
+      },
+      {
+        "id": 6509,
+        "logprob": -1.6767578,
+        "text": "learning"
+      },
+      {
+        "id": 1577,
+        "logprob": -4.5976562,
+        "text": "?"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -0.21813965,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 2772,
+        "logprob": -1.4130859,
+        "special": false,
+        "text": "De"
+      },
+      {
+        "id": 1022,
+        "logprob": -0.0028419495,
+        "special": false,
+        "text": "ep"
+      },
+      {
+        "id": 6509,
+        "logprob": -0.3244629,
+        "special": false,
+        "text": " learning"
+      },
+      {
+        "id": 338,
+        "logprob": -0.25439453,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 263,
+        "logprob": -0.43774414,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 4933,
+        "logprob": -1.8105469,
+        "special": false,
+        "text": " machine"
+      },
+      {
+        "id": 6509,
+        "logprob": -0.07116699,
+        "special": false,
+        "text": " learning"
+      },
+      {
+        "id": 11043,
+        "logprob": -0.87158203,
+        "special": false,
+        "text": " technique"
+      },
+      {
+        "id": 393,
+        "logprob": -0.91015625,
+        "special": false,
+        "text": " that"
+      }
+    ]
+  },
+  "generated_text": "\nDeep learning is a machine learning technique that"
+}

@@ -1,0 +1,98 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 338,
+        "logprob": -10.8046875,
+        "text": "is"
+      },
+      {
+        "id": 6483,
+        "logprob": -12.6640625,
+        "text": "deep"
+      },
+      {
+        "id": 6509,
+        "logprob": -3.3398438,
+        "text": "learning"
+      },
+      {
+        "id": 1577,
+        "logprob": -8.3828125,
+        "text": "?"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 4013,
+        "logprob": -2.6992188,
+        "special": false,
+        "text": "This"
+      },
+      {
+        "id": 1139,
+        "logprob": -0.35668945,
+        "special": false,
+        "text": " question"
+      },
+      {
+        "id": 756,
+        "logprob": -0.08251953,
+        "special": false,
+        "text": " has"
+      },
+      {
+        "id": 1063,
+        "logprob": -0.39697266,
+        "special": false,
+        "text": " been"
+      },
+      {
+        "id": 4433,
+        "logprob": 0.0,
+        "special": false,
+        "text": " asked"
+      },
+      {
+        "id": 1784,
+        "logprob": -0.9248047,
+        "special": false,
+        "text": " many"
+      },
+      {
+        "id": 3064,
+        "logprob": 0.0,
+        "special": false,
+        "text": " times"
+      },
+      {
+        "id": 1434,
+        "logprob": -0.90625,
+        "special": false,
+        "text": " before"
+      },
+      {
+        "id": 29892,
+        "logprob": -0.19580078,
+        "special": false,
+        "text": ","
+      }
+    ]
+  },
+  "generated_text": "What is deep learning ?\nThis question has been asked many times before,"
+}
