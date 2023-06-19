@@ -26,7 +26,10 @@ def weight_hub_files(
     filenames = [
         s.rfilename
         for s in info.siblings
-        if s.rfilename.endswith(extension) and len(s.rfilename.split("/")) == 1
+        if s.rfilename.endswith(extension)
+        and len(s.rfilename.split("/")) == 1
+        and "arguments" not in s.rfilename
+        and "args" not in s.rfilename
     ]
 
     if not filenames:
