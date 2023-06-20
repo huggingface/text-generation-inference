@@ -245,7 +245,7 @@ def launcher(event_loop):
             env["USE_FLASH_ATTENTION"] = "false"
 
         with subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
+            args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env
         ) as process:
             yield ProcessLauncherHandle(process, port)
 
@@ -256,7 +256,6 @@ def launcher(event_loop):
             print(launcher_output, file=sys.stderr)
 
             process.stdout.close()
-            process.stderr.close()
 
         if not use_flash_attention:
             del env["USE_FLASH_ATTENTION"]
