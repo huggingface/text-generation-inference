@@ -237,20 +237,12 @@ def get_model(
         )
 
     elif model_type == "t5":
-        if sharded:
-            return T5Sharded(
-                model_id,
-                revision,
-                quantize=quantize,
-                trust_remote_code=trust_remote_code,
-            )
-        else:
-            return Seq2SeqLM(
-                model_id,
-                revision,
-                quantize=quantize,
-                trust_remote_code=trust_remote_code,
-            )
+        return T5Sharded(
+            model_id,
+            revision,
+            quantize=quantize,
+            trust_remote_code=trust_remote_code,
+        )
 
     if sharded:
         raise ValueError("sharded is not supported for AutoModel")
