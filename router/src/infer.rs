@@ -150,15 +150,27 @@ impl Infer {
             match response? {
                 // Add prefill tokens
                 InferStreamResponse::Prefill(tokens) => {
+                    let tokens_length = tokens.ids.len();
+
+                    // Validation
+                    // logprobs, ids and texts must have the same lengths
+                    if tokens.logprobs.len() != tokens_length || tokens.texts.len() != tokens_length {
+                        return Err(InferError::GenerationError(format!("Prefill tokens do not have the correct lengths")))
+                    }
+
+                    result_prefill = Vec::with_capacity(tokens_length);
+
                     // Create Token objects
                     // We do that here instead of in the Python code as Rust for loops are faster
-                    result_prefill = tokens
-                        .ids
-                        .into_iter()
-                        .zip(tokens.logprobs.into_iter())
-                        .zip(tokens.texts.into_iter())
-                        .map(|((id, logprob), text)| PrefillToken { id, text, logprob })
-                        .collect();
+                    for ((id, logprob), text) in tokens.ids.into_iter().zip(
+                        tokens.logprobs.into_iter()
+                    ).zip(tokens.texts.into_iter()) {
+                        result_prefill.push(PrefillToken{
+                            id,
+                            text,
+                            logprob,
+                        });
+                    }
                 }
                 // Push last token
                 InferStreamResponse::Token(token) => result_tokens.push(token),
