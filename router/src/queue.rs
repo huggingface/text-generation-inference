@@ -95,7 +95,7 @@ async fn queue_task(requires_padding: bool, receiver: flume::Receiver<QueueComma
                 span,
             } => span.in_scope(|| {
                 let next_batch = state.next_batch(min_size, token_budget);
-                response_sender.send(next_batch).unwrap_or(());
+                response_sender.send(next_batch).unwrap();
                 metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
             }),
         }
