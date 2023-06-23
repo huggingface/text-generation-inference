@@ -154,22 +154,24 @@ impl Infer {
 
                     // Validation
                     // logprobs, ids and texts must have the same lengths
-                    if tokens.logprobs.len() != tokens_length || tokens.texts.len() != tokens_length {
-                        return Err(InferError::GenerationError(format!("Prefill tokens do not have the correct lengths")))
+                    if tokens.logprobs.len() != tokens_length || tokens.texts.len() != tokens_length
+                    {
+                        return Err(InferError::GenerationError(
+                            "Prefill tokens do not have the correct lengths".to_string(),
+                        ));
                     }
 
                     result_prefill = Vec::with_capacity(tokens_length);
 
                     // Create Token objects
                     // We do that here instead of in the Python code as Rust for loops are faster
-                    for ((id, logprob), text) in tokens.ids.into_iter().zip(
-                        tokens.logprobs.into_iter()
-                    ).zip(tokens.texts.into_iter()) {
-                        result_prefill.push(PrefillToken{
-                            id,
-                            text,
-                            logprob,
-                        });
+                    for ((id, logprob), text) in tokens
+                        .ids
+                        .into_iter()
+                        .zip(tokens.logprobs.into_iter())
+                        .zip(tokens.texts.into_iter())
+                    {
+                        result_prefill.push(PrefillToken { id, text, logprob });
                     }
                 }
                 // Push last token
