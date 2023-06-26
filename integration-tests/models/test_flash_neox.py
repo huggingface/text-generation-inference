@@ -18,6 +18,7 @@ async def test_flash_neox(flash_neox, response_snapshot):
     response = await flash_neox.generate(
         "<|USER|>What's your mood today?<|ASSISTANT|>",
         max_new_tokens=10,
+        decoder_input_details=True,
     )
 
     assert response.details.generated_tokens == 10
@@ -36,8 +37,8 @@ async def test_flash_neox_load(flash_neox, generate_load, response_snapshot):
     generated_texts = [r.generated_text for r in responses]
 
     assert len(generated_texts) == 4
-    assert generated_texts, all(
+    assert all(
         [text == generated_texts[0] for text in generated_texts]
-    )
+    ), generated_texts
 
     assert responses == response_snapshot

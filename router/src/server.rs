@@ -1,5 +1,5 @@
-use crate::health::Health;
 /// HTTP Server logic
+use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
@@ -160,7 +160,7 @@ async fn generate(
         add_prompt = Some(req.0.inputs.clone());
     }
 
-    let details = req.0.parameters.details;
+    let details = req.0.parameters.details || req.0.parameters.decoder_input_details;
 
     // Inference
     let (response, best_of_responses) = match req.0.parameters.best_of {
@@ -364,7 +364,17 @@ async fn generate_stream(
         let details = req.0.parameters.details;
 
         let best_of = req.0.parameters.best_of.unwrap_or(1);
-        if best_of == 1 {
+        if best_of != 1 {
+            let err = InferError::from(ValidationError::BestOfStream);
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            tracing::error!("{err}");
+            yield Ok(Event::from(err));
+        } else if req.0.parameters.decoder_input_details {
+            let err = InferError::from(ValidationError::PrefillDetailsStream);
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            tracing::error!("{err}");
+            yield Ok(Event::from(err));
+        } else {
             match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, mut response_stream)) => {
@@ -474,11 +484,6 @@ async fn generate_stream(
                 tracing::error!("{err}");
                 yield Ok(Event::from(err));
             }
-        } else {
-            let err = InferError::from(ValidationError::BestOfStream);
-            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
-            tracing::error!("{err}");
-            yield Ok(Event::from(err));
         }
     };
 
@@ -515,6 +520,11 @@ pub async fn run(
     validation_workers: usize,
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
+    ngrok: bool,
+    ngrok_authtoken: Option<String>,
+    ngrok_domain: Option<String>,
+    ngrok_username: Option<String>,
+    ngrok_password: Option<String>,
 ) {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -678,13 +688,61 @@ pub async fn run(
         .layer(opentelemetry_tracing_layer())
         .layer(cors_layer);
 
-    // Run server
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        // Wait until all requests are finished to shut down
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+    if ngrok {
+        #[cfg(feature = "ngrok")]
+        {
+            use ngrok::config::TunnelBuilder;
+            use ngrok::tunnel::UrlTunnel;
+
+            let _ = addr;
+
+            let authtoken =
+                ngrok_authtoken.expect("`ngrok-authtoken` must be set when using ngrok tunneling");
+
+            let mut tunnel = ngrok::Session::builder()
+                .authtoken(authtoken)
+                .connect()
+                .await
+                .unwrap()
+                .http_endpoint();
+
+            if let Some(domain) = ngrok_domain {
+                tunnel = tunnel.domain(domain);
+            }
+
+            if let (Some(username), Some(password)) = (ngrok_username, ngrok_password) {
+                tunnel = tunnel.basic_auth(username, password);
+            }
+
+            let listener = tunnel.listen().await.unwrap();
+
+            // Run server
+            tracing::info!("Ingress URL: {:?}", listener.url());
+            axum::Server::builder(listener)
+                .serve(app.into_make_service())
+                //Wait until all requests are finished to shut down
+                .with_graceful_shutdown(shutdown_signal())
+                .await
+                .unwrap();
+        }
+        #[cfg(not(feature = "ngrok"))]
+        {
+            let _ngrok_authtoken = ngrok_authtoken;
+            let _ngrok_domain = ngrok_domain;
+            let _ngrok_username = ngrok_username;
+            let _ngrok_password = ngrok_password;
+
+            panic!("`text-generation-router` was compiled without the `ngrok` feature");
+        }
+    } else {
+        // Run server
+        axum::Server::bind(&addr)
+            .serve(app.into_make_service())
+            // Wait until all requests are finished to shut down
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .unwrap();
+    }
 }
 
 /// Shutdown signal handler

@@ -104,7 +104,7 @@ class CausalLMBatch(Batch):
         ).to(device)
         for _ in pb.requests:
             input_len = tokenized_inputs["input_ids"].shape[1]
-            prefix_offsets.append(0)
+            prefix_offsets.append(input_len - 5)
             read_offsets.append(input_len)
 
         input_lengths = tokenized_inputs["attention_mask"].sum(1)
@@ -496,11 +496,6 @@ class CausalLM(Model):
             else:
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
-        self.has_position_ids = (
-            inspect.signature(model.forward).parameters.get("position_ids", None)
-            is not None
-        )
-
         super(CausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
@@ -622,7 +617,7 @@ class CausalLM(Model):
                     generated_text = None
 
                 # Prefill
-                if stopping_criteria.current_tokens == 1:
+                if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
                     # Remove generated token to only have prefill and add nan for first prompt token
                     prefill_logprobs = [float("nan")] + torch.log_softmax(
                         logits, -1

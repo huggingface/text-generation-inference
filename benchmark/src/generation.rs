@@ -136,6 +136,7 @@ async fn prefill(
     let requests = (0..batch_size)
         .map(|id| Request {
             id: id.into(),
+            prefill_logprobs: false,
             inputs: sequence.clone(),
             truncate: sequence_length,
             parameters: Some(parameters.clone()),

@@ -49,7 +49,7 @@ impl Queue {
         // Send append command to the background task managing the state
         // Unwrap is safe here
         self.queue_sender
-            .send(QueueCommand::Append(entry, Span::current()))
+            .send(QueueCommand::Append(Box::new(entry), Span::current()))
             .unwrap();
     }
 
@@ -85,7 +85,7 @@ async fn queue_task(requires_padding: bool, receiver: flume::Receiver<QueueComma
     while let Ok(cmd) = receiver.recv_async().await {
         match cmd {
             QueueCommand::Append(entry, span) => {
-                span.in_scope(|| state.append(entry));
+                span.in_scope(|| state.append(*entry));
                 metrics::increment_gauge!("tgi_queue_size", 1.0);
             }
             QueueCommand::NextBatch {
@@ -95,7 +95,7 @@ async fn queue_task(requires_padding: bool, receiver: flume::Receiver<QueueComma
                 span,
             } => span.in_scope(|| {
                 let next_batch = state.next_batch(min_size, token_budget);
-                response_sender.send(next_batch).unwrap_or(());
+                response_sender.send(next_batch).unwrap();
                 metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
             }),
         }
@@ -201,6 +201,7 @@ impl State {
 
             batch_requests.push(Request {
                 id,
+                prefill_logprobs: entry.request.decoder_input_details,
                 inputs: entry.request.inputs.clone(),
                 truncate: entry.request.truncate,
                 parameters: Some(entry.request.parameters.clone()),
@@ -255,7 +256,7 @@ type NextBatch = (IntMap<u64, Entry>, Batch, Span);
 
 #[derive(Debug)]
 enum QueueCommand {
-    Append(Entry, Span),
+    Append(Box<Entry>, Span),
     NextBatch {
         min_size: Option<usize>,
         token_budget: u32,
@@ -281,6 +282,7 @@ mod tests {
                 inputs: "".to_string(),
                 input_length: 0,
                 truncate: 0,
+                decoder_input_details: false,
                 parameters: NextTokenChooserParameters {
                     temperature: 0.0,
                     top_k: 0,

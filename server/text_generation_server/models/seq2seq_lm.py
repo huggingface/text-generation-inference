@@ -688,7 +688,7 @@ class Seq2SeqLM(Model):
                     generated_text = None
 
                 # Prefill
-                if stopping_criteria.current_tokens == 1:
+                if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
                     prefill_tokens = PrefillTokens(
                         [self.tokenizer.bos_token_id],
                         [float("nan")],

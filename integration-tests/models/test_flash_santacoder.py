@@ -15,7 +15,9 @@ async def flash_santacoder(flash_santacoder_handle):
 
 @pytest.mark.asyncio
 async def test_flash_santacoder(flash_santacoder, response_snapshot):
-    response = await flash_santacoder.generate("def print_hello", max_new_tokens=10)
+    response = await flash_santacoder.generate(
+        "def print_hello", max_new_tokens=10, decoder_input_details=True
+    )
 
     assert response.details.generated_tokens == 10
     assert response == response_snapshot

@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "0.8.1"
+    "version": "0.8.2"
   },
   "paths": {
     "/": {
@@ -375,7 +375,8 @@
             "$ref": "#/components/schemas/GenerateParameters"
           },
           "stream": {
-            "type": "boolean"
+            "type": "boolean",
+            "default": "false"
           }
         }
       },
@@ -458,6 +459,10 @@
             "nullable": true,
             "minimum": 0.0,
             "exclusiveMinimum": 0.0
+          },
+          "decoder_input_details": {
+            "type": "boolean",
+            "default": "true"
           },
           "details": {
             "type": "boolean",

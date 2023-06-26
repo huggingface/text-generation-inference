@@ -151,5 +151,37 @@ def download_weights(
         utils.convert_files(local_pt_files, local_st_files)
 
 
+@app.command()
+def quantize(
+    model_id: str,
+    output_dir: str,
+    revision: Optional[str] = None,
+    logger_level: str = "INFO",
+    json_output: bool = False,
+    trust_remote_code: bool = False,
+    upload_to_model_id: Optional[str] = None,
+    percdamp: float = 0.01,
+    act_order: bool = False,
+):
+    download_weights(
+        model_id=model_id,
+        revision=revision,
+        logger_level=logger_level,
+        json_output=json_output,
+    )
+    from text_generation_server.utils.gptq.quantize import quantize
+
+    quantize(
+        model_id=model_id,
+        bits=4,
+        groupsize=128,
+        output_dir=output_dir,
+        trust_remote_code=trust_remote_code,
+        upload_to_model_id=upload_to_model_id,
+        percdamp=percdamp,
+        act_order=act_order,
+    )
+
+
 if __name__ == "__main__":
     app()

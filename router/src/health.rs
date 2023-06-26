@@ -34,6 +34,7 @@ impl Health {
                 id: LIVENESS_ID,
                 inputs: "liveness".to_string(),
                 truncate: 10,
+                prefill_logprobs: false,
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 1.0,
                     top_k: 0,

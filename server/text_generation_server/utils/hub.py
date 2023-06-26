@@ -26,7 +26,11 @@ def weight_hub_files(
     filenames = [
         s.rfilename
         for s in info.siblings
-        if s.rfilename.endswith(extension) and len(s.rfilename.split("/")) == 1
+        if s.rfilename.endswith(extension)
+        and len(s.rfilename.split("/")) == 1
+        and "arguments" not in s.rfilename
+        and "args" not in s.rfilename
+        and "training" not in s.rfilename
     ]
 
     if not filenames:
@@ -134,7 +138,7 @@ def download_weights(
 ) -> List[Path]:
     """Download the safetensors files from the hub"""
 
-    def download_file(filename, tries=5):
+    def download_file(filename, tries=5, backoff: int = 5):
         local_file = try_to_load_from_cache(model_id, revision, filename)
         if local_file is not None:
             logger.info(f"File {filename} already present in cache.")
@@ -158,6 +162,8 @@ def download_weights(
                 if i + 1 == tries:
                     raise e
                 logger.error(e)
+                logger.info(f"Retrying in {backoff} seconds")
+                time.sleep(backoff)
                 logger.info(f"Retry {i + 1}/{tries - 1}")
 
     # We do this instead of using tqdm because we want to parse the logs with the launcher

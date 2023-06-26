@@ -40,6 +40,11 @@ tracing-opentelemetry = "0.18.0"
 tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }
 utoipa = { version = "3.0.1", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["axum"] }
+ngrok = { version = "0.12.3", features = ["axum"], optional = true }
 
 [build-dependencies]
 vergen = { version = "8.0.0", features = ["build", "git", "gitcl"] }
+
+[features]
+default = ["ngrok"]
+ngrok = ["dep:ngrok"]

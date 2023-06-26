@@ -18,4 +18,8 @@ if [[ -n "${HF_MODEL_QUANTIZE}" ]]; then
   export QUANTIZE="${HF_MODEL_QUANTIZE}"
 fi
 
+if [[ -n "${HF_MODEL_TRUST_REMOTE_CODE}" ]]; then
+  export TRUST_REMOTE_CODE="${HF_MODEL_TRUST_REMOTE_CODE}"
+fi
+
 text-generation-launcher --port 8080

@@ -60,8 +60,8 @@ struct Args {
     sharded: Option<bool>,
 
     /// The number of shards to use if you don't want to use all GPUs on a given machine.
-    /// You can use `CUDA_VISIBLE_DEVICE=0,1 text-generation-launcher... --num_shard 2`
-    /// and `CUDA_VISIBLE_DEVICE=2,3 text-generation-launcher... --num_shard 2` to
+    /// You can use `CUDA_VISIBLE_DEVICES=0,1 text-generation-launcher... --num_shard 2`
+    /// and `CUDA_VISIBLE_DEVICES=2,3 text-generation-launcher... --num_shard 2` to
     /// launch 2 copies with 2 shard each on a given machine with 4 GPUs for instance.
     #[clap(long, env)]
     num_shard: Option<usize>,
@@ -228,6 +228,26 @@ struct Args {
     watermark_gamma: Option<f32>,
     #[clap(long, env)]
     watermark_delta: Option<f32>,
+
+    /// Enable ngrok tunneling
+    #[clap(long, env)]
+    ngrok: bool,
+
+    /// ngrok authentication token
+    #[clap(long, env)]
+    ngrok_authtoken: Option<String>,
+
+    /// ngrok domain name where the axum webserver will be available at
+    #[clap(long, env)]
+    ngrok_domain: Option<String>,
+
+    /// ngrok basic auth username
+    #[clap(long, env)]
+    ngrok_username: Option<String>,
+
+    /// ngrok basic auth password
+    #[clap(long, env)]
+    ngrok_password: Option<String>,
 
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
@@ -410,9 +430,14 @@ fn shard_manager(
     let mut wait_time = Instant::now();
     loop {
         // Process exited
-        if p.poll().is_some() {
+        if let Some(exit_status) = p.poll() {
             let mut err = String::new();
             p.stderr.take().unwrap().read_to_string(&mut err).unwrap();
+
+            if let ExitStatus::Signaled(signal) = exit_status {
+                tracing::error!("Shard process was signaled to shutdown with signal {signal}");
+            }
+
             status_sender
                 .send(ShardStatus::Failed((rank, err)))
                 .unwrap();
@@ -546,11 +571,7 @@ enum LauncherError {
     WebserverCannotStart,
 }
 
-fn download_convert_model(
-    args: &Args,
-    auto_convert: bool,
-    running: Arc<AtomicBool>,
-) -> Result<(), LauncherError> {
+fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
     let mut download_argv = vec![
         "text-generation-server".to_string(),
         "download-weights".to_string(),
@@ -561,11 +582,6 @@ fn download_convert_model(
         "INFO".to_string(),
         "--json-output".to_string(),
     ];
-
-    // Auto convert weights to safetensors
-    if auto_convert {
-        download_argv.push("--auto-convert".to_string());
-    }
 
     // Model optional revision
     if let Some(revision) = &args.revision {
@@ -849,6 +865,30 @@ fn spawn_webserver(
         argv.push(origin);
     }
 
+    // Ngrok
+    if args.ngrok {
+        let authtoken = args.ngrok_authtoken.ok_or_else(|| {
+            tracing::error!("`ngrok-authtoken` must be set when using ngrok tunneling");
+            LauncherError::WebserverCannotStart
+        })?;
+
+        argv.push("--ngrok".to_string());
+        argv.push("--ngrok-authtoken".to_string());
+        argv.push(authtoken);
+
+        if let Some(domain) = args.ngrok_domain {
+            argv.push("--ngrok-domain".to_string());
+            argv.push(domain);
+        }
+
+        if let (Some(username), Some(password)) = (args.ngrok_username, args.ngrok_password) {
+            argv.push("--ngrok-username".to_string());
+            argv.push(username);
+            argv.push("--ngrok-password".to_string());
+            argv.push(password);
+        }
+    }
+
     // Copy current process env
     let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
 
@@ -932,11 +972,8 @@ fn main() -> Result<(), LauncherError> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    // auto_convert is only needed for sharded models as we do not require safetensors in
-    // single shard mode
-    let auto_convert = num_shard > 1;
     // Download and convert model weights
-    download_convert_model(&args, auto_convert, running.clone())?;
+    download_convert_model(&args, running.clone())?;
 
     // Shared shutdown bool
     let shutdown = Arc::new(Mutex::new(false));
