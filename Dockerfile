@@ -159,6 +159,11 @@ COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bi
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
 
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        g++ \
+        && rm -rf /var/lib/apt/lists/*
+
 # AWS Sagemaker compatbile image
 FROM base as sagemaker
 

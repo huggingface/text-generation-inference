@@ -42,7 +42,8 @@ from text_generation_server.utils.layers import (
 
 
 def load_row(config, prefix: str, weights, bias: bool):
-    weight = weights.get_sharded(f"{prefix}.weight", dim=1)
+    weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
         bias = weights.get_tensor(f"{prefix}.bias")
@@ -57,19 +58,21 @@ def load_row(config, prefix: str, weights, bias: bool):
 
 
 def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
-    weight = weights.get_sharded(f"{prefix}.weight", dim=0)
-    bias = weights.get_sharded(f"{prefix}.bias", dim=0)
-
-    weight = (
-        weight.view(
-            num_heads,
-            3,
-            head_size,
-            hidden_size,
+    weight = weights.get_multi_weights_col([prefix], quantize=config.quantize, dim=0)
+    if isinstance(weight, torch.Tensor):
+        # Only on non quantized versions
+        weight = (
+            weight.view(
+                num_heads,
+                3,
+                head_size,
+                hidden_size,
+            )
+            .permute(1, 0, 2, 3)
+            .reshape(-1, hidden_size)
         )
-        .permute(1, 0, 2, 3)
-        .reshape(-1, hidden_size)
-    )
+
+    bias = weights.get_sharded(f"{prefix}.bias", dim=0)
     bias = bias.view(num_heads, 3, head_size).permute(1, 0, 2).reshape(-1)
 
     linear = get_linear(weight, bias, config.quantize)

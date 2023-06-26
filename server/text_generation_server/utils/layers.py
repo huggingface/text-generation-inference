@@ -15,6 +15,8 @@ except ImportError:
 
 from accelerate import init_empty_weights
 
+from text_generation_server.utils.gptq.quant_linear import QuantLinear
+
 
 # Monkey patching
 @classmethod
@@ -129,7 +131,22 @@ def get_linear(weight, bias, quantize):
         if bias is not None:
             linear.bias = nn.Parameter(bias)
     elif quantize == "gptq":
-        raise NotImplementedError("Soon")
+        try:
+            qweight, qzeros, scales, g_idx, bits, groupsize = weight
+        except Exception:
+            raise NotImplementedError(
+                f"The passed weight is not `gptq` compatible, loader needs to be updated."
+            )
+
+        linear = QuantLinear(
+            qweight,
+            qzeros,
+            scales,
+            g_idx,
+            bias,
+            bits,
+            groupsize,
+        )
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
@@ -152,8 +169,14 @@ class TensorParallelHead(SuperLayer):
     @staticmethod
     def load(config, prefix: str, weights):
         weight = weights.get_sharded(f"{prefix}.weight", dim=0)
+
+        # GPTQ doesn't quantize heads (nor embeddings)
+        if config.quantize == "gptq":
+            quantize = None
+        else:
+            quantize = config.quantize
         return TensorParallelHead(
-            get_linear(weight, bias=None, quantize=config.quantize),
+            get_linear(weight, bias=None, quantize=quantize),
             process_group=weights.process_group,
         )
 
@@ -196,24 +219,21 @@ class TensorParallelHead(SuperLayer):
 class TensorParallelColumnLinear(SuperLayer):
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
-        weight = weights.get_sharded(f"{prefix}.weight", dim=0)
-        if bias:
-            bias = weights.get_sharded(f"{prefix}.bias", dim=0)
-        else:
-            bias = None
-        return cls(get_linear(weight, bias, config.quantize))
+        return cls.load_multi(config, [prefix], weights, bias, dim=0)
 
     @classmethod
     def load_multi(cls, config, prefixes: List[str], weights, bias: bool, dim: int):
-        w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
-        weight = torch.cat(w, dim=dim)
+        weight = weights.get_multi_weights_col(
+            prefixes, quantize=config.quantize, dim=dim
+        )
 
         if bias:
             b = [weights.get_sharded(f"{p}.bias", dim=0) for p in prefixes]
-            bias = torch.cat(b, dim=0)
+            bias = torch.cat(b, dim=dim)
         else:
             bias = None
-        return cls(get_linear(weight, bias, config.quantize))
+        linear = get_linear(weight, bias, config.quantize)
+        return cls(linear)
 
 
 class TensorParallelRowLinear(SuperLayer):
@@ -223,7 +243,8 @@ class TensorParallelRowLinear(SuperLayer):
 
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
-        weight = weights.get_sharded(f"{prefix}.weight", dim=1)
+        weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+
         if bias and weights.process_group.rank() == 0:
             # Rank is only on the first rank process
             bias = weights.get_tensor(f"{prefix}.bias")
