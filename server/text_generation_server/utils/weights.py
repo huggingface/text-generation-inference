@@ -5,7 +5,14 @@ import torch
 
 
 class Weights:
-    def __init__(self, filenames: List[Path], device, dtype, process_group, aliases: Optional[Dict[str, List[str]]]=None):
+    def __init__(
+        self,
+        filenames: List[Path],
+        device,
+        dtype,
+        process_group,
+        aliases: Optional[Dict[str, List[str]]] = None,
+    ):
         routing = {}
         for filename in filenames:
             with safe_open(filename, framework="pytorch") as f:
@@ -43,7 +50,7 @@ class Weights:
         return str(filename), tensor_name
 
     def _get_slice(self, tensor_name: str):
-        filename, tensor_name= self.get_filename(tensor_name)
+        filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
         return slice_
@@ -94,12 +101,20 @@ class Weights:
     def get_multi_weights_col(self, prefixes: List[str], quantize: str, dim: int):
         if quantize == "gptq":
             try:
-                qweight = torch.cat([self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1)
+                qweight = torch.cat(
+                    [self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1
+                )
             except RuntimeError:
-                raise RuntimeError("Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`")
+                raise RuntimeError(
+                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                )
 
-            qzeros = torch.cat([self.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1)
-            scales = torch.cat([self.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1)
+            qzeros = torch.cat(
+                [self.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1
+            )
+            scales = torch.cat(
+                [self.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1
+            )
             w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
             for w2 in w[1:]:
                 torch.testing.assert_close(w2, w[0])
@@ -118,7 +133,9 @@ class Weights:
             try:
                 qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
             except RuntimeError:
-                raise RuntimeError("Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`")
+                raise RuntimeError(
+                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                )
             qzeros = self.get_tensor(f"{prefix}.qzeros")
             scales = self.get_tensor(f"{prefix}.scales")
             g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)

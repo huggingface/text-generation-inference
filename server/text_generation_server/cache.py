@@ -19,10 +19,12 @@ class Cache:
     def delete(self, batch_id: int):
         batch = self.pop(batch_id)
         if batch is not None:
+            batch.cleanup()
             del batch
 
     def clear(self):
-        self.cache.clear()
+        for k in self.cache.keys():
+            self.delete(k)
 
     def __len__(self):
         return len(self.cache.keys())

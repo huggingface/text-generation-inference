@@ -52,8 +52,11 @@ class FlashSantacoderSharded(FlashCausalLM):
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(
-            filenames, device=device, dtype=dtype, process_group=self.process_group,
-            aliases = {"transformer.wte.weight": ["lm_head.weight"]}
+            filenames,
+            device=device,
+            dtype=dtype,
+            process_group=self.process_group,
+            aliases={"transformer.wte.weight": ["lm_head.weight"]},
         )
 
         model = FlashSantacoderForCausalLM(config, weights)

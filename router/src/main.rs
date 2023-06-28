@@ -32,10 +32,10 @@ struct Args {
     max_input_length: usize,
     #[clap(default_value = "1512", long, env)]
     max_total_tokens: usize,
-    #[clap(long, env)]
-    max_batch_size: Option<usize>,
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
+    #[clap(default_value = "32000", long, env)]
+    max_batch_prefill_tokens: u32,
     #[clap(default_value = "32000", long, env)]
     max_batch_total_tokens: u32,
     #[clap(default_value = "20", long, env)]
@@ -78,9 +78,9 @@ fn main() -> Result<(), std::io::Error> {
         max_stop_sequences,
         max_input_length,
         max_total_tokens,
-        max_batch_size,
         waiting_served_ratio,
-        mut max_batch_total_tokens,
+        max_batch_prefill_tokens,
+        max_batch_total_tokens,
         max_waiting_tokens,
         port,
         master_shard_uds_path,
@@ -141,12 +141,6 @@ fn main() -> Result<(), std::io::Error> {
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
 
-            if let Some(max_batch_size) = max_batch_size {
-                tracing::warn!("`max-batch-size` is deprecated. Use `max-batch-total-tokens` instead");
-                max_batch_total_tokens = (max_batch_size * max_total_tokens) as u32;
-                tracing::warn!("Overriding `max-batch-total-tokens` value with `max-batch-size` * `max-total-tokens` = {max_batch_total_tokens}");
-            }
-
             if tokenizer.is_none() {
                 tracing::warn!(
                     "Could not find a fast tokenizer implementation for {tokenizer_name}"
@@ -161,10 +155,16 @@ fn main() -> Result<(), std::io::Error> {
                     sha: None,
                     pipeline_tag: None,
                 },
-                false => get_model_info(&tokenizer_name, &revision, authorization_token).await.unwrap_or_else(|| {
-                    tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
-                    HubModelInfo { model_id: tokenizer_name.to_string(), sha: None, pipeline_tag: None }
-                }),
+                false => get_model_info(&tokenizer_name, &revision, authorization_token)
+                    .await
+                    .unwrap_or_else(|| {
+                        tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
+                        HubModelInfo {
+                            model_id: tokenizer_name.to_string(),
+                            sha: None,
+                            pipeline_tag: None,
+                        }
+                    }),
             };
 
             // if pipeline-tag == text-generation we default to return_full_text = true
@@ -206,6 +206,7 @@ fn main() -> Result<(), std::io::Error> {
                 max_input_length,
                 max_total_tokens,
                 waiting_served_ratio,
+                max_batch_prefill_tokens,
                 max_batch_total_tokens,
                 max_waiting_tokens,
                 sharded_client,
@@ -219,7 +220,7 @@ fn main() -> Result<(), std::io::Error> {
                 ngrok_username,
                 ngrok_password,
             )
-                .await;
+            .await;
             Ok(())
         })
 }

@@ -58,6 +58,7 @@ impl Queue {
     pub(crate) async fn next_batch(
         &self,
         min_size: Option<usize>,
+        prefill_token_budget: u32,
         token_budget: u32,
     ) -> Option<NextBatch> {
         // Create response channel
@@ -67,6 +68,7 @@ impl Queue {
         self.queue_sender
             .send(QueueCommand::NextBatch {
                 min_size,
+                prefill_token_budget,
                 token_budget,
                 response_sender,
                 span: Span::current(),
@@ -90,11 +92,12 @@ async fn queue_task(requires_padding: bool, receiver: flume::Receiver<QueueComma
             }
             QueueCommand::NextBatch {
                 min_size,
+                prefill_token_budget,
                 token_budget,
                 response_sender,
                 span,
             } => span.in_scope(|| {
-                let next_batch = state.next_batch(min_size, token_budget);
+                let next_batch = state.next_batch(min_size, prefill_token_budget, token_budget);
                 response_sender.send(next_batch).unwrap();
                 metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
             }),
@@ -140,7 +143,12 @@ impl State {
     }
 
     // Get the next batch
-    fn next_batch(&mut self, min_size: Option<usize>, token_budget: u32) -> Option<NextBatch> {
+    fn next_batch(
+        &mut self,
+        min_size: Option<usize>,
+        prefill_token_budget: u32,
+        token_budget: u32,
+    ) -> Option<NextBatch> {
         if self.entries.is_empty() {
             return None;
         }
@@ -184,7 +192,9 @@ impl State {
 
             decode_tokens += entry.request.stopping_parameters.max_new_tokens;
 
-            if (prefill_tokens + decode_tokens) > token_budget {
+            if prefill_tokens > prefill_token_budget
+                || (prefill_tokens + decode_tokens) > token_budget
+            {
                 // Entry is over budget
                 // Add it back to the front
                 self.entries.push_front((id, entry));
@@ -259,6 +269,7 @@ enum QueueCommand {
     Append(Box<Entry>, Span),
     NextBatch {
         min_size: Option<usize>,
+        prefill_token_budget: u32,
         token_budget: u32,
         response_sender: oneshot::Sender<Option<NextBatch>>,
         span: Span,
@@ -294,7 +305,7 @@ mod tests {
                     watermark: false,
                 },
                 stopping_parameters: StoppingCriteriaParameters {
-                    ignore_eos_token: false,
+                    ignore_eos_token: true,
                     max_new_tokens: 1,
                     stop_sequences: vec![],
                 },

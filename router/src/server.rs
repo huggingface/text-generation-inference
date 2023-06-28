@@ -152,7 +152,7 @@ async fn generate(
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
 
-    tracing::debug!("Input: {}", req.0.inputs);
+    // tracing::debug!("Input: {}", req.0.inputs);
 
     let compute_characters = req.0.inputs.chars().count();
     let mut add_prompt = None;
@@ -286,7 +286,7 @@ async fn generate(
     }
 
     tracing::debug!("Output: {}", output_text);
-    tracing::info!("Success");
+    // tracing::info!("Success");
 
     let response = GenerateResponse {
         generated_text: output_text,
@@ -513,6 +513,7 @@ pub async fn run(
     max_input_length: usize,
     max_total_tokens: usize,
     waiting_served_ratio: f32,
+    max_batch_prefill_tokens: u32,
     max_batch_total_tokens: u32,
     max_waiting_tokens: usize,
     client: ShardedClient,
@@ -581,6 +582,7 @@ pub async fn run(
         client,
         validation,
         waiting_served_ratio,
+        max_batch_prefill_tokens,
         max_batch_total_tokens,
         max_waiting_tokens,
         max_concurrent_requests,
