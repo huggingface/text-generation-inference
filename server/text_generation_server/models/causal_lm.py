@@ -1,8 +1,8 @@
 import torch
-import inspect
 
 from dataclasses import dataclass
 from opentelemetry import trace
+from tokenizers import Encoding
 from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
 
@@ -52,6 +52,9 @@ class CausalLMBatch(Batch):
 
     # Past metadata
     keys_head_dim_last: bool = True
+
+    # Input encodings
+    encodings: Optional[List[Encoding]] = None
 
     def to_pb(self) -> generate_pb2.CachedBatch:
         return generate_pb2.CachedBatch(
@@ -141,6 +144,7 @@ class CausalLMBatch(Batch):
             max_input_length=max_input_length.item(),
             padding_right_offset=padding_right_offset,
             max_tokens=max_tokens,
+            encodings=tokenized_inputs.encodings,
         )
 
     @tracer.start_as_current_span("filter")
@@ -625,11 +629,16 @@ class CausalLM(Model):
                         -new_input_length:-1
                     ].tolist()
                     prefill_token_ids = all_input_ids[-new_input_length:-1]
-                    prefill_texts = self.tokenizer.batch_decode(
-                        prefill_token_ids,
-                        clean_up_tokenization_spaces=False,
-                        skip_special_tokens=False,
-                    )
+                    if batch.encodings is not None:
+                        prefill_texts = batch.encodings[i].tokens[
+                            -new_input_length - 1 :
+                        ]
+                    else:
+                        prefill_texts = self.tokenizer.batch_decode(
+                            prefill_token_ids,
+                            clean_up_tokenization_spaces=False,
+                            skip_special_tokens=False,
+                        )
                     prefill_tokens = PrefillTokens(
                         prefill_token_ids, prefill_logprobs, prefill_texts
                     )

@@ -61,6 +61,8 @@ class PrefillTokens:
     token_ids: List[int]
     logprobs: List[float]
     texts: List[str]
+    token_is_special: Optional[List[bool]] = None
+    offsets: Optional[List[bool]] = None
 
     def to_pb(self) -> generate_pb2.PrefillTokens:
         return generate_pb2.PrefillTokens(

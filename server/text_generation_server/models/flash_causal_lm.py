@@ -5,6 +5,7 @@ import numpy as np
 
 from dataclasses import dataclass
 from opentelemetry import trace
+from tokenizers import Encoding
 from transformers import AutoTokenizer, PreTrainedTokenizerBase, PreTrainedModel
 from typing import Optional, Tuple, List, Type, Union, Dict
 
@@ -72,6 +73,9 @@ class FlashCausalLMBatch(Batch):
     # Maximum number of tokens this batch will grow to
     max_tokens: int
 
+    # Input encodings
+    encodings: Optional[List[Encoding]] = None
+
     def to_pb(self) -> generate_pb2.CachedBatch:
         return generate_pb2.CachedBatch(
             id=self.batch_id,
@@ -94,9 +98,9 @@ class FlashCausalLMBatch(Batch):
             batch_inputs.append(r.inputs)
             max_truncation = max(max_truncation, r.truncate)
 
-        batch_tokenized_inputs = tokenizer(
+        batch_encoding = tokenizer(
             batch_inputs, truncation=True, max_length=max_truncation
-        )["input_ids"]
+        )
 
         position_ids = []
         past_present_indices = []
@@ -130,7 +134,7 @@ class FlashCausalLMBatch(Batch):
 
         # Parse batch
         for i, (r, tokenized_input) in enumerate(
-            zip(pb.requests, batch_tokenized_inputs)
+            zip(pb.requests, batch_encoding["input_ids"])
         ):
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
@@ -282,6 +286,7 @@ class FlashCausalLMBatch(Batch):
             next_token_chooser=next_token_chooser,
             stopping_criterias=stopping_criterias,
             max_tokens=cumulative_max_length,
+            encodings=batch_encoding.encodings,
         )
 
     @tracer.start_as_current_span("filter")
@@ -822,11 +827,18 @@ class FlashCausalLM(Model):
                         out_start_index : out_end_index - 1
                     ]
                     prefill_token_ids = all_input_ids[:-1]
-                    prefill_texts = self.tokenizer.batch_decode(
-                        prefill_token_ids,
-                        clean_up_tokenization_spaces=False,
-                        skip_special_tokens=False,
-                    )
+
+                    if batch.encodings is not None:
+                        prefill_texts = batch.encodings[i].tokens[
+                            -len(all_input_ids) - 1 :
+                        ]
+                    else:
+                        prefill_texts = self.tokenizer.batch_decode(
+                            prefill_token_ids,
+                            clean_up_tokenization_spaces=False,
+                            skip_special_tokens=False,
+                        )
+
                     prefill_tokens = PrefillTokens(
                         prefill_token_ids, request_prefill_logprobs, prefill_texts
                     )
