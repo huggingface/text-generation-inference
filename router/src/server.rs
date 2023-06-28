@@ -351,6 +351,7 @@ async fn generate_stream(
         "x-compute-characters",
         compute_characters.to_string().parse().unwrap(),
     );
+    headers.insert("X-Accel-Buffering", "no".parse().unwrap());
 
     let stream = async_stream::stream! {
         // Inference
