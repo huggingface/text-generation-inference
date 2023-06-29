@@ -34,7 +34,7 @@ struct Args {
     max_total_tokens: usize,
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
-    #[clap(default_value = "32000", long, env)]
+    #[clap(default_value = "4096", long, env)]
     max_batch_prefill_tokens: u32,
     #[clap(default_value = "32000", long, env)]
     max_batch_total_tokens: u32,
@@ -180,16 +180,23 @@ fn main() -> Result<(), std::io::Error> {
             let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
                 .await
                 .expect("Could not connect to server");
-            // Clear the cache; useful if the webserver rebooted
-            sharded_client
-                .clear_cache(None)
-                .await
-                .expect("Unable to clear cache");
+
             // Get info from the shard
             let shard_info = sharded_client
                 .info()
                 .await
                 .expect("Unable to get shard info");
+
+            // Warmup model
+            tracing::info!("Warming up model");
+            sharded_client
+                .warmup(
+                    max_input_length as u32,
+                    max_batch_prefill_tokens,
+                    max_batch_total_tokens,
+                )
+                .await
+                .expect("Unable to warmup model");
             tracing::info!("Connected");
 
             // Binds on localhost

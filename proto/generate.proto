@@ -11,6 +11,8 @@ service TextGenerationService {
     rpc ClearCache (ClearCacheRequest) returns (ClearCacheResponse);
     /// Remove requests from a cached batch
     rpc FilterBatch (FilterBatchRequest) returns (FilterBatchResponse);
+    /// Warmup the model and compute max cache size
+    rpc Warmup (WarmupRequest) returns (WarmupResponse);
     /// Prefill batch and decode first token
     rpc Prefill (PrefillRequest) returns (PrefillResponse);
     /// Decode token for a list of prefilled batches
@@ -192,3 +194,13 @@ message DecodeResponse {
     /// Next batch (cached)
     optional CachedBatch batch = 2;
 }
+
+message WarmupRequest {
+    /// Batch to warmup on
+    Batch batch = 1;
+    /// Maximum number of tokens that the client will send
+    uint32 max_total_tokens = 2;
+}
+
+/// Empty response
+message WarmupResponse {}

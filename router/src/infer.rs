@@ -242,6 +242,7 @@ impl Infer {
 /// Will be launched in a background Tokio task
 ///
 /// Batches requests and sends them to the inference server
+#[allow(clippy::too_many_arguments)]
 async fn batching_task(
     mut client: ShardedClient,
     waiting_served_ratio: f32,
@@ -288,7 +289,8 @@ async fn batching_task(
                     Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
                 };
 
-                let token_budget = max_batch_total_tokens - batch_max_tokens;
+                let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
+                tracing::info!("{token_budget} {batch_max_tokens}");
 
                 // Try to get a new batch
                 if let Some((mut new_entries, new_batch, span)) = queue

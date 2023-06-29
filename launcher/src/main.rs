@@ -128,7 +128,10 @@ struct Args {
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
 
-    #[clap(default_value = "32000", long, env)]
+    /// Limits the number of tokens for the prefill operation.
+    /// Since this operation take the most memory and is compute bound, it is interesting
+    /// to limit the number of requests that can be sent.
+    #[clap(default_value = "4096", long, env)]
     max_batch_prefill_tokens: u32,
 
     /// **IMPORTANT** This is one critical control to allow maximum usage
@@ -142,13 +145,6 @@ struct Args {
     ///
     /// For `max_batch_total_tokens=1000`, you could fit `10` queries of `total_tokens=100`
     /// or a single query of `1000` tokens.
-    ///
-    /// So you don't have to control that finely
-    /// `max_batch_size` or `max_total_tokens`. In fact you could mostly relax them if you
-    /// want maximum flexibility. However, for your users if they are asking for the full amount of
-    /// total tokens, they are likely to wait for a very long time to get a spot
-    /// in the batch (since they are going to be alone) so setting `max_batch_size`
-    /// and `max_total_tokens` can still be useful to prevent those long waiting times.
     ///
     /// Overall this number should be the largest possible amount that fits the
     /// remaining memory (after the model is loaded). Since the actual memory overhead
@@ -448,7 +444,7 @@ fn shard_manager(
 
         // We received a shutdown signal
         if *shutdown.lock().unwrap() {
-            p.terminate().unwrap();
+            p.kill().unwrap();
             let _ = p.wait_timeout(Duration::from_secs(90));
             tracing::info!("Shard {rank} terminated");
             return;

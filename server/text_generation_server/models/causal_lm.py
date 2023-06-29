@@ -122,7 +122,7 @@ class CausalLMBatch(Batch):
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].T.split(1, dim=1)
 
-        max_tokens = len(inputs) * max_input_length + max_decode_tokens
+        max_tokens = len(inputs) * (max_input_length + max_decode_tokens)
 
         return cls(
             batch_id=pb.id,

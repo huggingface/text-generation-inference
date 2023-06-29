@@ -53,12 +53,24 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
+    async def Warmup(self, request, context):
+        batch = self.model.batch_type.from_pb(
+            request.batch, self.model.tokenizer, self.model.dtype, self.model.device
+        )
+        self.model.warmup(batch, request.max_total_tokens)
+        return generate_pb2.WarmupResponse()
+
     async def Prefill(self, request, context):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.dtype, self.model.device
         )
 
-        generations, next_batch = self.model.generate_token(batch)
+        try:
+            generations, next_batch = self.model.generate_token(batch)
+        except Exception as e:
+            batch.free()
+            raise e
+
         self.cache.set(next_batch)
 
         return generate_pb2.PrefillResponse(
@@ -81,11 +93,20 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             raise ValueError("All batches are empty")
 
         if len(batches) > 1:
-            batch = self.model.batch_type.concatenate(batches)
+            try:
+                batch = self.model.batch_type.concatenate(batches)
+            except Exception as e:
+                [batch.free() for batch in batches]
+                raise e
         else:
             batch = batches[0]
 
-        generations, next_batch = self.model.generate_token(batch)
+        try:
+            generations, next_batch = self.model.generate_token(batch)
+        except Exception as e:
+            batch.free()
+            raise e
+
         self.cache.set(next_batch)
 
         return generate_pb2.DecodeResponse(

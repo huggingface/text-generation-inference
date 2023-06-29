@@ -68,7 +68,7 @@ class FlashLlama(FlashCausalLM):
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),
-            num_heads=model.model.num_heads,
+            num_kv_heads=model.model.num_heads,
             head_size=model.model.head_size,
             dtype=dtype,
             device=device,

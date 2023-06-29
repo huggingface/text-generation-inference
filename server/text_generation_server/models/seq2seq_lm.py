@@ -127,7 +127,7 @@ class Seq2SeqLMBatch(Batch):
             read_offsets.append(1)
         all_decoder_input_ids = decoder_input_ids.view(-1).split(1)
 
-        max_tokens = len(inputs) * max_input_length + max_decode_tokens
+        max_tokens = len(inputs) * (max_input_length + max_decode_tokens)
 
         return cls(
             batch_id=pb.id,
