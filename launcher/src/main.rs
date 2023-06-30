@@ -115,12 +115,6 @@ struct Args {
     #[clap(default_value = "1512", long, env)]
     max_total_tokens: usize,
 
-    /// The maximum allowed batch size during dynamic batching.
-    /// Using `max_batch_total_tokens` should be favored in general
-    /// as it's a finer way to control RAM usage.
-    #[clap(long, env)]
-    max_batch_size: Option<usize>,
-
     /// This represents the ratio of waiting queries vs running queries where
     /// you want to start considering pausing the running queries to include the waiting
     /// ones into the same batch.
@@ -134,6 +128,12 @@ struct Args {
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
 
+    /// Limits the number of tokens for the prefill operation.
+    /// Since this operation take the most memory and is compute bound, it is interesting
+    /// to limit the number of requests that can be sent.
+    #[clap(default_value = "4096", long, env)]
+    max_batch_prefill_tokens: u32,
+
     /// **IMPORTANT** This is one critical control to allow maximum usage
     /// of the available hardware.
     ///
@@ -146,19 +146,12 @@ struct Args {
     /// For `max_batch_total_tokens=1000`, you could fit `10` queries of `total_tokens=100`
     /// or a single query of `1000` tokens.
     ///
-    /// So you don't have to control that finely
-    /// `max_batch_size` or `max_total_tokens`. In fact you could mostly relax them if you
-    /// want maximum flexibility. However, for your users if they are asking for the full amount of
-    /// total tokens, they are likely to wait for a very long time to get a spot
-    /// in the batch (since they are going to be alone) so setting `max_batch_size`
-    /// and `max_total_tokens` can still be useful to prevent those long waiting times.
-    ///
     /// Overall this number should be the largest possible amount that fits the
     /// remaining memory (after the model is loaded). Since the actual memory overhead
     /// depends on other parameters like if you're using quantization, flash attention
     /// or the model implementation, text-generation-inference cannot infer this number
     /// automatically.
-    #[clap(default_value = "32000", long, env)]
+    #[clap(default_value = "16000", long, env)]
     max_batch_total_tokens: u32,
 
     /// This setting defines how many tokens can be passed before forcing the waiting
@@ -180,9 +173,9 @@ struct Args {
     /// for end users.
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
-    #[clap(default_value = "3000", long, short, env)]
 
     /// The port to listen on.
+    #[clap(default_value = "3000", long, short, env)]
     port: u16,
 
     /// The name of the socket for gRPC communication between the webserver
@@ -329,6 +322,12 @@ fn shard_manager(
     // Copy current process env
     let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
 
+    // Use cuda allocator. It leads to less memory fragmentation
+    env.push((
+        "PYTORCH_CUDA_ALLOC_CONF".into(),
+        "backend:cudaMallocAsync".into(),
+    ));
+
     // Torch Distributed Env vars
     env.push(("RANK".into(), rank.to_string().into()));
     env.push(("WORLD_SIZE".into(), world_size.to_string().into()));
@@ -446,7 +445,7 @@ fn shard_manager(
 
         // We received a shutdown signal
         if *shutdown.lock().unwrap() {
-            p.terminate().unwrap();
+            p.kill().unwrap();
             let _ = p.wait_timeout(Duration::from_secs(90));
             tracing::info!("Shard {rank} terminated");
             return;
@@ -822,6 +821,10 @@ fn spawn_webserver(
         args.max_input_length.to_string(),
         "--max-total-tokens".to_string(),
         args.max_total_tokens.to_string(),
+        "--max-batch-prefill-tokens".to_string(),
+        args.max_batch_prefill_tokens.to_string(),
+        "--max-batch-total-tokens".to_string(),
+        args.max_batch_total_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
         args.waiting_served_ratio.to_string(),
         "--max-waiting-tokens".to_string(),
@@ -833,15 +836,6 @@ fn spawn_webserver(
         "--tokenizer-name".to_string(),
         args.model_id,
     ];
-
-    // Deprecate max_batch_size
-    if let Some(max_batch_size) = args.max_batch_size {
-        argv.push("--max-batch-size".to_string());
-        argv.push(max_batch_size.to_string())
-    } else {
-        argv.push("--max-batch-total-tokens".to_string());
-        argv.push(args.max_batch_total_tokens.to_string())
-    }
 
     // Model optional revision
     if let Some(ref revision) = args.revision {

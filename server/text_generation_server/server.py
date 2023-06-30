@@ -53,6 +53,13 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
+    async def Warmup(self, request, context):
+        batch = self.model.batch_type.from_pb(
+            request.batch, self.model.tokenizer, self.model.dtype, self.model.device
+        )
+        self.model.warmup(batch, request.max_total_tokens)
+        return generate_pb2.WarmupResponse()
+
     async def Prefill(self, request, context):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.dtype, self.model.device

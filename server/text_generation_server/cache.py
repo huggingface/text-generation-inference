@@ -22,7 +22,9 @@ class Cache:
             del batch
 
     def clear(self):
-        self.cache.clear()
+        keys = list(self.cache.keys())
+        for k in keys:
+            self.delete(k)
 
     def __len__(self):
         return len(self.cache.keys())

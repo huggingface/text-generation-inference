@@ -216,6 +216,8 @@ class HeterogeneousNextTokenChooser:
 
         self.seeds = seeds
         self.do_sample = do_sample
+        self.dtype = dtype
+        self.device = device
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor):
         if self.watermark_processor is not None:

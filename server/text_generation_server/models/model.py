@@ -22,6 +22,9 @@ class Model(ABC):
         rank: int = 0,
         world_size: int = 1,
     ):
+        if torch.cuda.is_available():
+            torch.cuda.set_per_process_memory_fraction(1.0)
+
         self.model = model.eval()
         self.tokenizer = tokenizer
         self.all_special_ids = set(tokenizer.all_special_ids)
@@ -54,6 +57,9 @@ class Model(ABC):
     @abstractmethod
     def generate_token(self, batch: B) -> Tuple[List[GeneratedText], Optional[B]]:
         raise NotImplementedError
+
+    def warmup(self, batch: B, max_total_tokens: int):
+        self.generate_token(batch)
 
     def decode_token(
         self,

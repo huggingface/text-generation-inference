@@ -64,10 +64,12 @@ class FlashLlama(FlashCausalLM):
         model = FlashLlamaForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(FlashCausalLM, self).__init__(
+        super(FlashLlama, self).__init__(
             model=model,
             tokenizer=tokenizer,
-            requires_padding=False,
+            num_layers=len(model.model.layers),
+            num_kv_heads=model.model.num_heads,
+            head_size=model.model.head_size,
             dtype=dtype,
             device=device,
             rank=rank,

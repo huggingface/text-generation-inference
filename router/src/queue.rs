@@ -58,6 +58,7 @@ impl Queue {
     pub(crate) async fn next_batch(
         &self,
         min_size: Option<usize>,
+        prefill_token_budget: u32,
         token_budget: u32,
     ) -> Option<NextBatch> {
         // Create response channel
@@ -67,6 +68,7 @@ impl Queue {
         self.queue_sender
             .send(QueueCommand::NextBatch {
                 min_size,
+                prefill_token_budget,
                 token_budget,
                 response_sender,
                 span: Span::current(),
@@ -90,11 +92,12 @@ async fn queue_task(requires_padding: bool, receiver: flume::Receiver<QueueComma
             }
             QueueCommand::NextBatch {
                 min_size,
+                prefill_token_budget,
                 token_budget,
                 response_sender,
                 span,
             } => span.in_scope(|| {
-                let next_batch = state.next_batch(min_size, token_budget);
+                let next_batch = state.next_batch(min_size, prefill_token_budget, token_budget);
                 response_sender.send(next_batch).unwrap();
                 metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
             }),
@@ -140,7 +143,12 @@ impl State {
     }
 
     // Get the next batch
-    fn next_batch(&mut self, min_size: Option<usize>, token_budget: u32) -> Option<NextBatch> {
+    fn next_batch(
+        &mut self,
+        min_size: Option<usize>,
+        prefill_token_budget: u32,
+        token_budget: u32,
+    ) -> Option<NextBatch> {
         if self.entries.is_empty() {
             return None;
         }
@@ -184,7 +192,9 @@ impl State {
 
             decode_tokens += entry.request.stopping_parameters.max_new_tokens;
 
-            if (prefill_tokens + decode_tokens) > token_budget {
+            if prefill_tokens > prefill_token_budget
+                || (prefill_tokens + decode_tokens) > token_budget
+            {
                 // Entry is over budget
                 // Add it back to the front
                 self.entries.push_front((id, entry));
@@ -259,6 +269,7 @@ enum QueueCommand {
     Append(Box<Entry>, Span),
     NextBatch {
         min_size: Option<usize>,
+        prefill_token_budget: u32,
         token_budget: u32,
         response_sender: oneshot::Sender<Option<NextBatch>>,
         span: Span,
@@ -328,8 +339,8 @@ mod tests {
     fn test_next_batch_empty() {
         let mut state = State::new(false);
 
-        assert!(state.next_batch(None, 1).is_none());
-        assert!(state.next_batch(Some(1), 1).is_none());
+        assert!(state.next_batch(None, 1, 1).is_none());
+        assert!(state.next_batch(Some(1), 1, 1).is_none());
     }
 
     #[test]
@@ -340,7 +351,7 @@ mod tests {
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, 2).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 2, 2).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -356,7 +367,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        assert!(state.next_batch(Some(2), 2).is_none());
+        assert!(state.next_batch(Some(2), 2, 2).is_none());
 
         assert_eq!(state.next_id, 3);
         assert_eq!(state.entries.len(), 1);
@@ -372,7 +383,7 @@ mod tests {
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, 1).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 1, 1).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -385,7 +396,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        let (entries, batch, _) = state.next_batch(None, 3).unwrap();
+        let (entries, batch, _) = state.next_batch(None, 3, 3).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -408,8 +419,8 @@ mod tests {
     async fn test_queue_next_batch_empty() {
         let queue = Queue::new(false);
 
-        assert!(queue.next_batch(None, 1).await.is_none());
-        assert!(queue.next_batch(Some(1), 1).await.is_none());
+        assert!(queue.next_batch(None, 1, 1).await.is_none());
+        assert!(queue.next_batch(Some(1), 1, 1).await.is_none());
     }
 
     #[tokio::test]
@@ -420,7 +431,7 @@ mod tests {
         queue.append(entry1);
         queue.append(entry2);
 
-        let (entries, batch, _) = queue.next_batch(None, 2).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 2, 2).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -433,11 +444,11 @@ mod tests {
         queue.append(entry3);
 
         // Not enough requests pending
-        assert!(queue.next_batch(Some(2), 2).await.is_none());
+        assert!(queue.next_batch(Some(2), 2, 2).await.is_none());
         // Not enough token budget
-        assert!(queue.next_batch(Some(1), 0).await.is_none());
+        assert!(queue.next_batch(Some(1), 0, 0).await.is_none());
         // Ok
-        let (entries2, batch2, _) = queue.next_batch(Some(1), 2).await.unwrap();
+        let (entries2, batch2, _) = queue.next_batch(Some(1), 2, 2).await.unwrap();
         assert_eq!(entries2.len(), 1);
         assert!(entries2.contains_key(&2));
         assert!(entries2.get(&2).unwrap().batch_time.is_some());
@@ -453,7 +464,7 @@ mod tests {
         queue.append(entry1);
         queue.append(entry2);
 
-        let (entries, batch, _) = queue.next_batch(None, 1).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 1, 1).await.unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -462,7 +473,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         queue.append(entry3);
 
-        let (entries, batch, _) = queue.next_batch(None, 3).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, 3, 3).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -476,6 +487,6 @@ mod tests {
         let (entry, _) = default_entry();
         queue.append(entry);
 
-        assert!(queue.next_batch(None, 1).await.is_none());
+        assert!(queue.next_batch(None, 1, 1).await.is_none());
     }
 }

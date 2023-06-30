@@ -55,10 +55,12 @@ class FlashNeoXSharded(FlashCausalLM):
         model = FlashGPTNeoXForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(FlashCausalLM, self).__init__(
+        super(FlashNeoXSharded, self).__init__(
             model=model.to(device),
             tokenizer=tokenizer,
-            requires_padding=False,
+            num_layers=len(model.gpt_neox.layers),
+            num_kv_heads=model.gpt_neox.num_heads,
+            head_size=model.gpt_neox.head_size,
             dtype=dtype,
             device=device,
             rank=rank,

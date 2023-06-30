@@ -4,10 +4,14 @@ import torch.distributed
 from torch import nn
 from transformers.modeling_utils import PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
-from typing import Optional
+from typing import Optional, List, Tuple
 
 # Flash attention imports
 import flash_attn_cuda
+
+# vllm imports
+import vllm_cache_ops
+import vllm_attention_ops
 
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -126,19 +130,27 @@ class FlashRWAttention(torch.nn.Module):
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
 
+        if self.num_heads_kv == 1:
+            self.kv_head_mapping = torch.zeros(
+                self.num_heads, dtype=torch.int32, device=weights.device
+            )
+        else:
+            self.kv_head_mapping = torch.arange(
+                0, self.num_heads, dtype=torch.int32, device=weights.device
+            )
+
     def forward(
         self,
         hidden_states,
         cos,
         sin,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
+        start_seq_prefill,
+        end_seq_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
         max_s,
-        layer_past,
-        past_present_indices,
-        prefill,
     ):
         qkv = self.query_key_value(hidden_states)
 
@@ -156,25 +168,29 @@ class FlashRWAttention(torch.nn.Module):
         self.rotary_emb(query, cos, sin)
         self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
 
-        # Prefill
-        if prefill:
-            # Copy to layer past
-            layer_past[...] = kv
-            # Expand to query shape
-            kv = kv.expand(-1, 2, self.num_heads, self.head_size)
+        vllm_cache_ops.reshape_and_cache(
+            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
+        )
 
-            # output
-            attn_output = torch.empty_like(query)
+        # output
+        attn_output = torch.empty_like(query)
+
+        # Prefill
+        if start_seq_prefill is not None:
+            if self.num_heads_kv == 1:
+                # Expand to query shape
+                kv = kv.expand(-1, 2, self.num_heads, self.head_size)
+
             # flash attention
             flash_attn_cuda.fwd(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
                 attn_output,
-                start_seq,
-                end_seq,
-                start_seq,
-                end_seq,
+                start_seq_prefill,
+                end_seq_prefill,
+                start_seq_prefill,
+                end_seq_prefill,
                 max_s,
                 max_s,
                 0.0,
@@ -187,32 +203,19 @@ class FlashRWAttention(torch.nn.Module):
             )
         # Decode
         else:
-            # Add present to the layer_past tensor at the correct indices
-            layer_past[past_present_indices] = kv
-            # Expand to query shape
-            kv = layer_past.expand(-1, 2, self.num_heads, self.head_size)
-
-            # output
-            attn_output = torch.empty_like(query)
-            # flash attention
-            flash_attn_cuda.fwd(
-                query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
+            # kv_cache[1] => [num_blocks, num_heads_kv, head_size, block_size]
+            block_size = kv_cache[1].shape[3]
+            vllm_attention_ops.single_query_cached_kv_attention(
                 attn_output,
-                start_seq_q,
-                end_seq_q,
-                start_seq,
-                end_seq,
-                1,
-                max_s,
-                0.0,
+                query,
+                kv_cache[0],
+                kv_cache[1],
+                self.kv_head_mapping,
                 self.softmax_scale,
-                False,
-                False,
-                False,
-                0,
-                None,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
@@ -264,19 +267,22 @@ class FlashRWLargeAttention(torch.nn.Module):
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
 
+        self.kv_head_mapping = torch.arange(
+            0, self.num_groups, dtype=torch.int32, device=weights.device
+        ).repeat_interleave(self.num_heads)
+
     def forward(
         self,
         hidden_states,
         cos,
         sin,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
+        start_seq_prefill,
+        end_seq_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
         max_s,
-        layer_past,
-        past_present_indices,
-        prefill,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, self.num_groups, self.num_heads + 2, self.head_size)
@@ -293,10 +299,19 @@ class FlashRWLargeAttention(torch.nn.Module):
         self.rotary_emb(query, cos, sin)
         self.rotary_emb(torch.select(kv, dim=2, index=0), cos, sin)
 
+        vllm_cache_ops.reshape_and_cache(
+            kv[:, :, 0].contiguous(),
+            kv[:, :, 1].contiguous(),
+            kv_cache[0],
+            kv_cache[1],
+            slots,
+        )
+
+        # output
+        attn_output = torch.empty_like(query)
+
         # Prefill
-        if prefill:
-            # Copy to layer past
-            layer_past[...] = kv
+        if start_seq_prefill is not None:
             # Expand to query shape
             kv = (
                 kv.unsqueeze(2)
@@ -304,18 +319,16 @@ class FlashRWLargeAttention(torch.nn.Module):
                 .reshape(-1, self.num_groups * self.num_heads, 2, self.head_size)
             )
 
-            # output
-            attn_output = torch.empty_like(query)
             # flash attention
             flash_attn_cuda.fwd(
                 query,
                 torch.select(kv, dim=2, index=0),
                 torch.select(kv, dim=2, index=1),
                 attn_output,
-                start_seq,
-                end_seq,
-                start_seq,
-                end_seq,
+                start_seq_prefill,
+                end_seq_prefill,
+                start_seq_prefill,
+                end_seq_prefill,
                 max_s,
                 max_s,
                 0.0,
@@ -328,36 +341,19 @@ class FlashRWLargeAttention(torch.nn.Module):
             )
         # Decode
         else:
-            # Add present to the layer_past tensor at the correct indices
-            layer_past[past_present_indices] = kv
-            # Expand to query shape
-            kv = (
-                layer_past.unsqueeze(2)
-                .expand(-1, self.num_groups, self.num_heads, 2, self.head_size)
-                .reshape(-1, self.num_groups * self.num_heads, 2, self.head_size)
-            )
-
-            # output
-            attn_output = torch.empty_like(query)
-            # flash attention
-            flash_attn_cuda.fwd(
-                query,
-                torch.select(kv, dim=2, index=0),
-                torch.select(kv, dim=2, index=1),
+            # kv_cache[1] => [num_blocks, num_groups, head_size, block_size]
+            block_size = kv_cache[1].shape[3]
+            vllm_attention_ops.single_query_cached_kv_attention(
                 attn_output,
-                start_seq_q,
-                end_seq_q,
-                start_seq,
-                end_seq,
-                1,
-                max_s,
-                0.0,
+                query,
+                kv_cache[0],
+                kv_cache[1],
+                self.kv_head_mapping,
                 self.softmax_scale,
-                False,
-                False,
-                False,
-                0,
-                None,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
             )
 
         return self.dense(
@@ -432,14 +428,13 @@ class FlashRWLayer(nn.Module):
         residual,
         cos,
         sin,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
+        start_seq_prefill,
+        end_seq_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
         max_s,
-        layer_past,
-        past_present_indices,
-        prefill,
     ):
         if self.parallel_attn:
             ln_hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -448,14 +443,13 @@ class FlashRWLayer(nn.Module):
                 ln_hidden_states,
                 cos,
                 sin,
-                start_seq,
-                end_seq,
-                start_seq_q,
-                end_seq_q,
+                start_seq_prefill,
+                end_seq_prefill,
+                kv_cache,
+                block_tables,
+                slots,
+                input_lengths,
                 max_s,
-                layer_past,
-                past_present_indices,
-                prefill,
             )
 
             mlp_output = self.mlp(ln_hidden_states)
@@ -472,14 +466,13 @@ class FlashRWLayer(nn.Module):
                 hidden_states,
                 cos,
                 sin,
-                start_seq,
-                end_seq,
-                start_seq_q,
-                end_seq_q,
+                start_seq_prefill,
+                end_seq_prefill,
+                kv_cache,
+                block_tables,
+                slots,
+                input_lengths,
                 max_s,
-                layer_past,
-                past_present_indices,
-                prefill,
             )
 
             hidden_states, residual = self.post_attention_layernorm(
@@ -523,14 +516,13 @@ class FlashRWLargeLayer(nn.Module):
         residual,
         cos,
         sin,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
+        start_seq_prefill,
+        end_seq_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
         max_s,
-        layer_past,
-        past_present_indices,
-        prefill,
     ):
         ln_attn, residual = self.ln_attn(hidden_states, residual)
         ln_mlp, _ = self.ln_mlp(residual)
@@ -540,14 +532,13 @@ class FlashRWLargeLayer(nn.Module):
             ln_attn,
             cos,
             sin,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
+            start_seq_prefill,
+            end_seq_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            input_lengths,
             max_s,
-            layer_past,
-            past_present_indices,
-            prefill,
         )
 
         # MLP.
@@ -580,11 +571,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
                     for layer_id in range(config.num_hidden_layers)
                 ]
             )
-            self.cache_size = (
-                2,
-                self.h[0].self_attention.num_heads_kv,
-                self.h[0].self_attention.head_size,
-            )
+            self.cache_size = self.h[0].self_attention.num_heads_kv
         elif config.model_type == "RefinedWeb":
             self.h = nn.ModuleList(
                 [
@@ -592,11 +579,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
                     for layer_id in range(config.num_hidden_layers)
                 ]
             )
-            self.cache_size = (
-                self.h[0].self_attention.num_groups,
-                2,
-                self.h[0].self_attention.head_size,
-            )
+            self.cache_size = self.h[0].self_attention.num_groups
         else:
             raise NotImplementedError(
                 f"model_type {config.model_type} is not supported."
@@ -612,37 +595,17 @@ class FlashRWModel(FlashRWPreTrainedModel):
 
     def forward(
         self,
-        input_ids,
-        position_ids,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
-        max_s,
-        past_present_indices,
-        past_key_values=None,
-        pre_allocate_past_size: Optional[int] = None,
-    ):
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        start_seq_prefill: Optional[torch.Tensor],
+        end_seq_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        input_lengths: torch.Tensor,
+        max_s: int,
+    ) -> torch.Tensor:
         hidden_states = self.word_embeddings(input_ids)
-
-        # Prefill
-        if past_key_values is None:
-            assert pre_allocate_past_size is not None
-
-            prefill = True
-
-            # Create past tensor
-            # We create a tensor of the same size as input_ids as we don't want to slice at every layer
-            past_key_values = hidden_states.new_empty(
-                (
-                    len(input_ids),
-                    len(self.h),
-                    *self.cache_size,
-                )
-            )
-        # Decode
-        else:
-            prefill = False
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -657,32 +620,18 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 residual,
                 cos,
                 sin,
-                start_seq,
-                end_seq,
-                start_seq_q,
-                end_seq_q,
+                start_seq_prefill,
+                end_seq_prefill,
+                kv_cache[i],
+                block_tables,
+                slots,
+                input_lengths,
                 max_s,
-                torch.select(past_key_values, dim=1, index=i),
-                past_present_indices,
-                prefill,
             )
-
-        if prefill:
-            present = past_key_values
-            # Create padded past tensor
-            past_key_values = hidden_states.new_empty(
-                (
-                    pre_allocate_past_size,
-                    len(self.h),
-                    *self.cache_size,
-                )
-            )
-            # We slice only once instead of at every layer
-            past_key_values[past_present_indices] = present
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
 
-        return hidden_states, past_key_values
+        return hidden_states
 
 
 class FlashRWForCausalLM(FlashRWPreTrainedModel):
@@ -697,31 +646,29 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
 
     def forward(
         self,
-        input_ids,
-        position_ids,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
-        max_s,
-        past_present_indices,
-        past_key_values: Optional[torch.Tensor] = None,
-        pre_allocate_past_size: Optional[int] = None,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        start_seq_prefill: Optional[torch.Tensor],
+        end_seq_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        input_lengths: torch.Tensor,
+        max_s: int,
         lm_head_indices: Optional[torch.Tensor] = None,
-    ):
-        hidden_states, present = self.transformer(
+    ) -> torch.Tensor:
+        hidden_states = self.transformer(
             input_ids,
             position_ids,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
+            start_seq_prefill,
+            end_seq_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            input_lengths,
             max_s,
-            past_present_indices,
-            past_key_values,
-            pre_allocate_past_size,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits = self.lm_head(hidden_states)
-        return logits, present
+        return logits

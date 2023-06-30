@@ -23,11 +23,15 @@ import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-from typing import Optional
+from typing import Optional, List, Tuple
 
 # Flash attention imports
 import flash_attn_cuda
 import dropout_layer_norm
+
+# vllm imports
+import vllm_cache_ops
+import vllm_attention_ops
 
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -106,7 +110,7 @@ class FlashLlamaAttention(torch.nn.Module):
             prefix=f"{prefix}.rotary_emb", weights=weights
         )
 
-        self.softmax_scale = self.head_size ** (-0.5)
+        self.softmax_scale = self.head_size**-0.5
 
         self.num_heads = self.num_heads // weights.process_group.size()
         self.query_key_value = TensorParallelColumnLinear.load_multi(
@@ -122,20 +126,22 @@ class FlashLlamaAttention(torch.nn.Module):
             weights=weights,
             bias=False,
         )
+        self.kv_head_mapping = torch.arange(
+            0, self.num_heads, dtype=torch.int32, device=weights.device
+        )
 
     def forward(
         self,
         hidden_states,
         cos,
         sin,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
+        start_seq_prefill,
+        end_seq_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
         max_s,
-        layer_past,
-        past_present_indices,
-        prefill,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
@@ -144,23 +150,25 @@ class FlashLlamaAttention(torch.nn.Module):
         self.rotary_emb(qkv[:, 0], cos, sin)
         self.rotary_emb(qkv[:, 1], cos, sin)
 
-        # Prefill
-        if prefill:
-            # Copy to layer past
-            layer_past[...] = qkv[:, 1:]
+        vllm_cache_ops.reshape_and_cache(
+            qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots
+        )
 
-            # output
-            attn_output = torch.empty_like(qkv[:, 0])
+        # output tensor
+        attn_output = torch.empty_like(qkv[:, 0])
+
+        # Prefill
+        if start_seq_prefill is not None:
             # flash attention
             flash_attn_cuda.fwd(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],
                 attn_output,
-                start_seq,
-                end_seq,
-                start_seq,
-                end_seq,
+                start_seq_prefill,
+                end_seq_prefill,
+                start_seq_prefill,
+                end_seq_prefill,
                 max_s,
                 max_s,
                 0.0,
@@ -173,31 +181,19 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            query = qkv[:, 0]
-            # Add present to the layer_past tensor at the correct indices
-            layer_past[past_present_indices] = qkv[:, 1:]
-
-            # output
-            attn_output = torch.empty_like(query)
-            # flash attention
-            flash_attn_cuda.fwd(
-                query,
-                layer_past[:, 0],
-                layer_past[:, 1],
+            # kv_cache[1] => [num_blocks, num_heads, head_size, block_size]
+            block_size = kv_cache[1].shape[3]
+            vllm_attention_ops.single_query_cached_kv_attention(
                 attn_output,
-                start_seq_q,
-                end_seq_q,
-                start_seq,
-                end_seq,
-                1,
-                max_s,
-                0.0,
+                qkv[:, 0],
+                kv_cache[0],
+                kv_cache[1],
+                self.kv_head_mapping,
                 self.softmax_scale,
-                False,
-                False,
-                False,
-                0,
-                None,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -265,14 +261,13 @@ class FlashLlamaLayer(nn.Module):
         residual,
         cos,
         sin,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
+        start_seq_prefill,
+        end_seq_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
         max_s,
-        layer_past,
-        past_present_indices,
-        prefill,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -281,14 +276,13 @@ class FlashLlamaLayer(nn.Module):
             normed_hidden_states,
             cos,
             sin,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
+            start_seq_prefill,
+            end_seq_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            input_lengths,
             max_s,
-            layer_past,
-            past_present_indices,
-            prefill,
         )
 
         # faster post attention rms norm
@@ -333,39 +327,17 @@ class FlashLlamaModel(torch.nn.Module):
 
     def forward(
         self,
-        input_ids,
-        position_ids,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
-        max_s,
-        past_present_indices,
-        past_key_values=None,
-        pre_allocate_past_size: Optional[int] = None,
-    ):
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        start_seq_prefill: Optional[torch.Tensor],
+        end_seq_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        input_lengths: torch.Tensor,
+        max_s: int,
+    ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
-
-        # Prefill
-        if past_key_values is None:
-            assert pre_allocate_past_size is not None
-
-            prefill = True
-
-            # Create past tensor
-            # We create a tensor of the same size as input_ids as we don't want to slice at every layer
-            past_key_values = hidden_states.new_empty(
-                (
-                    len(input_ids),
-                    len(self.layers),
-                    2,
-                    self.num_heads,
-                    self.head_size,
-                )
-            )
-        # Decode
-        else:
-            prefill = False
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -380,34 +352,18 @@ class FlashLlamaModel(torch.nn.Module):
                 residual,
                 cos,
                 sin,
-                start_seq,
-                end_seq,
-                start_seq_q,
-                end_seq_q,
+                start_seq_prefill,
+                end_seq_prefill,
+                kv_cache[i],
+                block_tables,
+                slots,
+                input_lengths,
                 max_s,
-                past_key_values[:, i],
-                past_present_indices,
-                prefill,
             )
-
-        if prefill:
-            present = past_key_values
-            # Create padded past tensor
-            past_key_values = hidden_states.new_empty(
-                (
-                    pre_allocate_past_size,
-                    len(self.layers),
-                    2,
-                    self.num_heads,
-                    self.head_size,
-                )
-            )
-            # We slice only once instead of at every layer
-            past_key_values[past_present_indices] = present
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
-        return hidden_states, past_key_values
+        return hidden_states
 
 
 class FlashLlamaForCausalLM(torch.nn.Module):
@@ -423,31 +379,29 @@ class FlashLlamaForCausalLM(torch.nn.Module):
 
     def forward(
         self,
-        input_ids,
-        position_ids,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
-        max_s,
-        past_present_indices,
-        past_key_values: Optional[torch.Tensor] = None,
-        pre_allocate_past_size: Optional[int] = None,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        start_seq_prefill: Optional[torch.Tensor],
+        end_seq_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        input_lengths: torch.Tensor,
+        max_s: int,
         lm_head_indices: Optional[torch.Tensor] = None,
-    ):
-        hidden_states, present = self.model(
+    ) -> torch.Tensor:
+        hidden_states = self.model(
             input_ids,
             position_ids,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
+            start_seq_prefill,
+            end_seq_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            input_lengths,
             max_s,
-            past_present_indices,
-            past_key_values,
-            pre_allocate_past_size,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits = self.lm_head(hidden_states)
-        return logits, present
+        return logits
