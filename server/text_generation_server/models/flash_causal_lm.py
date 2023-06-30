@@ -640,6 +640,10 @@ class FlashCausalLMBatch(Batch):
             device=batches[0].next_token_chooser.device,
         )
 
+        # Needed to avoid dropping blocks when the batches will go out of scope
+        for b in batches:
+            b.block_tables = None
+
         return FlashCausalLMBatch(
             batch_id=batches[0].batch_id,
             requests=requests,
