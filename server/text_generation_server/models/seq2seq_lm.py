@@ -504,11 +504,12 @@ class Seq2SeqLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.float16
+            dtype = torch.float16 if dtype is None else dtype
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")

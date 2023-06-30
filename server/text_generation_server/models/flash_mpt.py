@@ -2,13 +2,14 @@ import torch
 import torch.distributed
 
 from opentelemetry import trace
-from transformers import AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer, PretrainedConfig
 from typing import Optional
+from huggingface_hub import hf_hub_download
+import json
 
 from text_generation_server.models import FlashCausalLM
-from text_generation_server.models.custom_modeling.flash_rw_modeling import (
-    RWConfig,
-    FlashRWForCausalLM,
+from text_generation_server.models.custom_modeling.flash_mpt_modeling import (
+    MPTForCausalLM,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -19,21 +20,20 @@ from text_generation_server.utils import (
 tracer = trace.get_tracer(__name__)
 
 
-class FlashRWSharded(FlashCausalLM):
+class MPTSharded(FlashCausalLM):
     def __init__(
         self,
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.float16 if dtype is None else dtype
+            dtype = torch.float16
         else:
-            raise NotImplementedError("FlashRW is only available on GPU")
+            raise NotImplementedError("FlashMPT is only available on GPU")
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
@@ -43,21 +43,27 @@ class FlashRWSharded(FlashCausalLM):
             trust_remote_code=trust_remote_code,
         )
 
-        config = RWConfig.from_pretrained(
-            model_id, revision=revision, trust_remote_code=trust_remote_code
-        )
+        filename = hf_hub_download(model_id, revision=revision, filename="config.json")
+        with open(filename, "r") as f:
+            config = json.load(f)
+        config = PretrainedConfig(**config)
+        config.quantize = quantize
+        # config = AutoConfig.from_pretrained(
+        #     # model_id, revision=revision, trust_remote_code=trust_remote_code
+        #     model_id, revision=revision, trust_remote_code=False
+        # )
 
         torch.distributed.barrier(group=self.process_group)
+
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(filenames, device, dtype, process_group=self.process_group)
 
         config.quantize = quantize
-
-        model = FlashRWForCausalLM(config, weights)
+        model = MPTForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
         super(FlashCausalLM, self).__init__(
-            model=model.to(device),
+            model=model,
             tokenizer=tokenizer,
             requires_padding=False,
             dtype=dtype,

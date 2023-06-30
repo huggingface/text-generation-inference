@@ -99,6 +99,7 @@ def serve(
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
+    dtype: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
 ):
@@ -107,6 +108,7 @@ def serve(
         revision: Optional[str],
         sharded: bool = False,
         quantize: Optional[str] = None,
+        dtype: Optional[str] = None,
         trust_remote_code: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
@@ -121,7 +123,9 @@ def serve(
             server_urls = [local_url]
 
         try:
-            model = get_model(model_id, revision, sharded, quantize, trust_remote_code)
+            model = get_model(
+                model_id, revision, sharded, quantize, dtype, trust_remote_code
+            )
         except Exception:
             logger.exception("Error when initializing model")
             raise

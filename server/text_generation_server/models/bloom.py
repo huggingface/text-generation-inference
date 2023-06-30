@@ -42,12 +42,13 @@ class BLOOMSharded(CausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.float16
+            dtype = torch.float16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
             dtype = torch.float32

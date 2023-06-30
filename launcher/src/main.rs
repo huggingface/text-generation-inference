@@ -36,6 +36,26 @@ impl std::fmt::Display for Quantization {
     }
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Dtype {
+    Float16,
+    BFloat16,
+}
+
+impl std::fmt::Display for Dtype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self {
+            Dtype::Float16 => {
+                write!(f, "float16")
+            }
+            Dtype::BFloat16 => {
+                write!(f, "bfloat16")
+            }
+        }
+    }
+}
+
 /// App Configuration
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -70,6 +90,10 @@ struct Args {
     /// quantization on the fly, or `gptq`.
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
+
+    /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
+    #[clap(long, env, value_enum)]
+    quantize: Option<Dtype>,
 
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
     /// encouraged when loading a model with custom code to ensure no malicious code has been
