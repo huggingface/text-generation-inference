@@ -93,7 +93,7 @@ struct Args {
 
     /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
     #[clap(long, env, value_enum)]
-    quantize: Option<Dtype>,
+    dtype: Option<Dtype>,
 
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
     /// encouraged when loading a model with custom code to ensure no malicious code has been
