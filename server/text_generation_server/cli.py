@@ -16,12 +16,18 @@ class Quantization(str, Enum):
     gptq = "gptq"
 
 
+class Dtype(str, Enum):
+    float16 = "float16"
+    bloat16 = "bfloat16"
+
+
 @app.command()
 def serve(
     model_id: str,
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: Optional[Quantization] = None,
+    dtype: Optional[Dtype] = None,
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
@@ -64,7 +70,14 @@ def serve(
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
-    server.serve(model_id, revision, sharded, quantize, trust_remote_code, uds_path)
+    dtype = None if dtype is None else dtype.value
+    if dtype is not None and quantize is not None:
+        raise RuntimeError(
+            "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
+        )
+    server.serve(
+        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path
+    )
 
 
 @app.command()

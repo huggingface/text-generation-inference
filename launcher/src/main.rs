@@ -36,6 +36,26 @@ impl std::fmt::Display for Quantization {
     }
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Dtype {
+    Float16,
+    BFloat16,
+}
+
+impl std::fmt::Display for Dtype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self {
+            Dtype::Float16 => {
+                write!(f, "float16")
+            }
+            Dtype::BFloat16 => {
+                write!(f, "bfloat16")
+            }
+        }
+    }
+}
+
 /// App Configuration
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -70,6 +90,10 @@ struct Args {
     /// quantization on the fly, or `gptq`.
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
+
+    /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
+    #[clap(long, env, value_enum)]
+    dtype: Option<Dtype>,
 
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
     /// encouraged when loading a model with custom code to ensure no malicious code has been
@@ -258,6 +282,7 @@ fn shard_manager(
     model_id: String,
     revision: Option<String>,
     quantize: Option<Quantization>,
+    dtype: Option<Dtype>,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -305,6 +330,11 @@ fn shard_manager(
     if let Some(quantize) = quantize {
         shard_argv.push("--quantize".to_string());
         shard_argv.push(quantize.to_string())
+    }
+
+    if let Some(dtype) = dtype {
+        shard_argv.push("--dtype".to_string());
+        shard_argv.push(dtype.to_string())
     }
 
     // Model optional revision
@@ -743,6 +773,7 @@ fn spawn_shards(
         let shutdown_sender = shutdown_sender.clone();
         let otlp_endpoint = args.otlp_endpoint.clone();
         let quantize = args.quantize;
+        let dtype = args.dtype;
         let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
@@ -753,6 +784,7 @@ fn spawn_shards(
                 model_id,
                 revision,
                 quantize,
+                dtype,
                 trust_remote_code,
                 uds_path,
                 rank,
