@@ -101,7 +101,7 @@ struct Args {
     /// for users. The larger this value, the longer prompt users can send which
     /// can impact the overall memory required to handle the load.
     /// Please note that some models have a finite range of sequence they can handle.
-    #[clap(default_value = "1000", long, env)]
+    #[clap(default_value = "1024", long, env)]
     max_input_length: usize,
 
     /// This is the most important value to set as it defines the "memory budget"
@@ -112,7 +112,7 @@ struct Args {
     /// `1511` max_new_tokens.
     /// The larger this value, the larger amount each request will be in your RAM
     /// and the less effective batching can be.
-    #[clap(default_value = "1512", long, env)]
+    #[clap(default_value = "2048", long, env)]
     max_total_tokens: usize,
 
     /// This represents the ratio of waiting queries vs running queries where
