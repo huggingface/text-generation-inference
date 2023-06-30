@@ -151,7 +151,7 @@ struct Args {
     /// depends on other parameters like if you're using quantization, flash attention
     /// or the model implementation, text-generation-inference cannot infer this number
     /// automatically.
-    #[clap(default_value = "32000", long, env)]
+    #[clap(default_value = "16000", long, env)]
     max_batch_total_tokens: u32,
 
     /// This setting defines how many tokens can be passed before forcing the waiting
