@@ -66,7 +66,6 @@ class CacheManager:
     def allocate(self, num_blocks: int) -> Tuple[torch.Tensor, torch.Tensor]:
         # Get free blocks indices by finding values in mask that are not set to 0
         free_block_indices = self.free_block_mask.nonzero()
-        logger.info(f"Free blocks: {len(free_block_indices)}")
         assert (
             len(free_block_indices) >= num_blocks
         ), f"Out of available cache blocks: asked {num_blocks}, only {len(free_block_indices)} free blocks"
@@ -78,14 +77,11 @@ class CacheManager:
         # Get slots for the allocated blocks
         slots = self.slots[block_indices].flatten()
 
-        logger.info(f"allocate {num_blocks} blocks")
-
         return block_indices.flatten(), slots
 
     def free(self, block_indices: Optional[List[int]]):
         if block_indices is not None:
             # Reset mask
-            logger.info(f"free {len(block_indices)} blocks")
             self.free_block_mask[block_indices] = 1
 
 
@@ -704,7 +700,7 @@ class FlashCausalLM(Model):
             )
             _, batch = self.generate_token(batch)
         except Exception as e:
-            logger.error(
+            logger.exception(
                 f"Not enough memory to handle {max_total_tokens} total tokens with {len(batch.input_ids)} "
                 f"prefill tokens. "
                 f"You need to decrease `--max-batch-total-tokens` and `--max-batch-prefill-tokens`"
