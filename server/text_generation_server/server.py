@@ -156,4 +156,6 @@ def serve(
             logger.info("Signal received. Shutting down")
             await server.stop(0)
 
-    asyncio.run(serve_inner(model_id, revision, sharded, quantize, trust_remote_code))
+    asyncio.run(
+        serve_inner(model_id, revision, sharded, quantize, dtype, trust_remote_code)
+    )

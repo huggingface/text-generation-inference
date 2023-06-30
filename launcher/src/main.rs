@@ -289,6 +289,7 @@ fn shard_manager(
     model_id: String,
     revision: Option<String>,
     quantize: Option<Quantization>,
+    dtype: Option<Dtype>,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -336,6 +337,11 @@ fn shard_manager(
     if let Some(quantize) = quantize {
         shard_argv.push("--quantize".to_string());
         shard_argv.push(quantize.to_string())
+    }
+
+    if let Some(dtype) = dtype {
+        shard_argv.push("--dtype".to_string());
+        shard_argv.push(dtype.to_string())
     }
 
     // Model optional revision
@@ -768,6 +774,7 @@ fn spawn_shards(
         let shutdown_sender = shutdown_sender.clone();
         let otlp_endpoint = args.otlp_endpoint.clone();
         let quantize = args.quantize;
+        let dtype = args.dtype;
         let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
@@ -778,6 +785,7 @@ fn spawn_shards(
                 model_id,
                 revision,
                 quantize,
+                dtype,
                 trust_remote_code,
                 uds_path,
                 rank,
