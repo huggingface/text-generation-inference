@@ -19,7 +19,6 @@ class Cache:
     def delete(self, batch_id: int):
         batch = self.pop(batch_id)
         if batch is not None:
-            batch.free()
             del batch
 
     def clear(self):

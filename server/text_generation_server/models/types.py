@@ -35,9 +35,6 @@ class Batch(ABC):
     def concatenate(cls, batches: List["Batch"]) -> "Batch":
         raise NotImplementedError
 
-    def free(self):
-        pass
-
     @abstractmethod
     def __len__(self):
         raise NotImplementedError

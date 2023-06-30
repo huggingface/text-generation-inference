@@ -173,8 +173,9 @@ struct Args {
     /// for end users.
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
-    #[clap(default_value = "3000", long, short, env)]
+
     /// The port to listen on.
+    #[clap(default_value = "3000", long, short, env)]
     port: u16,
 
     /// The name of the socket for gRPC communication between the webserver

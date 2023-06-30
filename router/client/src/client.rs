@@ -113,7 +113,7 @@ impl Client {
             requests.push(Request {
                 id: 0,
                 // We truncate the input on the server side to be sure that it has the correct size
-                inputs: "test".to_string().repeat(max_input_length as usize),
+                inputs: "_test ".to_string().repeat(max_input_length as usize),
                 truncate: min(max_input_length, max_prefill_tokens - n_tokens),
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {

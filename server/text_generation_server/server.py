@@ -65,12 +65,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             request.batch, self.model.tokenizer, self.model.dtype, self.model.device
         )
 
-        try:
-            generations, next_batch = self.model.generate_token(batch)
-        except Exception as e:
-            batch.free()
-            raise e
-
+        generations, next_batch = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
         return generate_pb2.PrefillResponse(
@@ -93,20 +88,11 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             raise ValueError("All batches are empty")
 
         if len(batches) > 1:
-            try:
-                batch = self.model.batch_type.concatenate(batches)
-            except Exception as e:
-                [batch.free() for batch in batches]
-                raise e
+            batch = self.model.batch_type.concatenate(batches)
         else:
             batch = batches[0]
 
-        try:
-            generations, next_batch = self.model.generate_token(batch)
-        except Exception as e:
-            batch.free()
-            raise e
-
+        generations, next_batch = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
         return generate_pb2.DecodeResponse(
