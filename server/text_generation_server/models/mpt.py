@@ -66,7 +66,7 @@ class MPTSharded(CausalLM):
         super(CausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
-            requires_padding=False,
+            requires_padding=True,
             dtype=dtype,
             device=device,
             rank=rank,
