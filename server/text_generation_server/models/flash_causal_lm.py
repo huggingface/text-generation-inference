@@ -94,6 +94,7 @@ class CacheManager:
             slots.append(allocated_slots)
             block_tables.append(allocated_blocks.tolist())
             block_tables_tensor[i, :needed_blocks] = allocated_blocks
+            cumulative_blocks += needed_blocks
 
         batch.needed_blocks_slots = None
         batch.block_tables = block_tables
