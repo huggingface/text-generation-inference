@@ -10,6 +10,7 @@ from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOMSharded
+from text_generation_server.models.mpt import MPTSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
 from text_generation_server.models.rw import RW
 from text_generation_server.models.opt import OPTSharded
@@ -177,6 +178,10 @@ def get_model(
             quantize=quantize,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+        )
+    elif model_type == "mpt":
+        return MPTSharded(
+            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
         )
 
     elif model_type == "gpt_neox":
