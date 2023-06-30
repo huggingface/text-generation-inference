@@ -646,7 +646,7 @@ class FlashCausalLMBatch(Batch):
         for b in batches:
             b.block_tables = None
 
-        return FlashCausalLMBatch(
+        return cls(
             batch_id=batches[0].batch_id,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,

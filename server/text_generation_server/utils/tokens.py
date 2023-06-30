@@ -80,7 +80,7 @@ class NextTokenChooser:
         pb: generate_pb2.NextTokenChooserParameters,
         device: torch.device,
     ) -> "NextTokenChooser":
-        return NextTokenChooser(
+        return cls(
             watermark=pb.watermark,
             temperature=pb.temperature,
             repetition_penalty=pb.repetition_penalty,
@@ -143,7 +143,7 @@ class StoppingCriteria:
         stop_sequence_criterias = [
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
         ]
-        return StoppingCriteria(
+        return cls(
             tokenizer.eos_token_id,
             stop_sequence_criterias,
             pb.max_new_tokens,
@@ -266,7 +266,7 @@ class HeterogeneousNextTokenChooser:
         dtype: torch.dtype,
         device: torch.device,
     ) -> "HeterogeneousNextTokenChooser":
-        return HeterogeneousNextTokenChooser(
+        return cls(
             watermark=[pb_.watermark for pb_ in pb],
             temperature=[pb_.temperature for pb_ in pb],
             repetition_penalty=[pb_.repetition_penalty for pb_ in pb],
