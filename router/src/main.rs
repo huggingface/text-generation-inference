@@ -180,7 +180,11 @@ fn main() -> Result<(), std::io::Error> {
             let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
                 .await
                 .expect("Could not connect to server");
-
+            // Clear the cache; useful if the webserver rebooted
+            sharded_client
+                .clear_cache(None)
+                .await
+                .expect("Unable to clear cache");
             // Get info from the shard
             let shard_info = sharded_client
                 .info()

@@ -290,7 +290,6 @@ async fn batching_task(
                 };
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
-                tracing::info!("{token_budget} {batch_max_tokens}");
 
                 // Try to get a new batch
                 if let Some((mut new_entries, new_batch, span)) = queue

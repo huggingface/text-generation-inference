@@ -24,12 +24,14 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
-from vllm import attention_ops
-from vllm import cache_ops
 
 # Flash attention imports
 import flash_attn_cuda
 import dropout_layer_norm
+
+# vllm imports
+import vllm_cache_ops
+import vllm_attention_ops
 
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -124,6 +126,9 @@ class FlashLlamaAttention(torch.nn.Module):
             weights=weights,
             bias=False,
         )
+        self.kv_head_mapping = torch.arange(
+            0, self.num_heads, dtype=torch.int32, device=weights.device
+        )
 
     def forward(
         self,
@@ -145,7 +150,7 @@ class FlashLlamaAttention(torch.nn.Module):
         self.rotary_emb(qkv[:, 0], cos, sin)
         self.rotary_emb(qkv[:, 1], cos, sin)
 
-        cache_ops.reshape_and_cache(
+        vllm_cache_ops.reshape_and_cache(
             qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots
         )
 
@@ -178,11 +183,12 @@ class FlashLlamaAttention(torch.nn.Module):
         else:
             # kv_cache[1] => [num_blocks, num_heads, head_size, block_size]
             block_size = kv_cache[1].shape[3]
-            attention_ops.single_query_cached_kv_attention(
+            vllm_attention_ops.single_query_cached_kv_attention(
                 attn_output,
                 qkv[:, 0],
                 kv_cache[0],
                 kv_cache[1],
+                self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 input_lengths,

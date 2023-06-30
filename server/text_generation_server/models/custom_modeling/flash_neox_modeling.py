@@ -25,10 +25,14 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
 from transformers.models.gpt_neox import GPTNeoXConfig
-from typing import Optional
+from typing import Optional, List, Tuple
 
 # Flash attention imports
 import flash_attn_cuda
+
+# vllm imports
+import vllm_cache_ops
+import vllm_attention_ops
 
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -110,20 +114,22 @@ class FlashNeoxAttention(torch.nn.Module):
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=True
         )
+        self.kv_head_mapping = torch.arange(
+            0, self.num_heads, dtype=torch.int32, device=weights.device
+        )
 
     def forward(
         self,
         hidden_states,
         cos,
         sin,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
+        start_seq_prefill,
+        end_seq_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
         max_s,
-        layer_past,
-        past_present_indices,
-        prefill,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
@@ -132,23 +138,25 @@ class FlashNeoxAttention(torch.nn.Module):
         self.rotary_emb(qkv[:, 0], cos, sin)
         self.rotary_emb(qkv[:, 1], cos, sin)
 
-        # Prefill
-        if prefill:
-            # Copy to layer past
-            layer_past[...] = qkv[:, 1:]
+        vllm_cache_ops.reshape_and_cache(
+            qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots
+        )
 
-            # output
-            attn_output = torch.empty_like(qkv[:, 0])
+        # output tensor
+        attn_output = torch.empty_like(qkv[:, 0])
+
+        # Prefill
+        if start_seq_prefill is not None:
             # flash attention
             flash_attn_cuda.fwd(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],
                 attn_output,
-                start_seq,
-                end_seq,
-                start_seq,
-                end_seq,
+                start_seq_prefill,
+                end_seq_prefill,
+                start_seq_prefill,
+                end_seq_prefill,
                 max_s,
                 max_s,
                 0.0,
@@ -161,31 +169,19 @@ class FlashNeoxAttention(torch.nn.Module):
             )
         # Decode
         else:
-            query = qkv[:, 0]
-            # Add present to the layer_past tensor at the correct indices
-            layer_past[past_present_indices] = qkv[:, 1:]
-
-            # output
-            attn_output = torch.empty_like(query)
-            # flash attention
-            flash_attn_cuda.fwd(
-                query,
-                layer_past[:, 0],
-                layer_past[:, 1],
+            # kv_cache[1] => [num_blocks, num_heads, head_size, block_size]
+            block_size = kv_cache[1].shape[3]
+            vllm_attention_ops.single_query_cached_kv_attention(
                 attn_output,
-                start_seq_q,
-                end_seq_q,
-                start_seq,
-                end_seq,
-                1,
-                max_s,
-                0.0,
+                qkv[:, 0],
+                kv_cache[0],
+                kv_cache[1],
+                self.kv_head_mapping,
                 self.softmax_scale,
-                False,
-                False,
-                False,
-                0,
-                None,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
@@ -250,14 +246,13 @@ class FlashNeoXLayer(nn.Module):
         residual,
         cos,
         sin,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
+        start_seq_prefill,
+        end_seq_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
         max_s,
-        layer_past,
-        past_present_indices,
-        prefill,
     ):
         if self.use_parallel_residual:
             ln1_hidden_states, _ = self.input_layernorm(hidden_states)
@@ -266,14 +261,13 @@ class FlashNeoXLayer(nn.Module):
                 ln1_hidden_states,
                 cos,
                 sin,
-                start_seq,
-                end_seq,
-                start_seq_q,
-                end_seq_q,
+                start_seq_prefill,
+                end_seq_prefill,
+                kv_cache,
+                block_tables,
+                slots,
+                input_lengths,
                 max_s,
-                layer_past,
-                past_present_indices,
-                prefill,
             )
 
             ln2_hidden_states, _ = self.post_attention_layernorm(hidden_states)
@@ -292,14 +286,13 @@ class FlashNeoXLayer(nn.Module):
                 hidden_states,
                 cos,
                 sin,
-                start_seq,
-                end_seq,
-                start_seq_q,
-                end_seq_q,
+                start_seq_prefill,
+                end_seq_prefill,
+                kv_cache,
+                block_tables,
+                slots,
+                input_lengths,
                 max_s,
-                layer_past,
-                past_present_indices,
-                prefill,
             )
 
             hidden_states, residual = self.post_attention_layernorm(
@@ -346,39 +339,17 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
     def forward(
         self,
-        input_ids,
-        position_ids,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
-        max_s,
-        past_present_indices,
-        past_key_values=None,
-        pre_allocate_past_size: Optional[int] = None,
-    ):
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        start_seq_prefill: Optional[torch.Tensor],
+        end_seq_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        input_lengths: torch.Tensor,
+        max_s: int,
+    ) -> torch.Tensor:
         hidden_states = self.embed_in(input_ids)
-
-        # Prefill
-        if past_key_values is None:
-            assert pre_allocate_past_size is not None
-
-            prefill = True
-
-            # Create past tensor
-            # We create a tensor of the same size as input_ids as we don't want to slice at every layer
-            past_key_values = hidden_states.new_empty(
-                (
-                    len(input_ids),
-                    len(self.layers),
-                    2,
-                    self.num_heads,
-                    self.head_size,
-                )
-            )
-        # Decode
-        else:
-            prefill = False
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -393,34 +364,18 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 residual,
                 cos,
                 sin,
-                start_seq,
-                end_seq,
-                start_seq_q,
-                end_seq_q,
+                start_seq_prefill,
+                end_seq_prefill,
+                kv_cache[i],
+                block_tables,
+                slots,
+                input_lengths,
                 max_s,
-                past_key_values[:, i],
-                past_present_indices,
-                prefill,
             )
-
-        if prefill:
-            present = past_key_values
-            # Create padded past tensor
-            past_key_values = hidden_states.new_empty(
-                (
-                    pre_allocate_past_size,
-                    len(self.layers),
-                    2,
-                    self.num_heads,
-                    self.head_size,
-                )
-            )
-            # We slice only once instead of at every layer
-            past_key_values[past_present_indices] = present
 
         hidden_states, _ = self.final_layer_norm(hidden_states, residual)
 
-        return hidden_states, past_key_values
+        return hidden_states
 
 
 class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
@@ -434,31 +389,29 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
 
     def forward(
         self,
-        input_ids,
-        position_ids,
-        start_seq,
-        end_seq,
-        start_seq_q,
-        end_seq_q,
-        max_s,
-        past_present_indices,
-        past_key_values: Optional[torch.Tensor] = None,
-        pre_allocate_past_size: Optional[int] = None,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        start_seq_prefill: Optional[torch.Tensor],
+        end_seq_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        input_lengths: torch.Tensor,
+        max_s: int,
         lm_head_indices: Optional[torch.Tensor] = None,
-    ):
-        hidden_states, present = self.gpt_neox(
+    ) -> torch.Tensor:
+        hidden_states = self.gpt_neox(
             input_ids,
             position_ids,
-            start_seq,
-            end_seq,
-            start_seq_q,
-            end_seq_q,
+            start_seq_prefill,
+            end_seq_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            input_lengths,
             max_s,
-            past_present_indices,
-            past_key_values,
-            pre_allocate_past_size,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits = self.embed_out(hidden_states)
-        return logits, present
+        return logits

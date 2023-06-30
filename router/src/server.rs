@@ -152,7 +152,7 @@ async fn generate(
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
 
-    // tracing::debug!("Input: {}", req.0.inputs);
+    tracing::debug!("Input: {}", req.0.inputs);
 
     let compute_characters = req.0.inputs.chars().count();
     let mut add_prompt = None;
@@ -286,7 +286,7 @@ async fn generate(
     }
 
     tracing::debug!("Output: {}", output_text);
-    // tracing::info!("Success");
+    tracing::info!("Success");
 
     let response = GenerateResponse {
         generated_text: output_text,
