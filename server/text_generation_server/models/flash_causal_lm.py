@@ -481,6 +481,8 @@ class FlashCausalLMBatch(Batch):
                 block_indices_to_free.extend(self.block_tables[i])
         # Free blocks
         CACHE_MANAGER.free(block_indices_to_free)
+        # Needed to avoid dropping blocks when the batches will go out of scope
+        self.block_tables = None
 
         # Index into tensors
         input_ids = self.input_ids[indices]
@@ -675,7 +677,7 @@ class FlashCausalLMBatch(Batch):
         )
 
     def __del__(self):
-        if self.block_tables is not None:
+        if self.block_tables is not None and self.block_tables:
             global CACHE_MANAGER
             # Free blocks
             CACHE_MANAGER.free(list(itertools.chain.from_iterable(self.block_tables)))
