@@ -88,6 +88,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 RUN /opt/conda/bin/conda install -c "nvidia/label/cuda-11.8.0"  cuda==11.8 && \
     /opt/conda/bin/conda clean -ya
 
+
 # Build Flash Attention CUDA kernels
 FROM kernel-builder as flash-att-builder
 
@@ -108,18 +109,8 @@ COPY server/custom_kernels/ .
 # Build specific version of transformers
 RUN python setup.py build
 
-# Build vllm CUDA kernels
-FROM kernel-builder as vllm-builder
-
-WORKDIR /usr/src
-
-COPY server/Makefile-vllm Makefile
-
-# Build specific version of vllm
-RUN make build-vllm
-
 # Text Generation Inference base image
-FROM nvidia/cuda:11.8.0-base-ubuntu20.04 as base
+FROM nvidia/cuda:11.8.0-base-ubuntu22.04 as base
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
@@ -134,9 +125,15 @@ WORKDIR /usr/src
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         libssl-dev \
+        openssl\
+        wget\
         ca-certificates \
         make \
         && rm -rf /var/lib/apt/lists/*
+
+RUN wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb
+RUN dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb
+
 
 # Copy conda with PyTorch installed
 COPY --from=pytorch-install /opt/conda /opt/conda
@@ -146,11 +143,8 @@ COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cp
 COPY --from=flash-att-builder /usr/src/flash-attention/csrc/layer_norm/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 
-# Copy build artifacts from custom kernels builder
+# Copy build artifacts from transformers builder
 COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39/custom_kernels /usr/src/custom-kernels/src/custom_kernels
-
-# Copy builds artifacts from vllm builder
-COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 
 # Install flash-attention dependencies
 RUN pip install einops --no-cache-dir
