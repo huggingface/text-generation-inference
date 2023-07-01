@@ -532,6 +532,7 @@ pub async fn run(
     #[derive(OpenApi)]
     #[openapi(
         paths(
+            health,
             get_model_info,
             compat_generate,
             generate,

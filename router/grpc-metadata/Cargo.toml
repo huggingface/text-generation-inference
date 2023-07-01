@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-opentelemetry = "0.18.0"
-tonic = "^0.8"
+opentelemetry = "^0.19"
+tonic = "^0.9"
 tracing = "^0.1"
-tracing-opentelemetry = "0.18.0"
+tracing-opentelemetry = "^0.19"
