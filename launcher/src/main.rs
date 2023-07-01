@@ -1040,14 +1040,18 @@ fn main() -> Result<(), LauncherError> {
         return Ok(());
     }
 
-    let mut webserver = spawn_webserver(args, shutdown.clone(), &shutdown_receiver)?;
+    let mut webserver =
+        spawn_webserver(args, shutdown.clone(), &shutdown_receiver).map_err(|err| {
+            shutdown_shards(shutdown.clone(), &shutdown_receiver);
+            err
+        })?;
 
     // Default exit code
     let mut exit_code = Ok(());
 
     while running.load(Ordering::SeqCst) {
         if let Ok(ShardStatus::Failed((rank, err))) = status_receiver.try_recv() {
-            tracing::error!("Shard {rank} failed to start");
+            tracing::error!("Shard {rank} crashed");
             if let Some(err) = err {
                 tracing::error!("{err}");
             }
