@@ -11,10 +11,10 @@ grpc-metadata = { path = "../grpc-metadata" }
 prost = "^0.11"
 thiserror = "^1.0"
 tokio = { version = "^1.25", features = ["sync"] }
-tonic = "^0.8"
+tonic = "^0.9"
 tower = "^0.4"
 tracing = "^0.1"
 
 [build-dependencies]
-tonic-build = "0.8.4"
+tonic-build = "0.9.2"
 prost-build = "0.11.6"

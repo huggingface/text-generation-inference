@@ -1,3 +1,0 @@
-$schema: https://azuremlschemas.azureedge.net/latest/model.schema.json
-name: bloom-safetensors
-path: /data/bloom-safetensors
