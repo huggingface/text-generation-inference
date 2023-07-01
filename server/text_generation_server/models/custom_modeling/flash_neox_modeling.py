@@ -18,6 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import torch
 import torch.distributed
 
@@ -43,6 +44,14 @@ from text_generation_server.utils.layers import (
     PositionRotaryEmbedding,
     get_linear,
 )
+
+
+ROPE_SCALE_FACTOR = int(os.getenv("ROPE_SCALE_FACTOR", 1))
+
+if os.getenv("ROPE_DYNAMIC_SCALING", False).lower() == "true":
+    ROPE_DYNAMIC_SCALING = True
+else:
+    ROPE_DYNAMIC_SCALING = False
 
 
 def load_row(config, prefix: str, weights, bias: bool):
@@ -102,10 +111,18 @@ class FlashNeoxAttention(torch.nn.Module):
                 f"and `num_shards`: {weights.process_group.size()}"
             )
         self.num_heads = self.num_heads // weights.process_group.size()
+        self.scale_factor = ROPE_SCALE_FACTOR
+        self.dynamic_scaling = ROPE_DYNAMIC_SCALING
 
-        self.rotary_emb = PositionRotaryEmbedding.load(
-            prefix=f"{prefix}.rotary_emb", weights=weights
-        )
+        if self.scale_factor > 1:
+            # Base before scaling is 10000 per the original RoPE paper
+            self.rotary_emb = PositionRotaryEmbedding.static(
+                self.head_size, 10000, weights.device, self.scale_factor, self.dynamic_scaling, config.max_position_embeddings
+            )
+        else:
+            self.rotary_emb = PositionRotaryEmbedding.load(
+                prefix=f"{prefix}.rotary_emb", weights=weights
+            )
 
         self.softmax_scale = self.head_size ** (-0.5)
 

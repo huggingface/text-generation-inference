@@ -162,7 +162,7 @@ struct Args {
     /// Limits the number of tokens for the prefill operation.
     /// Since this operation take the most memory and is compute bound, it is interesting
     /// to limit the number of requests that can be sent.
-    #[clap(default_value = "4096", long, env)]
+    #[clap(default_value = "2048", long, env)]
     max_batch_prefill_tokens: u32,
 
     /// **IMPORTANT** This is one critical control to allow maximum usage
@@ -182,7 +182,7 @@ struct Args {
     /// depends on other parameters like if you're using quantization, flash attention
     /// or the model implementation, text-generation-inference cannot infer this number
     /// automatically.
-    #[clap(default_value = "16000", long, env)]
+    #[clap(default_value = "8192", long, env)]
     max_batch_total_tokens: u32,
 
     /// This setting defines how many tokens can be passed before forcing the waiting
@@ -280,6 +280,19 @@ struct Args {
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
     env: bool,
+
+    /// NTK-Aware Scaled Rope is a method proposed in https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/
+    /// The scale factor, or "α", is used in combination with a non linearity to scale the base used to calculate the parameter "θ", the angle of rotation in RoPE.
+    /// This increases how many input tokens can be represented within the same portion of a positional embedding, with the non linearity used to increase token seprability.
+    #[clap(default_value="1", long, env)]
+    rope_scale_factor: usize,
+
+    /// Dynamic scaling of the "α" factor in NTK-Aware Scaled Rope was introduced in https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/
+    /// The idea being instead of setting alpha statically, it is calculated as a function of the current sequence length and the model's base sequence length.
+    /// This is a means to both increase performance on shorter sequence lengths and smooth the perplexity explosion experienced by both linearly scaled and NTK-Aware scaled RoPE.
+    /// If this is enabled the above "rope_scale_factor" will be ignored.
+    #[clap(default_value="false", long, env)]
+    rope_dynamic_scaling: bool
 }
 
 #[derive(Debug)]
@@ -293,6 +306,8 @@ fn shard_manager(
     model_id: String,
     revision: Option<String>,
     quantize: Option<Quantization>,
+    rope_scale_factor: usize,
+    rope_dynamic_scaling: bool,
     dtype: Option<Dtype>,
     trust_remote_code: bool,
     uds_path: String,
@@ -421,6 +436,10 @@ fn shard_manager(
     if let Some(watermark_delta) = watermark_delta {
         envs.push(("WATERMARK_DELTA".into(), watermark_delta.to_string().into()))
     }
+
+    // RoPE Scaling
+    env.push(("ROPE_SCALE_FACTOR".into(), rope_scale_factor.to_string().into()));
+    env.push(("ROPE_DYNAMIC_SCALING".into(), rope_dynamic_scaling.to_string().into()));
 
     // Start process
     tracing::info!("Starting shard {rank}");
@@ -776,11 +795,16 @@ fn spawn_shards(
         let disable_custom_kernels = args.disable_custom_kernels;
         let watermark_gamma = args.watermark_gamma;
         let watermark_delta = args.watermark_delta;
+        let rope_scale_factor = args.rope_scale_factor;
+        let rope_dynamic_scaling = args.rope_dynamic_scaling;
+
         thread::spawn(move || {
             shard_manager(
                 model_id,
                 revision,
                 quantize,
+                rope_scale_factor,
+                rope_dynamic_scaling,
                 dtype,
                 trust_remote_code,
                 uds_path,

@@ -35,9 +35,9 @@ struct Args {
     max_total_tokens: usize,
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
-    #[clap(default_value = "4096", long, env)]
+    #[clap(default_value = "2048", long, env)]
     max_batch_prefill_tokens: u32,
-    #[clap(default_value = "16000", long, env)]
+    #[clap(default_value = "8192", long, env)]
     max_batch_total_tokens: u32,
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,

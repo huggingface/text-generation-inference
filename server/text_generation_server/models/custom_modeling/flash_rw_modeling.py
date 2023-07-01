@@ -1,5 +1,7 @@
+import os
 import torch
 import torch.distributed
+import warnings
 
 from torch import nn
 from transformers.modeling_utils import PreTrainedModel
@@ -23,6 +25,12 @@ from text_generation_server.utils.layers import (
     get_linear,
 )
 
+ROPE_SCALE_FACTOR = int(os.getenv("ROPE_SCALE_FACTOR", 1))
+
+if os.getenv("ROPE_DYNAMIC_SCALING", False).lower() == "true":
+    ROPE_DYNAMIC_SCALING = True
+else:
+    ROPE_DYNAMIC_SCALING = False
 
 def load_row(config, prefix: str, weights, bias: bool):
     weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
@@ -113,10 +121,13 @@ class FlashRWAttention(torch.nn.Module):
         self.num_heads_kv = config.n_head_kv
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
+        self.scale_factor = ROPE_SCALE_FACTOR
+        self.dynamic_scaling = ROPE_DYNAMIC_SCALING
 
         self.rotary_emb = PositionRotaryEmbedding.static(
-            dim=self.head_size, base=10000.0, device=weights.device
+            dim=self.head_size, base=10000.0, device=weights.device, scale_factor=self.scale_factor, dynamic_scaling=self.dynamic_scaling
         )
+
         self.softmax_scale = self.head_size ** (-0.5)
 
         if self.num_heads % weights.process_group.size() != 0:
@@ -239,9 +250,11 @@ class FlashRWLargeAttention(torch.nn.Module):
 
         self.hidden_size = hidden_size
         self.head_size = hidden_size // num_heads
+        self.scale_factor = ROPE_SCALE_FACTOR
+        self.dynamic_scaling = ROPE_DYNAMIC_SCALING
 
         self.rotary_emb = PositionRotaryEmbedding.static(
-            self.head_size, base=10000.0, device=weights.device
+            dim=self.head_size, base=10000.0, device=weights.device, scale_factor=self.scale_factor, dynamic_scaling=self.dynamic_scaling
         )
         self.softmax_scale = self.head_size ** (-0.5)
 

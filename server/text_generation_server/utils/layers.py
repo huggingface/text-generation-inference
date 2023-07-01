@@ -369,7 +369,7 @@ try:
     import rotary_emb
 
     class PositionRotaryEmbedding(nn.Module):
-        def __init__(self, inv_freq):
+        def __init__(self, inv_freq, scale_factor=1, dynamic_scaling=False, max_seq_len=2048, dim=None, base=None):
             super().__init__()
 
             self.inv_freq = inv_freq
@@ -379,32 +379,62 @@ try:
             self._cos_k_cached = None
             self._sin_k_cached = None
 
-        @classmethod
-        def static(cls, dim, base, device):
-            inv_freq = 1.0 / (
-                base
-                ** (torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim)
-            )
-            return cls(inv_freq)
+            self.scale_factor = scale_factor
+            self.dynamic_scaling = dynamic_scaling
+            self.original_max_seq_len = max_seq_len
+            self.max_seq_len = max_seq_len * scale_factor
+            self.dim = dim
+            self.base = base
 
+        @classmethod
+        def static(cls, dim, base, device, scale_factor=1, dynamic_scaling=False, max_seq_len=2048):
+            inv_freq = cls._get_inv_freq(dim, base, device, scale_factor)
+            return cls(inv_freq, scale_factor, dynamic_scaling, max_seq_len, dim, base)
+        
         @classmethod
         def load(cls, prefix, weights):
             # XXX: Always load this in float32 !
             dtype = weights.dtype
             weights.dtype = torch.float32
+
             inv_freq = weights.get_tensor(f"{prefix}.inv_freq")
             weights.dtype = dtype
             return cls(inv_freq)
 
+        @staticmethod
+        def _get_inv_freq(dim, base, device, scale_factor=1):
+            base = base * scale_factor ** (dim / (dim-2))
+
+            inv_freq = 1.0 / (
+                base
+                ** (torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim)
+            )
+
+            return inv_freq
+
         def _update_cos_sin_cache(self, dtype, device, seqlen):
             # Reset the tables if the sequence length has changed,
             # or if we're on a new device (possibly due to tracing for instance)
+            
+            length = seqlen
+            max_seq_len = self.max_seq_len
+            inv_freq = self.inv_freq
+
+            if self.dynamic_scaling:
+                scale_factor = (self.scale_factor * length / self.original_max_seq_len) - (self.scale_factor - 1)
+                max_seq_len = self.original_max_seq_len * scale_factor
+                inv_freq = self._get_inv_freq(self.dim, self.base, inv_freq.device, scale_factor)
+                self.register_buffer("inv_freq", inv_freq)
+
+            if self.scale_factor > 1:
+               length =  max(seqlen, max_seq_len)
+
             if (
-                seqlen > self._seq_len_cached
+                length > self._seq_len_cached
                 or self._cos_cached.device != device
                 or self._cos_cached.dtype != dtype
             ):
-                self._seq_len_cached = seqlen
+                self._seq_len_cached = length
                 t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
                 # Don't do einsum, it converts fp32 to fp16
                 # freqs = torch.einsum("i,j->ij", t, self.inv_freq)

@@ -18,6 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import torch
 import torch.distributed
 
@@ -41,6 +42,12 @@ from text_generation_server.utils.layers import (
     TensorParallelHead,
 )
 
+ROPE_SCALE_FACTOR = int(os.getenv("ROPE_SCALE_FACTOR", 1))
+
+if os.getenv("ROPE_DYNAMIC_SCALING", False).lower() == "true":
+    ROPE_DYNAMIC_SCALING = True
+else:
+    ROPE_DYNAMIC_SCALING = False
 
 class LlamaRMSNorm(nn.Module):
     def __init__(self, prefix, weights, eps=1e-6):
@@ -105,10 +112,18 @@ class FlashLlamaAttention(torch.nn.Module):
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
+        self.scale_factor = ROPE_SCALE_FACTOR
+        self.dynamic_scaling = ROPE_DYNAMIC_SCALING
 
-        self.rotary_emb = PositionRotaryEmbedding.load(
-            prefix=f"{prefix}.rotary_emb", weights=weights
-        )
+        if self.scale_factor > 1:
+            # Base before scaling is 10000 per the original RoPE paper
+            self.rotary_emb = PositionRotaryEmbedding.static(
+                self.head_size, 10000, weights.device, self.scale_factor, self.dynamic_scaling
+            )
+        else:
+            self.rotary_emb = PositionRotaryEmbedding.load(
+                prefix=f"{prefix}.rotary_emb", weights=weights
+            )
 
         self.softmax_scale = self.head_size**-0.5
 
