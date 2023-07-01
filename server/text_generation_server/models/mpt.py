@@ -1,13 +1,15 @@
 import torch
 import torch.distributed
 
+from typing import Optional, Type
 from opentelemetry import trace
-from transformers import AutoTokenizer, PretrainedConfig
-from typing import Optional
+from transformers import AutoTokenizer, PretrainedConfig, PreTrainedTokenizerBase
 from huggingface_hub import hf_hub_download
 import json
 
 from text_generation_server.models import CausalLM
+from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.pb import generate_pb2
 from text_generation_server.models.custom_modeling.mpt_modeling import (
     MPTForCausalLM,
 )
@@ -18,6 +20,20 @@ from text_generation_server.utils import (
 )
 
 tracer = trace.get_tracer(__name__)
+
+
+class MPTCausalLMBatch(CausalLMBatch):
+    @classmethod
+    def from_pb(
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "CausalLMBatch":
+        batch = super().from_pb(pb=pb, tokenizer=tokenizer, dtype=dtype, device=device)
+        batch.keys_head_dim_last = False
+        return batch
 
 
 class MPTSharded(CausalLM):
@@ -72,3 +88,7 @@ class MPTSharded(CausalLM):
             rank=rank,
             world_size=world_size,
         )
+
+    @property
+    def batch_type(self) -> Type[CausalLMBatch]:
+        return MPTCausalLMBatch
