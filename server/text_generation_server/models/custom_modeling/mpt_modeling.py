@@ -977,14 +977,6 @@ class MPTModel(MPTPreTrainedModel):
                 )
             pos_emb = self.wpe(pos)
             x = tok_emb + pos_emb
-        # if self.embedding_fraction == 1:
-        #     x = self.emb_drop(x)
-        # else:
-        #     x_shrunk = x * self.embedding_fraction + x.detach() * (
-        #         1 - self.embedding_fraction
-        #     )
-        #     assert isinstance(self.emb_drop, nn.Module)
-        #     x = self.emb_drop(x_shrunk)
         (attn_bias, attention_mask) = self._attn_bias(
             device=x.device,
             dtype=torch.float32,
