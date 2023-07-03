@@ -65,10 +65,6 @@ class MPTSharded(CausalLM):
             config = json.load(f)
         config = PretrainedConfig(**config)
         config.quantize = quantize
-        # config = AutoConfig.from_pretrained(
-        #     # model_id, revision=revision, trust_remote_code=trust_remote_code
-        #     model_id, revision=revision, trust_remote_code=False
-        # )
 
         torch.distributed.barrier(group=self.process_group)
 
