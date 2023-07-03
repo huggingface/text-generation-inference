@@ -188,6 +188,17 @@ wrapt = ">=1.10,<2"
 dev = ["PyTest", "PyTest-Cov", "bump2version (<1)", "sphinx (<2)", "tox"]
 
 [[package]]
+name = "einops"
+version = "0.6.1"
+description = "A new flavour of deep learning operations"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "einops-0.6.1-py3-none-any.whl", hash = "sha256:99149e46cc808956b174932fe563d920db4d6e5dadb8c6ecdaa7483b7ef7cfc3"},
+    {file = "einops-0.6.1.tar.gz", hash = "sha256:f95f8d00f4ded90dbc4b19b6f98b177332614b0357dde66997f3ae5d474dc8c8"},
+]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.1.1"
 description = "Backport of PEP 654 (exception groups)"
@@ -1586,4 +1597,4 @@ bnb = ["bitsandbytes"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "54ecacb32d699cb1298c237c4661c1b707f119cf2c27bd54bad7a1ea2ffb8b10"
+content-hash = "3174a211d30bed5990ed5f8418416c951bb6c585153fb51b62809baa89ef07d0"
