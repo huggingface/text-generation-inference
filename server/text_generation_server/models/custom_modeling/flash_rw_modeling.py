@@ -144,8 +144,7 @@ class FlashRWAttention(torch.nn.Module):
         hidden_states,
         cos,
         sin,
-        start_seq_prefill,
-        end_seq_prefill,
+        cu_seqlen_prefill,
         kv_cache,
         block_tables,
         slots,
@@ -176,7 +175,7 @@ class FlashRWAttention(torch.nn.Module):
         attn_output = torch.empty_like(query)
 
         # Prefill
-        if start_seq_prefill is not None:
+        if cu_seqlen_prefill is not None:
             if self.num_heads_kv == 1:
                 # Expand to query shape
                 kv = kv.expand(-1, 2, self.num_heads, self.head_size)
@@ -187,10 +186,8 @@ class FlashRWAttention(torch.nn.Module):
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
                 attn_output,
-                start_seq_prefill,
-                end_seq_prefill,
-                start_seq_prefill,
-                end_seq_prefill,
+                cu_seqlen_prefill,
+                cu_seqlen_prefill,
                 max_s,
                 max_s,
                 0.0,
@@ -276,8 +273,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         hidden_states,
         cos,
         sin,
-        start_seq_prefill,
-        end_seq_prefill,
+        cu_seqlen_prefill,
         kv_cache,
         block_tables,
         slots,
@@ -311,7 +307,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         attn_output = torch.empty_like(query)
 
         # Prefill
-        if start_seq_prefill is not None:
+        if cu_seqlen_prefill is not None:
             # Expand to query shape
             kv = (
                 kv.unsqueeze(2)
@@ -325,10 +321,8 @@ class FlashRWLargeAttention(torch.nn.Module):
                 torch.select(kv, dim=2, index=0),
                 torch.select(kv, dim=2, index=1),
                 attn_output,
-                start_seq_prefill,
-                end_seq_prefill,
-                start_seq_prefill,
-                end_seq_prefill,
+                cu_seqlen_prefill,
+                cu_seqlen_prefill,
                 max_s,
                 max_s,
                 0.0,
@@ -428,8 +422,7 @@ class FlashRWLayer(nn.Module):
         residual,
         cos,
         sin,
-        start_seq_prefill,
-        end_seq_prefill,
+        cu_seqlen_prefill,
         kv_cache,
         block_tables,
         slots,
@@ -443,8 +436,7 @@ class FlashRWLayer(nn.Module):
                 ln_hidden_states,
                 cos,
                 sin,
-                start_seq_prefill,
-                end_seq_prefill,
+                cu_seqlen_prefill,
                 kv_cache,
                 block_tables,
                 slots,
@@ -466,8 +458,7 @@ class FlashRWLayer(nn.Module):
                 hidden_states,
                 cos,
                 sin,
-                start_seq_prefill,
-                end_seq_prefill,
+                cu_seqlen_prefill,
                 kv_cache,
                 block_tables,
                 slots,
@@ -516,8 +507,7 @@ class FlashRWLargeLayer(nn.Module):
         residual,
         cos,
         sin,
-        start_seq_prefill,
-        end_seq_prefill,
+        cu_seqlen_prefill,
         kv_cache,
         block_tables,
         slots,
@@ -532,8 +522,7 @@ class FlashRWLargeLayer(nn.Module):
             ln_attn,
             cos,
             sin,
-            start_seq_prefill,
-            end_seq_prefill,
+            cu_seqlen_prefill,
             kv_cache,
             block_tables,
             slots,
@@ -597,8 +586,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
-        start_seq_prefill: Optional[torch.Tensor],
-        end_seq_prefill: Optional[torch.Tensor],
+        cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
@@ -620,8 +608,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 residual,
                 cos,
                 sin,
-                start_seq_prefill,
-                end_seq_prefill,
+                cu_seqlen_prefill,
                 kv_cache[i],
                 block_tables,
                 slots,
@@ -648,8 +635,7 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
-        start_seq_prefill: Optional[torch.Tensor],
-        end_seq_prefill: Optional[torch.Tensor],
+        cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
@@ -660,8 +646,7 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
         hidden_states = self.transformer(
             input_ids,
             position_ids,
-            start_seq_prefill,
-            end_seq_prefill,
+            cu_seqlen_prefill,
             kv_cache,
             block_tables,
             slots,

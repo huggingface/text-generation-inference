@@ -359,7 +359,7 @@ try:
         def __init__(self, inv_freq):
             super().__init__()
 
-            self.register_buffer("inv_freq", inv_freq)
+            self.inv_freq = inv_freq
             self._seq_len_cached = 0
             self._cos_cached = None
             self._sin_cached = None
