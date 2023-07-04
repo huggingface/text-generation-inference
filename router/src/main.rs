@@ -40,6 +40,8 @@ struct Args {
     max_batch_total_tokens: u32,
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
+    #[clap(default_value = "0.0.0.0", long, env)]
+    hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
     #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
@@ -82,6 +84,7 @@ fn main() -> Result<(), std::io::Error> {
         max_batch_prefill_tokens,
         max_batch_total_tokens,
         max_waiting_tokens,
+        hostname,
         port,
         master_shard_uds_path,
         tokenizer_name,
@@ -213,8 +216,13 @@ fn main() -> Result<(), std::io::Error> {
                 .expect("Unable to warmup model");
             tracing::info!("Connected");
 
-            // Binds on localhost
-            let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
+            let addr = match hostname.parse() {
+                Ok(ip) => SocketAddr::new(ip, port),
+                Err(_) => {
+                    tracing::warn!("Invalid hostname, defaulting to 0.0.0.0");
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
+                }
+            };
 
             // Run server
             server::run(
