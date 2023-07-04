@@ -66,7 +66,9 @@ class MPTSharded(CausalLM):
         if local_path.exists():
             filename = str(local_path.resolve())
         else:
-            filename = hf_hub_download(model_id, revision=revision, filename="config.json")
+            filename = hf_hub_download(
+                model_id, revision=revision, filename="config.json"
+            )
         with open(filename, "r") as f:
             config = json.load(f)
         config = PretrainedConfig(**config)

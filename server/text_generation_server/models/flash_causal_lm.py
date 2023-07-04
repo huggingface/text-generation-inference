@@ -121,10 +121,10 @@ class FlashCausalLMBatch(Batch):
     input_ids: torch.Tensor
     position_ids: torch.Tensor
 
-    # tensor of length b holding starting offset of each sequence, only used in prefill
-    start_seq_prefill: Optional[torch.Tensor]
-    # tensor of length b holding ending offset of each sequence, only used in prefill
-    end_seq_prefill: Optional[torch.Tensor]
+    # Flash Attention values
+
+    # tensor of length b containing the cumulative sequence lengths of the sequences in the batch, only used in prefill
+    cu_seqlen_prefill: Optional[torch.Tensor]
 
     # Paged Attention values
 
@@ -197,8 +197,7 @@ class FlashCausalLMBatch(Batch):
         )["input_ids"]
 
         position_ids = []
-        start_seq_prefill = []
-        end_seq_prefill = []
+        cu_seqlen_prefill = [0]
         needed_blocks_slots = []
         start_slots = []
         slot_indices = []
@@ -250,8 +249,7 @@ class FlashCausalLMBatch(Batch):
             position_ids.append(request_position_ids)
 
             # Add cumulative lengths of all previous inputs
-            start_seq_prefill.append(cumulative_length)
-            end_seq_prefill.append(cumulative_length + input_length)
+            cu_seqlen_prefill.append(cumulative_length + input_length)
 
             next_token_chooser_parameters.append(r.parameters)
 
@@ -329,11 +327,8 @@ class FlashCausalLMBatch(Batch):
             position_ids = position_ids[0]
             slot_indices = slot_indices[0]
 
-        start_seq_prefill = torch.tensor(
-            start_seq_prefill, device=device, dtype=torch.int32
-        )
-        end_seq_prefill = torch.tensor(
-            end_seq_prefill, device=device, dtype=torch.int32
+        cu_seqlen_prefill = torch.tensor(
+            cu_seqlen_prefill, device=device, dtype=torch.int32
         )
 
         position_ids = position_ids.to(device)
@@ -345,9 +340,9 @@ class FlashCausalLMBatch(Batch):
 
         if all_prefill_logprobs:
             prefill_head_indices = None
-            prefill_next_token_indices = end_seq_prefill - 1
+            prefill_next_token_indices = cu_seqlen_prefill[1:] - 1
         elif no_prefill_logprobs:
-            prefill_head_indices = end_seq_prefill - 1
+            prefill_head_indices = cu_seqlen_prefill[1:] - 1
             prefill_next_token_indices = None
         else:
             prefill_head_indices = torch.tensor(
@@ -363,8 +358,7 @@ class FlashCausalLMBatch(Batch):
             requests_idx_mapping=requests_idx_mapping,
             input_ids=input_ids,
             position_ids=position_ids,
-            start_seq_prefill=start_seq_prefill,
-            end_seq_prefill=end_seq_prefill,
+            cu_seqlen_prefill=cu_seqlen_prefill,
             start_slots=start_slots,
             slot_indices=slot_indices,
             needed_blocks_slots=needed_blocks_slots,
@@ -504,8 +498,7 @@ class FlashCausalLMBatch(Batch):
             requests_idx_mapping=requests_idx_mapping,
             input_ids=input_ids,
             position_ids=position_ids,
-            start_seq_prefill=None,
-            end_seq_prefill=None,
+            cu_seqlen_prefill=None,
             start_slots=start_slots,
             slot_indices=slot_indices,
             needed_blocks_slots=None,
@@ -652,8 +645,7 @@ class FlashCausalLMBatch(Batch):
             requests_idx_mapping=requests_idx_mapping,
             input_ids=input_ids,
             position_ids=position_ids,
-            start_seq_prefill=None,
-            end_seq_prefill=None,
+            cu_seqlen_prefill=None,
             start_slots=start_slots,
             slot_indices=slot_indices,
             needed_blocks_slots=None,
@@ -750,8 +742,7 @@ class FlashCausalLM(Model):
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
-        start_seq_prefill: Optional[torch.Tensor],
-        end_seq_prefill: Optional[torch.Tensor],
+        cu_seqlen_prefill: Optional[torch.Tensor],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
@@ -764,8 +755,7 @@ class FlashCausalLM(Model):
         return self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
-            start_seq_prefill=start_seq_prefill,
-            end_seq_prefill=end_seq_prefill,
+            cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=CACHE_MANAGER.kv_cache,
             block_tables=block_tables,
             slots=slots,
@@ -778,7 +768,7 @@ class FlashCausalLM(Model):
     def generate_token(
         self, batch: FlashCausalLMBatch
     ) -> Tuple[List[Generation], Optional[FlashCausalLMBatch]]:
-        prefill = batch.start_seq_prefill is not None
+        prefill = batch.cu_seqlen_prefill is not None
         prefill_logprobs = batch.prefill_next_token_indices is not None
 
         if batch.needed_blocks_slots:
@@ -788,8 +778,7 @@ class FlashCausalLM(Model):
         out = self.forward(
             batch.input_ids,
             batch.position_ids,
-            batch.start_seq_prefill,
-            batch.end_seq_prefill,
+            batch.cu_seqlen_prefill,
             batch.block_tables_tensor,
             batch.slots[batch.slot_indices],
             batch.input_lengths_tensor,
@@ -815,10 +804,9 @@ class FlashCausalLM(Model):
                 prefill_tokens_indices = batch.input_ids.new_zeros(len(out))
 
             next_position_ids = batch.position_ids.new_empty(len(batch))
-            batch.slot_indices = batch.slot_indices[batch.end_seq_prefill - 1]
-            # We do not need start_seq_prefill and end_seq_prefill anymore
-            batch.start_seq_prefill = None
-            batch.end_seq_prefill = None
+            batch.slot_indices = batch.slot_indices[batch.cu_seqlen_prefill[1:] - 1]
+            # We do not need cu_seqlen_prefill anymore
+            batch.cu_seqlen_prefill = None
         else:
             prefill_logprobs = None
             next_position_ids = batch.position_ids

@@ -232,8 +232,7 @@ class FlashMQAttention(torch.nn.Module):
     def forward(
         self,
         hidden_states,
-        start_seq_prefill,
-        end_seq_prefill,
+        cu_seqlen_prefill,
         kv_cache,
         block_tables,
         slots,
@@ -259,7 +258,7 @@ class FlashMQAttention(torch.nn.Module):
         attn_output = torch.empty_like(query)
 
         # Prefill
-        if start_seq_prefill is not None:
+        if cu_seqlen_prefill is not None:
             # Expand from 1 to num_heads
             key_value = key_value.expand(-1, 2, self.num_heads, self.head_size)
 
@@ -269,10 +268,8 @@ class FlashMQAttention(torch.nn.Module):
                 torch.select(key_value, dim=1, index=0),
                 torch.select(key_value, dim=1, index=1),
                 attn_output,
-                start_seq_prefill,
-                end_seq_prefill,
-                start_seq_prefill,
-                end_seq_prefill,
+                cu_seqlen_prefill,
+                cu_seqlen_prefill,
                 max_s,
                 max_s,
                 0.0,
@@ -357,8 +354,7 @@ class Block(nn.Module):
         self,
         hidden_states,
         residual,
-        start_seq_prefill,
-        end_seq_prefill,
+        cu_seqlen_prefill,
         kv_cache,
         block_tables,
         slots,
@@ -369,8 +365,7 @@ class Block(nn.Module):
 
         hidden_states = self.attn(
             hidden_states,
-            start_seq_prefill,
-            end_seq_prefill,
+            cu_seqlen_prefill,
             kv_cache,
             block_tables,
             slots,
@@ -423,8 +418,7 @@ class FlashSantacoderModel(nn.Module):
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
-        start_seq_prefill: Optional[torch.Tensor],
-        end_seq_prefill: Optional[torch.Tensor],
+        cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
@@ -441,8 +435,7 @@ class FlashSantacoderModel(nn.Module):
             hidden_states, residual = layer(
                 hidden_states,
                 residual,
-                start_seq_prefill,
-                end_seq_prefill,
+                cu_seqlen_prefill,
                 kv_cache[i],
                 block_tables,
                 slots,
@@ -467,8 +460,7 @@ class FlashSantacoderForCausalLM(nn.Module):
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
-        start_seq_prefill: Optional[torch.Tensor],
-        end_seq_prefill: Optional[torch.Tensor],
+        cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
@@ -479,8 +471,7 @@ class FlashSantacoderForCausalLM(nn.Module):
         hidden_states = self.transformer(
             input_ids,
             position_ids,
-            start_seq_prefill,
-            end_seq_prefill,
+            cu_seqlen_prefill,
             kv_cache,
             block_tables,
             slots,
