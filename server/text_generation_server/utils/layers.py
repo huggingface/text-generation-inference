@@ -156,7 +156,7 @@ def get_linear(weight, bias, quantize, device = None):
                 f"The passed weight is not `gptq` compatible, loader needs to be updated."
             )
 
-        linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize, device, world_size)
+        linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize, device)
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
