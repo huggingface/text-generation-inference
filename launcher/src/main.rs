@@ -197,6 +197,10 @@ struct Args {
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
 
+    /// The IP address to listen on
+    #[clap(default_value = "0.0.0.0", long, env)]
+    hostname: String,
+
     /// The port to listen on.
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
@@ -874,6 +878,8 @@ fn spawn_webserver(
         args.waiting_served_ratio.to_string(),
         "--max-waiting-tokens".to_string(),
         args.max_waiting_tokens.to_string(),
+        "--hostname".to_string(),
+        args.hostname.to_string(),
         "--port".to_string(),
         args.port.to_string(),
         "--master-shard-uds-path".to_string(),
