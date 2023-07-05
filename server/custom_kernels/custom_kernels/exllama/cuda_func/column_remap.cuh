@@ -1,3 +1,5 @@
+// Adapted from turboderp exllama: https://github.com/turboderp/exllama
+
 #ifndef _column_remap_cuh
 #define _column_remap_cuh
 

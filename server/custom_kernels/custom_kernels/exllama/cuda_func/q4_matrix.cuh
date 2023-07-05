@@ -1,3 +1,5 @@
+// Adapted from turboderp exllama: https://github.com/turboderp/exllama
+
 #ifndef _q4_matrix_cuh
 #define _q4_matrix_cuh
 

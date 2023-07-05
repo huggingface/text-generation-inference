@@ -1,3 +1,5 @@
+// Adapted from turboderp exllama: https://github.com/turboderp/exllama
+
 #ifndef _util_cuh
 #define _util_cuh
 

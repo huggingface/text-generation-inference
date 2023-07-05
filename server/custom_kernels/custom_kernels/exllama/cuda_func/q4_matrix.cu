@@ -1,3 +1,5 @@
+// Adapted from turboderp exllama: https://github.com/turboderp/exllama
+
 #include "q4_matrix.cuh"
 #include <vector>
 #include "../util.cuh"

@@ -1,3 +1,5 @@
+// Adapted from turboderp exllama: https://github.com/turboderp/exllama
+
 #define _cuda_buffers_cu
 #include "cuda_buffers.cuh"
 
