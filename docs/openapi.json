@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "0.8.2"
+    "version": "0.9.0"
   },
   "paths": {
     "/": {
@@ -263,6 +263,35 @@
                 },
                 "example": {
                   "error": "Incomplete generation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Health check method",
+        "description": "Health check method",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Everything is working fine"
+          },
+          "503": {
+            "description": "Text generation inference is down",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "unhealthy",
+                  "error_type": "healthcheck"
                 }
               }
             }

@@ -45,6 +45,7 @@ impl Infer {
         client: ShardedClient,
         validation: Validation,
         waiting_served_ratio: f32,
+        max_batch_prefill_tokens: u32,
         max_batch_total_tokens: u32,
         max_waiting_tokens: usize,
         max_concurrent_requests: usize,
@@ -61,6 +62,7 @@ impl Infer {
         tokio::spawn(batching_task(
             client,
             waiting_served_ratio,
+            max_batch_prefill_tokens,
             max_batch_total_tokens,
             max_waiting_tokens,
             queue.clone(),
@@ -240,9 +242,11 @@ impl Infer {
 /// Will be launched in a background Tokio task
 ///
 /// Batches requests and sends them to the inference server
+#[allow(clippy::too_many_arguments)]
 async fn batching_task(
     mut client: ShardedClient,
     waiting_served_ratio: f32,
+    max_batch_prefill_tokens: u32,
     max_batch_total_tokens: u32,
     max_waiting_tokens: usize,
     queue: Queue,
@@ -257,8 +261,9 @@ async fn batching_task(
         // Get the next batch from the queue
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the queue
-        while let Some((mut entries, batch, span)) =
-            queue.next_batch(None, max_batch_total_tokens).await
+        while let Some((mut entries, batch, span)) = queue
+            .next_batch(None, max_batch_prefill_tokens, max_batch_total_tokens)
+            .await
         {
             let mut cached_batch = prefill(&mut client, batch, &mut entries, &generation_health)
                 .instrument(span)
@@ -284,11 +289,12 @@ async fn batching_task(
                     Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
                 };
 
-                let token_budget = max_batch_total_tokens - batch_max_tokens;
+                let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
 
                 // Try to get a new batch
-                if let Some((mut new_entries, new_batch, span)) =
-                    queue.next_batch(min_size, token_budget).await
+                if let Some((mut new_entries, new_batch, span)) = queue
+                    .next_batch(min_size, max_batch_prefill_tokens, token_budget)
+                    .await
                 {
                     // Tracking metrics
                     if min_size.is_some() {

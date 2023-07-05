@@ -3,6 +3,7 @@ use crate::pb::generate::v1::text_generation_service_client::TextGenerationServi
 use crate::pb::generate::v1::*;
 use crate::Result;
 use grpc_metadata::InjectTelemetryContext;
+use std::cmp::min;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
 
@@ -92,6 +93,63 @@ impl Client {
         .inject_context();
         let filtered_batch = self.stub.filter_batch(request).await?.into_inner();
         Ok(filtered_batch.batch)
+    }
+
+    /// Warmup on a max size batch
+    ///
+    /// Returns the maximum amount of tokens supported by the hardware
+    #[instrument(skip(self))]
+    pub async fn warmup(
+        &mut self,
+        max_input_length: u32,
+        max_prefill_tokens: u32,
+        max_total_tokens: u32,
+    ) -> Result<()> {
+        let mut n_tokens = 0;
+        let mut requests = Vec::new();
+
+        // Create requests
+        while n_tokens < max_prefill_tokens {
+            requests.push(Request {
+                id: 0,
+                // We truncate the input on the server side to be sure that it has the correct size
+                inputs: "_test ".to_string().repeat(max_input_length as usize),
+                truncate: min(max_input_length, max_prefill_tokens - n_tokens),
+                // Set sampling parameters to also take these ops into account in the max memory
+                parameters: Some(NextTokenChooserParameters {
+                    temperature: 0.9,
+                    top_k: 10,
+                    top_p: 0.9,
+                    typical_p: 0.9,
+                    do_sample: false,
+                    seed: 0,
+                    repetition_penalty: 1.2,
+                    watermark: true,
+                }),
+                stopping_parameters: Some(StoppingCriteriaParameters {
+                    max_new_tokens: 2,
+                    stop_sequences: vec![],
+                    ignore_eos_token: false,
+                }),
+                prefill_logprobs: true,
+            });
+            n_tokens += max_input_length;
+        }
+
+        let batch = Batch {
+            id: 0,
+            size: requests.len() as u32,
+            requests,
+            max_tokens: 0,
+        };
+
+        let request = tonic::Request::new(WarmupRequest {
+            batch: Some(batch),
+            max_total_tokens,
+        })
+        .inject_context();
+        self.stub.warmup(request).await?.into_inner();
+        Ok(())
     }
 
     /// Generate one token for each request in the given batch

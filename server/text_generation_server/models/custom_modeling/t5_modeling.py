@@ -1004,7 +1004,9 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         try:
             self.shared = TensorParallelEmbedding(prefix="shared", weights=weights)
         except RuntimeError:
-            self.shared = TensorParallelEmbedding(prefix="encoder.embed_tokens", weights=weights)
+            self.shared = TensorParallelEmbedding(
+                prefix="encoder.embed_tokens", weights=weights
+            )
 
         encoder_config = copy.deepcopy(config)
         encoder_config.is_decoder = False

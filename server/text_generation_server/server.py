@@ -53,6 +53,13 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
+    async def Warmup(self, request, context):
+        batch = self.model.batch_type.from_pb(
+            request.batch, self.model.tokenizer, self.model.dtype, self.model.device
+        )
+        self.model.warmup(batch, request.max_total_tokens)
+        return generate_pb2.WarmupResponse()
+
     async def Prefill(self, request, context):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.dtype, self.model.device
@@ -99,6 +106,7 @@ def serve(
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
+    dtype: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
 ):
@@ -107,6 +115,7 @@ def serve(
         revision: Optional[str],
         sharded: bool = False,
         quantize: Optional[str] = None,
+        dtype: Optional[str] = None,
         trust_remote_code: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
@@ -121,7 +130,9 @@ def serve(
             server_urls = [local_url]
 
         try:
-            model = get_model(model_id, revision, sharded, quantize, trust_remote_code)
+            model = get_model(
+                model_id, revision, sharded, quantize, dtype, trust_remote_code
+            )
         except Exception:
             logger.exception("Error when initializing model")
             raise
@@ -152,4 +163,6 @@ def serve(
             logger.info("Signal received. Shutting down")
             await server.stop(0)
 
-    asyncio.run(serve_inner(model_id, revision, sharded, quantize, trust_remote_code))
+    asyncio.run(
+        serve_inner(model_id, revision, sharded, quantize, dtype, trust_remote_code)
+    )

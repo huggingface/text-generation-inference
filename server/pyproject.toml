@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "text-generation-server"
-version = "0.8.2"
+version = "0.9.0"
 description = "Text Generation Inference Python gRPC Server"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
 
@@ -26,7 +26,8 @@ hf-transfer = "^0.1.2"
 sentencepiece = "^0.1.97"
 tokenizers = "0.13.3"
 huggingface-hub = "^0.14.1"
-transformers = "^4.29.2"
+transformers = "4.29.2"
+einops = "^0.6.1"
 
 [tool.poetry.extras]
 accelerate = ["accelerate"]

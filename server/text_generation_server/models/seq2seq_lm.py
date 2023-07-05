@@ -127,7 +127,7 @@ class Seq2SeqLMBatch(Batch):
             read_offsets.append(1)
         all_decoder_input_ids = decoder_input_ids.view(-1).split(1)
 
-        max_tokens = len(inputs) * max_input_length + max_decode_tokens
+        max_tokens = len(inputs) * (max_input_length + max_decode_tokens)
 
         return cls(
             batch_id=pb.id,
@@ -504,11 +504,12 @@ class Seq2SeqLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.float16
+            dtype = torch.float16 if dtype is None else dtype
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")

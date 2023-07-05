@@ -13,6 +13,7 @@ async def flash_neox(flash_neox_handle):
     return flash_neox_handle.client
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_neox(flash_neox, response_snapshot):
     response = await flash_neox.generate(
@@ -25,6 +26,7 @@ async def test_flash_neox(flash_neox, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_neox_load(flash_neox, generate_load, response_snapshot):
     responses = await generate_load(

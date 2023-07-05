@@ -3,8 +3,16 @@ from typing import List, Dict, Optional
 from safetensors import safe_open
 import torch
 
+
 class Weights:
-    def __init__(self, filenames: List[Path], device, dtype, process_group, aliases: Optional[Dict[str, List[str]]]=None):
+    def __init__(
+        self,
+        filenames: List[Path],
+        device,
+        dtype,
+        process_group,
+        aliases: Optional[Dict[str, List[str]]] = None,
+    ):
         routing = {}
         for filename in filenames:
             with safe_open(filename, framework="pytorch") as f:
