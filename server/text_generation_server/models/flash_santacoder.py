@@ -59,6 +59,7 @@ class FlashSantacoderSharded(FlashCausalLM):
         model = FlashSantacoderForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
+
         super(FlashCausalLM, self).__init__(
             model=model.to(device),
             tokenizer=tokenizer,

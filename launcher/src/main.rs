@@ -20,6 +20,7 @@ mod env_runtime;
 enum Quantization {
     Bitsandbytes,
     Gptq,
+    Gptq_cuda,
 }
 
 impl std::fmt::Display for Quantization {
@@ -32,9 +33,13 @@ impl std::fmt::Display for Quantization {
             Quantization::Gptq => {
                 write!(f, "gptq")
             }
+            Quantization::Gptq_cuda => {
+                write!(f, "gptq-cuda")
+            }
         }
     }
 }
+
 
 /// App Configuration
 #[derive(Parser, Debug)]

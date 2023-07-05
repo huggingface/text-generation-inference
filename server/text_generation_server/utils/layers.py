@@ -15,8 +15,9 @@ except ImportError:
 
 from accelerate import init_empty_weights
 
-from text_generation_server.utils.gptq.quant_linear import QuantLinear
+from text_generation_server.utils.gptq.quant_linear import QuantLinear, Ex4bitLinear
 
+from typing import Optional
 
 # Monkey patching
 @classmethod
@@ -118,7 +119,7 @@ class Linear8bitLt(nn.Module):
         return out
 
 
-def get_linear(weight, bias, quantize):
+def get_linear(weight, bias, quantize, device = None):
     if quantize is None:
         linear = FastLinear(weight, bias)
     elif quantize == "bitsandbytes":
@@ -147,6 +148,15 @@ def get_linear(weight, bias, quantize):
             bits,
             groupsize,
         )
+    elif quantize == "gptq-cuda":
+        try:
+            qweight, qzeros, scales, g_idx, bits, groupsize = weight
+        except Exception:
+            raise NotImplementedError(
+                f"The passed weight is not `gptq` compatible, loader needs to be updated."
+            )
+
+        linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize, device, world_size)
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
@@ -171,12 +181,12 @@ class TensorParallelHead(SuperLayer):
         weight = weights.get_sharded(f"{prefix}.weight", dim=0)
 
         # GPTQ doesn't quantize heads (nor embeddings)
-        if config.quantize == "gptq":
+        if config.quantize in ["gptq", "gptq-cuda"]:
             quantize = None
         else:
             quantize = config.quantize
         return TensorParallelHead(
-            get_linear(weight, bias=None, quantize=quantize),
+            get_linear(weight, bias=None, quantize=quantize, device=weights.device),
             process_group=weights.process_group,
         )
 
@@ -232,7 +242,7 @@ class TensorParallelColumnLinear(SuperLayer):
             bias = torch.cat(b, dim=dim)
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias, config.quantize, device=weights.device)
         return cls(linear)
 
 
@@ -251,7 +261,7 @@ class TensorParallelRowLinear(SuperLayer):
         else:
             bias = None
         return cls(
-            get_linear(weight, bias, config.quantize),
+            get_linear(weight, bias, config.quantize, device=weights.device),
             process_group=weights.process_group,
         )
 

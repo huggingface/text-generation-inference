@@ -252,6 +252,7 @@ class QuantLinear(nn.Module):
         self.register_buffer("qzeros", qzeros)
         self.register_buffer("scales", scales)
         self.register_buffer("g_idx", g_idx)
+
         if bias is not None:
             self.register_buffer("bias", bias)
         else:
@@ -357,3 +358,82 @@ class QuantLinear(nn.Module):
         )
         out = out + self.bias if self.bias is not None else out
         return out.reshape(out_shape)
+
+import torch
+from custom_kernels.exllama import make_q4, q4_matmul
+
+# Dummy tensor to pass instead of g_idx since there is no way to pass "None" to a C++ extension
+none_tensor = torch.empty((1, 1), device = "meta")
+
+def ext_make_q4(qweight, qzeros, scales, g_idx, device):
+    """Construct Q4Matrix, return handle"""
+    return make_q4(qweight,
+                   qzeros,
+                   scales,
+                   g_idx if g_idx is not None else none_tensor,
+                   device)
+
+def ext_q4_matmul(x, q4, q4_width):
+    """Matrix multiplication, returns x @ q4"""
+    outshape = x.shape[:-1] + (q4_width,)
+    x = x.view(-1, x.shape[-1])
+    output = torch.empty((x.shape[0], q4_width), dtype = torch.float16, device = x.device)
+
+    q4_matmul(x, q4, output)
+
+    return output.view(outshape)
+
+
+class Ex4bitLinear:
+    """Linear layer implementation with per-group 4-bit quantization of the weights"""
+    def __init__(self, qweight, qzeros, scales, g_idx, bias, bits, groupsize, device, world_size: int):
+        assert bits == 4
+
+        self.device = device
+        self.qweight = qweight.to(device)
+        self.qzeros = qzeros.to(device)
+        self.scales = scales.to(device)
+        self.g_idx = g_idx.cpu() if g_idx is not None else None
+        self.bias = bias.to(device) if bias is not None else None
+
+        if self.g_idx is not None and (self.g_idx == 0).all():
+            self.empty_g_idx = True
+            self.g_idx = None
+        
+        assert device.type == "cuda"
+        assert device.index is not None
+
+        self.q4 = ext_make_q4(
+            self.qweight,
+            self.qzeros,
+            self.scales,
+            self.g_idx,
+            device.index
+        )
+
+        self.height = qweight.shape[0] * 8
+        self.width = qweight.shape[1]
+
+        # Infer groupsize from height of qzeros
+        self.groupsize = None
+        if self.qzeros.shape[0] > 1:
+            if world_size is None:
+                world_size = 1
+            # self.groupsize = (self.qweight.shape[0] * 8) // (self.qzeros.shape[0] // world_size)
+            self.groupsize = (self.qweight.shape[0] * 8) // (self.qzeros.shape[0])
+        
+        assert groupsize == self.groupsize
+
+        # Handle act-order matrix
+        if self.g_idx is not None:
+            if self.groupsize is None: raise ValueError("Found group index but no groupsize. What do?")
+            self.act_order = True
+        else:
+            self.act_order = False
+    
+    def forward(self, x):
+        out = ext_q4_matmul(x, self.q4, self.width)
+
+        if self.bias is not None:
+            out.add_(self.bias)
+        return out

@@ -3,7 +3,6 @@ from typing import List, Dict, Optional
 from safetensors import safe_open
 import torch
 
-
 class Weights:
     def __init__(self, filenames: List[Path], device, dtype, process_group, aliases: Optional[Dict[str, List[str]]]=None):
         routing = {}
@@ -43,7 +42,7 @@ class Weights:
         return str(filename), tensor_name
 
     def _get_slice(self, tensor_name: str):
-        filename, tensor_name= self.get_filename(tensor_name)
+        filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
         return slice_
@@ -92,7 +91,7 @@ class Weights:
         return tensor
 
     def get_multi_weights_col(self, prefixes: List[str], quantize: str, dim: int):
-        if quantize == "gptq":
+        if quantize in ["gptq", "gptq-cuda"]:
             try:
                 qweight = torch.cat([self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1)
             except RuntimeError:
@@ -107,26 +106,39 @@ class Weights:
 
             bits = self.get_tensor("gptq_bits").item()
             groupsize = self.get_tensor("gptq_groupsize").item()
-            weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
+            weight = [qweight, qzeros, scales, g_idx, bits, groupsize]
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
             weight = torch.cat(w, dim=dim)
         return weight
 
-    def get_multi_weights_row(self, prefix: str, quantize: str):
-        if quantize == "gptq":
+    def get_multi_weights_row(self, prefix: str, quantize: str):        
+        if quantize in ["gptq", "gptq-cuda"]:
             try:
                 qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
             except RuntimeError:
                 raise RuntimeError("Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`")
-            qzeros = self.get_tensor(f"{prefix}.qzeros")
-            scales = self.get_tensor(f"{prefix}.scales")
-            g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
+            
+            if quantize == "gptq":
+                qzeros = self.get_tensor(f"{prefix}.qzeros")
+                scales = self.get_tensor(f"{prefix}.scales")
+                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
+            else:
+                # Exllama reorders the weights in advance and the activations on the fly, thus
+                # the scales and zero-points do not need to be reordered
+                qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
+                scales = self.get_sharded(f"{prefix}.scales", dim=0)
+
+                # For tp > 1, at this point we know we do not use act-order
+                if self.process_group.size() == 1:
+                    g_idx = self.get_tensor(f"{prefix}.g_idx")
+                else:
+                    g_idx = None
 
             bits = self.get_tensor("gptq_bits").item()
             groupsize = self.get_tensor("gptq_groupsize").item()
 
-            weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
+            weight = [qweight, qzeros, scales, g_idx, bits, groupsize]
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight

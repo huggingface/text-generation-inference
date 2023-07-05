@@ -14,6 +14,7 @@ app = typer.Typer()
 class Quantization(str, Enum):
     bitsandbytes = "bitsandbytes"
     gptq = "gptq"
+    gptq_cuda = "gptq-cuda"
 
 
 @app.command()

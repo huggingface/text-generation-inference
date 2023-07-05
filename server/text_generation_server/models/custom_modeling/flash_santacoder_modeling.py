@@ -7,7 +7,6 @@ from typing import Optional
 
 # Flash attention imports
 import flash_attn_cuda
-
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -17,15 +16,17 @@ from text_generation_server.utils.layers import (
     get_linear,
 )
 
+from text_generation_server.utils.gptq.quant_linear import Ex4bitLinear
+from custom_kernels.exllama import prepare_buffers, set_tuning_params
 
 def load_multi_mqa(
     config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
 ):
-
-    if config.quantize == "gptq":
-        return _load_multi_mqa_gptq(
+    if config.quantize in ["gptq", "gptq-cuda"]:
+        layer = _load_multi_mqa_gptq(
             config, prefix, weights, bias, head_size, num_heads, hidden_size
         )
+        return layer
     else:
         return _load_multi_mqa(
             config, prefix, weights, bias, head_size, num_heads, hidden_size
@@ -87,7 +88,7 @@ def _load_multi_mqa_gptq(
             kv_tensor = slice_[-2 * head_size :]
             bias = torch.cat([q_tensor, kv_tensor], dim=0)
 
-        return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+        return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize, device=weights.device))
     else:
         raise NotImplementedError("Gptq loading with santacoder is not implemented")
 
@@ -95,7 +96,6 @@ def _load_multi_mqa_gptq(
 def _load_multi_mqa(
     config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
 ):
-
     if any("c_attn" in k for k in weights.routing.keys()):
         slice_ = weights._get_slice(f"{prefix}.c_attn.weight")
         shape = slice_.get_shape()
@@ -160,7 +160,7 @@ def _load_multi_mqa(
         assert list(bias.shape) == [
             (num_heads + 2) * head_size
         ], f"{weight.shape} != {[(num_heads + 2) * head_size]}"
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize, device=weights.device))
 
 
 def load_col(config, prefix: str, weights, bias: bool):
@@ -175,22 +175,40 @@ def load_col(config, prefix: str, weights, bias: bool):
         bias = weights.get_sharded(f"{prefix}.bias", dim=0)
     else:
         bias = None
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize, device=weights.device))
 
 
 def load_row(config, prefix: str, weights, bias: bool):
+    quantize = config.quantize
+    if quantize == "gptq-cuda" and weights.process_group.size() > 1:
+        g_idx = weights.get_tensor(f"{prefix}.g_idx")
+        groupsize = weights.get_tensor("gptq_groupsize").item()
+        
+        act_order = True
+        if g_idx is not None:
+            if torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32)) or (g_idx == 0).all():
+                act_order = False
+            else:
+                # Exllama implementation does not support row tensor parallelism with act-order, as
+                # it would require to reorder input activations that are split unto several GPUs
+                quantize = "gptq"
+
     if config.transpose:
         weight = weights.get_sharded(f"{prefix}.weight", dim=0).T
     else:
-        weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+        weight = weights.get_multi_weights_row(prefix, quantize=quantize)
 
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
         bias = weights.get_tensor(f"{prefix}.bias")
     else:
         bias = None
+    
+    if quantize == "gptq-cuda" and not act_order:
+        weight[3] = None  # remove g_idx to indicate to exllama that act-order is not used
+    
     return TensorParallelRowLinear(
-        get_linear(weight, bias, config.quantize), process_group=weights.process_group
+        get_linear(weight, bias, quantize, device=weights.device), process_group=weights.process_group
     )
 
 
@@ -495,6 +513,30 @@ class FlashSantacoderForCausalLM(nn.Module):
             config, prefix="transformer.wte", weights=weights
         )
 
+        # Buffers need to be persistent to avoid any bug.
+        self.buffers = {}
+        if config.quantize == "gptq-cuda":
+            max_dq_buffer_size = 0
+            for name, submodule in self.named_modules():
+                if isinstance(submodule, (TensorParallelColumnLinear, TensorParallelRowLinear)) and isinstance(submodule.linear, Ex4bitLinear):
+                    max_dq_buffer_size = max(max_dq_buffer_size, submodule.linear.qweight.numel() * 8)
+            
+            intermediate_size = config.n_inner
+            max_seq_len = 2048  # TODO: we should be able to set it
+            
+            self.buffers["temp_state"] = torch.zeros((max_seq_len, intermediate_size), dtype=torch.float16, device=weights.device)
+            self.buffers["temp_dq"] = torch.zeros((1, max_dq_buffer_size), dtype=torch.float16, device=weights.device)
+
+            prepare_buffers(weights.device, self.buffers["temp_state"], self.buffers["temp_dq"])
+
+            # TODO: ability to set them
+            matmul_recons_thd = 8
+            matmul_fused_remap = False
+            matmul_no_half2 = False
+            set_tuning_params(matmul_recons_thd, matmul_fused_remap, matmul_no_half2)
+
+            torch.cuda.empty_cache()
+            
     def forward(
         self,
         input_ids,
