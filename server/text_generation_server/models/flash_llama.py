@@ -25,12 +25,13 @@ class FlashLlama(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.float16
+            dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashLlama is only available on GPU")
 
@@ -64,10 +65,12 @@ class FlashLlama(FlashCausalLM):
         model = FlashLlamaForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(FlashCausalLM, self).__init__(
+        super(FlashLlama, self).__init__(
             model=model,
             tokenizer=tokenizer,
-            requires_padding=False,
+            num_layers=len(model.model.layers),
+            num_kv_heads=model.model.num_heads,
+            head_size=model.model.head_size,
             dtype=dtype,
             device=device,
             rank=rank,

@@ -32,7 +32,19 @@ def load_layer_norm(cls, prefix, weights, eps):
     return ln
 
 
+@classmethod
+def load_layer_norm_no_bias(cls, prefix, weights, eps):
+    weight = weights.get_tensor(f"{prefix}.weight")
+    with init_empty_weights():
+        ln = cls(weight.shape, eps=eps)
+
+    ln.weight = nn.Parameter(weight)
+    ln.bias = None
+    return ln
+
+
 torch.nn.LayerNorm.load = load_layer_norm
+torch.nn.LayerNorm.load_no_bias = load_layer_norm_no_bias
 
 
 class FastLinear(nn.Module):
@@ -357,7 +369,7 @@ try:
         def __init__(self, inv_freq):
             super().__init__()
 
-            self.register_buffer("inv_freq", inv_freq)
+            self.inv_freq = inv_freq
             self._seq_len_cached = 0
             self._cos_cached = None
             self._sin_cached = None

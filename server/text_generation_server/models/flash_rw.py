@@ -25,12 +25,13 @@ class FlashRWSharded(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.float16
+            dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashRW is only available on GPU")
 
@@ -55,10 +56,12 @@ class FlashRWSharded(FlashCausalLM):
         model = FlashRWForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(FlashCausalLM, self).__init__(
+        super(FlashRWSharded, self).__init__(
             model=model.to(device),
             tokenizer=tokenizer,
-            requires_padding=False,
+            num_layers=len(model.transformer.h),
+            num_kv_heads=model.transformer.cache_size,
+            head_size=model.transformer.head_size,
             dtype=dtype,
             device=device,
             rank=rank,

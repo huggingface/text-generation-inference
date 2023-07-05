@@ -1,0 +1,140 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 17,
+    "prefill": [
+      {
+        "id": 1276,
+        "logprob": null,
+        "text": "What"
+      },
+      {
+        "id": 310,
+        "logprob": -1.5117188,
+        "text": " is"
+      },
+      {
+        "id": 18147,
+        "logprob": -8.96875,
+        "text": " Deep"
+      },
+      {
+        "id": 20727,
+        "logprob": -1.953125,
+        "text": " Learning"
+      },
+      {
+        "id": 32,
+        "logprob": -0.94189453,
+        "text": "?"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 428,
+        "logprob": -1.5830078,
+        "special": false,
+        "text": " -"
+      },
+      {
+        "id": 18147,
+        "logprob": -3.3105469,
+        "special": false,
+        "text": " Deep"
+      },
+      {
+        "id": 20727,
+        "logprob": -0.3215332,
+        "special": false,
+        "text": " Learning"
+      },
+      {
+        "id": 187,
+        "logprob": -2.5566406,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 30763,
+        "logprob": -1.6074219,
+        "special": false,
+        "text": "Deep"
+      },
+      {
+        "id": 20727,
+        "logprob": -0.69628906,
+        "special": false,
+        "text": " Learning"
+      },
+      {
+        "id": 310,
+        "logprob": -0.6923828,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 247,
+        "logprob": -0.5263672,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 749,
+        "logprob": -1.8544922,
+        "special": false,
+        "text": " sub"
+      },
+      {
+        "id": 3423,
+        "logprob": -0.6118164,
+        "special": false,
+        "text": "field"
+      },
+      {
+        "id": 273,
+        "logprob": -0.055877686,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 5145,
+        "logprob": -1.0537109,
+        "special": false,
+        "text": " machine"
+      },
+      {
+        "id": 4715,
+        "logprob": -0.0115737915,
+        "special": false,
+        "text": " learning"
+      },
+      {
+        "id": 326,
+        "logprob": -0.9111328,
+        "special": false,
+        "text": " that"
+      },
+      {
+        "id": 4648,
+        "logprob": -1.4589844,
+        "special": false,
+        "text": " uses"
+      },
+      {
+        "id": 13345,
+        "logprob": -1.4853516,
+        "special": false,
+        "text": " artificial"
+      },
+      {
+        "id": 11454,
+        "logprob": -0.021636963,
+        "special": false,
+        "text": " neural"
+      }
+    ]
+  },
+  "generated_text": " - Deep Learning\nDeep Learning is a subfield of machine learning that uses artificial neural"
+}

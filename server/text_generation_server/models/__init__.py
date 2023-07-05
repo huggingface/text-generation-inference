@@ -10,6 +10,7 @@ from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOMSharded
+from text_generation_server.models.mpt import MPTSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
 from text_generation_server.models.rw import RW
 from text_generation_server.models.opt import OPTSharded
@@ -100,11 +101,25 @@ def get_model(
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
+    dtype: Optional[str],
     trust_remote_code: bool,
 ) -> Model:
+    if dtype is None:
+        dtype = torch.float16
+    elif dtype == "float16":
+        dtype = torch.float16
+    elif dtype == "bfloat16":
+        dtype = torch.bfloat16
+    else:
+        raise RuntimeError(f"Unknown dtype {dtype}")
+
     if "facebook/galactica" in model_id:
         return GalacticaSharded(
-            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            dtypetrust_remote_code=trust_remote_code,
         )
 
     if model_id.startswith("bigcode/"):
@@ -113,6 +128,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
         elif sharded:
@@ -124,6 +140,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
 
@@ -138,6 +155,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
         elif sharded:
@@ -149,11 +167,20 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
 
     if model_type == "bloom":
         return BLOOMSharded(
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
+    elif model_type == "mpt":
+        return MPTSharded(
             model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
         )
 
@@ -163,6 +190,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
         elif sharded:
@@ -170,6 +198,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
         else:
@@ -177,6 +206,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
 
@@ -186,6 +216,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
         elif sharded:
@@ -195,6 +226,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
 
@@ -210,6 +242,7 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
+                    dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
             raise NotImplementedError(
@@ -221,6 +254,7 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
+                    dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
             else:
@@ -228,12 +262,17 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
+                    dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
 
     elif model_type == "opt":
         return OPTSharded(
-            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
         )
 
     elif model_type == "t5":
@@ -241,6 +280,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
 
@@ -253,11 +293,19 @@ def get_model(
 
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
         return CausalLM(
-            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
         )
     if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
         return Seq2SeqLM(
-            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
         )
 
     auto_map = config_dict.get("auto_map", None)
@@ -267,6 +315,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
         if "AutoModelForSeq2SeqLM" in auto_map.keys():
@@ -274,6 +323,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
 

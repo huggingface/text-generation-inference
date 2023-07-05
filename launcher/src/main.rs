@@ -6,8 +6,7 @@ use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::TryRecvError;
-use std::sync::Arc;
-use std::sync::{mpsc, Mutex};
+use std::sync::{mpsc, Arc};
 use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -40,6 +39,25 @@ impl std::fmt::Display for Quantization {
     }
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Dtype {
+    Float16,
+    BFloat16,
+}
+
+impl std::fmt::Display for Dtype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self {
+            Dtype::Float16 => {
+                write!(f, "float16")
+            }
+            Dtype::BFloat16 => {
+                write!(f, "bfloat16")
+            }
+        }
+    }
+}
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -76,6 +94,10 @@ struct Args {
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
 
+    /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
+    #[clap(long, env, value_enum)]
+    dtype: Option<Dtype>,
+
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
     /// encouraged when loading a model with custom code to ensure no malicious code has been
     /// contributed in a newer revision.
@@ -106,7 +128,7 @@ struct Args {
     /// for users. The larger this value, the longer prompt users can send which
     /// can impact the overall memory required to handle the load.
     /// Please note that some models have a finite range of sequence they can handle.
-    #[clap(default_value = "1000", long, env)]
+    #[clap(default_value = "1024", long, env)]
     max_input_length: usize,
 
     /// This is the most important value to set as it defines the "memory budget"
@@ -117,14 +139,8 @@ struct Args {
     /// `1511` max_new_tokens.
     /// The larger this value, the larger amount each request will be in your RAM
     /// and the less effective batching can be.
-    #[clap(default_value = "1512", long, env)]
+    #[clap(default_value = "2048", long, env)]
     max_total_tokens: usize,
-
-    /// The maximum allowed batch size during dynamic batching.
-    /// Using `max_batch_total_tokens` should be favored in general
-    /// as it's a finer way to control RAM usage.
-    #[clap(long, env)]
-    max_batch_size: Option<usize>,
 
     /// This represents the ratio of waiting queries vs running queries where
     /// you want to start considering pausing the running queries to include the waiting
@@ -139,6 +155,12 @@ struct Args {
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
 
+    /// Limits the number of tokens for the prefill operation.
+    /// Since this operation take the most memory and is compute bound, it is interesting
+    /// to limit the number of requests that can be sent.
+    #[clap(default_value = "4096", long, env)]
+    max_batch_prefill_tokens: u32,
+
     /// **IMPORTANT** This is one critical control to allow maximum usage
     /// of the available hardware.
     ///
@@ -151,19 +173,12 @@ struct Args {
     /// For `max_batch_total_tokens=1000`, you could fit `10` queries of `total_tokens=100`
     /// or a single query of `1000` tokens.
     ///
-    /// So you don't have to control that finely
-    /// `max_batch_size` or `max_total_tokens`. In fact you could mostly relax them if you
-    /// want maximum flexibility. However, for your users if they are asking for the full amount of
-    /// total tokens, they are likely to wait for a very long time to get a spot
-    /// in the batch (since they are going to be alone) so setting `max_batch_size`
-    /// and `max_total_tokens` can still be useful to prevent those long waiting times.
-    ///
     /// Overall this number should be the largest possible amount that fits the
     /// remaining memory (after the model is loaded). Since the actual memory overhead
     /// depends on other parameters like if you're using quantization, flash attention
     /// or the model implementation, text-generation-inference cannot infer this number
     /// automatically.
-    #[clap(default_value = "32000", long, env)]
+    #[clap(default_value = "16000", long, env)]
     max_batch_total_tokens: u32,
 
     /// This setting defines how many tokens can be passed before forcing the waiting
@@ -185,9 +200,9 @@ struct Args {
     /// for end users.
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
-    #[clap(default_value = "3000", long, short, env)]
 
     /// The port to listen on.
+    #[clap(default_value = "3000", long, short, env)]
     port: u16,
 
     /// The name of the socket for gRPC communication between the webserver
@@ -262,7 +277,7 @@ struct Args {
 #[derive(Debug)]
 enum ShardStatus {
     Ready,
-    Failed((usize, String)),
+    Failed((usize, Option<String>)),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -270,6 +285,7 @@ fn shard_manager(
     model_id: String,
     revision: Option<String>,
     quantize: Option<Quantization>,
+    dtype: Option<Dtype>,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -283,7 +299,7 @@ fn shard_manager(
     watermark_delta: Option<f32>,
     otlp_endpoint: Option<String>,
     status_sender: mpsc::Sender<ShardStatus>,
-    shutdown: Arc<Mutex<bool>>,
+    shutdown: Arc<AtomicBool>,
     _shutdown_sender: mpsc::Sender<()>,
 ) {
     // Get UDS path
@@ -319,6 +335,11 @@ fn shard_manager(
         shard_argv.push(quantize.to_string())
     }
 
+    if let Some(dtype) = dtype {
+        shard_argv.push("--dtype".to_string());
+        shard_argv.push(dtype.to_string())
+    }
+
     // Model optional revision
     if let Some(revision) = revision {
         shard_argv.push("--revision".to_string());
@@ -333,6 +354,12 @@ fn shard_manager(
 
     // Copy current process env
     let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
+
+    // Use cuda allocator. It leads to less memory fragmentation
+    env.push((
+        "PYTORCH_CUDA_ALLOC_CONF".into(),
+        "backend:cudaMallocAsync".into(),
+    ));
 
     // Torch Distributed Env vars
     env.push(("RANK".into(), rank.to_string().into()));
@@ -409,20 +436,20 @@ fn shard_manager(
                 }
             }
             status_sender
-                .send(ShardStatus::Failed((rank, err.to_string())))
+                .send(ShardStatus::Failed((rank, Some(err.to_string()))))
                 .unwrap();
             return;
         }
     };
 
     // Redirect STDOUT to the console
-    let shard_stdout = p.stdout.take().unwrap();
+    let shard_stdout_reader = BufReader::new(p.stdout.take().unwrap());
+    let mut shard_stderr_reader = BufReader::new(p.stderr.take().unwrap());
 
     thread::spawn(move || {
         // Enter shard-manager tracing span
-        let stdout = BufReader::new(shard_stdout);
         let _span = tracing::span!(tracing::Level::INFO, "shard-manager", rank = rank).entered();
-        for line in stdout.lines() {
+        for line in shard_stdout_reader.lines() {
             // Parse loguru logs
             if let Ok(log) = serde_json::from_str::<PythonLogMessage>(&line.unwrap()) {
                 log.trace();
@@ -436,8 +463,22 @@ fn shard_manager(
     loop {
         // Process exited
         if let Some(exit_status) = p.poll() {
-            let mut err = String::new();
-            p.stderr.take().unwrap().read_to_string(&mut err).unwrap();
+            // We read stderr in another thread as it seems that `read_to_string` can block
+            // indefinitely in some cases
+            let (err_sender, err_receiver) = mpsc::channel();
+            thread::spawn(move || {
+                let mut err = String::new();
+                shard_stderr_reader.read_to_string(&mut err).unwrap();
+                err_sender.send(err).unwrap_or(());
+            });
+
+            let err = err_receiver
+                .recv_timeout(Duration::from_millis(100))
+                .map_err(|err| {
+                    tracing::error!("Unable to read shard {rank} error from stderr");
+                    err
+                })
+                .ok();
 
             if let ExitStatus::Signaled(signal) = exit_status {
                 tracing::error!("Shard process was signaled to shutdown with signal {signal}");
@@ -450,8 +491,8 @@ fn shard_manager(
         }
 
         // We received a shutdown signal
-        if *shutdown.lock().unwrap() {
-            p.terminate().unwrap();
+        if shutdown.load(Ordering::SeqCst) {
+            p.kill().unwrap();
             let _ = p.wait_timeout(Duration::from_secs(90));
             tracing::info!("Shard {rank} terminated");
             return;
@@ -470,14 +511,11 @@ fn shard_manager(
     }
 }
 
-fn shutdown_shards(shutdown: Arc<Mutex<bool>>, shutdown_receiver: &mpsc::Receiver<()>) {
+fn shutdown_shards(shutdown: Arc<AtomicBool>, shutdown_receiver: &mpsc::Receiver<()>) {
     tracing::info!("Shutting down shards");
     // Update shutdown value to true
     // This will be picked up by the shard manager
-    {
-        let mut shutdown = shutdown.lock().unwrap();
-        *shutdown = true;
-    }
+    shutdown.store(true, Ordering::SeqCst);
 
     // Wait for shards to shutdown
     // This will block till all shutdown_sender are dropped
@@ -719,7 +757,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 fn spawn_shards(
     num_shard: usize,
     args: &Args,
-    shutdown: Arc<Mutex<bool>>,
+    shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
     shutdown_sender: mpsc::Sender<()>,
     status_receiver: &mpsc::Receiver<ShardStatus>,
@@ -749,6 +787,7 @@ fn spawn_shards(
         let shutdown_sender = shutdown_sender.clone();
         let otlp_endpoint = args.otlp_endpoint.clone();
         let quantize = args.quantize;
+        let dtype = args.dtype;
         let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
@@ -759,6 +798,7 @@ fn spawn_shards(
                 model_id,
                 revision,
                 quantize,
+                dtype,
                 trust_remote_code,
                 uds_path,
                 rank,
@@ -793,7 +833,10 @@ fn spawn_shards(
                 sleep(Duration::from_millis(100));
             }
             Ok(ShardStatus::Failed((rank, err))) => {
-                tracing::error!("Shard {} failed to start:\n{}", rank, err);
+                tracing::error!("Shard {rank} failed to start");
+                if let Some(err) = err {
+                    tracing::error!("{err}");
+                }
                 shutdown_shards(shutdown, shutdown_receiver);
                 return Err(LauncherError::ShardCannotStart);
             }
@@ -809,7 +852,7 @@ fn spawn_shards(
 
 fn spawn_webserver(
     args: Args,
-    shutdown: Arc<Mutex<bool>>,
+    shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
 ) -> Result<Popen, LauncherError> {
     // All shard started
@@ -827,6 +870,10 @@ fn spawn_webserver(
         args.max_input_length.to_string(),
         "--max-total-tokens".to_string(),
         args.max_total_tokens.to_string(),
+        "--max-batch-prefill-tokens".to_string(),
+        args.max_batch_prefill_tokens.to_string(),
+        "--max-batch-total-tokens".to_string(),
+        args.max_batch_total_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
         args.waiting_served_ratio.to_string(),
         "--max-waiting-tokens".to_string(),
@@ -838,15 +885,6 @@ fn spawn_webserver(
         "--tokenizer-name".to_string(),
         args.model_id,
     ];
-
-    // Deprecate max_batch_size
-    if let Some(max_batch_size) = args.max_batch_size {
-        argv.push("--max-batch-size".to_string());
-        argv.push(max_batch_size.to_string())
-    } else {
-        argv.push("--max-batch-total-tokens".to_string());
-        argv.push(args.max_batch_total_tokens.to_string())
-    }
 
     // Model optional revision
     if let Some(ref revision) = args.revision {
@@ -981,7 +1019,7 @@ fn main() -> Result<(), LauncherError> {
     download_convert_model(&args, running.clone())?;
 
     // Shared shutdown bool
-    let shutdown = Arc::new(Mutex::new(false));
+    let shutdown = Arc::new(AtomicBool::new(false));
     // Shared shutdown channel
     // When shutting down, the main thread will wait for all senders to be dropped
     let (shutdown_sender, shutdown_receiver) = mpsc::channel();
@@ -1006,14 +1044,21 @@ fn main() -> Result<(), LauncherError> {
         return Ok(());
     }
 
-    let mut webserver = spawn_webserver(args, shutdown.clone(), &shutdown_receiver)?;
+    let mut webserver =
+        spawn_webserver(args, shutdown.clone(), &shutdown_receiver).map_err(|err| {
+            shutdown_shards(shutdown.clone(), &shutdown_receiver);
+            err
+        })?;
 
     // Default exit code
     let mut exit_code = Ok(());
 
     while running.load(Ordering::SeqCst) {
         if let Ok(ShardStatus::Failed((rank, err))) = status_receiver.try_recv() {
-            tracing::error!("Shard {rank} failed:\n{err}");
+            tracing::error!("Shard {rank} crashed");
+            if let Some(err) = err {
+                tracing::error!("{err}");
+            }
             exit_code = Err(LauncherError::ShardFailed);
             break;
         };

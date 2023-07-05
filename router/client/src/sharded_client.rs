@@ -87,6 +87,27 @@ impl ShardedClient {
         join_all(futures).await.pop().unwrap()
     }
 
+    /// Warmup on a max size batch
+    ///
+    /// Returns the maximum amount of tokens supported by the hardware
+    #[instrument(skip(self))]
+    pub async fn warmup(
+        &mut self,
+        max_input_length: u32,
+        max_prefill_tokens: u32,
+        max_total_tokens: u32,
+    ) -> Result<()> {
+        let futures: Vec<_> = self
+            .clients
+            .iter_mut()
+            .map(|client| {
+                Box::pin(client.warmup(max_input_length, max_prefill_tokens, max_total_tokens))
+            })
+            .collect();
+        // all shards return the same message
+        join_all(futures).await.pop().unwrap()
+    }
+
     /// Generate one token for each request in the given batch
     ///
     /// Returns Generation for each request in batch
