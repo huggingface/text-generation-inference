@@ -638,6 +638,8 @@ class FlashCausalLMBatch(Batch):
         # Needed to avoid dropping blocks when the batches will go out of scope
         for b in batches:
             b.block_tables = None
+            del b
+        torch.cuda.empty_cache()
 
         return FlashCausalLMBatch(
             batch_id=batches[0].batch_id,
@@ -732,6 +734,7 @@ class FlashCausalLM(Model):
             )
             raise e
         del batch
+        torch.cuda.empty_cache()
 
     def decode(self, generated_ids: Union[torch.Tensor, List[int]]) -> str:
         return self.tokenizer.decode(
@@ -775,16 +778,21 @@ class FlashCausalLM(Model):
             # Allocate blocks to this batch
             CACHE_MANAGER.allocate(batch)
 
-        out = self.forward(
-            batch.input_ids,
-            batch.position_ids,
-            batch.cu_seqlen_prefill,
-            batch.block_tables_tensor,
-            batch.slots[batch.slot_indices],
-            batch.input_lengths_tensor,
-            batch.max_seqlen,
-            batch.prefill_head_indices,
-        )
+        try:
+            out = self.forward(
+                batch.input_ids,
+                batch.position_ids,
+                batch.cu_seqlen_prefill,
+                batch.block_tables_tensor,
+                batch.slots[batch.slot_indices],
+                batch.input_lengths_tensor,
+                batch.max_seqlen,
+                batch.prefill_head_indices,
+            )
+        except Exception as e:
+            del batch
+            torch.cuda.empty_cache()
+            raise e
 
         if prefill:
             next_token_logits = (
