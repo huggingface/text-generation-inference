@@ -160,8 +160,26 @@ def download_weights(
             p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors"
             for p in local_pt_files
         ]
+        try:
+            from transformers import AutoConfig
+            import transformers
+
+            config = AutoConfig.from_pretrained(
+                model_id,
+                revision=revision,
+            )
+            architecture = config.architectures[0]
+
+            class_ = getattr(transformers, architecture)
+
+            # Name for this varible depends on transformers version.
+            discard_names = getattr(class_, "_tied_weights_keys", [])
+            discard_names.extend(getattr(class_, "_keys_to_ignore_on_load_missing", []))
+
+        except Exception as e:
+            discard_names = []
         # Convert pytorch weights to safetensors
-        utils.convert_files(local_pt_files, local_st_files)
+        utils.convert_files(local_pt_files, local_st_files, discard_names)
 
 
 @app.command()
