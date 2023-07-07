@@ -152,6 +152,7 @@ class Client:
     def generate_stream(
         self,
         prompt: str,
+        best_of: Optional[int] = None,
         do_sample: bool = False,
         max_new_tokens: int = 20,
         repetition_penalty: Optional[float] = None,
@@ -204,7 +205,7 @@ class Client:
         """
         # Validate parameters
         parameters = Parameters(
-            best_of=None,
+            best_of=best_of,
             details=True,
             decoder_input_details=False,
             do_sample=do_sample,
