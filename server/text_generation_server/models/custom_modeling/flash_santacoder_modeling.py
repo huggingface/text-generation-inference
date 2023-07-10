@@ -208,7 +208,11 @@ class FlashMQAttention(torch.nn.Module):
         self.hidden_size = hidden_size
         self.head_size = hidden_size // num_heads
 
-        assert self.num_heads % weights.process_group.size() == 0
+        if self.num_heads % weights.process_group.size() != 0:
+            raise ValueError(
+                f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
+                f"and `num_shards`: {weights.process_group.size()}"
+            )
         self.num_heads = self.num_heads // weights.process_group.size()
 
         self.softmax_scale = self.head_size ** (-0.5)

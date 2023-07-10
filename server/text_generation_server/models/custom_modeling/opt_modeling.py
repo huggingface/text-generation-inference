@@ -147,7 +147,11 @@ class OPTAttention(nn.Module):
         self.is_decoder = is_decoder
 
         process_group = weights.process_group
-        assert self.num_heads % process_group.size() == 0
+        if self.num_heads % weights.process_group.size() != 0:
+            raise ValueError(
+                f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
+                f"and `num_shards`: {weights.process_group.size()}"
+            )
         self.num_heads = self.num_heads // process_group.size()
         self.embed_dim = self.embed_dim // process_group.size()
 

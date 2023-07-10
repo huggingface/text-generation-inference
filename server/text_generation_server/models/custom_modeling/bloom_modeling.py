@@ -256,6 +256,11 @@ class BloomAttention(nn.Module):
         self.beta = 1.0
 
         process_group = weights.process_group
+        if self.num_heads % process_group.size() != 0:
+            raise ValueError(
+                f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
+                f"and `num_shards`: {process_group.size()}"
+            )
         self.num_heads = self.num_heads // process_group.size()
         self.query_key_value = TensorParallelColumnLinear.load(
             config=config,

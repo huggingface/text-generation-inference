@@ -10,8 +10,9 @@ use opentelemetry_otlp::WithExportConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::time::Duration;
-use text_generation_client::ShardedClient;
+use text_generation_client::{ClientError, ShardedClient};
 use text_generation_router::{server, HubModelInfo};
+use thiserror::Error;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
@@ -70,7 +71,7 @@ struct Args {
     ngrok_password: Option<String>,
 }
 
-fn main() -> Result<(), std::io::Error> {
+fn main() -> Result<(), RouterError> {
     // Get args
     let args = Args::parse();
     // Pattern match configuration
@@ -149,8 +150,7 @@ fn main() -> Result<(), std::io::Error> {
     // Launch Tokio runtime
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .build()
-        .unwrap()
+        .build()?
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
 
@@ -192,17 +192,14 @@ fn main() -> Result<(), std::io::Error> {
             // Instantiate sharded client from the master unix socket
             let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
                 .await
-                .expect("Could not connect to server");
+                .map_err(RouterError::Connection)?;
             // Clear the cache; useful if the webserver rebooted
             sharded_client
                 .clear_cache(None)
                 .await
-                .expect("Unable to clear cache");
+                .map_err(RouterError::Cache)?;
             // Get info from the shard
-            let shard_info = sharded_client
-                .info()
-                .await
-                .expect("Unable to get shard info");
+            let shard_info = sharded_client.info().await.map_err(RouterError::Info)?;
 
             // Warmup model
             tracing::info!("Warming up model");
@@ -213,7 +210,7 @@ fn main() -> Result<(), std::io::Error> {
                     max_batch_total_tokens,
                 )
                 .await
-                .expect("Unable to warmup model");
+                .map_err(RouterError::Warmup)?;
             tracing::info!("Connected");
 
             let addr = match hostname.parse() {
@@ -249,7 +246,7 @@ fn main() -> Result<(), std::io::Error> {
                 ngrok_username,
                 ngrok_password,
             )
-            .await;
+            .await?;
             Ok(())
         })
 }
@@ -330,4 +327,20 @@ pub async fn get_model_info(
         return serde_json::from_str(&response.text().await.ok()?).ok();
     }
     None
+}
+
+#[derive(Debug, Error)]
+enum RouterError {
+    #[error("Unable to connect to the Python model shards: {0}")]
+    Connection(ClientError),
+    #[error("Unable to clear the Python model shards cache: {0}")]
+    Cache(ClientError),
+    #[error("Unable to get the Python model shards info: {0}")]
+    Info(ClientError),
+    #[error("Unable to warmup the Python model shards: {0}")]
+    Warmup(ClientError),
+    #[error("Tokio runtime failed to start: {0}")]
+    Tokio(#[from] std::io::Error),
+    #[error("Axum webserver failed: {0}")]
+    Axum(#[from] axum::BoxError),
 }
