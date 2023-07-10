@@ -55,6 +55,7 @@ export default function () {
 
     if (res.status === 200) {
         totalTime.add(res.headers["X-Total-Time"]);
+        totalTokens.add(res.headers["X-Total-Tokens"]);
         validationTime.add(res.headers["X-Validation-Time"]);
         queueTime.add(res.headers["X-Queue-Time"]);
         inferenceTime.add(res.headers["X-Inference-Time"]);

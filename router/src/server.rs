@@ -242,6 +242,10 @@ async fn generate(
         total_time.as_millis().to_string().parse().unwrap(),
     );
     headers.insert(
+        "x-total-tokens",
+        response.generated_text.generated_tokens.to_string().parse().unwrap(),
+    );
+    headers.insert(
         "x-validation-time",
         validation_time.as_millis().to_string().parse().unwrap(),
     );
