@@ -56,7 +56,7 @@ class SantaCoder(CausalLM):
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            load_in_8bit=quantize == "bitsandbytes",
+            load_in_4bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         ).to(device)
 
