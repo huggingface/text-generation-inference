@@ -180,7 +180,7 @@ class TensorParallelHead(SuperLayer):
 
     @staticmethod
     def load(config, prefix: str, weights):
-        weight = weights.get_partial_sharded(f"{prefix}.weight", dim=0)
+        weight = weights.get_sharded(f"{prefix}.weight", dim=0)
 
         # GPTQ doesn't quantize heads (nor embeddings)
         if config.quantize == "gptq":
