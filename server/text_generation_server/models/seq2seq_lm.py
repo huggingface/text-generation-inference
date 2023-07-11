@@ -524,7 +524,7 @@ class Seq2SeqLM(Model):
             device_map="auto"
             if torch.cuda.is_available() and torch.cuda.device_count() > 1
             else None,
-            load_in_8bit=quantize == "bitsandbytes",
+            load_in_4bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
         if torch.cuda.is_available() and torch.cuda.device_count() == 1:
