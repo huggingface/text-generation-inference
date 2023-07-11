@@ -55,7 +55,16 @@ class T5Sharded(Seq2SeqLM):
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(
-            filenames, device=device, dtype=dtype, process_group=self.process_group
+            filenames,
+            device=device,
+            dtype=dtype,
+            process_group=self.process_group,
+            aliases={
+                "shared.weight": [
+                    "encoder.embed_tokens.weight",
+                    "decoder.embed_tokens.weight",
+                ]
+            },
         )
 
         model = T5ForConditionalGeneration(config, weights)
