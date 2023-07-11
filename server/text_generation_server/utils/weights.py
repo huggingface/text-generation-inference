@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List, Dict, Optional
-from safetensors import safe_open
+from safetensors import safe_open, SafetensorError
 import torch
 
 
@@ -120,8 +120,17 @@ class Weights:
                 torch.testing.assert_close(w2, w[0])
             g_idx = w[0]
 
-            bits = self.get_tensor("gptq_bits").item()
-            groupsize = self.get_tensor("gptq_groupsize").item()
+            try:
+                bits = self.get_tensor("gptq_bits").item()
+                groupsize = self.get_tensor("gptq_groupsize").item()
+            except SafetensorError as e:
+                try:
+                    import os
+
+                    bits = int(os.getenv("GTPQ_BITS"))
+                    groupsize = int(os.getenv("GTPQ_GROUPSIZE"))
+                except Exception:
+                    raise e
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
