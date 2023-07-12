@@ -1,93 +1,192 @@
 {
+  "generated_text": "\n    return sum(L) / len(L)\n\n\ndef geometric_mean(L",
   "details": {
-    "best_of_sequences": null,
     "finish_reason": "length",
-    "generated_tokens": 10,
+    "generated_tokens": 20,
+    "seed": null,
     "prefill": [
       {
         "id": 589,
-        "logprob": null,
-        "text": "def"
+        "text": "def",
+        "logprob": null
       },
       {
-        "id": 1459,
-        "logprob": -5.6289062,
-        "text": " print"
+        "id": 3226,
+        "text": " ge",
+        "logprob": -9.0234375
+      },
+      {
+        "id": 21017,
+        "text": "ometric",
+        "logprob": -9.09375
       },
       {
         "id": 81,
-        "logprob": -1.6005859,
-        "text": "_"
+        "text": "_",
+        "logprob": -0.25610352
       },
       {
-        "id": 7656,
-        "logprob": -5.9921875,
-        "text": "hello"
+        "id": 6009,
+        "text": "mean",
+        "logprob": -2.1835938
+      },
+      {
+        "id": 26,
+        "text": "(",
+        "logprob": -0.29907227
+      },
+      {
+        "id": 62,
+        "text": "L",
+        "logprob": -5.6015625
+      },
+      {
+        "id": 44,
+        "text": ":",
+        "logprob": -3.0898438
+      },
+      {
+        "id": 1682,
+        "text": " List",
+        "logprob": -0.68359375
+      },
+      {
+        "id": 77,
+        "text": "[",
+        "logprob": -0.3869629
+      },
+      {
+        "id": 1808,
+        "text": "float",
+        "logprob": -0.95751953
+      },
+      {
+        "id": 10794,
+        "text": "]):",
+        "logprob": -2.5507812
       }
     ],
-    "seed": null,
     "tokens": [
       {
-        "id": 2262,
-        "logprob": -0.7705078,
-        "special": false,
-        "text": "():"
-      },
-      {
         "id": 284,
-        "logprob": -0.2590332,
-        "special": false,
-        "text": "\n   "
+        "text": "\n   ",
+        "logprob": -1.171875,
+        "special": false
       },
       {
-        "id": 1459,
-        "logprob": -0.39379883,
-        "special": false,
-        "text": " print"
+        "id": 442,
+        "text": " return",
+        "logprob": -0.9453125,
+        "special": false
       },
       {
-        "id": 440,
-        "logprob": -0.61376953,
-        "special": false,
-        "text": "(\""
+        "id": 3632,
+        "text": " sum",
+        "logprob": -1.4013672,
+        "special": false
       },
       {
-        "id": 8279,
-        "logprob": -0.47338867,
-        "special": false,
-        "text": "Hello"
+        "id": 26,
+        "text": "(",
+        "logprob": -0.083618164,
+        "special": false
       },
       {
-        "id": 10896,
-        "logprob": -1.5068359,
-        "special": false,
-        "text": " World"
+        "id": 62,
+        "text": "L",
+        "logprob": -0.098083496,
+        "special": false
       },
       {
-        "id": 657,
-        "logprob": -0.80810547,
-        "special": false,
-        "text": "\")"
+        "id": 27,
+        "text": ")",
+        "logprob": -0.30493164,
+        "special": false
+      },
+      {
+        "id": 517,
+        "text": " /",
+        "logprob": -0.4074707,
+        "special": false
+      },
+      {
+        "id": 2069,
+        "text": " len",
+        "logprob": -0.041015625,
+        "special": false
+      },
+      {
+        "id": 26,
+        "text": "(",
+        "logprob": -0.0011863708,
+        "special": false
+      },
+      {
+        "id": 62,
+        "text": "L",
+        "logprob": -0.0005221367,
+        "special": false
+      },
+      {
+        "id": 27,
+        "text": ")",
+        "logprob": -0.0017499924,
+        "special": false
+      },
+      {
+        "id": 478,
+        "text": "\n\n",
+        "logprob": -0.69873047,
+        "special": false
       },
       {
         "id": 203,
-        "logprob": -0.7397461,
-        "special": false,
-        "text": "\n"
-      },
-      {
-        "id": 203,
-        "logprob": -0.35229492,
-        "special": false,
-        "text": "\n"
+        "text": "\n",
+        "logprob": -0.041229248,
+        "special": false
       },
       {
         "id": 589,
-        "logprob": -1.0371094,
-        "special": false,
-        "text": "def"
+        "text": "def",
+        "logprob": -0.27929688,
+        "special": false
+      },
+      {
+        "id": 3226,
+        "text": " ge",
+        "logprob": -1.7089844,
+        "special": false
+      },
+      {
+        "id": 21017,
+        "text": "ometric",
+        "logprob": -0.010757446,
+        "special": false
+      },
+      {
+        "id": 81,
+        "text": "_",
+        "logprob": -0.0090408325,
+        "special": false
+      },
+      {
+        "id": 6009,
+        "text": "mean",
+        "logprob": -0.024932861,
+        "special": false
+      },
+      {
+        "id": 26,
+        "text": "(",
+        "logprob": -0.06451416,
+        "special": false
+      },
+      {
+        "id": 62,
+        "text": "L",
+        "logprob": -0.09832764,
+        "special": false
       }
     ]
-  },
-  "generated_text": "():\n    print(\"Hello World\")\n\ndef"
+  }
 }
