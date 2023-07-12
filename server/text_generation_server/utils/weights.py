@@ -130,7 +130,7 @@ class Weights:
             try:
                 bits = self.get_tensor("gptq_bits").item()
                 groupsize = self.get_tensor("gptq_groupsize").item()
-            except SafetensorError as e:
+            except (SafetensorError, RuntimeError) as e:
                 try:
                     import os
 
@@ -159,7 +159,7 @@ class Weights:
             try:
                 bits = self.get_tensor("gptq_bits").item()
                 groupsize = self.get_tensor("gptq_groupsize").item()
-            except SafetensorError as e:
+            except (SafetensorError, RuntimeError) as e:
                 try:
                     import os
 
