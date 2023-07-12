@@ -81,8 +81,8 @@ def _load_multi_mqa_gptq(
             try:
                 import os
 
-                bits = int(os.getenv("GTPQ_BITS"))
-                groupsize = int(os.getenv("GTPQ_GROUPSIZE"))
+                bits = int(os.getenv("GPTQ_BITS"))
+                groupsize = int(os.getenv("GPTQ_GROUPSIZE"))
             except Exception:
                 raise e
 
