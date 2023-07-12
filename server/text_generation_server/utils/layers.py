@@ -151,7 +151,7 @@ def get_linear(weight, bias, quantize):
                 f"The passed weight is not `gptq` compatible, loader needs to be updated."
             )
 
-        if use_triton_kernel:
+        if use_triton_kernel or bits != 4:
             linear = QuantLinear(
                 qweight,
                 qzeros,
