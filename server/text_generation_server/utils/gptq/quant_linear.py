@@ -6,8 +6,6 @@ from torch.cuda.amp import custom_bwd, custom_fwd
 
 import torch
 
-from loguru import logger
-
 try:
     from custom_kernels.exllama import make_q4, q4_matmul
 except Exception as e:

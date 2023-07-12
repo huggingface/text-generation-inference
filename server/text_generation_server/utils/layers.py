@@ -18,7 +18,7 @@ from accelerate import init_empty_weights
 from text_generation_server.utils.gptq.quant_linear import QuantLinear, Ex4bitLinear
 
 from typing import Optional
-from loguru import logger
+
 # Monkey patching
 @classmethod
 def load_layer_norm(cls, prefix, weights, eps):
