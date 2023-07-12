@@ -20,12 +20,12 @@ from text_generation_server.utils.layers import (
     FastLayerNorm,
     get_linear,
 )
+from safetensors import SafetensorError
 
 
 def load_multi_mqa(
     config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
 ):
-
     if config.quantize == "gptq":
         return _load_multi_mqa_gptq(
             config, prefix, weights, bias, head_size, num_heads, hidden_size
@@ -74,8 +74,17 @@ def _load_multi_mqa_gptq(
         qzeros = torch.cat([q_tensor, kv_tensor], dim=1)
 
         g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
-        bits = weights.get_tensor("gptq_bits").item()
-        groupsize = weights.get_tensor("gptq_groupsize").item()
+        try:
+            bits = weights.get_tensor("gptq_bits").item()
+            groupsize = weights.get_tensor("gptq_groupsize").item()
+        except SafetensorError as e:
+            try:
+                import os
+
+                bits = int(os.getenv("GPTQ_BITS"))
+                groupsize = int(os.getenv("GPTQ_GROUPSIZE"))
+            except Exception:
+                raise e
 
         weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
 
@@ -99,7 +108,6 @@ def _load_multi_mqa_gptq(
 def _load_multi_mqa(
     config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
 ):
-
     if any("c_attn" in k for k in weights.routing.keys()):
         slice_ = weights._get_slice(f"{prefix}.c_attn.weight")
         shape = slice_.get_shape()
