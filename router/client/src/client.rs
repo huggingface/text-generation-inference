@@ -98,7 +98,7 @@ impl Client {
     /// Warmup on a max size batch
     ///
     /// Returns the maximum amount of tokens supported by the hardware
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     pub async fn warmup(
         &mut self,
         max_input_length: u32,

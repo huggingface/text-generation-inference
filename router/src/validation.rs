@@ -1,5 +1,5 @@
-use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 /// Payload validation logic
+use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{GenerateParameters, GenerateRequest};
 use rand::{thread_rng, Rng};
 use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
@@ -30,10 +30,6 @@ impl Validation {
         max_input_length: usize,
         max_total_tokens: usize,
     ) -> Self {
-        if max_input_length >= max_total_tokens {
-            panic!("`max_input_length` must be < `max_total_tokens`");
-        }
-
         // If we have a fast tokenizer
         let sender = if let Some(tokenizer) = tokenizer {
             // Create channel

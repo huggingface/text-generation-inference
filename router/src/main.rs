@@ -102,17 +102,24 @@ fn main() -> Result<(), RouterError> {
     } = args;
 
     // Validate args
+    if max_input_length >= max_total_tokens {
+        return Err(RouterError::ArgumentValidation(
+            "`max_input_length` must be < `max_total_tokens`".to_string(),
+        ));
+    }
     if max_input_length as u32 > max_batch_prefill_tokens {
-        panic!("{}", format!("`max_batch_prefill_tokens` must be >= `max_input_length`. Given: {max_batch_prefill_tokens} and {max_input_length}"));
+        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_length`. Given: {max_batch_prefill_tokens} and {max_input_length}")));
     }
     if max_batch_prefill_tokens > max_batch_total_tokens {
-        panic!("{}", format!("`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {max_batch_prefill_tokens} and {max_batch_total_tokens}"));
+        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {max_batch_prefill_tokens} and {max_batch_total_tokens}")));
     }
     if max_total_tokens as u32 > max_batch_total_tokens {
-        panic!("{}", format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_batch_total_tokens}"));
+        return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_batch_total_tokens}")));
     }
     if validation_workers == 0 {
-        panic!("`validation_workers` must be > 0");
+        return Err(RouterError::ArgumentValidation(
+            "`validation_workers` must be > 0".to_string(),
+        ));
     }
 
     // CORS allowed origins
@@ -331,6 +338,8 @@ pub async fn get_model_info(
 
 #[derive(Debug, Error)]
 enum RouterError {
+    #[error("Argument validation error: {0}")]
+    ArgumentValidation(String),
     #[error("Unable to connect to the Python model shards: {0}")]
     Connection(ClientError),
     #[error("Unable to clear the Python model shards cache: {0}")]
