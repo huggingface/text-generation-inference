@@ -95,6 +95,12 @@ class FlashNeoxAttention(torch.nn.Module):
         self.num_heads = num_heads
         self.hidden_size = hidden_size
         self.head_size = hidden_size // num_heads
+
+        if self.num_heads % weights.process_group.size() != 0:
+            raise ValueError(
+                f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
+                f"and `num_shards`: {weights.process_group.size()}"
+            )
         self.num_heads = self.num_heads // weights.process_group.size()
 
         self.rotary_emb = PositionRotaryEmbedding.load(

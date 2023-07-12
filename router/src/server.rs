@@ -527,7 +527,7 @@ pub async fn run(
     ngrok_domain: Option<String>,
     ngrok_username: Option<String>,
     ngrok_password: Option<String>,
-) {
+) -> Result<(), axum::BoxError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
     #[openapi(
@@ -726,8 +726,7 @@ pub async fn run(
                 .serve(app.into_make_service())
                 //Wait until all requests are finished to shut down
                 .with_graceful_shutdown(shutdown_signal())
-                .await
-                .unwrap();
+                .await?;
         }
         #[cfg(not(feature = "ngrok"))]
         {
@@ -744,9 +743,9 @@ pub async fn run(
             .serve(app.into_make_service())
             // Wait until all requests are finished to shut down
             .with_graceful_shutdown(shutdown_signal())
-            .await
-            .unwrap();
+            .await?;
     }
+    Ok(())
 }
 
 /// Shutdown signal handler

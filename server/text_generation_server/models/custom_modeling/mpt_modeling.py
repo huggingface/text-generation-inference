@@ -319,6 +319,12 @@ class MultiheadAttention(nn.Module):
         if self.softmax_scale is None:
             self.softmax_scale = 1 / math.sqrt(self.d_model / self.n_heads)
         self.attn_dropout_p = config.attn_config["attn_pdrop"]
+
+        if self.n_heads % weights.process_group.size() != 0:
+            raise ValueError(
+                f"`n_heads` must be divisible by `num_shards` (got `n_heads`: {self.n_heads} "
+                f"and `num_shards`: {weights.process_group.size()}"
+            )
         self.n_heads = self.n_heads // weights.process_group.size()
         self.Wqkv = load_col(
             config, prefix=f"{prefix}.Wqkv", weights=weights, bias=not config.no_bias

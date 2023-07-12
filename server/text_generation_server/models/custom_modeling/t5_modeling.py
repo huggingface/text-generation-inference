@@ -19,6 +19,8 @@ import math
 import warnings
 from typing import Optional, Tuple, Union
 
+from loguru import logger
+
 import torch
 import torch.distributed
 from torch import nn
@@ -246,6 +248,11 @@ class T5Attention(nn.Module):
         self.o = TensorParallelRowLinear.load(
             config, prefix=f"{prefix}.o", weights=weights, bias=False
         )
+        if self.n_heads % weights.process_group.size() != 0:
+            raise ValueError(
+                f"`n_heads` must be divisible by `num_shards` (got `n_heads`: {self.n_heads} "
+                f"and `num_shards`: {weights.process_group.size()}"
+            )
         self.n_heads = self.n_heads // process_group.size()
         self.inner_dim = self.inner_dim // process_group.size()
 
@@ -1001,12 +1008,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         super().__init__(config)
         self.model_dim = config.d_model
 
-        try:
-            self.shared = TensorParallelEmbedding(prefix="shared", weights=weights)
-        except RuntimeError:
-            self.shared = TensorParallelEmbedding(
-                prefix="encoder.embed_tokens", weights=weights
-            )
+        self.shared = TensorParallelEmbedding(prefix="shared", weights=weights)
 
         encoder_config = copy.deepcopy(config)
         encoder_config.is_decoder = False

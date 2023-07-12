@@ -1,3 +1,5 @@
+import torch
+
 from typing import Dict, Optional, TypeVar
 
 from text_generation_server.models.types import Batch
@@ -20,6 +22,8 @@ class Cache:
         batch = self.pop(batch_id)
         if batch is not None:
             del batch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def clear(self):
         keys = list(self.cache.keys())

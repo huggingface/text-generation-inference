@@ -14,7 +14,7 @@ def test_convert_files():
     local_st_files = [
         p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors" for p in local_pt_files
     ]
-    convert_files(local_pt_files, local_st_files)
+    convert_files(local_pt_files, local_st_files, discard_names=[])
 
     found_st_files = weight_files(model_id)
 

@@ -154,7 +154,12 @@ class GPTNeoXAttention(nn.Module):
             torch.tensor(self.head_size, dtype=torch.float32)
         ).to(torch.get_default_dtype())
 
-        assert self.num_attention_heads % weights.process_group.size() == 0
+        if self.num_attention_heads % weights.process_group.size() != 0:
+            raise ValueError(
+                f"`num_attention_heads` must be divisible by `num_shards` "
+                f"(got `num_attention_heads`: {self.num_attention_heads} "
+                f"and `num_shards`: {weights.process_group.size()}"
+            )
         self.num_attention_heads = (
             self.num_attention_heads // weights.process_group.size()
         )
