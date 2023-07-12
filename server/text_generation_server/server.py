@@ -51,6 +51,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         filtered_batch = batch.filter(request.request_ids)
         self.cache.set(filtered_batch)
 
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
@@ -58,6 +61,10 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             request.batch, self.model.tokenizer, self.model.dtype, self.model.device
         )
         self.model.warmup(batch, request.max_total_tokens)
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         return generate_pb2.WarmupResponse()
 
     async def Prefill(self, request, context):
@@ -89,6 +96,8 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         if len(batches) > 1:
             batch = self.model.batch_type.concatenate(batches)
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         else:
             batch = batches[0]
 
