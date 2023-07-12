@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from safetensors import safe_open
 import torch
-
+from loguru import logger
 
 class Weights:
     def __init__(
@@ -99,7 +99,7 @@ class Weights:
         return tensor
 
     def get_multi_weights_col(self, prefixes: List[str], quantize: str, dim: int):
-        if quantize in ["gptq", "gptq-cuda"]:
+        if quantize == "gptq":
             try:
                 qweight = torch.cat([self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1)
             except RuntimeError:
@@ -114,20 +114,33 @@ class Weights:
 
             bits = self.get_tensor("gptq_bits").item()
             groupsize = self.get_tensor("gptq_groupsize").item()
-            weight = [qweight, qzeros, scales, g_idx, bits, groupsize]
+            weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
             weight = torch.cat(w, dim=dim)
         return weight
 
-    def get_multi_weights_row(self, prefix: str, quantize: str):        
-        if quantize in ["gptq", "gptq-cuda"]:
+    def get_multi_weights_row(self, prefix: str, quantize: str):    
+        if quantize == "gptq":
+            use_triton_kernel = False
+            if self.process_group.size() > 1:
+                g_idx = self.get_tensor(f"{prefix}.g_idx")
+                groupsize = self.get_tensor("gptq_groupsize").item()
+                
+                if g_idx is not None:
+                    if not torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32)) and not (g_idx == 0).all():
+                        # Exllama implementation does not support row tensor parallelism with act-order, as
+                        # it would require to reorder input activations that are split unto several GPUs
+                        use_triton_kernel = True
+
             try:
                 qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
             except RuntimeError:
                 raise RuntimeError("Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`")
             
-            if quantize == "gptq":
+            if use_triton_kernel:
+                # The triton kernel reorders the scales/zero points instead of the weight/activation.
+                # Thus, each rank needs the full qzeros/scales.
                 qzeros = self.get_tensor(f"{prefix}.qzeros")
                 scales = self.get_tensor(f"{prefix}.scales")
                 g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
@@ -146,7 +159,7 @@ class Weights:
             bits = self.get_tensor("gptq_bits").item()
             groupsize = self.get_tensor("gptq_groupsize").item()
 
-            weight = [qweight, qzeros, scales, g_idx, bits, groupsize]
+            weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_triton_kernel)
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight

@@ -18,7 +18,7 @@ from accelerate import init_empty_weights
 from text_generation_server.utils.gptq.quant_linear import QuantLinear, Ex4bitLinear
 
 from typing import Optional
-
+from loguru import logger
 # Monkey patching
 @classmethod
 def load_layer_norm(cls, prefix, weights, eps):
@@ -131,7 +131,7 @@ class Linear8bitLt(nn.Module):
         return out
 
 
-def get_linear(weight, bias, quantize, device = None):
+def get_linear(weight, bias, quantize):
     if quantize is None:
         linear = FastLinear(weight, bias)
     elif quantize == "bitsandbytes":
@@ -145,30 +145,24 @@ def get_linear(weight, bias, quantize, device = None):
             linear.bias = nn.Parameter(bias)
     elif quantize == "gptq":
         try:
-            qweight, qzeros, scales, g_idx, bits, groupsize = weight
+            qweight, qzeros, scales, g_idx, bits, groupsize, use_triton_kernel = weight
         except Exception:
             raise NotImplementedError(
                 f"The passed weight is not `gptq` compatible, loader needs to be updated."
             )
 
-        linear = QuantLinear(
-            qweight,
-            qzeros,
-            scales,
-            g_idx,
-            bias,
-            bits,
-            groupsize,
-        )
-    elif quantize == "gptq-cuda":
-        try:
-            qweight, qzeros, scales, g_idx, bits, groupsize = weight
-        except Exception:
-            raise NotImplementedError(
-                f"The passed weight is not `gptq` compatible, loader needs to be updated."
+        if use_triton_kernel:
+            linear = QuantLinear(
+                qweight,
+                qzeros,
+                scales,
+                g_idx,
+                bias,
+                bits,
+                groupsize,
             )
-
-        linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize, device)
+        else:
+            linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
@@ -193,12 +187,12 @@ class TensorParallelHead(SuperLayer):
         weight = weights.get_sharded(f"{prefix}.weight", dim=0)
 
         # GPTQ doesn't quantize heads (nor embeddings)
-        if config.quantize in ["gptq", "gptq-cuda"]:
+        if config.quantize == "gptq":
             quantize = None
         else:
             quantize = config.quantize
         return TensorParallelHead(
-            get_linear(weight, bias=None, quantize=quantize, device=weights.device),
+            get_linear(weight, bias=None, quantize=quantize),
             process_group=weights.process_group,
         )
 
@@ -254,7 +248,7 @@ class TensorParallelColumnLinear(SuperLayer):
             bias = torch.cat(b, dim=dim)
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize, device=weights.device)
+        linear = get_linear(weight, bias, config.quantize)
         return cls(linear)
 
 
@@ -273,7 +267,7 @@ class TensorParallelRowLinear(SuperLayer):
         else:
             bias = None
         return cls(
-            get_linear(weight, bias, config.quantize, device=weights.device),
+            get_linear(weight, bias, config.quantize),
             process_group=weights.process_group,
         )
 

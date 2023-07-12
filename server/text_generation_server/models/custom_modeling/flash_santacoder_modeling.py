@@ -27,7 +27,7 @@ from custom_kernels.exllama import prepare_buffers, set_tuning_params
 def load_multi_mqa(
     config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
 ):
-    if config.quantize in ["gptq", "gptq-cuda"]:
+    if config.quantize == "gptq":
         layer = _load_multi_mqa_gptq(
             config, prefix, weights, bias, head_size, num_heads, hidden_size
         )
@@ -79,7 +79,10 @@ def _load_multi_mqa_gptq(
         bits = weights.get_tensor("gptq_bits").item()
         groupsize = weights.get_tensor("gptq_groupsize").item()
 
-        weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
+        qweight = qweight.to(weights.device)
+        qzeros = qzeros.to(weights.device)
+        scales = scales.to(weights.device)
+        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
 
         if bias:
             slice_ = weights._get_slice(f"{prefix}.c_attn.bias")
@@ -93,7 +96,9 @@ def _load_multi_mqa_gptq(
             kv_tensor = slice_[-2 * head_size :]
             bias = torch.cat([q_tensor, kv_tensor], dim=0)
 
-        return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize, device=weights.device))
+            bias = bias.to(weights.device)
+
+        return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
     else:
         raise NotImplementedError("Gptq loading with santacoder is not implemented")
 
@@ -166,7 +171,7 @@ def _load_multi_mqa(
         assert list(bias.shape) == [
             (num_heads + 2) * head_size
         ], f"{weight.shape} != {[(num_heads + 2) * head_size]}"
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize, device=weights.device))
+    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
 
 
 def load_col(config, prefix: str, weights, bias: bool):
@@ -181,23 +186,11 @@ def load_col(config, prefix: str, weights, bias: bool):
         bias = weights.get_sharded(f"{prefix}.bias", dim=0)
     else:
         bias = None
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize, device=weights.device))
+    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
 
 
 def load_row(config, prefix: str, weights, bias: bool):
     quantize = config.quantize
-    if quantize == "gptq-cuda" and weights.process_group.size() > 1:
-        g_idx = weights.get_tensor(f"{prefix}.g_idx")
-        groupsize = weights.get_tensor("gptq_groupsize").item()
-        
-        act_order = True
-        if g_idx is not None:
-            if torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32)) or (g_idx == 0).all():
-                act_order = False
-            else:
-                # Exllama implementation does not support row tensor parallelism with act-order, as
-                # it would require to reorder input activations that are split unto several GPUs
-                quantize = "gptq"
 
     if config.transpose:
         weight = weights.get_sharded(f"{prefix}.weight", dim=0).T
@@ -209,12 +202,9 @@ def load_row(config, prefix: str, weights, bias: bool):
         bias = weights.get_tensor(f"{prefix}.bias")
     else:
         bias = None
-    
-    if quantize == "gptq-cuda" and not act_order:
-        weight[3] = None  # remove g_idx to indicate to exllama that act-order is not used
-    
+        
     return TensorParallelRowLinear(
-        get_linear(weight, bias, quantize, device=weights.device), process_group=weights.process_group
+        get_linear(weight, bias, quantize), process_group=weights.process_group
     )
 
 
@@ -480,7 +470,7 @@ class FlashSantacoderForCausalLM(nn.Module):
 
         # Buffers need to be persistent to avoid any bug.
         self.buffers = {}
-        if config.quantize == "gptq-cuda":
+        if config.quantize == "gptq":
             max_dq_buffer_size = 0
             for name, submodule in self.named_modules():
                 if isinstance(submodule, (TensorParallelColumnLinear, TensorParallelRowLinear)) and isinstance(submodule.linear, Ex4bitLinear):

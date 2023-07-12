@@ -392,29 +392,29 @@ def ext_q4_matmul(x, q4, q4_width):
 
 class Ex4bitLinear:
     """Linear layer implementation with per-group 4-bit quantization of the weights"""
-    def __init__(self, qweight, qzeros, scales, g_idx, bias, bits, groupsize, device):
+    def __init__(self, qweight, qzeros, scales, g_idx, bias, bits, groupsize):
         assert bits == 4
 
-        self.device = device
-        self.qweight = qweight.to(device)
-        self.qzeros = qzeros.to(device)
-        self.scales = scales.to(device)
+        self.device = qweight.device
+        self.qweight = qweight
+        self.qzeros = qzeros
+        self.scales = scales
         self.g_idx = g_idx.cpu() if g_idx is not None else None
-        self.bias = bias.to(device) if bias is not None else None
-
-        if self.g_idx is not None and (self.g_idx == 0).all():
+        self.bias = bias if bias is not None else None
+        
+        if self.g_idx is not None and ((self.g_idx == 0).all() or torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32))):
             self.empty_g_idx = True
             self.g_idx = None
         
-        assert device.type == "cuda"
-        assert device.index is not None
+        assert self.device.type == "cuda"
+        assert self.device.index is not None
 
         self.q4 = ext_make_q4(
             self.qweight,
             self.qzeros,
             self.scales,
             self.g_idx,
-            device.index
+            self.device.index
         )
 
         self.height = qweight.shape[0] * 8
