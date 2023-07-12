@@ -5,12 +5,12 @@ from copy import copy
 from transformers import AutoTokenizer
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLM, CausalLMBatch
+from text_generation_server.models.causal_lm import AutoCausalLM, CausalLMBatch
 
 
 @pytest.fixture(scope="session")
 def default_causal_lm():
-    return CausalLM("gpt2")
+    return AutoCausalLM("gpt2")
 
 
 @pytest.fixture(scope="session")

@@ -80,7 +80,7 @@ class BLOOMSharded(CausalLM):
         model = BloomForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(CausalLM, self).__init__(
+        super().__init__(
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,

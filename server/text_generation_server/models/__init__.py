@@ -7,7 +7,7 @@ from transformers.models.auto import modeling_auto
 from typing import Optional
 
 from text_generation_server.models.model import Model
-from text_generation_server.models.causal_lm import CausalLM
+from text_generation_server.models.causal_lm import CausalLM, AutoCausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOMSharded
 from text_generation_server.models.mpt import MPTSharded
@@ -33,6 +33,7 @@ __all__ = [
     "Model",
     "BLOOMSharded",
     "CausalLM",
+    "AutoCausalLM",
     "FlashCausalLM",
     "GalacticaSharded",
     "Seq2SeqLM",
@@ -202,7 +203,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
         else:
-            return CausalLM(
+            return AutoCausalLM(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -222,7 +223,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
         else:
-            return CausalLM(
+            return AutoCausalLM(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -292,7 +293,7 @@ def get_model(
         )
 
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        return CausalLM(
+        return AutoCausalLM(
             model_id,
             revision,
             quantize=quantize,
@@ -311,7 +312,7 @@ def get_model(
     auto_map = config_dict.get("auto_map", None)
     if trust_remote_code and auto_map is not None:
         if "AutoModelForCausalLM" in auto_map.keys():
-            return CausalLM(
+            return AutoCausalLM(
                 model_id,
                 revision,
                 quantize=quantize,
