@@ -1,3 +1,4 @@
+import torch
 import grpc
 
 from google.rpc import status_pb2, code_pb2
@@ -21,6 +22,9 @@ class ExceptionInterceptor(AsyncServerInterceptor):
         except Exception as err:
             method_name = method_name.split("/")[-1]
             logger.exception(f"Method {method_name} encountered an error.")
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             await context.abort_with_status(
                 rpc_status.to_status(

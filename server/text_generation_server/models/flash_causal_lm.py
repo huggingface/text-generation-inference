@@ -639,7 +639,6 @@ class FlashCausalLMBatch(Batch):
         for b in batches:
             b.block_tables = None
             del b
-        torch.cuda.empty_cache()
 
         return FlashCausalLMBatch(
             batch_id=batches[0].batch_id,
@@ -733,7 +732,6 @@ class FlashCausalLM(Model):
                 f"You need to decrease `--max-batch-total-tokens` or `--max-batch-prefill-tokens`"
             ) from e
         del batch
-        torch.cuda.empty_cache()
 
     def decode(self, generated_ids: Union[torch.Tensor, List[int]]) -> str:
         return self.tokenizer.decode(
@@ -790,7 +788,6 @@ class FlashCausalLM(Model):
             )
         except Exception as e:
             del batch
-            torch.cuda.empty_cache()
             raise e
 
         if prefill:
