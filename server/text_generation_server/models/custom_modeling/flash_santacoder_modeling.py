@@ -467,31 +467,8 @@ class FlashSantacoderForCausalLM(nn.Module):
         self.lm_head = TensorParallelHead.load(
             config, prefix="transformer.wte", weights=weights
         )
+        self.config = config
 
-        # Buffers need to be persistent to avoid any bug.
-        self.buffers = {}
-        if config.quantize == "gptq":
-            max_dq_buffer_size = 0
-            for name, submodule in self.named_modules():
-                if isinstance(submodule, (TensorParallelColumnLinear, TensorParallelRowLinear)) and isinstance(submodule.linear, Ex4bitLinear):
-                    max_dq_buffer_size = max(max_dq_buffer_size, submodule.linear.qweight.numel() * 8)
-            
-            intermediate_size = config.n_inner
-            max_seq_len = 2048  # TODO: we should be able to set it
-            
-            self.buffers["temp_state"] = torch.zeros((max_seq_len, intermediate_size), dtype=torch.float16, device=weights.device)
-            self.buffers["temp_dq"] = torch.zeros((1, max_dq_buffer_size), dtype=torch.float16, device=weights.device)
-
-            prepare_buffers(weights.device, self.buffers["temp_state"], self.buffers["temp_dq"])
-
-            # TODO: ability to set them
-            matmul_recons_thd = 8
-            matmul_fused_remap = False
-            matmul_no_half2 = False
-            set_tuning_params(matmul_recons_thd, matmul_fused_remap, matmul_no_half2)
-
-            torch.cuda.empty_cache()
-            
     def forward(
         self,
         input_ids: torch.Tensor,

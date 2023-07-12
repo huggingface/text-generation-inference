@@ -8,8 +8,15 @@ from transformers import PreTrainedTokenizerBase
 from text_generation_server.models.types import Batch, GeneratedText
 from text_generation_server.pb.generate_pb2 import InfoResponse
 
-B = TypeVar("B", bound=Batch)
+from text_generation_server.utils.gptq.quant_linear import Ex4bitLinear
+from custom_kernels.exllama import prepare_buffers, set_tuning_params
 
+from text_generation_server.utils.layers import (
+    TensorParallelRowLinear,
+    TensorParallelColumnLinear
+)
+
+B = TypeVar("B", bound=Batch)
 
 class Model(ABC):
     def __init__(
@@ -38,6 +45,30 @@ class Model(ABC):
             inspect.signature(model.forward).parameters.get("position_ids", None)
             is not None
         )
+
+        if model.config.quantize == "gptq":
+            # Buffers need to be persistent to avoid any bug.
+            self.buffers = {}
+            max_dq_buffer_size = 0
+            for name, submodule in self.model.named_modules():
+                if isinstance(submodule, (TensorParallelColumnLinear, TensorParallelRowLinear)) and isinstance(submodule.linear, Ex4bitLinear):
+                    max_dq_buffer_size = max(max_dq_buffer_size, submodule.linear.qweight.numel() * 8)
+            
+            intermediate_size = model.config.n_inner
+            max_seq_len = 2048  # TODO: we should be able to set it
+            
+            self.buffers["temp_state"] = torch.zeros((max_seq_len, intermediate_size), dtype=torch.float16, device=device)
+            self.buffers["temp_dq"] = torch.zeros((1, max_dq_buffer_size), dtype=torch.float16, device=device)
+
+            prepare_buffers(device, self.buffers["temp_state"], self.buffers["temp_dq"])
+
+            # TODO: ability to set them
+            matmul_recons_thd = 8
+            matmul_fused_remap = False
+            matmul_no_half2 = False
+            set_tuning_params(matmul_recons_thd, matmul_fused_remap, matmul_no_half2)
+
+            torch.cuda.empty_cache()
 
         self.check_initialized()
 

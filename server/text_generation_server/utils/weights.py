@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from safetensors import safe_open
 import torch
-from loguru import logger
 
 class Weights:
     def __init__(
