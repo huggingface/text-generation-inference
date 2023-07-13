@@ -73,17 +73,7 @@ def _load_multi_mqa_gptq(
         qzeros = torch.cat([q_tensor, kv_tensor], dim=1)
 
         g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
-        try:
-            bits = weights.get_tensor("gptq_bits").item()
-            groupsize = weights.get_tensor("gptq_groupsize").item()
-        except SafetensorError as e:
-            try:
-                import os
-
-                bits = int(os.getenv("GPTQ_BITS"))
-                groupsize = int(os.getenv("GPTQ_GROUPSIZE"))
-            except Exception:
-                raise e
+        bits, groupsize = weights.get_gptq_qparams()
 
         qweight = qweight.to(weights.device)
         qzeros = qzeros.to(weights.device)
@@ -471,7 +461,6 @@ class FlashSantacoderForCausalLM(nn.Module):
         self.lm_head = TensorParallelHead.load(
             config, prefix="transformer.wte", weights=weights
         )
-        self.config = config
 
     def forward(
         self,

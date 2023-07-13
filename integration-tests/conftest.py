@@ -230,15 +230,19 @@ def launcher(event_loop):
             shard_uds_path,
         ]
 
+        env = os.environ
+
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)
+            if quantize == "gptq":
+                env["GPTQ_GROUPSIZE"] = "128"
+                env["GPTQ_BITS"] = "4"
         if trust_remote_code:
             args.append("--trust-remote-code")
 
-        env = os.environ
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
 
         if not use_flash_attention:

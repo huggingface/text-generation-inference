@@ -1,0 +1,97 @@
+{
+  "generated_text": "The capital city of France isParis.\n The Best Way to Visit",
+  "details": {
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "seed": 0,
+    "prefill": [
+      {
+        "id": 2,
+        "text": "</s>",
+        "logprob": null
+      },
+      {
+        "id": 4272,
+        "text": "city",
+        "logprob": -12.4453125
+      },
+      {
+        "id": 310,
+        "text": "of",
+        "logprob": -2.4023438
+      },
+      {
+        "id": 3444,
+        "text": "France",
+        "logprob": -12.515625
+      },
+      {
+        "id": 338,
+        "text": "is",
+        "logprob": -5.1914062
+      }
+    ],
+    "tokens": [
+      {
+        "id": 3681,
+        "text": " Paris",
+        "logprob": -0.22546387,
+        "special": false
+      },
+      {
+        "id": 29889,
+        "text": ".",
+        "logprob": 0,
+        "special": false
+      },
+      {
+        "id": 13,
+        "text": "\n",
+        "logprob": 0,
+        "special": false
+      },
+      {
+        "id": 1,
+        "text": "",
+        "logprob": 0,
+        "special": false
+      },
+      {
+        "id": 450,
+        "text": " The",
+        "logprob": 0,
+        "special": false
+      },
+      {
+        "id": 6407,
+        "text": " Best",
+        "logprob": -0.5522461,
+        "special": false
+      },
+      {
+        "id": 5307,
+        "text": " Way",
+        "logprob": 0,
+        "special": false
+      },
+      {
+        "id": 304,
+        "text": " to",
+        "logprob": 0,
+        "special": false
+      },
+      {
+        "id": 5741,
+        "text": " Vis",
+        "logprob": -2.3496094,
+        "special": false
+      },
+      {
+        "id": 277,
+        "text": "it",
+        "logprob": 0,
+        "special": false
+      }
+    ]
+  }
+}

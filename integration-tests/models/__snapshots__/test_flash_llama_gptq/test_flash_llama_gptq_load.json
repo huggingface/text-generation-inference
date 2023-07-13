@@ -1,0 +1,410 @@
+[
+  {
+    "generated_text": ", and I am going to visit the Louvre",
+    "details": {
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "seed": null,
+      "prefill": [
+        {
+          "id": 2,
+          "text": "</s>",
+          "logprob": null
+        },
+        {
+          "id": 20628,
+          "text": "Today",
+          "logprob": -10.734375
+        },
+        {
+          "id": 306,
+          "text": "I",
+          "logprob": -4.2265625
+        },
+        {
+          "id": 626,
+          "text": "am",
+          "logprob": -1.9794922
+        },
+        {
+          "id": 297,
+          "text": "in",
+          "logprob": -5.4960938
+        },
+        {
+          "id": 3444,
+          "text": "France",
+          "logprob": -9.1171875
+        }
+      ],
+      "tokens": [
+        {
+          "id": 29892,
+          "text": ",",
+          "logprob": -0.30737305,
+          "special": false
+        },
+        {
+          "id": 322,
+          "text": " and",
+          "logprob": -1.3701172,
+          "special": false
+        },
+        {
+          "id": 306,
+          "text": " I",
+          "logprob": -0.31567383,
+          "special": false
+        },
+        {
+          "id": 626,
+          "text": " am",
+          "logprob": -1.3886719,
+          "special": false
+        },
+        {
+          "id": 2675,
+          "text": " going",
+          "logprob": -1.2070312,
+          "special": false
+        },
+        {
+          "id": 304,
+          "text": " to",
+          "logprob": -0.0014028549,
+          "special": false
+        },
+        {
+          "id": 6493,
+          "text": " visit",
+          "logprob": -1.1181641,
+          "special": false
+        },
+        {
+          "id": 278,
+          "text": " the",
+          "logprob": -0.3942871,
+          "special": false
+        },
+        {
+          "id": 4562,
+          "text": " Lou",
+          "logprob": -1.8789062,
+          "special": false
+        },
+        {
+          "id": 12675,
+          "text": "vre",
+          "logprob": -0.00082969666,
+          "special": false
+        }
+      ]
+    }
+  },
+  {
+    "generated_text": ", and I am going to visit the Louvre",
+    "details": {
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "seed": null,
+      "prefill": [
+        {
+          "id": 2,
+          "text": "</s>",
+          "logprob": null
+        },
+        {
+          "id": 20628,
+          "text": "Today",
+          "logprob": -10.734375
+        },
+        {
+          "id": 306,
+          "text": "I",
+          "logprob": -4.2265625
+        },
+        {
+          "id": 626,
+          "text": "am",
+          "logprob": -1.9794922
+        },
+        {
+          "id": 297,
+          "text": "in",
+          "logprob": -5.4960938
+        },
+        {
+          "id": 3444,
+          "text": "France",
+          "logprob": -9.1171875
+        }
+      ],
+      "tokens": [
+        {
+          "id": 29892,
+          "text": ",",
+          "logprob": -0.30737305,
+          "special": false
+        },
+        {
+          "id": 322,
+          "text": " and",
+          "logprob": -1.3720703,
+          "special": false
+        },
+        {
+          "id": 306,
+          "text": " I",
+          "logprob": -0.31469727,
+          "special": false
+        },
+        {
+          "id": 626,
+          "text": " am",
+          "logprob": -1.3916016,
+          "special": false
+        },
+        {
+          "id": 2675,
+          "text": " going",
+          "logprob": -1.2050781,
+          "special": false
+        },
+        {
+          "id": 304,
+          "text": " to",
+          "logprob": -0.0014019012,
+          "special": false
+        },
+        {
+          "id": 6493,
+          "text": " visit",
+          "logprob": -1.1162109,
+          "special": false
+        },
+        {
+          "id": 278,
+          "text": " the",
+          "logprob": -0.3959961,
+          "special": false
+        },
+        {
+          "id": 4562,
+          "text": " Lou",
+          "logprob": -1.8847656,
+          "special": false
+        },
+        {
+          "id": 12675,
+          "text": "vre",
+          "logprob": -0.0008392334,
+          "special": false
+        }
+      ]
+    }
+  },
+  {
+    "generated_text": ", and I am going to visit the Louvre",
+    "details": {
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "seed": null,
+      "prefill": [
+        {
+          "id": 2,
+          "text": "</s>",
+          "logprob": null
+        },
+        {
+          "id": 20628,
+          "text": "Today",
+          "logprob": -10.734375
+        },
+        {
+          "id": 306,
+          "text": "I",
+          "logprob": -4.2265625
+        },
+        {
+          "id": 626,
+          "text": "am",
+          "logprob": -1.9794922
+        },
+        {
+          "id": 297,
+          "text": "in",
+          "logprob": -5.4960938
+        },
+        {
+          "id": 3444,
+          "text": "France",
+          "logprob": -9.1171875
+        }
+      ],
+      "tokens": [
+        {
+          "id": 29892,
+          "text": ",",
+          "logprob": -0.30737305,
+          "special": false
+        },
+        {
+          "id": 322,
+          "text": " and",
+          "logprob": -1.3710938,
+          "special": false
+        },
+        {
+          "id": 306,
+          "text": " I",
+          "logprob": -0.31225586,
+          "special": false
+        },
+        {
+          "id": 626,
+          "text": " am",
+          "logprob": -1.3994141,
+          "special": false
+        },
+        {
+          "id": 2675,
+          "text": " going",
+          "logprob": -1.2060547,
+          "special": false
+        },
+        {
+          "id": 304,
+          "text": " to",
+          "logprob": -0.0013828278,
+          "special": false
+        },
+        {
+          "id": 6493,
+          "text": " visit",
+          "logprob": -1.1181641,
+          "special": false
+        },
+        {
+          "id": 278,
+          "text": " the",
+          "logprob": -0.39135742,
+          "special": false
+        },
+        {
+          "id": 4562,
+          "text": " Lou",
+          "logprob": -1.8808594,
+          "special": false
+        },
+        {
+          "id": 12675,
+          "text": "vre",
+          "logprob": -0.00084352493,
+          "special": false
+        }
+      ]
+    }
+  },
+  {
+    "generated_text": ", and I am going to visit the Louvre",
+    "details": {
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "seed": null,
+      "prefill": [
+        {
+          "id": 2,
+          "text": "</s>",
+          "logprob": null
+        },
+        {
+          "id": 20628,
+          "text": "Today",
+          "logprob": -11.203125
+        },
+        {
+          "id": 306,
+          "text": "I",
+          "logprob": -4.1757812
+        },
+        {
+          "id": 626,
+          "text": "am",
+          "logprob": -1.9697266
+        },
+        {
+          "id": 297,
+          "text": "in",
+          "logprob": -5.4609375
+        },
+        {
+          "id": 3444,
+          "text": "France",
+          "logprob": -9.046875
+        }
+      ],
+      "tokens": [
+        {
+          "id": 29892,
+          "text": ",",
+          "logprob": -0.3083496,
+          "special": false
+        },
+        {
+          "id": 322,
+          "text": " and",
+          "logprob": -1.4228516,
+          "special": false
+        },
+        {
+          "id": 306,
+          "text": " I",
+          "logprob": -0.32055664,
+          "special": false
+        },
+        {
+          "id": 626,
+          "text": " am",
+          "logprob": -1.3847656,
+          "special": false
+        },
+        {
+          "id": 2675,
+          "text": " going",
+          "logprob": -1.21875,
+          "special": false
+        },
+        {
+          "id": 304,
+          "text": " to",
+          "logprob": -0.0014572144,
+          "special": false
+        },
+        {
+          "id": 6493,
+          "text": " visit",
+          "logprob": -1.1542969,
+          "special": false
+        },
+        {
+          "id": 278,
+          "text": " the",
+          "logprob": -0.41455078,
+          "special": false
+        },
+        {
+          "id": 4562,
+          "text": " Lou",
+          "logprob": -1.8193359,
+          "special": false
+        },
+        {
+          "id": 12675,
+          "text": "vre",
+          "logprob": -0.0007710457,
+          "special": false
+        }
+      ]
+    }
+  }
+]

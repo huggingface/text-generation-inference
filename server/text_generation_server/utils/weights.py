@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from safetensors import safe_open, SafetensorError
 import torch
-
 
 class Weights:
     def __init__(
@@ -127,17 +126,7 @@ class Weights:
                 torch.testing.assert_close(w2, w[0])
             g_idx = w[0]
 
-            try:
-                bits = self.get_tensor("gptq_bits").item()
-                groupsize = self.get_tensor("gptq_groupsize").item()
-            except SafetensorError as e:
-                try:
-                    import os
-
-                    bits = int(os.getenv("GPTQ_BITS"))
-                    groupsize = int(os.getenv("GPTQ_GROUPSIZE"))
-                except Exception:
-                    raise e
+            bits, groupsize = self.get_gptq_qparams()
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
@@ -149,7 +138,7 @@ class Weights:
             use_triton_kernel = False
             if self.process_group.size() > 1:
                 g_idx = self.get_tensor(f"{prefix}.g_idx")
-                groupsize = self.get_tensor("gptq_groupsize").item()
+                _, groupsize = self.get_gptq_qparams()
                 
                 if g_idx is not None:
                     if not torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32)) and not (g_idx == 0).all():
@@ -180,19 +169,24 @@ class Weights:
                 else:
                     g_idx = None
 
-            try:
-                bits = self.get_tensor("gptq_bits").item()
-                groupsize = self.get_tensor("gptq_groupsize").item()
-            except SafetensorError as e:
-                try:
-                    import os
-
-                    bits = int(os.getenv("GPTQ_BITS"))
-                    groupsize = int(os.getenv("GPTQ_GROUPSIZE"))
-                except Exception:
-                    raise e
+            bits, groupsize = self.get_gptq_qparams()
 
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_triton_kernel)
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight
+
+    def get_gptq_qparams(self) -> Tuple[int, int]:
+        try:
+            bits = self.get_tensor("gptq_bits").item()
+            groupsize = self.get_tensor("gptq_groupsize").item()
+        except (SafetensorError, RuntimeError) as e:
+            try:
+                import os
+
+                bits = int(os.getenv("GPTQ_BITS"))
+                groupsize = int(os.getenv("GPTQ_GROUPSIZE"))
+            except Exception:
+                raise e
+        
+        return bits, groupsize

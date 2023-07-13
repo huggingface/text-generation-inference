@@ -63,6 +63,7 @@ class SantaCoder(CausalLM):
         super(CausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
+            config=model.config,
             requires_padding=True,
             dtype=dtype,
             device=device,
