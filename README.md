@@ -1,5 +1,7 @@
 <div align="center">
 
+![image](https://github.com/huggingface/text-generation-inference/assets/3841370/38ba1531-ea0d-4851-b31a-a6d4ddc944b0)
+
 # Text Generation Inference
 
 <a href="https://github.com/huggingface/text-generation-inference">
@@ -11,9 +13,6 @@
 <a href="https://huggingface.github.io/text-generation-inference">
   <img alt="Swagger API documentation" src="https://img.shields.io/badge/API-Swagger-informational">
 </a>
-
-![architecture](assets/architecture.jpg)
-
 </div>
 
 A Rust, Python and gRPC server for text generation inference. Used in production at [HuggingFace](https://huggingface.co) 
