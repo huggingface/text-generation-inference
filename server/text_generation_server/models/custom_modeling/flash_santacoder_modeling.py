@@ -378,7 +378,7 @@ class Block(nn.Module):
         max_s,
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
-
+        
         hidden_states = self.attn(
             hidden_states,
             cu_seqlen_prefill,

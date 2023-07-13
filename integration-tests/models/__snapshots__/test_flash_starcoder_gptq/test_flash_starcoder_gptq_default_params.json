@@ -1,6 +1,7 @@
 {
   "generated_text": "\n    return reduce(lambda x, y: x * y, L)\n\ndef geometric",
   "details": {
+    "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 20,
     "seed": 0,
