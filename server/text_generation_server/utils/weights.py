@@ -3,6 +3,7 @@ from typing import List, Dict, Optional, Tuple
 from safetensors import safe_open, SafetensorError
 import torch
 
+
 class Weights:
     def __init__(
         self,
@@ -175,18 +176,3 @@ class Weights:
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight
-
-    def get_gptq_qparams(self) -> Tuple[int, int]:
-        try:
-            bits = self.get_tensor("gptq_bits").item()
-            groupsize = self.get_tensor("gptq_groupsize").item()
-        except (SafetensorError, RuntimeError) as e:
-            try:
-                import os
-
-                bits = int(os.getenv("GPTQ_BITS"))
-                groupsize = int(os.getenv("GPTQ_GROUPSIZE"))
-            except Exception:
-                raise e
-        
-        return bits, groupsize
