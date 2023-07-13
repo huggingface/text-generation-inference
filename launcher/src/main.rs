@@ -760,16 +760,6 @@ fn spawn_shards(
     status_sender: mpsc::Sender<ShardStatus>,
     running: Arc<AtomicBool>,
 ) -> Result<(), LauncherError> {
-    if args.trust_remote_code {
-        tracing::warn!(
-            "`trust_remote_code` is set. Trusting that model `{}` do not contain malicious code.",
-            args.model_id
-        );
-        if args.revision.is_none() {
-            tracing::warn!("Explicitly passing a `revision` is encouraged when loading a model with custom code to ensure no malicious code has been contributed in a newer revision.");
-        }
-    }
-
     // Start shard processes
     for rank in 0..num_shard {
         let model_id = args.model_id.clone();
@@ -1024,6 +1014,12 @@ fn main() -> Result<(), LauncherError> {
         return Err(LauncherError::ArgumentValidation(
             "`validation_workers` must be > 0".to_string(),
         ));
+    }
+    if args.trust_remote_code {
+        tracing::warn!(
+            "`trust_remote_code` is set. Trusting that model `{}` do not contain malicious code.",
+            args.model_id
+        );
     }
 
     let num_shard = find_num_shards(args.sharded, args.num_shard)?;
