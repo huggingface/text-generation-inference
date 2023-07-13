@@ -1,9 +1,13 @@
 use clap::{Parser, ValueEnum};
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
 use std::io::{BufRead, BufReader, Read};
+use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::TryRecvError;
 use std::sync::{mpsc, Arc};
@@ -11,7 +15,6 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
-use subprocess::{ExitStatus, Popen, PopenConfig, PopenError, Redirection};
 
 mod env_runtime;
 
@@ -71,6 +74,11 @@ struct Args {
     /// on the hub. You can use a specific commit id or a branch like `refs/pr/2`.
     #[clap(long, env)]
     revision: Option<String>,
+
+    /// The number of tokenizer workers used for payload validation and truncation inside the
+    /// router.
+    #[clap(default_value = "2", long, env)]
+    validation_workers: usize,
 
     /// Whether to shard the model across multiple GPUs
     /// By default text-generation-inference will use all available GPUs to run
@@ -306,11 +314,12 @@ fn shard_manager(
     let uds_string = format!("{uds_path}-{rank}");
     let uds = Path::new(&uds_string);
     // Clean previous runs
-    fs::remove_file(uds).unwrap_or_default();
+    if uds.exists() {
+        fs::remove_file(uds).unwrap();
+    }
 
     // Process args
     let mut shard_argv = vec![
-        "text-generation-server".to_string(),
         "serve".to_string(),
         model_id,
         "--uds-path".to_string(),
@@ -415,26 +424,23 @@ fn shard_manager(
 
     // Start process
     tracing::info!("Starting shard {rank}");
-    let mut p = match Popen::create(
-        &shard_argv,
-        PopenConfig {
-            stdout: Redirection::Pipe,
-            stderr: Redirection::Pipe,
-            // Needed for the shutdown procedure
-            setpgid: true,
-            // NCCL env vars
-            env: Some(env),
-            ..Default::default()
-        },
-    ) {
+    let mut p = match Command::new("text-generation-server")
+        .args(shard_argv)
+        .envs(env)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+    {
         Ok(p) => p,
         Err(err) => {
-            if let PopenError::IoError(ref err) = err {
-                if err.kind() == io::ErrorKind::NotFound {
-                    tracing::error!("text-generation-server not found in PATH");
-                    tracing::error!("Please install it with `make install-server`")
-                }
+            if err.kind() == io::ErrorKind::NotFound {
+                tracing::error!("text-generation-server not found in PATH");
+                tracing::error!("Please install it with `make install-server`")
+            } else {
+                tracing::error!("{}", err);
             }
+
             status_sender
                 .send(ShardStatus::Failed((rank, Some(err.to_string()))))
                 .unwrap();
@@ -462,7 +468,7 @@ fn shard_manager(
     let mut wait_time = Instant::now();
     loop {
         // Process exited
-        if let Some(exit_status) = p.poll() {
+        if let Some(exit_status) = p.try_wait().unwrap() {
             // We read stderr in another thread as it seems that `read_to_string` can block
             // indefinitely in some cases
             let (err_sender, err_receiver) = mpsc::channel();
@@ -480,7 +486,7 @@ fn shard_manager(
                 })
                 .ok();
 
-            if let ExitStatus::Signaled(signal) = exit_status {
+            if let Some(signal) = exit_status.signal() {
                 tracing::error!("Shard process was signaled to shutdown with signal {signal}");
             }
 
@@ -493,7 +499,7 @@ fn shard_manager(
         // We received a shutdown signal
         if shutdown.load(Ordering::SeqCst) {
             p.kill().unwrap();
-            let _ = p.wait_timeout(Duration::from_secs(90));
+            let _ = p.wait();
             tracing::info!("Shard {rank} terminated");
             return;
         }
@@ -573,7 +579,10 @@ impl PythonLogMessage {
     }
 }
 
-fn find_num_shards(sharded: Option<bool>, num_shard: Option<usize>) -> usize {
+fn find_num_shards(
+    sharded: Option<bool>,
+    num_shard: Option<usize>,
+) -> Result<usize, LauncherError> {
     // get the number of shards given `sharded` and `num_shard`
     let num_shard = match (sharded, num_shard) {
         (Some(true), None) => {
@@ -582,14 +591,18 @@ fn find_num_shards(sharded: Option<bool>, num_shard: Option<usize>) -> usize {
             let n_devices = num_cuda_devices()
                 .expect("--num-shard and CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES are not set");
             if n_devices <= 1 {
-                panic!("`sharded` is true but only found {n_devices} CUDA devices");
+                return Err(LauncherError::NotEnoughCUDADevices(format!(
+                    "`sharded` is true but only found {n_devices} CUDA devices"
+                )));
             }
             n_devices
         }
         (Some(true), Some(num_shard)) => {
             // we can't have only one shard while sharded
             if num_shard <= 1 {
-                panic!("`sharded` is true but `num_shard` <= 1");
+                return Err(LauncherError::ArgumentValidation(
+                    "`sharded` is true but `num_shard` <= 1".to_string(),
+                ));
             }
             num_shard
         }
@@ -599,13 +612,17 @@ fn find_num_shards(sharded: Option<bool>, num_shard: Option<usize>) -> usize {
         (None, Some(num_shard)) => num_shard,
     };
     if num_shard < 1 {
-        panic!("`num_shard` cannot be < 1");
+        return Err(LauncherError::ArgumentValidation(
+            "`num_shard` cannot be < 1".to_string(),
+        ));
     }
-    num_shard
+    Ok(num_shard)
 }
 
 #[derive(Debug)]
 enum LauncherError {
+    ArgumentValidation(String),
+    NotEnoughCUDADevices(String),
     DownloadError,
     ShardCannotStart,
     ShardDisconnected,
@@ -616,7 +633,6 @@ enum LauncherError {
 
 fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
     let mut download_argv = vec![
-        "text-generation-server".to_string(),
         "download-weights".to_string(),
         args.model_id.to_string(),
         "--extension".to_string(),
@@ -664,25 +680,21 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // Start process
     tracing::info!("Starting download process.");
-    let mut download_process = match Popen::create(
-        &download_argv,
-        PopenConfig {
-            stdout: Redirection::Pipe,
-            stderr: Redirection::Pipe,
-            // Needed for the shutdown procedure
-            setpgid: true,
-            env: Some(env),
-            ..Default::default()
-        },
-    ) {
+    let mut download_process = match Command::new("text-generation-server")
+        .args(download_argv)
+        .envs(env)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+    {
         Ok(p) => p,
         Err(err) => {
-            if let PopenError::IoError(ref err) = err {
-                if err.kind() == io::ErrorKind::NotFound {
-                    tracing::error!("text-generation-server not found in PATH");
-                    tracing::error!("Please install it with `make install-server`")
-                }
+            if err.kind() == io::ErrorKind::NotFound {
+                tracing::error!("text-generation-server not found in PATH");
+                tracing::error!("Please install it with `make install-server`")
             }
+
             return Err(LauncherError::DownloadError);
         }
     };
@@ -702,49 +714,33 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     });
 
     loop {
-        if let Some(status) = download_process.poll() {
-            match status {
-                ExitStatus::Exited(exit_code) => {
-                    if exit_code == 0 {
-                        tracing::info!("Successfully downloaded weights.");
-                        break;
-                    } else {
-                        let mut err = String::new();
-                        download_process
-                            .stderr
-                            .take()
-                            .unwrap()
-                            .read_to_string(&mut err)
-                            .unwrap();
-                        tracing::error!("Download encountered an error: {err}");
-                        return Err(LauncherError::DownloadError);
-                    }
-                }
-                ExitStatus::Signaled(signal) => {
-                    let mut err = String::new();
-                    download_process
-                        .stderr
-                        .take()
-                        .unwrap()
-                        .read_to_string(&mut err)
-                        .unwrap();
-                    tracing::error!(
-                        "Download process was signaled to shutdown with signal {signal}: {err}"
-                    );
-                    return Err(LauncherError::DownloadError);
-                }
-                e => {
-                    tracing::error!("Download process exited with an unknown status.: {e:?}");
-                    return Err(LauncherError::DownloadError);
-                }
+        if let Some(status) = download_process.try_wait().unwrap() {
+            if status.success() {
+                tracing::info!("Successfully downloaded weights.");
+                break;
             }
+
+            let mut err = String::new();
+            download_process
+                .stderr
+                .take()
+                .unwrap()
+                .read_to_string(&mut err)
+                .unwrap();
+            if let Some(signal) = status.signal() {
+                tracing::error!(
+                    "Download process was signaled to shutdown with signal {signal}: {err}"
+                );
+            } else {
+                tracing::error!("Download encountered an error: {err}");
+            }
+
+            return Err(LauncherError::DownloadError);
         }
         if !running.load(Ordering::SeqCst) {
-            download_process.terminate().unwrap();
+            signal::kill(Pid::from_raw(download_process.id() as i32), Signal::SIGTERM).unwrap();
             tracing::info!("Waiting for download process to gracefully shutdown");
-            download_process
-                .wait_timeout(Duration::from_secs(90))
-                .unwrap();
+            download_process.wait().unwrap();
             tracing::info!("Download process terminated");
             return Ok(());
         }
@@ -854,12 +850,11 @@ fn spawn_webserver(
     args: Args,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
-) -> Result<Popen, LauncherError> {
+) -> Result<Child, LauncherError> {
     // All shard started
     // Start webserver
     tracing::info!("Starting Webserver");
     let mut argv = vec![
-        "text-generation-router".to_string(),
         "--max-concurrent-requests".to_string(),
         args.max_concurrent_requests.to_string(),
         "--max-best-of".to_string(),
@@ -878,6 +873,8 @@ fn spawn_webserver(
         args.waiting_served_ratio.to_string(),
         "--max-waiting-tokens".to_string(),
         args.max_waiting_tokens.to_string(),
+        "--validation-workers".to_string(),
+        args.validation_workers.to_string(),
         "--hostname".to_string(),
         args.hostname.to_string(),
         "--port".to_string(),
@@ -942,25 +939,20 @@ fn spawn_webserver(
         env.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
     };
 
-    let mut webserver = match Popen::create(
-        &argv,
-        PopenConfig {
-            stdout: Redirection::Pipe,
-            stderr: Redirection::Pipe,
-            // Needed for the shutdown procedure
-            setpgid: true,
-            env: Some(env),
-            ..Default::default()
-        },
-    ) {
+    let mut webserver = match Command::new("text-generation-router")
+        .args(argv)
+        .envs(env)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+    {
         Ok(p) => p,
         Err(err) => {
             tracing::error!("Failed to start webserver: {}", err);
-            if let PopenError::IoError(err) = err {
-                if err.kind() == io::ErrorKind::NotFound {
-                    tracing::error!("text-generation-router not found in PATH");
-                    tracing::error!("Please install it with `make install-router`")
-                }
+            if err.kind() == io::ErrorKind::NotFound {
+                tracing::error!("text-generation-router not found in PATH");
+                tracing::error!("Please install it with `make install-router`")
             } else {
                 tracing::error!("{}", err);
             }
@@ -1004,7 +996,37 @@ fn main() -> Result<(), LauncherError> {
 
     tracing::info!("{:?}", args);
 
-    let num_shard = find_num_shards(args.sharded, args.num_shard);
+    // Validate args
+    if args.max_input_length >= args.max_total_tokens {
+        return Err(LauncherError::ArgumentValidation(
+            "`max_input_length` must be < `max_total_tokens`".to_string(),
+        ));
+    }
+    if args.max_input_length as u32 > args.max_batch_prefill_tokens {
+        return Err(LauncherError::ArgumentValidation(format!(
+            "`max_batch_prefill_tokens` must be >= `max_input_length`. Given: {} and {}",
+            args.max_batch_prefill_tokens, args.max_input_length
+        )));
+    }
+    if args.max_batch_prefill_tokens > args.max_batch_total_tokens {
+        return Err(LauncherError::ArgumentValidation(format!(
+            "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+            args.max_batch_prefill_tokens, args.max_batch_total_tokens
+        )));
+    }
+    if args.max_total_tokens as u32 > args.max_batch_total_tokens {
+        return Err(LauncherError::ArgumentValidation(format!(
+            "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+            args.max_total_tokens, args.max_batch_total_tokens
+        )));
+    }
+    if args.validation_workers == 0 {
+        return Err(LauncherError::ArgumentValidation(
+            "`validation_workers` must be > 0".to_string(),
+        ));
+    }
+
+    let num_shard = find_num_shards(args.sharded, args.num_shard)?;
     if num_shard > 1 {
         tracing::info!("Sharding model on {num_shard} processes");
     }
@@ -1065,7 +1087,7 @@ fn main() -> Result<(), LauncherError> {
             break;
         };
 
-        match webserver.poll() {
+        match webserver.try_wait().unwrap() {
             Some(_) => {
                 tracing::error!("Webserver Crashed");
                 shutdown_shards(shutdown, &shutdown_receiver);
@@ -1078,9 +1100,9 @@ fn main() -> Result<(), LauncherError> {
     }
 
     // Graceful termination
-    webserver.terminate().unwrap();
+    signal::kill(Pid::from_raw(webserver.id() as i32), Signal::SIGTERM).unwrap();
     tracing::info!("Waiting for webserver to gracefully shutdown");
-    webserver.wait_timeout(Duration::from_secs(90)).unwrap();
+    webserver.wait().unwrap();
     tracing::info!("Webserver terminated");
     shutdown_shards(shutdown, &shutdown_receiver);
 
