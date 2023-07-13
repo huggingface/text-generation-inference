@@ -94,6 +94,14 @@ def convert_files(pt_files: List[Path], sf_files: List[Path], discard_names: Lis
     # We do this instead of using tqdm because we want to parse the logs with the launcher
 
     for i, (pt_file, sf_file) in enumerate(zip(pt_files, sf_files)):
+        # Skip blacklisted files
+        if (
+            "arguments" in pt_file.name
+            or "args" in pt_file.name
+            or "training" in pt_file.name
+        ):
+            continue
+
         start = datetime.datetime.now()
         convert_file(pt_file, sf_file, discard_names)
         elapsed = datetime.datetime.now() - start
