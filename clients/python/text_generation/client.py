@@ -3,7 +3,7 @@ import requests
 
 from aiohttp import ClientSession, ClientTimeout
 from pydantic import ValidationError
-from typing import Dict, Optional, List, AsyncIterator, Iterator, Union
+from typing import Dict, Optional, List, AsyncIterator, Iterator, Union, Tuple
 
 from text_generation.types import (
     StreamResponse,
@@ -41,7 +41,7 @@ class Client:
         headers: Optional[Dict[str, str]] = None,
         cookies: Optional[Dict[str, str]] = None,
         timeout: int = 10,
-        cert: Optional[Union[str, tuple[str, str]]] = None,
+        cert: Optional[Union[str, Tuple[str, str]]] = None,
     ):
         """
         Args:
@@ -290,7 +290,6 @@ class AsyncClient:
         headers: Optional[Dict[str, str]] = None,
         cookies: Optional[Dict[str, str]] = None,
         timeout: int = 10,
-        cert: Optional[Union[str, tuple[str, str]]] = None,
     ):
         """
         Args:
@@ -302,15 +301,11 @@ class AsyncClient:
                 Cookies to include in the requests
             timeout (`int`):
                 Timeout in seconds
-            cert (`Optional[Union[str, tuple[str, str]]]`):
-                If String, path to ssl client cert file (.pem).
-                If Tuple, ('cert', 'key') pair.
         """
         self.base_url = base_url
         self.headers = headers
         self.cookies = cookies
         self.timeout = ClientTimeout(timeout * 60)
-        self.cert = cert
 
     async def generate(
         self,
