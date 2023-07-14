@@ -131,6 +131,7 @@ impl Client {
                     ignore_eos_token: false,
                 }),
                 prefill_logprobs: true,
+                top_n_tokens: 20,
             });
             n_tokens += max_input_length;
         }

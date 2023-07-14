@@ -158,7 +158,7 @@ async fn generate(
         add_prompt = Some(req.inputs.clone());
     }
 
-    let details = req.parameters.details || req.parameters.decoder_input_details;
+    let details: bool = req.parameters.details || req.parameters.decoder_input_details;
 
     // Inference
     let (response, best_of_responses) = match req.parameters.best_of {
@@ -191,6 +191,7 @@ async fn generate(
                             generated_tokens: response.generated_text.generated_tokens,
                             prefill: response.prefill,
                             tokens: response.tokens,
+                            top_tokens: response.top_tokens,
                             seed: response.generated_text.seed,
                         }
                     })
@@ -204,6 +205,7 @@ async fn generate(
                 tokens: response.tokens,
                 seed: response.generated_text.seed,
                 best_of_sequences,
+                top_tokens: response.top_tokens,
             })
         }
         false => None,
@@ -374,7 +376,12 @@ async fn generate_stream(
             tracing::error!("{err}");
             yield Ok(Event::from(err));
         } else {
+<<<<<<< HEAD
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
+=======
+            let top_n_tokens = req.0.parameters.top_n_tokens;
+            match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
+>>>>>>> 7c014c7 (Add WIP support for returning top tokens)
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, mut response_stream)) => {
                     // Server-Sent Event stream
@@ -385,12 +392,16 @@ async fn generate_stream(
                                     // Prefill is ignored
                                     InferStreamResponse::Prefill(_) => {}
                                     // Yield event for every new token
-                                    InferStreamResponse::Token(token) => {
+                                    InferStreamResponse::Intermediate{
+                                        token,
+                                        top_tokens,
+                                    } => {
                                         tracing::debug!(parent: &span, "Token: {:?}", token);
 
                                         // StreamResponse
                                         let stream_token = StreamResponse {
                                             token,
+                                            top_tokens: top_n_tokens.and(Some(top_tokens)),
                                             generated_text: None,
                                             details: None,
                                         };
@@ -403,6 +414,7 @@ async fn generate_stream(
                                         generated_text,
                                         start,
                                         queued,
+                                        top_tokens,
                                     } => {
                                         // Token details
                                         let details = match details {
@@ -451,6 +463,7 @@ async fn generate_stream(
 
                                         let stream_token = StreamResponse {
                                             token,
+                                            top_tokens:top_n_tokens.and(Some(top_tokens)),
                                             generated_text: Some(output_text),
                                             details
                                         };

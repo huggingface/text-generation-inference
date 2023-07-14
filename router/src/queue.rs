@@ -235,6 +235,9 @@ impl State {
                 truncate: entry.request.truncate,
                 parameters: Some(entry.request.parameters.clone()),
                 stopping_parameters: Some(entry.request.stopping_parameters.clone()),
+                // TODO: Actually fill this from the request
+                top_n_tokens: entry.request.top_n_tokens,
+
             });
             // Set batch_time
             entry.batch_time = Some(Instant::now());
@@ -328,6 +331,7 @@ mod tests {
                     max_new_tokens: 1,
                     stop_sequences: vec![],
                 },
+                top_n_tokens: 0,
             },
             response_tx,
             span: info_span!("entry"),

@@ -1,3 +1,4 @@
+from functools import total_ordering
 import torch
 
 from abc import ABC, abstractmethod
@@ -71,6 +72,30 @@ class PrefillTokens:
         return len(self.token_ids)
 
 
+@dataclass(eq=True)
+@total_ordering
+class TopToken:
+    token_id: int
+    token_logprob: float
+    token_text: str
+    token_is_special: bool
+
+    def __gt__(self, other):
+        # We tiebreak equal logprobs with the _lower_ token_id to align with
+        # greedy ordering (torch.argmax)
+        return self.token_logprob > other.token_logprob or (
+            self.token_logprob == other.token_logprob and self.token_id < other.token_id
+        )
+
+    def to_pb(self) -> generate_pb2.TopToken:
+        return generate_pb2.TopToken(
+            token_id=self.token_id,
+            token_logprob=self.token_logprob,
+            token_text=self.token_text,
+            token_is_special=self.token_is_special,
+        )
+
+
 @dataclass
 class Generation:
     request_id: int
@@ -80,6 +105,8 @@ class Generation:
     token_text: str
     token_is_special: bool
     generated_text: Optional[GeneratedText]
+    # Optional for now, since it's not yet supported for every model.
+    top_tokens: Optional[List[TopToken]]
 
     def to_pb(self) -> generate_pb2.Generation:
         return generate_pb2.Generation(
@@ -93,5 +120,8 @@ class Generation:
             token_is_special=self.token_is_special,
             generated_text=self.generated_text.to_pb()
             if self.generated_text is not None
+            else None,
+            top_tokens=[toptoken.to_pb() for toptoken in self.top_tokens]
+            if self.top_tokens
             else None,
         )

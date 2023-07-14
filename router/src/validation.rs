@@ -142,6 +142,8 @@ impl Validation {
             seed,
             watermark,
             decoder_input_details,
+            // TODO: Validate top_n_tokens
+            top_n_tokens,
             ..
         } = request.parameters;
 
@@ -263,6 +265,7 @@ impl Validation {
             truncate: truncate.unwrap_or(self.max_input_length) as u32,
             parameters,
             stopping_parameters,
+            top_n_tokens: top_n_tokens.unwrap_or(0),
         })
     }
 
@@ -336,6 +339,7 @@ pub(crate) struct ValidGenerateRequest {
     pub decoder_input_details: bool,
     pub parameters: NextTokenChooserParameters,
     pub stopping_parameters: StoppingCriteriaParameters,
+    pub top_n_tokens: u32,
 }
 
 #[derive(Error, Debug)]
