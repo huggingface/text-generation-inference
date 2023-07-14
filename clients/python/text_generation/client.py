@@ -3,7 +3,7 @@ import requests
 
 from aiohttp import ClientSession, ClientTimeout
 from pydantic import ValidationError
-from typing import Dict, Optional, List, AsyncIterator, Iterator, Union
+from typing import Dict, Optional, List, AsyncIterator, Iterator, Union, Tuple
 
 from text_generation.types import (
     StreamResponse,
@@ -41,7 +41,7 @@ class Client:
         headers: Optional[Dict[str, str]] = None,
         cookies: Optional[Dict[str, str]] = None,
         timeout: int = 10,
-        cert: Optional[Union[str, tuple[str, str]]] = None,
+        cert: Optional[Union[str, Tuple[str, str]]] = None,
     ):
         """
         Args:
