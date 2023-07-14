@@ -179,6 +179,9 @@ class BestOfSequence(BaseModel):
     prefill: List[InputToken]
     # Generated tokens
     tokens: List[Token]
+    # Most likely tokens
+    # TODO: Make this optional?
+    top_tokens: List[List[Token]]
 
 
 # `generate` details
@@ -193,6 +196,9 @@ class Details(BaseModel):
     prefill: List[InputToken]
     # Generated tokens
     tokens: List[Token]
+     # Most likely tokens
+    # TODO: Make this optional?
+    top_tokens: List[List[Token]]
     # Additional sequences when using the `best_of` parameter
     best_of_sequences: Optional[List[BestOfSequence]]
 
@@ -219,6 +225,9 @@ class StreamDetails(BaseModel):
 class StreamResponse(BaseModel):
     # Generated token
     token: Token
+    # Most likely tokens
+    # TODO: Make this optional?
+    top_tokens: List[Token]
     # Complete generated text
     # Only available when the generation is finished
     generated_text: Optional[str]

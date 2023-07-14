@@ -73,6 +73,9 @@ async fn generate_runs(
     // Create a dummy sequence
     let sequence = create_sequence(sequence_length, tokenizer);
 
+    // TODO: Implement top_n_tokens
+    let top_n_tokens= 0;
+
     for b in batch_size {
         // Warmups on batch size
         for _ in 0..warmups {
@@ -82,6 +85,7 @@ async fn generate_runs(
                 b,
                 decode_length,
                 parameters.clone(),
+                top_n_tokens,
                 &mut client,
             )
             .await?;
@@ -97,6 +101,7 @@ async fn generate_runs(
                 b,
                 decode_length,
                 parameters.clone(),
+                top_n_tokens,
                 &mut client,
             )
             .await?;
@@ -130,6 +135,7 @@ async fn prefill(
     batch_size: u32,
     decode_length: u32,
     parameters: NextTokenChooserParameters,
+    top_n_tokens: u32,
     client: &mut ShardedClient,
 ) -> Result<(Prefill, CachedBatch), ClientError> {
     // Create requests
@@ -145,6 +151,7 @@ async fn prefill(
                 stop_sequences: vec![],
                 ignore_eos_token: true, // Will not stop even if a eos token is generated
             }),
+            top_n_tokens: top_n_tokens,
         })
         .collect();
 

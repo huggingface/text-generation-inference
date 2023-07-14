@@ -1,3 +1,4 @@
+from text_generation_server.utils.tokens import get_top_tokens
 import torch
 
 from dataclasses import dataclass
@@ -647,6 +648,16 @@ class Seq2SeqLM(Model):
                 all_decoder_input_ids.view(1, -1), logits[-1:, :]
             )
 
+            top_tokens = get_top_tokens(
+                request.top_n_tokens,
+                logprobs,
+                self.all_special_ids,
+                self.decode_token,
+                all_decoder_input_ids,
+                prefix_offset,
+                read_offset,
+            )
+
             # Append next token to decoder tokens
             all_decoder_input_ids = torch.cat(
                 [all_decoder_input_ids, next_token_id.squeeze(1)]
@@ -706,6 +717,7 @@ class Seq2SeqLM(Model):
                     next_token_text,
                     next_token_id_squeezed.item() in self.all_special_ids,
                     generated_text,
+                    top_tokens,
                 )
 
                 generations.append(generation)
