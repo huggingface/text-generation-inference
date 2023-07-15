@@ -51,14 +51,14 @@ class SantaCoder(CausalLM):
                 "pad_token": EOD,
             }
         )
-
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            revision=revision,
-            torch_dtype=dtype,
-            load_in_8bit=quantize == "bitsandbytes",
-            trust_remote_code=trust_remote_code,
-        ).to(device)
+        with device:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                revision=revision,
+                torch_dtype=dtype,
+                load_in_8bit=quantize == "bitsandbytes",
+                trust_remote_code=trust_remote_code,
+            )
 
         super(CausalLM, self).__init__(
             model=model,
