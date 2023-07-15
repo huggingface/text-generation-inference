@@ -991,6 +991,7 @@ class FlashCausalLM(Model):
 
         if stopped:
             del batch
+            torch.cuda.empty_cache()
             # No need to return a batch if we know that all requests stopped
             return generations, None
 
