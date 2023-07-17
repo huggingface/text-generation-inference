@@ -115,7 +115,7 @@ class FlashLlamaAttention(torch.nn.Module):
         self.scale_factor = ROPE_SCALE_FACTOR
         self.dynamic_scaling = ROPE_DYNAMIC_SCALING
 
-        if self.scale_factor > 1:
+        if self.scale_factor > 1 or self.dynamic_scaling:
             # Base before scaling is 10000 per the original RoPE paper
             self.rotary_emb = PositionRotaryEmbedding.static(
                 self.head_size, 10000, weights.device, self.scale_factor, self.dynamic_scaling

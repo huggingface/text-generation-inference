@@ -60,14 +60,8 @@ if not os.environ.get("DISABLE_CUSTOM_KERNELS", "False") == "True":
 if not CUSTOM_KERNELS_ENABLED:
     logger.warning("We're not using custom kernels.")
 
-
 ROPE_SCALE_FACTOR = int(os.getenv("ROPE_SCALE_FACTOR", 1))
-
-if os.getenv("ROPE_DYNAMIC_SCALING", False).lower() == "true":
-    ROPE_DYNAMIC_SCALING = True
-else:
-    ROPE_DYNAMIC_SCALING = False
-
+ROPE_DYNAMIC_SCALING = os.getenv("ROPE_DYNAMIC_SCALING", "false").lower() == "true"
 
 def make_causal_mask(
     input_ids_shape: torch.Size, device: torch.device, past_key_values_length: int

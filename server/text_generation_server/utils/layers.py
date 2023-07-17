@@ -423,10 +423,9 @@ try:
             if self.dynamic_scaling:
                 scale_factor = (self.scale_factor * length / self.original_max_seq_len) - (self.scale_factor - 1)
                 max_seq_len = self.original_max_seq_len * scale_factor
-                inv_freq = self._get_inv_freq(self.dim, self.base, inv_freq.device, scale_factor)
-                self.register_buffer("inv_freq", inv_freq)
+                self.inv_freq = self._get_inv_freq(self.dim, self.base, inv_freq.device, scale_factor)
 
-            if self.scale_factor > 1:
+            if self.scale_factor > 1 and not self.dynamic_scaling:
                length =  max(seqlen, max_seq_len)
 
             if (

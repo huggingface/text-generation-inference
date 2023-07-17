@@ -26,11 +26,7 @@ from text_generation_server.utils.layers import (
 )
 
 ROPE_SCALE_FACTOR = int(os.getenv("ROPE_SCALE_FACTOR", 1))
-
-if os.getenv("ROPE_DYNAMIC_SCALING", False).lower() == "true":
-    ROPE_DYNAMIC_SCALING = True
-else:
-    ROPE_DYNAMIC_SCALING = False
+ROPE_DYNAMIC_SCALING = os.getenv("ROPE_DYNAMIC_SCALING", "false").lower() == "true"
 
 def load_row(config, prefix: str, weights, bias: bool):
     weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)

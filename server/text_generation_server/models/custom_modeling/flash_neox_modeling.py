@@ -45,13 +45,8 @@ from text_generation_server.utils.layers import (
     get_linear,
 )
 
-
 ROPE_SCALE_FACTOR = int(os.getenv("ROPE_SCALE_FACTOR", 1))
-
-if os.getenv("ROPE_DYNAMIC_SCALING", False).lower() == "true":
-    ROPE_DYNAMIC_SCALING = True
-else:
-    ROPE_DYNAMIC_SCALING = False
+ROPE_DYNAMIC_SCALING = os.getenv("ROPE_DYNAMIC_SCALING", "false").lower() == "true"
 
 
 def load_row(config, prefix: str, weights, bias: bool):
@@ -114,7 +109,7 @@ class FlashNeoxAttention(torch.nn.Module):
         self.scale_factor = ROPE_SCALE_FACTOR
         self.dynamic_scaling = ROPE_DYNAMIC_SCALING
 
-        if self.scale_factor > 1:
+        if self.scale_factor > 1 or self.dynamic_scaling:
             # Base before scaling is 10000 per the original RoPE paper
             self.rotary_emb = PositionRotaryEmbedding.static(
                 self.head_size, 10000, weights.device, self.scale_factor, self.dynamic_scaling, config.max_position_embeddings
