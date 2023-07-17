@@ -7,7 +7,7 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 # Flash attention imports
-import flash_attn_cuda
+import flash_attn_2_cuda
 
 # vllm imports
 import vllm_cache_ops
@@ -187,7 +187,7 @@ class FlashRWAttention(torch.nn.Module):
                 kv = kv.expand(-1, 2, self.num_heads, self.head_size)
 
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_2_cuda.varlen_fwd(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
@@ -322,7 +322,7 @@ class FlashRWLargeAttention(torch.nn.Module):
             )
 
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_2_cuda.varlen_fwd(
                 query,
                 torch.select(kv, dim=2, index=0),
                 torch.select(kv, dim=2, index=1),

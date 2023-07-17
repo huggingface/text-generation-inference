@@ -26,7 +26,7 @@ from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
 # Flash attention imports
-import flash_attn_cuda
+import flash_attn_2_cuda
 import dropout_layer_norm
 
 # vllm imports
@@ -164,7 +164,7 @@ class FlashLlamaAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_2_cuda.varlen_fwd(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],

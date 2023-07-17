@@ -28,7 +28,7 @@ from transformers.models.gpt_neox import GPTNeoXConfig
 from typing import Optional, List, Tuple
 
 # Flash attention imports
-import flash_attn_cuda
+import flash_attn_2_cuda
 
 # vllm imports
 import vllm_cache_ops
@@ -153,7 +153,7 @@ class FlashNeoxAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_2_cuda.varlen_fwd(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],

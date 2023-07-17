@@ -57,14 +57,13 @@ try:
             raise ImportError("CUDA is not available")
 
         major, minor = torch.cuda.get_device_capability()
-        is_sm75 = major == 7 and minor == 5
         is_sm8x = major == 8 and minor >= 0
         is_sm90 = major == 9 and minor == 0
 
-        supported = is_sm75 or is_sm8x or is_sm90
+        supported = is_sm8x or is_sm90
         if not supported:
             FLASH_ATT_ERROR_MESSAGE = (
-                "{} requires a CUDA device with capability 7.5, > 8.0 or 9.0. "
+                "{} requires a CUDA device with capability > 8.0 or 9.0. "
                 "No compatible CUDA device found."
             )
             raise ImportError(

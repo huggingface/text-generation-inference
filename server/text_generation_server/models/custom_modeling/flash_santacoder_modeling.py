@@ -6,7 +6,7 @@ from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
 # Flash attention imports
-import flash_attn_cuda
+import flash_attn_2_cuda
 
 # vllm imports
 import vllm_cache_ops
@@ -275,7 +275,7 @@ class FlashMQAttention(torch.nn.Module):
             key_value = key_value.expand(-1, 2, self.num_heads, self.head_size)
 
             # flash attention
-            flash_attn_cuda.fwd(
+            flash_attn_2_cuda.varlen_fwd(
                 query,
                 torch.select(key_value, dim=1, index=0),
                 torch.select(key_value, dim=1, index=1),
