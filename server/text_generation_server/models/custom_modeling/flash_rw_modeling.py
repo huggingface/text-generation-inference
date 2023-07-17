@@ -201,7 +201,6 @@ class FlashRWAttention(torch.nn.Module):
                 False,
                 True,
                 False,
-                0,
                 None,
             )
         # Decode
@@ -336,7 +335,6 @@ class FlashRWLargeAttention(torch.nn.Module):
                 False,
                 True,
                 False,
-                0,
                 None,
             )
         # Decode

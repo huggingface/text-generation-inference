@@ -178,7 +178,6 @@ class FlashLlamaAttention(torch.nn.Module):
                 False,
                 True,
                 False,
-                0,
                 None,
             )
         # Decode

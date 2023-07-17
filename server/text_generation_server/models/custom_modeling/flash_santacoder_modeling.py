@@ -289,7 +289,6 @@ class FlashMQAttention(torch.nn.Module):
                 False,
                 True,
                 False,
-                0,
                 None,
             )
         # Decode
