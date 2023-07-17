@@ -41,6 +41,7 @@ impl std::fmt::Display for Quantization {
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum Dtype {
     Float16,
+    #[clap(name = "bfloat16")]
     BFloat16,
 }
 
