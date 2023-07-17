@@ -284,15 +284,15 @@ struct Args {
     /// NTK-Aware Scaled Rope is a method proposed in https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/
     /// The scale factor, or "α", is used in combination with a non linearity to scale the base used to calculate the parameter "θ", the angle of rotation in RoPE.
     /// This increases how many input tokens can be represented within the same portion of a positional embedding, with the non linearity used to increase token seprability.
-    #[clap(default_value="1", long, env)]
+    #[clap(default_value = "1", long, env)]
     rope_scale_factor: usize,
 
     /// Dynamic scaling of the "α" factor in NTK-Aware Scaled Rope was introduced in https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/
     /// The idea being instead of setting alpha statically, it is calculated as a function of the current sequence length and the model's base sequence length.
     /// This is a means to both increase performance on shorter sequence lengths and smooth the perplexity explosion experienced by both linearly scaled and NTK-Aware scaled RoPE.
     /// If this is enabled the above "rope_scale_factor" will be ignored.
-    #[clap(default_value="false", long, env)]
-    rope_dynamic_scaling: bool
+    #[clap(default_value = "false", long, env)]
+    rope_dynamic_scaling: bool,
 }
 
 #[derive(Debug)]
@@ -438,8 +438,14 @@ fn shard_manager(
     }
 
     // RoPE Scaling
-    env.push(("ROPE_SCALE_FACTOR".into(), rope_scale_factor.to_string().into()));
-    env.push(("ROPE_DYNAMIC_SCALING".into(), rope_dynamic_scaling.to_string().into()));
+    envs.push((
+        "ROPE_SCALE_FACTOR".into(),
+        rope_scale_factor.to_string().into(),
+    ));
+    envs.push((
+        "ROPE_DYNAMIC_SCALING".into(),
+        rope_dynamic_scaling.to_string().into(),
+    ));
 
     // Start process
     tracing::info!("Starting shard {rank}");
