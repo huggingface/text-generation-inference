@@ -370,10 +370,10 @@ fn shard_manager(
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
     // Use cuda allocator. It leads to less memory fragmentation
-    envs.push((
-        "PYTORCH_CUDA_ALLOC_CONF".into(),
-        "backend:cudaMallocAsync".into(),
-    ));
+    // envs.push((
+    //     "PYTORCH_CUDA_ALLOC_CONF".into(),
+    //     "backend:cudaMallocAsync".into(),
+    // ));
 
     // Torch Distributed Env vars
     envs.push(("RANK".into(), rank.to_string().into()));
