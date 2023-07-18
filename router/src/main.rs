@@ -225,7 +225,6 @@ fn main() -> Result<(), RouterError> {
                         16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)),
                     );
                     tracing::warn!("Model does not support automatic max batch total tokens");
-                    tracing::warn!("Setting max batch total tokens to {max_batch_total_tokens}");
                     max_batch_total_tokens
                 }
                 // Flash attention models return their max supported total tokens
@@ -236,14 +235,14 @@ fn main() -> Result<(), RouterError> {
                             "`--max-batch-total-tokens` is deprecated for Flash \
                         Attention models."
                         );
+                        tracing::warn!(
+                            "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
+                        );
                     }
-                    tracing::info!(
-                        "Model can support up to {max_supported_batch_total_tokens} \
-                    max batch total tokens."
-                    );
                     max_supported_batch_total_tokens
                 }
             };
+            tracing::info!("Setting max batch total tokens to {max_supported_batch_total_tokens}");
             tracing::info!("Connected");
 
             let addr = match hostname.parse() {
