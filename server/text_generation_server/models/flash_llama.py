@@ -2,13 +2,13 @@ import torch
 import torch.distributed
 
 from opentelemetry import trace
-from transformers import AutoConfig
 from transformers.models.llama import LlamaTokenizer, LlamaTokenizerFast
 from typing import Optional
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_llama_modeling import (
     FlashLlamaForCausalLM,
+    LlamaConfig,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -52,7 +52,7 @@ class FlashLlama(FlashCausalLM):
                 trust_remote_code=trust_remote_code,
             )
 
-        config = AutoConfig.from_pretrained(
+        config = LlamaConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
 
