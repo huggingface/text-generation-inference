@@ -29,8 +29,6 @@ class Cache:
         keys = list(self.cache.keys())
         for k in keys:
             self.delete(k)
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
 
     def __len__(self):
         return len(self.cache.keys())

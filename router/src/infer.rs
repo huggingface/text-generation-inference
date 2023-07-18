@@ -349,7 +349,6 @@ async fn batching_task(
             }
             metrics::gauge!("tgi_batch_current_size", 0.0);
             metrics::gauge!("tgi_batch_current_max_tokens", 0.0);
-            let _ = client.clear_cache(None).await;
         }
     }
 }
