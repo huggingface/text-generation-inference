@@ -271,9 +271,6 @@ class FlashMQAttention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # Expand from 1 to num_heads
-            key_value = key_value.expand(-1, 2, self.num_heads, self.head_size)
-
             # flash attention
             flash_attn_2_cuda.varlen_fwd(
                 query,

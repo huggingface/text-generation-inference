@@ -182,10 +182,6 @@ class FlashRWAttention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            if self.num_heads_kv == 1:
-                # Expand to query shape
-                kv = kv.expand(-1, 2, self.num_heads, self.head_size)
-
             # flash attention
             flash_attn_2_cuda.varlen_fwd(
                 query,
@@ -313,13 +309,6 @@ class FlashRWLargeAttention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # Expand to query shape
-            kv = (
-                kv.unsqueeze(2)
-                .expand(-1, self.num_groups, self.num_heads, 2, self.head_size)
-                .reshape(-1, self.num_groups * self.num_heads, 2, self.head_size)
-            )
-
             # flash attention
             flash_attn_2_cuda.varlen_fwd(
                 query,
