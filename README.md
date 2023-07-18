@@ -63,6 +63,8 @@ to power LLMs api-inference widgets.
 - [Starcoder](https://huggingface.co/bigcode/starcoder)
 - [Falcon 7B](https://huggingface.co/tiiuae/falcon-7b)
 - [Falcon 40B](https://huggingface.co/tiiuae/falcon-40b)
+- [MPT](https://huggingface.co/mosaicml/mpt-30b)
+- [Llama V2](https://huggingface.co/meta-llama)
 
 Other architectures are supported on a best effort basis using:
 
