@@ -714,6 +714,7 @@ class FlashCausalLM(Model):
         global CACHE_MANAGER
 
         torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats(self.device)
         try:
             CACHE_MANAGER = CacheManager(
                 batch.blocks,
