@@ -743,8 +743,9 @@ class FlashCausalLM(Model):
 
         total_gpu_memory = torch.cuda.get_device_properties(self.device).total_memory
 
+        # 0.98 to add some wiggle room
         num_blocks = (
-            int((total_gpu_memory - peak_memory) // total_cache_size)
+            int((total_gpu_memory * 0.98 - peak_memory) // total_cache_size)
             # Add batch.blocks as we allocated it above, so it is included in the peak memory.
             + batch.blocks
         )
