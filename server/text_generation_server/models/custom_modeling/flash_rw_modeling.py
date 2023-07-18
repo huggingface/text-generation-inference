@@ -188,7 +188,7 @@ class FlashRWAttention(torch.nn.Module):
                 attn_output,
                 cu_seqlen_prefill,
                 max_s,
-                self.softmax_scale
+                self.softmax_scale,
             )
         # Decode
         else:
@@ -308,7 +308,7 @@ class FlashRWLargeAttention(torch.nn.Module):
                 attn_output,
                 cu_seqlen_prefill,
                 max_s,
-                self.softmax_scale
+                self.softmax_scale,
             )
         # Decode
         else:

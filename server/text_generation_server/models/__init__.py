@@ -55,10 +55,8 @@ try:
         FlashSantacoderSharded,
     )
 
-except ImportError:
-    logger.opt(exception=True).warning(
-        "Could not import Flash Attention enabled models"
-    )
+except ImportError as e:
+    logger.warning(f"Could not import Flash Attention enabled models: {e}")
     FLASH_ATTENTION = False
 
 if FLASH_ATTENTION:

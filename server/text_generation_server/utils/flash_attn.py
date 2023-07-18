@@ -1,6 +1,8 @@
 import os
 import torch
 
+from loguru import logger
+
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
     raise ImportError("`USE_FLASH_ATTENTION` is false.")
 
@@ -18,10 +20,11 @@ try:
     try:
         import flash_attn_2_cuda
     except ImportError:
-        raise ImportError("Flash Attention V2 is not installed.\n"
-                          "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
-                          "or install flash attention v2 with `cd server && make install install-flash-attention-v2`"
-                          )
+        raise ImportError(
+            "Flash Attention V2 is not installed.\n"
+            "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
+            "or install flash attention v2 with `cd server && make install install-flash-attention-v2`"
+        )
     if not (is_sm8x or is_sm90):
         raise ImportError(
             f"GPU with CUDA capability {major} {minor} is not supported for "
@@ -32,26 +35,28 @@ except ImportError as e:
     try:
         import flash_attn_cuda
     except ImportError:
-        raise ImportError("Flash Attention is not installed.\n"
-                          "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
-                          "or install flash attention with `cd server && make install install-flash-attention`"
-                          ) from e
+        raise ImportError(
+            "Flash Attention is not installed.\n"
+            "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
+            "or install flash attention with `cd server && make install install-flash-attention`"
+        ) from e
 
     if not (is_sm75 or is_sm8x or is_sm90):
         raise ImportError(
             f"GPU with CUDA capability {major} {minor} is not supported"
         ) from e
+    logger.warning(f"Unable to use Flash Attention V2: {e}")
     HAS_FLASH_ATTN = True
 
 
 def attention(
-        q,
-        k,
-        v,
-        out,
-        cu_seqlens,
-        max_s,
-        softmax_scale,
+    q,
+    k,
+    v,
+    out,
+    cu_seqlens,
+    max_s,
+    softmax_scale,
 ):
     if HAS_FLASH_ATTN_V2:
         return flash_attn_2_cuda.varlen_fwd(
@@ -76,21 +81,27 @@ def attention(
         if k.shape[1] != q.shape[1]:
             # MQA expand
             if k.shape[1] == 1:
-                k = k.expand(-1, q.shape[1], -1, -1)
+                k = k.expand(-1, q.shape[1], -1)
             # Grouped attention reshape
             else:
                 original_shape = k.shape
-                k = k.unsqueeze(2).expand(-1, -1, q.shape[1], -1, -1) \
-                    .reshape(original_shape[0], -1, original_shape[1], original_shape[2])
+                k = (
+                    k.unsqueeze(2)
+                    .expand(-1, -1, q.shape[1] // k.shape[1], -1)
+                    .reshape(original_shape[0], -1, original_shape[2])
+                )
         if v.shape[1] != q.shape[1]:
             # MQA expand
             if v.shape[1] == 1:
-                v = v.expand(-1, q.shape[1], -1, -1)
+                v = v.expand(-1, q.shape[1], -1)
             # Grouped attention reshape
             else:
                 original_shape = v.shape
-                v = v.unsqueeze(2).expand(-1, -1, q.shape[1], -1, -1) \
-                    .reshape(original_shape[0], -1, original_shape[1], original_shape[2])
+                v = (
+                    v.unsqueeze(2)
+                    .expand(-1, -1, q.shape[1] // v.shape[1], -1)
+                    .reshape(original_shape[0], -1, original_shape[2])
+                )
 
         return flash_attn_cuda.fwd(
             q,
