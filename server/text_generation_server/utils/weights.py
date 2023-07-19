@@ -152,6 +152,8 @@ class Weights:
             except RuntimeError:
                 raise RuntimeError("Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`")
             
+            bits, groupsize = self.get_gptq_qparams()
+
             if use_triton_kernel:
                 # The triton kernel reorders the scales/zero points instead of the weight/activation.
                 # Thus, each rank needs the full qzeros/scales.
@@ -159,18 +161,20 @@ class Weights:
                 scales = self.get_tensor(f"{prefix}.scales")
                 g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
             else:
-                # Exllama reorders the weights in advance and the activations on the fly, thus
-                # the scales and zero-points do not need to be reordered
-                qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
-                scales = self.get_sharded(f"{prefix}.scales", dim=0)
+                if groupsize >= 16:
+                    # Exllama reorders the weights in advance and the activations on the fly, thus
+                    # the scales and zero-points do not need to be reordered.
+                    qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
+                    scales = self.get_sharded(f"{prefix}.scales", dim=0)
+                else:
+                    qzeros = self.get_tensor(f"{prefix}.qzeros")
+                    scales = self.get_tensor(f"{prefix}.scales")
 
                 # For tp > 1, at this point we know we do not use act-order
                 if self.process_group.size() == 1:
                     g_idx = self.get_tensor(f"{prefix}.g_idx")
                 else:
                     g_idx = None
-
-            bits, groupsize = self.get_gptq_qparams()
 
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_triton_kernel)
         else:

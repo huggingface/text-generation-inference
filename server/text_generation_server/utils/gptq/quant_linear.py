@@ -6,6 +6,8 @@ from torch.cuda.amp import custom_bwd, custom_fwd
 
 import torch
 
+from loguru import logger
+
 try:
     from custom_kernels.exllama import make_q4, q4_matmul
 except Exception as e:
@@ -422,8 +424,9 @@ class Ex4bitLinear:
         self.groupsize = None
         if self.qzeros.shape[0] > 1:
             self.groupsize = (self.qweight.shape[0] * 8) // (self.qzeros.shape[0])
-        
-        assert groupsize == self.groupsize
+
+        if self.groupsize is not None:
+            assert groupsize == self.groupsize
 
         # Handle act-order matrix
         if self.g_idx is not None:
