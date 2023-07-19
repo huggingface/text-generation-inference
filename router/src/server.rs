@@ -524,9 +524,7 @@ pub async fn run(
     allow_origin: Option<AllowOrigin>,
     ngrok: bool,
     ngrok_authtoken: Option<String>,
-    ngrok_domain: Option<String>,
-    ngrok_username: Option<String>,
-    ngrok_password: Option<String>,
+    ngrok_edge: Option<String>,
 ) -> Result<(), axum::BoxError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -696,32 +694,25 @@ pub async fn run(
         #[cfg(feature = "ngrok")]
         {
             use ngrok::config::TunnelBuilder;
-            use ngrok::tunnel::UrlTunnel;
 
             let _ = addr;
 
             let authtoken =
                 ngrok_authtoken.expect("`ngrok-authtoken` must be set when using ngrok tunneling");
 
-            let mut tunnel = ngrok::Session::builder()
+            let edge = ngrok_edge.expect("`ngrok-edge` must be set when using ngrok tunneling");
+
+            let tunnel = ngrok::Session::builder()
                 .authtoken(authtoken)
                 .connect()
                 .await
                 .unwrap()
-                .http_endpoint();
-
-            if let Some(domain) = ngrok_domain {
-                tunnel = tunnel.domain(domain);
-            }
-
-            if let (Some(username), Some(password)) = (ngrok_username, ngrok_password) {
-                tunnel = tunnel.basic_auth(username, password);
-            }
+                .labeled_tunnel()
+                .label("edge", edge);
 
             let listener = tunnel.listen().await.unwrap();
 
             // Run server
-            tracing::info!("Ingress URL: {:?}", listener.url());
             axum::Server::builder(listener)
                 .serve(app.into_make_service())
                 //Wait until all requests are finished to shut down
