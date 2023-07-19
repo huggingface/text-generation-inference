@@ -134,6 +134,10 @@ print(text)
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route.
 The Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
 
+### Using on private models or gated models
+
+You can use `HUGGING_FACE_HUB_TOKEN` environment variable to set the token used by `text-generation-inference` to give access to protected ressources.
+
 ### Distributed Tracing
 
 `text-generation-inference` is instrumented with distributed tracing using OpenTelemetry. You can use this feature
