@@ -4,10 +4,10 @@ use nix::unistd::Pid;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Lines, Read};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::TryRecvError;
 use std::sync::{mpsc, Arc};
@@ -15,6 +15,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
+use tracing_subscriber::EnvFilter;
 
 mod env_runtime;
 
@@ -41,6 +42,7 @@ impl std::fmt::Display for Quantization {
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum Dtype {
     Float16,
+    #[clap(name = "bfloat16")]
     BFloat16,
 }
 
@@ -182,8 +184,8 @@ struct Args {
     /// depends on other parameters like if you're using quantization, flash attention
     /// or the model implementation, text-generation-inference cannot infer this number
     /// automatically.
-    #[clap(default_value = "16000", long, env)]
-    max_batch_total_tokens: u32,
+    #[clap(long, env)]
+    max_batch_total_tokens: Option<u32>,
 
     /// This setting defines how many tokens can be passed before forcing the waiting
     /// queries to be put on the batch (if the size of the batch allows for it).
@@ -265,17 +267,9 @@ struct Args {
     #[clap(long, env)]
     ngrok_authtoken: Option<String>,
 
-    /// ngrok domain name where the axum webserver will be available at
+    /// ngrok edge
     #[clap(long, env)]
-    ngrok_domain: Option<String>,
-
-    /// ngrok basic auth username
-    #[clap(long, env)]
-    ngrok_username: Option<String>,
-
-    /// ngrok basic auth password
-    #[clap(long, env)]
-    ngrok_password: Option<String>,
+    ngrok_edge: Option<String>,
 
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
@@ -285,7 +279,7 @@ struct Args {
 #[derive(Debug)]
 enum ShardStatus {
     Ready,
-    Failed((usize, Option<String>)),
+    Failed(usize),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -310,6 +304,9 @@ fn shard_manager(
     shutdown: Arc<AtomicBool>,
     _shutdown_sender: mpsc::Sender<()>,
 ) {
+    // Enter shard-manager tracing span
+    let _span = tracing::span!(tracing::Level::INFO, "shard-manager", rank = rank).entered();
+
     // Get UDS path
     let uds_string = format!("{uds_path}-{rank}");
     let uds = Path::new(&uds_string);
@@ -319,7 +316,7 @@ fn shard_manager(
     }
 
     // Process args
-    let mut shard_argv = vec![
+    let mut shard_args = vec![
         "serve".to_string(),
         model_id,
         "--uds-path".to_string(),
@@ -331,77 +328,71 @@ fn shard_manager(
 
     // Activate trust remote code
     if trust_remote_code {
-        shard_argv.push("--trust-remote-code".to_string());
+        shard_args.push("--trust-remote-code".to_string());
     }
 
     // Activate tensor parallelism
     if world_size > 1 {
-        shard_argv.push("--sharded".to_string());
+        shard_args.push("--sharded".to_string());
     }
 
     if let Some(quantize) = quantize {
-        shard_argv.push("--quantize".to_string());
-        shard_argv.push(quantize.to_string())
+        shard_args.push("--quantize".to_string());
+        shard_args.push(quantize.to_string())
     }
 
     if let Some(dtype) = dtype {
-        shard_argv.push("--dtype".to_string());
-        shard_argv.push(dtype.to_string())
+        shard_args.push("--dtype".to_string());
+        shard_args.push(dtype.to_string())
     }
 
     // Model optional revision
     if let Some(revision) = revision {
-        shard_argv.push("--revision".to_string());
-        shard_argv.push(revision)
+        shard_args.push("--revision".to_string());
+        shard_args.push(revision)
     }
 
     // OpenTelemetry
     if let Some(otlp_endpoint) = otlp_endpoint {
-        shard_argv.push("--otlp-endpoint".to_string());
-        shard_argv.push(otlp_endpoint);
+        shard_args.push("--otlp-endpoint".to_string());
+        shard_args.push(otlp_endpoint);
     }
 
     // Copy current process env
-    let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
-
-    // Use cuda allocator. It leads to less memory fragmentation
-    env.push((
-        "PYTORCH_CUDA_ALLOC_CONF".into(),
-        "backend:cudaMallocAsync".into(),
-    ));
+    let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
     // Torch Distributed Env vars
-    env.push(("RANK".into(), rank.to_string().into()));
-    env.push(("WORLD_SIZE".into(), world_size.to_string().into()));
-    env.push(("MASTER_ADDR".into(), master_addr.into()));
-    env.push(("MASTER_PORT".into(), master_port.to_string().into()));
-    env.push(("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()));
+    envs.push(("RANK".into(), rank.to_string().into()));
+    envs.push(("WORLD_SIZE".into(), world_size.to_string().into()));
+    envs.push(("MASTER_ADDR".into(), master_addr.into()));
+    envs.push(("MASTER_PORT".into(), master_port.to_string().into()));
+    envs.push(("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()));
 
     // Safetensors load fast
-    env.push(("SAFETENSORS_FAST_GPU".into(), "1".into()));
+    envs.push(("SAFETENSORS_FAST_GPU".into(), "1".into()));
 
     // Enable hf transfer for insane download speeds
     let enable_hf_transfer = env::var("HF_HUB_ENABLE_HF_TRANSFER").unwrap_or("1".to_string());
-    env.push((
+    envs.push((
         "HF_HUB_ENABLE_HF_TRANSFER".into(),
         enable_hf_transfer.into(),
     ));
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        env.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
     };
 
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
     if let Some(huggingface_hub_cache) = huggingface_hub_cache {
-        env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
+        envs.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
     };
 
     // If weights_cache_override is some, pass it to the shard
     // Useful when running inside a HuggingFace Inference Endpoint
     if let Some(weights_cache_override) = weights_cache_override {
-        env.push((
+        envs.push((
             "WEIGHTS_CACHE_OVERRIDE".into(),
             weights_cache_override.into(),
         ));
@@ -409,24 +400,24 @@ fn shard_manager(
 
     // If disable_custom_kernels is true, pass it to the shard as an env var
     if disable_custom_kernels {
-        env.push(("DISABLE_CUSTOM_KERNELS".into(), "True".into()))
+        envs.push(("DISABLE_CUSTOM_KERNELS".into(), "True".into()))
     }
 
     // Watermark Gamma
     if let Some(watermark_gamma) = watermark_gamma {
-        env.push(("WATERMARK_GAMMA".into(), watermark_gamma.to_string().into()))
+        envs.push(("WATERMARK_GAMMA".into(), watermark_gamma.to_string().into()))
     }
 
     // Watermark Delta
     if let Some(watermark_delta) = watermark_delta {
-        env.push(("WATERMARK_DELTA".into(), watermark_delta.to_string().into()))
+        envs.push(("WATERMARK_DELTA".into(), watermark_delta.to_string().into()))
     }
 
     // Start process
-    tracing::info!("Starting shard {rank}");
+    tracing::info!("Starting shard");
     let mut p = match Command::new("text-generation-server")
-        .args(shard_argv)
-        .envs(env)
+        .args(shard_args)
+        .envs(envs)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
@@ -437,30 +428,23 @@ fn shard_manager(
             if err.kind() == io::ErrorKind::NotFound {
                 tracing::error!("text-generation-server not found in PATH");
                 tracing::error!("Please install it with `make install-server`")
-            } else {
+            }
+            {
                 tracing::error!("{}", err);
             }
 
-            status_sender
-                .send(ShardStatus::Failed((rank, Some(err.to_string()))))
-                .unwrap();
+            status_sender.send(ShardStatus::Failed(rank)).unwrap();
             return;
         }
     };
 
     // Redirect STDOUT to the console
     let shard_stdout_reader = BufReader::new(p.stdout.take().unwrap());
-    let mut shard_stderr_reader = BufReader::new(p.stderr.take().unwrap());
+    let shard_stderr_reader = BufReader::new(p.stderr.take().unwrap());
 
+    //stdout tracing thread
     thread::spawn(move || {
-        // Enter shard-manager tracing span
-        let _span = tracing::span!(tracing::Level::INFO, "shard-manager", rank = rank).entered();
-        for line in shard_stdout_reader.lines() {
-            // Parse loguru logs
-            if let Ok(log) = serde_json::from_str::<PythonLogMessage>(&line.unwrap()) {
-                log.trace();
-            }
-        }
+        log_lines(shard_stdout_reader.lines());
     });
 
     let mut ready = false;
@@ -469,30 +453,25 @@ fn shard_manager(
     loop {
         // Process exited
         if let Some(exit_status) = p.try_wait().unwrap() {
-            // We read stderr in another thread as it seems that `read_to_string` can block
-            // indefinitely in some cases
+            // We read stderr in another thread as it seems that lines() can block in some cases
             let (err_sender, err_receiver) = mpsc::channel();
             thread::spawn(move || {
-                let mut err = String::new();
-                shard_stderr_reader.read_to_string(&mut err).unwrap();
-                err_sender.send(err).unwrap_or(());
+                for line in shard_stderr_reader.lines().flatten() {
+                    err_sender.send(line).unwrap_or(());
+                }
             });
+            let mut err = String::new();
+            while let Ok(line) = err_receiver.recv_timeout(Duration::from_millis(10)) {
+                err = err + "\n" + &line;
+            }
 
-            let err = err_receiver
-                .recv_timeout(Duration::from_millis(100))
-                .map_err(|err| {
-                    tracing::error!("Unable to read shard {rank} error from stderr");
-                    err
-                })
-                .ok();
+            tracing::error!("Shard complete standard error output:\n{err}");
 
             if let Some(signal) = exit_status.signal() {
                 tracing::error!("Shard process was signaled to shutdown with signal {signal}");
             }
 
-            status_sender
-                .send(ShardStatus::Failed((rank, err)))
-                .unwrap();
+            status_sender.send(ShardStatus::Failed(rank)).unwrap();
             return;
         }
 
@@ -500,17 +479,17 @@ fn shard_manager(
         if shutdown.load(Ordering::SeqCst) {
             p.kill().unwrap();
             let _ = p.wait();
-            tracing::info!("Shard {rank} terminated");
+            tracing::info!("Shard terminated");
             return;
         }
 
         // Shard is ready
         if uds.exists() && !ready {
-            tracing::info!("Shard {rank} ready in {:?}", start_time.elapsed());
+            tracing::info!("Shard ready in {:?}", start_time.elapsed());
             status_sender.send(ShardStatus::Ready).unwrap();
             ready = true;
         } else if !ready && wait_time.elapsed() > Duration::from_secs(10) {
-            tracing::info!("Waiting for shard {rank} to be ready...");
+            tracing::info!("Waiting for shard to be ready...");
             wait_time = Instant::now();
         }
         sleep(Duration::from_millis(100));
@@ -579,6 +558,23 @@ impl PythonLogMessage {
     }
 }
 
+impl TryFrom<&String> for PythonLogMessage {
+    type Error = serde_json::Error;
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        serde_json::from_str::<Self>(value)
+    }
+}
+
+fn log_lines<S: Sized + BufRead>(lines: Lines<S>) {
+    for line in lines.flatten() {
+        match PythonLogMessage::try_from(&line) {
+            Ok(log) => log.trace(),
+            Err(_) => tracing::debug!("{line}"),
+        }
+    }
+}
+
 fn find_num_shards(
     sharded: Option<bool>,
     num_shard: Option<usize>,
@@ -632,7 +628,10 @@ enum LauncherError {
 }
 
 fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
-    let mut download_argv = vec![
+    // Enter download tracing span
+    let _span = tracing::span!(tracing::Level::INFO, "download").entered();
+
+    let mut download_args = vec![
         "download-weights".to_string(),
         args.model_id.to_string(),
         "--extension".to_string(),
@@ -644,35 +643,35 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // Model optional revision
     if let Some(revision) = &args.revision {
-        download_argv.push("--revision".to_string());
-        download_argv.push(revision.to_string())
+        download_args.push("--revision".to_string());
+        download_args.push(revision.to_string())
     }
 
     // Copy current process env
-    let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
+    let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
     // If huggingface_hub_cache is set, pass it to the download process
     // Useful when running inside a docker container
     if let Some(ref huggingface_hub_cache) = args.huggingface_hub_cache {
-        env.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
+        envs.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
     };
 
     // Enable hf transfer for insane download speeds
     let enable_hf_transfer = env::var("HF_HUB_ENABLE_HF_TRANSFER").unwrap_or("1".to_string());
-    env.push((
+    envs.push((
         "HF_HUB_ENABLE_HF_TRANSFER".into(),
         enable_hf_transfer.into(),
     ));
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        env.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
     };
 
     // If args.weights_cache_override is some, pass it to the download process
     // Useful when running inside a HuggingFace Inference Endpoint
     if let Some(weights_cache_override) = &args.weights_cache_override {
-        env.push((
+        envs.push((
             "WEIGHTS_CACHE_OVERRIDE".into(),
             weights_cache_override.into(),
         ));
@@ -681,8 +680,8 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     // Start process
     tracing::info!("Starting download process.");
     let mut download_process = match Command::new("text-generation-server")
-        .args(download_argv)
-        .envs(env)
+        .args(download_args)
+        .envs(envs)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
@@ -693,6 +692,8 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
             if err.kind() == io::ErrorKind::NotFound {
                 tracing::error!("text-generation-server not found in PATH");
                 tracing::error!("Please install it with `make install-server`")
+            } else {
+                tracing::error!("{}", err);
             }
 
             return Err(LauncherError::DownloadError);
@@ -701,16 +702,10 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // Redirect STDOUT to the console
     let download_stdout = download_process.stdout.take().unwrap();
+    let stdout = BufReader::new(download_stdout);
+
     thread::spawn(move || {
-        // Enter download tracing span
-        let stdout = BufReader::new(download_stdout);
-        let _span = tracing::span!(tracing::Level::INFO, "download").entered();
-        for line in stdout.lines() {
-            // Parse loguru logs
-            if let Ok(log) = serde_json::from_str::<PythonLogMessage>(&line.unwrap()) {
-                log.trace();
-            }
-        }
+        log_lines(stdout.lines());
     });
 
     loop {
@@ -738,10 +733,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
             return Err(LauncherError::DownloadError);
         }
         if !running.load(Ordering::SeqCst) {
-            signal::kill(Pid::from_raw(download_process.id() as i32), Signal::SIGTERM).unwrap();
-            tracing::info!("Waiting for download process to gracefully shutdown");
-            download_process.wait().unwrap();
-            tracing::info!("Download process terminated");
+            terminate("download", download_process, Duration::from_secs(10)).unwrap();
             return Ok(());
         }
         sleep(Duration::from_millis(100));
@@ -760,16 +752,6 @@ fn spawn_shards(
     status_sender: mpsc::Sender<ShardStatus>,
     running: Arc<AtomicBool>,
 ) -> Result<(), LauncherError> {
-    if args.trust_remote_code {
-        tracing::warn!(
-            "`trust_remote_code` is set. Trusting that model `{}` do not contain malicious code.",
-            args.model_id
-        );
-        if args.revision.is_none() {
-            tracing::warn!("Explicitly passing a `revision` is encouraged when loading a model with custom code to ensure no malicious code has been contributed in a newer revision.");
-        }
-    }
-
     // Start shard processes
     for rank in 0..num_shard {
         let model_id = args.model_id.clone();
@@ -828,11 +810,8 @@ fn spawn_shards(
             Err(TryRecvError::Empty) => {
                 sleep(Duration::from_millis(100));
             }
-            Ok(ShardStatus::Failed((rank, err))) => {
+            Ok(ShardStatus::Failed(rank)) => {
                 tracing::error!("Shard {rank} failed to start");
-                if let Some(err) = err {
-                    tracing::error!("{err}");
-                }
                 shutdown_shards(shutdown, shutdown_receiver);
                 return Err(LauncherError::ShardCannotStart);
             }
@@ -854,7 +833,7 @@ fn spawn_webserver(
     // All shard started
     // Start webserver
     tracing::info!("Starting Webserver");
-    let mut argv = vec![
+    let mut router_args = vec![
         "--max-concurrent-requests".to_string(),
         args.max_concurrent_requests.to_string(),
         "--max-best-of".to_string(),
@@ -867,8 +846,6 @@ fn spawn_webserver(
         args.max_total_tokens.to_string(),
         "--max-batch-prefill-tokens".to_string(),
         args.max_batch_prefill_tokens.to_string(),
-        "--max-batch-total-tokens".to_string(),
-        args.max_batch_total_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
         args.waiting_served_ratio.to_string(),
         "--max-waiting-tokens".to_string(),
@@ -885,63 +862,54 @@ fn spawn_webserver(
         args.model_id,
     ];
 
+    // Model optional max batch total tokens
+    if let Some(max_batch_total_tokens) = args.max_batch_total_tokens {
+        router_args.push("--max-batch-total-tokens".to_string());
+        router_args.push(max_batch_total_tokens.to_string());
+    }
+
     // Model optional revision
     if let Some(ref revision) = args.revision {
-        argv.push("--revision".to_string());
-        argv.push(revision.to_string())
+        router_args.push("--revision".to_string());
+        router_args.push(revision.to_string())
     }
 
     if args.json_output {
-        argv.push("--json-output".to_string());
+        router_args.push("--json-output".to_string());
     }
 
     // OpenTelemetry
     if let Some(otlp_endpoint) = args.otlp_endpoint {
-        argv.push("--otlp-endpoint".to_string());
-        argv.push(otlp_endpoint);
+        router_args.push("--otlp-endpoint".to_string());
+        router_args.push(otlp_endpoint);
     }
 
     // CORS origins
     for origin in args.cors_allow_origin.into_iter() {
-        argv.push("--cors-allow-origin".to_string());
-        argv.push(origin);
+        router_args.push("--cors-allow-origin".to_string());
+        router_args.push(origin);
     }
 
     // Ngrok
     if args.ngrok {
-        let authtoken = args.ngrok_authtoken.ok_or_else(|| {
-            tracing::error!("`ngrok-authtoken` must be set when using ngrok tunneling");
-            LauncherError::WebserverCannotStart
-        })?;
-
-        argv.push("--ngrok".to_string());
-        argv.push("--ngrok-authtoken".to_string());
-        argv.push(authtoken);
-
-        if let Some(domain) = args.ngrok_domain {
-            argv.push("--ngrok-domain".to_string());
-            argv.push(domain);
-        }
-
-        if let (Some(username), Some(password)) = (args.ngrok_username, args.ngrok_password) {
-            argv.push("--ngrok-username".to_string());
-            argv.push(username);
-            argv.push("--ngrok-password".to_string());
-            argv.push(password);
-        }
+        router_args.push("--ngrok".to_string());
+        router_args.push("--ngrok-authtoken".to_string());
+        router_args.push(args.ngrok_authtoken.unwrap());
+        router_args.push("--ngrok-edge".to_string());
+        router_args.push(args.ngrok_edge.unwrap());
     }
 
     // Copy current process env
-    let mut env: Vec<(OsString, OsString)> = env::vars_os().collect();
+    let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        env.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
     };
 
     let mut webserver = match Command::new("text-generation-router")
-        .args(argv)
-        .envs(env)
+        .args(router_args)
+        .envs(envs)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
@@ -979,14 +947,49 @@ fn spawn_webserver(
     Ok(webserver)
 }
 
+fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::Result<ExitStatus> {
+    tracing::info!("Terminating {process_name}");
+
+    let terminate_time = Instant::now();
+    signal::kill(Pid::from_raw(process.id() as i32), Signal::SIGTERM).unwrap();
+
+    tracing::info!("Waiting for {process_name} to gracefully shutdown");
+
+    while terminate_time.elapsed() < timeout {
+        if let Some(status) = process.try_wait()? {
+            tracing::info!("{process_name} terminated");
+            return Ok(status);
+        }
+        sleep(Duration::from_millis(100));
+    }
+
+    tracing::info!("Killing {process_name}");
+
+    process.kill()?;
+    let exit_status = process.wait()?;
+
+    tracing::info!("{process_name} killed");
+    Ok(exit_status)
+}
+
 fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
-    let args = Args::parse();
+    let args: Args = Args::parse();
+
+    // Filter events with LOG_LEVEL
+    let env_filter =
+        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
 
     if args.json_output {
-        tracing_subscriber::fmt().json().init();
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .json()
+            .init();
     } else {
-        tracing_subscriber::fmt().compact().init();
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .compact()
+            .init();
     }
 
     if args.env {
@@ -1008,27 +1011,51 @@ fn main() -> Result<(), LauncherError> {
             args.max_batch_prefill_tokens, args.max_input_length
         )));
     }
-    if args.max_batch_prefill_tokens > args.max_batch_total_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-            args.max_batch_prefill_tokens, args.max_batch_total_tokens
-        )));
-    }
-    if args.max_total_tokens as u32 > args.max_batch_total_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-            args.max_total_tokens, args.max_batch_total_tokens
-        )));
-    }
+
     if args.validation_workers == 0 {
         return Err(LauncherError::ArgumentValidation(
             "`validation_workers` must be > 0".to_string(),
         ));
     }
+    if args.trust_remote_code {
+        tracing::warn!(
+            "`trust_remote_code` is set. Trusting that model `{}` do not contain malicious code.",
+            args.model_id
+        );
+    }
 
     let num_shard = find_num_shards(args.sharded, args.num_shard)?;
     if num_shard > 1 {
         tracing::info!("Sharding model on {num_shard} processes");
+    }
+
+    if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
+        if args.max_batch_prefill_tokens > *max_batch_total_tokens {
+            return Err(LauncherError::ArgumentValidation(format!(
+                "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+                args.max_batch_prefill_tokens, max_batch_total_tokens
+            )));
+        }
+        if args.max_total_tokens as u32 > *max_batch_total_tokens {
+            return Err(LauncherError::ArgumentValidation(format!(
+                "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+                args.max_total_tokens, max_batch_total_tokens
+            )));
+        }
+    }
+
+    if args.ngrok {
+        if args.ngrok_authtoken.is_none() {
+            return Err(LauncherError::ArgumentValidation(
+                "`ngrok-authtoken` must be set when using ngrok tunneling".to_string(),
+            ));
+        }
+
+        if args.ngrok_edge.is_none() {
+            return Err(LauncherError::ArgumentValidation(
+                "`ngrok-edge` must be set when using ngrok tunneling".to_string(),
+            ));
+        }
     }
 
     // Signal handler
@@ -1041,6 +1068,11 @@ fn main() -> Result<(), LauncherError> {
 
     // Download and convert model weights
     download_convert_model(&args, running.clone())?;
+
+    if !running.load(Ordering::SeqCst) {
+        // Launcher was asked to stop
+        return Ok(());
+    }
 
     // Shared shutdown bool
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -1078,11 +1110,8 @@ fn main() -> Result<(), LauncherError> {
     let mut exit_code = Ok(());
 
     while running.load(Ordering::SeqCst) {
-        if let Ok(ShardStatus::Failed((rank, err))) = status_receiver.try_recv() {
+        if let Ok(ShardStatus::Failed(rank)) = status_receiver.try_recv() {
             tracing::error!("Shard {rank} crashed");
-            if let Some(err) = err {
-                tracing::error!("{err}");
-            }
             exit_code = Err(LauncherError::ShardFailed);
             break;
         };
@@ -1100,10 +1129,7 @@ fn main() -> Result<(), LauncherError> {
     }
 
     // Graceful termination
-    signal::kill(Pid::from_raw(webserver.id() as i32), Signal::SIGTERM).unwrap();
-    tracing::info!("Waiting for webserver to gracefully shutdown");
-    webserver.wait().unwrap();
-    tracing::info!("Webserver terminated");
+    terminate("webserver", webserver, Duration::from_secs(90)).unwrap();
     shutdown_shards(shutdown, &shutdown_receiver);
 
     exit_code

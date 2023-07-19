@@ -6,13 +6,11 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
-# Flash attention imports
-import flash_attn_cuda
-
 # vllm imports
 import vllm_cache_ops
 import vllm_attention_ops
 
+from text_generation_server.utils.flash_attn import attention
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -182,27 +180,15 @@ class FlashRWAttention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            if self.num_heads_kv == 1:
-                # Expand to query shape
-                kv = kv.expand(-1, 2, self.num_heads, self.head_size)
-
             # flash attention
-            flash_attn_cuda.fwd(
+            attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
                 attn_output,
                 cu_seqlen_prefill,
-                cu_seqlen_prefill,
                 max_s,
-                max_s,
-                0.0,
                 self.softmax_scale,
-                False,
-                True,
-                False,
-                0,
-                None,
             )
         # Decode
         else:
@@ -314,30 +300,15 @@ class FlashRWLargeAttention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # Expand to query shape
-            kv = (
-                kv.unsqueeze(2)
-                .expand(-1, self.num_groups, self.num_heads, 2, self.head_size)
-                .reshape(-1, self.num_groups * self.num_heads, 2, self.head_size)
-            )
-
             # flash attention
-            flash_attn_cuda.fwd(
+            attention(
                 query,
                 torch.select(kv, dim=2, index=0),
                 torch.select(kv, dim=2, index=1),
                 attn_output,
                 cu_seqlen_prefill,
-                cu_seqlen_prefill,
                 max_s,
-                max_s,
-                0.0,
                 self.softmax_scale,
-                False,
-                True,
-                False,
-                0,
-                None,
             )
         # Decode
         else:

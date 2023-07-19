@@ -194,6 +194,8 @@ def quantize(
     percdamp: float = 0.01,
     act_order: bool = False,
 ):
+    if revision is None:
+        revision = "main"
     download_weights(
         model_id=model_id,
         revision=revision,
@@ -207,6 +209,7 @@ def quantize(
         bits=4,
         groupsize=128,
         output_dir=output_dir,
+        revision=revision,
         trust_remote_code=trust_remote_code,
         upload_to_model_id=upload_to_model_id,
         percdamp=percdamp,
