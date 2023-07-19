@@ -184,8 +184,8 @@ struct Args {
     /// depends on other parameters like if you're using quantization, flash attention
     /// or the model implementation, text-generation-inference cannot infer this number
     /// automatically.
-    #[clap(default_value = "16000", long, env)]
-    max_batch_total_tokens: u32,
+    #[clap(long, env)]
+    max_batch_total_tokens: Option<u32>,
 
     /// This setting defines how many tokens can be passed before forcing the waiting
     /// queries to be put on the batch (if the size of the batch allows for it).
@@ -369,12 +369,6 @@ fn shard_manager(
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
-    // Use cuda allocator. It leads to less memory fragmentation
-    envs.push((
-        "PYTORCH_CUDA_ALLOC_CONF".into(),
-        "backend:cudaMallocAsync".into(),
-    ));
-
     // Torch Distributed Env vars
     envs.push(("RANK".into(), rank.to_string().into()));
     envs.push(("WORLD_SIZE".into(), world_size.to_string().into()));
@@ -428,7 +422,7 @@ fn shard_manager(
     }
 
     // Start process
-    tracing::info!("Starting shard {rank}");
+    tracing::info!("Starting shard");
     let mut p = match Command::new("text-generation-server")
         .args(shard_args)
         .envs(envs)
@@ -493,17 +487,17 @@ fn shard_manager(
         if shutdown.load(Ordering::SeqCst) {
             p.kill().unwrap();
             let _ = p.wait();
-            tracing::info!("Shard {rank} terminated");
+            tracing::info!("Shard terminated");
             return;
         }
 
         // Shard is ready
         if uds.exists() && !ready {
-            tracing::info!("Shard {rank} ready in {:?}", start_time.elapsed());
+            tracing::info!("Shard ready in {:?}", start_time.elapsed());
             status_sender.send(ShardStatus::Ready).unwrap();
             ready = true;
         } else if !ready && wait_time.elapsed() > Duration::from_secs(10) {
-            tracing::info!("Waiting for shard {rank} to be ready...");
+            tracing::info!("Waiting for shard to be ready...");
             wait_time = Instant::now();
         }
         sleep(Duration::from_millis(100));
@@ -860,8 +854,6 @@ fn spawn_webserver(
         args.max_total_tokens.to_string(),
         "--max-batch-prefill-tokens".to_string(),
         args.max_batch_prefill_tokens.to_string(),
-        "--max-batch-total-tokens".to_string(),
-        args.max_batch_total_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
         args.waiting_served_ratio.to_string(),
         "--max-waiting-tokens".to_string(),
@@ -877,6 +869,12 @@ fn spawn_webserver(
         "--tokenizer-name".to_string(),
         args.model_id,
     ];
+
+    // Model optional max batch total tokens
+    if let Some(max_batch_total_tokens) = args.max_batch_total_tokens {
+        router_args.push("--max-batch-total-tokens".to_string());
+        router_args.push(max_batch_total_tokens.to_string());
+    }
 
     // Model optional revision
     if let Some(ref revision) = args.revision {
@@ -1036,18 +1034,7 @@ fn main() -> Result<(), LauncherError> {
             args.max_batch_prefill_tokens, args.max_input_length
         )));
     }
-    if args.max_batch_prefill_tokens > args.max_batch_total_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-            args.max_batch_prefill_tokens, args.max_batch_total_tokens
-        )));
-    }
-    if args.max_total_tokens as u32 > args.max_batch_total_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-            args.max_total_tokens, args.max_batch_total_tokens
-        )));
-    }
+
     if args.validation_workers == 0 {
         return Err(LauncherError::ArgumentValidation(
             "`validation_workers` must be > 0".to_string(),
@@ -1063,6 +1050,21 @@ fn main() -> Result<(), LauncherError> {
     let num_shard = find_num_shards(args.sharded, args.num_shard)?;
     if num_shard > 1 {
         tracing::info!("Sharding model on {num_shard} processes");
+    }
+
+    if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
+        if args.max_batch_prefill_tokens > *max_batch_total_tokens {
+            return Err(LauncherError::ArgumentValidation(format!(
+                "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+                args.max_batch_prefill_tokens, max_batch_total_tokens
+            )));
+        }
+        if args.max_total_tokens as u32 > *max_batch_total_tokens {
+            return Err(LauncherError::ArgumentValidation(format!(
+                "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+                args.max_total_tokens, max_batch_total_tokens
+            )));
+        }
     }
 
     // Signal handler

@@ -37,8 +37,8 @@ struct Args {
     waiting_served_ratio: f32,
     #[clap(default_value = "4096", long, env)]
     max_batch_prefill_tokens: u32,
-    #[clap(default_value = "16000", long, env)]
-    max_batch_total_tokens: u32,
+    #[clap(long, env)]
+    max_batch_total_tokens: Option<u32>,
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
     #[clap(default_value = "0.0.0.0", long, env)]
@@ -110,16 +110,20 @@ fn main() -> Result<(), RouterError> {
     if max_input_length as u32 > max_batch_prefill_tokens {
         return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_length`. Given: {max_batch_prefill_tokens} and {max_input_length}")));
     }
-    if max_batch_prefill_tokens > max_batch_total_tokens {
-        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {max_batch_prefill_tokens} and {max_batch_total_tokens}")));
-    }
-    if max_total_tokens as u32 > max_batch_total_tokens {
-        return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_batch_total_tokens}")));
-    }
+
     if validation_workers == 0 {
         return Err(RouterError::ArgumentValidation(
             "`validation_workers` must be > 0".to_string(),
         ));
+    }
+
+    if let Some(ref max_batch_total_tokens) = max_batch_total_tokens {
+        if max_batch_prefill_tokens > *max_batch_total_tokens {
+            return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {max_batch_prefill_tokens} and {max_batch_total_tokens}")));
+        }
+        if max_total_tokens as u32 > *max_batch_total_tokens {
+            return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_batch_total_tokens}")));
+        }
     }
 
     // CORS allowed origins
@@ -210,14 +214,35 @@ fn main() -> Result<(), RouterError> {
 
             // Warmup model
             tracing::info!("Warming up model");
-            sharded_client
-                .warmup(
-                    max_input_length as u32,
-                    max_batch_prefill_tokens,
-                    max_batch_total_tokens,
-                )
+            let max_supported_batch_total_tokens = match sharded_client
+                .warmup(max_input_length as u32, max_batch_prefill_tokens)
                 .await
-                .map_err(RouterError::Warmup)?;
+                .map_err(RouterError::Warmup)?
+            {
+                // Older models do not support automatic max-batch-total-tokens
+                None => {
+                    let max_batch_total_tokens = max_batch_total_tokens.unwrap_or(
+                        16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)),
+                    );
+                    tracing::warn!("Model does not support automatic max batch total tokens");
+                    max_batch_total_tokens
+                }
+                // Flash attention models return their max supported total tokens
+                Some(max_supported_batch_total_tokens) => {
+                    // Warn if user added his own max-batch-total-tokens as we will ignore it
+                    if max_batch_total_tokens.is_some() {
+                        tracing::warn!(
+                            "`--max-batch-total-tokens` is deprecated for Flash \
+                        Attention models."
+                        );
+                        tracing::warn!(
+                            "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
+                        );
+                    }
+                    max_supported_batch_total_tokens
+                }
+            };
+            tracing::info!("Setting max batch total tokens to {max_supported_batch_total_tokens}");
             tracing::info!("Connected");
 
             let addr = match hostname.parse() {
@@ -240,7 +265,7 @@ fn main() -> Result<(), RouterError> {
                 max_total_tokens,
                 waiting_served_ratio,
                 max_batch_prefill_tokens,
-                max_batch_total_tokens,
+                max_supported_batch_total_tokens,
                 max_waiting_tokens,
                 sharded_client,
                 tokenizer,

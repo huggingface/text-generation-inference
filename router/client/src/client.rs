@@ -103,8 +103,7 @@ impl Client {
         &mut self,
         max_input_length: u32,
         max_prefill_tokens: u32,
-        max_total_tokens: u32,
-    ) -> Result<()> {
+    ) -> Result<Option<u32>> {
         let mut n_tokens = 0;
         let mut requests = Vec::new();
 
@@ -143,13 +142,9 @@ impl Client {
             max_tokens: 0,
         };
 
-        let request = tonic::Request::new(WarmupRequest {
-            batch: Some(batch),
-            max_total_tokens,
-        })
-        .inject_context();
-        self.stub.warmup(request).await?.into_inner();
-        Ok(())
+        let request = tonic::Request::new(WarmupRequest { batch: Some(batch) }).inject_context();
+        let response = self.stub.warmup(request).await?.into_inner();
+        Ok(response.max_supported_total_tokens)
     }
 
     /// Generate one token for each request in the given batch
