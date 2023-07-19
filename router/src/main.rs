@@ -64,11 +64,7 @@ struct Args {
     #[clap(long, env)]
     ngrok_authtoken: Option<String>,
     #[clap(long, env)]
-    ngrok_domain: Option<String>,
-    #[clap(long, env)]
-    ngrok_username: Option<String>,
-    #[clap(long, env)]
-    ngrok_password: Option<String>,
+    ngrok_edge: Option<String>,
 }
 
 fn main() -> Result<(), RouterError> {
@@ -96,9 +92,7 @@ fn main() -> Result<(), RouterError> {
         cors_allow_origin,
         ngrok,
         ngrok_authtoken,
-        ngrok_domain,
-        ngrok_username,
-        ngrok_password,
+        ngrok_edge,
     } = args;
 
     // Validate args
@@ -274,9 +268,7 @@ fn main() -> Result<(), RouterError> {
                 cors_allow_origin,
                 ngrok,
                 ngrok_authtoken,
-                ngrok_domain,
-                ngrok_username,
-                ngrok_password,
+                ngrok_edge,
             )
             .await?;
             Ok(())

@@ -267,17 +267,9 @@ struct Args {
     #[clap(long, env)]
     ngrok_authtoken: Option<String>,
 
-    /// ngrok domain name where the axum webserver will be available at
+    /// ngrok edge
     #[clap(long, env)]
-    ngrok_domain: Option<String>,
-
-    /// ngrok basic auth username
-    #[clap(long, env)]
-    ngrok_username: Option<String>,
-
-    /// ngrok basic auth password
-    #[clap(long, env)]
-    ngrok_password: Option<String>,
+    ngrok_edge: Option<String>,
 
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
@@ -900,26 +892,11 @@ fn spawn_webserver(
 
     // Ngrok
     if args.ngrok {
-        let authtoken = args.ngrok_authtoken.ok_or_else(|| {
-            tracing::error!("`ngrok-authtoken` must be set when using ngrok tunneling");
-            LauncherError::WebserverCannotStart
-        })?;
-
         router_args.push("--ngrok".to_string());
         router_args.push("--ngrok-authtoken".to_string());
-        router_args.push(authtoken);
-
-        if let Some(domain) = args.ngrok_domain {
-            router_args.push("--ngrok-domain".to_string());
-            router_args.push(domain);
-        }
-
-        if let (Some(username), Some(password)) = (args.ngrok_username, args.ngrok_password) {
-            router_args.push("--ngrok-username".to_string());
-            router_args.push(username);
-            router_args.push("--ngrok-password".to_string());
-            router_args.push(password);
-        }
+        router_args.push(args.ngrok_authtoken.unwrap());
+        router_args.push("--ngrok-edge".to_string());
+        router_args.push(args.ngrok_edge.unwrap());
     }
 
     // Copy current process env
@@ -997,7 +974,7 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
 
 fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
-    let args = Args::parse();
+    let args: Args = Args::parse();
 
     // Filter events with LOG_LEVEL
     let env_filter =
@@ -1064,6 +1041,20 @@ fn main() -> Result<(), LauncherError> {
                 "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
                 args.max_total_tokens, max_batch_total_tokens
             )));
+        }
+    }
+
+    if args.ngrok {
+        if args.ngrok_authtoken.is_none() {
+            return Err(LauncherError::ArgumentValidation(
+                "`ngrok-authtoken` must be set when using ngrok tunneling".to_string(),
+            ));
+        }
+
+        if args.ngrok_edge.is_none() {
+            return Err(LauncherError::ArgumentValidation(
+                "`ngrok-edge` must be set when using ngrok tunneling".to_string(),
+            ));
         }
     }
 
