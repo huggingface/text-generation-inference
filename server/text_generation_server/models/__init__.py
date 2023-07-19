@@ -42,51 +42,21 @@ __all__ = [
     "get_model",
 ]
 
-FLASH_ATT_ERROR_MESSAGE = (
-    "{} requires CUDA and Flash Attention kernels to be installed.\n"
-    "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
-    "or install flash attention with `cd server && make install install-flash-attention`"
-)
+FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
+FLASH_ATTENTION = True
 try:
-    if not os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
-        if not torch.cuda.is_available():
-            FLASH_ATT_ERROR_MESSAGE = (
-                "{} requires CUDA. No compatible CUDA devices found."
-            )
-            raise ImportError("CUDA is not available")
-
-        major, minor = torch.cuda.get_device_capability()
-        is_sm75 = major == 7 and minor == 5
-        is_sm8x = major == 8 and minor >= 0
-        is_sm90 = major == 9 and minor == 0
-
-        supported = is_sm75 or is_sm8x or is_sm90
-        if not supported:
-            FLASH_ATT_ERROR_MESSAGE = (
-                "{} requires a CUDA device with capability 7.5, > 8.0 or 9.0. "
-                "No compatible CUDA device found."
-            )
-            raise ImportError(
-                f"GPU with CUDA capability {major} {minor} is not supported"
-            )
-
-        from text_generation_server.models.flash_rw import FlashRWSharded
-        from text_generation_server.models.flash_neox import FlashNeoXSharded
-        from text_generation_server.models.flash_llama import (
-            FlashLlama,
-        )
-        from text_generation_server.models.flash_santacoder import (
-            FlashSantacoderSharded,
-        )
-
-        FLASH_ATTENTION = True
-    else:
-        FLASH_ATTENTION = False
-except ImportError:
-    logger.opt(exception=True).warning(
-        "Could not import Flash Attention enabled models"
+    from text_generation_server.models.flash_rw import FlashRWSharded
+    from text_generation_server.models.flash_neox import FlashNeoXSharded
+    from text_generation_server.models.flash_llama import (
+        FlashLlama,
     )
+    from text_generation_server.models.flash_santacoder import (
+        FlashSantacoderSharded,
+    )
+
+except ImportError as e:
+    logger.warning(f"Could not import Flash Attention enabled models: {e}")
     FLASH_ATTENTION = False
 
 if FLASH_ATTENTION:
