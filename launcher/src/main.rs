@@ -124,7 +124,8 @@ struct Args {
     num_shard: Option<usize>,
 
     /// Whether you want the model to be quantized. This will use `bitsandbytes` for
-    /// quantization on the fly, or `gptq`. 
+    /// quantization on the fly, or `gptq`. 4bit quantization is available through 
+    /// `bitsandbytes` by providing the `bitsandbytes-fp4` or `bitsandbytes-nf4` options.
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
 
