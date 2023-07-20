@@ -21,9 +21,6 @@ class Model(ABC):
         rank: int = 0,
         world_size: int = 1,
     ):
-        if torch.cuda.is_available():
-            torch.cuda.set_per_process_memory_fraction(1.0)
-
         self.model = model.eval()
         self.tokenizer = tokenizer
         self.all_special_ids = set(tokenizer.all_special_ids)
