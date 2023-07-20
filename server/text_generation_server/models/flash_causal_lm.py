@@ -7,7 +7,7 @@ import numpy as np
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import PreTrainedTokenizerBase, PretrainedConfig
+from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Union, Dict
 
 from text_generation_server.models import Model
@@ -19,7 +19,6 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
-
 
 tracer = trace.get_tracer(__name__)
 

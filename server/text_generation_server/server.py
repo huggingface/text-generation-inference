@@ -143,7 +143,10 @@ def serve(
 
         if quantize == "gptq":
             try:
-                from text_generation_server.utils.gptq.quant_linear import create_exllama_buffers
+                # When using GPTQ, Exllama kernels need some global kernels
+                # For which we have the finale shapes only after the model has loaded
+                # This will allocate those buffers.
+                from text_generation_server.utils.gptq.exllama import create_exllama_buffers
                 create_exllama_buffers()
             except ImportError:
                 pass

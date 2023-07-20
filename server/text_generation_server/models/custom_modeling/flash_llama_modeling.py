@@ -448,7 +448,6 @@ class FlashLlamaForCausalLM(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
 
-        self.config = config
         self.model = FlashLlamaModel(config, weights)
         self.lm_head = TensorParallelHead.load(
             config,

@@ -73,7 +73,9 @@ def _load_multi_mqa_gptq(
         g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
         bits, groupsize = weights._get_gptq_qparams()
 
-        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
+        from text_generation_server.utils.layers import HAS_EXLLAMA
+        use_exllama = HAS_EXLLAMA
+        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
 
         if bias:
             slice_ = weights._get_slice(f"{prefix}.c_attn.bias")
@@ -350,7 +352,6 @@ class Block(nn.Module):
         max_s,
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
-        
         hidden_states = self.attn(
             hidden_states,
             cu_seqlen_prefill,

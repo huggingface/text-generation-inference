@@ -4,10 +4,6 @@ import torch
 import torch.nn as nn
 from torch.cuda.amp import custom_bwd, custom_fwd
 
-import torch
-
-from loguru import logger
-
 try:
     import triton
     import triton.language as tl
@@ -256,7 +252,6 @@ class QuantLinear(nn.Module):
         self.register_buffer("qzeros", qzeros)
         self.register_buffer("scales", scales)
         self.register_buffer("g_idx", g_idx)
-
         if bias is not None:
             self.register_buffer("bias", bias)
         else:
@@ -362,4 +357,3 @@ class QuantLinear(nn.Module):
         )
         out = out + self.bias if self.bias is not None else out
         return out.reshape(out_shape)
-
