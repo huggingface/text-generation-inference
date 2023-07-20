@@ -864,7 +864,8 @@ def quantize(
     )
 
     with init_empty_weights():
-        model = AutoModelForCausalLM.from_config(config, torch_dtype=torch.float16)
+        model = AutoModelForCausalLM.from_config(config, torch_dtype=torch.float16,
+                                                 trust_remote_code=trust_remote_code)
     model = model.eval()
 
     print("LOADED model")
