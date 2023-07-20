@@ -23,6 +23,7 @@ setup(
                 "custom_kernels/exllama/cuda_func/q4_matmul.cu",
                 "custom_kernels/exllama/cuda_func/q4_matrix.cu"
             ],
+            sources=["custom_kernels/fused_attention_cuda.cu"],
         )
     ],
     cmdclass={"build_ext": BuildExtension},
