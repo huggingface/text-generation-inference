@@ -53,7 +53,7 @@ impl Infer {
         generation_health: Arc<AtomicBool>,
     ) -> Self {
         // Infer shared state
-        let queue = Queue::new(requires_padding);
+        let queue = Queue::new(requires_padding, 16);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });

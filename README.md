@@ -63,6 +63,8 @@ to power LLMs api-inference widgets.
 - [Starcoder](https://huggingface.co/bigcode/starcoder)
 - [Falcon 7B](https://huggingface.co/tiiuae/falcon-7b)
 - [Falcon 40B](https://huggingface.co/tiiuae/falcon-40b)
+- [MPT](https://huggingface.co/mosaicml/mpt-30b)
+- [Llama V2](https://huggingface.co/meta-llama)
 
 Other architectures are supported on a best effort basis using:
 
@@ -131,6 +133,10 @@ print(text)
 
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route.
 The Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
+
+### Using on private models or gated models
+
+You can use `HUGGING_FACE_HUB_TOKEN` environment variable to set the token used by `text-generation-inference` to give access to protected ressources.
 
 ### Distributed Tracing
 
@@ -211,7 +217,7 @@ sudo apt-get install libssl-dev gcc -y
 ### CUDA Kernels
 
 The custom CUDA kernels are only tested on NVIDIA A100s. If you have any installation or runtime issues, you can remove 
-the kernels by using the `BUILD_EXTENSIONS=False` environment variable.
+the kernels by using the `DISABLE_CUSTOM_KERNELS=True` environment variable.
 
 Be aware that the official Docker image has them enabled by default.
 

@@ -58,8 +58,9 @@ class Model(ABC):
     def generate_token(self, batch: B) -> Tuple[List[GeneratedText], Optional[B]]:
         raise NotImplementedError
 
-    def warmup(self, batch: B, max_total_tokens: int):
+    def warmup(self, batch: B) -> Optional[int]:
         self.generate_token(batch)
+        return None
 
     def decode_token(
         self,

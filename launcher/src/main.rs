@@ -4,7 +4,7 @@ use nix::unistd::Pid;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Lines, Read};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -15,6 +15,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
+use tracing_subscriber::EnvFilter;
 
 mod env_runtime;
 
@@ -41,6 +42,7 @@ impl std::fmt::Display for Quantization {
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum Dtype {
     Float16,
+    #[clap(name = "bfloat16")]
     BFloat16,
 }
 
@@ -182,8 +184,8 @@ struct Args {
     /// depends on other parameters like if you're using quantization, flash attention
     /// or the model implementation, text-generation-inference cannot infer this number
     /// automatically.
-    #[clap(default_value = "16000", long, env)]
-    max_batch_total_tokens: u32,
+    #[clap(long, env)]
+    max_batch_total_tokens: Option<u32>,
 
     /// This setting defines how many tokens can be passed before forcing the waiting
     /// queries to be put on the batch (if the size of the batch allows for it).
@@ -265,17 +267,9 @@ struct Args {
     #[clap(long, env)]
     ngrok_authtoken: Option<String>,
 
-    /// ngrok domain name where the axum webserver will be available at
+    /// ngrok edge
     #[clap(long, env)]
-    ngrok_domain: Option<String>,
-
-    /// ngrok basic auth username
-    #[clap(long, env)]
-    ngrok_username: Option<String>,
-
-    /// ngrok basic auth password
-    #[clap(long, env)]
-    ngrok_password: Option<String>,
+    ngrok_edge: Option<String>,
 
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
@@ -285,7 +279,7 @@ struct Args {
 #[derive(Debug)]
 enum ShardStatus {
     Ready,
-    Failed((usize, Option<String>)),
+    Failed(usize),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -310,6 +304,9 @@ fn shard_manager(
     shutdown: Arc<AtomicBool>,
     _shutdown_sender: mpsc::Sender<()>,
 ) {
+    // Enter shard-manager tracing span
+    let _span = tracing::span!(tracing::Level::INFO, "shard-manager", rank = rank).entered();
+
     // Get UDS path
     let uds_string = format!("{uds_path}-{rank}");
     let uds = Path::new(&uds_string);
@@ -364,12 +361,6 @@ fn shard_manager(
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
-    // Use cuda allocator. It leads to less memory fragmentation
-    envs.push((
-        "PYTORCH_CUDA_ALLOC_CONF".into(),
-        "backend:cudaMallocAsync".into(),
-    ));
-
     // Torch Distributed Env vars
     envs.push(("RANK".into(), rank.to_string().into()));
     envs.push(("WORLD_SIZE".into(), world_size.to_string().into()));
@@ -423,7 +414,7 @@ fn shard_manager(
     }
 
     // Start process
-    tracing::info!("Starting shard {rank}");
+    tracing::info!("Starting shard");
     let mut p = match Command::new("text-generation-server")
         .args(shard_args)
         .envs(envs)
@@ -437,30 +428,23 @@ fn shard_manager(
             if err.kind() == io::ErrorKind::NotFound {
                 tracing::error!("text-generation-server not found in PATH");
                 tracing::error!("Please install it with `make install-server`")
-            } else {
+            }
+            {
                 tracing::error!("{}", err);
             }
 
-            status_sender
-                .send(ShardStatus::Failed((rank, Some(err.to_string()))))
-                .unwrap();
+            status_sender.send(ShardStatus::Failed(rank)).unwrap();
             return;
         }
     };
 
     // Redirect STDOUT to the console
     let shard_stdout_reader = BufReader::new(p.stdout.take().unwrap());
-    let mut shard_stderr_reader = BufReader::new(p.stderr.take().unwrap());
+    let shard_stderr_reader = BufReader::new(p.stderr.take().unwrap());
 
+    //stdout tracing thread
     thread::spawn(move || {
-        // Enter shard-manager tracing span
-        let _span = tracing::span!(tracing::Level::INFO, "shard-manager", rank = rank).entered();
-        for line in shard_stdout_reader.lines() {
-            // Parse loguru logs
-            if let Ok(log) = serde_json::from_str::<PythonLogMessage>(&line.unwrap()) {
-                log.trace();
-            }
-        }
+        log_lines(shard_stdout_reader.lines());
     });
 
     let mut ready = false;
@@ -469,30 +453,25 @@ fn shard_manager(
     loop {
         // Process exited
         if let Some(exit_status) = p.try_wait().unwrap() {
-            // We read stderr in another thread as it seems that `read_to_string` can block
-            // indefinitely in some cases
+            // We read stderr in another thread as it seems that lines() can block in some cases
             let (err_sender, err_receiver) = mpsc::channel();
             thread::spawn(move || {
-                let mut err = String::new();
-                shard_stderr_reader.read_to_string(&mut err).unwrap();
-                err_sender.send(err).unwrap_or(());
+                for line in shard_stderr_reader.lines().flatten() {
+                    err_sender.send(line).unwrap_or(());
+                }
             });
+            let mut err = String::new();
+            while let Ok(line) = err_receiver.recv_timeout(Duration::from_millis(10)) {
+                err = err + "\n" + &line;
+            }
 
-            let err = err_receiver
-                .recv_timeout(Duration::from_millis(100))
-                .map_err(|err| {
-                    tracing::error!("Unable to read shard {rank} error from stderr");
-                    err
-                })
-                .ok();
+            tracing::error!("Shard complete standard error output:\n{err}");
 
             if let Some(signal) = exit_status.signal() {
                 tracing::error!("Shard process was signaled to shutdown with signal {signal}");
             }
 
-            status_sender
-                .send(ShardStatus::Failed((rank, err)))
-                .unwrap();
+            status_sender.send(ShardStatus::Failed(rank)).unwrap();
             return;
         }
 
@@ -500,17 +479,17 @@ fn shard_manager(
         if shutdown.load(Ordering::SeqCst) {
             p.kill().unwrap();
             let _ = p.wait();
-            tracing::info!("Shard {rank} terminated");
+            tracing::info!("Shard terminated");
             return;
         }
 
         // Shard is ready
         if uds.exists() && !ready {
-            tracing::info!("Shard {rank} ready in {:?}", start_time.elapsed());
+            tracing::info!("Shard ready in {:?}", start_time.elapsed());
             status_sender.send(ShardStatus::Ready).unwrap();
             ready = true;
         } else if !ready && wait_time.elapsed() > Duration::from_secs(10) {
-            tracing::info!("Waiting for shard {rank} to be ready...");
+            tracing::info!("Waiting for shard to be ready...");
             wait_time = Instant::now();
         }
         sleep(Duration::from_millis(100));
@@ -579,6 +558,23 @@ impl PythonLogMessage {
     }
 }
 
+impl TryFrom<&String> for PythonLogMessage {
+    type Error = serde_json::Error;
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        serde_json::from_str::<Self>(value)
+    }
+}
+
+fn log_lines<S: Sized + BufRead>(lines: Lines<S>) {
+    for line in lines.flatten() {
+        match PythonLogMessage::try_from(&line) {
+            Ok(log) => log.trace(),
+            Err(_) => tracing::debug!("{line}"),
+        }
+    }
+}
+
 fn find_num_shards(
     sharded: Option<bool>,
     num_shard: Option<usize>,
@@ -632,6 +628,9 @@ enum LauncherError {
 }
 
 fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
+    // Enter download tracing span
+    let _span = tracing::span!(tracing::Level::INFO, "download").entered();
+
     let mut download_args = vec![
         "download-weights".to_string(),
         args.model_id.to_string(),
@@ -693,6 +692,8 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
             if err.kind() == io::ErrorKind::NotFound {
                 tracing::error!("text-generation-server not found in PATH");
                 tracing::error!("Please install it with `make install-server`")
+            } else {
+                tracing::error!("{}", err);
             }
 
             return Err(LauncherError::DownloadError);
@@ -701,16 +702,10 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // Redirect STDOUT to the console
     let download_stdout = download_process.stdout.take().unwrap();
+    let stdout = BufReader::new(download_stdout);
+
     thread::spawn(move || {
-        // Enter download tracing span
-        let stdout = BufReader::new(download_stdout);
-        let _span = tracing::span!(tracing::Level::INFO, "download").entered();
-        for line in stdout.lines() {
-            // Parse loguru logs
-            if let Ok(log) = serde_json::from_str::<PythonLogMessage>(&line.unwrap()) {
-                log.trace();
-            }
-        }
+        log_lines(stdout.lines());
     });
 
     loop {
@@ -815,11 +810,8 @@ fn spawn_shards(
             Err(TryRecvError::Empty) => {
                 sleep(Duration::from_millis(100));
             }
-            Ok(ShardStatus::Failed((rank, err))) => {
+            Ok(ShardStatus::Failed(rank)) => {
                 tracing::error!("Shard {rank} failed to start");
-                if let Some(err) = err {
-                    tracing::error!("{err}");
-                }
                 shutdown_shards(shutdown, shutdown_receiver);
                 return Err(LauncherError::ShardCannotStart);
             }
@@ -854,8 +846,6 @@ fn spawn_webserver(
         args.max_total_tokens.to_string(),
         "--max-batch-prefill-tokens".to_string(),
         args.max_batch_prefill_tokens.to_string(),
-        "--max-batch-total-tokens".to_string(),
-        args.max_batch_total_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
         args.waiting_served_ratio.to_string(),
         "--max-waiting-tokens".to_string(),
@@ -871,6 +861,12 @@ fn spawn_webserver(
         "--tokenizer-name".to_string(),
         args.model_id,
     ];
+
+    // Model optional max batch total tokens
+    if let Some(max_batch_total_tokens) = args.max_batch_total_tokens {
+        router_args.push("--max-batch-total-tokens".to_string());
+        router_args.push(max_batch_total_tokens.to_string());
+    }
 
     // Model optional revision
     if let Some(ref revision) = args.revision {
@@ -896,26 +892,11 @@ fn spawn_webserver(
 
     // Ngrok
     if args.ngrok {
-        let authtoken = args.ngrok_authtoken.ok_or_else(|| {
-            tracing::error!("`ngrok-authtoken` must be set when using ngrok tunneling");
-            LauncherError::WebserverCannotStart
-        })?;
-
         router_args.push("--ngrok".to_string());
         router_args.push("--ngrok-authtoken".to_string());
-        router_args.push(authtoken);
-
-        if let Some(domain) = args.ngrok_domain {
-            router_args.push("--ngrok-domain".to_string());
-            router_args.push(domain);
-        }
-
-        if let (Some(username), Some(password)) = (args.ngrok_username, args.ngrok_password) {
-            router_args.push("--ngrok-username".to_string());
-            router_args.push(username);
-            router_args.push("--ngrok-password".to_string());
-            router_args.push(password);
-        }
+        router_args.push(args.ngrok_authtoken.unwrap());
+        router_args.push("--ngrok-edge".to_string());
+        router_args.push(args.ngrok_edge.unwrap());
     }
 
     // Copy current process env
@@ -993,12 +974,22 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
 
 fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
-    let args = Args::parse();
+    let args: Args = Args::parse();
+
+    // Filter events with LOG_LEVEL
+    let env_filter =
+        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
 
     if args.json_output {
-        tracing_subscriber::fmt().json().init();
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .json()
+            .init();
     } else {
-        tracing_subscriber::fmt().compact().init();
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .compact()
+            .init();
     }
 
     if args.env {
@@ -1020,18 +1011,7 @@ fn main() -> Result<(), LauncherError> {
             args.max_batch_prefill_tokens, args.max_input_length
         )));
     }
-    if args.max_batch_prefill_tokens > args.max_batch_total_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-            args.max_batch_prefill_tokens, args.max_batch_total_tokens
-        )));
-    }
-    if args.max_total_tokens as u32 > args.max_batch_total_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-            args.max_total_tokens, args.max_batch_total_tokens
-        )));
-    }
+
     if args.validation_workers == 0 {
         return Err(LauncherError::ArgumentValidation(
             "`validation_workers` must be > 0".to_string(),
@@ -1047,6 +1027,35 @@ fn main() -> Result<(), LauncherError> {
     let num_shard = find_num_shards(args.sharded, args.num_shard)?;
     if num_shard > 1 {
         tracing::info!("Sharding model on {num_shard} processes");
+    }
+
+    if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
+        if args.max_batch_prefill_tokens > *max_batch_total_tokens {
+            return Err(LauncherError::ArgumentValidation(format!(
+                "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+                args.max_batch_prefill_tokens, max_batch_total_tokens
+            )));
+        }
+        if args.max_total_tokens as u32 > *max_batch_total_tokens {
+            return Err(LauncherError::ArgumentValidation(format!(
+                "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+                args.max_total_tokens, max_batch_total_tokens
+            )));
+        }
+    }
+
+    if args.ngrok {
+        if args.ngrok_authtoken.is_none() {
+            return Err(LauncherError::ArgumentValidation(
+                "`ngrok-authtoken` must be set when using ngrok tunneling".to_string(),
+            ));
+        }
+
+        if args.ngrok_edge.is_none() {
+            return Err(LauncherError::ArgumentValidation(
+                "`ngrok-edge` must be set when using ngrok tunneling".to_string(),
+            ));
+        }
     }
 
     // Signal handler
@@ -1101,11 +1110,8 @@ fn main() -> Result<(), LauncherError> {
     let mut exit_code = Ok(());
 
     while running.load(Ordering::SeqCst) {
-        if let Ok(ShardStatus::Failed((rank, err))) = status_receiver.try_recv() {
+        if let Ok(ShardStatus::Failed(rank)) = status_receiver.try_recv() {
             tracing::error!("Shard {rank} crashed");
-            if let Some(err) = err {
-                tracing::error!("{err}");
-            }
             exit_code = Err(LauncherError::ShardFailed);
             break;
         };
