@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_starcoder_gptq_handle(launcher):
-    with launcher("Narsil/starcoder-gptq", num_shard=2, quantize="gptq") as handle:
+    with launcher("huggingface/llama-7b-gptq", num_shard=2, quantize="gptq") as handle:
         yield handle
 
 

@@ -140,6 +140,13 @@ def serve(
             logger.exception("Error when initializing model")
             raise
 
+        try:
+            from text_generation_server.utils.gptq.exllama import create_buffers
+            create_buffers()
+            logger.info("Created exllama GPTQ buffers !")
+        except ImportError:
+            pass
+
         server = aio.server(
             interceptors=[
                 ExceptionInterceptor(),

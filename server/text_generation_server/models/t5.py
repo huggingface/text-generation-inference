@@ -73,7 +73,6 @@ class T5Sharded(Seq2SeqLM):
         super(Seq2SeqLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
-            config=config,
             requires_padding=True,
             dtype=dtype,
             device=device,

@@ -6,8 +6,9 @@ import torch.distributed
 import numpy as np
 
 from dataclasses import dataclass
+from loguru import logger
 from opentelemetry import trace
-from transformers import PreTrainedTokenizerBase, PretrainedConfig
+from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Union, Dict
 
 from text_generation_server.models import Model
@@ -19,7 +20,6 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
-
 
 tracer = trace.get_tracer(__name__)
 
@@ -684,7 +684,6 @@ class FlashCausalLM(Model):
         self,
         model: torch.nn.Module,
         tokenizer: PreTrainedTokenizerBase,
-        config: PretrainedConfig,
         num_layers: int,
         num_kv_heads: int,
         head_size: int,
@@ -700,7 +699,6 @@ class FlashCausalLM(Model):
         super(FlashCausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
-            config=config,
             requires_padding=False,
             dtype=dtype,
             device=device,

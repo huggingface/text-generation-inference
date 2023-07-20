@@ -56,6 +56,3 @@ run-bloom:
 
 run-bloom-quantize:
 	text-generation-launcher --model-id bigscience/bloom --num-shard 8 --quantize --port 8080
-
-clean:
-	rm -rf target aml

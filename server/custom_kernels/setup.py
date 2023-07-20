@@ -14,7 +14,7 @@ setup(
             sources=["custom_kernels/fused_attention_cuda.cu"],
             extra_compile_args=["-arch=compute_80", "-std=c++17"],
         ),
-        CppExtension(
+        CUDAExtension(
             name="custom_kernels.exllama",
             sources=[
                 "custom_kernels/exllama/exllama_ext.cpp",

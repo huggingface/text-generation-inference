@@ -65,7 +65,6 @@ class FlashRWSharded(FlashCausalLM):
         super(FlashRWSharded, self).__init__(
             model=model.to(device),
             tokenizer=tokenizer,
-            config=config,
             num_layers=len(model.transformer.h),
             num_kv_heads=model.transformer.cache_size,
             head_size=model.transformer.head_size,

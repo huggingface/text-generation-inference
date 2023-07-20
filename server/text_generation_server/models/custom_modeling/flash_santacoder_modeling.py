@@ -20,6 +20,7 @@ from text_generation_server.utils.layers import (
 )
 from safetensors import SafetensorError
 
+
 def load_multi_mqa(
     config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
 ):
@@ -71,12 +72,19 @@ def _load_multi_mqa_gptq(
         qzeros = torch.cat([q_tensor, kv_tensor], dim=1)
 
         g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
-        bits, groupsize = weights.get_gptq_qparams()
+        try:
+            bits = weights.get_tensor("gptq_bits").item()
+            groupsize = weights.get_tensor("gptq_groupsize").item()
+        except SafetensorError as e:
+            try:
+                import os
 
-        qweight = qweight.to(weights.device)
-        qzeros = qzeros.to(weights.device)
-        scales = scales.to(weights.device)
-        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
+                bits = int(os.getenv("GPTQ_BITS"))
+                groupsize = int(os.getenv("GPTQ_GROUPSIZE"))
+            except Exception:
+                raise e
+
+        weight = (qweight, qzeros, scales, g_idx, bits, groupsize)
 
         if bias:
             slice_ = weights._get_slice(f"{prefix}.c_attn.bias")
@@ -89,8 +97,6 @@ def _load_multi_mqa_gptq(
             q_tensor = slice_[start:stop]
             kv_tensor = slice_[-2 * head_size :]
             bias = torch.cat([q_tensor, kv_tensor], dim=0)
-
-            bias = bias.to(weights.device)
 
         return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
     else:
@@ -355,7 +361,7 @@ class Block(nn.Module):
         max_s,
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
-        
+
         hidden_states = self.attn(
             hidden_states,
             cu_seqlen_prefill,

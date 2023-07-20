@@ -378,6 +378,7 @@ class FlashLlamaLayer(nn.Module):
 class FlashLlamaModel(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
+        self.config = config
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
@@ -448,7 +449,6 @@ class FlashLlamaForCausalLM(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
 
-        self.config = config
         self.model = FlashLlamaModel(config, weights)
         self.lm_head = TensorParallelHead.load(
             config,

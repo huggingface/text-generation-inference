@@ -3,7 +3,6 @@ from typing import List, Dict, Optional, Tuple
 from safetensors import safe_open, SafetensorError
 import torch
 
-
 class Weights:
     def __init__(
         self,
@@ -126,9 +125,15 @@ class Weights:
             for w2 in w[1:]:
                 torch.testing.assert_close(w2, w[0])
             g_idx = w[0]
+            can_exllama = True
+            bits, groupsize = self._get_gptq_qparams()
+            if not torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32)) and not (g_idx == 0).all():
+                # Exllama implementation does not support row tensor parallelism with act-order, as
+                # it would require to reorder input activations that are split unto several GPUs
+                can_exllama = False
 
-            bits, groupsize = self.get_gptq_qparams()
-            weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
+            bits, groupsize = self._get_gptq_qparams()
+            weight = (qweight, qzeros, scales, g_idx, bits, groupsize, can_exllama)
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
             weight = torch.cat(w, dim=dim)
@@ -136,52 +141,32 @@ class Weights:
 
     def get_multi_weights_row(self, prefix: str, quantize: str):
         if quantize == "gptq":
-            use_triton_kernel = False
-            if self.process_group.size() > 1:
-                g_idx = self.get_tensor(f"{prefix}.g_idx")
-                _, groupsize = self.get_gptq_qparams()
-                
-                if g_idx is not None:
-                    if not torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32)) and not (g_idx == 0).all():
-                        # Exllama implementation does not support row tensor parallelism with act-order, as
-                        # it would require to reorder input activations that are split unto several GPUs
-                        use_triton_kernel = True
-
             try:
                 qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
             except RuntimeError:
                 raise RuntimeError("Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`")
+
+            bits, groupsize = self._get_gptq_qparams()
+            g_idx = self.get_tensor(f"{prefix}.g_idx")
             
-            bits, groupsize = self.get_gptq_qparams()
+            can_exllama = True
+            if not torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32)) and not (g_idx == 0).all():
+                # Exllama implementation does not support row tensor parallelism with act-order, as
+                # it would require to reorder input activations that are split unto several GPUs
+                can_exllama = False
 
-            if use_triton_kernel:
-                # The triton kernel reorders the scales/zero points instead of the weight/activation.
-                # Thus, each rank needs the full qzeros/scales.
-                qzeros = self.get_tensor(f"{prefix}.qzeros")
-                scales = self.get_tensor(f"{prefix}.scales")
-                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
-            else:
-                if groupsize >= 16:
-                    # Exllama reorders the weights in advance and the activations on the fly, thus
-                    # the scales and zero-points do not need to be reordered.
-                    qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
-                    scales = self.get_sharded(f"{prefix}.scales", dim=0)
-                else:
-                    qzeros = self.get_tensor(f"{prefix}.qzeros")
-                    scales = self.get_tensor(f"{prefix}.scales")
+            # The triton kernel reorders the scales/zero points instead of the weight/activation.
+            # Thus, each rank needs the full qzeros/scales.
+            qzeros = self.get_tensor(f"{prefix}.qzeros")
+            scales = self.get_tensor(f"{prefix}.scales")
+            g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
 
-                # For tp > 1, at this point we know we do not use act-order
-                if self.process_group.size() == 1:
-                    g_idx = self.get_tensor(f"{prefix}.g_idx")
-                else:
-                    g_idx = None
-
-            weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_triton_kernel)
+            weight = (qweight, qzeros, scales, g_idx, bits, groupsize, can_exllama)
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight
 
-    def get_gptq_qparams(self) -> Tuple[int, int]:
+    def _get_gptq_qparams(self) -> Tuple[int, int]:
         try:
             bits = self.get_tensor("gptq_bits").item()
             groupsize = self.get_tensor("gptq_groupsize").item()
