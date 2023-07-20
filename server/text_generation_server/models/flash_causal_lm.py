@@ -684,7 +684,6 @@ class FlashCausalLM(Model):
         self,
         model: torch.nn.Module,
         tokenizer: PreTrainedTokenizerBase,
-        config: PretrainedConfig,
         num_layers: int,
         num_kv_heads: int,
         head_size: int,
@@ -700,7 +699,6 @@ class FlashCausalLM(Model):
         super(FlashCausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
-            config=config,
             requires_padding=False,
             dtype=dtype,
             device=device,

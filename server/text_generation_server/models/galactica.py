@@ -198,7 +198,6 @@ class GalacticaSharded(CausalLM):
         super(CausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
-            config=config,
             requires_padding=True,
             dtype=dtype,
             device=device,

@@ -71,11 +71,8 @@ def _load_multi_mqa_gptq(
         qzeros = torch.cat([q_tensor, kv_tensor], dim=1)
 
         g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
-        bits, groupsize = weights.get_gptq_qparams()
+        bits, groupsize = weights._get_gptq_qparams()
 
-        qweight = qweight.to(weights.device)
-        qzeros = qzeros.to(weights.device)
-        scales = scales.to(weights.device)
         weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
 
         if bias:
@@ -89,8 +86,6 @@ def _load_multi_mqa_gptq(
             q_tensor = slice_[start:stop]
             kv_tensor = slice_[-2 * head_size :]
             bias = torch.cat([q_tensor, kv_tensor], dim=0)
-
-            bias = bias.to(weights.device)
 
         return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
     else:

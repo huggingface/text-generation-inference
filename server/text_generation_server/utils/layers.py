@@ -15,7 +15,12 @@ except ImportError:
 
 from accelerate import init_empty_weights
 
-from text_generation_server.utils.gptq.quant_linear import QuantLinear, Ex4bitLinear
+from text_generation_server.utils.gptq.quant_linear import QuantLinear
+HAS_EXLLAMA = True
+try:
+    from text_generation_server.utils.gptq.exllama import Ex4bitLinear
+except ImportError:
+    HAS_EXLLAMA = False
 
 from typing import Optional
 
@@ -145,13 +150,15 @@ def get_linear(weight, bias, quantize):
             linear.bias = nn.Parameter(bias)
     elif quantize == "gptq":
         try:
-            qweight, qzeros, scales, g_idx, bits, groupsize, use_triton_kernel = weight
+            qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama = weight
         except Exception:
             raise NotImplementedError(
                 f"The passed weight is not `gptq` compatible, loader needs to be updated."
             )
 
-        if use_triton_kernel or bits != 4:
+        if use_exllama:
+            linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
+        else:
             linear = QuantLinear(
                 qweight,
                 qzeros,
@@ -161,8 +168,6 @@ def get_linear(weight, bias, quantize):
                 bits,
                 groupsize,
             )
-        else:
-            linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear

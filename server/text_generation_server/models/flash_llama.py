@@ -68,7 +68,6 @@ class FlashLlama(FlashCausalLM):
         super(FlashLlama, self).__init__(
             model=model,
             tokenizer=tokenizer,
-            config=config,
             num_layers=len(model.model.layers),
             num_kv_heads=model.model.num_key_value_heads,
             head_size=model.model.head_size,
