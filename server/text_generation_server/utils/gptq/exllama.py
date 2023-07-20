@@ -1,6 +1,6 @@
 
 import torch
-from custom_kernels.exllama import make_q4, q4_matmul, prepare_buffers, set_tuning_params
+from exllama_kernels import make_q4, q4_matmul, prepare_buffers, set_tuning_params
 
 # Dummy tensor to pass instead of g_idx since there is no way to pass "None" to a C++ extension
 none_tensor = torch.empty((1, 1), device = "meta")
