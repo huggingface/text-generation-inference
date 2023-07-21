@@ -10,89 +10,79 @@
         "text": "<s>"
       },
       {
-        "id": 4272,
-        "logprob": -12.390625,
-        "text": "city"
+        "id": 4321,
+        "logprob": -9.6015625,
+        "text": "Test"
       },
       {
-        "id": 310,
-        "logprob": -2.5292969,
-        "text": "of"
-      },
-      {
-        "id": 3444,
-        "logprob": -11.25,
-        "text": "France"
-      },
-      {
-        "id": 338,
-        "logprob": -4.953125,
-        "text": "is"
+        "id": 2009,
+        "logprob": -9.6640625,
+        "text": "request"
       }
     ],
     "seed": 0,
     "tokens": [
       {
-        "id": 278,
-        "logprob": -0.1796875,
+        "id": 29899,
+        "logprob": -1.1640625,
         "special": false,
-        "text": " the"
+        "text": "-"
       },
       {
-        "id": 12949,
-        "logprob": -2.2792969,
+        "id": 1454,
+        "logprob": -0.07543945,
         "special": false,
-        "text": " seat"
+        "text": "for"
       },
       {
-        "id": 310,
+        "id": 29899,
         "logprob": 0.0,
         "special": false,
-        "text": " of"
+        "text": "-"
       },
       {
-        "id": 263,
-        "logprob": -0.09301758,
-        "special": false,
-        "text": " a"
-      },
-      {
-        "id": 5917,
-        "logprob": -1.3974609,
-        "special": false,
-        "text": " Roman"
-      },
-      {
-        "id": 11865,
+        "id": 9342,
         "logprob": 0.0,
         "special": false,
-        "text": " Catholic"
+        "text": "comment"
       },
       {
-        "id": 3190,
+        "id": 29901,
         "logprob": 0.0,
         "special": false,
-        "text": " arch"
+        "text": ":"
       },
       {
-        "id": 28693,
+        "id": 396,
+        "logprob": -0.2956543,
+        "special": false,
+        "text": " #"
+      },
+      {
+        "id": 29906,
+        "logprob": -0.52734375,
+        "special": false,
+        "text": "2"
+      },
+      {
+        "id": 29900,
+        "logprob": -0.6899414,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 29896,
         "logprob": 0.0,
         "special": false,
-        "text": "bishop"
+        "text": "1"
       },
       {
-        "id": 29892,
-        "logprob": 0.0,
+        "id": 29946,
+        "logprob": -1.5068359,
         "special": false,
-        "text": ","
-      },
-      {
-        "id": 1058,
-        "logprob": -0.9433594,
-        "special": false,
-        "text": " who"
+        "text": "4"
       }
     ]
   },
-  "generated_text": "The capital city of France isthe seat of a Roman Catholic archbishop, who"
+  "generated_text": "Test request-for-comment: #2014"
 }

@@ -1,4 +1,3 @@
- 
 import pytest
 
 
@@ -18,7 +17,7 @@ async def flash_llama_gptq(flash_llama_gptq_handle):
 @pytest.mark.private
 async def test_flash_llama_gptq(flash_llama_gptq, response_snapshot):
     response = await flash_llama_gptq.generate(
-        "Today I am in France", max_new_tokens=10, decoder_input_details=True
+        "Test request", max_new_tokens=10, decoder_input_details=True
     )
 
     assert response.details.generated_tokens == 10
@@ -29,7 +28,7 @@ async def test_flash_llama_gptq(flash_llama_gptq, response_snapshot):
 @pytest.mark.private
 async def test_flash_llama_gptq_all_params(flash_llama_gptq, response_snapshot):
     response = await flash_llama_gptq.generate(
-        "The capital city of France is",
+        "Test request",
         max_new_tokens=10,
         repetition_penalty=1.2,
         return_full_text=True,
@@ -50,7 +49,7 @@ async def test_flash_llama_gptq_all_params(flash_llama_gptq, response_snapshot):
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_gptq_load(flash_llama_gptq, generate_load, response_snapshot):
-    responses = await generate_load(flash_llama_gptq, "Today I am in France", max_new_tokens=10, n=4)
+    responses = await generate_load(flash_llama_gptq, "Test request", max_new_tokens=10, n=4)
 
     assert len(responses) == 4
     assert all([r.generated_text == responses[0].generated_text for r in responses])
