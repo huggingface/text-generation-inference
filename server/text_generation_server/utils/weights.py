@@ -3,6 +3,8 @@ from typing import List, Dict, Optional, Tuple
 from safetensors import safe_open, SafetensorError
 import torch
 from loguru import logger
+from huggingface_hub import hf_hub_download
+import json
 
 
 class Weights:
