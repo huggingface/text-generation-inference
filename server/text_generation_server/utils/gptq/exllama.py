@@ -39,6 +39,7 @@ def create_exllama_buffers():
         # does not offer an API to expose this variable to python, as this variable
         # is handled by the client but it appears the model is initialized by the server.
         # An alternative could be to initialize the buffers during warmup.
+        # Dummy
         max_total_tokens = 2048
     else:
         max_total_tokens = 1
