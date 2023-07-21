@@ -237,9 +237,6 @@ def launcher(event_loop):
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)
-            if quantize == "gptq":
-                env["GPTQ_GROUPSIZE"] = "128"
-                env["GPTQ_BITS"] = "4"
         if trust_remote_code:
             args.append("--trust-remote-code")
 

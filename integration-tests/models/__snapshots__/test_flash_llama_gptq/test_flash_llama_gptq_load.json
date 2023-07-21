@@ -1,410 +1,414 @@
 [
   {
-    "generated_text": ", and I am going to visit the Louvre",
     "details": {
+      "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "seed": null,
       "prefill": [
         {
-          "id": 2,
-          "text": "</s>",
-          "logprob": null
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
         },
         {
           "id": 20628,
-          "text": "Today",
-          "logprob": -10.734375
+          "logprob": -10.4296875,
+          "text": "Today"
         },
         {
           "id": 306,
-          "text": "I",
-          "logprob": -4.2265625
+          "logprob": -2.4179688,
+          "text": "I"
         },
         {
           "id": 626,
-          "text": "am",
-          "logprob": -1.9794922
+          "logprob": -1.8876953,
+          "text": "am"
         },
         {
           "id": 297,
-          "text": "in",
-          "logprob": -5.4960938
+          "logprob": -4.484375,
+          "text": "in"
         },
         {
           "id": 3444,
-          "text": "France",
-          "logprob": -9.1171875
+          "logprob": -7.0820312,
+          "text": "France"
         }
       ],
+      "seed": null,
       "tokens": [
         {
           "id": 29892,
-          "text": ",",
-          "logprob": -0.30737305,
-          "special": false
+          "logprob": -1.2958984,
+          "special": false,
+          "text": ","
         },
         {
-          "id": 322,
-          "text": " and",
-          "logprob": -1.3701172,
-          "special": false
-        },
-        {
-          "id": 306,
-          "text": " I",
-          "logprob": -0.31567383,
-          "special": false
-        },
-        {
-          "id": 626,
-          "text": " am",
-          "logprob": -1.3886719,
-          "special": false
-        },
-        {
-          "id": 2675,
-          "text": " going",
-          "logprob": -1.2070312,
-          "special": false
-        },
-        {
-          "id": 304,
-          "text": " to",
-          "logprob": -0.0014028549,
-          "special": false
-        },
-        {
-          "id": 6493,
-          "text": " visit",
-          "logprob": -1.1181641,
-          "special": false
+          "id": 297,
+          "logprob": -1.9423828,
+          "special": false,
+          "text": " in"
         },
         {
           "id": 278,
-          "text": " the",
-          "logprob": -0.3942871,
-          "special": false
+          "logprob": -0.7475586,
+          "special": false,
+          "text": " the"
         },
         {
-          "id": 4562,
-          "text": " Lou",
-          "logprob": -1.8789062,
-          "special": false
+          "id": 7062,
+          "logprob": -2.9101562,
+          "special": false,
+          "text": " south"
         },
         {
-          "id": 12675,
-          "text": "vre",
-          "logprob": -0.00082969666,
-          "special": false
+          "id": 310,
+          "logprob": -1.0380859,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 278,
+          "logprob": -0.5761719,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 4234,
+          "logprob": -0.30297852,
+          "special": false,
+          "text": " country"
+        },
+        {
+          "id": 29892,
+          "logprob": -0.6933594,
+          "special": false,
+          "text": ","
+        },
+        {
+          "id": 297,
+          "logprob": -1.0966797,
+          "special": false,
+          "text": " in"
+        },
+        {
+          "id": 278,
+          "logprob": -0.51708984,
+          "special": false,
+          "text": " the"
         }
       ]
-    }
+    },
+    "generated_text": ", in the south of the country, in the"
   },
   {
-    "generated_text": ", and I am going to visit the Louvre",
     "details": {
+      "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "seed": null,
       "prefill": [
         {
-          "id": 2,
-          "text": "</s>",
-          "logprob": null
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
         },
         {
           "id": 20628,
-          "text": "Today",
-          "logprob": -10.734375
+          "logprob": -10.53125,
+          "text": "Today"
         },
         {
           "id": 306,
-          "text": "I",
-          "logprob": -4.2265625
+          "logprob": -2.4609375,
+          "text": "I"
         },
         {
           "id": 626,
-          "text": "am",
-          "logprob": -1.9794922
+          "logprob": -1.8857422,
+          "text": "am"
         },
         {
           "id": 297,
-          "text": "in",
-          "logprob": -5.4960938
+          "logprob": -4.484375,
+          "text": "in"
         },
         {
           "id": 3444,
-          "text": "France",
-          "logprob": -9.1171875
+          "logprob": -7.1015625,
+          "text": "France"
         }
       ],
+      "seed": null,
       "tokens": [
         {
           "id": 29892,
-          "text": ",",
-          "logprob": -0.30737305,
-          "special": false
+          "logprob": -1.2910156,
+          "special": false,
+          "text": ","
         },
         {
-          "id": 322,
-          "text": " and",
-          "logprob": -1.3720703,
-          "special": false
-        },
-        {
-          "id": 306,
-          "text": " I",
-          "logprob": -0.31469727,
-          "special": false
-        },
-        {
-          "id": 626,
-          "text": " am",
-          "logprob": -1.3916016,
-          "special": false
-        },
-        {
-          "id": 2675,
-          "text": " going",
-          "logprob": -1.2050781,
-          "special": false
-        },
-        {
-          "id": 304,
-          "text": " to",
-          "logprob": -0.0014019012,
-          "special": false
-        },
-        {
-          "id": 6493,
-          "text": " visit",
-          "logprob": -1.1162109,
-          "special": false
+          "id": 297,
+          "logprob": -1.9375,
+          "special": false,
+          "text": " in"
         },
         {
           "id": 278,
-          "text": " the",
-          "logprob": -0.3959961,
-          "special": false
+          "logprob": -0.7416992,
+          "special": false,
+          "text": " the"
         },
         {
-          "id": 4562,
-          "text": " Lou",
-          "logprob": -1.8847656,
-          "special": false
+          "id": 7062,
+          "logprob": -2.90625,
+          "special": false,
+          "text": " south"
         },
         {
-          "id": 12675,
-          "text": "vre",
-          "logprob": -0.0008392334,
-          "special": false
+          "id": 310,
+          "logprob": -1.0439453,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 278,
+          "logprob": -0.5654297,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 4234,
+          "logprob": -0.3125,
+          "special": false,
+          "text": " country"
+        },
+        {
+          "id": 29892,
+          "logprob": -0.69384766,
+          "special": false,
+          "text": ","
+        },
+        {
+          "id": 297,
+          "logprob": -1.0976562,
+          "special": false,
+          "text": " in"
+        },
+        {
+          "id": 278,
+          "logprob": -0.51416016,
+          "special": false,
+          "text": " the"
         }
       ]
-    }
+    },
+    "generated_text": ", in the south of the country, in the"
   },
   {
-    "generated_text": ", and I am going to visit the Louvre",
     "details": {
+      "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "seed": null,
       "prefill": [
         {
-          "id": 2,
-          "text": "</s>",
-          "logprob": null
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
         },
         {
           "id": 20628,
-          "text": "Today",
-          "logprob": -10.734375
+          "logprob": -10.53125,
+          "text": "Today"
         },
         {
           "id": 306,
-          "text": "I",
-          "logprob": -4.2265625
+          "logprob": -2.4609375,
+          "text": "I"
         },
         {
           "id": 626,
-          "text": "am",
-          "logprob": -1.9794922
+          "logprob": -1.8857422,
+          "text": "am"
         },
         {
           "id": 297,
-          "text": "in",
-          "logprob": -5.4960938
+          "logprob": -4.484375,
+          "text": "in"
         },
         {
           "id": 3444,
-          "text": "France",
-          "logprob": -9.1171875
+          "logprob": -7.1015625,
+          "text": "France"
         }
       ],
+      "seed": null,
       "tokens": [
         {
           "id": 29892,
-          "text": ",",
-          "logprob": -0.30737305,
-          "special": false
+          "logprob": -1.2910156,
+          "special": false,
+          "text": ","
         },
         {
-          "id": 322,
-          "text": " and",
-          "logprob": -1.3710938,
-          "special": false
-        },
-        {
-          "id": 306,
-          "text": " I",
-          "logprob": -0.31225586,
-          "special": false
-        },
-        {
-          "id": 626,
-          "text": " am",
-          "logprob": -1.3994141,
-          "special": false
-        },
-        {
-          "id": 2675,
-          "text": " going",
-          "logprob": -1.2060547,
-          "special": false
-        },
-        {
-          "id": 304,
-          "text": " to",
-          "logprob": -0.0013828278,
-          "special": false
-        },
-        {
-          "id": 6493,
-          "text": " visit",
-          "logprob": -1.1181641,
-          "special": false
+          "id": 297,
+          "logprob": -1.9384766,
+          "special": false,
+          "text": " in"
         },
         {
           "id": 278,
-          "text": " the",
-          "logprob": -0.39135742,
-          "special": false
+          "logprob": -0.7426758,
+          "special": false,
+          "text": " the"
         },
         {
-          "id": 4562,
-          "text": " Lou",
-          "logprob": -1.8808594,
-          "special": false
+          "id": 7062,
+          "logprob": -2.9042969,
+          "special": false,
+          "text": " south"
         },
         {
-          "id": 12675,
-          "text": "vre",
-          "logprob": -0.00084352493,
-          "special": false
+          "id": 310,
+          "logprob": -1.0439453,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 278,
+          "logprob": -0.56103516,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 4234,
+          "logprob": -0.31323242,
+          "special": false,
+          "text": " country"
+        },
+        {
+          "id": 29892,
+          "logprob": -0.6982422,
+          "special": false,
+          "text": ","
+        },
+        {
+          "id": 297,
+          "logprob": -1.0976562,
+          "special": false,
+          "text": " in"
+        },
+        {
+          "id": 278,
+          "logprob": -0.52001953,
+          "special": false,
+          "text": " the"
         }
       ]
-    }
+    },
+    "generated_text": ", in the south of the country, in the"
   },
   {
-    "generated_text": ", and I am going to visit the Louvre",
     "details": {
+      "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "seed": null,
       "prefill": [
         {
-          "id": 2,
-          "text": "</s>",
-          "logprob": null
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
         },
         {
           "id": 20628,
-          "text": "Today",
-          "logprob": -11.203125
+          "logprob": -10.53125,
+          "text": "Today"
         },
         {
           "id": 306,
-          "text": "I",
-          "logprob": -4.1757812
+          "logprob": -2.4609375,
+          "text": "I"
         },
         {
           "id": 626,
-          "text": "am",
-          "logprob": -1.9697266
+          "logprob": -1.8857422,
+          "text": "am"
         },
         {
           "id": 297,
-          "text": "in",
-          "logprob": -5.4609375
+          "logprob": -4.484375,
+          "text": "in"
         },
         {
           "id": 3444,
-          "text": "France",
-          "logprob": -9.046875
+          "logprob": -7.1015625,
+          "text": "France"
         }
       ],
+      "seed": null,
       "tokens": [
         {
           "id": 29892,
-          "text": ",",
-          "logprob": -0.3083496,
-          "special": false
+          "logprob": -1.2910156,
+          "special": false,
+          "text": ","
         },
         {
-          "id": 322,
-          "text": " and",
-          "logprob": -1.4228516,
-          "special": false
-        },
-        {
-          "id": 306,
-          "text": " I",
-          "logprob": -0.32055664,
-          "special": false
-        },
-        {
-          "id": 626,
-          "text": " am",
-          "logprob": -1.3847656,
-          "special": false
-        },
-        {
-          "id": 2675,
-          "text": " going",
-          "logprob": -1.21875,
-          "special": false
-        },
-        {
-          "id": 304,
-          "text": " to",
-          "logprob": -0.0014572144,
-          "special": false
-        },
-        {
-          "id": 6493,
-          "text": " visit",
-          "logprob": -1.1542969,
-          "special": false
+          "id": 297,
+          "logprob": -1.9394531,
+          "special": false,
+          "text": " in"
         },
         {
           "id": 278,
-          "text": " the",
-          "logprob": -0.41455078,
-          "special": false
+          "logprob": -0.74121094,
+          "special": false,
+          "text": " the"
         },
         {
-          "id": 4562,
-          "text": " Lou",
-          "logprob": -1.8193359,
-          "special": false
+          "id": 7062,
+          "logprob": -2.90625,
+          "special": false,
+          "text": " south"
         },
         {
-          "id": 12675,
-          "text": "vre",
-          "logprob": -0.0007710457,
-          "special": false
+          "id": 310,
+          "logprob": -1.0439453,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 278,
+          "logprob": -0.56591797,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 4234,
+          "logprob": -0.31713867,
+          "special": false,
+          "text": " country"
+        },
+        {
+          "id": 29892,
+          "logprob": -0.69140625,
+          "special": false,
+          "text": ","
+        },
+        {
+          "id": 297,
+          "logprob": -1.0957031,
+          "special": false,
+          "text": " in"
+        },
+        {
+          "id": 278,
+          "logprob": -0.52001953,
+          "special": false,
+          "text": " the"
         }
       ]
-    }
+    },
+    "generated_text": ", in the south of the country, in the"
   }
 ]

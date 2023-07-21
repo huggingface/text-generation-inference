@@ -1,97 +1,98 @@
 {
-  "generated_text": "The capital city of France isParis.\n The Best Way to Visit",
   "details": {
+    "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 10,
-    "seed": 0,
     "prefill": [
       {
-        "id": 2,
-        "text": "</s>",
-        "logprob": null
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
       },
       {
         "id": 4272,
-        "text": "city",
-        "logprob": -12.4453125
+        "logprob": -12.390625,
+        "text": "city"
       },
       {
         "id": 310,
-        "text": "of",
-        "logprob": -2.4023438
+        "logprob": -2.5292969,
+        "text": "of"
       },
       {
         "id": 3444,
-        "text": "France",
-        "logprob": -12.515625
+        "logprob": -11.25,
+        "text": "France"
       },
       {
         "id": 338,
-        "text": "is",
-        "logprob": -5.1914062
+        "logprob": -4.953125,
+        "text": "is"
       }
     ],
+    "seed": 0,
     "tokens": [
       {
-        "id": 3681,
-        "text": " Paris",
-        "logprob": -0.22546387,
-        "special": false
+        "id": 278,
+        "logprob": -0.1796875,
+        "special": false,
+        "text": " the"
       },
       {
-        "id": 29889,
-        "text": ".",
-        "logprob": 0,
-        "special": false
+        "id": 12949,
+        "logprob": -2.2792969,
+        "special": false,
+        "text": " seat"
       },
       {
-        "id": 13,
-        "text": "\n",
-        "logprob": 0,
-        "special": false
+        "id": 310,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
       },
       {
-        "id": 1,
-        "text": "",
-        "logprob": 0,
-        "special": false
+        "id": 263,
+        "logprob": -0.09301758,
+        "special": false,
+        "text": " a"
       },
       {
-        "id": 450,
-        "text": " The",
-        "logprob": 0,
-        "special": false
+        "id": 5917,
+        "logprob": -1.3974609,
+        "special": false,
+        "text": " Roman"
       },
       {
-        "id": 6407,
-        "text": " Best",
-        "logprob": -0.5522461,
-        "special": false
+        "id": 11865,
+        "logprob": 0.0,
+        "special": false,
+        "text": " Catholic"
       },
       {
-        "id": 5307,
-        "text": " Way",
-        "logprob": 0,
-        "special": false
+        "id": 3190,
+        "logprob": 0.0,
+        "special": false,
+        "text": " arch"
       },
       {
-        "id": 304,
-        "text": " to",
-        "logprob": 0,
-        "special": false
+        "id": 28693,
+        "logprob": 0.0,
+        "special": false,
+        "text": "bishop"
       },
       {
-        "id": 5741,
-        "text": " Vis",
-        "logprob": -2.3496094,
-        "special": false
+        "id": 29892,
+        "logprob": 0.0,
+        "special": false,
+        "text": ","
       },
       {
-        "id": 277,
-        "text": "it",
-        "logprob": 0,
-        "special": false
+        "id": 1058,
+        "logprob": -0.9433594,
+        "special": false,
+        "text": " who"
       }
     ]
-  }
+  },
+  "generated_text": "The capital city of France isthe seat of a Roman Catholic archbishop, who"
 }

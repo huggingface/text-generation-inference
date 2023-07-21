@@ -4,7 +4,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_llama_gptq_handle(launcher):
-    with launcher("TheBloke/WizardLM-7B-uncensored-GPTQ", num_shard=2, quantize="gptq") as handle:
+    with launcher("huggingface/llama-7b-gptq", num_shard=2, quantize="gptq") as handle:
         yield handle
 
 
