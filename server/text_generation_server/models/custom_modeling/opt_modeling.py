@@ -130,17 +130,17 @@ class OPTAttention(nn.Module):
         process_group=None,
     ):
         super().__init__()
-        embed_dim = config.embed_dim
+        hidden_size = config.hidden_size
         num_heads = config.num_attention_heads
 
-        self.embed_dim = embed_dim
+        self.hidden_size = hidden_size
         self.num_heads = num_heads
         self.dropout = config.dropout
-        self.head_dim = embed_dim // num_heads
+        self.head_dim = hidden_size // num_heads
 
-        if (self.head_dim * num_heads) != self.embed_dim:
+        if (self.head_dim * num_heads) != self.hidden_size:
             raise ValueError(
-                f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim}"
+                f"hidden_size must be divisible by num_heads (got `hidden_size`: {self.hidden_size}"
                 f" and `num_heads`: {num_heads})."
             )
         self.scaling = self.head_dim**-0.5
@@ -153,7 +153,7 @@ class OPTAttention(nn.Module):
                 f"and `num_shards`: {weights.process_group.size()}"
             )
         self.num_heads = self.num_heads // process_group.size()
-        self.embed_dim = self.embed_dim // process_group.size()
+        self.hidden_size = self.hidden_size // process_group.size()
 
         self.q_proj = TensorParallelColumnLinear.load(
             config, prefix=f"{prefix}.q_proj", weights=weights, bias=bias
@@ -300,9 +300,9 @@ class OPTAttention(nn.Module):
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
 
-        # Use the `embed_dim` from the config (stored in the class) rather than `hidden_state` because `attn_output` can be
+        # Use the `hidden_size` from the config (stored in the class) rather than `hidden_state` because `attn_output` can be
         # partitioned aross GPUs when using tensor-parallelism.
-        attn_output = attn_output.reshape(bsz, tgt_len, self.embed_dim)
+        attn_output = attn_output.reshape(bsz, tgt_len, self.hidden_size)
 
         attn_output = self.out_proj(attn_output)
 
@@ -313,7 +313,7 @@ class OPTDecoderLayer(nn.Module):
     def __init__(self, layer_id: int, config: OPTConfig, weights):
         super().__init__()
         self.process_group = weights.process_group
-        self.embed_dim = config.hidden_size
+        self.hidden_size = config.hidden_size
         prefix = f"model.decoder.layers.{layer_id}"
         self.self_attn = OPTAttention(
             config,
@@ -352,7 +352,7 @@ class OPTDecoderLayer(nn.Module):
     ]:
         """
         Args:
-            hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
+            hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, hidden_size)`
             attention_mask (`torch.FloatTensor`, *optional*): attention mask of size
                 `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
             layer_head_mask (`torch.FloatTensor`, *optional*): mask for attention heads in a given layer of size
