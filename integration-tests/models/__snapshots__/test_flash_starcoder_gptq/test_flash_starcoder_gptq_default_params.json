@@ -1,193 +1,193 @@
 {
-  "generated_text": "\n    return reduce(lambda x, y: x * y, L)\n\ndef geometric",
   "details": {
     "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 20,
-    "seed": 0,
     "prefill": [
       {
         "id": 589,
-        "text": "def",
-        "logprob": null
+        "logprob": null,
+        "text": "def"
       },
       {
         "id": 3226,
-        "text": " ge",
-        "logprob": -9.0234375
+        "logprob": -9.0234375,
+        "text": " ge"
       },
       {
         "id": 21017,
-        "text": "ometric",
-        "logprob": -9.0859375
+        "logprob": -9.09375,
+        "text": "ometric"
       },
       {
         "id": 81,
-        "text": "_",
-        "logprob": -0.25878906
+        "logprob": -0.25976562,
+        "text": "_"
       },
       {
         "id": 6009,
-        "text": "mean",
-        "logprob": -2.2109375
+        "logprob": -2.2148438,
+        "text": "mean"
       },
       {
         "id": 26,
-        "text": "(",
-        "logprob": -0.30371094
+        "logprob": -0.3010254,
+        "text": "("
       },
       {
         "id": 62,
-        "text": "L",
-        "logprob": -5.6054688
+        "logprob": -5.6757812,
+        "text": "L"
       },
       {
         "id": 44,
-        "text": ":",
-        "logprob": -3.0722656
+        "logprob": -3.0898438,
+        "text": ":"
       },
       {
         "id": 1682,
-        "text": " List",
-        "logprob": -0.6879883
+        "logprob": -0.6791992,
+        "text": " List"
       },
       {
         "id": 77,
-        "text": "[",
-        "logprob": -0.38500977
+        "logprob": -0.38891602,
+        "text": "["
       },
       {
         "id": 1808,
-        "text": "float",
-        "logprob": -0.984375
+        "logprob": -0.92041016,
+        "text": "float"
       },
       {
         "id": 10794,
-        "text": "]):",
-        "logprob": -2.5351562
+        "logprob": -2.5390625,
+        "text": "]):"
       }
     ],
+    "seed": 0,
     "tokens": [
       {
         "id": 284,
-        "text": "\n   ",
-        "logprob": -0.05831909,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n   "
       },
       {
         "id": 442,
-        "text": " return",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": " return"
       },
       {
         "id": 11665,
-        "text": " reduce",
-        "logprob": -0.9741211,
-        "special": false
+        "logprob": -1.6005859,
+        "special": false,
+        "text": " reduce"
       },
       {
         "id": 26,
-        "text": "(",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": "("
       },
       {
         "id": 5962,
-        "text": "lambda",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": "lambda"
       },
       {
         "id": 816,
-        "text": " x",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": " x"
       },
       {
         "id": 30,
-        "text": ",",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": ","
       },
       {
         "id": 533,
-        "text": " y",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": " y"
       },
       {
         "id": 44,
-        "text": ":",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": ":"
       },
       {
         "id": 816,
-        "text": " x",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": " x"
       },
       {
         "id": 319,
-        "text": " *",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": " *"
       },
       {
         "id": 533,
-        "text": " y",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": " y"
       },
       {
         "id": 30,
-        "text": ",",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": ","
       },
       {
         "id": 498,
-        "text": " L",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": " L"
       },
       {
         "id": 27,
-        "text": ")",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": ")"
       },
       {
         "id": 203,
-        "text": "\n",
-        "logprob": -0.11279297,
-        "special": false
+        "logprob": -0.11968994,
+        "special": false,
+        "text": "\n"
       },
       {
         "id": 203,
-        "text": "\n",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
       },
       {
         "id": 589,
-        "text": "def",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": "def"
       },
       {
         "id": 3226,
-        "text": " ge",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": " ge"
       },
       {
         "id": 21017,
-        "text": "ometric",
-        "logprob": 0,
-        "special": false
+        "logprob": 0.0,
+        "special": false,
+        "text": "ometric"
       }
     ]
-  }
+  },
+  "generated_text": "\n    return reduce(lambda x, y: x * y, L)\n\ndef geometric"
 }
