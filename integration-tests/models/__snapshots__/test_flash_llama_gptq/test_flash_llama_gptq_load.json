@@ -1,0 +1,354 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -9.6015625,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -9.671875,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 29918,
+          "logprob": -2.3828125,
+          "special": false,
+          "text": "_"
+        },
+        {
+          "id": 5338,
+          "logprob": -2.8105469,
+          "special": false,
+          "text": "uri"
+        },
+        {
+          "id": 13,
+          "logprob": -1.6396484,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 3057,
+          "logprob": -1.0546875,
+          "special": false,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -0.6513672,
+          "special": false,
+          "text": " request"
+        },
+        {
+          "id": 29918,
+          "logprob": -0.056365967,
+          "special": false,
+          "text": "_"
+        },
+        {
+          "id": 5338,
+          "logprob": -0.016082764,
+          "special": false,
+          "text": "uri"
+        },
+        {
+          "id": 13,
+          "logprob": -0.87841797,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 3057,
+          "logprob": -0.7548828,
+          "special": false,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -0.29711914,
+          "special": false,
+          "text": " request"
+        }
+      ]
+    },
+    "generated_text": "_uri\nTest request_uri\nTest request"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -9.6015625,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -9.6640625,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 29918,
+          "logprob": -2.3828125,
+          "special": false,
+          "text": "_"
+        },
+        {
+          "id": 5338,
+          "logprob": -2.828125,
+          "special": false,
+          "text": "uri"
+        },
+        {
+          "id": 13,
+          "logprob": -1.6386719,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 3057,
+          "logprob": -1.0527344,
+          "special": false,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -0.6542969,
+          "special": false,
+          "text": " request"
+        },
+        {
+          "id": 29918,
+          "logprob": -0.055877686,
+          "special": false,
+          "text": "_"
+        },
+        {
+          "id": 5338,
+          "logprob": -0.016021729,
+          "special": false,
+          "text": "uri"
+        },
+        {
+          "id": 13,
+          "logprob": -0.8769531,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 3057,
+          "logprob": -0.7583008,
+          "special": false,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -0.29833984,
+          "special": false,
+          "text": " request"
+        }
+      ]
+    },
+    "generated_text": "_uri\nTest request_uri\nTest request"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -9.6015625,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -9.671875,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 29918,
+          "logprob": -2.3847656,
+          "special": false,
+          "text": "_"
+        },
+        {
+          "id": 5338,
+          "logprob": -2.8144531,
+          "special": false,
+          "text": "uri"
+        },
+        {
+          "id": 13,
+          "logprob": -1.6396484,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 3057,
+          "logprob": -1.0527344,
+          "special": false,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -0.65478516,
+          "special": false,
+          "text": " request"
+        },
+        {
+          "id": 29918,
+          "logprob": -0.056243896,
+          "special": false,
+          "text": "_"
+        },
+        {
+          "id": 5338,
+          "logprob": -0.016143799,
+          "special": false,
+          "text": "uri"
+        },
+        {
+          "id": 13,
+          "logprob": -0.8808594,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 3057,
+          "logprob": -0.75341797,
+          "special": false,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -0.2956543,
+          "special": false,
+          "text": " request"
+        }
+      ]
+    },
+    "generated_text": "_uri\nTest request_uri\nTest request"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -9.6015625,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -9.6640625,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 29918,
+          "logprob": -2.3769531,
+          "special": false,
+          "text": "_"
+        },
+        {
+          "id": 5338,
+          "logprob": -2.8183594,
+          "special": false,
+          "text": "uri"
+        },
+        {
+          "id": 13,
+          "logprob": -1.6396484,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 3057,
+          "logprob": -1.0546875,
+          "special": false,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -0.65478516,
+          "special": false,
+          "text": " request"
+        },
+        {
+          "id": 29918,
+          "logprob": -0.05557251,
+          "special": false,
+          "text": "_"
+        },
+        {
+          "id": 5338,
+          "logprob": -0.01612854,
+          "special": false,
+          "text": "uri"
+        },
+        {
+          "id": 13,
+          "logprob": -0.8730469,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 3057,
+          "logprob": -0.7519531,
+          "special": false,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -0.29785156,
+          "special": false,
+          "text": " request"
+        }
+      ]
+    },
+    "generated_text": "_uri\nTest request_uri\nTest request"
+  }
+]

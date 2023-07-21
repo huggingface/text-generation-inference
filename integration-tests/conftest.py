@@ -230,15 +230,16 @@ def launcher(event_loop):
             shard_uds_path,
         ]
 
+        env = os.environ
+
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
-        if quantize:
+        if quantize is not None:
             args.append("--quantize")
-            args.append("bitsandbytes")
+            args.append(quantize)
         if trust_remote_code:
             args.append("--trust-remote-code")
 
-        env = os.environ
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
 
         if not use_flash_attention:
@@ -275,9 +276,9 @@ def launcher(event_loop):
 
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
-        if quantize:
+        if quantize is not None:
             args.append("--quantize")
-            args.append("bitsandbytes")
+            args.append(quantize)
         if trust_remote_code:
             args.append("--trust-remote-code")
 

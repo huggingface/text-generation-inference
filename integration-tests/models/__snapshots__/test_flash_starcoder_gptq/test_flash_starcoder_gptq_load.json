@@ -1,0 +1,534 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 589,
+          "logprob": null,
+          "text": "def"
+        },
+        {
+          "id": 3226,
+          "logprob": -9.0234375,
+          "text": " ge"
+        },
+        {
+          "id": 21017,
+          "logprob": -9.0859375,
+          "text": "ometric"
+        },
+        {
+          "id": 81,
+          "logprob": -0.25927734,
+          "text": "_"
+        },
+        {
+          "id": 6009,
+          "logprob": -2.25,
+          "text": "mean"
+        },
+        {
+          "id": 26,
+          "logprob": -0.30126953,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -5.7539062,
+          "text": "L"
+        },
+        {
+          "id": 44,
+          "logprob": -3.0878906,
+          "text": ":"
+        },
+        {
+          "id": 1682,
+          "logprob": -0.6845703,
+          "text": " List"
+        },
+        {
+          "id": 77,
+          "logprob": -0.3918457,
+          "text": "["
+        },
+        {
+          "id": 1808,
+          "logprob": -0.8798828,
+          "text": "float"
+        },
+        {
+          "id": 10794,
+          "logprob": -2.4980469,
+          "text": "]):"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 284,
+          "logprob": -1.1533203,
+          "special": false,
+          "text": "\n   "
+        },
+        {
+          "id": 442,
+          "logprob": -0.91796875,
+          "special": false,
+          "text": " return"
+        },
+        {
+          "id": 3632,
+          "logprob": -1.3291016,
+          "special": false,
+          "text": " sum"
+        },
+        {
+          "id": 26,
+          "logprob": -0.08062744,
+          "special": false,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -0.097717285,
+          "special": false,
+          "text": "L"
+        },
+        {
+          "id": 27,
+          "logprob": -0.29003906,
+          "special": false,
+          "text": ")"
+        },
+        {
+          "id": 517,
+          "logprob": -0.34958984,
+          "special": false,
+          "text": " /"
+        },
+        {
+          "id": 2069,
+          "logprob": -0.03829956,
+          "special": false,
+          "text": " len"
+        },
+        {
+          "id": 26,
+          "logprob": -0.0011987686,
+          "special": false,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -0.00050878525,
+          "special": false,
+          "text": "L"
+        }
+      ]
+    },
+    "generated_text": "\n    return sum(L) / len(L"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 589,
+          "logprob": null,
+          "text": "def"
+        },
+        {
+          "id": 3226,
+          "logprob": -9.0234375,
+          "text": " ge"
+        },
+        {
+          "id": 21017,
+          "logprob": -9.0859375,
+          "text": "ometric"
+        },
+        {
+          "id": 81,
+          "logprob": -0.25878906,
+          "text": "_"
+        },
+        {
+          "id": 6009,
+          "logprob": -2.2109375,
+          "text": "mean"
+        },
+        {
+          "id": 26,
+          "logprob": -0.30371094,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -5.6054688,
+          "text": "L"
+        },
+        {
+          "id": 44,
+          "logprob": -3.0722656,
+          "text": ":"
+        },
+        {
+          "id": 1682,
+          "logprob": -0.6879883,
+          "text": " List"
+        },
+        {
+          "id": 77,
+          "logprob": -0.38500977,
+          "text": "["
+        },
+        {
+          "id": 1808,
+          "logprob": -0.984375,
+          "text": "float"
+        },
+        {
+          "id": 10794,
+          "logprob": -2.5351562,
+          "text": "]):"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 284,
+          "logprob": -1.1738281,
+          "special": false,
+          "text": "\n   "
+        },
+        {
+          "id": 442,
+          "logprob": -0.9584961,
+          "special": false,
+          "text": " return"
+        },
+        {
+          "id": 3632,
+          "logprob": -1.4169922,
+          "special": false,
+          "text": " sum"
+        },
+        {
+          "id": 26,
+          "logprob": -0.085876465,
+          "special": false,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -0.0982666,
+          "special": false,
+          "text": "L"
+        },
+        {
+          "id": 27,
+          "logprob": -0.3022461,
+          "special": false,
+          "text": ")"
+        },
+        {
+          "id": 517,
+          "logprob": -0.40504883,
+          "special": false,
+          "text": " /"
+        },
+        {
+          "id": 2069,
+          "logprob": -0.041656494,
+          "special": false,
+          "text": " len"
+        },
+        {
+          "id": 26,
+          "logprob": -0.0011844635,
+          "special": false,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -0.0005264282,
+          "special": false,
+          "text": "L"
+        }
+      ]
+    },
+    "generated_text": "\n    return sum(L) / len(L"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 589,
+          "logprob": null,
+          "text": "def"
+        },
+        {
+          "id": 3226,
+          "logprob": -9.0234375,
+          "text": " ge"
+        },
+        {
+          "id": 21017,
+          "logprob": -9.0859375,
+          "text": "ometric"
+        },
+        {
+          "id": 81,
+          "logprob": -0.25927734,
+          "text": "_"
+        },
+        {
+          "id": 6009,
+          "logprob": -2.25,
+          "text": "mean"
+        },
+        {
+          "id": 26,
+          "logprob": -0.30126953,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -5.7539062,
+          "text": "L"
+        },
+        {
+          "id": 44,
+          "logprob": -3.0878906,
+          "text": ":"
+        },
+        {
+          "id": 1682,
+          "logprob": -0.6845703,
+          "text": " List"
+        },
+        {
+          "id": 77,
+          "logprob": -0.3918457,
+          "text": "["
+        },
+        {
+          "id": 1808,
+          "logprob": -0.8798828,
+          "text": "float"
+        },
+        {
+          "id": 10794,
+          "logprob": -2.4980469,
+          "text": "]):"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 284,
+          "logprob": -1.1533203,
+          "special": false,
+          "text": "\n   "
+        },
+        {
+          "id": 442,
+          "logprob": -0.9165039,
+          "special": false,
+          "text": " return"
+        },
+        {
+          "id": 3632,
+          "logprob": -1.328125,
+          "special": false,
+          "text": " sum"
+        },
+        {
+          "id": 26,
+          "logprob": -0.07946777,
+          "special": false,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -0.09820557,
+          "special": false,
+          "text": "L"
+        },
+        {
+          "id": 27,
+          "logprob": -0.28930664,
+          "special": false,
+          "text": ")"
+        },
+        {
+          "id": 517,
+          "logprob": -0.34592773,
+          "special": false,
+          "text": " /"
+        },
+        {
+          "id": 2069,
+          "logprob": -0.038330078,
+          "special": false,
+          "text": " len"
+        },
+        {
+          "id": 26,
+          "logprob": -0.0011940002,
+          "special": false,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -0.00050878525,
+          "special": false,
+          "text": "L"
+        }
+      ]
+    },
+    "generated_text": "\n    return sum(L) / len(L"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 589,
+          "logprob": null,
+          "text": "def"
+        },
+        {
+          "id": 3226,
+          "logprob": -9.0234375,
+          "text": " ge"
+        },
+        {
+          "id": 21017,
+          "logprob": -9.0859375,
+          "text": "ometric"
+        },
+        {
+          "id": 81,
+          "logprob": -0.25927734,
+          "text": "_"
+        },
+        {
+          "id": 6009,
+          "logprob": -2.25,
+          "text": "mean"
+        },
+        {
+          "id": 26,
+          "logprob": -0.30126953,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -5.7539062,
+          "text": "L"
+        },
+        {
+          "id": 44,
+          "logprob": -3.0878906,
+          "text": ":"
+        },
+        {
+          "id": 1682,
+          "logprob": -0.6845703,
+          "text": " List"
+        },
+        {
+          "id": 77,
+          "logprob": -0.3918457,
+          "text": "["
+        },
+        {
+          "id": 1808,
+          "logprob": -0.8798828,
+          "text": "float"
+        },
+        {
+          "id": 10794,
+          "logprob": -2.4980469,
+          "text": "]):"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 284,
+          "logprob": -1.1533203,
+          "special": false,
+          "text": "\n   "
+        },
+        {
+          "id": 442,
+          "logprob": -0.91259766,
+          "special": false,
+          "text": " return"
+        },
+        {
+          "id": 3632,
+          "logprob": -1.3251953,
+          "special": false,
+          "text": " sum"
+        },
+        {
+          "id": 26,
+          "logprob": -0.08062744,
+          "special": false,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -0.09906006,
+          "special": false,
+          "text": "L"
+        },
+        {
+          "id": 27,
+          "logprob": -0.28979492,
+          "special": false,
+          "text": ")"
+        },
+        {
+          "id": 517,
+          "logprob": -0.35958984,
+          "special": false,
+          "text": " /"
+        },
+        {
+          "id": 2069,
+          "logprob": -0.038604736,
+          "special": false,
+          "text": " len"
+        },
+        {
+          "id": 26,
+          "logprob": -0.0011901855,
+          "special": false,
+          "text": "("
+        },
+        {
+          "id": 62,
+          "logprob": -0.0005078316,
+          "special": false,
+          "text": "L"
+        }
+      ]
+    },
+    "generated_text": "\n    return sum(L) / len(L"
+  }
+]

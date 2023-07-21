@@ -6,7 +6,6 @@ import torch.distributed
 import numpy as np
 
 from dataclasses import dataclass
-from loguru import logger
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Union, Dict

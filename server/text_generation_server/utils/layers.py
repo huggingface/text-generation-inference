@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.distributed
 
@@ -16,7 +17,15 @@ except ImportError:
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
+HAS_EXLLAMA = True
+if os.getenv("DISABLE_EXLLAMA") == "True":
+    HAS_EXLLAMA=False
+try:
+    from text_generation_server.utils.gptq.exllama import Ex4bitLinear
+except ImportError:
+    HAS_EXLLAMA = False
 
+from typing import Optional
 
 # Monkey patching
 @classmethod
@@ -144,21 +153,24 @@ def get_linear(weight, bias, quantize):
             linear.bias = nn.Parameter(bias)
     elif quantize == "gptq":
         try:
-            qweight, qzeros, scales, g_idx, bits, groupsize = weight
+            qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama = weight
         except Exception:
             raise NotImplementedError(
                 f"The passed weight is not `gptq` compatible, loader needs to be updated."
             )
 
-        linear = QuantLinear(
-            qweight,
-            qzeros,
-            scales,
-            g_idx,
-            bias,
-            bits,
-            groupsize,
-        )
+        if use_exllama:
+            linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
+        else:
+            linear = QuantLinear(
+                qweight,
+                qzeros,
+                scales,
+                g_idx,
+                bias,
+                bits,
+                groupsize,
+            )
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear

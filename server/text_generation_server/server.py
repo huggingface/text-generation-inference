@@ -16,6 +16,7 @@ from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 
 
+
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     def __init__(self, model: Model, cache: Cache, server_urls: List[str]):
         self.cache = cache
@@ -139,6 +140,16 @@ def serve(
         except Exception:
             logger.exception("Error when initializing model")
             raise
+
+        if quantize == "gptq":
+            try:
+                # When using GPTQ, Exllama kernels need some global kernels
+                # For which we have the finale shapes only after the model has loaded
+                # This will allocate those buffers.
+                from text_generation_server.utils.gptq.exllama import create_exllama_buffers
+                create_exllama_buffers()
+            except ImportError:
+                pass
 
         server = aio.server(
             interceptors=[

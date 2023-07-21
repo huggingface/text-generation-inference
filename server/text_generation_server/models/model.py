@@ -3,13 +3,12 @@ import torch
 
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, TypeVar, Type
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, PretrainedConfig
 
 from text_generation_server.models.types import Batch, GeneratedText
 from text_generation_server.pb.generate_pb2 import InfoResponse
 
 B = TypeVar("B", bound=Batch)
-
 
 class Model(ABC):
     def __init__(

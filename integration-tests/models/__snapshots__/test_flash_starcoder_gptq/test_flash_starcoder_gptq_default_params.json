@@ -1,0 +1,193 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 20,
+    "prefill": [
+      {
+        "id": 589,
+        "logprob": null,
+        "text": "def"
+      },
+      {
+        "id": 3226,
+        "logprob": -9.0234375,
+        "text": " ge"
+      },
+      {
+        "id": 21017,
+        "logprob": -9.09375,
+        "text": "ometric"
+      },
+      {
+        "id": 81,
+        "logprob": -0.25976562,
+        "text": "_"
+      },
+      {
+        "id": 6009,
+        "logprob": -2.2148438,
+        "text": "mean"
+      },
+      {
+        "id": 26,
+        "logprob": -0.3010254,
+        "text": "("
+      },
+      {
+        "id": 62,
+        "logprob": -5.6757812,
+        "text": "L"
+      },
+      {
+        "id": 44,
+        "logprob": -3.0898438,
+        "text": ":"
+      },
+      {
+        "id": 1682,
+        "logprob": -0.6791992,
+        "text": " List"
+      },
+      {
+        "id": 77,
+        "logprob": -0.38891602,
+        "text": "["
+      },
+      {
+        "id": 1808,
+        "logprob": -0.92041016,
+        "text": "float"
+      },
+      {
+        "id": 10794,
+        "logprob": -2.5390625,
+        "text": "]):"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 284,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n   "
+      },
+      {
+        "id": 442,
+        "logprob": 0.0,
+        "special": false,
+        "text": " return"
+      },
+      {
+        "id": 11665,
+        "logprob": -1.6005859,
+        "special": false,
+        "text": " reduce"
+      },
+      {
+        "id": 26,
+        "logprob": 0.0,
+        "special": false,
+        "text": "("
+      },
+      {
+        "id": 5962,
+        "logprob": 0.0,
+        "special": false,
+        "text": "lambda"
+      },
+      {
+        "id": 816,
+        "logprob": 0.0,
+        "special": false,
+        "text": " x"
+      },
+      {
+        "id": 30,
+        "logprob": 0.0,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 533,
+        "logprob": 0.0,
+        "special": false,
+        "text": " y"
+      },
+      {
+        "id": 44,
+        "logprob": 0.0,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 816,
+        "logprob": 0.0,
+        "special": false,
+        "text": " x"
+      },
+      {
+        "id": 319,
+        "logprob": 0.0,
+        "special": false,
+        "text": " *"
+      },
+      {
+        "id": 533,
+        "logprob": 0.0,
+        "special": false,
+        "text": " y"
+      },
+      {
+        "id": 30,
+        "logprob": 0.0,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 498,
+        "logprob": 0.0,
+        "special": false,
+        "text": " L"
+      },
+      {
+        "id": 27,
+        "logprob": 0.0,
+        "special": false,
+        "text": ")"
+      },
+      {
+        "id": 203,
+        "logprob": -0.11968994,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 203,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 589,
+        "logprob": 0.0,
+        "special": false,
+        "text": "def"
+      },
+      {
+        "id": 3226,
+        "logprob": 0.0,
+        "special": false,
+        "text": " ge"
+      },
+      {
+        "id": 21017,
+        "logprob": 0.0,
+        "special": false,
+        "text": "ometric"
+      }
+    ]
+  },
+  "generated_text": "\n    return reduce(lambda x, y: x * y, L)\n\ndef geometric"
+}
