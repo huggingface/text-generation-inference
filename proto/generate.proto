@@ -198,6 +198,8 @@ message DecodeResponse {
 message WarmupRequest {
     /// Batch to warmup on
     Batch batch = 1;
+    /// Maximum number of tokens that the client will send
+    optional uint32 max_total_tokens = 2;
 }
 
 /// Empty response

@@ -710,13 +710,20 @@ class FlashCausalLM(Model):
     def batch_type(self) -> Type[FlashCausalLMBatch]:
         return FlashCausalLMBatch
 
-    def warmup(self, batch: FlashCausalLMBatch):
+    def warmup(self, batch: FlashCausalLMBatch, max_total_tokens: Optional[int]) -> Optional[int]:
         global CACHE_MANAGER
+
+        if CACHE_MANAGER is not None:
+            del CACHE_MANAGER
 
         torch.cuda.empty_cache()
         try:
+            if max_total_tokens is None:
+                num_blocks = batch.blocks
+            else:
+                num_blocks = math.ceil(max_total_tokens / BLOCK_SIZE)
             CACHE_MANAGER = CacheManager(
-                batch.blocks,
+                num_blocks,
                 self.num_layers,
                 self.num_kv_heads,
                 self.head_size,
@@ -731,6 +738,9 @@ class FlashCausalLM(Model):
             ) from e
 
         torch.cuda.synchronize(self.device)
+
+        if max_total_tokens is not None:
+            return num_blocks
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory

@@ -99,10 +99,24 @@ impl ShardedClient {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.warmup(max_input_length, max_prefill_tokens)))
+            .map(|client| Box::pin(client.warmup(max_input_length, max_prefill_tokens, None)))
+            .collect();
+        // get the smallest number of supported tokens, as different shards can return
+        // different numbers
+        let smallest_max_supported_total_tokens: Option<u32> = join_all(futures).await.into_iter().map(|x| x.unwrap()).min().unwrap();
+
+        if smallest_max_supported_total_tokens.is_none() {
+            return Ok(smallest_max_supported_total_tokens);
+        }
+
+        // redo warmup with the derived number
+        let futures_final: Vec<_> = self
+            .clients
+            .iter_mut()
+            .map(|client| Box::pin(client.warmup(max_input_length, max_prefill_tokens, smallest_max_supported_total_tokens)))
             .collect();
         // all shards return the same message
-        join_all(futures).await.pop().unwrap()
+        join_all(futures_final).await.pop().unwrap()
     }
 
     /// Generate one token for each request in the given batch
