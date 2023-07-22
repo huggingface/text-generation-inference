@@ -5,7 +5,12 @@ import os
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase, AutoConfig
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    PreTrainedTokenizerBase,
+    AutoConfig,
+)
 from typing import Optional, Tuple, List, Type, Dict
 
 from text_generation_server.models import Model
@@ -18,15 +23,16 @@ from text_generation_server.models.types import (
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
 from text_generation_server.models.causal_lm import CausalLMBatch
+
 tracer = trace.get_tracer(__name__)
-from timeit import default_timer as td
+
 try:
-    import ctranslate2 
+    import ctranslate2
     from ctranslate2.converters import TransformersConverter
 except ImportError:
     ctranslate2 = None
 
-    
+
 class CT2CausalLM(Model):
     def __init__(
         self,
@@ -49,15 +55,15 @@ class CT2CausalLM(Model):
             trust_remote_code=trust_remote_code,
         )
 
-        # Start CT2 
+        # Start CT2
         if torch.cuda.is_available():
             self.ct2_device = "cuda"
         else:
             self.ct2_device = "cpu"
-        
-        if dtype==torch.float16:
-            ct2_compute_type = "float16" 
-        elif dtype==torch.float16:
+
+        if dtype == torch.float16:
+            ct2_compute_type = "float16"
+        elif dtype == torch.float16:
             ct2_compute_type = "bfloat16"
         else:
             # default, int8 quantization.
@@ -68,7 +74,7 @@ class CT2CausalLM(Model):
                 # raise ValueError("cpu is currently experimental due to"
                 #                  " sampling based / non-greedy next_token"
                 #                  " of code only working in float16.")
-        # Start CT2 - conversion 
+        # Start CT2 - conversion
         out_dir = f"./ct2-{model_id.replace('/','_')}-{ct2_compute_type}"
         if not os.path.exists(os.path.join(out_dir, "model.bin")):
             ex = ""
@@ -83,27 +89,30 @@ class CT2CausalLM(Model):
                 )
                 converter.convert(
                     output_dir=out_dir,
-                    vmap = None,
+                    vmap=None,
                     quantization=ct2_compute_type,
-                    force = True,
+                    force=True,
                 )
             except Exception as ex:
                 pass
         if not os.path.exists(os.path.join(out_dir, "model.bin")) or ex:
-            raise ValueError(f"conversion for {model_id} failed with ctranslate2: Error {ex}")
-        
-        # Start CT2 
-        self.ct2_model = ctranslate2.Generator(out_dir, device=self.ct2_device, compute_type=ct2_compute_type)
+            raise ValueError(
+                f"conversion for {model_id} failed with ctranslate2: Error {ex}"
+            )
+
+        # Start CT2
+        self.ct2_model = ctranslate2.Generator(
+            out_dir, device=self.ct2_device, compute_type=ct2_compute_type
+        )
 
         class DummyModel(torch.nn.Module):
             def __init__(self, *args, **kwargs) -> None:
                 super().__init__(*args, **kwargs)
-                self.config = AutoConfig.from_pretrained(
-                    model_id,
-                    revision=revision)
+                self.config = AutoConfig.from_pretrained(model_id, revision=revision)
+
         model = DummyModel()
         self.vocab_size = model.config.vocab_size
-        
+
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:
                 tokenizer.pad_token_id = model.config.pad_token_id
@@ -130,56 +139,68 @@ class CT2CausalLM(Model):
         return self.tokenizer.decode(
             generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
-            
-    def forward_true_logits(
-        self, all_input_ids, 
+
+    # def forward_slowtokenize_ct2(
+    #     self, all_input_ids,
+    # ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
+    #     # Model Forward, by copy between cpu and cuda
+    #     tokens_in  = [self.tokenizer.convert_ids_to_tokens(i) for i in all_input_ids]
+    #     logits = self.ct2_model.forward_batch(
+    #         tokens_in
+    #     )
+    #     logits = torch.as_tensor(logits, device="cuda")
+    #     logits =  logits.to("cuda").to(torch.float16)
+    #     return logits, None
+
+    # def forward_greedy_logits(
+    #     self, all_input_ids: List[List[int]],
+    # ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
+    #     # fallback just to
+    #     tokens_in  = [self.tokenizer.convert_ids_to_tokens(i) for i in all_input_ids]
+    #     ids = self.ct2_model.generate_batch(
+    #         tokens_in,
+    #         min_length=1,
+    #         max_length=1,
+    #         include_prompt_in_result=False,
+    #         sampling_temperature=0,
+    #     )
+    #     # create fake logits from greedy token
+    #     logits = torch.full((len(tokens_in), 1, self.vocab_size), -10, dtype=torch.float16, device="cuda")
+    #     for i, seq in enumerate(ids):
+    #         token = seq.sequences_ids[0]
+    #         logits[i, 0, token] = 10
+    #     return logits, None
+
+    def forward_ct2(
+        self,
+        all_input_ids,
+        input_lengths,
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
-        # Model Forward
-        tokens_in  = [self.tokenizer.convert_ids_to_tokens(i) for i in all_input_ids]
-        logits = self.ct2_model.forward_batch(
-            tokens_in
+        # CT2 forward requires a list of list of input tokens ids and lengths
+        ids_input = (
+            torch.nested.to_padded_tensor(
+                torch.nested.nested_tensor(all_input_ids), 1234
+            )
+            .flatten(1)
+            .to(torch.int32)
         )
-        logits = torch.as_tensor(logits, device="cuda")
-        logits =  logits.to("cuda").to(torch.float16)
-        return logits, None
-    
-    def forward_true_logits2(
-        self, all_input_ids, input_lengths,
-    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
-        # Model Forward
-        ids_input = torch.nested.to_padded_tensor(torch.nested.nested_tensor(all_input_ids), -1).flatten(1).to(torch.int32)
-        lengths = torch.from_numpy(np.array(input_lengths, dtype=np.int32)).to(ids_input.device)
+        # lengths of the padded ids_input, i.e. how often 1234 is used.
+        lengths = torch.from_numpy(np.array(input_lengths, dtype=np.int32)).to(
+            ids_input.device
+        )
+
         if self.ct2_device == "cpu":
             ids_input, lengths = ids_input.numpy(), lengths.numpy()
         ids_input = ctranslate2.StorageView.from_array(ids_input)
         lengths = ctranslate2.StorageView.from_array(lengths)
-        logits = self.ct2_model.forward_batch(
-            ids_input, lengths
-        )
+        # now, forward through the network
+        logits = self.ct2_model.forward_batch(ids_input, lengths)
         logits = torch.as_tensor(logits, device=self.ct2_device)
+        # continue with logits as torch tensor, move it to dtype
         if self.ct2_device == "cpu":
             logits = logits.to(self.ct2_device).to(torch.float32)
         else:
-            logits =  logits.to("cuda").to(torch.float16)
-        return logits, None
-    
-    def forward_patched_logits(
-        self, all_input_ids: List[List[int]], 
-    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
-        # Model Forward 
-        tokens_in  = [self.tokenizer.convert_ids_to_tokens(i) for i in all_input_ids]
-        ids = self.ct2_model.generate_batch(
-            tokens_in,
-            min_length=1,
-            max_length=1,
-            include_prompt_in_result=False,
-            sampling_temperature=0,
-        )
-        logits = torch.full((len(tokens_in), 1, self.vocab_size), -10, dtype=torch.float16, device="cuda")
-        for i, seq in enumerate(ids):
-            token = seq.sequences_ids[0] 
-            logits[i, 0, token] = 10
-
+            logits = logits.to("cuda").to(torch.float16)
         return logits, None
 
     @tracer.start_as_current_span("generate_token")
@@ -188,24 +209,14 @@ class CT2CausalLM(Model):
     ) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
         # slice the attention mask to the correct shape
         # attention_mask = batch.attention_mask[:, : -batch.padding_right_offset]
-        
-        # one = -td()
-        logits, past = self.forward_true_logits2(
-            batch.all_input_ids, batch.input_lengths 
-        )
-        # one += td()
-        
-        
-        # one = -td()
-        # two = -td()
-        # logits2, past2 = self.forward_true_logits(
+
+        logits, past = self.forward_ct2(batch.all_input_ids, batch.input_lengths)
+
+        # do some verification, see if other forward methods produce same result.
+        # logits2, past2 = self.forward_slowtokenize_ct2(
         #     batch.all_input_ids
         # )
-        # two += td()
-        
-        # diff = two - one
-        # if 1020 > batch.input_lengths[0] > 30:
-        #     raise ValueError(f"one took {one}, two took {two}, {batch.input_lengths}")
+
         # if sum := torch.isnan(logits).sum():
         #     sum2 = torch.isnan(logits2).sum()
         #     raise ValueError(f"logits {sum}, {sum2}")
@@ -213,7 +224,6 @@ class CT2CausalLM(Model):
         #     raise ValueError(f"logits2 {sum}")
         # torch.testing.assert_close(logits, logits2)
         # raise ValueError(f"all_input_ids={len(batch.all_input_ids)},{batch.all_input_ids[0].shape}, logits={logits.shape}, tokens_in={len(tokens_in)},{len(tokens_in[0])}")
-        
 
         # Results
         generations: List[Generation] = []
@@ -290,7 +300,7 @@ class CT2CausalLM(Model):
                 # Prefill
                 if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
                     # Remove generated token to only have prefill and add nan for first prompt token
-                    
+
                     prefill_logprobs = [float("nan")] + torch.log_softmax(
                         logits, -1
                     ).gather(1, all_input_ids[1:]).squeeze(1)[
