@@ -79,8 +79,8 @@ class CT2CausalLM(Model):
         # Start CT2 - conversion
         out_dir = Path(HUGGINGFACE_HUB_CACHE) / \
             f"ct2models-{model_id.replace('/','--')}--{ct2_compute_type}"
+        
         if not os.path.exists(out_dir /  "model.bin"):
-            ex = ""
             try:
                 converter = ctranslate2.converters.TransformersConverter(
                     model_id,
@@ -97,15 +97,17 @@ class CT2CausalLM(Model):
                     force=True,
                 )
             except Exception as ex:
-                pass
-        if not os.path.exists(out_dir /  "model.bin") or ex:
+                raise ValueError(
+                    f"conversion with ctranslate2 for {model_id} failed : Error {ex}"
+                )
+        if not os.path.exists(out_dir /  "model.bin"):
             raise ValueError(
-                f"conversion with ctranslate2 for {model_id} failed : Error {ex}"
+                f"no ctranslate2 for {model_id} found after conversion in {out_dir}"
             )
 
         # Start CT2
         self.ct2_model = ctranslate2.Generator(
-            out_dir, device=self.ct2_device, compute_type=ct2_compute_type
+            str(out_dir), device=self.ct2_device, compute_type=ct2_compute_type
         )
 
         class DummyModel(torch.nn.Module):
