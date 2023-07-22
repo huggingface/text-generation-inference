@@ -89,6 +89,7 @@ def download_weights(
     auto_convert: bool = True,
     logger_level: str = "INFO",
     json_output: bool = False,
+    trust_remote_code: bool = False
 ):
     # Remove default handler
     logger.remove()
@@ -168,6 +169,7 @@ def download_weights(
             config = AutoConfig.from_pretrained(
                 model_id,
                 revision=revision,
+                trust_remote_code=trust_remote_code
             )
             architecture = config.architectures[0]
 

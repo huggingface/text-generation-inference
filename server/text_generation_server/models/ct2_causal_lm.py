@@ -2,7 +2,9 @@ import torch
 import inspect
 import numpy as np
 import os
+from pathlib import Path
 
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
@@ -75,8 +77,9 @@ class CT2CausalLM(Model):
                 #                  " sampling based / non-greedy next_token"
                 #                  " of code only working in float16.")
         # Start CT2 - conversion
-        out_dir = f"./ct2-{model_id.replace('/','_')}-{ct2_compute_type}"
-        if not os.path.exists(os.path.join(out_dir, "model.bin")):
+        out_dir = Path(HUGGINGFACE_HUB_CACHE) / \
+            f"ct2models-{model_id.replace('/','--')}--{ct2_compute_type}"
+        if not os.path.exists(out_dir /  "model.bin"):
             ex = ""
             try:
                 converter = ctranslate2.converters.TransformersConverter(
@@ -95,9 +98,9 @@ class CT2CausalLM(Model):
                 )
             except Exception as ex:
                 pass
-        if not os.path.exists(os.path.join(out_dir, "model.bin")) or ex:
+        if not os.path.exists(out_dir /  "model.bin") or ex:
             raise ValueError(
-                f"conversion for {model_id} failed with ctranslate2: Error {ex}"
+                f"conversion with ctranslate2 for {model_id} failed : Error {ex}"
             )
 
         # Start CT2
@@ -108,10 +111,11 @@ class CT2CausalLM(Model):
         class DummyModel(torch.nn.Module):
             def __init__(self, *args, **kwargs) -> None:
                 super().__init__(*args, **kwargs)
-                self.config = AutoConfig.from_pretrained(model_id, revision=revision)
+                self.config = AutoConfig.from_pretrained(
+                    model_id, revision=revision,
+                    trust_remote_code=trust_remote_code)
 
         model = DummyModel()
-        self.vocab_size = model.config.vocab_size
 
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:
@@ -165,7 +169,7 @@ class CT2CausalLM(Model):
     #         sampling_temperature=0,
     #     )
     #     # create fake logits from greedy token
-    #     logits = torch.full((len(tokens_in), 1, self.vocab_size), -10, dtype=torch.float16, device="cuda")
+    #     logits = torch.full((len(tokens_in), 1, self.model.config.vocab_size), -10, dtype=torch.float16, device="cuda")
     #     for i, seq in enumerate(ids):
     #         token = seq.sequences_ids[0]
     #         logits[i, 0, token] = 10
