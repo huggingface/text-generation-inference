@@ -18,6 +18,7 @@ from text_generation_server.models.galactica import GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
+from text_generation_server.models.ct2_causal_lm import CT2CausalLM
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -74,6 +75,7 @@ def get_model(
     dtype: Optional[str],
     trust_remote_code: bool,
 ) -> Model:
+    dtype_ct2 = dtype
     if dtype is None:
         dtype = torch.float16
     elif dtype == "float16":
@@ -82,6 +84,15 @@ def get_model(
         dtype = torch.bfloat16
     else:
         raise RuntimeError(f"Unknown dtype {dtype}")
+
+    if quantize is not None and "ct2" in quantize:
+        return CT2CausalLM(
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype_ct2,
+            trust_remote_code=trust_remote_code,
+        )
 
     if "facebook/galactica" in model_id:
         return GalacticaSharded(

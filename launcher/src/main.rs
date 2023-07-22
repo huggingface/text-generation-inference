@@ -23,6 +23,7 @@ mod env_runtime;
 enum Quantization {
     Bitsandbytes,
     Gptq,
+    Ct2,
 }
 
 impl std::fmt::Display for Quantization {
@@ -34,6 +35,9 @@ impl std::fmt::Display for Quantization {
             }
             Quantization::Gptq => {
                 write!(f, "gptq")
+            }
+            Quantization::Ct2 => {
+                write!(f, "ct2")
             }
         }
     }
@@ -96,7 +100,7 @@ struct Args {
     num_shard: Option<usize>,
 
     /// Whether you want the model to be quantized. This will use `bitsandbytes` for
-    /// quantization on the fly, or `gptq`.
+    /// quantization on the fly, `gptq`, or ctranslate2.
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
 
