@@ -1,38 +1,50 @@
+# coding=utf-8
+# Copyright 2023 HuggingFace Inc. team and Michael Feil. All rights reserved.
+#
+# This code is based on Text-generation-inference causal_lm.py implementation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import torch
-import inspect
 import numpy as np
 import os
 from pathlib import Path
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
     AutoTokenizer,
-    AutoModelForCausalLM,
-    PreTrainedTokenizerBase,
     AutoConfig,
 )
 from typing import Optional, Tuple, List, Type, Dict
 
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
-    Batch,
     PrefillTokens,
     Generation,
     GeneratedText,
 )
-from text_generation_server.pb import generate_pb2
-from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
-from text_generation_server.models.causal_lm import CausalLMBatch
 
-tracer = trace.get_tracer(__name__)
+from text_generation_server.utils import Sampling
+from text_generation_server.models.causal_lm import CausalLMBatch
 
 try:
     import ctranslate2
-    from ctranslate2.converters import TransformersConverter
 except ImportError:
     ctranslate2 = None
+
+
+tracer = trace.get_tracer(__name__)
 
 
 class CT2CausalLM(Model):
@@ -46,7 +58,8 @@ class CT2CausalLM(Model):
     ):
         if ctranslate2 is None:
             raise ValueError(
-                "for your configuration, pip install ctranslate2>=3.16.0 is required.",
+                "for quantization with ct2, the installation requires the pip package ctranslate2. "
+                "install via `text-generation-server[ct2]` or pip install ctranslate2 is required.",
             )
 
         tokenizer = AutoTokenizer.from_pretrained(
@@ -77,10 +90,12 @@ class CT2CausalLM(Model):
                 #                  " sampling based / non-greedy next_token"
                 #                  " of code only working in float16.")
         # Start CT2 - conversion
-        out_dir = Path(HUGGINGFACE_HUB_CACHE) / \
-            f"ct2models-{model_id.replace('/','--')}--{ct2_compute_type}"
-        
-        if not os.path.exists(out_dir /  "model.bin"):
+        out_dir = (
+            Path(HUGGINGFACE_HUB_CACHE)
+            / f"ct2models-{model_id.replace('/','--')}--{ct2_compute_type}"
+        )
+
+        if not os.path.exists(out_dir / "model.bin"):
             try:
                 converter = ctranslate2.converters.TransformersConverter(
                     model_id,
@@ -100,7 +115,7 @@ class CT2CausalLM(Model):
                 raise ValueError(
                     f"conversion with ctranslate2 for {model_id} failed : Error {ex}"
                 )
-        if not os.path.exists(out_dir /  "model.bin"):
+        if not os.path.exists(out_dir / "model.bin"):
             raise ValueError(
                 f"no ctranslate2 for {model_id} found after conversion in {out_dir}"
             )
@@ -114,8 +129,8 @@ class CT2CausalLM(Model):
             def __init__(self, *args, **kwargs) -> None:
                 super().__init__(*args, **kwargs)
                 self.config = AutoConfig.from_pretrained(
-                    model_id, revision=revision,
-                    trust_remote_code=trust_remote_code)
+                    model_id, revision=revision, trust_remote_code=trust_remote_code
+                )
 
         model = DummyModel()
 
