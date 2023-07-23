@@ -718,7 +718,7 @@ class FlashCausalLM(Model):
 
         torch.cuda.empty_cache()
         try:
-            if max_total_tokens is None:
+            if not max_total_tokens:
                 num_blocks = batch.blocks
             else:
                 num_blocks = math.ceil(max_total_tokens / BLOCK_SIZE)
@@ -739,8 +739,8 @@ class FlashCausalLM(Model):
 
         torch.cuda.synchronize(self.device)
 
-        if max_total_tokens is not None:
-            return num_blocks
+        if max_total_tokens:
+            return int(num_blocks * BLOCK_SIZE)
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
