@@ -146,7 +146,16 @@ class Weights:
             if self.process_group.size() > 1:
                 g_idx = self.get_tensor(f"{prefix}.g_idx")
                 if g_idx is not None:
-                    if not torch.equal(g_idx.cpu(), torch.tensor([i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32)) and not (g_idx == 0).all():
+                    if (
+                        not torch.equal(
+                            g_idx.cpu(),
+                            torch.tensor(
+                                [i // groupsize for i in range(g_idx.shape[0])],
+                                dtype=torch.int32,
+                            ),
+                        )
+                        and not (g_idx == 0).all()
+                    ):
                         # Exllama implementation does not support row tensor parallelism with act-order, as
                         # it would require to reorder input activations that are split unto several GPUs
                         use_exllama = False
@@ -154,17 +163,20 @@ class Weights:
             try:
                 qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
             except RuntimeError:
-                raise RuntimeError("Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`")
-            
+                raise RuntimeError(
+                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                )
 
             from text_generation_server.utils.layers import HAS_EXLLAMA
+
             if use_exllama:
                 if not HAS_EXLLAMA:
-                    logger.warning("Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True")
+                    logger.warning(
+                        "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True"
+                    )
                     use_exllama = False
                 else:
                     logger.info("Using exllama kernels")
-
 
             if use_exllama:
                 if groupsize >= 0:
@@ -173,7 +185,9 @@ class Weights:
                     qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
                     scales = self.get_sharded(f"{prefix}.scales", dim=0)
                 else:
-                    raise RuntimeError("Using exllama GPTQ kernel with groupsize<1 is not supported") 
+                    raise RuntimeError(
+                        "Using exllama GPTQ kernel with groupsize<1 is not supported"
+                    )
                     # qzeros = self.get_tensor(f"{prefix}.qzeros")
                     # scales = self.get_tensor(f"{prefix}.scales")
 

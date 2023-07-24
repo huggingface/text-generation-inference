@@ -19,6 +19,7 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
+from text_generation_server.utils.dist import MEMORY_FRACTION
 
 tracer = trace.get_tracer(__name__)
 
@@ -738,7 +739,12 @@ class FlashCausalLM(Model):
         cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
-        free_memory, _ = torch.cuda.mem_get_info(self.device)
+        total_free_memory, _ = torch.cuda.mem_get_info(self.device)
+        total_gpu_memory = torch.cuda.get_device_properties(self.device).total_memory
+
+        free_memory = max(
+            0, total_free_memory - (1 - MEMORY_FRACTION) * total_gpu_memory
+        )
 
         num_blocks = (
             int(free_memory // total_cache_size)

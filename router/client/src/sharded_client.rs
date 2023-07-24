@@ -101,8 +101,12 @@ impl ShardedClient {
             .iter_mut()
             .map(|client| Box::pin(client.warmup(max_input_length, max_prefill_tokens)))
             .collect();
-        // all shards return the same message
-        join_all(futures).await.pop().unwrap()
+        // Take the minimum value
+        let results = join_all(futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<Option<u32>>>>()?;
+        Ok(results.into_iter().flatten().min())
     }
 
     /// Generate one token for each request in the given batch

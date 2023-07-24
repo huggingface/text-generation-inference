@@ -17,9 +17,10 @@ except ImportError:
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
+
 HAS_EXLLAMA = True
 if os.getenv("DISABLE_EXLLAMA") == "True":
-    HAS_EXLLAMA=False
+    HAS_EXLLAMA = False
 try:
     from text_generation_server.utils.gptq.exllama import Ex4bitLinear
 except ImportError:
