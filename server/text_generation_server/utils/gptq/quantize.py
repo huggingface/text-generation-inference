@@ -815,11 +815,7 @@ def load_weights_pre_hook(module_name, weights, recursive=False):
                 tensor = current_tensor.to(device=torch.device("cuda:0"))
                 if current_tensor.requires_grad:
                     tensor = nn.Parameter(tensor)
-                setdeepattr(
-                    module,
-                    local_param,
-                    tensor
-                )
+                setdeepattr(module, local_param, tensor)
 
     return inner
 

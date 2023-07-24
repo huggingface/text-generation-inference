@@ -10,6 +10,7 @@ from text_generation_server.pb.generate_pb2 import InfoResponse
 
 B = TypeVar("B", bound=Batch)
 
+
 class Model(ABC):
     def __init__(
         self,

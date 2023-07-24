@@ -740,11 +740,11 @@ class FlashCausalLM(Model):
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
         total_free_memory, _ = torch.cuda.mem_get_info(self.device)
-        total_gpu_memory = (
-            torch.cuda.get_device_properties(self.device).total_memory
-        )
+        total_gpu_memory = torch.cuda.get_device_properties(self.device).total_memory
 
-        free_memory = max(0, total_free_memory - (1 - MEMORY_FRACTION) * total_gpu_memory)
+        free_memory = max(
+            0, total_free_memory - (1 - MEMORY_FRACTION) * total_gpu_memory
+        )
 
         num_blocks = (
             int(free_memory // total_cache_size)

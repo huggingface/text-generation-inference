@@ -11,7 +11,7 @@ setup(
                 "exllama_kernels/cuda_buffers.cu",
                 "exllama_kernels/cuda_func/column_remap.cu",
                 "exllama_kernels/cuda_func/q4_matmul.cu",
-                "exllama_kernels/cuda_func/q4_matrix.cu"
+                "exllama_kernels/cuda_func/q4_matrix.cu",
             ],
         )
     ],

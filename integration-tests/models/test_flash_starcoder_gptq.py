@@ -17,7 +17,9 @@ async def flash_starcoder_gptq(flash_starcoder_gptq_handle):
 @pytest.mark.private
 async def test_flash_starcoder_gptq(flash_starcoder_gptq, response_snapshot):
     response = await flash_starcoder_gptq.generate(
-        "def geometric_mean(L: List[float]):", max_new_tokens=20, decoder_input_details=True,
+        "def geometric_mean(L: List[float]):",
+        max_new_tokens=20,
+        decoder_input_details=True,
     )
     assert response.details.generated_tokens == 20
     assert response == response_snapshot
@@ -25,7 +27,9 @@ async def test_flash_starcoder_gptq(flash_starcoder_gptq, response_snapshot):
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_starcoder_gptq_default_params(flash_starcoder_gptq, response_snapshot):
+async def test_flash_starcoder_gptq_default_params(
+    flash_starcoder_gptq, response_snapshot
+):
     response = await flash_starcoder_gptq.generate(
         "def geometric_mean(L: List[float]):",
         max_new_tokens=20,
@@ -40,8 +44,15 @@ async def test_flash_starcoder_gptq_default_params(flash_starcoder_gptq, respons
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_starcoder_gptq_load(flash_starcoder_gptq, generate_load, response_snapshot):
-    responses = await generate_load(flash_starcoder_gptq, "def geometric_mean(L: List[float]):", max_new_tokens=10, n=4)
+async def test_flash_starcoder_gptq_load(
+    flash_starcoder_gptq, generate_load, response_snapshot
+):
+    responses = await generate_load(
+        flash_starcoder_gptq,
+        "def geometric_mean(L: List[float]):",
+        max_new_tokens=10,
+        n=4,
+    )
 
     assert len(responses) == 4
     assert all([r.generated_text == responses[0].generated_text for r in responses])
