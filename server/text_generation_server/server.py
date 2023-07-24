@@ -105,21 +105,21 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
 
 def serve(
-    model_id: str,
-    revision: Optional[str],
-    sharded: bool,
-    quantize: Optional[str],
-    dtype: Optional[str],
-    trust_remote_code: bool,
-    uds_path: Path,
-):
-    async def serve_inner(
         model_id: str,
         revision: Optional[str],
-        sharded: bool = False,
-        quantize: Optional[str] = None,
-        dtype: Optional[str] = None,
-        trust_remote_code: bool = False,
+        sharded: bool,
+        quantize: Optional[str],
+        dtype: Optional[str],
+        trust_remote_code: bool,
+        uds_path: Path,
+):
+    async def serve_inner(
+            model_id: str,
+            revision: Optional[str],
+            sharded: bool = False,
+            quantize: Optional[str] = None,
+            dtype: Optional[str] = None,
+            trust_remote_code: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:
@@ -147,8 +147,10 @@ def serve(
                 # This will allocate those buffers.
                 from text_generation_server.utils.gptq.exllama import (
                     create_exllama_buffers,
+                    set_device,
                 )
 
+                set_device(model.device)
                 create_exllama_buffers()
             except ImportError:
                 pass

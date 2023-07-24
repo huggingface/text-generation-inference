@@ -32,8 +32,15 @@ TEMP_STATE = None
 TEMP_DQ = None
 
 
+def set_device(device):
+    global DEVICE
+    DEVICE = device
+
+
 def create_exllama_buffers():
     global MAX_DQ, MAX_INNER, ACT_ORDER, DEVICE, TEMP_STATE, TEMP_DQ
+
+    assert DEVICE is not None, "call set_device first"
 
     if ACT_ORDER:
         # TODO: this should be set to rust side `max_total_tokens`, but TGI
