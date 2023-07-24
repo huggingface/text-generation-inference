@@ -146,8 +146,10 @@ def serve(
                 # For which we have the finale shapes only after the model has loaded
                 # This will allocate those buffers.
                 from text_generation_server.utils.gptq.exllama import (
-                create_exllama_buffers, set_device
+                    create_exllama_buffers,
+                    set_device,
                 )
+
                 set_device(model.device)
                 create_exllama_buffers()
             except ImportError:

@@ -12,7 +12,6 @@ def ext_make_q4(qweight, qzeros, scales, g_idx, device):
     )
 
 
-
 def ext_q4_matmul(x, q4, q4_width):
     """Matrix multiplication, returns x @ q4"""
     outshape = x.shape[:-1] + (q4_width,)
