@@ -42,7 +42,7 @@ class StaticWarper:
         self.static_next_logprob = None
 
     def __call__(self, scores):
-        if torch.cuda.is_available():
+        if scores.device.type == "cuda":
             if self.cuda_graph is None:
                 self.static_scores = scores
                 self.cuda_graph = torch.cuda.CUDAGraph()
