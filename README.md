@@ -25,12 +25,12 @@ to power LLMs api-inference widgets.
 - [Get Started](#get-started)
   - [Docker](#docker)
   - [API Documentation](#api-documentation)
+  - [Using a private or gated model](#using-a-private-or-gated-model)
   - [A note on Shared Memory](#a-note-on-shared-memory-shm)
   - [Distributed Tracing](#distributed-tracing)
   - [Local Install](#local-install)
   - [CUDA Kernels](#cuda-kernels)
-- [Run BLOOM](#run-bloom)
-  - [Download](#download)
+- [Run Falcon](#run-falcon)
   - [Run](#run)
   - [Quantization](#quantization)
 - [Develop](#develop)
@@ -81,11 +81,10 @@ or
 The easiest way of getting started is using the official Docker container:
 
 ```shell
-model=bigscience/bloom-560m
-num_shard=2
+model=tiiuae/falcon-7b-instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:0.9 --model-id $model --num-shard $num_shard
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:0.9.3 --model-id $model
 ```
 **Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 11.8 or higher.
 
@@ -99,14 +98,14 @@ You can then query the model using either the `/generate` or `/generate_stream` 
 ```shell
 curl 127.0.0.1:8080/generate \
     -X POST \
-    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":17}}' \
+    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
     -H 'Content-Type: application/json'
 ```
 
 ```shell
 curl 127.0.0.1:8080/generate_stream \
     -X POST \
-    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":17}}' \
+    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
     -H 'Content-Type: application/json'
 ```
 
@@ -120,10 +119,10 @@ pip install text-generation
 from text_generation import Client
 
 client = Client("http://127.0.0.1:8080")
-print(client.generate("What is Deep Learning?", max_new_tokens=17).generated_text)
+print(client.generate("What is Deep Learning?", max_new_tokens=20).generated_text)
 
 text = ""
-for response in client.generate_stream("What is Deep Learning?", max_new_tokens=17):
+for response in client.generate_stream("What is Deep Learning?", max_new_tokens=20):
     if not response.token.special:
         text += response.token.text
 print(text)
@@ -134,14 +133,26 @@ print(text)
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route.
 The Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
 
-### Using on private models or gated models
+### Using a private or gated model
 
-You can use `HUGGING_FACE_HUB_TOKEN` environment variable to set the token used by `text-generation-inference` to give access to protected ressources.
+You have the option to utilize the `HUGGING_FACE_HUB_TOKEN` environment variable for configuring the token employed by 
+`text-generation-inference`. This allows you to gain access to protected resources.
 
-### Distributed Tracing
+For example, if you want to serve the gated Llama V2 model variants:
 
-`text-generation-inference` is instrumented with distributed tracing using OpenTelemetry. You can use this feature
-by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
+1. Go to https://huggingface.co/settings/tokens
+2. Copy your cli READ token
+3. Export `HUGGING_FACE_HUB_TOKEN=<your cli READ token>`
+
+or with Docker:
+
+```shell 
+model=meta-llama/Llama-2-7b-chat-hf
+volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+token=<your cli READ token>
+
+docker run --gpus all --shm-size 1g -e HUGGING_FACE_HUB_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:0.9.3 --model-id $model
+```
 
 ### A note on Shared Memory (shm)
 
@@ -168,6 +179,11 @@ and mounting it to `/dev/shm`.
 
 Finally, you can also disable SHM sharing by using the `NCCL_SHM_DISABLE=1` environment variable. However, note that
 this will impact performance.
+
+### Distributed Tracing
+
+`text-generation-inference` is instrumented with distributed tracing using OpenTelemetry. You can use this feature
+by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
 
 ### Local install
 
@@ -205,7 +221,7 @@ Then run:
 
 ```shell
 BUILD_EXTENSIONS=True make install # Install repository and HF/transformer fork with CUDA kernels
-make run-bloom-560m
+make run-falcon-7b-instruct 
 ```
 
 **Note:** on some machines, you may also need the OpenSSL libraries and gcc. On Linux machines, run:
@@ -221,20 +237,12 @@ the kernels by using the `DISABLE_CUSTOM_KERNELS=True` environment variable.
 
 Be aware that the official Docker image has them enabled by default.
 
-## Run BLOOM
-
-### Download
-
-It is advised to download the weights ahead of time with the following command:
-
-```shell
-make download-bloom
-```
+## Run Falcon
 
 ### Run
 
 ```shell
-make run-bloom # Requires 8xA100 80GB
+make run-falcon-7b-instruct 
 ```
 
 ### Quantization
@@ -242,7 +250,7 @@ make run-bloom # Requires 8xA100 80GB
 You can also quantize the weights with bitsandbytes to reduce the VRAM requirement:
 
 ```shell
-make run-bloom-quantize # Requires 8xA100 40GB
+make run-falcon-7b-instruct-quantize
 ```
 
 ## Develop
