@@ -187,11 +187,8 @@ class Weights:
                     qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
                     scales = self.get_sharded(f"{prefix}.scales", dim=0)
                 else:
-                    raise RuntimeError(
-                        "Using exllama GPTQ kernel with groupsize<1 is not supported"
-                    )
-                    # qzeros = self.get_tensor(f"{prefix}.qzeros")
-                    # scales = self.get_tensor(f"{prefix}.scales")
+                    qzeros = self.get_tensor(f"{prefix}.qzeros")
+                    scales = self.get_tensor(f"{prefix}.scales")
 
                 # For tp > 1, at this point we know we do not use act-order
                 if self.process_group.size() == 1:
