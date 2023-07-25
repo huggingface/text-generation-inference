@@ -230,11 +230,10 @@ class HeterogeneousNextTokenChooser:
             scores = warper(input_ids, scores)
 
         next_ids = self.choice(scores)
-        next_logprobs = torch.gather(
-            torch.log_softmax(scores, -1), 1, next_ids.view(-1, 1)
-        ).view(-1)
+        logprobs = torch.log_softmax(scores, -1)
+        next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
 
-        return next_ids, next_logprobs
+        return next_ids, next_logprobs, logprobs
 
     def filter(self, indices):
         if self.watermark_processor is not None:
@@ -342,6 +341,28 @@ class HeterogeneousSampling:
         return self
 
 
+def batch_top_tokens(top_n_tokens: torch.Tensor, logprobs: torch.Tensor):
+    """Find the top n most likely tokens for a batch of generations."""
+    top_n_tokens = torch.tensor(top_n_tokens)
+    if top_n_tokens.min() == 0:
+        return [], []
+
+    # Ensure top_n doesn't exceed vocab size
+    top_n_tokens = torch.clip(top_n_tokens, max=logprobs.size(-1))
+
+    # Take the topk using the highest requested top_n_tokens.
+    top_k = torch.topk(logprobs, k=max(top_n_tokens), dim=1, sorted=True)
+
+    # Move all digits into a list at once to prevent multiple GPU syncs
+    top_indices = top_k.indices.tolist()
+    top_values = top_k.values.tolist()
+
+    return (
+        [idxs[:n] for idxs, n in zip(top_indices, top_n_tokens)],
+        [vals[:n] for vals, n in zip(top_values, top_n_tokens)],
+    )
+
+
 def get_top_tokens(
     requested_n: int,
     logprobs,
@@ -354,7 +375,8 @@ def get_top_tokens(
     if not requested_n:
         return []
 
-    flat_scores = logprobs[-1]
+    # Dirty hack
+    flat_scores = logprobs if len(logprobs.shape) == 1 else logprobs[-1]
     # Ensure top_n doesn't exceed vocab size
     top_n = min(requested_n, flat_scores.size(-1))
     # Get nth highest value, ensure it's not -inf (for example if top_n > top_k)
@@ -368,14 +390,16 @@ def get_top_tokens(
     for tid_tensor in top_n_indices:
         tid_item = tid_tensor[0].item()
         token_text, _, _ = decode_fn(
-            torch.cat([decoder_input_ids, tid_tensor]),
+            torch.cat([decoder_input_ids, tid_tensor])
+            if isinstance(decoder_input_ids, torch.Tensor)
+            else decoder_input_ids + [tid_item],
             prefix_offset,
             read_offset,
         )
         top_tokens.append(
             TopToken(
                 token_id=tid_item,
-                token_logprob=logprobs[-1, tid_tensor],
+                token_logprob=flat_scores[tid_tensor],
                 token_text=token_text,
                 token_is_special=tid_item in special_tokens,
             )
