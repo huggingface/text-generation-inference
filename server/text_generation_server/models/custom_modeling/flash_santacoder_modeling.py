@@ -76,7 +76,7 @@ def _load_multi_mqa_gptq(
 
         g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
         g_idx = g_idx.to(device=weights.device)
-        bits, groupsize = weights._get_gptq_qparams()
+        bits, groupsize = weights._get_gptq_params()
 
         from text_generation_server.utils.layers import HAS_EXLLAMA
 

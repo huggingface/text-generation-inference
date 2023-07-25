@@ -4,7 +4,10 @@ import torch.distributed
 from opentelemetry import trace
 from transformers import AutoTokenizer, AutoConfig
 from typing import Optional, List
+import json
+import os
 
+from huggingface_hub import hf_hub_download
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_santacoder_modeling import (
     FlashSantacoderForCausalLM,
@@ -59,6 +62,8 @@ class FlashSantacoderSharded(FlashCausalLM):
             process_group=self.process_group,
             aliases={"transformer.wte.weight": ["lm_head.weight"]},
         )
+        if config.quantize == "gptq":
+            weights._set_gptq_params(model_id)
 
         model = FlashSantacoderForCausalLM(config, weights)
 

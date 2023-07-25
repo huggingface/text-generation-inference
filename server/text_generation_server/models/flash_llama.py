@@ -55,13 +55,15 @@ class FlashLlama(FlashCausalLM):
         config = LlamaConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
+        config.quantize = quantize
 
         torch.distributed.barrier(group=self.process_group)
 
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(filenames, device, dtype, process_group=self.process_group)
+        if config.quantize == "gptq":
+            weights._set_gptq_params(model_id)
 
-        config.quantize = quantize
         model = FlashLlamaForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
