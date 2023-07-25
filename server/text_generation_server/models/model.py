@@ -86,6 +86,37 @@ class Model(ABC):
         else:
             return "", prefix_offset, read_offset
 
+    def decode_tokens(
+        self,
+        input_ids: List[int],
+        new_input_ids: List[int],
+        prefix_offset: int = 0,
+        read_offset: int = 0,
+    ) -> Tuple[str, int, int]:
+        """Version of decode_token that supports multiple new tokens for the same prefix."""
+
+        # The prefix text is necessary only to defeat cleanup algorithms in the decode
+        # which decide to add a space or not depending on the surrounding ids.
+        prefix_text = self.tokenizer.decode(
+            input_ids[prefix_offset:read_offset], skip_special_tokens=False
+        )
+
+        new_sequences = [input_ids[prefix_offset:] + [new_id] for new_id in new_input_ids]
+        new_texts = self.tokenizer.batch_decode(new_sequences, skip_special_tokens=False)
+
+        results = []
+        for new_text in new_texts:
+            if len(new_text) > len(prefix_text) and not new_text.endswith("�"):
+                # utf-8 char at the end means it's a potential unfinished byte sequence
+                # from byte fallback tokenization.
+                # If it's in the middle, it's probably a real invalid id generated
+                # by the model
+                new_text = new_text[len(prefix_text) :]
+                results.append((new_text, read_offset, len(input_ids) + 1))
+            else:
+                results.append(("", prefix_offset, read_offset))
+        return results
+
     def check_initialized(self):
         uninitialized_parameters = []
         for n, p in self.model.named_parameters():
