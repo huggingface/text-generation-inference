@@ -345,7 +345,7 @@ def batch_top_tokens(top_n_tokens: torch.Tensor, logprobs: torch.Tensor):
     """Find the top n most likely tokens for a batch of generations."""
     top_n_tokens = torch.tensor(top_n_tokens)
     if top_n_tokens.min() == 0:
-        return [], []
+        return [[]] * len(top_n_tokens), [[]] * len(top_n_tokens)
 
     # Ensure top_n doesn't exceed vocab size
     top_n_tokens = torch.clip(top_n_tokens, max=logprobs.size(-1))

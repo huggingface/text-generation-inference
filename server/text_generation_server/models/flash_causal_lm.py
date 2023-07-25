@@ -949,6 +949,7 @@ class FlashCausalLM(Model):
             batch.all_input_ids,
             batch.next_token_chooser.do_sample,
             batch.next_token_chooser.seeds,
+            batch.top_n_tokens,
             next_token_ids,
             next_token_logprobs,
             batch_top_token_ids,
@@ -965,26 +966,31 @@ class FlashCausalLM(Model):
             all_input_ids,
             do_sample,
             seed,
+            top_n_tokens,
             next_token_id,
             next_token_logprob,
             top_token_ids,
             top_token_logprobs,
         ) in enumerate(iterator):
             top_tokens = []
-            for token_id, token_logprob in zip(top_token_ids, top_token_logprobs):
-                tok_itm = token_id
-                top_tokens.append(
-                    TopToken(
-                        token_id=token_id,
-                        token_logprob=token_logprob,
-                        token_text=self.decode_token(
-                            all_input_ids=all_input_ids + [tok_itm],
-                            prefix_offset=prefix_offset,
-                            read_offset=read_offset,
-                        )[0],
-                        token_is_special=tok_itm in self.all_special_ids,
-                    )
+
+            if top_n_tokens > 0:
+                top_token_texts = self.decode_tokens(
+                    input_ids=all_input_ids,
+                    new_input_ids=top_token_ids,
+                    prefix_offset=prefix_offset,
+                    read_offset=read_offset,
                 )
+                for token_id, (top_token_text, _, _), token_logprob in zip(top_token_ids, top_token_texts, top_token_logprobs):
+                    tok_itm = token_id
+                    top_tokens.append(
+                        TopToken(
+                            token_id=token_id,
+                            token_logprob=token_logprob,
+                            token_text=top_token_text,
+                            token_is_special=tok_itm in self.all_special_ids,
+                        )
+                    )
 
             # Append next token to all tokens
             all_input_ids.append(next_token_id)
