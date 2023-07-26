@@ -1,6 +1,6 @@
 import math
 import itertools
-from text_generation_server.utils.tokens import get_top_tokens, batch_top_tokens
+from text_generation_server.utils.tokens import batch_top_tokens
 import torch
 import torch.distributed
 
@@ -972,25 +972,14 @@ class FlashCausalLM(Model):
             top_token_ids,
             top_token_logprobs,
         ) in enumerate(iterator):
-            top_tokens = []
-
-            if top_n_tokens > 0:
-                top_token_texts = self.decode_tokens(
-                    input_ids=all_input_ids,
-                    new_input_ids=top_token_ids,
-                    prefix_offset=prefix_offset,
-                    read_offset=read_offset,
-                )
-                for token_id, (top_token_text, _, _), token_logprob in zip(top_token_ids, top_token_texts, top_token_logprobs):
-                    tok_itm = token_id
-                    top_tokens.append(
-                        TopToken(
-                            token_id=token_id,
-                            token_logprob=token_logprob,
-                            token_text=top_token_text,
-                            token_is_special=tok_itm in self.all_special_ids,
-                        )
-                    )
+            top_tokens = self.decode_top_tokens(
+                input_ids=all_input_ids,
+                top_n_tokens=top_n_tokens,
+                top_token_ids=top_token_ids,
+                top_token_logprobs=top_token_logprobs,
+                prefix_offset=prefix_offset,
+                read_offset=read_offset,
+            )
 
             # Append next token to all tokens
             all_input_ids.append(next_token_id)
