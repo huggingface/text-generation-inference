@@ -8,7 +8,6 @@ from transformers import (
 )
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.types import TopToken
 from text_generation_server.pb.generate_pb2 import FinishReason
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 from text_generation_server.utils.logits_process import (
@@ -361,49 +360,3 @@ def batch_top_tokens(top_n_tokens: torch.Tensor, logprobs: torch.Tensor):
         [idxs[:n] for idxs, n in zip(top_indices, top_n_tokens)],
         [vals[:n] for vals, n in zip(top_values, top_n_tokens)],
     )
-
-
-def get_top_tokens(
-    requested_n: int,
-    logprobs,
-    special_tokens: List[int],
-    decode_fn: Callable[[List[int], int, int], str],
-    decoder_input_ids: List[int],
-    prefix_offset: int,
-    read_offset: int,
-) -> List[TopToken]:
-    if not requested_n:
-        return []
-
-    # Dirty hack
-    flat_scores = logprobs if len(logprobs.shape) == 1 else logprobs[-1]
-    # Ensure top_n doesn't exceed vocab size
-    top_n = min(requested_n, flat_scores.size(-1))
-    # Get nth highest value, ensure it's not -inf (for example if top_n > top_k)
-    nth_highest = torch.topk(flat_scores, top_n)[0][-1]
-    if nth_highest == -float("inf"):
-        nth_highest = torch.finfo(flat_scores.dtype).min
-    # Get indices (token ids) of all scores >= nth highest value,
-    # cap length at 4 * top_n as a precaution
-    top_n_indices = (flat_scores >= nth_highest).nonzero()[: (top_n * 4)]
-    top_tokens = []
-    for tid_tensor in top_n_indices:
-        tid_item = tid_tensor[0].item()
-        token_text, _, _ = decode_fn(
-            torch.cat([decoder_input_ids, tid_tensor])
-            if isinstance(decoder_input_ids, torch.Tensor)
-            else decoder_input_ids + [tid_item],
-            prefix_offset,
-            read_offset,
-        )
-        top_tokens.append(
-            TopToken(
-                token_id=tid_item,
-                token_logprob=flat_scores[tid_tensor],
-                token_text=token_text,
-                token_is_special=tid_item in special_tokens,
-            )
-        )
-
-    top_tokens.sort(reverse=True)
-    return top_tokens

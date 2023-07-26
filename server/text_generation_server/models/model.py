@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, TypeVar, Type
 from transformers import PreTrainedTokenizerBase, PretrainedConfig
 
-from text_generation_server.models.types import Batch, Generation
+from text_generation_server.models.types import Batch, Generation, TopToken
 from text_generation_server.pb.generate_pb2 import InfoResponse
 
 B = TypeVar("B", bound=Batch)
@@ -101,8 +101,12 @@ class Model(ABC):
             input_ids[prefix_offset:read_offset], skip_special_tokens=False
         )
 
-        new_sequences = [input_ids[prefix_offset:] + [new_id] for new_id in new_input_ids]
-        new_texts = self.tokenizer.batch_decode(new_sequences, skip_special_tokens=False)
+        new_sequences = [
+            input_ids[prefix_offset:] + [new_id] for new_id in new_input_ids
+        ]
+        new_texts = self.tokenizer.batch_decode(
+            new_sequences, skip_special_tokens=False
+        )
 
         results = []
         for new_text in new_texts:
@@ -116,6 +120,40 @@ class Model(ABC):
             else:
                 results.append(("", prefix_offset, read_offset))
         return results
+
+    def decode_top_tokens(
+        self,
+        input_ids,
+        top_n_tokens,
+        top_token_ids,
+        top_token_logprobs,
+        prefix_offset,
+        read_offset,
+    ):
+        if top_n_tokens == 0:
+            return []
+
+        top_token_texts = self.decode_tokens(
+            input_ids=input_ids,
+            new_input_ids=top_token_ids,
+            prefix_offset=prefix_offset,
+            read_offset=read_offset,
+        )
+
+        top_tokens = []
+        for token_id, (top_token_text, _, _), token_logprob in zip(
+            top_token_ids, top_token_texts, top_token_logprobs
+        ):
+            tok_itm = token_id
+            top_tokens.append(
+                TopToken(
+                    token_id=token_id,
+                    token_logprob=token_logprob,
+                    token_text=top_token_text,
+                    token_is_special=tok_itm in self.all_special_ids,
+                )
+            )
+        return top_tokens
 
     def check_initialized(self):
         uninitialized_parameters = []
