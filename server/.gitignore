@@ -157,4 +157,5 @@ cython_debug/
 transformers
 safetensors
 vllm
+flash-attention
 flash-attention-v2
