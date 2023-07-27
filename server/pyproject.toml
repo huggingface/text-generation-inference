@@ -28,11 +28,13 @@ tokenizers = "0.13.3"
 huggingface-hub = "^0.14.1"
 transformers = "4.29.2"
 einops = "^0.6.1"
-texttable = "^1.6.7"
+texttable = { version = "^1.6.7", optional = true }
+datasets = { version = "^2.14.0", optional = true }
 
 [tool.poetry.extras]
 accelerate = ["accelerate"]
 bnb = ["bitsandbytes"]
+quantize = ["texttable", "datasets", "accelerate"]
 
 [tool.poetry.group.dev.dependencies]
 grpcio-tools = "^1.51.1"
