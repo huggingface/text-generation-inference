@@ -15,7 +15,7 @@
 </a>
 </div>
 
-A Rust, Python and gRPC server for text generation inference. Used in production at [HuggingFace](https://huggingface.co) 
+A Rust, Python and gRPC server for text generation inference. Used in production at [HuggingFace](https://huggingface.co)
 to power LLMs api-inference widgets.
 
 ## Table of contents
@@ -135,7 +135,7 @@ The Swagger UI is also available at: [https://huggingface.github.io/text-generat
 
 ### Using a private or gated model
 
-You have the option to utilize the `HUGGING_FACE_HUB_TOKEN` environment variable for configuring the token employed by 
+You have the option to utilize the `HUGGING_FACE_HUB_TOKEN` environment variable for configuring the token employed by
 `text-generation-inference`. This allows you to gain access to protected resources.
 
 For example, if you want to serve the gated Llama V2 model variants:
@@ -146,7 +146,7 @@ For example, if you want to serve the gated Llama V2 model variants:
 
 or with Docker:
 
-```shell 
+```shell
 model=meta-llama/Llama-2-7b-chat-hf
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 token=<your cli READ token>
@@ -195,7 +195,7 @@ Python 3.9, e.g. using `conda`:
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-conda create -n text-generation-inference python=3.9 
+conda create -n text-generation-inference python=3.9
 conda activate text-generation-inference
 ```
 
@@ -221,7 +221,7 @@ Then run:
 
 ```shell
 BUILD_EXTENSIONS=True make install # Install repository and HF/transformer fork with CUDA kernels
-make run-falcon-7b-instruct 
+make run-falcon-7b-instruct
 ```
 
 **Note:** on some machines, you may also need the OpenSSL libraries and gcc. On Linux machines, run:
@@ -232,7 +232,7 @@ sudo apt-get install libssl-dev gcc -y
 
 ### CUDA Kernels
 
-The custom CUDA kernels are only tested on NVIDIA A100s. If you have any installation or runtime issues, you can remove 
+The custom CUDA kernels are only tested on NVIDIA A100s. If you have any installation or runtime issues, you can remove
 the kernels by using the `DISABLE_CUSTOM_KERNELS=True` environment variable.
 
 Be aware that the official Docker image has them enabled by default.
@@ -242,7 +242,7 @@ Be aware that the official Docker image has them enabled by default.
 ### Run
 
 ```shell
-make run-falcon-7b-instruct 
+make run-falcon-7b-instruct
 ```
 
 ### Quantization
@@ -273,3 +273,9 @@ make rust-tests
 # integration tests
 make integration-tests
 ```
+
+
+## Other supported hardware
+
+TGI is also supported on the following AI hardware accelerators:
+- *Habana first-gen Gaudi and Gaudi2:* checkout [here](https://github.com/huggingface/optimum-habana/tree/main/text-generation-inference) how to serve models with TGI on Gaudi and Gaudi2 with [Optimum Habana](https://huggingface.co/docs/optimum/habana/index)
