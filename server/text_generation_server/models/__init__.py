@@ -200,13 +200,10 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    if model_type in ["RefinedWeb", "RefinedWebModel"]:
+    if model_type in ["RefinedWeb", "RefinedWebModel", "falcon"]:
         if sharded:
             if FLASH_ATTENTION:
-                if config_dict.get("alibi", False) or (
-                    model_type == "RefinedWebModel"
-                    and config_dict.get("multi_query", True)
-                ):
+                if config_dict.get("alibi", False):
                     raise NotImplementedError("sharded is not supported for this model")
                 return FlashRWSharded(
                     model_id,
@@ -215,9 +212,7 @@ def get_model(
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
-            raise NotImplementedError(
-                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded RefinedWeb")
-            )
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Falcon"))
         else:
             if FLASH_ATTENTION and not config_dict.get("alibi", False):
                 return FlashRWSharded(
