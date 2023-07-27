@@ -1,18 +1,14 @@
-import argparse
 import time
-import numpy as np
-import torch
 import torch.nn as nn
 import math
 import json
 import os
+import torch
+import transformers
 
 from texttable import Texttable
 from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer
-import transformers
 from huggingface_hub import HfApi
-import numpy as np
-import torch
 from accelerate import init_empty_weights
 from text_generation_server.utils import initialize_torch_distributed, Weights
 from text_generation_server.utils.hub import weight_files
