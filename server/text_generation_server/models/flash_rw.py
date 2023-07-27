@@ -61,7 +61,6 @@ class FlashRWSharded(FlashCausalLM):
         if config.quantize == "gptq":
             weights._set_gptq_params(model_id)
 
-
         model = FlashRWForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)

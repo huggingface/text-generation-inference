@@ -105,21 +105,21 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
 
 def serve(
-        model_id: str,
-        revision: Optional[str],
-        sharded: bool,
-        quantize: Optional[str],
-        dtype: Optional[str],
-        trust_remote_code: bool,
-        uds_path: Path,
+    model_id: str,
+    revision: Optional[str],
+    sharded: bool,
+    quantize: Optional[str],
+    dtype: Optional[str],
+    trust_remote_code: bool,
+    uds_path: Path,
 ):
     async def serve_inner(
-            model_id: str,
-            revision: Optional[str],
-            sharded: bool = False,
-            quantize: Optional[str] = None,
-            dtype: Optional[str] = None,
-            trust_remote_code: bool = False,
+        model_id: str,
+        revision: Optional[str],
+        sharded: bool = False,
+        quantize: Optional[str] = None,
+        dtype: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:
