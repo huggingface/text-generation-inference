@@ -2893,7 +2893,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "average",
  "clap",
@@ -2913,7 +2913,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "futures",
  "grpc-metadata",
@@ -2929,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "clap",
  "ctrlc",
@@ -2945,7 +2945,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "async-stream",
  "axum",
