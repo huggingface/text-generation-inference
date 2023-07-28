@@ -15,9 +15,6 @@
 A Rust, Python and gRPC server for text generation inference. Used in production at [HuggingFace](https://huggingface.co)
 to power Hugging Chat, the Inference API and Inference Endpoint.
 
-Text Generation Inference v1.0 was released under a new license: HFOIL 1.0.
-Learn more about the rationale behind the change [here](https://github.com/huggingface/text-generation-inference/issues/726).
-
 </div>
 
 ## Table of contents
