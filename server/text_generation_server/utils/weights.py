@@ -220,9 +220,13 @@ class Weights:
 
         return bits, groupsize
 
-    def _set_gptq_params(self, model_id):
+    def _set_gptq_params(self, model_id: str):
         try:
-            filename = hf_hub_download(model_id, filename="quantize_config.json")
+            potential_local_path = Path(model_id, "quantize_config.json")
+            if potential_local_path.exists():
+                filename = potential_local_path
+            else:
+                filename = hf_hub_download(model_id, filename="quantize_config.json")
             with open(filename, "r") as f:
                 data = json.load(f)
             self.gptq_bits = data["bits"]
