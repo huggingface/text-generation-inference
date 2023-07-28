@@ -233,6 +233,10 @@ fn main() -> Result<(), RouterError> {
                             "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
                         );
                     }
+                    if max_total_tokens as u32 > max_supported_batch_total_tokens {
+                        return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_supported_batch_total_tokens}")));
+                    }
+
                     max_supported_batch_total_tokens
                 }
             };
@@ -270,7 +274,7 @@ fn main() -> Result<(), RouterError> {
                 ngrok_authtoken,
                 ngrok_edge,
             )
-            .await?;
+                .await?;
             Ok(())
         })
 }
