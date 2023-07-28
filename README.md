@@ -7,16 +7,14 @@
 <a href="https://github.com/huggingface/text-generation-inference">
   <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/huggingface/text-generation-inference?style=social">
 </a>
-<a href="https://github.com/huggingface/text-generation-inference/blob/main/LICENSE">
-  <img alt="License" src="https://img.shields.io/github/license/huggingface/text-generation-inference">
-</a>
 <a href="https://huggingface.github.io/text-generation-inference">
   <img alt="Swagger API documentation" src="https://img.shields.io/badge/API-Swagger-informational">
 </a>
-</div>
 
 A Rust, Python and gRPC server for text generation inference. Used in production at [HuggingFace](https://huggingface.co)
-to power LLMs api-inference widgets.
+to power Hugging Chat, the Inference API and Inference Endpoint.
+
+</div>
 
 ## Table of contents
 
@@ -85,7 +83,7 @@ The easiest way of getting started is using the official Docker container:
 model=tiiuae/falcon-7b-instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:0.9.4 --model-id $model
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.0.0 --model-id $model
 ```
 **Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 11.8 or higher.
 
@@ -152,7 +150,7 @@ model=meta-llama/Llama-2-7b-chat-hf
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 token=<your cli READ token>
 
-docker run --gpus all --shm-size 1g -e HUGGING_FACE_HUB_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:0.9.3 --model-id $model
+docker run --gpus all --shm-size 1g -e HUGGING_FACE_HUB_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.0.0 --model-id $model
 ```
 
 ### A note on Shared Memory (shm)
