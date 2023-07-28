@@ -219,31 +219,36 @@ class TensorParallelHead(SuperLayer):
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        if not self.should_gather:
+            return super().forward(input)
+
         world_size = self.process_group.size()
-        # Fast branch for single requests
-        if (
-            self.should_gather
-            and len(input.shape) == 2
-            and isinstance(self.linear, FastLinear)
-            and input.shape[0] == 1
-        ):
+        if len(input.shape) == 2 and isinstance(self.linear, FastLinear):
             out_dim = self.linear.weight.shape[0]
 
-            world_out = input.new_empty(1, out_dim * world_size)
-            local_out = input.new_empty(1, out_dim)
+            if input.shape[0] == 1:
+                world_out = input.new_empty(1, out_dim * world_size)
+                local_out = input.new_empty(1, out_dim)
+                gather_input = local_out
+            else:
+                world_out = input.new_empty(out_dim * world_size, input.shape[0])
+                gather_input = input.new_empty(out_dim, input.shape[0])
+                local_out = gather_input.T
 
             torch.mm(input, self.linear.weight.T, out=local_out)
 
             torch.distributed.all_gather_into_tensor(
-                world_out, local_out, group=self.process_group
+                world_out, gather_input, group=self.process_group
             )
-            return world_out
+
+            if input.shape[0] == 1:
+                return world_out
+            return world_out.T
 
         output = super().forward(input)
-        if not self.should_gather:
-            return output
-
-        world_output = [torch.empty_like(output) for _ in range(world_size)]
+        world_output = [
+            torch.empty_like(output) for _ in range(self.process_group.size())
+        ]
         torch.distributed.all_gather(world_output, output, group=self.process_group)
         world_output = torch.cat(world_output, dim=-1)
         return world_output
