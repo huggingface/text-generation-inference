@@ -35,6 +35,7 @@ to power LLMs api-inference widgets.
   - [Quantization](#quantization)
 - [Develop](#develop)
 - [Testing](#testing)
+- [Other supported hardware](#other-supported-hardware)
 
 ## Features
 
