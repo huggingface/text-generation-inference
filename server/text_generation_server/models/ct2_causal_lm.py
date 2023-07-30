@@ -1,7 +1,11 @@
 # coding=utf-8
-# Copyright 2023 HuggingFace Inc. team and Michael Feil. All rights reserved.
+# Copyright 2023 Michael Feil. All rights reserved.
 #
-# This code is based on Text-generation-inference causal_lm.py implementation
+# This code is loosely based on Huggingface text-generation-inference v0.9.3's causal_lm.py implementation.
+# While it remains licensed under Apache License, Version 2.0,
+# text-generation-inference itself on 7/28/2023 has changed its license.
+# This code remains unaffected by this, and contributing it to a 
+# upstream repo with new License was not intentional.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
