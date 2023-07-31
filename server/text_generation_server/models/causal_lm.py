@@ -44,6 +44,7 @@ class CausalLMBatch(Batch):
     next_token_choosers: List[NextTokenChooser]
     stopping_criterias: List[StoppingCriteria]
     top_n_tokens: List[int]
+    top_n_tokens_tensor: torch.Tensor
 
     # Metadata used for padding
     max_input_length: int
@@ -125,6 +126,7 @@ class CausalLMBatch(Batch):
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].T.split(1, dim=1)
+        top_n_tokens_tensor = torch.tensor(top_n_tokens, device=device, dtype=torch.int64)
 
         max_tokens = len(inputs) * (max_input_length + max_decode_tokens)
 
@@ -143,6 +145,7 @@ class CausalLMBatch(Batch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             top_n_tokens=top_n_tokens,
+            top_n_tokens_tensor=top_n_tokens_tensor,
             max_input_length=max_input_length.item(),
             padding_right_offset=padding_right_offset,
             max_tokens=max_tokens,
@@ -230,6 +233,7 @@ class CausalLMBatch(Batch):
             layer[1] = past_values[keep_indices, :, -past_kv_length:, :]
             del past_values
 
+        top_n_tokens_tensor = self.top_n_tokens_tensor[keep_indices]
         max_tokens = len(request_ids) * max_input_length + total_remaining_decode_tokens
 
         self.requests = requests
@@ -243,6 +247,7 @@ class CausalLMBatch(Batch):
         self.next_token_choosers = next_token_choosers
         self.stopping_criterias = stopping_criterias
         self.top_n_tokens = top_n_tokens
+        self.top_n_tokens_tensor = top_n_tokens_tensor
         self.max_input_length = max_input_length
         self.padding_right_offset = new_padding_right_offset
         self.max_tokens = max_tokens
@@ -278,6 +283,7 @@ class CausalLMBatch(Batch):
         attention_mask = None
         position_ids = None
         past_key_values = []
+        top_n_tokens_tensor = None
 
         # Used for slicing correctly inside the tensors
         # Equivalent to a cumsum on batch sizes
@@ -319,6 +325,12 @@ class CausalLMBatch(Batch):
                 attention_mask = batch.attention_mask.new_zeros(
                     (total_batch_size, max_input_length + padding_right_offset),
                 )
+
+            if top_n_tokens_tensor is None:
+                top_n_tokens_tensor = batches[0].top_n_tokens_tensor.new_zeros(
+                    total_batch_size,
+                )
+            top_n_tokens_tensor[start_index:end_index] = batch.top_n_tokens_tensor
 
             # We need to slice the attention mask to remove padding from previous steps
             # and to remove unused allocated space
@@ -449,6 +461,7 @@ class CausalLMBatch(Batch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             top_n_tokens=top_n_tokens,
+            top_n_tokens_tensor=top_n_tokens_tensor,
             max_input_length=max_input_length,
             padding_right_offset=padding_right_offset,
             keys_head_dim_last=batches[0].keys_head_dim_last,
@@ -561,7 +574,7 @@ class CausalLM(Model):
         stopped = True
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
-            batch.top_n_tokens, torch.softmax(logits[:, -1], -1)
+            batch.top_n_tokens, batch.top_n_tokens_tensor, torch.softmax(logits[:, -1], -1)
         )
 
         # Zipped iterator
@@ -594,7 +607,7 @@ class CausalLM(Model):
             top_token_logprobs,
         ) in enumerate(iterator):
             top_tokens = self.decode_top_tokens(
-                input_ids=all_input_ids.view(1, -1).tolist(),
+                input_ids=all_input_ids.view(-1).tolist(),
                 top_n_tokens=top_n_tokens,
                 top_token_ids=top_token_ids,
                 top_token_logprobs=top_token_logprobs,
