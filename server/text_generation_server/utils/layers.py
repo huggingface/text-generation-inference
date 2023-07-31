@@ -483,7 +483,7 @@ try:
 
     class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
         def __init__(self, dim, max_position_embeddings, base, device, scaling_factor):
-            inv_freq = create_inv_freq(dim, base, device)
+            inv_freq = _create_inv_freq(dim, base, device)
             super().__init__(inv_freq, scaling_factor)
             self.dim = dim
             self.max_position_embeddings = max_position_embeddings
