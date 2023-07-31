@@ -60,6 +60,26 @@ impl std::fmt::Display for Dtype {
     }
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum RopeScaling {
+    Linear,
+    Dynamic,
+}
+
+impl std::fmt::Display for RopeScaling {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self {
+            RopeScaling::Linear => {
+                write!(f, "linear")
+            }
+            RopeScaling::Dynamic => {
+                write!(f, "dynamic")
+            }
+        }
+    }
+}
+
 /// App Configuration
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -250,6 +270,26 @@ struct Args {
     #[clap(default_value = "1.0", long, env)]
     cuda_memory_fraction: f32,
 
+    /// Rope scaling will only be used for RoPE models
+    /// and allow rescaling the position rotary to accomodate for
+    /// larger prompts.
+    ///
+    /// Goes together with `rope_factor`.
+    ///
+    /// `--rope-factor 2.0` gives linear scaling with a factor of 2.0
+    /// `--rope-scaling dynamic` gives dynamic scaling with a factor of 1.0
+    /// `--rope-scaling linear` gives linear scaling with a factor of 1.0 (Nothing will be changed
+    /// basically)
+    ///
+    /// `--rope-scaling linear --rope-factor` fully describes the scaling you want
+    #[clap(long, env)]
+    rope_scaling: Option<RopeScaling>,
+
+    /// Rope scaling will only be used for RoPE models
+    /// See `rope_scaling`
+    #[clap(long, env)]
+    rope_factor: Option<f32>,
+
     /// Outputs the logs in JSON format (useful for telemetry)
     #[clap(long, env)]
     json_output: bool,
@@ -305,6 +345,8 @@ fn shard_manager(
     watermark_gamma: Option<f32>,
     watermark_delta: Option<f32>,
     cuda_memory_fraction: f32,
+    rope_scaling: Option<RopeScaling>,
+    rope_factor: Option<f32>,
     otlp_endpoint: Option<String>,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
@@ -358,6 +400,12 @@ fn shard_manager(
         shard_args.push(revision)
     }
 
+    let rope = match (rope_scaling, rope_factor) {
+        (None, None) => None,
+        (Some(scaling), None) => Some((scaling, 1.0)),
+        (Some(scaling), Some(factor)) => Some((scaling, factor)),
+        (None, Some(factor)) => Some((RopeScaling::Linear, factor)),
+    };
     // OpenTelemetry
     if let Some(otlp_endpoint) = otlp_endpoint {
         shard_args.push("--otlp-endpoint".to_string());
@@ -394,6 +442,15 @@ fn shard_manager(
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
         envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
     };
+
+    // Detect rope scaling
+    // Sending as env instead of CLI args to not bloat everything
+    // those only can be used by RoPE models, so passing information around
+    // for all models will complexify code unnecessarily
+    if let Some((scaling, factor)) = rope {
+        envs.push(("ROPE_SCALING".into(), scaling.to_string().into()));
+        envs.push(("ROPE_FACTOR".into(), factor.to_string().into()));
+    }
 
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
@@ -784,6 +841,8 @@ fn spawn_shards(
         let watermark_gamma = args.watermark_gamma;
         let watermark_delta = args.watermark_delta;
         let cuda_memory_fraction = args.cuda_memory_fraction;
+        let rope_scaling = args.rope_scaling;
+        let rope_factor = args.rope_factor;
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -802,6 +861,8 @@ fn spawn_shards(
                 watermark_gamma,
                 watermark_delta,
                 cuda_memory_fraction,
+                rope_scaling,
+                rope_factor,
                 otlp_endpoint,
                 status_sender,
                 shutdown,
