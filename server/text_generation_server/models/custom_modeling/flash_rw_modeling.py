@@ -133,7 +133,7 @@ class FlashRWAttention(torch.nn.Module):
         self.head_size = self.hidden_size // self.num_heads
 
         self.rotary_emb = PositionRotaryEmbedding.static(
-            dim=self.head_size, base=10000.0, device=weights.device
+            config=config, dim=self.head_size, base=10000.0, device=weights.device
         )
         self.softmax_scale = self.head_size ** (-0.5)
 
@@ -247,7 +247,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         self.head_size = hidden_size // num_heads
 
         self.rotary_emb = PositionRotaryEmbedding.static(
-            self.head_size, base=10000.0, device=weights.device
+            config=config, dim=self.head_size, base=10000.0, device=weights.device
         )
         self.softmax_scale = self.head_size ** (-0.5)
 
