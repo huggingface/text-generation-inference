@@ -61,7 +61,7 @@ impl std::fmt::Display for Dtype {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
-enum RopeScaling{
+enum RopeScaling {
     Linear,
     Dynamic,
 }
@@ -271,11 +271,11 @@ struct Args {
     cuda_memory_fraction: f32,
 
     /// Rope scaling will only be used for RoPE models
-    /// and allow rescaling the position rotary to accomodate for 
+    /// and allow rescaling the position rotary to accomodate for
     /// larger prompts.
     ///
     /// Goes together with `rope_factor`.
-    /// 
+    ///
     /// `--rope-factor 2.0` gives linear scaling with a factor of 2.0
     /// `--rope-scaling dynamic` gives dynamic scaling with a factor of 1.0
     /// `--rope-scaling linear` gives linear scaling with a factor of 1.0 (Nothing will be changed
@@ -289,7 +289,6 @@ struct Args {
     /// See `rope_scaling`
     #[clap(long, env)]
     rope_factor: Option<f32>,
-
 
     /// Outputs the logs in JSON format (useful for telemetry)
     #[clap(long, env)]
@@ -448,11 +447,10 @@ fn shard_manager(
     // Sending as env instead of CLI args to not bloat everything
     // those only can be used by RoPE models, so passing information around
     // for all models will complexify code unnecessarily
-    if let Some((scaling, factor)) = rope{
+    if let Some((scaling, factor)) = rope {
         envs.push(("ROPE_SCALING".into(), scaling.to_string().into()));
         envs.push(("ROPE_FACTOR".into(), factor.to_string().into()));
     }
-
 
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
