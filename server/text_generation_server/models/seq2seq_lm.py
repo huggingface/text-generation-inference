@@ -50,6 +50,7 @@ class Seq2SeqLMBatch(Batch):
     next_token_choosers: List[NextTokenChooser]
     stopping_criterias: List[StoppingCriteria]
     top_n_tokens: List[int]
+    top_n_tokens_tensor: torch.Tensor
 
     # Metadata used for padding
     max_input_length: int
@@ -129,6 +130,7 @@ class Seq2SeqLMBatch(Batch):
             prefix_offsets.append(0)
             read_offsets.append(1)
         all_decoder_input_ids = decoder_input_ids.view(-1).split(1)
+        top_n_tokens_tensor = torch.tensor(top_n_tokens, device=device, dtype=torch.int64)
 
         max_tokens = len(inputs) * (max_input_length + max_decode_tokens)
 
@@ -150,6 +152,7 @@ class Seq2SeqLMBatch(Batch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             top_n_tokens=top_n_tokens,
+            top_n_tokens_tensor=top_n_tokens_tensor,
             max_input_length=max_input_length.item(),
             max_decoder_input_length=1,
             padding_right_offset=padding_right_offset,
@@ -245,6 +248,7 @@ class Seq2SeqLMBatch(Batch):
             layer[2] = layer[2][keep_indices, :, -max_input_length:]
             layer[3] = layer[3][keep_indices, :, -max_input_length:]
 
+        top_n_tokens_tensor = self.top_n_tokens_tensor[keep_indices]
         max_tokens = (
             len(request_ids) * (max_input_length + max_decoder_input_length)
             + remaining_decode_tokens
@@ -261,6 +265,7 @@ class Seq2SeqLMBatch(Batch):
         self.next_token_choosers = next_token_choosers
         self.stopping_criterias = stopping_criterias
         self.top_n_tokens = top_n_tokens
+        self.top_n_tokens_tensor = top_n_tokens_tensor
         self.max_input_length = max_input_length
         self.max_decoder_input_length = max_decoder_input_length
         self.padding_right_offset = padding_right_offset
@@ -304,6 +309,7 @@ class Seq2SeqLMBatch(Batch):
         decoder_input_ids = None
         decoder_attention_mask = None
         encoder_last_hidden_state = None
+        top_n_tokens_tensor = None
         past_key_values = []
 
         # Used for slicing correctly inside the tensors
@@ -392,6 +398,12 @@ class Seq2SeqLMBatch(Batch):
                         batch.encoder_last_hidden_state.shape[-1],
                     ),
                 )
+
+            if top_n_tokens_tensor is None:
+                top_n_tokens_tensor = batches[0].top_n_tokens_tensor.new_zeros(
+                    total_batch_size,
+                )
+            top_n_tokens_tensor[start_index:end_index] = batch.top_n_tokens_tensor
 
             # Copy to correct indices
             encoder_last_hidden_state[
@@ -498,6 +510,7 @@ class Seq2SeqLMBatch(Batch):
             next_token_choosers=next_token_choosers,
             stopping_criterias=stopping_criterias,
             top_n_tokens=top_n_tokens,
+            top_n_tokens_tensor=top_n_tokens_tensor,
             max_input_length=max_input_length,
             max_decoder_input_length=max_decoder_input_length,
             padding_right_offset=padding_right_offset,
@@ -624,7 +637,7 @@ class Seq2SeqLM(Model):
         )
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
-            batch.top_n_tokens, torch.softmax(logits[:, -1], -1)
+            batch.top_n_tokens, batch.top_n_tokens_tensor, torch.softmax(logits[:, -1], -1)
         )
 
         # Finished requests
@@ -663,7 +676,7 @@ class Seq2SeqLM(Model):
             top_token_logprobs,
         ) in enumerate(iterator):
             top_tokens = self.decode_top_tokens(
-                input_ids=all_decoder_input_ids.view(1, -1).tolist(),
+                input_ids=all_decoder_input_ids.view(-1).tolist(),
                 top_n_tokens=top_n_tokens,
                 top_token_ids=top_token_ids,
                 top_token_logprobs=top_token_logprobs,

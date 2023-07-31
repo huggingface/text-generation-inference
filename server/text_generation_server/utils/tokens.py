@@ -337,20 +337,16 @@ class HeterogeneousSampling:
 
 
 def batch_top_tokens(
-    top_n_tokens: list[int], logprobs: torch.Tensor
+    top_n_tokens: list[int], top_n_tokens_tensor: torch.Tensor, logprobs: torch.Tensor
 ) -> Tuple[List[List[int]], List[List[float]]]:
     """Find the top n most likely tokens for a batch of generations.
 
     When multiple tokens have equal probabilities and they don't all fit, the
     remaining tokens are also returned.
     """
-    # Do this as early as possible to mitigate copy latency
-    top_n_tensor = torch.tensor(top_n_tokens).to(
-        device=logprobs.device, non_blocking=True
-    )
-
+    max_top_n = max(top_n_tokens)
     # Early exit when top_n_tokens is not used
-    if max(top_n_tokens) == 0:
+    if max_top_n == 0:
         return [[]] * len(top_n_tokens), [[]] * len(top_n_tokens)
 
     # Ensure top_n doesn't exceed vocab size
@@ -358,11 +354,9 @@ def batch_top_tokens(
 
     # Parallel kthvalue adapted from https://discuss.pytorch.org/t/how-to-efficiently-get-the-k-th-largest-values-in-parallel/160529/2
     # Sorted topk is faster than torch.sort() since we only need a small subset
-    sorted_top_k = torch.topk(
-        logprobs, k=max(top_n_tokens), dim=1, sorted=True
-    ).values  # .cpu()
+    sorted_top_k = torch.topk(logprobs, k=max_top_n, dim=1, sorted=True).values
     nth_highest = torch.gather(
-        sorted_top_k, 1, (top_n_tensor - 1).clip(min=0).unsqueeze(1)
+        sorted_top_k, 1, (top_n_tokens_tensor - 1).clip(min=0).unsqueeze(1)
     )
     nth_highest[nth_highest == -float("inf")] = torch.finfo(logprobs.dtype).min
 

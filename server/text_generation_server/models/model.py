@@ -108,14 +108,15 @@ class Model(ABC):
             new_sequences, skip_special_tokens=False
         )
 
+        prefix_len = len(prefix_text)
         results = []
         for new_text in new_texts:
-            if len(new_text) > len(prefix_text) and not new_text.endswith("�"):
+            if len(new_text) > prefix_len and not new_text.endswith("�"):
                 # utf-8 char at the end means it's a potential unfinished byte sequence
                 # from byte fallback tokenization.
                 # If it's in the middle, it's probably a real invalid id generated
                 # by the model
-                new_text = new_text[len(prefix_text) :]
+                new_text = new_text[prefix_len:]
                 results.append((new_text, read_offset, len(input_ids) + 1))
             else:
                 results.append(("", prefix_offset, read_offset))
