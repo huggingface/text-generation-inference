@@ -1,0 +1,21 @@
+- sections:
+  - local: index
+    title: Text Generation Inference
+  - local: basic_tutorials/install
+    title: Installation
+  - local: quicktour
+    title: Quick Tour
+  - local: supported_models
+    title: Supported Models and Hardware
+  title: Getting started
+- sections:
+  - local: basic_tutorials/running_locally
+    title: Running Locally
+  - local: basic_tutorials/running_docker
+    title: Running with Docker
+  - local: basic_tutorials/consuming_TGI
+    title: Consuming TGI as a backend
+  - local: basic_tutorials/consuming_TGI
+    title: Preparing Model for Serving
+  - local: basic_tutorials/preparing_model
+  title: Tutorials
