@@ -224,7 +224,7 @@ class Weights:
     def _set_gptq_params(self, model_id):
         filename = "quantize_config.json"
         try:
-            if not os.path.exists(os.path.join(model_id, filename)):
+            if os.path.exists(os.path.join(model_id, filename)):
                 filename = os.path.join(model_id, filename)
             else:
                 filename = hf_hub_download(model_id, filename=filename)
