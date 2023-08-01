@@ -17,7 +17,7 @@ from text_generation_server.models.types import (
     PrefillTokens,
     Generation,
     GeneratedText,
-    TopToken,
+    TopTokens,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
@@ -358,7 +358,9 @@ class FlashCausalLMBatch(Batch):
             prefill_next_token_indices = torch.tensor(
                 prefill_next_token_indices, dtype=torch.int64, device=device
             )
-        top_n_tokens_tensor = torch.tensor(top_n_tokens, device=device, dtype=torch.int64)
+        top_n_tokens_tensor = torch.tensor(
+            top_n_tokens, device=device, dtype=torch.int64
+        )
 
         return cls(
             batch_id=pb.id,
@@ -1039,15 +1041,20 @@ class FlashCausalLM(Model):
                 else:
                     prefill_tokens = None
 
-                # Todo: Make optional for prefill
-                if not prefill and top_n_tokens > 0:
-                    top_tokens = self.decode_top_tokens(
-                        input_ids=all_input_ids[:-1],
-                        top_n_tokens=top_n_tokens,
-                        top_token_ids=top_token_ids,
-                        top_token_logprobs=top_token_logprobs,
-                        prefix_offset=prefix_offset,
-                        read_offset=read_offset,
+                if top_n_tokens > 0:
+                    toptoken_texts = self.tokenizer.batch_decode(
+                        top_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    special_toptokens = [
+                        token_id in self.all_special_ids for token_id in top_token_ids
+                    ]
+                    top_tokens = TopTokens(
+                        top_token_ids,
+                        top_token_logprobs,
+                        toptoken_texts,
+                        special_toptokens,
                     )
                 else:
                     top_tokens = None

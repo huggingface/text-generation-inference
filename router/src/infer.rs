@@ -167,10 +167,7 @@ impl Infer {
                         .collect();
                 }
                 // Push last token
-                InferStreamResponse::Intermediate{
-                    token,
-                    top_tokens,
-                } => {
+                InferStreamResponse::Intermediate { token, top_tokens } => {
                     result_tokens.push(token);
                     result_top_tokens.push(top_tokens);
                 }
@@ -182,7 +179,6 @@ impl Infer {
                     start,
                     queued,
                     top_tokens,
-
                 } => {
                     result_tokens.push(token);
                     result_top_tokens.push(top_tokens);
@@ -203,7 +199,11 @@ impl Infer {
                 generated_text,
                 queued,
                 start,
-                top_tokens: if use_top_tokens { result_top_tokens } else { Vec::new() },
+                top_tokens: if use_top_tokens {
+                    result_top_tokens
+                } else {
+                    Vec::new()
+                },
             })
         } else {
             let err = InferError::IncompleteGeneration;
@@ -533,16 +533,24 @@ fn send_responses(
         special: generation.token_is_special,
     };
 
-
     // generation.top_tokens
+
     let mut top_tokens = Vec::new();
-    for top_token in generation.top_tokens {
-        top_tokens.push(Token{
-            id: top_token.token_id,
-            text: top_token.token_text,
-            logprob: top_token.token_logprob,
-            special: top_token.token_is_special,
-        })
+    if let Some(top_tokens_) = generation.top_tokens {
+        top_tokens.extend(
+            top_tokens_
+                .ids
+                .into_iter()
+                .zip(top_tokens_.logprobs.into_iter())
+                .zip(top_tokens_.texts.into_iter())
+                .zip(top_tokens_.is_special.into_iter())
+                .map(|(((id, logprob), text), special)| Token {
+                    id,
+                    text,
+                    logprob,
+                    special,
+                })
+        )
     }
 
     if let Some(generated_text) = generation.generated_text {
@@ -562,7 +570,7 @@ fn send_responses(
     } else {
         // Send message
         entry.response_tx.send_timeout(
-            Ok(InferStreamResponse::Intermediate{token, top_tokens}),
+            Ok(InferStreamResponse::Intermediate { token, top_tokens }),
             Duration::from_millis(10),
         )?;
     }

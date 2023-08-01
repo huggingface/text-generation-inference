@@ -13,6 +13,7 @@ from text_generation_server.models.types import (
     PrefillTokens,
     Generation,
     GeneratedText,
+    TopTokens,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
@@ -126,7 +127,9 @@ class CausalLMBatch(Batch):
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
         all_input_ids = tokenized_inputs["input_ids"].T.split(1, dim=1)
-        top_n_tokens_tensor = torch.tensor(top_n_tokens, device=device, dtype=torch.int64)
+        top_n_tokens_tensor = torch.tensor(
+            top_n_tokens, device=device, dtype=torch.int64
+        )
 
         max_tokens = len(inputs) * (max_input_length + max_decode_tokens)
 
@@ -574,7 +577,9 @@ class CausalLM(Model):
         stopped = True
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
-            batch.top_n_tokens, batch.top_n_tokens_tensor, torch.softmax(logits[:, -1], -1)
+            batch.top_n_tokens,
+            batch.top_n_tokens_tensor,
+            torch.softmax(logits[:, -1], -1),
         )
 
         # Zipped iterator
@@ -652,8 +657,7 @@ class CausalLM(Model):
                     generated_text = None
 
                 # Prefill
-                prefill = stopping_criteria.current_tokens == 1
-                if prefill and request.prefill_logprobs:
+                if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
                     # Remove generated token to only have prefill and add nan for first prompt token
                     prefill_logprobs = [float("nan")] + torch.log_softmax(
                         logits, -1
@@ -672,15 +676,20 @@ class CausalLM(Model):
                 else:
                     prefill_tokens = None
 
-                # Todo: Make optional for prefill
-                if not prefill and top_n_tokens > 0:
-                    top_tokens = self.decode_top_tokens(
-                        input_ids=all_input_ids[:-1].view(-1).tolist(),
-                        top_n_tokens=top_n_tokens,
-                        top_token_ids=top_token_ids,
-                        top_token_logprobs=top_token_logprobs,
-                        prefix_offset=prefix_offset,
-                        read_offset=read_offset,
+                if top_n_tokens > 0:
+                    toptoken_texts = self.tokenizer.batch_decode(
+                        top_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    special_toptokens = [
+                        token_id in self.all_special_ids for token_id in top_token_ids
+                    ]
+                    top_tokens = TopTokens(
+                        top_token_ids,
+                        top_token_logprobs,
+                        toptoken_texts,
+                        special_toptokens,
                     )
                 else:
                     top_tokens = None
