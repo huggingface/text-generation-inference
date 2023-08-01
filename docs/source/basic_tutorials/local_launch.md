@@ -76,6 +76,8 @@ or through Python:
 pip install text-generation
 ```
 
+Then run:
+
 ```python
 from text_generation import Client
 
