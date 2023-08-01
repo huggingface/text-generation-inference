@@ -606,15 +606,6 @@ class CausalLM(Model):
             top_token_ids,
             top_token_logprobs,
         ) in enumerate(iterator):
-            top_tokens = self.decode_top_tokens(
-                input_ids=all_input_ids.view(-1).tolist(),
-                top_n_tokens=top_n_tokens,
-                top_token_ids=top_token_ids,
-                top_token_logprobs=top_token_logprobs,
-                prefix_offset=prefix_offset,
-                read_offset=read_offset,
-            )
-
             # Select next token
             next_token_id, logprobs = next_token_chooser(
                 all_input_ids.view(1, -1), logits[-1:, :]
@@ -661,7 +652,8 @@ class CausalLM(Model):
                     generated_text = None
 
                 # Prefill
-                if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
+                prefill = stopping_criteria.current_tokens == 1
+                if prefill and request.prefill_logprobs:
                     # Remove generated token to only have prefill and add nan for first prompt token
                     prefill_logprobs = [float("nan")] + torch.log_softmax(
                         logits, -1
@@ -679,6 +671,19 @@ class CausalLM(Model):
                     )
                 else:
                     prefill_tokens = None
+
+                # Todo: Make optional for prefill
+                if not prefill and top_n_tokens > 0:
+                    top_tokens = self.decode_top_tokens(
+                        input_ids=all_input_ids[:-1].view(-1).tolist(),
+                        top_n_tokens=top_n_tokens,
+                        top_token_ids=top_token_ids,
+                        top_token_logprobs=top_token_logprobs,
+                        prefix_offset=prefix_offset,
+                        read_offset=read_offset,
+                    )
+                else:
+                    top_tokens = None
 
                 generation = Generation(
                     request.id,

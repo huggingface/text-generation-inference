@@ -675,15 +675,6 @@ class Seq2SeqLM(Model):
             top_token_ids,
             top_token_logprobs,
         ) in enumerate(iterator):
-            top_tokens = self.decode_top_tokens(
-                input_ids=all_decoder_input_ids.view(-1).tolist(),
-                top_n_tokens=top_n_tokens,
-                top_token_ids=top_token_ids,
-                top_token_logprobs=top_token_logprobs,
-                prefix_offset=prefix_offset,
-                read_offset=read_offset,
-            )
-
             # Select next token
             next_token_id, logprobs = next_token_chooser(
                 all_decoder_input_ids.view(1, -1), logits[-1:, :]
@@ -731,7 +722,8 @@ class Seq2SeqLM(Model):
                     generated_text = None
 
                 # Prefill
-                if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
+                prefill = stopping_criteria.current_tokens == 1
+                if prefill and request.prefill_logprobs:
                     prefill_tokens = PrefillTokens(
                         [self.tokenizer.bos_token_id],
                         [float("nan")],
@@ -739,6 +731,19 @@ class Seq2SeqLM(Model):
                     )
                 else:
                     prefill_tokens = None
+
+                # Todo: Make optional for prefill. How to implement in API?
+                if not prefill and top_n_tokens > 0:
+                    top_tokens = self.decode_top_tokens(
+                        input_ids=all_decoder_input_ids[:-1].view(-1).tolist(),
+                        top_n_tokens=top_n_tokens,
+                        top_token_ids=top_token_ids,
+                        top_token_logprobs=top_token_logprobs,
+                        prefix_offset=prefix_offset,
+                        read_offset=read_offset,
+                    )
+                else:
+                    top_tokens = None
 
                 generation = Generation(
                     request.id,
