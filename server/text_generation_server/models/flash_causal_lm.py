@@ -982,15 +982,6 @@ class FlashCausalLM(Model):
             top_token_ids,
             top_token_logprobs,
         ) in enumerate(iterator):
-            top_tokens = self.decode_top_tokens(
-                input_ids=all_input_ids,
-                top_n_tokens=top_n_tokens,
-                top_token_ids=top_token_ids,
-                top_token_logprobs=top_token_logprobs,
-                prefix_offset=prefix_offset,
-                read_offset=read_offset,
-            )
-
             # Append next token to all tokens
             all_input_ids.append(next_token_id)
 
@@ -1047,6 +1038,19 @@ class FlashCausalLM(Model):
                     )
                 else:
                     prefill_tokens = None
+
+                # Todo: Make optional for prefill
+                if not prefill and top_n_tokens > 0:
+                    top_tokens = self.decode_top_tokens(
+                        input_ids=all_input_ids[:-1],
+                        top_n_tokens=top_n_tokens,
+                        top_token_ids=top_token_ids,
+                        top_token_logprobs=top_token_logprobs,
+                        prefix_offset=prefix_offset,
+                        read_offset=read_offset,
+                    )
+                else:
+                    top_tokens = None
 
                 generation = Generation(
                     request.id,
