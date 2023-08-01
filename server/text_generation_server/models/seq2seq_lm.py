@@ -12,6 +12,7 @@ from text_generation_server.models.types import (
     Batch,
     Generation,
     PrefillTokens,
+    TopTokens,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
@@ -130,7 +131,9 @@ class Seq2SeqLMBatch(Batch):
             prefix_offsets.append(0)
             read_offsets.append(1)
         all_decoder_input_ids = decoder_input_ids.view(-1).split(1)
-        top_n_tokens_tensor = torch.tensor(top_n_tokens, device=device, dtype=torch.int64)
+        top_n_tokens_tensor = torch.tensor(
+            top_n_tokens, device=device, dtype=torch.int64
+        )
 
         max_tokens = len(inputs) * (max_input_length + max_decode_tokens)
 
@@ -637,7 +640,9 @@ class Seq2SeqLM(Model):
         )
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
-            batch.top_n_tokens, batch.top_n_tokens_tensor, torch.softmax(logits[:, -1], -1)
+            batch.top_n_tokens,
+            batch.top_n_tokens_tensor,
+            torch.softmax(logits[:, -1], -1),
         )
 
         # Finished requests
@@ -722,8 +727,7 @@ class Seq2SeqLM(Model):
                     generated_text = None
 
                 # Prefill
-                prefill = stopping_criteria.current_tokens == 1
-                if prefill and request.prefill_logprobs:
+                if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
                     prefill_tokens = PrefillTokens(
                         [self.tokenizer.bos_token_id],
                         [float("nan")],
@@ -732,15 +736,20 @@ class Seq2SeqLM(Model):
                 else:
                     prefill_tokens = None
 
-                # Todo: Make optional for prefill. How to implement in API?
-                if not prefill and top_n_tokens > 0:
-                    top_tokens = self.decode_top_tokens(
-                        input_ids=all_decoder_input_ids[:-1].view(-1).tolist(),
-                        top_n_tokens=top_n_tokens,
-                        top_token_ids=top_token_ids,
-                        top_token_logprobs=top_token_logprobs,
-                        prefix_offset=prefix_offset,
-                        read_offset=read_offset,
+                if top_n_tokens > 0:
+                    toptoken_texts = self.tokenizer.batch_decode(
+                        top_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    special_toptokens = [
+                        token_id in self.all_special_ids for token_id in top_token_ids
+                    ]
+                    top_tokens = TopTokens(
+                        top_token_ids,
+                        top_token_logprobs,
+                        toptoken_texts,
+                        special_toptokens,
                     )
                 else:
                     top_tokens = None
