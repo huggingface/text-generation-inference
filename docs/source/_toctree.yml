@@ -1,8 +1,6 @@
 - sections:
   - local: index
     title: Text Generation Inference
-  - local: quicktour
-    title: Quick Tour
   - local: supported_models
     title: Supported Models and Hardware
   title: Getting started
