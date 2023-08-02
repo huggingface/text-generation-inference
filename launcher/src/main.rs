@@ -716,6 +716,11 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
         download_args.push(revision.to_string())
     }
 
+    // Trust remote code for automatic peft fusion
+    if args.trust_remote_code {
+        download_args.push("--trust-remote-code".to_string());
+    }
+
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 

@@ -30,6 +30,7 @@ transformers = "4.29.2"
 einops = "^0.6.1"
 texttable = { version = "^1.6.7", optional = true }
 datasets = { version = "^2.14.0", optional = true }
+peft = "^0.4.0"
 
 [tool.poetry.extras]
 accelerate = ["accelerate"]
