@@ -522,6 +522,7 @@ pub async fn run(
     max_concurrent_requests: usize,
     max_best_of: usize,
     max_stop_sequences: usize,
+    max_top_n_tokens: u32,
     max_input_length: usize,
     max_total_tokens: usize,
     waiting_served_ratio: f32,
@@ -584,6 +585,7 @@ pub async fn run(
         tokenizer,
         max_best_of,
         max_stop_sequences,
+        max_top_n_tokens,
         max_input_length,
         max_total_tokens,
     );

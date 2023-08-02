@@ -159,6 +159,14 @@ struct Args {
     #[clap(default_value = "4", long, env)]
     max_stop_sequences: usize,
 
+    /// This is the maximum allowed value for clients to set `top_n_tokens`.
+    /// `top_n_tokens is used to return information about the the `n` most likely
+    /// tokens at each generation step, instead of just the sampled token. This
+    /// information can be used for downstream tasks like for classification or
+    /// ranking.
+    #[clap(default_value = "5", long, env)]
+    max_top_n_tokens: u32,
+
     /// This is the maximum allowed input length (expressed in number of tokens)
     /// for users. The larger this value, the longer prompt users can send which
     /// can impact the overall memory required to handle the load.
@@ -929,6 +937,8 @@ fn spawn_webserver(
         args.max_best_of.to_string(),
         "--max-stop-sequences".to_string(),
         args.max_stop_sequences.to_string(),
+        "--max-top-n-tokens".to_string(),
+        args.max_top_n_tokens.to_string(),
         "--max-input-length".to_string(),
         args.max_input_length.to_string(),
         "--max-total-tokens".to_string(),
