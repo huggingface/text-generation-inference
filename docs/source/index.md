@@ -1,6 +1,6 @@
 # Text Generation Inference
 
-Text-Generation-Inference is, an open-source, purpose-built solution for deploying and serving Large Language Models (LLMs). TGI enables high-performance text generation using Tensor Parallelism and dynamic batching for the most popular open-source LLMs, including StarCoder, BLOOM, GPT-NeoX, Llama, and T5. Text Generation Inference implements optimization for all supported model architectures, including:
+Text Generation Inference (TGI) is built for deploying and serving Large Language Models (LLMs). TGI enables high-performance text generation using Tensor Parallelism and dynamic batching for the most popular open-source LLMs, including StarCoder, BLOOM, GPT-NeoX, Llama, and T5. Text Generation Inference implements many optimizations and features for all supported model architectures, such as:
 
 - Serve the most popular Large Language Models with a simple launcher
 - Tensor Parallelism for faster inference on multiple GPUs
