@@ -198,6 +198,11 @@ async fn generate(
                     .collect()
             });
 
+            // let top_tokens = match response.top_tokens.is_empty() {
+            //     true => None,
+            //     false => Some(response.top_tokens),
+            // };
+
             Some(Details {
                 finish_reason: FinishReason::from(response.generated_text.finish_reason),
                 generated_tokens: response.generated_text.generated_tokens,
@@ -376,12 +381,8 @@ async fn generate_stream(
             tracing::error!("{err}");
             yield Ok(Event::from(err));
         } else {
-<<<<<<< HEAD
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
-=======
-            let top_n_tokens = req.0.parameters.top_n_tokens;
-            match infer.generate_stream(req.0).instrument(info_span!(parent: &span, "async_stream")).await {
->>>>>>> 7c014c7 (Add WIP support for returning top tokens)
+                let top_n_tokens = req.parameters.top_n_tokens;
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, mut response_stream)) => {
                     // Server-Sent Event stream
@@ -401,7 +402,7 @@ async fn generate_stream(
                                         // StreamResponse
                                         let stream_token = StreamResponse {
                                             token,
-                                            top_tokens: top_n_tokens.and(Some(top_tokens)),
+                                            top_tokens: top_tokens,
                                             generated_text: None,
                                             details: None,
                                         };
@@ -463,7 +464,7 @@ async fn generate_stream(
 
                                         let stream_token = StreamResponse {
                                             token,
-                                            top_tokens:top_n_tokens.and(Some(top_tokens)),
+                                            top_tokens: top_tokens,
                                             generated_text: Some(output_text),
                                             details
                                         };

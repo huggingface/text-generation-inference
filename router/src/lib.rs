@@ -239,6 +239,7 @@ pub(crate) struct BestOfSequence {
     pub seed: Option<u64>,
     pub prefill: Vec<PrefillToken>,
     pub tokens: Vec<Token>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub top_tokens: Vec<Vec<Token>>,
 }
 
@@ -254,6 +255,7 @@ pub(crate) struct Details {
     pub tokens: Vec<Token>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub best_of_sequences: Option<Vec<BestOfSequence>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub top_tokens: Vec<Vec<Token>>,
 }
 
@@ -278,8 +280,8 @@ pub(crate) struct StreamDetails {
 #[derive(Serialize, ToSchema)]
 pub(crate) struct StreamResponse {
     pub token: Token,
-    #[schema(nullable = true, default = "null")]
-    pub top_tokens: Option<Vec<Token>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub top_tokens: Vec<Token>,
     #[schema(nullable = true, default = "null", example = "test")]
     pub generated_text: Option<String>,
     #[schema(nullable = true, default = "null")]
