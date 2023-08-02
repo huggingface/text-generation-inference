@@ -2,7 +2,7 @@
 
 ## Supported Models
 
-List of optimized models are below.
+The following models are optimized and can be served with TGI:
 
 - [BLOOM](https://huggingface.co/bigscience/bloom)
 - [FLAN-T5](https://huggingface.co/google/flan-t5-xxl)
