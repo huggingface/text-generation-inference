@@ -41,6 +41,7 @@ FROM debian:bullseye-slim as pytorch-install
 
 ARG PYTORCH_VERSION=2.0.1
 ARG PYTHON_VERSION=3.9
+# Keep in sync with `server/pyproject.toml
 ARG CUDA_VERSION=11.8
 ARG MAMBA_VERSION=23.1.0-1
 ARG CUDA_CHANNEL=nvidia

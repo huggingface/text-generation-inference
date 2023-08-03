@@ -31,6 +31,7 @@ einops = "^0.6.1"
 texttable = { version = "^1.6.7", optional = true }
 datasets = { version = "^2.14.0", optional = true }
 peft = "^0.4.0"
+torch = {version = "^2.0.1+cu118", source = "pytorch-gpu-src"}
 
 [tool.poetry.extras]
 accelerate = ["accelerate"]
@@ -40,6 +41,12 @@ quantize = ["texttable", "datasets", "accelerate"]
 [tool.poetry.group.dev.dependencies]
 grpcio-tools = "^1.51.1"
 pytest = "^7.3.0"
+
+
+[[tool.poetry.source]]
+name = "pytorch-gpu-src"
+url = "https://download.pytorch.org/whl/cu118"
+priority = "explicit"
 
 [tool.pytest.ini_options]
 markers = ["private: marks tests as requiring an admin hf token (deselect with '-m \"not private\"')"]
