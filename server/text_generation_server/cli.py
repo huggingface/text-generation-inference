@@ -123,7 +123,7 @@ def download_weights(
         try:
             adapter_config_filename = hf_hub_download(model_id, revision=revision, filename="adapter_config.json")
             utils.download_and_unload_peft(model_id, revision, trust_remote_code=trust_remote_code)
-        except utils.LocalEntryNotFoundError:
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
             pass
 
         # Try to download weights from the hub
