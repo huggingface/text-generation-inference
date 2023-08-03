@@ -122,7 +122,7 @@ def download_weights(
     if not is_local_model:
         try:
             adapter_config_filename = hf_hub_download(model_id, revision=revision, filename="adapter_config.json")
-            utils.download_and_unload_peft(model_id, revision, adapter_config_filename, trust_remote_code=trust_remote_code)
+            utils.download_and_unload_peft(model_id, revision, trust_remote_code=trust_remote_code)
         except utils.LocalEntryNotFoundError:
             pass
 
