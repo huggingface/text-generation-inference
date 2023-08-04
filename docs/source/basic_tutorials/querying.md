@@ -16,7 +16,7 @@ curl 127.0.0.1:8080/generate_stream \
     -H 'Content-Type: application/json'
 ```
 
-or through Python:
+From Python, install `text-generation` first:
 
 ```shell
 pip install text-generation
