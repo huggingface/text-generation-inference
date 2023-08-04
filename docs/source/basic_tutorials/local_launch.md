@@ -34,7 +34,7 @@ On MacOS, using Homebrew:
 brew install protobuf
 ```
 
-Then run:
+Then run to install Text Generation Inference:
 
 ```shell
 BUILD_EXTENSIONS=True make install # Install repository and HF/transformer fork with CUDA kernels```
