@@ -39,11 +39,13 @@ Then run to install Text Generation Inference:
 ```shell
 BUILD_EXTENSIONS=True make install # Install repository and HF/transformer fork with CUDA kernels```
 
-**Note:** on some machines, you may also need the OpenSSL libraries and gcc. On Linux machines, run:
+<Tip warning={true}>
+On some machines, you may also need the OpenSSL libraries and gcc. On Linux machines, run:
 
 ```shell
 sudo apt-get install libssl-dev gcc -y
 ```
+</Tip>
 
 
 Once installation is done, simply run:
