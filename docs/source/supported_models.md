@@ -19,7 +19,7 @@ The following models are optimized and can be served with TGI:
 - [MPT](https://huggingface.co/mosaicml/mpt-30b)
 - [Llama V2](https://huggingface.co/meta-llama)
 
-If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model on best-effort basis like below:
+If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs but performance isn't guaranteed for non-optimized models:
 
 `AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
 
