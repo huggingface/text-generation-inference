@@ -15,7 +15,7 @@ To serve both ChatUI and TGI in same environment, simply add your own endpoints 
 
 ## Inference Client
 
-`huggingface-hub` is a Python library to interact and manage repositories and endpoints on Hugging Face Hub. `InferenceClient` is a class that lets users interact with models on Hugging Face Hub and Hugging Face models served by any TGI endpoint. Once you start the TGI server, simply instantiate `InferenceClient()` with the URL to endpoint serving the model. You can then call `text_generation()` to hit the endpoint through Python. 
+[`huggingface-hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with and manage repositories and endpoints on Hugging Face Hub. [`~huggingface_hub.InferenceClient`] is a class that lets users interact with models on Hugging Face Hub and Hugging Face models served by any TGI endpoint. Once you start the TGI server, instantiate `InferenceClient()` with the URL to the endpoint serving the model. You can then call `text_generation()` to hit the endpoint through Python. 
 
 ```python
 from huggingface_hub import InferenceClient
