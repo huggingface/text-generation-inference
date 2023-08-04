@@ -4,7 +4,7 @@ Text Generation Inference enables serving optimized models on specific hardware 
 
 ## Supported Models
 
-The following models are optimized and can be served with TGI:
+The following models are optimized and can be served with TGI, which uses custom CUDA kernels for better inference. You can add the flag `--disable-custom-kernels` at the end of the `docker run` command if you wish to disable them.
 
 - [BLOOM](https://huggingface.co/bigscience/bloom)
 - [FLAN-T5](https://huggingface.co/google/flan-t5-xxl)
@@ -19,15 +19,14 @@ The following models are optimized and can be served with TGI:
 - [MPT](https://huggingface.co/mosaicml/mpt-30b)
 - [Llama V2](https://huggingface.co/meta-llama)
 
-If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs but performance isn't guaranteed for non-optimized models:
+If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models:
 
-`AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
-
-or
-
-`AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")`. 
-
-For the optimized models above, TGI uses custom CUDA kernels for better inference. You can add the flag `--disable-custom-kernels` at the end of the `docker run` command if you wish to disable them.
+```python
+# for causal LMs/text-generation models
+AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
+# or, for text-to-text generation models
+AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")
+```
 
 
 ## Supported Hardware
