@@ -543,7 +543,7 @@ try:
                 or self._cos_cached.dtype != dtype
             ):
                 if seqlen > self.max_position_embeddings:
-                    newbase = self.base * ((self.scaling_factor * seq_len / self.max_position_embeddings) - (self.scaling_factor - 1)) ** (self.dim / (self.dim - 2))
+                    newbase = self.base * ((self.scaling_factor * seqlen / self.max_position_embeddings) - (self.scaling_factor - 1)) ** (self.dim / (self.dim - 2))
                     self.inv_freq = _create_inv_freq(self.dim, newbase, self.inv_freq.device)
                 self._seq_len_cached = seqlen
                 t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
