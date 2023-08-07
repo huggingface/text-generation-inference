@@ -1,14 +1,14 @@
 - sections:
   - local: index
     title: Text Generation Inference
+  - local: docker_launch
+    title: Launching with Docker
   - local: supported_models
     title: Supported Models and Hardware
   title: Getting started
 - sections:
   - local: basic_tutorials/local_launch
     title: Installing and Launching Locally
-  - local: basic_tutorials/docker_launch
-    title: Launching with Docker
   - local: basic_tutorials/querying
     title: Querying the Models
   - local: basic_tutorials/querying
