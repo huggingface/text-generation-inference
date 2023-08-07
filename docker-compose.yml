@@ -1,0 +1,19 @@
+services:
+  text-generation-inference:
+    image: ghcr.io/huggingface/text-generation-inference:1.0.0
+    ports:
+      - "8080:80"          
+    volumes:
+      - ${HOME}/.cache:/root/.cache
+    working_dir: /app
+    container_name: text-generation-inference
+    ipc: host
+    deploy:
+          resources:
+            reservations:
+              devices:
+              - driver: "nvidia"
+                device_ids: ["0"]
+                capabilities: [gpu]
+    restart: unless-stopped
+    command: --model-id tiiuae/falcon-7b-instruct --huggingface-hub-cache /root/.cache/huggingface/hub
