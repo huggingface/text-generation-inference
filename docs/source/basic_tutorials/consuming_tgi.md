@@ -1,5 +1,7 @@
 # Consuming Text Generation Inference
 
+There are many ways you can consume Text Generation Inference server in your applications. Two of them are built by Hugging Face, ChatUI is the open-source front-end for Text Generation Inference, and [~huggingface_hub.InferenceClient] is a robust and detailed API to infer hosted TGI servers.
+
 ## ChatUI
 
 ChatUI is the open-source interface built for large language model serving. It offers many customization options, such as web search with SERP API and more. ChatUI can automatically consume the TGI server and even provides an option to switch between different TGI endpoints. You can try it out at [Hugging Chat](https://huggingface.co/chat/), or use the [ChatUI Docker Space](https://huggingface.co/new-space?template=huggingchat/chat-ui-template) to deploy your own Hugging Chat to Spaces.
