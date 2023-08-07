@@ -11,9 +11,8 @@
     title: Installing and Launching Locally
   - local: basic_tutorials/querying
     title: Querying the Models
-  - local: basic_tutorials/querying
-    title: Consuming TGI as a backend
   - local: basic_tutorials/consuming_tgi
-    title: Preparing Model for Serving
+    title: Consuming TGI
   - local: basic_tutorials/preparing_model
+    title: Preparing Model for Serving
   title: Tutorials
