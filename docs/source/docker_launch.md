@@ -16,6 +16,7 @@ To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvi
 </Tip>
 
 To see all options to serve your models, check in the [codebase](https://github.com/huggingface/text-generation-inference/blob/main/launcher/src/main.rs) or the CLI:
-```
+
+```shell
 text-generation-launcher --help
 ```
