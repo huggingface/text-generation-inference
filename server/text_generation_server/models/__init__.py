@@ -89,7 +89,7 @@ def get_model(
             revision,
             quantize=quantize,
             dtype=dtype,
-            dtypetrust_remote_code=trust_remote_code,
+            trust_remote_code=trust_remote_code,
         )
 
     if model_id.startswith("bigcode/"):
