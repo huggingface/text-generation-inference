@@ -9,8 +9,6 @@
 - sections:
   - local: basic_tutorials/local_launch
     title: Installing and Launching Locally
-  - local: basic_tutorials/querying
-    title: Querying the Models
   - local: basic_tutorials/consuming_tgi
     title: Consuming TGI
   - local: basic_tutorials/preparing_model
