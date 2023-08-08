@@ -1,6 +1,8 @@
 # Text Generation Inference
 
-Text Generation Inference (TGI) is built for deploying and serving Large Language Models (LLMs). TGI enables high-performance text generation for the most popular open-source LLMs, including Llama, Falcon, StarCoder, BLOOM, GPT-NeoX, and T5. Text Generation Inference implements many optimizations and features, such as:
+Text Generation Inference (TGI) is built for deploying and serving Large Language Models (LLMs). TGI enables high-performance text generation for the most popular open-source LLMs, including Llama, Falcon, StarCoder, BLOOM, GPT-NeoX, and T5. 
+
+Text Generation Inference implements many optimizations and features, such as:
 
 - Simple launcher to serve most popular LLMs
 - Production ready (distributed tracing with Open Telemetry, Prometheus metrics)
@@ -14,3 +16,11 @@ Text Generation Inference (TGI) is built for deploying and serving Large Languag
 - Logits warper (temperature scaling, top-p, top-k, repetition penalty)
 - Stop sequences
 - Log probabilities
+
+TODO: Add something more visual here
+
+Text Generation Inference is used in production by multiple projects, such as:
+
+- [Hugging Chat](https://github.com/huggingface/chat-ui), an open-source interface for open-access models, such as Open Assistant and Llama
+- [OpenAssistant](https://open-assistant.io/), an open-source community effort to train LLMs in the open
+- [nat.dev](http://nat.dev/), a playground to explore and compare LLMs.
