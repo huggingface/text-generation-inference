@@ -1,6 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cu118
 
-accelerate==0.19.0 ; python_version >= "3.9" and python_version < "3.13"
+accelerate==0.20.3 ; python_version >= "3.9" and python_version < "3.13"
 backoff==2.2.1 ; python_version >= "3.9" and python_version < "3.13"
 certifi==2023.7.22 ; python_version >= "3.9" and python_version < "3.13"
 charset-normalizer==3.2.0 ; python_version >= "3.9" and python_version < "3.13"
