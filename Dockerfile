@@ -39,7 +39,7 @@ RUN cargo build --release
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
 FROM debian:bullseye-slim as pytorch-install
 
-ARG PYTORCH_VERSION=2.0.0
+ARG PYTORCH_VERSION=2.0.1
 ARG PYTHON_VERSION=3.9
 ARG CUDA_VERSION=11.8
 ARG MAMBA_VERSION=23.1.0-1
