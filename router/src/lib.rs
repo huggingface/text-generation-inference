@@ -5,6 +5,7 @@ mod queue;
 pub mod server;
 mod validation;
 
+use std::collections::BTreeMap;
 use infer::Infer;
 use queue::{Entry, Queue};
 use serde::{Deserialize, Serialize};
@@ -113,7 +114,7 @@ pub(crate) struct GenerateParameters {
     #[schema(nullable = true, default = "null", example = false)]
     pub return_full_text: Option<bool>,
     #[serde(default)]
-    #[schema(inline, max_items = 4, example = json ! (["photographer"]))]
+    #[schema(inline, max_items = 4, example = json!(["photographer"]))]
     pub stop: Vec<String>,
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
@@ -135,6 +136,9 @@ pub(crate) struct GenerateParameters {
         example = "null"
     )]
     pub seed: Option<u64>,
+    #[serde(default)]
+    #[schema(default=json!({}), example=json!({"hello": 0.5}))]
+    pub logit_bias: BTreeMap<String, f32>
 }
 
 fn default_max_new_tokens() -> u32 {
@@ -158,6 +162,7 @@ fn default_parameters() -> GenerateParameters {
         details: false,
         decoder_input_details: false,
         seed: None,
+        logit_bias: BTreeMap::new(),
     }
 }
 

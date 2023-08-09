@@ -2,7 +2,7 @@
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{GenerateParameters, GenerateRequest};
 use rand::{thread_rng, Rng};
-use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
+use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters, LogitBias};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::TruncationDirection;
@@ -142,6 +142,7 @@ impl Validation {
             seed,
             watermark,
             decoder_input_details,
+            logit_bias,
             ..
         } = request.parameters;
 
@@ -238,6 +239,9 @@ impl Validation {
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
+        // transform logit_bias (received as a map) into a vector of LogitBias
+        let logit_bias = logit_bias.into_iter().map(|(string, bias)| LogitBias { string, bias, }).collect();
+
         let parameters = NextTokenChooserParameters {
             temperature,
             repetition_penalty,
@@ -247,6 +251,7 @@ impl Validation {
             do_sample,
             seed,
             watermark,
+            logit_bias,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,

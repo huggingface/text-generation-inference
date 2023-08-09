@@ -66,6 +66,16 @@ message NextTokenChooserParameters {
     float repetition_penalty = 7;
     /// token watermarking using "A Watermark for Large Language Models"
     bool watermark = 8;
+    /// bias towards certain token sequences
+    repeated LogitBias logit_bias = 9;
+}
+
+/// a token sequence and its bias
+message LogitBias {
+    /// string to bias towards (may be more than one token)
+    string string = 1;
+    /// bias for the string
+    float bias = 2;
 }
 
 message StoppingCriteriaParameters {

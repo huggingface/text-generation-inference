@@ -322,6 +322,7 @@ mod tests {
                     seed: 0,
                     repetition_penalty: 0.0,
                     watermark: false,
+                    logit_bias: vec![],
                 },
                 stopping_parameters: StoppingCriteriaParameters {
                     ignore_eos_token: false,

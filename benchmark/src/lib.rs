@@ -42,6 +42,7 @@ pub async fn run(
         seed: 0,
         repetition_penalty: repetition_penalty.unwrap_or(1.0),
         watermark,
+        logit_bias: vec![],
     };
 
     // Initialize terminal properties
