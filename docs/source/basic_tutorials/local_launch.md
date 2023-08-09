@@ -1,8 +1,8 @@
-# Installing and Launching Locally
+# Installing from the Source and Launching TGI
 
 Before you start, you will need to setup your environment, and install Text Generation Inference. Text Generation Inference is tested on **Python 3.9+**.
 
-## Local Installation for Text Generation Inference
+## Local Installation from Source
 
 Text Generation Inference is available on pypi, conda and GitHub. 
 
