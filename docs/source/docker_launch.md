@@ -17,8 +17,18 @@ To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvi
 
 </Tip>
 
+Once TGI is running, you can use the `generate` endpoint by doing requests. To learn more about how to query the endpoints, check the [Consuming TGI](./basic_tutorials/consuming_tgi) section.
+
+```shell
+curl 127.0.0.1:8080/generate -X POST -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' -H 'Content-Type: application/json'
+```
+
+<Tip>
+
 To see all possible flags and options, you can use the `--help` flag. It's possible to configure the number of shards, quantization, generation parameters, and more.
 
-```
+```shell
 docker run ghcr.io/huggingface/text-generation-inference:1.0.0 --help
 ```
+
+</Tip>
