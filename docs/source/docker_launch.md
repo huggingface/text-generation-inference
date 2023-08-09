@@ -17,8 +17,8 @@ To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvi
 
 </Tip>
 
-To see all options to serve your models, check in the [codebase](https://github.com/huggingface/text-generation-inference/blob/main/launcher/src/main.rs) or the CLI:
+To see all possible flags and options, you can use the `--help` flag. It's possible to configure the number of shards, quantization, generation parameters, and more.
 
-```shell
-text-generation-launcher --help
+```
+docker run ghcr.io/huggingface/text-generation-inference:1.0.0 --help
 ```
