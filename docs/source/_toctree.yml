@@ -8,7 +8,7 @@
   title: Getting started
 - sections:
   - local: basic_tutorials/local_launch
-    title: Installing and Launching Locally
+    title: Installing from the Source and Launching TGI
   - local: basic_tutorials/consuming_tgi
     title: Consuming TGI
   - local: basic_tutorials/preparing_model
