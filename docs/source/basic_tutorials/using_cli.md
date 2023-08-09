@@ -16,7 +16,9 @@ If you would like to serve models with custom kernels, run
 BUILD_EXTENSIONS=True make install
 ```
 
-After running this, you will be able to use `text-generation-server` and `text-generation-launcher`.
+## Running CLI
+
+After installation, you will be able to use `text-generation-server` and `text-generation-launcher`.
 
 `text-generation-server` lets you download the model with `download-weights` command like below 👇 
 
@@ -48,6 +50,6 @@ Same documentation can be found for `text-generation-server`.
 
 ```shell
 text-generation-server --help
-``````
+```
 
 
