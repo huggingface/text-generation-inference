@@ -646,7 +646,7 @@ class FlashCausalLMBatch(Batch):
             next_token_chooser_parameters.extend([r.parameters for r in batch.requests])
             stopping_criterias.extend(batch.stopping_criterias)
 
-            top_n_tokens.extend(top_n_tokens)
+            top_n_tokens.extend(batch.top_n_tokens)
 
             # Update
             cumulative_batch_size += len(batch)
