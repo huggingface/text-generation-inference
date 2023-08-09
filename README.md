@@ -1,22 +1,27 @@
 <div align="center">
-
+<h2> DeepInfra's Apache 2.0 fork of Text Generation Inference (TGI) </h2>
+  
 ![image](https://github.com/huggingface/text-generation-inference/assets/3841370/38ba1531-ea0d-4851-b31a-a6d4ddc944b0)
 
 # Text Generation Inference
 
-<a href="https://github.com/huggingface/text-generation-inference">
-  <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/huggingface/text-generation-inference?style=social">
+<a href="https://github.com/deepinfra/text-generation-inference">
+  <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/deepinfra/text-generation-inference?style=social">
 </a>
-<a href="https://github.com/huggingface/text-generation-inference/blob/main/LICENSE">
-  <img alt="License" src="https://img.shields.io/github/license/huggingface/text-generation-inference">
+<a href="https://github.com/deepinfra/text-generation-inference/blob/main/LICENSE">
+  <img alt="License" src="https://img.shields.io/github/license/deepinfra/text-generation-inference">
 </a>
-<a href="https://huggingface.github.io/text-generation-inference">
+<a href="https://deepinfra.github.io/text-generation-inference">
   <img alt="Swagger API documentation" src="https://img.shields.io/badge/API-Swagger-informational">
 </a>
 </div>
 
 A Rust, Python and gRPC server for text generation inference. Used in production at [HuggingFace](https://huggingface.co)
 to power LLMs api-inference widgets.
+
+## Note
+This is a fork of [https://github.com/huggingface/text-generation-inference](https://github.com/huggingface/text-generation-inference)
+before the restrictive license change. We will maintain this fork under the Apache 2.0 license. All contribution are welcome.
 
 ## Table of contents
 
@@ -42,7 +47,7 @@ to power LLMs api-inference widgets.
 - Serve the most popular Large Language Models with a simple launcher
 - Tensor Parallelism for faster inference on multiple GPUs
 - Token streaming using Server-Sent Events (SSE)
-- [Continuous batching of incoming requests](https://github.com/huggingface/text-generation-inference/tree/main/router) for increased total throughput
+- [Continuous batching of incoming requests](https://github.com/deepinfra/text-generation-inference/tree/main/router) for increased total throughput
 - Optimized transformers code for inference using [flash-attention](https://github.com/HazyResearch/flash-attention) and [Paged Attention](https://github.com/vllm-project/vllm) on the most popular architectures
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes) and [GPT-Q](https://arxiv.org/abs/2210.17323)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
@@ -132,7 +137,7 @@ print(text)
 ### API documentation
 
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route.
-The Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
+The Swagger UI is also available at: [https://deepinfra.github.io/text-generation-inference](https://deepinfra.github.io/text-generation-inference).
 
 ### Using a private or gated model
 
