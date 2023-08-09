@@ -1,5 +1,7 @@
 # Text Generation Inference
 
+![Text Generation Inference](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/TGI.png)
+
 Text Generation Inference (TGI) is built for deploying and serving Large Language Models (LLMs). TGI enables high-performance text generation for the most popular open-source LLMs, including Llama, Falcon, StarCoder, BLOOM, GPT-NeoX, and T5. 
 
 Text Generation Inference implements many optimizations and features, such as:
