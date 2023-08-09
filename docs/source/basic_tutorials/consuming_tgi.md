@@ -18,7 +18,7 @@ curl 127.0.0.1:8080/generate \
 
 [`huggingface-hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a nice high-level class, [`~huggingface_hub.InferenceClient`], which makes it easy to make calls to a TGI endpoint. `InferenceClient` also takes care of parameter validation and provides a simple to-use interface.
 
-You can simply install `huggingface-hub` library with pip.
+You can simply install `huggingface-hub` package with pip.
 
 ```python
 pip install huggingface-hub
