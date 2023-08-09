@@ -1,8 +1,8 @@
 - sections:
   - local: index
     title: Text Generation Inference
-  - local: docker_launch
-    title: Launching with Docker
+  - local: installation_launching
+    title: Installation and Launching
   - local: supported_models
     title: Supported Models and Hardware
   title: Getting started
@@ -13,4 +13,6 @@
     title: Consuming TGI
   - local: basic_tutorials/preparing_model
     title: Preparing Model for Serving
+  - local: basic_tutorials/using_cli
+    title: Using TGI through CLI
   title: Tutorials

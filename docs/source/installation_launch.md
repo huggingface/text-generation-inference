@@ -1,6 +1,10 @@
-# Launching with Docker
+# Getting Started
 
-The easiest way of getting started is using the official Docker container. Install Docker following [their installation instructions](https://docs.docker.com/get-docker/).
+The easiest way of getting started is using the official Docker container. 
+
+## Launching with Docker
+
+Install Docker following [their installation instructions](https://docs.docker.com/get-docker/).
 
 Let's say you want to deploy [Falcon-7B Instruct](https://huggingface.co/tiiuae/falcon-7b-instruct) model with TGI. Here is an example on how to do that:
 
@@ -22,3 +26,8 @@ To see all options to serve your models, check in the [codebase](https://github.
 ```shell
 text-generation-launcher --help
 ```
+
+
+
+
+
