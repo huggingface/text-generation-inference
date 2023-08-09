@@ -13,4 +13,6 @@
     title: Consuming TGI
   - local: basic_tutorials/preparing_model
     title: Preparing Model for Serving
+  - local: basic_tutorials/gated_model_access
+    title: Serving Private & Gated Models
   title: Tutorials
