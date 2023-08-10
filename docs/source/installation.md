@@ -4,8 +4,20 @@ This section explains how to install the CLI tool as well as installing TGI from
 
 ## Install CLI
 
-TODO
+You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters. 
 
+To install the CLI, you need to first clone the TGI repository and then run `make`.
+
+```bash
+git clone https://github.com/huggingface/text-generation-inference.git && cd text-generation-inference
+make install
+```
+
+If you would like to serve models with custom kernels, run
+
+```bash
+BUILD_EXTENSIONS=True make install
+```
 
 ## Local Installation from Source
 
@@ -44,7 +56,8 @@ brew install protobuf
 Then run to install Text Generation Inference:
 
 ```bash
-BUILD_EXTENSIONS=True make install # Install repository and HF/transformer fork with CUDA kernels
+git clone https://github.com/huggingface/text-generation-inference.git && cd text-generation-inference
+BUILD_EXTENSIONS=True make install
 ```
 
 <Tip warning={true}>
@@ -64,9 +77,3 @@ make run-falcon-7b-instruct
 ```
 
 This will serve Falcon 7B Instruct model from the port 8080, which we can query.
-
-To see all options to serve your models, check in the [codebase](https://github.com/huggingface/text-generation-inference/blob/main/launcher/src/main.rs) or the CLI:
-
-```bash
-text-generation-launcher --help
-```

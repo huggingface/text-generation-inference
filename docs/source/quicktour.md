@@ -4,7 +4,7 @@ The easiest way of getting started is using the official Docker container. Insta
 
 Let's say you want to deploy [Falcon-7B Instruct](https://huggingface.co/tiiuae/falcon-7b-instruct) model with TGI. Here is an example on how to do that:
 
-```shell
+```bash
 model=tiiuae/falcon-7b-instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
