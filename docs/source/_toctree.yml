@@ -16,5 +16,5 @@
   - local: basic_tutorials/gated_model_access
     title: Serving Private & Gated Models
   - local: basic_tutorials/using_cli
-    title: Using TGI through CLI
+    title: Using TGI CLI
   title: Tutorials

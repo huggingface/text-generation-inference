@@ -8,14 +8,14 @@ You can use TGI command-line interface (CLI) to download weights, serve and quan
 
 To install the CLI, you need to first clone the TGI repository and then run `make`.
 
-```shell
+```bash
 git clone https://github.com/huggingface/text-generation-inference.git && cd text-generation-inference
 make install
 ```
 
 If you would like to serve models with custom kernels, run
 
-```shell
+```bash
 BUILD_EXTENSIONS=True make install
 ```
 
@@ -28,7 +28,7 @@ Text Generation Inference is available on pypi, conda and GitHub.
 To install and launch locally, first [install Rust](https://rustup.rs/) and create a Python virtual environment with at least
 Python 3.9, e.g. using conda:
 
-```shell
+```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 conda create -n text-generation-inference python=3.9
@@ -39,7 +39,7 @@ You may also need to install Protoc.
 
 On Linux:
 
-```shell
+```bash
 PROTOC_ZIP=protoc-21.12-linux-x86_64.zip
 curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP
 sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
@@ -49,13 +49,13 @@ rm -f $PROTOC_ZIP
 
 On MacOS, using Homebrew:
 
-```shell
+```bash
 brew install protobuf
 ```
 
 Then run to install Text Generation Inference:
 
-```shell
+```bash
 git clone https://github.com/huggingface/text-generation-inference.git && cd text-generation-inference
 BUILD_EXTENSIONS=True make install
 ```
@@ -64,7 +64,7 @@ BUILD_EXTENSIONS=True make install
 
 On some machines, you may also need the OpenSSL libraries and gcc. On Linux machines, run:
 
-```shell
+```bash
 sudo apt-get install libssl-dev gcc -y
 ```
 
@@ -72,7 +72,7 @@ sudo apt-get install libssl-dev gcc -y
 
 Once installation is done, simply run:
 
-```shell
+```bash
 make run-falcon-7b-instruct
 ```
 

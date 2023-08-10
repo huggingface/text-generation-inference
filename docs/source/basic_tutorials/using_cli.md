@@ -30,6 +30,6 @@ You can also find it hosted in this [Swagger UI](https://huggingface.github.io/t
 
 Same documentation can be found for `text-generation-server`.
 
-```shell
+```bash
 text-generation-server --help
 ```
