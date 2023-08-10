@@ -17,7 +17,7 @@ To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvi
 
 </Tip>
 
-Once TGI is running, you can use the `generate` endpoint by doing requests. To learn more about how to query the endpoints, check the [Consuming TGI](./basic_tutorials/consuming_tgi) section, where we show examples with utility libraries and UIs.
+Once TGI is running, you can use the `generate` endpoint by doing requests. To learn more about how to query the endpoints, check the [Consuming TGI](./basic_tutorials/consuming_tgi) section, where we show examples with utility libraries and UIs. Below you can see a simple snippet to query the endpoint.
 
 
 <inferencesnippet>
