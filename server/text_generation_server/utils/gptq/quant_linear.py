@@ -263,7 +263,7 @@ class QuantLinear(nn.Module):
         self.groupsize = groupsize
 
         self.outfeatures = qweight.shape[1]
-        self.infeatures = qweight.shape[0] * 32 // 4
+        self.infeatures = qweight.shape[0] * 32 // bits
 
     @classmethod
     def new(cls, bits, groupsize, infeatures, outfeatures, bias):

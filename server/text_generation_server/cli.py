@@ -6,6 +6,7 @@ from pathlib import Path
 from loguru import logger
 from typing import Optional
 from enum import Enum
+from huggingface_hub import hf_hub_download
 
 
 app = typer.Typer()
@@ -13,6 +14,8 @@ app = typer.Typer()
 
 class Quantization(str, Enum):
     bitsandbytes = "bitsandbytes"
+    bitsandbytes_nf4 = "bitsandbytes-nf4"
+    bitsandbytes_fp4 = "bitsandbytes-fp4"
     gptq = "gptq"
 
 
@@ -88,6 +91,7 @@ def download_weights(
     auto_convert: bool = True,
     logger_level: str = "INFO",
     json_output: bool = False,
+    trust_remote_code: bool = False,
 ):
     # Remove default handler
     logger.remove()
@@ -118,6 +122,12 @@ def download_weights(
     ) is not None
 
     if not is_local_model:
+        try:
+            adapter_config_filename = hf_hub_download(model_id, revision=revision, filename="adapter_config.json")
+            utils.download_and_unload_peft(model_id, revision, trust_remote_code=trust_remote_code)
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+            pass
+
         # Try to download weights from the hub
         try:
             filenames = utils.weight_hub_files(model_id, revision, extension)

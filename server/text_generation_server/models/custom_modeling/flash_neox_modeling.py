@@ -102,7 +102,7 @@ class FlashNeoxAttention(torch.nn.Module):
         self.num_heads = self.num_heads // weights.process_group.size()
 
         self.rotary_emb = PositionRotaryEmbedding.load(
-            prefix=f"{prefix}.rotary_emb", weights=weights
+            config=config, prefix=f"{prefix}.rotary_emb", weights=weights
         )
 
         self.softmax_scale = self.head_size ** (-0.5)

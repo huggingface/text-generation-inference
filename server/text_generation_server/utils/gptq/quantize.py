@@ -360,15 +360,21 @@ class GPTQ:
         torch.cuda.empty_cache()
 
 
-def get_wikitext2(nsamples, seed, seqlen, model_id):
+def get_wikitext2(nsamples, seed, seqlen, model_id, trust_remote_code):
     from datasets import load_dataset
 
     traindata = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
     testdata = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
 
-    from transformers import AutoTokenizer
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=False, trust_remote_code=trust_remote_code
+        )
+    except:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=True, trust_remote_code=trust_remote_code
+        )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
     trainenc = tokenizer("\n\n".join(traindata["text"]), return_tensors="pt")
     testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
 
@@ -386,18 +392,21 @@ def get_wikitext2(nsamples, seed, seqlen, model_id):
     return trainloader, testenc
 
 
-def get_ptb(nsamples, seed, seqlen, model_id):
+def get_ptb(nsamples, seed, seqlen, model_id, trust_remote_code):
     from datasets import load_dataset
 
     traindata = load_dataset("ptb_text_only", "penn_treebank", split="train")
     valdata = load_dataset("ptb_text_only", "penn_treebank", split="validation")
 
-    from transformers import AutoTokenizer
-
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=False, trust_remote_code=trust_remote_code
+        )
     except:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=True, trust_remote_code=trust_remote_code
+        )
+
     trainenc = tokenizer("\n\n".join(traindata["sentence"]), return_tensors="pt")
     testenc = tokenizer("\n\n".join(valdata["sentence"]), return_tensors="pt")
 
@@ -415,7 +424,7 @@ def get_ptb(nsamples, seed, seqlen, model_id):
     return trainloader, testenc
 
 
-def get_c4(nsamples, seed, seqlen, model_id):
+def get_c4(nsamples, seed, seqlen, model_id, trust_remote_code):
     from datasets import load_dataset
 
     traindata = load_dataset(
@@ -433,12 +442,14 @@ def get_c4(nsamples, seed, seqlen, model_id):
         use_auth_token=False,
     )
 
-    from transformers import AutoTokenizer
-
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=False, trust_remote_code=trust_remote_code
+        )
     except:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=True, trust_remote_code=trust_remote_code
+        )
 
     import random
 
@@ -481,18 +492,21 @@ def get_c4(nsamples, seed, seqlen, model_id):
     return trainloader, valenc
 
 
-def get_ptb_new(nsamples, seed, seqlen, model_id):
+def get_ptb_new(nsamples, seed, seqlen, model_id, trust_remote_code):
     from datasets import load_dataset
 
     traindata = load_dataset("ptb_text_only", "penn_treebank", split="train")
     testdata = load_dataset("ptb_text_only", "penn_treebank", split="test")
 
-    from transformers import AutoTokenizer
-
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=False, trust_remote_code=trust_remote_code
+        )
     except:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=True, trust_remote_code=trust_remote_code
+        )
+
     trainenc = tokenizer(" ".join(traindata["sentence"]), return_tensors="pt")
     testenc = tokenizer(" ".join(testdata["sentence"]), return_tensors="pt")
 
@@ -510,7 +524,7 @@ def get_ptb_new(nsamples, seed, seqlen, model_id):
     return trainloader, testenc
 
 
-def get_c4_new(nsamples, seed, seqlen, model_id):
+def get_c4_new(nsamples, seed, seqlen, model_id, trust_remote_code):
     from datasets import load_dataset
 
     traindata = load_dataset(
@@ -526,12 +540,14 @@ def get_c4_new(nsamples, seed, seqlen, model_id):
         split="validation",
     )
 
-    from transformers import AutoTokenizer
-
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=False, trust_remote_code=trust_remote_code
+        )
     except:
-        tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id, use_fast=True, trust_remote_code=trust_remote_code
+        )
 
     import random
 
@@ -562,17 +578,17 @@ def get_c4_new(nsamples, seed, seqlen, model_id):
     return trainloader, valenc
 
 
-def get_loaders(name, nsamples=128, seed=0, seqlen=2048, model_id=""):
+def get_loaders(name, nsamples=128, seed=0, seqlen=2048, model_id="", trust_remote_code=False):
     if "wikitext2" in name:
-        return get_wikitext2(nsamples, seed, seqlen, model_id)
+        return get_wikitext2(nsamples, seed, seqlen, model_id, trust_remote_code)
     if "ptb" in name:
         if "new" in name:
-            return get_ptb_new(nsamples, seed, seqlen, model_id)
-        return get_ptb(nsamples, seed, seqlen, model_id)
+            return get_ptb_new(nsamples, seed, seqlen, model_id, trust_remote_code)
+        return get_ptb(nsamples, seed, seqlen, model_id, trust_remote_code)
     if "c4" in name:
         if "new" in name:
-            return get_c4_new(nsamples, seed, seqlen, model_id)
-        return get_c4(nsamples, seed, seqlen, model_id)
+            return get_c4_new(nsamples, seed, seqlen, model_id, trust_remote_code)
+        return get_c4(nsamples, seed, seqlen, model_id, trust_remote_code)
 
 
 def find_layers(module, layers=(nn.Conv2d, nn.Linear), name=""):
@@ -906,7 +922,12 @@ def quantize(
     seed = None
 
     dataloader, testloader = get_loaders(
-        dataset, nsamples=nsamples, seed=seed, model_id=model_id, seqlen=model.seqlen
+        dataset,
+        nsamples=nsamples,
+        seed=seed,
+        model_id=model_id,
+        seqlen=model.seqlen,
+        trust_remote_code=trust_remote_code
     )
 
     tick = time.time()
