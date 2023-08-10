@@ -4,7 +4,7 @@ This section explains how to install the CLI tool as well as installing TGI from
 
 ## Install CLI
 
-TODO
+TODO:
 
 
 ## Local Installation from Source
