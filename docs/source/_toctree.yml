@@ -3,12 +3,12 @@
     title: Text Generation Inference
   - local: quicktour
     title: Quick Tour
+  - local: installation
+    title: Installation
   - local: supported_models
     title: Supported Models and Hardware
   title: Getting started
 - sections:
-  - local: basic_tutorials/local_launch
-    title: Installing from the Source and Launching TGI
   - local: basic_tutorials/consuming_tgi
     title: Consuming TGI
   - local: basic_tutorials/preparing_model

@@ -1,8 +1,15 @@
-# Installing from the Source and Launching TGI
+# Installation
 
-Before you start, you will need to setup your environment, and install Text Generation Inference. Text Generation Inference is tested on **Python 3.9+**.
+This section explains how to install the CLI tool as well as installing TGI from source. **The strongly recommended approach is to use Docker, as it does not require much setup. Check [the Quick Tour](./quicktour) to learn how to run TGI with Docker.**
+
+## Install CLI
+
+TODO
+
 
 ## Local Installation from Source
+
+Before you start, you will need to setup your environment, and install Text Generation Inference. Text Generation Inference is tested on **Python 3.9+**.
 
 Text Generation Inference is available on pypi, conda and GitHub. 
 
