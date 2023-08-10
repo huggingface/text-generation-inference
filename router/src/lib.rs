@@ -114,7 +114,7 @@ pub(crate) struct GenerateParameters {
     #[schema(nullable = true, default = "null", example = false)]
     pub return_full_text: Option<bool>,
     #[serde(default)]
-    #[schema(inline, max_items = 4, example = json!(["photographer"]))]
+    #[schema(inline, max_items = 4, example = json ! (["photographer"]))]
     pub stop: Vec<String>,
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
