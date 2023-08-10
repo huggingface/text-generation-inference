@@ -4,7 +4,7 @@ This section explains how to install the CLI tool as well as installing TGI from
 
 ## Install CLI
 
-You can use CLI tools of TGI to download weights, serve and quantize models, or get information on serving parameters. 
+You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters. 
 
 To install TGI to use with CLI, you need to first clone the TGI repository, then inside the repository, run
 
