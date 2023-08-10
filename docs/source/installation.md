@@ -77,9 +77,3 @@ make run-falcon-7b-instruct
 ```
 
 This will serve Falcon 7B Instruct model from the port 8080, which we can query.
-
-To see all options to serve your models, check in the [codebase](https://github.com/huggingface/text-generation-inference/blob/main/launcher/src/main.rs) or the CLI:
-
-```bash
-text-generation-launcher --help
-```
