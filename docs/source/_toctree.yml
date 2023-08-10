@@ -1,7 +1,7 @@
 - sections:
   - local: index
     title: Text Generation Inference
-  - local: installation_launching
+  - local: installation_launch
     title: Installation and Launching
   - local: supported_models
     title: Supported Models and Hardware
