@@ -1,8 +1,8 @@
 - sections:
   - local: index
     title: Text Generation Inference
-  - local: docker_launch
-    title: Launching with Docker
+  - local: quicktour
+    title: Quick Tour
   - local: supported_models
     title: Supported Models and Hardware
   title: Getting started
