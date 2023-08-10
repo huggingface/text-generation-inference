@@ -92,7 +92,7 @@ class Seq2SeqLMBatch(Batch):
             inputs.append(r.inputs)
             requests_idx_mapping[r.id] = i
             decoder_input_lengths.append(1)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )

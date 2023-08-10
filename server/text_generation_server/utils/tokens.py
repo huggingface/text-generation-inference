@@ -33,7 +33,7 @@ class NextTokenChooser:
             do_sample=False,
             seed=0,
             device="cpu",
-            logit_bias=None,
+            logit_bias={},
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -85,6 +85,7 @@ class NextTokenChooser:
             cls,
             pb: generate_pb2.NextTokenChooserParameters,
             device: torch.device,
+            tokenizer: PreTrainedTokenizerBase,
     ) -> "NextTokenChooser":
         return NextTokenChooser(
             watermark=pb.watermark,
@@ -96,7 +97,7 @@ class NextTokenChooser:
             do_sample=pb.do_sample,
             seed=pb.seed,
             device=device,
-            logit_bias=pb.logit_bias,
+            logit_bias=dict([(tuple(tokenizer.encode(bias.string, add_special_tokens=False).input_ids[0]), bias.bias) for  bias in pb.logit_bias]),
         )
 
 
@@ -285,6 +286,7 @@ bias
             pb: List[generate_pb2.NextTokenChooserParameters],
             dtype: torch.dtype,
             device: torch.device,
+            tokenizer: PreTrainedTokenizerBase,
     ) -> "HeterogeneousNextTokenChooser":
         return HeterogeneousNextTokenChooser(
             watermark=[pb_.watermark for pb_ in pb],
@@ -297,7 +299,7 @@ bias
             seeds=[pb_.seed for pb_ in pb],
             device=device,
             dtype=dtype,
-            logit_bias={},
+            logit_bias=[dict([(tuple(tokenizer.encode(bias.string, add_special_tokens=False).input_ids[0]), bias.bias) for bias in pb_.logit_bias])  for pb_ in pb],
         )
 
 
