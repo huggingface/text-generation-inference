@@ -4,7 +4,7 @@ You can use TGI command-line interface (CLI) to download weights, serve and quan
 
 `text-generation-server` lets you download the model with `download-weights` command like below 👇 
 
-```shell
+```bash
 text-generation-server download-weights MODEL_HUB_ID
 ```
 
