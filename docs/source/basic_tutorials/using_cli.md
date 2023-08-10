@@ -1,4 +1,4 @@
-# Using TGI through CLI
+# Using TGI CLI
 
 You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters. 
 
