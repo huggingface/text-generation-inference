@@ -33,7 +33,7 @@ client = InferenceClient(model=URL_TO_ENDPOINT_SERVING_TGI)
 client.text_generation(prompt="Write a code for snake game", model=URL_TO_ENDPOINT_SERVING_TGI)
 ```
 
-To stream tokens in `InferenceClient`, simply pass `stream=True`. Another parameter you can use with TGI backend is `details`. You can get more details on generation (tokens, probabilities, etc.) by `details` to `True`. By default, `details` is set to `False`, and `text_generation` only returns text output. If you set `details` and `stream` both as `True`, `text_generation` will return `TextGenerationStreamResponse` which consists of the generated token, generated text, and details.
+To stream tokens in `InferenceClient`, simply pass `stream=True`. Another parameter you can use with TGI backend is `details`. You can get more details on generation (tokens, probabilities, etc.) by setting `details` to `True`. By default, `details` is set to `False`, and `text_generation` returns a string. If you pass `details=True` and `stream=True`, `text_generation` will return a `TextGenerationStreamResponse` which consists of the generated token, generated text, and details.
 
 You can check out the details of the function [here](https://huggingface.co/docs/huggingface_hub/main/en/package_reference/inference_client#huggingface_hub.InferenceClient.text_generation).
 
