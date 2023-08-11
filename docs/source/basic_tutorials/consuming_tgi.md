@@ -1,6 +1,6 @@
 # Consuming Text Generation Inference
 
-There are many ways you can consume Text Generation Inference server in your applications. After launching, you can use the `/generate` route and make a `POST` request to get results from the server. You can also use the `/generate_stream` route if you want TGI to return a stram of tokens. You can make the requests using the tool of your preference, such as curl, Python or TypeScrpt. For a final end-to-end experience, we also open-sourced ChatUI, a chat interface for open-source models.
+There are many ways you can consume Text Generation Inference server in your applications. After launching, you can use the `/generate` route and make a `POST` request to get results from the server. You can also use the `/generate_stream` route if you want TGI to return a stream of tokens. You can make the requests using the tool of your preference, such as curl, Python or TypeScrpt. For a final end-to-end experience, we also open-sourced ChatUI, a chat interface for open-source models.
 
 ## curl
 
@@ -31,6 +31,24 @@ from huggingface_hub import InferenceClient
 
 client = InferenceClient(model=URL_TO_ENDPOINT_SERVING_TGI)
 client.text_generation(prompt="Write a code for snake game", model=URL_TO_ENDPOINT_SERVING_TGI)
+```
+
+To stream tokens in `InferenceClient`, simply pass `stream=True`. Another parameter you can use with TGI backend is `details`. You can get more details on generation (tokens, probabilities, etc.) by setting `details` to `True`. By default, `details` is set to `False`, and `text_generation` returns a string. If you pass `details=True` and `stream=True`, `text_generation` will return a `TextGenerationStreamResponse` which consists of the generated token, generated text, and details.
+
+```python
+output = client.text_generation(prompt="Meaning of life is", model=URL_OF_ENDPOINT, details=True)
+print(output)
+
+# TextGenerationResponse(generated_text=' a complex concept that is not always clear to the individual. It is a concept that is not always', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=20, seed=None, prefill=[], tokens=[Token(id=267, text=' a', logprob=-2.0723474, special=False), Token(id=11235, text=' complex', logprob=-3.1272552, special=False), Token(id=17908, text=' concept', logprob=-1.3632495, special=False),..))
+```
+
+You can see how to stream below.
+
+```python
+output = client.text_generation(prompt="Meaning of life is", model="http://localhost:3000/", stream=True, details=True)
+print(next(iter(output)))
+
+# TextGenerationStreamResponse(token=Token(id=267, text=' a', logprob=-2.0723474, special=False), generated_text=None, details=None)
 ```
 
 You can check out the details of the function [here](https://huggingface.co/docs/huggingface_hub/main/en/package_reference/inference_client#huggingface_hub.InferenceClient.text_generation).
