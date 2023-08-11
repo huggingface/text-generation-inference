@@ -15,4 +15,6 @@
     title: Preparing Model for Serving
   - local: basic_tutorials/gated_model_access
     title: Serving Private & Gated Models
+  - local: basic_tutorials/using_cli
+    title: Using TGI CLI
   title: Tutorials

@@ -6,7 +6,7 @@ There are many ways you can consume Text Generation Inference server in your app
 
 After the launch, you can query the model using either the `/generate` or `/generate_stream` routes:
 
-```shell
+```bash
 curl 127.0.0.1:8080/generate \
     -X POST \
     -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
@@ -20,14 +20,13 @@ curl 127.0.0.1:8080/generate \
 
 You can simply install `huggingface-hub` package with pip.
 
-```python
+```bash
 pip install huggingface-hub
 ```
 
 Once you start the TGI server, instantiate `InferenceClient()` with the URL to the endpoint serving the model. You can then call `text_generation()` to hit the endpoint through Python. 
 
 ```python
-
 from huggingface_hub import InferenceClient
 
 client = InferenceClient(model=URL_TO_ENDPOINT_SERVING_TGI)

@@ -4,7 +4,7 @@ The easiest way of getting started is using the official Docker container. Insta
 
 Let's say you want to deploy [Falcon-7B Instruct](https://huggingface.co/tiiuae/falcon-7b-instruct) model with TGI. Here is an example on how to do that:
 
-```shell
+```bash
 model=tiiuae/falcon-7b-instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
@@ -65,7 +65,6 @@ query().then((response) => {
     console.log(JSON.stringify(response));
 });
 /// {"generated_text":"\n\nDeep Learning is a subset of Machine Learning that is concerned with the development of algorithms that can"}
-
 ```
 
 </js>
@@ -85,7 +84,7 @@ curl 127.0.0.1:8080/generate \
 
 To see all possible deploy flags and options, you can use the `--help` flag. It's possible to configure the number of shards, quantization, generation parameters, and more.
 
-```shell
+```bash
 docker run ghcr.io/huggingface/text-generation-inference:1.0.0 --help
 ```
 
