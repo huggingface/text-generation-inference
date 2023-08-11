@@ -49,7 +49,7 @@ To serve both ChatUI and TGI in same environment, simply add your own endpoints 
 }
 ```
 
-TODO: Add screenshot
+![ChatUI](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/chatui_screen.png)
 
 ## API documentation
 
