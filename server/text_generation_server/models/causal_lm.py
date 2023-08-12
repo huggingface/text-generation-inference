@@ -659,6 +659,7 @@ class CausalLM(Model):
 
         # We finished all generations in the batch; there is no next batch
         if stopped:
+            torch.cuda.empty_cache()
             return generations, None
 
         # Slice unused values from prefill
