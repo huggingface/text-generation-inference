@@ -39,6 +39,8 @@ class Parameters(BaseModel):
     details: bool = False
     # Get decoder input token logprobs and ids
     decoder_input_details: bool = False
+    # Whether to ignore the EOS token and continue generating tokens after the EOS token is generated.
+    ignore_eos_token: bool = False
 
     @validator("best_of")
     def valid_best_of(cls, field_value, values):
