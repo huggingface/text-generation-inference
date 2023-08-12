@@ -49,6 +49,9 @@ to power Hugging Chat, the Inference API and Inference Endpoint.
 - Stop sequences
 - Log probabilities
 - Production ready (distributed tracing with Open Telemetry, Prometheus metrics)
+- Custom Prompt Generation: Easily generate text by providing custom prompts to guide the model's output.
+- Fine-tuning Support: Utilize fine-tuned models for specific tasks to achieve higher accuracy and performance.
+
 
 ## Optimized architectures
 
