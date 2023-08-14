@@ -18,6 +18,8 @@ from text_generation_server.models.galactica import GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
+from text_generation_server.models.idefics_causal_lm import IdeficsCausalLM
+from text_generation_server.models.idefics import IDEFICSSharded
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -40,6 +42,7 @@ __all__ = [
     "OPTSharded",
     "T5Sharded",
     "get_model",
+    "IDEFICSSharded",
 ]
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
@@ -248,6 +251,14 @@ def get_model(
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
+    elif model_type == "idefics":
+       return IDEFICSSharded(
+           model_id,
+           revision,
+           quantize=quantize,
+           dtype=dtype,
+           trust_remote_code=trust_remote_code,
+       )
 
     if sharded:
         raise ValueError("sharded is not supported for AutoModel")
