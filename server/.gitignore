@@ -158,3 +158,4 @@ transformers
 safetensors
 flash-attention/
 flash-attention-v2/
+vllm/
