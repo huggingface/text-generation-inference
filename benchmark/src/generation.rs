@@ -218,6 +218,6 @@ fn create_sequence(sequence_length: u32, tokenizer: Tokenizer) -> String {
     encoding.truncate(sequence_length as usize, 0, TruncationDirection::Left);
     // Decode
     tokenizer
-        .decode(Vec::from(encoding.get_ids()), false)
+        .decode(encoding.get_ids(), false)
         .unwrap()
 }
