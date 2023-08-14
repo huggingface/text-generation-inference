@@ -132,6 +132,9 @@ class IdeficsVisionAttention(nn.Module):
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
                 f"and `num_shards`: {weights.process_group.size()}"
             )
+        self.num_heads = self.num_heads // weights.process_group.size()
+        self.embed_dim = self.embed_dim // weights.process_group.size()
+
 
         self.k_proj = TensorParallelColumnLinear.load(
             config, prefix=f"{prefix}.k_proj", weights=weights, bias=True
@@ -158,7 +161,7 @@ class IdeficsVisionAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
-        bsz, tgt_len, embed_dim = hidden_states.size()
+        bsz, tgt_len, _ = hidden_states.size()
 
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scale
@@ -221,7 +224,7 @@ class IdeficsVisionAttention(nn.Module):
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
-        attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
+        attn_output = attn_output.reshape(bsz, tgt_len, self.embed_dim)
 
         attn_output = self.out_proj(attn_output)
 

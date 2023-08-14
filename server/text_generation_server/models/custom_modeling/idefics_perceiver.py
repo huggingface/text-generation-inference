@@ -159,6 +159,7 @@ class IdeficsPerceiverAttention(nn.Module):
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {n_heads} "
                 f"and `num_shards`: {weights.process_group.size()}"
             )
+        self.n_heads //= weights.process_group.size()
 
         # Q, K, V Projection (no bias -- detail from Perceiver/Flamingo Papers).
         self.q_proj = TensorParallelColumnLinear.load(

@@ -410,6 +410,7 @@ class IdeficsAttention(nn.Module):
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
                 f"and `num_shards`: {weights.process_group.size()}"
             )
+        self.num_heads //= weights.process_group.size()
 
         if self.is_cross_attention:
             # kv_input_dim = (
@@ -440,7 +441,7 @@ class IdeficsAttention(nn.Module):
         # self.rotary_emb = PositionRotaryEmbedding.load(
         #     prefix=f"{prefix}.rotary_emb", weights=weights
         # )
-        self.rotary_emb = IdeficsEmbedding(self.head_dim, device="cuda:0") #TO Verify, i did not replace by since it looks like it is specfic to `PositionRotaryEmbedding` and flash
+        self.rotary_emb = IdeficsEmbedding(self.head_dim, device=weights.device) #TO Verify, i did not replace by since it looks like it is specfic to `PositionRotaryEmbedding` and flash
 
         self.qk_layer_norms = qk_layer_norms
         if self.qk_layer_norms:
@@ -525,7 +526,7 @@ class IdeficsAttention(nn.Module):
             )
 
         attn_output = attn_output.transpose(1, 2)
-        attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+        attn_output = attn_output.reshape(bsz, q_len, -1)
 
         attn_output = self.o_proj(attn_output)
 
