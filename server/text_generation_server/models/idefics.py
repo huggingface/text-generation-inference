@@ -9,13 +9,13 @@ from transformers import (
     AutoProcessor,
 )
 
-from text_generation_server.models import IdeficsCausalLM
 from text_generation_server.models.custom_modeling.idefics_config import IdeficsConfig
 from text_generation_server.models.custom_modeling.idefics_processing import IdeficsProcessor
 from transformers import LlamaTokenizerFast
 from text_generation_server.models.custom_modeling.idefics_modeling import (
     IdeficsForVisionText2Text,
 )
+from text_generation_server.models.idefics_causal_lm import IdeficsCausalLM
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
