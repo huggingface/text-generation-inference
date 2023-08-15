@@ -125,8 +125,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         logit_bias,
     } = args;
 
-    dbg!(&logit_bias);
-
     let batch_size = batch_size.unwrap_or(vec![1, 2, 4, 8, 16, 32]);
 
     // Tokenizer instance
