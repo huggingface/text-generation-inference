@@ -8,7 +8,8 @@ import json
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import AutoProcessor, AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase, ProcessorMixin, IdeficsForVisionText2Text
+from transformers import AutoProcessor, AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase, ProcessorMixin
+from text_generation_server.models.custom_modeling.idefics_modeling import IdeficsForVisionText2Text
 from typing import Optional, Tuple, List, Type, Dict
 
 from text_generation_server.models import Model

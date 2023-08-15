@@ -41,7 +41,6 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 
-from transformers import IdeficsConfig
 from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
@@ -53,7 +52,7 @@ class IdeficsPerceiverResampler(nn.Module):
     def __init__(
         self,
         prefix,
-        config: IdeficsConfig,
+        config,
         embed_dim: int,
         depth: int,
         n_heads: int,
@@ -223,7 +222,7 @@ class IdeficsMLP(nn.Module):
     def __init__(self,
             prefix,
             intermediate_size,
-            config: IdeficsConfig,
+            config,
             weights,
         ):
         """Simple MLP block with intermediate_size and embedding size"""

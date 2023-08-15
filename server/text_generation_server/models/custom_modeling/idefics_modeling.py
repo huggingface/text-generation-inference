@@ -36,7 +36,7 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
-from transformers import IdeficsConfig
+from text_generation_server.models.custom_modeling.idefics_config import IdeficsConfig
 from text_generation_server.models.custom_modeling.idefics_vision import IdeficsVisionTransformer
 from text_generation_server.models.custom_modeling.idefics_perceiver import IdeficsPerceiverResampler
 from text_generation_server.utils.layers import (

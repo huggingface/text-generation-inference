@@ -28,7 +28,6 @@ from transformers.utils import (
     ModelOutput,
     logging,
 )
-from transformers.models.idefics.configuration_idefics import IdeficsVisionConfig
 from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
@@ -69,7 +68,7 @@ class IdeficsVisionModelOutput(ModelOutput):
 
 # Copied from transformers.models.clip.modeling_clip.CLIPVisionEmbeddings with CLIP->Idefics
 class IdeficsVisionEmbeddings(nn.Module):
-    def __init__(self, prefix, config: IdeficsVisionConfig, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
@@ -253,7 +252,7 @@ class IdeficsVisionMLP(nn.Module):
 
 # Copied from transformers.models.clip.modeling_clip.CLIPEncoderLayer with CLIP->IdeficsVision
 class IdeficsVisionEncoderLayer(nn.Module):
-    def __init__(self, prefix, config: IdeficsVisionConfig, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
         self.embed_dim = config.hidden_size
         self.self_attn = IdeficsVisionAttention(prefix=f"{prefix}.self_attn", config=config, weights=weights)
@@ -316,7 +315,7 @@ class IdeficsVisionEncoder(nn.Module):
         config: IdeficsVisionConfig
     """
 
-    def __init__(self, prefix, config: IdeficsVisionConfig, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
         self.layers = nn.ModuleList(
@@ -417,7 +416,7 @@ class IdeficsVisionEncoder(nn.Module):
 
 # Adapted from transformers.models.clip.modeling_clip.CLIPVisionTransformer
 class IdeficsVisionTransformer(nn.Module):
-    def __init__(self, prefix, config: IdeficsVisionConfig, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
         embed_dim = config.hidden_size

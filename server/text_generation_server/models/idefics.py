@@ -10,6 +10,9 @@ from transformers import (
 )
 
 from text_generation_server.models import IdeficsCausalLM
+from text_generation_server.models.custom_modeling.idefics_config import IdeficsConfig
+from text_generation_server.models.custom_modeling.idefics_processing import IdeficsProcessor
+from transformers import LlamaTokenizerFast
 from text_generation_server.models.custom_modeling.idefics_modeling import (
     IdeficsForVisionText2Text,
 )
@@ -38,7 +41,7 @@ class IDEFICSSharded(IdeficsCausalLM):
             dtype = torch.float32
         self.device, self.dtype = device, dtype
 
-        config = AutoConfig.from_pretrained(
+        config = IdeficsConfig.from_pretrained(
             model_id,
             revision=revision,
             trust_remote_code=trust_remote_code,
@@ -46,14 +49,14 @@ class IDEFICSSharded(IdeficsCausalLM):
         config.quantize = quantize
         config.vision_config.quantize = quantize
 
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = LlamaTokenizerFast.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
-        self.processor = AutoProcessor.from_pretrained(
+        self.processor = IdeficsProcessor.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
