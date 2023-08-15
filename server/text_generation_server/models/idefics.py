@@ -82,31 +82,3 @@ class IDEFICSSharded(IdeficsCausalLM):
             rank=rank,
             world_size=world_size,
         )
-
-    def forward(
-        self,
-        input_ids,
-        attention_mask,
-        position_ids,
-        pixel_values: Optional = None,
-        image_attention_mask: Optional = None,
-        past_key_values: Optional = None,
-    ) -> Tuple[
-        torch.Tensor,
-        List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
-    ]:
-        # Model Forward
-        outputs = self.model.forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            pixel_values=pixel_values,
-            image_attention_mask=image_attention_mask,
-            past_key_values=past_key_values,
-            use_cache=True,
-        )
-
-        return (
-            outputs.logits,
-            outputs.past_key_values,
-        )
