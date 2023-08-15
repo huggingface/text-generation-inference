@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, validator
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from text_generation.errors import ValidationError
 
@@ -39,6 +39,8 @@ class Parameters(BaseModel):
     details: bool = False
     # Get decoder input token logprobs and ids
     decoder_input_details: bool = False
+    # Bias generation towards certain tokens
+    logit_bias: Dict[str, float] = {}
 
     @validator("best_of")
     def valid_best_of(cls, field_value, values):
