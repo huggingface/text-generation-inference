@@ -634,8 +634,7 @@ class FlashCausalLMBatch(Batch):
             next_token_chooser_parameters,
             dtype=batches[0].next_token_chooser.dtype,
             device=batches[0].next_token_chooser.device,
-            # todo - determine how to obtain access to a tokenizer here
-            tokenizer=...
+            tokenizer=batches[0].next_token_chooser.tokenizer
         )
 
         # Needed to avoid dropping blocks when the batches will go out of scope
