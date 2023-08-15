@@ -547,8 +547,6 @@ try:
                     self.inv_freq = _create_inv_freq(self.dim, newbase, self.inv_freq.device)
                 self._seq_len_cached = seqlen
                 t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
-                if self.scaling_factor is not None:
-                    t /= self.scaling_factor
                 # Don't do einsum, it converts fp32 to fp16
                 # freqs = torch.einsum("i,j->ij", t, self.inv_freq)
 

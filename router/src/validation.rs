@@ -316,7 +316,7 @@ fn prepare_input(
             // truncate encoding and decode new inputs
             encoding.truncate(truncate, 0, TruncationDirection::Left);
             let inputs = tokenizer
-                .decode(Vec::from(encoding.get_ids()), false)
+                .decode(encoding.get_ids(), false)
                 .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
             (inputs, encoding.len())
         }
