@@ -16,6 +16,9 @@ class Weights:
         process_group,
         aliases: Optional[Dict[str, List[str]]] = None,
     ):
+        # idea: maybe we can pass in adapter filenames here and have these take
+        # precedence over the model filenames? If so, then self.routing would
+        # just handle the mapping of tensor names to filenames.
         routing = {}
         for filename in filenames:
             with safe_open(filename, framework="pytorch") as f:

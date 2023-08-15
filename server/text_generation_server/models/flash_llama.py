@@ -23,11 +23,21 @@ class FlashLlama(FlashCausalLM):
     def __init__(
         self,
         model_id: str,
+        adapter_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        print("ASDFASDF FLASHLLAMA INIT")
+        print("Args:")
+        print(f"model_id: {model_id}")
+        print(f"adapter_id: {adapter_id}")
+        print(f"revision: {revision}")
+        print(f"quantize: {quantize}")
+        print(f"dtype: {dtype}")
+        print(f"trust_remote_code: {trust_remote_code}")
+        
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")

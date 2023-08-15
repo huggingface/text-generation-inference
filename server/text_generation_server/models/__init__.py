@@ -68,12 +68,19 @@ if FLASH_ATTENTION:
 
 def get_model(
     model_id: str,
+    adapter_id: str,
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
     dtype: Optional[str],
     trust_remote_code: bool,
 ) -> Model:
+    if len(adapter_id) > 0:
+        logger.warning(
+            "adapter_id is only supported for FlashLlama models and will be "
+            "ignored for other models."
+        )
+
     if dtype is None:
         dtype = torch.float16
     elif dtype == "float16":
@@ -184,6 +191,7 @@ def get_model(
         if FLASH_ATTENTION:
             return FlashLlama(
                 model_id,
+                adapter_id,
                 revision,
                 quantize=quantize,
                 dtype=dtype,

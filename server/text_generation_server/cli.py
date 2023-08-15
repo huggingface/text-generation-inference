@@ -24,6 +24,7 @@ class Dtype(str, Enum):
 @app.command()
 def serve(
     model_id: str,
+    adapter_id: str = "",
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: Optional[Quantization] = None,
@@ -76,7 +77,7 @@ def serve(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
     server.serve(
-        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path
+        model_id, adapter_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path
     )
 
 
