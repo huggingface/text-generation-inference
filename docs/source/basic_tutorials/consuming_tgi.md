@@ -30,13 +30,20 @@ Once you start the TGI server, instantiate `InferenceClient()` with the URL to t
 from huggingface_hub import InferenceClient
 
 client = InferenceClient(model=URL_TO_ENDPOINT_SERVING_TGI)
-client.text_generation(prompt="Write a code for snake game", model=URL_TO_ENDPOINT_SERVING_TGI)
+client.text_generation(prompt="Write a code for snake game")
 ```
 
-To stream tokens in `InferenceClient`, simply pass `stream=True`. Another parameter you can use with TGI backend is `details`. You can get more details on generation (tokens, probabilities, etc.) by setting `details` to `True`. By default, `details` is set to `False`, and `text_generation` returns a string. If you pass `details=True` and `stream=True`, `text_generation` will return a `TextGenerationStreamResponse` which consists of the generated token, generated text, and details.
+You can do streaming with `InferenceClient` by passing `stream=True`. Streaming will return tokens as they are being generated in the server. To use streaming, you can do as follows:
 
 ```python
-output = client.text_generation(prompt="Meaning of life is", model=URL_OF_ENDPOINT, details=True)
+for token in client.text_generation("How do you make cheese?", max_new_tokens=12, stream=True):
+    print(token)
+```
+
+Another parameter you can use with TGI backend is `details`. You can get more details on generation (tokens, probabilities, etc.) by setting `details` to `True`. When it's specified, TGI will return a `TextGenerationResponse` or `TextGenerationStreamResponse` rather than a string or stream.
+
+```python
+output = client.text_generation(prompt="Meaning of life is", details=True)
 print(output)
 
 # TextGenerationResponse(generated_text=' a complex concept that is not always clear to the individual. It is a concept that is not always', details=Details(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=20, seed=None, prefill=[], tokens=[Token(id=267, text=' a', logprob=-2.0723474, special=False), Token(id=11235, text=' complex', logprob=-3.1272552, special=False), Token(id=17908, text=' concept', logprob=-1.3632495, special=False),..))
