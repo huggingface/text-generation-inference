@@ -94,10 +94,6 @@ To see all options to serve your models (in the [code](https://github.com/huggin
 ```
 text-generation-launcher --help
 ```
-For a basic run, you can start the server as follows:
-```shell
-text-generation-launcher --model-id tiiuae/falcon-7b-instruct --num-shard 1 # You can change the model-id accordingly
-```
 
 You can then query the model using either the `/generate` or `/generate_stream` routes:
 
