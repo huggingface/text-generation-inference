@@ -99,7 +99,7 @@ class NextTokenChooser:
             seed=pb.seed,
             device=device,
             logit_bias=dict(
-                [(tuple(tokenizer.encode(bias.string, add_special_tokens=False).input_ids[0]), bias.bias) for bias in
+                [(tuple(tokenizer(bias.string, add_special_tokens=False).input_ids[0]), bias.bias) for bias in
                  pb.logit_bias]),
         )
 
@@ -303,7 +303,7 @@ class HeterogeneousNextTokenChooser:
             do_sample=[pb_.do_sample for pb_ in pb],
             seeds=[pb_.seed for pb_ in pb],
             logit_bias=[dict(
-                [(tuple(tokenizer.encode(bias.string, add_special_tokens=False).input_ids[0]), bias.bias) for bias in
+                [(tuple(tokenizer(bias.string, add_special_tokens=False).input_ids[0]), bias.bias) for bias in
                  pb_.logit_bias]) for pb_ in pb],
             device=device,
             dtype=dtype,
