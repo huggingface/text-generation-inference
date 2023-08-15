@@ -16,6 +16,7 @@ pub(crate) fn parameters_table(
     repetition_penalty: Option<f32>,
     watermark: bool,
     do_sample: bool,
+    logit_bias: Vec<(String, f32)>
 ) -> Table {
     let mut builder = Builder::default();
 
@@ -33,6 +34,7 @@ pub(crate) fn parameters_table(
     builder.push_record(["Repetition Penalty", &format!("{repetition_penalty:?}")]);
     builder.push_record(["Watermark", &watermark.to_string()]);
     builder.push_record(["Do Sample", &do_sample.to_string()]);
+    builder.push_record(["Logit Bias", &format!("{logit_bias:?}")]);
 
     let mut table = builder.build();
     table.with(Style::markdown());

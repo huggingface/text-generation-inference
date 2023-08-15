@@ -8,7 +8,7 @@ use crate::app::App;
 use crate::event::Event;
 use crossterm::ExecutableCommand;
 use std::io;
-use text_generation_client::{NextTokenChooserParameters, ShardedClient};
+use text_generation_client::{LogitBias, NextTokenChooserParameters, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::sync::{broadcast, mpsc};
 use tui::backend::CrosstermBackend;
@@ -31,6 +31,7 @@ pub async fn run(
     repetition_penalty: Option<f32>,
     watermark: bool,
     do_sample: bool,
+    logit_bias: Vec<(String, f32)>,
     client: ShardedClient,
 ) -> Result<(), crossterm::ErrorKind> {
     let parameters = NextTokenChooserParameters {
@@ -42,7 +43,10 @@ pub async fn run(
         seed: 0,
         repetition_penalty: repetition_penalty.unwrap_or(1.0),
         watermark,
-        logit_bias: vec![],
+        logit_bias: logit_bias
+            .iter()
+            .map(|(string, bias)| LogitBias { string: string.clone(), bias: *bias })
+            .collect()
     };
 
     // Initialize terminal properties
@@ -140,6 +144,7 @@ pub async fn run(
         repetition_penalty,
         watermark,
         do_sample,
+        logit_bias,
     );
     println!("\n{parameters_table}\n");
 

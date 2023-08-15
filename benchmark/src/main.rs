@@ -93,6 +93,11 @@ struct Args {
     /// decoding strategies, for full doc refer to the `text-generation-server`
     #[clap(long, env)]
     do_sample: bool,
+
+    /// Generation parameter in case you want to specifically test/debug particular
+    /// decoding strategies, for full doc refer to the `text-generation-server`
+    #[clap(default_values_t="vec![]", long, env)]
+    logit_bias: Vec<(String, f32)>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -117,6 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         watermark,
         do_sample,
         master_shard_uds_path,
+        logit_bias,
     } = args;
 
     let batch_size = batch_size.unwrap_or(vec![1, 2, 4, 8, 16, 32]);
@@ -182,6 +188,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 repetition_penalty,
                 watermark,
                 do_sample,
+                logit_bias,
                 sharded_client,
             )
             .await
