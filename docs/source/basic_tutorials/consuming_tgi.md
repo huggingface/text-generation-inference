@@ -16,8 +16,7 @@ curl 127.0.0.1:8080/generate \
 
 ## Inference Client
 
-[`huggingface-hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a nice high-level class, [`~huggingface_hub.InferenceClient`], which makes it easy to make calls to a TGI endpoint. `InferenceClient` also takes care of parameter validation and provides a simple to-use interface. At the moment, `InferenceClient` only works for models hosted with the Inference API or Inference Endpoints.
-
+[`huggingface-hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a nice high-level class, [`~huggingface_hub.InferenceClient`], which makes it easy to make calls to a TGI endpoint. `InferenceClient` also takes care of parameter validation and provides a simple to-use interface.
 You can simply install `huggingface-hub` package with pip.
 
 ```bash
@@ -29,7 +28,7 @@ Once you start the TGI server, instantiate `InferenceClient()` with the URL to t
 ```python
 from huggingface_hub import InferenceClient
 
-client = InferenceClient(model=URL_TO_ENDPOINT_SERVING_TGI)
+client = InferenceClient(model="http://127.0.0.1:8080")
 client.text_generation(prompt="Write a code for snake game")
 ```
 
@@ -52,7 +51,7 @@ print(output)
 You can see how to stream below.
 
 ```python
-output = client.text_generation(prompt="Meaning of life is", model="http://localhost:3000/", stream=True, details=True)
+output = client.text_generation(prompt="Meaning of life is", stream=True, details=True)
 print(next(iter(output)))
 
 # TextGenerationStreamResponse(token=Token(id=267, text=' a', logprob=-2.0723474, special=False), generated_text=None, details=None)
