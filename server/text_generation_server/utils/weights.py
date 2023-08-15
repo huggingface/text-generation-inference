@@ -15,19 +15,37 @@ class Weights:
         dtype,
         process_group,
         aliases: Optional[Dict[str, List[str]]] = None,
+        merged_weight_filenames: Optional[List] = None,
     ):
-        # idea: maybe we can pass in adapter filenames here and have these take
-        # precedence over the model filenames? If so, then self.routing would
-        # just handle the mapping of tensor names to filenames.
+        # routes to adapter files take precedence over routes to main model files
+        # to ensure that adapter weights are loaded instead of main model weights
         routing = {}
+        if merged_weight_filenames is not None:
+            for filename in merged_weight_filenames:
+                with safe_open(filename, framework="pytorch") as f:
+                    for k in f.keys():
+                        if k in routing:
+                            raise RuntimeError(
+                                f"Key {k} was found in multiple adapter files: {filename} and {routing[k]}"
+                            )
+                        routing[k] = filename
+        
+        # set of keys that point to adapter files. Duplicates for these keys found
+        # in main model files will be overridden.
+        adapter_routes = set(routing.keys())
+
         for filename in filenames:
             with safe_open(filename, framework="pytorch") as f:
                 for k in f.keys():
-                    if k in routing:
+                    if k in adapter_routes:
+                        logger.debug(f"Overriding main model weights with adapter weights for key: {k}")
+                    elif k in routing:
                         raise RuntimeError(
-                            f"Key {k} was found in multiple files: {filename} and {routing[k]}"
+                            f"Key {k} was found in multiple non-adapter files: {filename} and {routing[k]}"
                         )
-                    routing[k] = filename
+                    else:
+                        routing[k] = filename
+
         if aliases is None:
             aliases = {}
         self.aliases = aliases

@@ -72,6 +72,14 @@ struct Args {
     #[clap(default_value = "bigscience/bloom-560m", long, env)]
     model_id: String,
 
+    /// The name of the adapter to load.
+    /// Can be a MODEL_ID as listed on <https://hf.co/models>
+    /// or it can be a local directory containing the necessary files
+    /// as saved by `save_pretrained(...)` methods of transformers.
+    /// Should be compatible with the model specified in `model_id`.
+    #[clap(default_value = "", long, env)]
+    adapter_id: String,
+
     /// The actual revision of the model if you're referring to a model
     /// on the hub. You can use a specific commit id or a branch like `refs/pr/2`.
     #[clap(long, env)]
@@ -290,6 +298,7 @@ enum ShardStatus {
 #[allow(clippy::too_many_arguments)]
 fn shard_manager(
     model_id: String,
+    adapter_id: String,
     revision: Option<String>,
     quantize: Option<Quantization>,
     dtype: Option<Dtype>,
@@ -331,6 +340,12 @@ fn shard_manager(
         "INFO".to_string(),
         "--json-output".to_string(),
     ];
+
+    // Check if adapter id is non-empty string
+    if !adapter_id.is_empty() {
+        shard_args.push("--adapter-id".to_string());
+        shard_args.push(adapter_id);
+    }
 
     // Activate trust remote code
     if trust_remote_code {
@@ -639,13 +654,13 @@ enum LauncherError {
     WebserverCannotStart,
 }
 
-fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
+fn download_convert_model(model_id: String, args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
     // Enter download tracing span
     let _span = tracing::span!(tracing::Level::INFO, "download").entered();
 
     let mut download_args = vec![
         "download-weights".to_string(),
-        args.model_id.to_string(),
+        model_id,
         "--extension".to_string(),
         ".safetensors".to_string(),
         "--logger-level".to_string(),
@@ -767,6 +782,7 @@ fn spawn_shards(
     // Start shard processes
     for rank in 0..num_shard {
         let model_id = args.model_id.clone();
+        let adapter_id = args.adapter_id.clone();
         let revision = args.revision.clone();
         let uds_path = args.shard_uds_path.clone();
         let master_addr = args.master_addr.clone();
@@ -787,6 +803,7 @@ fn spawn_shards(
         thread::spawn(move || {
             shard_manager(
                 model_id,
+                adapter_id,
                 revision,
                 quantize,
                 dtype,
@@ -1081,7 +1098,13 @@ fn main() -> Result<(), LauncherError> {
     .expect("Error setting Ctrl-C handler");
 
     // Download and convert model weights
-    download_convert_model(&args, running.clone())?;
+    download_convert_model(args.model_id.to_string(), &args, running.clone())?;
+
+    // check if adapter_id is non-empty string
+    if !args.adapter_id.is_empty() {
+        download_convert_model(args.adapter_id.to_string(), &args, running.clone())?;
+    }
+
 
     if !running.load(Ordering::SeqCst) {
         // Launcher was asked to stop

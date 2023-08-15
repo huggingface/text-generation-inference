@@ -1,6 +1,7 @@
 import torch
 import torch.distributed
 
+from loguru import logger
 from opentelemetry import trace
 from transformers.models.llama import LlamaTokenizer, LlamaTokenizerFast
 from typing import Optional
@@ -11,6 +12,7 @@ from text_generation_server.models.custom_modeling.flash_llama_modeling import (
     LlamaConfig,
 )
 from text_generation_server.utils import (
+    create_merged_weight_files,
     initialize_torch_distributed,
     weight_files,
     Weights,
@@ -29,15 +31,6 @@ class FlashLlama(FlashCausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        print("ASDFASDF FLASHLLAMA INIT")
-        print("Args:")
-        print(f"model_id: {model_id}")
-        print(f"adapter_id: {adapter_id}")
-        print(f"revision: {revision}")
-        print(f"quantize: {quantize}")
-        print(f"dtype: {dtype}")
-        print(f"trust_remote_code: {trust_remote_code}")
-        
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
@@ -70,7 +63,23 @@ class FlashLlama(FlashCausalLM):
         torch.distributed.barrier(group=self.process_group)
 
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-        weights = Weights(filenames, device, dtype, process_group=self.process_group)
+
+        # get adapter filenames if adapter_id passed in
+        merged_weight_filenames = None
+        if len(adapter_id) > 0:
+            logger.info(f"Merging adapter weights from adapter_id {adapter_id} into model weights.")
+            merged_weight_filenames = create_merged_weight_files(
+                adapter_id, model_id, model_weight_filenames=filenames
+            )
+
+        weights = Weights(
+            filenames, 
+            device, 
+            dtype, 
+            process_group=self.process_group, 
+            merged_weight_filenames=merged_weight_filenames
+        )
+
         if config.quantize == "gptq":
             weights._set_gptq_params(model_id)
 
