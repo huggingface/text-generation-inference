@@ -18,14 +18,14 @@ For example, think that a system can generate 100 tokens per second. If the syst
 	<iframe 
         src="https://osanseviero-streaming-vs-non-streaming.hf.space?__theme=light"
         width="850"
-        height="1600"
+        height="350"
     ></iframe>
 </div>
 <div class="hidden dark:block">
     <iframe 
         src="https://osanseviero-streaming-vs-non-streaming.hf.space?__theme=dark"
         width="850"
-        height="1600"
+        height="350"
     ></iframe>
 </div>
 
