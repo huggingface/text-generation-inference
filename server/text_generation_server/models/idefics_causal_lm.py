@@ -156,10 +156,11 @@ class IdeficsCausalLMBatch(Batch):
         )
         # Copy tokenizer attention_mask into fully allocated attention_mask
         attention_mask[:, :max_input_length] = tokenized_inputs["attention_mask"]
-        # Do the same for image_attention_mask - I CHANGED THINGS HERE - mostly testing for now
+        # Do the same for image_attention_mask
         image_attention_mask = input_ids.new_zeros(
             (pb.size, max_input_length + padding_right_offset, tokenized_inputs["pixel_values"].size(1))
         )
+        image_attention_mask[:, :max_input_length, :] = tokenized_inputs["image_attention_mask"]
 
 
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
