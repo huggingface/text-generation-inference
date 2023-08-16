@@ -1013,7 +1013,7 @@ class IdeficsModel(IdeficsPreTrainedModel):
             position_ids = position_ids.view(-1, seq_length).long()
 
         no_images = False
-         
+
         if image_hidden_states is None:
             if pixel_values is None and image_embeddings is None:
                 raise ValueError("Either pixel_values and image_embeddings have to be not-None.")
@@ -1040,7 +1040,7 @@ class IdeficsModel(IdeficsPreTrainedModel):
             image_seq_len, image_hidden_size = image_hidden_states.size(1), image_hidden_states.size(2)
             image_hidden_states = image_hidden_states.view(batch_size, num_images * image_seq_len, image_hidden_size)
         else:
-            no_images = True
+            no_images = False
             num_images = pixel_values.shape[1]
             image_seq_len = image_hidden_states.shape[1] // num_images
 
