@@ -4,7 +4,7 @@
 
 With streaming, the server returns the tokens as the LLM generates them. This enables showing progressive generations to the user rather than waiting for the whole generation. Streaming is an essential aspect of the end-user experience as it reduces latency, one of the most critical aspects of a smooth experience.
 
-<div class="flex justify-center" class="block dark:hidden">
+<div class="flex justify-center">
     <img 
         class="block dark:hidden" 
         src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/streaming-generation-visual_360.gif"
