@@ -6,7 +6,7 @@ With streaming, the server returns the tokens as the LLM generates them. This en
 
 ![A diff of streaming vs non streaming](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/streaming-generation-visual.gif)
 
-With token streaming, the server can start returning the tokens before having to wait for the whole generation. The users start to see something happening much earlier than before the work is done. This has different positive effects:
+With token streaming, the server can start returning the tokens before having to wait for the whole generation. Users start to see something happening much earlier than before the work is complete. This has different positive effects:
 
 * Users can get results orders of magnitude earlier for extremely long queries.
 * Seeing something in progress allows users to stop the generation if it's not going in the direction they expect.
@@ -33,7 +33,7 @@ For example, think that a system can generate 100 tokens per second. If the syst
 
 ### Streaming with Python
 
-To stream tokens in `InferenceClient`, simply pass `stream=True`. 
+To stream tokens with `InferenceClient`, simply pass `stream=True` and iterate over the response. 
 
 ```python
 from huggingface_hub import InferenceClient
@@ -91,7 +91,7 @@ curl -N 127.0.0.1:8080/generate_stream \
 
 ## How does Streaming work under the hood?
 
-Under the hood, TGI uses Server-Sent Events (SSE). In an SSE Setup, a client sends a request with the data, opening an HTTP connection and subscribing to updates. Afterward, the server sends data to the client. There is no need for further requests; the server will keep sending the data. SSEs are unidirectional, meaning the client does not send other requests to the server. SSE sends data over HTTP, making it easy to
+Under the hood, TGI uses Server-Sent Events (SSE). In an SSE Setup, a client sends a request with the data, opening an HTTP connection and subscribing to updates. Afterward, the server sends data to the client. There is no need for further requests; the server will keep sending the data. SSEs are unidirectional, meaning the client does not send other requests to the server. SSE sends data over HTTP, making it easy to use.
 
 SSEs are different than:
 * Polling: where the client keeps calling the server to get data. This means that the server might return empty responses and cause overhead.
