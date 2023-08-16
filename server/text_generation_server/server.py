@@ -16,8 +16,6 @@ from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
 
-PROFILE = False
-
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     def __init__(self, model: Model, cache: Cache, server_urls: List[str]):
         self.cache = cache
@@ -28,14 +26,6 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             # Force inference mode for the lifetime of TextGenerationService
             self._inference_mode_raii_guard = torch._C._InferenceMode(True)
 
-        if PROFILE:
-            self.prof = torch.profiler.profile(
-                schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
-                on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/idefics'),
-                record_shapes=True,
-                with_stack=True
-            )
-            self.prof.start()
 
     async def Info(self, request, context):
         return self.model.info
@@ -90,8 +80,6 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             )
 
         generations, next_batch = self.model.generate_token(batch)
-        if PROFILE:
-            self.prof.step()
         self.cache.set(next_batch)
 
         return generate_pb2.PrefillResponse(
@@ -119,12 +107,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch = batches[0]
 
         generations, next_batch = self.model.generate_token(batch)
-        if PROFILE:
-            self.prof.step()
         self.cache.set(next_batch)
-        if next_batch is None:
-            if PROFILE:
-                self.prof.stop()
 
         return generate_pb2.DecodeResponse(
             generations=[generation.to_pb() for generation in generations],

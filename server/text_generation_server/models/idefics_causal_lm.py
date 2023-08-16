@@ -4,7 +4,7 @@ import re
 from io import BytesIO
 import base64
 from PIL import Image
-import json
+import re
 
 from dataclasses import dataclass
 from opentelemetry import trace
@@ -20,6 +20,26 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+
+import re
+
+IMAGES = re.compile(r'!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)')
+
+def split(string):
+    parts = []
+    cursor = 0
+    for pattern in IMAGES.finditer(string):
+        start = pattern.start()
+        if start != cursor:
+            parts.append(string[cursor:start])
+
+        parts.append(pattern.group(1))
+        cursor = pattern.end()
+
+    if cursor != len(string):
+        parts.append(string[cursor:])
+
+    return parts
 
 tracer = trace.get_tracer(__name__)
 
@@ -106,16 +126,7 @@ class IdeficsCausalLMBatch(Batch):
         prompts = []
         for inp in inputs:
             # Each input is encoded into a list, where each element of this input list is either a string or a URL
-            if isinstance(inp, str):
-                prompts.append([inp])
-            elif isinstance(inp, list):
-                if not all(isinstance(item, str) for item in inp):
-                    raise ValueError("All elements in the list must be strings (text string or image URL)")
-                prompts.append(
-                    json.load(inp)
-                )
-            else:
-                raise ValueError("Unsupported type of input")
+            prompts.append(split(inp))
 
         # The processor replaces the call to tokenizer, and
         # a/ takes care of fetching images from the URL
