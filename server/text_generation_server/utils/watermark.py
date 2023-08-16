@@ -19,8 +19,8 @@ import torch
 from transformers import LogitsProcessor
 from typing import List, Union
 
-GAMMA = os.getenv("WATERMARK_GAMMA", 0.5)
-DELTA = os.getenv("WATERMARK_DELTA", 2.0)
+GAMMA = float(os.getenv("WATERMARK_GAMMA", 0.5))
+DELTA = float(os.getenv("WATERMARK_DELTA", 2.0))
 
 
 class WatermarkLogitsProcessor(LogitsProcessor):
