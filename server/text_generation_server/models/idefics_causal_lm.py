@@ -336,6 +336,7 @@ class IdeficsCausalLMBatch(Batch):
         attention_mask = None
         position_ids = None
         pixel_values = None
+        image_hidden_states = None
         image_attention_mask = None
         past_key_values = []
 
@@ -520,6 +521,7 @@ class IdeficsCausalLMBatch(Batch):
             attention_mask=attention_mask,
             position_ids=position_ids,
             pixel_values=pixel_values,
+            image_hidden_states=image_hidden_states,
             image_attention_mask=image_attention_mask,
             past_key_values=past_key_values,
             all_input_ids=all_input_ids,

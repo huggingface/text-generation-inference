@@ -1,0 +1,674 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -5.015625,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.006000519,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.79248047,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -0.0001295805,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -1.1920929e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.2734375,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.013046265,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -5.0234375,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.30688477,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -3.5195312,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.4375,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -2.0410156,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.28393555,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.2636719,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.0007638931,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14746094,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.072387695,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.1809082,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 32002,
+          "logprob": -0.007347107,
+          "special": true,
+          "text": "<end_of_utterance>"
+        },
+        {
+          "id": 29871,
+          "logprob": -6.604195e-05,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 13,
+          "logprob": -2.69413e-05,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 7900,
+          "logprob": -3.8146973e-06,
+          "special": false,
+          "text": "Ass"
+        },
+        {
+          "id": 22137,
+          "logprob": 0.0,
+          "special": false,
+          "text": "istant"
+        },
+        {
+          "id": 29901,
+          "logprob": -2.861023e-06,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 319,
+          "logprob": -0.9111328,
+          "special": false,
+          "text": " A"
+        },
+        {
+          "id": 696,
+          "logprob": -1.4238281,
+          "special": false,
+          "text": " ro"
+        },
+        {
+          "id": 15664,
+          "logprob": -0.0006213188,
+          "special": false,
+          "text": "oster"
+        },
+        {
+          "id": 15028,
+          "logprob": -1.1386719,
+          "special": false,
+          "text": " stands"
+        }
+      ]
+    },
+    "generated_text": "\nAssistant: A rooster stands"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -5.0195312,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.006023407,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.7915039,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -0.00013053417,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -1.1920929e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.2773438,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.013046265,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -5.0234375,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.3059082,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -3.5253906,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.4375,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -2.0410156,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.28344727,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.2617188,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00075006485,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14746094,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.07305908,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.18078613,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 32002,
+          "logprob": -0.007396698,
+          "special": true,
+          "text": "<end_of_utterance>"
+        },
+        {
+          "id": 29871,
+          "logprob": -6.663799e-05,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 13,
+          "logprob": -2.670288e-05,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 7900,
+          "logprob": -3.8146973e-06,
+          "special": false,
+          "text": "Ass"
+        },
+        {
+          "id": 22137,
+          "logprob": 0.0,
+          "special": false,
+          "text": "istant"
+        },
+        {
+          "id": 29901,
+          "logprob": -2.861023e-06,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 319,
+          "logprob": -0.8979492,
+          "special": false,
+          "text": " A"
+        },
+        {
+          "id": 696,
+          "logprob": -1.4296875,
+          "special": false,
+          "text": " ro"
+        },
+        {
+          "id": 15664,
+          "logprob": -0.0006093979,
+          "special": false,
+          "text": "oster"
+        },
+        {
+          "id": 15028,
+          "logprob": -1.1474609,
+          "special": false,
+          "text": " stands"
+        }
+      ]
+    },
+    "generated_text": "\nAssistant: A rooster stands"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -5.0195312,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.006023407,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.7915039,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -0.00013029575,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -1.1920929e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.2773438,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.013046265,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -5.0234375,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.3059082,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -3.5253906,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.4375,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -2.0410156,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.28344727,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.2617188,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00075006485,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14746094,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.07305908,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.18078613,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 32002,
+          "logprob": -0.007396698,
+          "special": true,
+          "text": "<end_of_utterance>"
+        },
+        {
+          "id": 29871,
+          "logprob": -6.6399574e-05,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 13,
+          "logprob": -2.682209e-05,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 7900,
+          "logprob": -3.8146973e-06,
+          "special": false,
+          "text": "Ass"
+        },
+        {
+          "id": 22137,
+          "logprob": 0.0,
+          "special": false,
+          "text": "istant"
+        },
+        {
+          "id": 29901,
+          "logprob": -2.861023e-06,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 319,
+          "logprob": -0.8979492,
+          "special": false,
+          "text": " A"
+        },
+        {
+          "id": 696,
+          "logprob": -1.4296875,
+          "special": false,
+          "text": " ro"
+        },
+        {
+          "id": 15664,
+          "logprob": -0.0006093979,
+          "special": false,
+          "text": "oster"
+        },
+        {
+          "id": 15028,
+          "logprob": -1.1474609,
+          "special": false,
+          "text": " stands"
+        }
+      ]
+    },
+    "generated_text": "\nAssistant: A rooster stands"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -5.0195312,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.006023407,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.7915039,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -0.00013041496,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -1.1920929e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.2773438,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.013046265,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -5.0234375,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.3059082,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -3.5253906,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.4375,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -2.0410156,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.28344727,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.2617188,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00075006485,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14746094,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.07305908,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.18078613,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 32002,
+          "logprob": -0.007396698,
+          "special": true,
+          "text": "<end_of_utterance>"
+        },
+        {
+          "id": 29871,
+          "logprob": -6.6399574e-05,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 13,
+          "logprob": -2.69413e-05,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 7900,
+          "logprob": -3.8146973e-06,
+          "special": false,
+          "text": "Ass"
+        },
+        {
+          "id": 22137,
+          "logprob": 0.0,
+          "special": false,
+          "text": "istant"
+        },
+        {
+          "id": 29901,
+          "logprob": -2.861023e-06,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 319,
+          "logprob": -0.8979492,
+          "special": false,
+          "text": " A"
+        },
+        {
+          "id": 696,
+          "logprob": -1.4296875,
+          "special": false,
+          "text": " ro"
+        },
+        {
+          "id": 15664,
+          "logprob": -0.0006093979,
+          "special": false,
+          "text": "oster"
+        },
+        {
+          "id": 15028,
+          "logprob": -1.1474609,
+          "special": false,
+          "text": " stands"
+        }
+      ]
+    },
+    "generated_text": "\nAssistant: A rooster stands"
+  }
+]
