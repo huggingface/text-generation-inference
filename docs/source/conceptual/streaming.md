@@ -38,7 +38,7 @@ To stream tokens with `InferenceClient`, simply pass `stream=True` and iterate o
 ```python
 from huggingface_hub import InferenceClient
 
-client = InferenceClient(model="http://127.0.0.1:8080")
+client = InferenceClient("http://127.0.0.1:8080")
 for token in client.text_generation("How do you make cheese?", max_new_tokens=12, stream=True):
     print(token)
 
@@ -73,9 +73,21 @@ The `huggingface_hub` library also comes with an `AsyncInferenceClient` in case 
 ```python
 from huggingface_hub import AsyncInferenceClient
 
-client = AsyncInferenceClient(URL_TO_ENDPOINT_SERVING_TGI)
-await client.text_generation("How do you make cheese?")
-# \nTo make cheese, you need to start with milk.
+client = AsyncInferenceClient("http://127.0.0.1:8080")
+async for token in await client.text_generation("How do you make cheese?", stream=True):
+    print(token)
+
+# To
+# make
+# cheese
+#,
+# you
+# need
+# to
+# start
+# with
+# milk
+#.
 ```
 
 ### Streaming with cURL
