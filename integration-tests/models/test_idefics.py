@@ -4,7 +4,7 @@ import pytest
 @pytest.fixture(scope="module")
 def idefics_handle(launcher):
     with launcher(
-        "HuggingFaceM4/idefics-9b-instruct", num_shard=1
+        "HuggingFaceM4/idefics-9b-instruct", num_shard=2
     ) as handle:
         yield handle
 
