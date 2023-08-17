@@ -2,7 +2,7 @@
 
 ## What is Streaming?
 
-With streaming, the server returns the tokens as the LLM generates them. This enables showing progressive generations to the user rather than waiting for the whole generation. Streaming is an essential aspect of the end-user experience as it reduces latency, one of the most critical aspects of a smooth experience.
+Token streaming is the mode in which the server returns the tokens one by one as the model generates them. This enables showing progressive generations to the user rather than waiting for the whole generation. Streaming is an essential aspect of the end-user experience as it reduces latency, one of the most critical aspects of a smooth experience.
 
 <div class="flex justify-center">
     <img 
@@ -15,13 +15,13 @@ With streaming, the server returns the tokens as the LLM generates them. This en
     />
 </div>
 
-With token streaming, the server can start returning the tokens before having to wait for the whole generation. Users start to see something happening much earlier than before the work is complete. This has different positive effects:
+With token streaming, the server can start returning the tokens one by one before having to generate the whole response. Users can have a sense of the generation's quality earlier than the end of the generation. This has different positive effects:
 
 * Users can get results orders of magnitude earlier for extremely long queries.
 * Seeing something in progress allows users to stop the generation if it's not going in the direction they expect.
 * Perceived latency is lower when results are shown in the early stages.
 
-For example, think that a system can generate 100 tokens per second. If the system generates 1000 tokens, with the non-streaming setup, users need to wait 10 seconds to get results. On the other hand, with the streaming setup, users get initial results immediately, and although end-to-end latency will be the same, they have seen half of the generation after five seconds. We've built an interactive demo that shows non-streaming vs streaming side-by-side. Click **generate** below.
+For example, a system can generate 100 tokens per second. If the system generates 1000 tokens, with the non-streaming setup, users need to wait 10 seconds to get results. On the other hand, with the streaming setup, users get initial results immediately, and although end-to-end latency will be the same, they can see half of the generation after five seconds. Below you can see an interactive demo that shows non-streaming vs streaming side-by-side. Click **generate** below.
 
 <div class="block dark:hidden">
 	<iframe 
