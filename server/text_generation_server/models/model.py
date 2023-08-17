@@ -6,7 +6,6 @@ from typing import List, Tuple, Optional, TypeVar, Type
 from transformers import PreTrainedTokenizerBase, PretrainedConfig
 
 from text_generation_server.models.types import Batch, Generation
->>>>>>> 8471e18 (Defer building top-token objects to Rust)
 from text_generation_server.pb.generate_pb2 import InfoResponse
 
 B = TypeVar("B", bound=Batch)

@@ -382,7 +382,6 @@ async fn generate_stream(
             yield Ok(Event::from(err));
         } else {
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
-                let top_n_tokens = req.parameters.top_n_tokens;
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, mut response_stream)) => {
                     // Server-Sent Event stream
