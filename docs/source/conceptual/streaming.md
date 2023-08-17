@@ -20,6 +20,7 @@ With token streaming, the server can start returning the tokens one by one befor
 * Users can get results orders of magnitude earlier for extremely long queries.
 * Seeing something in progress allows users to stop the generation if it's not going in the direction they expect.
 * Perceived latency is lower when results are shown in the early stages.
+* When used in conversational UIs, the experience feels more natural.
 
 For example, a system can generate 100 tokens per second. If the system generates 1000 tokens, with the non-streaming setup, users need to wait 10 seconds to get results. On the other hand, with the streaming setup, users get initial results immediately, and although end-to-end latency will be the same, they can see half of the generation after five seconds. Below you can see an interactive demo that shows non-streaming vs streaming side-by-side. Click **generate** below.
 
