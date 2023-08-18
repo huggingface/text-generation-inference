@@ -1,4 +1,4 @@
-# Configuration parameters for Text Generation Inference
+# Launch Parameters for Text Generation Inference
 
 Text Generation Inference allows you to customize the way you serve your models. You can use the following parameters to configure your server. You can enable them by adding them environment variables or by providing them as arguments when running `text-generation-launcher`. Environment variables are in `UPPER_CASE` and arguments are in `lower_case`.
 

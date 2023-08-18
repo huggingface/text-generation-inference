@@ -1,4 +1,4 @@
-# Control/Customize Inference Generation with Text Generation Inference
+# Request Parameters for Text Generation Inference
 
 Text Generation Inference support different parameters to control the generation, defining them in the `parameters`` attribute of the payload. 
 
