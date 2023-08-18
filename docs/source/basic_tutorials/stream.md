@@ -1,6 +1,6 @@
 # Stream responses in Javascript and Python
 
-Requesting and generating text with LLMs can be a time-consuming and iterative process. A great way to improve the user experience is streaming tokens to the user as they are generated. Below are two examples of how to stream tokens using Python and JavaScript. For Python, we are going to use the **[client from Text Generation Inference](https://github.com/huggingface/text-generation-inference/tree/main/clients/python)**, and for JavaScript, the **[HuggingFace.js library](https://huggingface.co/docs/huggingface.js/main/en/index)**
+Requesting and generating text with LLMs can be a time-consuming and iterative process. A great way to improve the user experience is streaming tokens to the user as they are generated. Below are two examples of how to stream tokens using Python and JavaScript. For Python, we are going to use the **[huggingface_hub library](https://huggingface.co/docs/huggingface_hub/index), and for JavaScript, the [HuggingFace.js library](https://huggingface.co/docs/huggingface.js/main/en/index)
 
 ## Streaming requests with Python
 
