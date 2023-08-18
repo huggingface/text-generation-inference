@@ -17,8 +17,6 @@
     title: Consuming TGI
   - local: basic_tutorials/request_parameters
     title: Request Parameters
-  - local: basic_tutorials/stream
-    title: Stream Responses
   - local: basic_tutorials/preparing_model
     title: Preparing Model for Serving
   - local: basic_tutorials/gated_model_access
