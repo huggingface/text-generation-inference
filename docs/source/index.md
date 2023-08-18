@@ -25,3 +25,4 @@ Text Generation Inference is used in production by multiple projects, such as:
 - [Hugging Chat](https://github.com/huggingface/chat-ui), an open-source interface for open-access models, such as Open Assistant and Llama
 - [OpenAssistant](https://open-assistant.io/), an open-source community effort to train LLMs in the open
 - [nat.dev](http://nat.dev/), a playground to explore and compare LLMs.
+- [Hugging Face LLM Inference Container for Amazon SageMaker](https://huggingface.co/blog/sagemaker-huggingface-llm), a purpose build container for Amazon SageMaker to deploy LLMs in production

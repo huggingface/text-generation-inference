@@ -7,10 +7,18 @@
     title: Installation
   - local: supported_models
     title: Supported Models and Hardware
+  - local: launch_parameters
+    title: Configuring TGI
+  - local: guides
+    title: Guides
   title: Getting started
 - sections:
   - local: basic_tutorials/consuming_tgi
     title: Consuming TGI
+  - local: basic_tutorials/customize_inference
+    title: Control/Customize Inference
+  - local: basic_tutorials/stream
+    title: Stream Responses
   - local: basic_tutorials/preparing_model
     title: Preparing Model for Serving
   - local: basic_tutorials/gated_model_access
