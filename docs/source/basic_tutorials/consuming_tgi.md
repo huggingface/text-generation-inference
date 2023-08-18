@@ -125,10 +125,33 @@ The UI looks like this 👇
 
 You can try the demo directly here 👇 
 
-<gradio-app space="merve/gradio-tgi-2"></gradio-app>
+<div class="block dark:hidden">
+	<iframe 
+        src="https://merve-gradio-tgi-2.hf.space?__theme=light"
+        width="850"
+        height="350"
+    ></iframe>
+</div>
+<div class="hidden dark:block">
+    <iframe 
+        src="https://merve-gradio-tgi-2.hf.space?__theme=dark"
+        width="850"
+        height="350"
+    ></iframe>
+</div>
 
 
-You can disable streaming mode using `return` instead of `yield` in your inference function.
+You can disable streaming mode using `return` instead of `yield` in your inference function, like below.
+
+```diff
+def inference(message, history):
+    partial_message = ""
+    for token in client.text_generation(message, max_new_tokens=20, stream=True):
+        partial_message += token
+-       yield partial_message
++       return partial_message
+```
+
 You can read more about how to customize a `ChatInterface` [here](https://www.gradio.app/guides/creating-a-chatbot-fast).
 
 ## API documentation
