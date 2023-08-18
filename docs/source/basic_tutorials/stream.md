@@ -49,8 +49,6 @@ for r in stream:
 
 Replace the `print` command with the `yield` or with a function you want to stream the tokens to.
 
-!https://huggingface.co/blog/assets/155_inference_endpoints_llm/python-stream.gif
-
 ## Streaming requests with JavaScript
 
 First, you need to install the `@huggingface/inference` library.
