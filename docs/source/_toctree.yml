@@ -18,3 +18,7 @@
   - local: basic_tutorials/using_cli
     title: Using TGI CLI
   title: Tutorials
+- sections:
+  - local: conceptual/streaming
+    title: Streaming
+  title: Conceptual Guides

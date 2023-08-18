@@ -85,7 +85,7 @@ curl 127.0.0.1:8080/generate \
 To see all possible deploy flags and options, you can use the `--help` flag. It's possible to configure the number of shards, quantization, generation parameters, and more.
 
 ```bash
-docker run ghcr.io/huggingface/text-generation-inference:1.0.0 --help
+docker run ghcr.io/huggingface/text-generation-inference:1.0.1 --help
 ```
 
 </Tip>
