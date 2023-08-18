@@ -77,16 +77,20 @@ To serve both ChatUI and TGI in same environment, simply add your own endpoints 
 
 ## Gradio
 
-Gradio has a `ChatInterface` class to create neat UIs for chatbots. Let's take a look at how to create a chatbot with streaming mode using TGI and Gradio. Assume you are serving your model on port 8080.
+Gradio is a Python library that helps you build a web application for your machine learning model with few lines of code. It has a `ChatInterface` class to create neat UIs for chatbots. Let's take a look at how to create a chatbot with streaming mode using TGI and Gradio. Let's install Gradio and Hub Python library first.
 
+```bash
+pip install huggingface-hub gradio
+```
+
+Assume you are serving your model on port 8080, we will query through [InferenceClient](consuming_tgi#Inference-Client). 
+ 
 ```python
 import gradio as gr
 from huggingface_hub import InferenceClient
 
-# initialize InferenceClient
 client = InferenceClient(model="http://127.0.0.1:8080")
 
-# query client using streaming mode
 def inference(message, history):
     partial_message = ""
     for token in client.text_generation(message, max_new_tokens=20, stream=True):
@@ -108,7 +112,16 @@ gr.ChatInterface(
 
 The UI looks like this 👇 
 
-![Gradio TGI](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/gradio-tgi.png)
+<div class="flex justify-center">
+    <img 
+        class="block dark:hidden" 
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/gradio-tgi.png"
+    />
+    <img 
+        class="hidden dark:block" 
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/gradio-tgi.png"
+    />
+</div>
 
 You can disable streaming mode using `return` instead of `yield` in your inference function.
 You can read more about how to customize a `ChatInterface` [here](https://www.gradio.app/guides/creating-a-chatbot-fast).
