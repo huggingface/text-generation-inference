@@ -549,7 +549,7 @@ fn send_responses(
                     text,
                     logprob,
                     special,
-                })
+                }),
         )
     }
 

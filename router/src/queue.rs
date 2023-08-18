@@ -236,7 +236,6 @@ impl State {
                 parameters: Some(entry.request.parameters.clone()),
                 stopping_parameters: Some(entry.request.stopping_parameters.clone()),
                 top_n_tokens: entry.request.top_n_tokens,
-
             });
             // Set batch_time
             entry.batch_time = Some(Instant::now());
