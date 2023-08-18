@@ -101,7 +101,7 @@ gr.ChatInterface(
     inference,
     chatbot=gr.Chatbot(height=300),
     textbox=gr.Textbox(placeholder="Chat with me!", container=False, scale=7),
-    description="This is the demo for Gradio UI consuming TGI endpoint with Falcon model.",
+    description="This is the demo for Gradio UI consuming TGI endpoint with LLaMA 2 7B-Chat model.",
     title="Gradio 🤝 TGI",
     examples=["Are tomatoes vegetables?"],
     retry_btn=None,
@@ -119,9 +119,14 @@ The UI looks like this 👇
     />
     <img 
         class="hidden dark:block" 
-        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/gradio-tgi.png"
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/gradio-tgi-dark.png"
     />
 </div>
+
+You can try the demo directly here 👇 
+
+<gradio-app space="merve/gradio-tgi-2"></gradio-app>
+
 
 You can disable streaming mode using `return` instead of `yield` in your inference function.
 You can read more about how to customize a `ChatInterface` [here](https://www.gradio.app/guides/creating-a-chatbot-fast).
