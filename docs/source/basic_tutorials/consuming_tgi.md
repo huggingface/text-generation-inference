@@ -143,13 +143,9 @@ You can try the demo directly here 👇
 
 You can disable streaming mode using `return` instead of `yield` in your inference function, like below.
 
-```diff
+```python
 def inference(message, history):
-    partial_message = ""
-    for token in client.text_generation(message, max_new_tokens=20, stream=True):
-        partial_message += token
--       yield partial_message
-+       return partial_message
+    return client.text_generation(message, max_new_tokens=20)
 ```
 
 You can read more about how to customize a `ChatInterface` [here](https://www.gradio.app/guides/creating-a-chatbot-fast).
