@@ -154,17 +154,6 @@ message TopTokens {
     repeated bool is_special = 6;
 }
 
-message TopToken {
-    /// Token ID
-    uint32 token_id = 3;
-    /// Logprob
-    float token_logprob = 4;
-    /// Text
-    string token_text = 5;
-    /// Is it a special token
-    bool token_is_special = 6;
-}
-
 message Generation {
     /// Request ID
     uint64 request_id = 1;
@@ -181,7 +170,6 @@ message Generation {
     /// Complete generated text
     optional GeneratedText generated_text = 7;
     /// Top tokens
-    // repeated TopToken top_tokens = 8;
     TopTokens top_tokens = 8;
 }
 
