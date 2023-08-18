@@ -111,6 +111,30 @@ curl -N 127.0.0.1:8080/generate_stream \
     -H 'Content-Type: application/json'
 ```
 
+### Streaming with JavaScript
+
+First, we need to install the `@huggingface/inference` library.
+`npm install @huggingface/inference`
+
+If you're using the free Inference API, you can use `HfInference`. If you're using inference endpoints, you can use `HfInferenceEndpoint`. Let's 
+
+We can create a `HfInferenceEndpoint` providing our endpoint URL and credential.
+
+```js
+import { HfInference } from '@huggingface/inference'
+
+const hf = new HfInference('https://YOUR_ENDPOINT.endpoints.huggingface.cloud', 'hf_YOUR_TOKEN')
+
+// prompt
+const prompt = 'What can you do in Nuremberg, Germany? Give me 3 Tips'
+
+const stream = hf.textGenerationStream({ inputs: prompt })
+for await (const r of stream) { 
+  // yield the generated token
+  process.stdout.write(r.token.text)
+}
+```
+
 ## How does Streaming work under the hood?
 
 Under the hood, TGI uses Server-Sent Events (SSE). In an SSE Setup, a client sends a request with the data, opening an HTTP connection and subscribing to updates. Afterward, the server sends data to the client. There is no need for further requests; the server will keep sending the data. SSEs are unidirectional, meaning the client does not send other requests to the server. SSE sends data over HTTP, making it easy to use.
