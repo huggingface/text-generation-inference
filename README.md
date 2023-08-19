@@ -47,8 +47,18 @@ Install DeepSparse:
 pip install deepsparse-nightly[transformers]
 ```
 
-Install Server / Router
+Install Server
 ```shell
 make install-server
-make install-router
+```
+
+Launch Server
+```shell
+python3 server/text_generation_server/cli.py download-weights bigscience/bloom-560m
+python3 server/text_generation_server/cli.py serve bigscience/bloom-560m
+```
+
+Launch Router
+```shell
+make router-dev
 ```
