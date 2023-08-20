@@ -21,4 +21,6 @@
 - sections:
   - local: conceptual/streaming
     title: Streaming
+  - local: conceptual/tensor_parallelism
+    title: Tensor Parallelism
   title: Conceptual Guides
