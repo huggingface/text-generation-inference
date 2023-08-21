@@ -1,3 +1,7 @@
+import os
+
+os.environ["WAND_OPT_FLAGS"] = "default,~pyramids"
+
 import numpy as np
 from typing import Optional, List, Dict
 
@@ -53,8 +57,10 @@ class DeepSparseDecoderEngine:
         val_inputs: bool = True
     ):
         # format input into lists (we pass empty past key values)
-        inputs = [self.empty_past_key_values[name] if name.startswith(PAST_KEY_VALUES_NAME) 
-               else engine_inputs[name] for name in self.engine.input_names]
+        inputs = [
+            self.empty_past_key_values[name] if name.startswith(PAST_KEY_VALUES_NAME) 
+            else engine_inputs[name] for name in self.engine.input_names
+        ]
 
         # validate inputs formatted correctly
         if val_inputs:
@@ -87,29 +93,25 @@ class DeepSparseDecoderModel:
         sequence_length: int = 1024,
         multitoken_length: int = 16,
         engine_context: Optional[Context] = None,
-        singletoken_engine = None,
-        multitoken_engine = None,
     ):
         self.sequence_length = sequence_length
         self.multitoken_length = multitoken_length
 
-        if singletoken_engine is not None and multitoken_engine is not None:
-            self.singletoken_engine = singletoken_engine
-            self.multitoken_engine = multitoken_engine
-        else:
-            self.singletoken_engine = DeepSparseDecoderEngine(
-                onnx_file_path=onnx_file_path,
-                engine_context=engine_context,
-                sequence_length=sequence_length,
-                input_ids_length=1,
-            )
-    
-            self.multitoken_engine = DeepSparseDecoderEngine(
-                onnx_file_path=onnx_file_path,
-                engine_context=engine_context,
-                sequence_length=sequence_length,
-                input_ids_length=self.multitoken_length,
-            )
+        # compile decode engine
+        self.singletoken_engine = DeepSparseDecoderEngine(
+            onnx_file_path=onnx_file_path,
+            engine_context=engine_context,
+            sequence_length=sequence_length,
+            input_ids_length=1,
+        )
+
+        # compile prefill engine
+        self.multitoken_engine = DeepSparseDecoderEngine(
+            onnx_file_path=onnx_file_path,
+            engine_context=engine_context,
+            sequence_length=sequence_length,
+            input_ids_length=self.multitoken_length,
+        )
 
         assert "input_ids" in self.singletoken_engine.onnx_inputs
         assert "attention_mask" in self.singletoken_engine.onnx_inputs
@@ -118,14 +120,12 @@ class DeepSparseDecoderModel:
 
     def engine_inputs_for_prefill(
         self,
-        tokens: List[int],
+        input_ids: np.ndarray,
     ):
-        assert len(tokens) < self.sequence_length
-
         # split batch into N token_batches
-        num_batches = len(tokens) // self.multitoken_length
+        num_batches = input_ids.shape[1] // self.multitoken_length
         token_batches = [
-            tokens[i * self.multitoken_length : (i+1) * self.multitoken_length] 
+            input_ids[:, i*self.multitoken_length : (i+1)*self.multitoken_length] 
             for i in range(0, num_batches)
         ]
 
@@ -133,9 +133,9 @@ class DeepSparseDecoderModel:
         for idx, token_batch in enumerate(token_batches):
             num_processed_tokens = self.multitoken_length * idx
 
-            engine_inputs = {}
-            engine_inputs["input_ids"] = np.array([token_batch])
-
+            engine_inputs = {}            
+            engine_inputs["input_ids"] = token_batch
+            
             # make attention mask from the right
             engine_inputs["attention_mask"] = np.zeros((1, self.sequence_length), dtype=np.int64)
             engine_inputs["attention_mask"][:, -(self.multitoken_length + num_processed_tokens):] = 1
@@ -156,30 +156,33 @@ class DeepSparseDecoderModel:
 
     def engine_inputs_for_decode(
         self,
-        tokens: List[int],
+        input_ids: np.ndarray,
     ):
-        assert len(tokens) < self.sequence_length
-        
         engine_inputs = {}
-        engine_inputs["input_ids"] = np.array([[tokens[-1]]])
+        engine_inputs["input_ids"] = input_ids[:,-1:]
         engine_inputs["attention_mask"] = np.zeros((1, self.sequence_length), dtype=np.int64)
-        engine_inputs["attention_mask"][:, -len(tokens):] = 1
-        
+        engine_inputs["attention_mask"][:, -input_ids.shape[1]:] = 1
+
         engine_inputs["causal_mask"] = create_causal_mask(
             engine_inputs["input_ids"],
             engine_inputs["attention_mask"]
         )
-        engine_inputs["positions"] = np.array([[len(tokens) - 1]], dtype=np.int64)
+        engine_inputs["positions"] = np.array([[input_ids.shape[1] - 1]], dtype=np.int64)
         
         return engine_inputs
     
     def decode(
         self,
-        tokens: List[int],
+        input_ids: np.ndarray,
         past_key_values: DeepSparsePastKeyValues
     ) -> (np.ndarray, DeepSparsePastKeyValues):
         
-        engine_inputs = self.engine_inputs_for_decode(tokens)
+        # assert input is of shape [1,seq_len] w/ seq_len < self.sequence_len
+        assert len(input_ids.shape) == 2
+        assert input_ids.shape[0] == 1
+        assert input_ids.shape[1] < self.sequence_length
+        
+        engine_inputs = self.engine_inputs_for_decode(input_ids)
         logits, past_key_values = self.singletoken_engine(
             engine_inputs, 
             past_key_values
@@ -189,24 +192,51 @@ class DeepSparseDecoderModel:
     
     def prefill(
         self,
-        tokens: List[int],
-        past_key_values: DeepSparsePastKeyValues
+        input_ids: np.ndarray,
     ) -> (np.ndarray, DeepSparsePastKeyValues):
-      
+        
+        # assert input is of shape [1,seq_len] w/ seq_len < self.sequence_len
+        assert len(input_ids.shape) == 2
+        assert input_ids.shape[0] == 1
+        assert input_ids.shape[1] < self.sequence_length
+        
         tokens_processed = 0
+        
+        # setup empty past key values
+        past_key_values = DeepSparsePastKeyValues()
 
-        for engine_inputs in self.engine_inputs_for_prefill(tokens):
-            _, past_key_values = self.multitoken_engine(
+        # loop through chunks, run inference w/ multitoken engine
+        for engine_inputs in self.engine_inputs_for_prefill(input_ids):
+            logits, past_key_values = self.multitoken_engine(
                 engine_inputs,
                 past_key_values
             )
             tokens_processed += self.multitoken_length
 
-        while tokens_processed < len(tokens):
+        # if anything left over, run inference w/ singletoken engine
+        while tokens_processed < input_ids.shape[1]:
             logits, past_key_values = self.decode(
-                tokens= tokens[:tokens_processed + 1],
+                input_ids=input_ids[:,:tokens_processed+1],
                 past_key_values=past_key_values
             )
             tokens_processed += 1
+            # print(logits[:,-1:,:])
         
         return logits, past_key_values
+
+    def forward(
+        self,
+        input_ids: np.ndarray,
+        past_key_values: Optional[DeepSparsePastKeyValues] = None,
+    ):
+        if past_key_values is None:
+            return self.prefill(input_ids)
+        else:
+            return self.decode(input_ids, past_key_values)
+
+    def __call__(
+        self,
+        input_ids: np.ndarray,
+        past_key_values: Optional[DeepSparsePastKeyValues] = None,
+    ):
+        return self.forward(input_ids, past_key_values)
