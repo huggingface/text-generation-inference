@@ -8,6 +8,6 @@ In TGI, tensor parallelism is implemented under the hood by sharding weights and
 
 <Tip warning={true}>
 
-Tensor Parallelism only works for model with custom kernels.
+Tensor Parallelism only works for model officially supported, it will not work when falling back on `transformers`.
 
 </Tip>
