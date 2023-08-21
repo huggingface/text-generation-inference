@@ -123,7 +123,7 @@ responses(
 (status = 424, description = "Generation Error", body = ErrorResponse,
 example = json ! ({"error": "Request failed during generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model çis overloaded"})),
+example = json ! ({"error": "Model is overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
 example = json ! ({"error": "Input validation error"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
