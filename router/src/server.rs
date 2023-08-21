@@ -123,17 +123,16 @@ responses(
 (status = 424, description = "Generation Error", body = ErrorResponse,
 example = json ! ({"error": "Request failed during generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model çis overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
 example = json ! ({"error": "Input validation error"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
 example = json ! ({"error": "Incomplete generation"})),
-params("max_input_length" = usize, Path, description = "This is the maximum allowed input 
+),
+params(("max_input_length" = usize, Path, description = "This is the maximum allowed input 
 length (expressed in number of tokens) for users. The larger this value, the longer prompt
 users can send which can impact the overall memory required to handle the load.
-Please note that some models have a finite range of sequence they can handle."),
-),
-)
+Please note that some models have a finite range of sequence they can handle.")),
 )]
 #[instrument(
 skip_all,
