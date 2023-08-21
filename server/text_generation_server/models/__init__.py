@@ -54,6 +54,7 @@ try:
     from text_generation_server.models.flash_santacoder import (
         FlashSantacoderSharded,
     )
+    from text_generation_server.models.idefics import IDEFICSSharded
 
 except ImportError as e:
     logger.warning(f"Could not import Flash Attention enabled models: {e}")
@@ -64,6 +65,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashRWSharded)
     __all__.append(FlashSantacoderSharded)
     __all__.append(FlashLlama)
+    __all__.append(IDEFICSSharded)
 
 
 def get_model(
@@ -248,6 +250,17 @@ def get_model(
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
+    elif model_type == "idefics":
+        if FLASH_ATTENTION:
+           return IDEFICSSharded(
+               model_id,
+               revision,
+               quantize=quantize,
+               dtype=dtype,
+               trust_remote_code=trust_remote_code,
+           )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
 
     if sharded:
         raise ValueError("sharded is not supported for AutoModel")

@@ -1,0 +1,674 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -5.3476562,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.0075531006,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.7729492,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -9.787083e-05,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -1.1920929e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.4296875,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.01424408,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -4.9335938,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.2993164,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -3.5664062,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.4453125,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -1.9306641,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.2836914,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.4179688,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00056934357,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.13928223,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.05355835,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.15771484,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 32002,
+          "logprob": -0.004333496,
+          "special": true,
+          "text": "<end_of_utterance>"
+        },
+        {
+          "id": 29871,
+          "logprob": -7.426739e-05,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 13,
+          "logprob": -2.348423e-05,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 7900,
+          "logprob": -3.9339066e-06,
+          "special": false,
+          "text": "Ass"
+        },
+        {
+          "id": 22137,
+          "logprob": 0.0,
+          "special": false,
+          "text": "istant"
+        },
+        {
+          "id": 29901,
+          "logprob": -2.861023e-06,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 319,
+          "logprob": -0.8828125,
+          "special": false,
+          "text": " A"
+        },
+        {
+          "id": 521,
+          "logprob": -1.3759766,
+          "special": false,
+          "text": " ch"
+        },
+        {
+          "id": 21475,
+          "logprob": -0.0005083084,
+          "special": false,
+          "text": "icken"
+        },
+        {
+          "id": 338,
+          "logprob": -1.1367188,
+          "special": false,
+          "text": " is"
+        }
+      ]
+    },
+    "generated_text": "\nAssistant: A chicken is"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -5.3476562,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.0075531006,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.7729492,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -9.787083e-05,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -1.1920929e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.4296875,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.01423645,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -4.9335938,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.2993164,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -3.5664062,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.4453125,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -1.9306641,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.2836914,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.4179688,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00056934357,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.13928223,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.05355835,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.15771484,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 32002,
+          "logprob": -0.004333496,
+          "special": true,
+          "text": "<end_of_utterance>"
+        },
+        {
+          "id": 29871,
+          "logprob": -7.4505806e-05,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 13,
+          "logprob": -2.3722649e-05,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 7900,
+          "logprob": -3.9339066e-06,
+          "special": false,
+          "text": "Ass"
+        },
+        {
+          "id": 22137,
+          "logprob": 0.0,
+          "special": false,
+          "text": "istant"
+        },
+        {
+          "id": 29901,
+          "logprob": -2.861023e-06,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 319,
+          "logprob": -0.8828125,
+          "special": false,
+          "text": " A"
+        },
+        {
+          "id": 521,
+          "logprob": -1.3759766,
+          "special": false,
+          "text": " ch"
+        },
+        {
+          "id": 21475,
+          "logprob": -0.00050878525,
+          "special": false,
+          "text": "icken"
+        },
+        {
+          "id": 338,
+          "logprob": -1.1367188,
+          "special": false,
+          "text": " is"
+        }
+      ]
+    },
+    "generated_text": "\nAssistant: A chicken is"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -5.3476562,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.0075531006,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.7729492,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -9.775162e-05,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -1.1920929e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.4296875,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.01424408,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -4.9335938,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.2993164,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -3.5664062,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.4453125,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -1.9306641,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.2836914,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.4179688,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00056934357,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.13928223,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.05355835,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.15771484,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 32002,
+          "logprob": -0.004333496,
+          "special": true,
+          "text": "<end_of_utterance>"
+        },
+        {
+          "id": 29871,
+          "logprob": -7.43866e-05,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 13,
+          "logprob": -2.360344e-05,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 7900,
+          "logprob": -3.9339066e-06,
+          "special": false,
+          "text": "Ass"
+        },
+        {
+          "id": 22137,
+          "logprob": 0.0,
+          "special": false,
+          "text": "istant"
+        },
+        {
+          "id": 29901,
+          "logprob": -2.7418137e-06,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 319,
+          "logprob": -0.8828125,
+          "special": false,
+          "text": " A"
+        },
+        {
+          "id": 521,
+          "logprob": -1.3759766,
+          "special": false,
+          "text": " ch"
+        },
+        {
+          "id": 21475,
+          "logprob": -0.00050878525,
+          "special": false,
+          "text": "icken"
+        },
+        {
+          "id": 338,
+          "logprob": -1.1367188,
+          "special": false,
+          "text": " is"
+        }
+      ]
+    },
+    "generated_text": "\nAssistant: A chicken is"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -5.3632812,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.00762558,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.7739258,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -9.775162e-05,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -1.1920929e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.4140625,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.01436615,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -4.9414062,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.3005371,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -3.5703125,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.4296875,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -1.9111328,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.28881836,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.4179688,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00056886673,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14123535,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.053985596,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.15771484,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 32002,
+          "logprob": -0.004295349,
+          "special": true,
+          "text": "<end_of_utterance>"
+        },
+        {
+          "id": 29871,
+          "logprob": -7.43866e-05,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 13,
+          "logprob": -2.3126602e-05,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 7900,
+          "logprob": -3.9339066e-06,
+          "special": false,
+          "text": "Ass"
+        },
+        {
+          "id": 22137,
+          "logprob": 0.0,
+          "special": false,
+          "text": "istant"
+        },
+        {
+          "id": 29901,
+          "logprob": -2.6226044e-06,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 319,
+          "logprob": -0.87841797,
+          "special": false,
+          "text": " A"
+        },
+        {
+          "id": 521,
+          "logprob": -1.3837891,
+          "special": false,
+          "text": " ch"
+        },
+        {
+          "id": 21475,
+          "logprob": -0.00051641464,
+          "special": false,
+          "text": "icken"
+        },
+        {
+          "id": 338,
+          "logprob": -1.1435547,
+          "special": false,
+          "text": " is"
+        }
+      ]
+    },
+    "generated_text": "\nAssistant: A chicken is"
+  }
+]
