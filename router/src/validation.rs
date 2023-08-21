@@ -142,6 +142,7 @@ impl Validation {
             seed,
             watermark,
             decoder_input_details,
+            ignore_eos_token,
             ..
         } = request.parameters;
 
@@ -251,7 +252,7 @@ impl Validation {
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,
             stop_sequences,
-            ignore_eos_token: false,
+            ignore_eos_token: ignore_eos_token,
         };
 
         metrics::histogram!("tgi_request_max_new_tokens", max_new_tokens as f64);
