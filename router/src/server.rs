@@ -129,7 +129,7 @@ example = json ! ({"error": "Input validation error"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
 example = json ! ({"error": "Incomplete generation"})),
 ),
-params(("max_input_length" = usize, Path, description = "This is the maximum allowed input 
+params(("max_input_length" = usize, description = "This is the maximum allowed input 
 length (expressed in number of tokens) for users. The larger this value, the longer prompt
 users can send which can impact the overall memory required to handle the load.
 Please note that some models have a finite range of sequence they can handle.")),
