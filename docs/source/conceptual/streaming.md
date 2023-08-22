@@ -137,10 +137,10 @@ for await (const r of stream) {
 
 ## How does Streaming work under the hood?
 
-Under the hood, TGI uses Server-Sent Events (SSE). In an SSE Setup, a client sends a request with the data, opening an HTTP connection and subscribing to updates. Afterward, the server sends data to the client. There is no need for further requests; the server will keep sending the data. SSEs are unidirectional, meaning the client does not send other requests to the server. SSE sends data over HTTP, making it easy to use.
+Under the hood, TGI uses Server-Sent Events (SSE). In an SSE Setup, a client sends a request with the data, opening an HTTP connection and subscribing to updates. Afterward, the server sends data to the client. There is no need for further requests; the server will keep sending the data. SSEs are unidirectional, meaning the client does not send other requests to the server. SSE sends data over HTTP, making it easy to use. One of the limitations of Server-Sent Events is that they limit how many concurrent requests can be handled by the server, but in the context of TGI, backpressure is handled, so this issue will not happen.
 
 SSEs are different than:
 * Polling: where the client keeps calling the server to get data. This means that the server might return empty responses and cause overhead.
 * Webhooks: where there is a bi-directional connection. The server can send information to the client, but the client can also send data to the server after the first request. Webhooks are more complex to operate as they don’t only use HTTP.
 
-One of the limitations of Server-Sent Events is that they limit how many concurrent requests can handled by the server. Instead of timing out when there are too many SSE connections, TGI returns an HTTP Error with an `overloaded` error type (`huggingface_hub` returns `OverloadedError`). This allows the client to manage the overloaded server (e.g., it could display a busy error to the user or retry with a new request). To configure the maximum number of concurrent requests, you can specify `--max_concurrent_requests`, allowing clients to handle backpressure.
+If there are too many requests at the same time, TGI returns an HTTP Error with an `overloaded` error type (`huggingface_hub` returns `OverloadedError`). This allows the client to manage the overloaded server (e.g., it could display a busy error to the user or retry with a new request). To configure the maximum number of concurrent requests, you can specify `--max_concurrent_requests`, allowing clients to handle backpressure.
