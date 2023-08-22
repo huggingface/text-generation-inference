@@ -14,7 +14,7 @@ AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")
 
 This means you will be unable to use some of the features introduced by TGI, such as tensor-parallel sharding or flash attention. However, you can still get many benefits of TGI, such as continuous batching or streaming outputs.
 
-You can serve these models using docker like below 👇 
+You can serve these models using Docker like below 👇 
 
 ```bash
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id gpt2
