@@ -83,7 +83,7 @@ Gradio is a Python library that helps you build a web application for your machi
 pip install huggingface-hub gradio
 ```
 
-Assume you are serving your model on port 8080, we will query through [InferenceClient](consuming_tgi#inference-Client). 
+Assume you are serving your model on port 8080, we will query through [InferenceClient](consuming_tgi#inference-client). 
  
 ```python
 import gradio as gr
