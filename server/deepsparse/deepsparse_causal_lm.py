@@ -90,7 +90,7 @@ class DeepSparseCausalLMBatch:
             old_idx = self.requests_idx_mapping[request_id]
             requests.append(self.requests[old_idx])
             input_ids_list.append(self.input_ids_list[old_idx])
-            past_key_values_list.append(self.past_key_values[old_idx])
+            past_key_values_list.append(self.past_key_values_list[old_idx])
 
         # update batch state
         self.requests = requests
@@ -112,7 +112,7 @@ class DeepSparseCausalLMBatch:
 
         start_index = 0
         for i, batch in enumerate(batches):
-            assert batch.past_key_values_list is None, "only concatenate prefilled batches"
+            assert batch.past_key_values_list is not None, "only concatenate prefilled batches"
             
             # concatenate request, input_ids, and past_key_values lists
             requests.extend(batch.requests)
@@ -129,7 +129,7 @@ class DeepSparseCausalLMBatch:
             start_index += len(batch)
 
         return cls(
-            batch_id= batches[0].id,
+            batch_id=batches[0].batch_id,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
             input_ids_list=input_ids_list,
@@ -210,8 +210,11 @@ class DeepSparseCausalLM:
             
             # check stopping criteria
             # simple for now --- should use StoppingCriteria
+            assert len(input_ids.shape) == 2
+            assert input_ids.shape[0] == 1
+            
             stop = self.should_stop(
-                num_tokens_processed=len(input_ids) + 1,
+                num_tokens_processed=input_ids.shape[1] + 1,
                 generated_token_id = generated_token_id
             )
             

@@ -56,16 +56,17 @@ class DeepSparseService:
     def Prefill(
         self, 
         request: PrefillRequest
-    ) -> [List[Generation], CachedBatch]:
+    ) -> [Generation, CachedBatch]:
         ds_batch = DeepSparseCausalLMBatch.from_batch(
             batch=request.batch,
             tokenizer=self.model.tokenizer
         )
 
         generations, next_ds_batch = self.model.generate_token(ds_batch)
+        assert len(generations) == 1
         self.cache.set(next_ds_batch)
 
-        return generations, next_ds_batch.to_batch()
+        return generations[0], next_ds_batch.to_batch()
 
     def Decode(
         self, 
@@ -75,16 +76,16 @@ class DeepSparseService:
 
         ds_batches = []
         for batch in request.batches:
-            ds_batch = self.cache.pop(batch.id)
+            ds_batch = self.cache.pop(batch.batch_id)
             assert batch is not None, "Batch ID {batch.id} not found in cache."
             ds_batches.append(ds_batch)
 
         if len(ds_batches) > 1:
             ds_batch = DeepSparseCausalLMBatch.concatenate(ds_batches)
         else:
-            batch = ds_batches[0]
+            ds_batch = ds_batches[0]
 
-        generations, next_ds_batch = self.model.generate_token(ds_batches)
+        generations, next_ds_batch = self.model.generate_token(ds_batch)
         self.cache.set(next_ds_batch)
 
-        return generations, next_ds_batch.to_batch()
+        return generations, next_ds_batch.to_batch() if next_ds_batch else None

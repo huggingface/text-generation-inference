@@ -32,3 +32,4 @@ class DecodeRequest:
 @dataclass
 class FilterBatchRequest:
     batch_id: int
+    request_ids: List[int]
