@@ -77,7 +77,7 @@ To serve both ChatUI and TGI in same environment, simply add your own endpoints 
 
 ## Gradio
 
-Gradio is a Python library that helps you build a web application for your machine learning model with few lines of code. It has a `ChatInterface` class to create neat UIs for chatbots. Let's take a look at how to create a chatbot with streaming mode using TGI and Gradio. Let's install Gradio and Hub Python library first.
+Gradio is a Python library that helps you build web applications for your machine learning models with a few lines of code. It has a `ChatInterface` wrapper that helps create neat UIs for chatbots. Let's take a look at how to create a chatbot with streaming mode using TGI and Gradio. Let's install Gradio and Hub Python library first.
 
 ```bash
 pip install huggingface-hub gradio
