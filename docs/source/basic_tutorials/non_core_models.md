@@ -1,4 +1,4 @@
-# Custom Model Serving
+# Non-core Model Serving
 
 TGI supports various LLM architectures (see full list [here](https://github.com/huggingface/text-generation-inference#optimized-architectures)). If you wish to serve a model that is not one of the supported models, TGI will fallback to transformers implementation of that model. They can be loaded by:
 
