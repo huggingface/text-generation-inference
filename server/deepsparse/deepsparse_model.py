@@ -1,5 +1,4 @@
 import os
-
 os.environ["WAND_OPT_FLAGS"] = "default,~pyramids"
 
 import numpy as np
