@@ -12,7 +12,7 @@ AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")``
 AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")
 ```
 
-This means, you will be unable to use some of the features introduced by TGI, such as tensor-parallel sharding or flash attention. However, you can still get many benefits of TGI, such as continuous batching, or streaming outputs.
+This means you will be unable to use some of the features introduced by TGI, such as tensor-parallel sharding or flash attention. However, you can still get many benefits of TGI, such as continuous batching or streaming outputs.
 
 You can serve these models using docker like below 👇 
 
