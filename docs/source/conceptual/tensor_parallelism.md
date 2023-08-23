@@ -1,6 +1,6 @@
 # Tensor Parallelism
 
-Tensor parallelism (also called horizontal model parallelism) is a technique used to fit a large model in multiple GPUs.  Intermediate outputs between ranks are sent and received from one rank to another in a synchronous or asynchronous manner. When multiplying input with weights for inference, multiplying input with weights directly is equivalent to dividing the weight matrix column-wise, multiplying each column with input separately, and then concatenating the separate outputs like below 👇 
+Tensor parallelism is a technique used to fit a large model in multiple GPUs.  Intermediate outputs between GPUs are sent and received from one GPU to another in a synchronous or asynchronous manner. For example, when multiplying the input tensors with the first weights tensor, multiplying both tensors is equivalent to splitting the weight tensor column-wise, multiplying each column with input separately, and then concatenating the separate outputs like below 👇 
 
 ![Image courtesy of Anton Lozkhov](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/TP.png)
 
