@@ -129,14 +129,14 @@ You can try the demo directly here 👇
 	<iframe 
         src="https://merve-gradio-tgi-2.hf.space?__theme=light"
         width="850"
-        height="350"
+        height="550"
     ></iframe>
 </div>
 <div class="hidden dark:block">
     <iframe 
         src="https://merve-gradio-tgi-2.hf.space?__theme=dark"
         width="850"
-        height="350"
+        height="550"
     ></iframe>
 </div>
 
