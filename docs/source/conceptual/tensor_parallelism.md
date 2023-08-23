@@ -4,7 +4,7 @@ Tensor parallelism is a technique used to fit a large model in multiple GPUs.  I
 
 ![Image courtesy of Anton Lozkhov](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/TP.png)
 
-In TGI, tensor parallelism is implemented under the hood by sharding weights and placing them in different ranks. The matrix multiplications then take place in different ranks and are then gathered into a single tensor. 
+In TGI, tensor parallelism is implemented under the hood by sharding weights and placing them in different GPUs. The matrix multiplications then take place in different GPUs and are then gathered into a single tensor. 
 
 <Tip warning={true}>
 
