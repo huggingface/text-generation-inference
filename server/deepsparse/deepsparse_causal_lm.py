@@ -205,11 +205,11 @@ class DeepSparseCausalLM:
             logits, past_key_values = self.model(input_ids, past_key_values)
 
             # sample token
-            # simple for now --- should use NextTokenChooser
+            # todo: simple for now --- should use NextTokenChooser
             generated_token_id = self.sample_token(logits)
             
             # check stopping criteria
-            # simple for now --- should use StoppingCriteria
+            # todo: simple for now --- should use StoppingCriteria
             assert len(input_ids.shape) == 2
             assert input_ids.shape[0] == 1
             

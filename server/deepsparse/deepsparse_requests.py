@@ -5,6 +5,7 @@ from typing import List, Optional
 class Request:
     id: int
     prompt: str
+    max_generated_tokens: int
 
 @dataclass
 class Batch:
@@ -15,6 +16,9 @@ class Batch:
 class CachedBatch:
     batch_id: int
     request_ids: List[int]
+
+    def __len__(self):
+        return len(self.request_ids)
 
 @dataclass
 class Generation:
