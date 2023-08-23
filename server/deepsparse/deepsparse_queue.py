@@ -13,7 +13,9 @@ class GenerateRequest:
         self.generation = prompt
         self.max_generated_tokens = max_generated_tokens
         self.cv = Condition()
+        self.is_stopped = False
 
+# todo: implement logic for maximum memory usage
 class DeepSparseQueue:
     def __init__(self):
         self.next_request_id: int = 0

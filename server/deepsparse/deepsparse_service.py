@@ -7,7 +7,7 @@ from server.deepsparse.deepsparse_requests import (
     Generation, CachedBatch
 )
 
-class BatchCache:
+class Cache:
     def __init__(self):
         self.cache: Dict[int, DeepSparseCausalLMBatch] = {}
 
@@ -37,7 +37,7 @@ class DeepSparseService:
         model: DeepSparseCausalLM
     ):
         self.model = model
-        self.cache = BatchCache()
+        self.cache = Cache()
 
     def ClearCache(self):
         self.cache.clear()
@@ -46,6 +46,7 @@ class DeepSparseService:
         self, 
         request: FilterBatchRequest
     ) -> CachedBatch:
+
         ds_batch = self.cache.pop(request.batch_id)
         assert ds_batch is not None, "Batch ID {request.batch_id} not found in cache."
         filtered_batch = ds_batch.filter(request.request_ids)
@@ -57,6 +58,7 @@ class DeepSparseService:
         self, 
         request: PrefillRequest
     ) -> [Generation, CachedBatch]:
+        
         ds_batch = DeepSparseCausalLMBatch.from_batch(
             batch=request.batch,
             tokenizer=self.model.tokenizer
@@ -88,4 +90,4 @@ class DeepSparseService:
         generations, next_ds_batch = self.model.generate_token(ds_batch)
         self.cache.set(next_ds_batch)
 
-        return generations, next_ds_batch.to_batch() if next_ds_batch else None
+        return generations, (next_ds_batch.to_batch() if next_ds_batch else None)
