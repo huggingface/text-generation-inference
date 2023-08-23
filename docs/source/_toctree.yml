@@ -21,4 +21,6 @@
 - sections:
   - local: conceptual/streaming
     title: Streaming
+  - local: conceptual/quantization
+    title: Quantization
   title: Conceptual Guides
