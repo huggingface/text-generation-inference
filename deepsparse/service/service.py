@@ -1,6 +1,6 @@
 from typing import Dict, List, Tuple
-from server.deepsparse.service.causal_lm import DeepSparseCausalLM, DeepSparseCausalLMBatch
-from server.deepsparse.utils import Generation, CachedBatch, Batch
+from service.causal_lm import DeepSparseCausalLM, DeepSparseCausalLMBatch
+from utils import Generation, CachedBatch, Batch
 
 class BatchCache:
     def __init__(self):

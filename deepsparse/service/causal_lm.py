@@ -3,8 +3,8 @@ from typing import List, Dict, Optional
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 import numpy as np
 
-from server.deepsparse.service.model import DeepSparsePastKeyValues, DeepSparseDecoderModel
-from server.deepsparse.utils import Request, Batch, CachedBatch, Generation
+from service.model import DeepSparsePastKeyValues, DeepSparseDecoderModel
+from utils import Request, Batch, CachedBatch, Generation
 
 DEEPSPARSE_SEQUENCE_LENGTH = 128
 DEEPSPARSE_MULTITOKEN_LENGTH = 4
