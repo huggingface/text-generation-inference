@@ -1,6 +1,7 @@
 from queue import Queue
 from typing import List, Dict, Optional, Tuple
 from server.deepsparse.service.service import DeepSparseService
+from server.deepsparse.service.causal_lm import DeepSparseCausalLM
 from server.deepsparse.utils import CachedBatch, Batch, Generation, GenerateRequest, Request
 
 # TODO: implement logic for maximum size of the queue based on memory usage
@@ -47,11 +48,30 @@ class DeepSparseQueue:
         return (batch, generate_requests)
 
 class DeepSparseRouter:
-    def __init__(self, service: DeepSparseService):
-        self.service: DeepSparseService = service
+    def __init__(
+        self, 
+        service: Optional[DeepSparseService],
+        model_path: Optional[str],
+        tokenizer_path: Optional[str]
+    ):        
+        assert (
+            service is not None or 
+            (model_path is not None and tokenizer_path is not None)
+        )
+
+        if service is not None:
+            self.service = service
+        else:
+            self.service = DeepSparseService(
+                model = DeepSparseCausalLM(
+                    model_path=model_path,
+                    tokenizer_path=tokenizer_path
+                )
+            )
+
         self.queue: DeepSparseQueue = DeepSparseQueue()
 
-    def generate(self, generate_request: GenerateRequest):
+    def submit_request(self, generate_request: GenerateRequest):
         self.queue.append(generate_request)
 
     def prefill(
