@@ -1,6 +1,6 @@
 # Non-core Model Serving
 
-TGI supports various LLM architectures (see full list [here](./supported_models)). If you wish to serve a model that is not one of the supported models, TGI will fallback to the `transformers` implementation of that model. This means you will be unable to use some of the features introduced by TGI, such as tensor-parallel sharding or flash attention. However, you can still get many benefits of TGI, such as continuous batching or streaming outputs.
+TGI supports various LLM architectures (see full list [here](../supported_models)). If you wish to serve a model that is not one of the supported models, TGI will fallback to the `transformers` implementation of that model. This means you will be unable to use some of the features introduced by TGI, such as tensor-parallel sharding or flash attention. However, you can still get many benefits of TGI, such as continuous batching or streaming outputs.
 
 You can serve these models using Docker like below 👇 
 
