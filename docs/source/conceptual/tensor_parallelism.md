@@ -4,11 +4,10 @@ Tensor parallelism is a technique used to fit a large model in multiple GPUs. Fo
 
 ![Image courtesy of Anton Lozkhov](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/TP.png)
 
-In TGI, tensor parallelism is implemented under the hood by sharding weights and placing them in different GPUs. The matrix multiplications then take place in different GPUs and are then gathered into a single tensor. 
 
 <Tip warning={true}>
 
-Tensor Parallelism only works for models officially supported, it will not work when falling back on `transformers`.
+Tensor Parallelism only works for models officially supported, it will not work when falling back on `transformers`. You can get more information about unsupported models [here](./basic_tutorials/non_core_models.md).
 
 </Tip>
 
