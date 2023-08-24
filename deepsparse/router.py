@@ -4,49 +4,6 @@ from service.service import DeepSparseService
 from service.causal_lm import DeepSparseCausalLM
 from utils import CachedBatch, Batch, Generation, GenerateRequest, Request
 
-# TODO: implement logic for maximum size of the queue based on memory usage
-class DeepSparseQueue:
-    def __init__(self):
-        self.next_request_id: int = 0
-        self.next_batch_id: int = 0
-        self.queue: Queue[GenerateRequest] = Queue()
-
-    def append(self, generate_request: GenerateRequest):
-        self.queue.put(generate_request)
-
-    # TODO: enable multiple prefill requests in a batch
-    def next_batch(self, block=False) -> Optional[Tuple[Batch, Dict[int, GenerateRequest]]]:
-                
-        # if not blocking, return none if empty
-        if not block and self.queue.empty():
-            return None
-        
-        # if block = True, this blocks until something ready
-        # if block = False, the queue has data (if not an exception is raised)
-        #       while queue.empty() == False does not guarentee data
-        #       the queue is only subscribed to by one thread (this one)
-        #       since batching_task is the only function that calls next_batch
-        generate_request = self.queue.get(block=block)
-        generate_requests = {self.next_request_id: generate_request}
-
-        # format into request
-        request = Request(
-            id=self.next_request_id,
-            prompt=generate_request.prompt,
-            max_generated_tokens=generate_request.max_generated_tokens
-        )
-        self.next_request_id += 1
-        
-        # format into batch
-        batch = Batch(
-            id = self.next_batch_id,
-            requests=[request]
-        )
-        self.next_batch_id += 1
-
-        # return batch, generate_requests
-        return (batch, generate_requests)
-
 class DeepSparseRouter:
     def __init__(
         self, 
@@ -70,9 +27,21 @@ class DeepSparseRouter:
             )
 
         self.queue: DeepSparseQueue = DeepSparseQueue()
+        self.batching_task_should_stop:bool = False
 
     def submit_request(self, generate_request: GenerateRequest):
         self.queue.append(generate_request)
+
+    def stop_batching_task(self):
+        # tell batching task to stop
+        self.batching_task_should_stop = True
+        
+        # unblock the batching task with a dummy request if blocked
+        self.queue.append(GenerateRequest(
+            prompt="dummy",
+            max_generated_tokens=1,
+            response_stream=Queue()
+        ))
 
     def prefill(
         self, 
@@ -136,15 +105,13 @@ class DeepSparseRouter:
 
 # TODO: update to do more sophisticated logic as to when to do a prefill
 def batching_task(router: DeepSparseRouter):
-    while True:
+    # while not signaled to stop
+    while not router.batching_task_should_stop:
+        
         # loop until no requests to process (note: this blocks if queue is empty)
         next_batch = router.queue.next_batch(block=True)
         while next_batch is not None:
             batch, generate_requests = next_batch
-            
-            # HACK for development --- breaks out of the cycle
-            if batch.requests[0].prompt == "stop":
-                return
             
             # run prefill
             cached_batch = router.prefill(
@@ -178,4 +145,47 @@ def batching_task(router: DeepSparseRouter):
                     generate_requests=generate_requests
                 )
 
-            next_batch = router.queue.next_batch(block=False)            
+            next_batch = router.queue.next_batch(block=False)
+
+# TODO: implement logic for maximum size of the queue based on memory usage
+class DeepSparseQueue:
+    def __init__(self):
+        self.next_request_id: int = 0
+        self.next_batch_id: int = 0
+        self.queue: Queue[GenerateRequest] = Queue()
+
+    def append(self, generate_request: GenerateRequest):
+        self.queue.put(generate_request)
+
+    # TODO: enable multiple prefill requests in a batch
+    def next_batch(self, block=False) -> Optional[Tuple[Batch, Dict[int, GenerateRequest]]]:
+                
+        # if not blocking, return none if empty
+        if not block and self.queue.empty():
+            return None
+        
+        # if block = True, this blocks until something ready
+        # if block = False, the queue has data (if not an exception is raised)
+        #       while queue.empty() == False does not guarentee data
+        #       the queue is only subscribed to by one thread (this one)
+        #       since batching_task is the only function that calls next_batch
+        generate_request = self.queue.get(block=block)
+        generate_requests = {self.next_request_id: generate_request}
+
+        # format into request
+        request = Request(
+            id=self.next_request_id,
+            prompt=generate_request.prompt,
+            max_generated_tokens=generate_request.max_generated_tokens
+        )
+        self.next_request_id += 1
+        
+        # format into batch
+        batch = Batch(
+            id = self.next_batch_id,
+            requests=[request]
+        )
+        self.next_batch_id += 1
+
+        # return batch, generate_requests
+        return (batch, generate_requests)

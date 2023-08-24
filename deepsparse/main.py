@@ -1,4 +1,5 @@
 import fastapi, uvicorn
+from contextlib import asynccontextmanager
 from threading import Thread
 from queue import Queue
 from router import DeepSparseRouter, batching_task
@@ -13,21 +14,30 @@ def serve(
     host="0.0.0.0",
     port=5543
 ):
-    # setup router
-    print("\n--------------------       Building Router               --------------------\n")
-    router = DeepSparseRouter(
-        model_path=model_path,
-        tokenizer_path=tokenizer_path
-    )
 
-    # start background routing task
-    print("\n--------------------       Starting Batching Task        --------------------\n")
-    batching_thread = Thread(target=batching_task, args=[router])
-    batching_thread.start()
+    router = None
+    
+    @asynccontextmanager
+    async def lifespan(app: fastapi.FastAPI):
+        print("\n--------------------       Building Router               --------------------\n")
+        router = DeepSparseRouter(
+            model_path=model_path,
+            tokenizer_path=tokenizer_path
+        )
 
-    print("\n--------------------       Launching App                 --------------------\n")
-    app = fastapi.FastAPI()
+        print("\n--------------------       Starting Batching Task        --------------------\n")
+        batching_thread = Thread(target=batching_task, args=[router])
+        batching_thread.start()
 
+        print("\n--------------------       Launching App                 --------------------\n")
+        yield
+        
+        print("\n--------------------       Joining Batching Task        --------------------\n")
+        router.stop_batching_task()
+        batching_task.join()
+    
+    app = fastapi.FastAPI(lifespan=lifespan)
+    
     @app.get("/generate/{prompt}")
     async def generate(prompt:str):
         response_stream = Queue()
@@ -53,8 +63,6 @@ def serve(
         port=port,
         workers=1
     )
-    
-    batching_thread.join()
 
 if __name__ == "__main__":
     serve()
