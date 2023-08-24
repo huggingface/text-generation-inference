@@ -8,7 +8,8 @@ GPTQ is a post-training quantization method to make the model smaller. It quanti
 
 Given a layer \(l\) with weight matrix \(W_{l}\) and layer input \(X_{l}\), find quantized weight \(\hat{W}_{l}\):
 
-$$\text{\hat{W}{l}}^{*} = argmin{\hat{W_{l}}} |W_{l}X-\hat{W}{l}X|^{2}{2}\) \right\}$$
+$${\hat{W}{l}}^{*} = argmin{\hat{W_{l}}} |W_{l}X-\hat{W}{l}X|^{2}{2}) \}$$
+
 
 TGI allows you to both run an already GPTQ quantized model (see available models [here](https://huggingface.co/models?search=gptq)) or quantize a model of your choice using quantization script by simply passing --quantize like below 👇 
 
