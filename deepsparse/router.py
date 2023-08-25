@@ -2,7 +2,7 @@ from queue import Queue
 from typing import List, Dict, Optional, Tuple
 from service.service import DeepSparseService
 from service.causal_lm import DeepSparseCausalLM
-from utils import CachedBatch, Batch, Generation, GenerateRequest, Request
+from utils import CachedBatch, Batch, Generation, GenerateRequest, Request, StoppingCriteria
 
 class DeepSparseRouter:
     def __init__(
@@ -38,14 +38,14 @@ class DeepSparseRouter:
         
         # unblock the batching task with a dummy request if blocked
         self.queue.append(GenerateRequest(
-            prompt="dummy",
-            max_generated_tokens=1,
+            inputs="dummy",
+            max_new_tokens=1,
             response_stream=Queue()
         ))
 
     def prefill(
-        self, 
-        batch: Batch, 
+        self,
+        batch: Batch,
         generate_requests: Dict[int, GenerateRequest]
     ) -> Optional[CachedBatch]:
         
@@ -175,8 +175,8 @@ class DeepSparseQueue:
         # format into request
         request = Request(
             id=self.next_request_id,
-            prompt=generate_request.prompt,
-            max_generated_tokens=generate_request.max_generated_tokens
+            inputs=generate_request.inputs,
+            max_new_tokens=generate_request.max_new_tokens
         )
         self.next_request_id += 1
         
