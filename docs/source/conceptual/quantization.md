@@ -39,7 +39,7 @@ You can learn more about GPTQ from the [paper](https://arxiv.org/pdf/2210.17323.
 
 ## Quantization with bitsandbytes
 
-bitsandbytes is a library used to apply 8-bit and 4-bit quantization to models. It can be used during training for mixed-precision training or before inference to make the model smaller. Unlike GPTQ quantization, bitsandbytes quantization doesn't require a calibration dataset. One caveat of bitsandbytes 8-bit quantization is that the inference speed is slower compared to GPTQ.
+bitsandbytes is a library used to apply 8-bit and 4-bit quantization to models. It can be used during training for mixed-precision training or before inference to make the model smaller. Unlike GPTQ quantization, bitsandbytes quantization doesn't require a calibration dataset or pre-quantized weights. One caveat of bitsandbytes 8-bit quantization is that the inference speed is slower compared to GPTQ or FP16 precision.
 
 8-bit quantization enables multi-billion parameter scale models to fit in smaller hardware without degrading performance too much. 
 In TGI, you can use 8-bit quantization by adding `--quantize bitsandbytes` like below 👇
