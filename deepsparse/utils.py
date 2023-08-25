@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from queue import Queue
 from typing import List, Optional
 
 @dataclass
@@ -23,17 +24,12 @@ class CachedBatch:
 @dataclass
 class Generation:
     request_id: int
-    generated_text: Optional[str]
-
-@dataclass  
-class PrefillRequest:
-    batch: Batch
+    token: Optional[str]
+    token_id: Optional[str]
+    stopped: bool
 
 @dataclass
-class DecodeRequest:
-    batches: List[CachedBatch]
-
-@dataclass
-class FilterBatchRequest:
-    batch_id: int
-    request_ids: List[int]
+class GenerateRequest:
+    prompt: str
+    max_generated_tokens: int
+    response_stream: Queue[Generation]

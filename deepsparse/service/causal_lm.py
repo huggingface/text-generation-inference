@@ -1,15 +1,10 @@
-import numpy as np
 from dataclasses import dataclass
 from typing import List, Dict, Optional
-
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
+import numpy as np
 
-from server.deepsparse.deepsparse_model import (
-    DeepSparsePastKeyValues, DeepSparseDecoderModel
-)
-from server.deepsparse.deepsparse_requests import (
-    Request, Batch, CachedBatch, Generation
-)
+from service.model import DeepSparsePastKeyValues, DeepSparseDecoderModel
+from utils import Request, Batch, CachedBatch, Generation
 
 DEEPSPARSE_SEQUENCE_LENGTH = 128
 DEEPSPARSE_MULTITOKEN_LENGTH = 4
@@ -62,7 +57,7 @@ class DeepSparseCausalLMBatch:
             past_key_values_list=[None] * len(batch.requests),
         )
 
-    def to_batch(self) -> CachedBatch:
+    def to_cached_batch(self) -> CachedBatch:
         return CachedBatch(
             batch_id = self.batch_id,
             request_ids=[r.id for r in self.requests],
@@ -156,15 +151,19 @@ class DeepSparseCausalLM:
             multitoken_length = DEEPSPARSE_MULTITOKEN_LENGTH,
         )
 
-    # TODO (@rsnm2): switch to NextTokenChooser
+    # TODO: switch to NextTokenChooser
     def sample_token(
         self,
         logits: np.ndarray
     ):
-        assert(logits.shape[0] == 1)        # assert b=1 for now
-        return np.argmax(logits[0,-1,:])    # grab logits for the last item in the sequence
+        # assert b=1 for now
+        assert(logits.shape[0] == 1)        
+        
+        # grab logits for the last item in the sequence
+        # shape == (batch, seq, vocabulary_size)
+        return np.argmax(logits[0,-1,:])
     
-    # TODO (@rsnm2): switch to StoppingCriteria
+    # TODO: switch to StoppingCriteria
     def should_stop(
         self,
         num_tokens_processed: int,
@@ -184,56 +183,45 @@ class DeepSparseCausalLM:
         generations: List[Generation] = []
         all_stopped = True
 
-        # if we supported continuous batching, we would do batched inference here
-        # logits, past_key_values = self.model(batch)
-
         # for each member of the batch:
         #   a) run inference
         #   b) sample and check stopping criteria
-        #   c) create generation + update batch
-        for i, (
-            request,
-            input_ids,
-            past_key_values,
-        ) in enumerate(zip(
-            batch.requests, 
-            batch.input_ids_list, 
-            batch.past_key_values_list
-        )):
-            
-            # run inference
-            logits, past_key_values = self.model(input_ids, past_key_values)
-
-            # sample token
-            # todo: simple for now --- should use NextTokenChooser
-            generated_token_id = self.sample_token(logits)
-            
-            # check stopping criteria
-            # todo: simple for now --- should use StoppingCriteria
+        #   c) create generation
+        #   d) update batch
+        for i, (request, input_ids, past_key_values,) in enumerate(
+            zip(
+                batch.requests, 
+                batch.input_ids_list, 
+                batch.past_key_values_list
+            )
+        ):
             assert len(input_ids.shape) == 2
             assert input_ids.shape[0] == 1
             
+            # a) run inference
+            logits, past_key_values = self.model(input_ids, past_key_values)
+
+            # b) sample token and check stopping criteria
+            # TODO: should use NextTokenChooser/StoppingCriteria (simple for now)
+            generated_token_id = self.sample_token(logits)
+            generated_token = self.tokenizer.decode(generated_token_id)
             stop = self.should_stop(
                 num_tokens_processed=input_ids.shape[1] + 1,
                 generated_token_id = generated_token_id
             )
-            
-            # if not stopped, convert token id to text
-            generated_text = None
             if not stop:
                 all_stopped = False
-                generated_text = self.tokenizer.decode(
-                    generated_token_id,
-                    skip_special_tokens=True, 
-                    clean_up_tokenization_spaces=False
-                )
+                
+            # c) make generation
             generations.append(Generation(
                 request_id=request.id,
-                generated_text=generated_text
+                token=generated_token,
+                token_id=generated_token_id,
+                stopped=stop
             ))
 
-            # update values in the batch
-            # bad --- this does not occur in place
+            # d) update batch 
+            # TODO: this does not occur in place)
             assert len(batch.input_ids_list[i].shape) == 2
             assert batch.input_ids_list[i].shape[0] == 1
             batch.input_ids_list[i] = np.append(
@@ -243,7 +231,7 @@ class DeepSparseCausalLM:
             )
             batch.past_key_values_list[i] = past_key_values
 
-        # if all elements of the batch are done, return generation + null for batch
+        # if all elements of the batch are done, return null for batch
         if all_stopped:
             return generations, None
         

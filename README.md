@@ -62,3 +62,10 @@ Launch Router
 ```shell
 make router-dev
 ```
+
+Install FastAPI/Uvicorn
+
+```shell
+pip install fastapi
+pip install "uvicorn[standard]"
+```
