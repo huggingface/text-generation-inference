@@ -41,7 +41,7 @@ You can learn more about GPTQ from the [paper](https://arxiv.org/pdf/2210.17323.
 
 bitsandbytes is a library used to apply 8-bit and 4-bit quantization to models. It can be used during training for mixed-precision training or before inference to make the model smaller.
 
-8-bit quantization enables multi-billion parameter scale models to fit in smaller hardware without degrading performance. 8bit quantization works as follows 👇
+8-bit quantization enables multi-billion parameter scale models to fit in smaller hardware without degrading performance too much. 8bit quantization works as follows 👇
 
 1. Extract the larger values (outliers) columnwise from the input hidden states.
 2. Perform the matrix multiplication of the outliers in FP16 and the non-outliers in int8.
