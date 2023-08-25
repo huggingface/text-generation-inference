@@ -211,7 +211,7 @@ RUN chmod +x entrypoint.sh
 ENTRYPOINT ["./entrypoint.sh"]
 
 # Final image
-FROM base
+FROM base as tgi
 
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]
