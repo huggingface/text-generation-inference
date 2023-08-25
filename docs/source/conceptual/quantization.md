@@ -39,30 +39,16 @@ You can learn more about GPTQ from the [paper](https://arxiv.org/pdf/2210.17323.
 
 ## Quantization with bitsandbytes
 
-bitsandbytes is a library used to apply 8-bit and 4-bit quantization to models. It can be used during training for mixed-precision training or before inference to make the model smaller.
+bitsandbytes is a library used to apply 8-bit and 4-bit quantization to models. It can be used during training for mixed-precision training or before inference to make the model smaller. Unlike GPTQ quantization, bitsandbytes quantization doesn't require a calibration dataset. One caveat of bitsandbytes 8-bit quantization is that the inference speed is slower compared to GPTQ.
 
-8-bit quantization enables multi-billion parameter scale models to fit in smaller hardware without degrading performance too much. 8bit quantization works as follows 👇
-
-1. Extract the larger values (outliers) columnwise from the input hidden states.
-2. Perform the matrix multiplication of the outliers in FP16 and the non-outliers in int8.
-3. Scale up the non-outlier results to pull the values back to FP16, and add them to outlier results in FP16.
-
-![](https://huggingface.co/blog/assets/96_hf_bitsandbytes_integration/Mixed-int8.gif)
-
-So essentially, we perform the matrix multiplication to save on precision, and then pull the non-outlier results back to FP16 without a lot of difference between non-outlier's initial value and scaled back value. You can see an example below 👇
-
-![](https://huggingface.co/blog/assets/96_hf_bitsandbytes_integration/quant-freeze.png)
-
+8-bit quantization enables multi-billion parameter scale models to fit in smaller hardware without degrading performance too much. 
 In TGI, you can use 8-bit quantization by adding `--quantize bitsandbytes` like below 👇
 
 ```bash
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --quantize --bitsandbytes-nf4
-
 ```
 
-One caveat of bitsandbytes 8-bit quantization is that the inference speed is slower compared to GPTQ.
-
-4-bit Float (FP4) and 4-bit NormalFloat (NF4) are two data types introduced to use with QLoRA technique, a parameter efficient fine-tuning technique. However, these data types can be used to make a pre-trained model smaller. TGI essentially uses these data types to quantize an already trained model before the inference.
+4-bit Float (FP4) and 4-bit NormalFloat (NF4) are two data types introduced to use with QLoRA technique, a parameter-efficient fine-tuning technique. These data types can also be used to make a pre-trained model smaller. TGI essentially uses these data types to quantize an already trained model before the inference.
 
 In TGI, you can use 4-bit quantization by adding `--quantize bitsandbytes-nf4` or `--quantize bitsandbytes-fp4` like below 👇 
 
