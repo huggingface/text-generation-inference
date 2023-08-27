@@ -1,0 +1,5 @@
+FROM ghcr.io/ohmytofu-ai/tgi-angry:1.0.3-rc1
+COPY ./CUSTOM_MODELS/ /mnt/TOFU/HF_MODELS
+
+ENTRYPOINT ["text-generation-launcher"]
+CMD ["--json-output"]

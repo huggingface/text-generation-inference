@@ -15,6 +15,9 @@ TGI is well suited for distributed/ cloud burst/ on-demand workloads, yet HF's f
 
 `</endOfMissionStatement>`
 
+## LLama with PEFT
+append `--peft-model-path /my/local/peft-adapter-folder` to  the `run-dev` command inside `server/Makefile` and follow the steps indicated inside the prev. section. The folder should contain a `adater_config.json` file.
+
 <div align="center">
 
 ![image](https://github.com/huggingface/text-generation-inference/assets/3841370/38ba1531-ea0d-4851-b31a-a6d4ddc944b0)
