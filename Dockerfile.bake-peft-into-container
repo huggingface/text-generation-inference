@@ -1,5 +1,12 @@
-FROM ghcr.io/ohmytofu-ai/tgi-angry:1.0.3-rc1
+FROM ghcr.io/huggingface/text-generation-inference:1.0.2
 COPY ./CUSTOM_MODELS/ /mnt/TOFU/HF_MODELS
+COPY server server
+COPY server/Makefile server/Makefile
+RUN cd server && \
+    make gen-server && \
+    pip install -r requirements.txt && \
+    pip install ".[bnb, accelerate, quantize]" --no-cache-dir && \
+    pip install -e . --force-reinstall --upgrade --no-deps
 
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]

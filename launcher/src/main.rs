@@ -100,6 +100,9 @@ struct Args {
     #[clap(default_value = "bigscience/bloom-560m", long, env)]
     model_id: String,
 
+    /// The Path for a local PEFT model adapter
+    #[clap(long, env)]
+    peft_model_path: Option<String>,
     /// The actual revision of the model if you're referring to a model
     /// on the hub. You can use a specific commit id or a branch like `refs/pr/2`.
     #[clap(long, env)]
@@ -339,6 +342,7 @@ enum ShardStatus {
 #[allow(clippy::too_many_arguments)]
 fn shard_manager(
     model_id: String,
+    peft_model_path: Option<String>,
     revision: Option<String>,
     quantize: Option<Quantization>,
     dtype: Option<Dtype>,
@@ -391,6 +395,11 @@ fn shard_manager(
     // Activate tensor parallelism
     if world_size > 1 {
         shard_args.push("--sharded".to_string());
+    }
+
+    if let Some(peft_model_path) = peft_model_path {
+        shard_args.push("--peft-model-path".to_string());
+        shard_args.push(peft_model_path.to_string())
     }
 
     if let Some(quantize) = quantize {
@@ -838,6 +847,7 @@ fn spawn_shards(
     // Start shard processes
     for rank in 0..num_shard {
         let model_id = args.model_id.clone();
+        let peft_model_path = args.peft_model_path.clone();
         let revision = args.revision.clone();
         let uds_path = args.shard_uds_path.clone();
         let master_addr = args.master_addr.clone();
@@ -860,6 +870,7 @@ fn spawn_shards(
         thread::spawn(move || {
             shard_manager(
                 model_id,
+                peft_model_path,
                 revision,
                 quantize,
                 dtype,

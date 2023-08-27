@@ -2,3 +2,4 @@
 target
 router/tokenizer.json
 *__pycache__*
+CUSTOM_MODELS/**
