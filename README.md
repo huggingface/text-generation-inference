@@ -1,6 +1,26 @@
+## Motivation
+This repo aims to make the 🤗 Text Generation Inference more awesome by focussing on real world deployment scenarios that are not purely focussed on a 350M$ funded ecosystem.
+
+TGI is well suited for distributed/ cloud burst/ on-demand workloads, yet HF's focus seems to be (enterprisy) long-running single model endpoints. We are aiming to change that.
+
+![grafik](https://github.com/ohmytofu-ai/tgi-angryface/assets/11522213/65bc5e98-a62a-4c47-8bc2-8831d19880fc)
+
+
+## Goals
+- Support Model loading from wherever you want (HDFS, S3, HTTPS, …)
+- Support Adapters (LORA/PEFT) without merging (possibly huge) Checkpoints and uploading them to 🤗
+- Reduce operational cost by making TGI-😑 an disposable, hot swapable workhorse
+- Get back to a truyl open source license
+- Support more core frameworks than HF products
+
+`</endOfMissionStatement>`
+
 <div align="center">
 
 ![image](https://github.com/huggingface/text-generation-inference/assets/3841370/38ba1531-ea0d-4851-b31a-a6d4ddc944b0)
+
+---- 
+
 
 # Text Generation Inference
 
