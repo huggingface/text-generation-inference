@@ -9,6 +9,7 @@ TGI is well suited for distributed/ cloud burst/ on-demand workloads, yet HF's f
 ## Goals
 - Support Model loading from wherever you want (HDFS, S3, HTTPS, …)
 - Support Adapters (LORA/PEFT) without merging (possibly huge) Checkpoints and uploading them to 🤗
+- Support last Gen GPUS (back to Pascal hopefully)
 - Reduce operational cost by making TGI-😑 an disposable, hot swapable workhorse
 - Get back to a truyl open source license
 - Support more core frameworks than HF products
