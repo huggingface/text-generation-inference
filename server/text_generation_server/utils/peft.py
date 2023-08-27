@@ -6,6 +6,8 @@ import torch
 from transformers import AutoTokenizer
 from peft import AutoPeftModelForCausalLM, AutoPeftModelForSeq2SeqLM
 
+def load_local_peft(model_id, revision, trust_remote_code):
+    return model_id
 def download_and_unload_peft(model_id, revision, trust_remote_code):
     torch_dtype = torch.float16
 

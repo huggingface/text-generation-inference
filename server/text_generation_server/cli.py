@@ -141,10 +141,12 @@ def download_weights(
             if not extension == ".safetensors" or not auto_convert:
                 raise e
 
+    logger.warning("attempting to load local model")
     # Try to see if there are local pytorch weights
     try:
         # Get weights for a local model, a hub cached model and inside the WEIGHTS_CACHE_OVERRIDE
         local_pt_files = utils.weight_files(model_id, revision, ".bin")
+        print(local_pt_files)
 
     # No local pytorch weights
     except utils.LocalEntryNotFoundError:
