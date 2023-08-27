@@ -3,7 +3,7 @@ import inspect
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
+from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
 
 from text_generation_server.models import Model
@@ -481,11 +481,12 @@ class CausalLM(Model):
             device_map="auto"
             if torch.cuda.is_available() and torch.cuda.device_count() > 1
             else None,
-            load_in_8bit=quantize == "bitsandbytes",
+            load_in_4bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
-        if torch.cuda.is_available() and torch.cuda.device_count() == 1:
-            model = model.cuda()
+        ## ValueError: Calling `cuda()` is not supported for `4-bit` or `8-bit` quantized models. Please use the model as it is, since the model has already been set to the correct devices and casted to the correct `dtype`.
+        # if torch.cuda.is_available() and torch.cuda.device_count() == 1:
+            # model = model.cuda()
 
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:

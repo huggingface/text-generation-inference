@@ -109,6 +109,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         generations, next_batch = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
+        print(generations)
         return generate_pb2.DecodeResponse(
             generations=[generation.to_pb() for generation in generations],
             batch=next_batch.to_pb() if next_batch else None,
