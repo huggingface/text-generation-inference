@@ -9,7 +9,7 @@ TGI is well suited for distributed/ cloud burst/ on-demand workloads, yet HF's f
 ## Goals
 - ☑️ loads LLama2 in 4bit on a Pascal GPU (1080, Llama 2 7B)
 - Support Model loading from wherever you want (HDFS, S3, HTTPS, …)
-- Support Adapters (LORA/PEFT) without merging (possibly huge) Checkpoints and uploading them to 🤗
+- Support Adapters (LORA/PEFT) without merging (possibly huge) Checkpoints and uploading them to 🤗 -> POC in https://github.com/ohmytofu-ai/tgi-angryface/commit/aba56c1343aa77ba0a07d14327d3e52736334308
 - Support last Gen GPUS (back to Pascal hopefully)
 - Reduce operational cost by making TGI-😑 an disposable, hot swapable workhorse
 - Get back to a truyl open source license
