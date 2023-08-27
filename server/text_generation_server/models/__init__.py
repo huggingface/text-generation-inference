@@ -5,6 +5,7 @@ from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
 from typing import Optional
+from pathlib import Path
 
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
@@ -75,6 +76,7 @@ def get_model(
     quantize: Optional[str],
     dtype: Optional[str],
     trust_remote_code: bool,
+    peft_model_path: Optional[Path],
 ) -> Model:
     if dtype is None:
         dtype = torch.float16
@@ -180,6 +182,7 @@ def get_model(
                 quantize=quantize,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                peft_model_path=peft_model_path,
             )
 
     elif model_type == "llama":
@@ -200,6 +203,7 @@ def get_model(
                 quantize=quantize,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                peft_model_path=peft_model_path,
             )
 
     if model_type in ["RefinedWeb", "RefinedWebModel", "falcon"]:
@@ -298,6 +302,7 @@ def get_model(
                 quantize=quantize,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                peft_model_path=peft_model_path,
             )
         if "AutoModelForSeq2SeqLM" in auto_map.keys():
             return Seq2SeqLM(

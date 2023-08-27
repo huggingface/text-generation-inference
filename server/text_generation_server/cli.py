@@ -33,6 +33,7 @@ def serve(
     dtype: Optional[Dtype] = None,
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
+    peft_model_path: Optional[Path] = None,
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
@@ -79,7 +80,7 @@ def serve(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
     server.serve(
-        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path
+        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path, peft_model_path
     )
 
 

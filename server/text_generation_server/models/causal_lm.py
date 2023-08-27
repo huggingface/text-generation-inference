@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase, BitsAndBytesConfig
 from typing import Optional, Tuple, List, Type, Dict
+from pathlib import Path
 from peft import PeftModelForCausalLM, get_peft_config, PeftConfig
 
 from text_generation_server.models import Model
@@ -458,6 +459,7 @@ class CausalLM(Model):
         quantize: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
+        peft_model_path: Optional[Path] = None , 
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
@@ -484,8 +486,7 @@ class CausalLM(Model):
                 bnb_4bit_compute_dtype=torch.float16
             )
 
-        has_peft_model = True
-        peft_model_id_or_path = "/mnt/TOFU/HF_MODELS/Llama-2-7b-chat-hf-instruct-pl-lora_adapter_model"
+        has_peft_model = peft_model_path is not None
 
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
@@ -497,8 +498,11 @@ class CausalLM(Model):
             trust_remote_code=trust_remote_code,
         )
         if has_peft_model:
-            with open(f'{peft_model_id_or_path}/adapter_config.json') as config_file:
+            with open(f'{peft_model_path}/adapter_config.json') as config_file:
                 config  = json.load(config_file)
+                # patch to a local path
+                config["base_model_name_or_path"] = model_id
+                # conver to peft model
                 peft_config = get_peft_config(config)
                 model = PeftModelForCausalLM(model, peft_config)
                 ## Llama does not have a load_adapter method - we need to think about hot swapping here and implement this for Llama
