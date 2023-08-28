@@ -2,7 +2,7 @@ from queue import Queue
 from typing import List, Dict, Optional, Tuple
 from service.service import DeepSparseService
 from service.causal_lm import DeepSparseCausalLM
-from utils import CachedBatch, Batch, Generation, GenerateRequest, Request
+from utils import CachedBatch, Batch, Generation, GenerateRequest, Request, GenerationParameters
 
 class DeepSparseRouter:
     def __init__(
@@ -11,10 +11,7 @@ class DeepSparseRouter:
         model_path: Optional[str] = None,
         tokenizer_path: Optional[str] = None
     ):        
-        assert (
-            service is not None or 
-            (model_path is not None and tokenizer_path is not None)
-        )
+        assert service is not None or (model_path is not None and tokenizer_path is not None)
 
         if service is not None:
             self.service = service
@@ -38,14 +35,14 @@ class DeepSparseRouter:
         
         # unblock the batching task with a dummy request if blocked
         self.queue.append(GenerateRequest(
-            prompt="dummy",
-            max_generated_tokens=1,
+            inputs="stop",
+            generation_parameters=GenerationParameters(max_new_tokens=1),
             response_stream=Queue()
         ))
 
     def prefill(
-        self, 
-        batch: Batch, 
+        self,
+        batch: Batch,
         generate_requests: Dict[int, GenerateRequest]
     ) -> Optional[CachedBatch]:
         
@@ -166,17 +163,18 @@ class DeepSparseQueue:
         
         # if block = True, this blocks until something ready
         # if block = False, the queue has data (if not an exception is raised)
-        #       while queue.empty() == False does not guarentee data
-        #       the queue is only subscribed to by one thread (this one)
-        #       since batching_task is the only function that calls next_batch
+        #       while queue.empty() == False typically not guarentee data on next queue.get(), this 
+        #       queue is only subscribed to by one thread (this one) since batching_task is the only
+        #       so it does in our case
+
         generate_request = self.queue.get(block=block)
         generate_requests = {self.next_request_id: generate_request}
 
         # format into request
         request = Request(
             id=self.next_request_id,
-            prompt=generate_request.prompt,
-            max_generated_tokens=generate_request.max_generated_tokens
+            inputs=generate_request.inputs,
+            generation_parameters=generate_request.generation_parameters,
         )
         self.next_request_id += 1
         

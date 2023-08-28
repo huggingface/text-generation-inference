@@ -56,7 +56,7 @@ class DeepSparseService:
         assert len(generations) == 1
         self.cache.set(next_ds_batch)
 
-        return generations[0], next_ds_batch.to_cached_batch()
+        return generations[0], (next_ds_batch.to_cached_batch() if next_ds_batch else None)
 
     def Decode(self, batches: List[CachedBatch]) -> Tuple[List[Generation], CachedBatch]:
         assert len(batches) != 0, "Must provide at least one batch"
