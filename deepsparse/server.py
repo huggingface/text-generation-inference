@@ -11,7 +11,6 @@ from utils import GenerateRequestInputs, GenerateRequestOutputs, GenerateRequest
 
 TOKENIZER_PATH = "/home/robertgshaw/.cache/sparsezoo/neuralmagic/codegen_mono-350m-bigpython_bigquery_thepile-base/deployment"
 MODEL_PATH = "/home/robertgshaw/.cache/sparsezoo/neuralmagic/codegen_mono-350m-bigpython_bigquery_thepile-base/model.onnx/model.onnx"
-MESSAGE_STREAM_RETRY_TIMEOUT = 15000  # milisecond
 
 artifacts = {}
 
@@ -51,38 +50,6 @@ def generate(inputs: GenerateRequestInputs) -> GenerateRequestOutputs:
 
     gr_outputs.finish_reason = generation.finish_reason
     return gr_outputs
-
-@app.post("/generate_stream")
-async def generate_stream(request: fastapi.Request, inputs: GenerateRequestInputs):
-    
-    # convert input to generate request
-    generate_request = GenerateRequest.from_gr_inputs(inputs)
-    
-    # submit request to the router
-    artifacts["router"].submit_request(generate_request)
-
-    async def token_generator(): 
-        while True:
-            if await request.is_disconnected():
-                break
-                
-            generation = generate_request.response_stream.get()
-            if not generation.stopped:
-                yield {
-                    "event": "token_generated",
-                    "id": "message_id",
-                    "retry": MESSAGE_STREAM_RETRY_TIMEOUT,
-                    "data": generation.token
-                }
-            else:
-                yield {
-                    "event": "token_generated",
-                    "id": "message_id",
-                    "retry": MESSAGE_STREAM_RETRY_TIMEOUT,
-                    "data": generation.finish_reason
-                }
-
-    return EventSourceResponse(token_generator())
 
 if __name__ == "__main__":
     uvicorn.run(
