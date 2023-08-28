@@ -1,7 +1,9 @@
+import torch
 from text_generation_server.utils.tokens import (
     StopSequenceCriteria,
     StoppingCriteria,
     FinishReason,
+    batch_top_tokens,
 )
 
 
@@ -42,3 +44,22 @@ def test_stopping_criteria_max():
     assert criteria(1, "") == (False, None)
     assert criteria(1, "") == (False, None)
     assert criteria(1, "") == (True, FinishReason.FINISH_REASON_LENGTH)
+
+def test_batch_top_tokens():
+    top_n_tokens = [0, 2, 3, 4, 5]
+    top_n_tokens_tensor = torch.tensor(top_n_tokens)
+    inp_logprobs = torch.tensor([[-1., -3., -4., -2., -3.]] * 5)
+
+    topn_tok_ids, topn_tok_logprobs = batch_top_tokens(top_n_tokens, top_n_tokens_tensor, inp_logprobs)
+
+    assert topn_tok_ids[0] == []
+    assert topn_tok_ids[1] == [0, 3]
+    assert topn_tok_ids[2] == [0, 3, 1, 4]
+    assert topn_tok_ids[3] == [0, 3, 1, 4]
+    assert topn_tok_ids[4] == [0, 3, 1, 4, 2]
+
+    assert topn_tok_logprobs[0] == []
+    assert topn_tok_logprobs[1] == [-1, -2]
+    assert topn_tok_logprobs[2] == [-1, -2, -3, -3]
+    assert topn_tok_logprobs[3] == [-1, -2, -3, -3]
+    assert topn_tok_logprobs[4] == [-1, -2, -3, -3, -4]
