@@ -125,6 +125,9 @@ def download_weights(
         try:
             adapter_config_filename = hf_hub_download(model_id, revision=revision, filename="adapter_config.json")
             utils.download_and_unload_peft(model_id, revision, trust_remote_code=trust_remote_code)
+            is_local_model = True
+            utils.weight_files(model_id, revision, extension)
+            return
         except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
             pass
 

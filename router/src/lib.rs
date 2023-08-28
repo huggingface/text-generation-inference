@@ -139,6 +139,8 @@ pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(default=json!({}), example=json!({"hello": 0.5}))]
     pub logit_bias: BTreeMap<String, f32>
+    #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 5)]
+    pub top_n_tokens: Option<u32>,
 }
 
 fn default_max_new_tokens() -> u32 {
@@ -163,6 +165,7 @@ fn default_parameters() -> GenerateParameters {
         decoder_input_details: false,
         seed: None,
         logit_bias: BTreeMap::new(),
+        top_n_tokens: None,
     }
 }
 
@@ -240,6 +243,8 @@ pub(crate) struct BestOfSequence {
     pub seed: Option<u64>,
     pub prefill: Vec<PrefillToken>,
     pub tokens: Vec<Token>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub top_tokens: Vec<Vec<Token>>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -254,6 +259,8 @@ pub(crate) struct Details {
     pub tokens: Vec<Token>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub best_of_sequences: Option<Vec<BestOfSequence>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub top_tokens: Vec<Vec<Token>>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -277,6 +284,8 @@ pub(crate) struct StreamDetails {
 #[derive(Serialize, ToSchema)]
 pub(crate) struct StreamResponse {
     pub token: Token,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub top_tokens: Vec<Token>,
     #[schema(nullable = true, default = "null", example = "test")]
     pub generated_text: Option<String>,
     #[schema(nullable = true, default = "null")]

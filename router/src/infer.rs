@@ -138,12 +138,15 @@ impl Infer {
         &self,
         request: GenerateRequest,
     ) -> Result<InferResponse, InferError> {
+        let use_top_tokens = request.parameters.top_n_tokens.is_some_and(|x| x > 0);
+
         // Create stream and keep semaphore permit as long as generate lives
         let (_permit, mut stream) = self.generate_stream(request).await?;
 
         // Return values
         let mut result_prefill = Vec::new();
         let mut result_tokens = Vec::new();
+        let mut result_top_tokens = Vec::new();
         let mut result_generated_text = None;
         let mut result_start = None;
         let mut result_queued = None;
@@ -164,7 +167,10 @@ impl Infer {
                         .collect();
                 }
                 // Push last token
-                InferStreamResponse::Token(token) => result_tokens.push(token),
+                InferStreamResponse::Intermediate { token, top_tokens } => {
+                    result_tokens.push(token);
+                    result_top_tokens.push(top_tokens);
+                }
                 // Final message
                 // Set return values
                 InferStreamResponse::End {
@@ -172,8 +178,10 @@ impl Infer {
                     generated_text,
                     start,
                     queued,
+                    top_tokens,
                 } => {
                     result_tokens.push(token);
+                    result_top_tokens.push(top_tokens);
                     result_generated_text = Some(generated_text);
                     result_start = Some(start);
                     result_queued = Some(queued)
@@ -191,6 +199,11 @@ impl Infer {
                 generated_text,
                 queued,
                 start,
+                top_tokens: if use_top_tokens {
+                    result_top_tokens
+                } else {
+                    Vec::new()
+                },
             })
         } else {
             let err = InferError::IncompleteGeneration;
@@ -520,6 +533,26 @@ fn send_responses(
         special: generation.token_is_special,
     };
 
+    // generation.top_tokens
+
+    let mut top_tokens = Vec::new();
+    if let Some(top_tokens_) = generation.top_tokens {
+        top_tokens.extend(
+            top_tokens_
+                .ids
+                .into_iter()
+                .zip(top_tokens_.logprobs.into_iter())
+                .zip(top_tokens_.texts.into_iter())
+                .zip(top_tokens_.is_special.into_iter())
+                .map(|(((id, logprob), text), special)| Token {
+                    id,
+                    text,
+                    logprob,
+                    special,
+                }),
+        )
+    }
+
     if let Some(generated_text) = generation.generated_text {
         // Generation has ended
         stopped = true;
@@ -527,6 +560,7 @@ fn send_responses(
         entry.response_tx.send_timeout(
             Ok(InferStreamResponse::End {
                 token,
+                top_tokens,
                 generated_text,
                 queued: entry.queue_time,
                 start: entry.batch_time.unwrap(),
@@ -536,7 +570,7 @@ fn send_responses(
     } else {
         // Send message
         entry.response_tx.send_timeout(
-            Ok(InferStreamResponse::Token(token)),
+            Ok(InferStreamResponse::Intermediate { token, top_tokens }),
             Duration::from_millis(10),
         )?;
     }
@@ -566,10 +600,14 @@ pub(crate) enum InferStreamResponse {
     // Optional first message
     Prefill(PrefillTokens),
     // Intermediate messages
-    Token(Token),
+    Intermediate {
+        token: Token,
+        top_tokens: Vec<Token>,
+    },
     // Last message
     End {
         token: Token,
+        top_tokens: Vec<Token>,
         generated_text: GeneratedText,
         start: Instant,
         queued: Instant,
@@ -583,6 +621,7 @@ pub(crate) struct InferResponse {
     pub(crate) generated_text: GeneratedText,
     pub(crate) queued: Instant,
     pub(crate) start: Instant,
+    pub(crate) top_tokens: Vec<Vec<Token>>,
 }
 
 #[derive(Debug, Error)]
