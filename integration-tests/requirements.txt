@@ -1,5 +1,0 @@
-syrupy==4.0.2
-text-generation
-pytest
-pytest-asyncio==0.17.2
-docker
