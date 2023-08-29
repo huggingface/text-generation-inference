@@ -34,6 +34,7 @@ peft = "^0.4.0"
 torch = { version = "^2.0.1" }
 scipy = "^1.11.1"
 pillow = "^10.0.0"
+syrupy = "4.0.2"
 
 [tool.poetry.extras]
 accelerate = ["accelerate"]
