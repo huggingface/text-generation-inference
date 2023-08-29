@@ -189,6 +189,7 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb = PositionRotaryEmbedding.static(
             dim=self.head_size, base=config.rope_theta, device=weights.device,
+            config=config
         )
 
         self.softmax_scale = self.head_size**-0.5
