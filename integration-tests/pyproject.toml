@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "text-generation-integration-tests"
+version = "1.0.3"
+description = "Text Generation Inference integration tests"
+authors = ["Nicolas Patry <nicolas@huggingface.co>"]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+syrupy = "4.0.1"
+text-generation = "^0.6.0"
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.1"
+docker = "^6.1.3"
