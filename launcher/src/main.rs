@@ -100,6 +100,13 @@ struct Args {
     #[clap(default_value = "bigscience/bloom-560m", long, env)]
     model_id: String,
 
+    /// The name of the peft model to load.
+    /// Can be a PEFT_MODEL_ID as listed on <https://hf.co/models> like
+    /// Or it can be a local directory containing the necessary files (adapter_model.bin)
+    /// as saved by `save_pretrained(...)` methods of transformers
+    #[clap(long, env)]
+    peft_model_id: Option<String>,
+
     /// The actual revision of the model if you're referring to a model
     /// on the hub. You can use a specific commit id or a branch like `refs/pr/2`.
     #[clap(long, env)]
@@ -347,6 +354,7 @@ enum ShardStatus {
 #[allow(clippy::too_many_arguments)]
 fn shard_manager(
     model_id: String,
+    peft_model_id: Option<String>,
     revision: Option<String>,
     quantize: Option<Quantization>,
     dtype: Option<Dtype>,
@@ -391,6 +399,10 @@ fn shard_manager(
         "--json-output".to_string(),
     ];
 
+    if let Some(peft_model_id) = peft_model_id {
+        shard_args.push("--peft-model-id".to_string());
+        shard_args.push(peft_model_id)
+    }
     // Activate trust remote code
     if trust_remote_code {
         shard_args.push("--trust-remote-code".to_string());
@@ -846,6 +858,7 @@ fn spawn_shards(
     // Start shard processes
     for rank in 0..num_shard {
         let model_id = args.model_id.clone();
+        let peft_model_id = args.peft_model_id.clone();
         let revision = args.revision.clone();
         let uds_path = args.shard_uds_path.clone();
         let master_addr = args.master_addr.clone();
@@ -868,6 +881,7 @@ fn spawn_shards(
         thread::spawn(move || {
             shard_manager(
                 model_id,
+                peft_model_id,
                 revision,
                 quantize,
                 dtype,

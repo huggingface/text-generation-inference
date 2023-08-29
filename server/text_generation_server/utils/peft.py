@@ -31,7 +31,6 @@ def download_and_unload_peft(model_id, revision, trust_remote_code):
     logger.info(f"Merging the lora weights.")
 
     base_model_id = model.peft_config["default"].base_model_name_or_path
-
     model = model.merge_and_unload()
     
     os.makedirs(model_id, exist_ok=True)

@@ -27,6 +27,7 @@ class Dtype(str, Enum):
 @app.command()
 def serve(
     model_id: str,
+    peft_model_id: str = None,
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: Optional[Quantization] = None,
@@ -78,8 +79,9 @@ def serve(
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
+    logger.info(f"{peft_model_id=}")
     server.serve(
-        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path
+        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path, peft_model_id
     )
 
 

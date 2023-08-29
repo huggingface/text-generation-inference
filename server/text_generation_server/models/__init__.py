@@ -75,6 +75,7 @@ def get_model(
     quantize: Optional[str],
     dtype: Optional[str],
     trust_remote_code: bool,
+    peft_model_id: str,
 ) -> Model:
     if dtype is None:
         dtype = torch.float16
@@ -85,6 +86,7 @@ def get_model(
     else:
         raise RuntimeError(f"Unknown dtype {dtype}")
 
+    logger.info(f"In get models {peft_model_id=}")
     if "facebook/galactica" in model_id:
         return GalacticaSharded(
             model_id,
@@ -120,6 +122,7 @@ def get_model(
         model_id, revision=revision, trust_remote_code=trust_remote_code
     )
     model_type = config_dict["model_type"]
+    logger.info(f"Model type is {model_type=}")
 
     if model_type == "gpt_bigcode":
         if FLASH_ATTENTION:
@@ -217,20 +220,24 @@ def get_model(
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Falcon"))
         else:
             if FLASH_ATTENTION and not config_dict.get("alibi", False):
+                logger.error("In Flash RW")
                 return FlashRWSharded(
                     model_id,
                     revision,
                     quantize=quantize,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
+                    peft_model_id=peft_model_id,
                 )
             else:
+                logger.error(f"Value not none {peft_model_id=}")
                 return RW(
                     model_id,
                     revision,
                     quantize=quantize,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
+                    peft_model_id=peft_model_id
                 )
 
     elif model_type == "opt":
@@ -273,6 +280,7 @@ def get_model(
             "4bit quantization is not supported for AutoModel"
         )
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+        logger.error("In CausalLM")
         return CausalLM(
             model_id,
             revision,

@@ -123,7 +123,9 @@ def serve(
     dtype: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
+    peft_model_id: str
 ):
+    logger.info(f"Receiving peft {peft_model_id=}")
     async def serve_inner(
         model_id: str,
         revision: Optional[str],
@@ -131,6 +133,7 @@ def serve(
         quantize: Optional[str] = None,
         dtype: Optional[str] = None,
         trust_remote_code: bool = False,
+        peft_model_id: str = None,
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:
@@ -144,8 +147,9 @@ def serve(
             server_urls = [local_url]
 
         try:
+            logger.exception(f"In server {peft_model_id=}")
             model = get_model(
-                model_id, revision, sharded, quantize, dtype, trust_remote_code
+                model_id, revision, sharded, quantize, dtype, trust_remote_code, peft_model_id
             )
         except Exception:
             logger.exception("Error when initializing model")
@@ -193,5 +197,5 @@ def serve(
             await server.stop(0)
 
     asyncio.run(
-        serve_inner(model_id, revision, sharded, quantize, dtype, trust_remote_code)
+        serve_inner(model_id, revision, sharded, quantize, dtype, trust_remote_code, peft_model_id)
     )
