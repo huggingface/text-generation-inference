@@ -322,16 +322,6 @@ files = [
 ]
 
 [[package]]
-name = "colored"
-version = "1.4.4"
-description = "Simple library for color and formatting to terminal"
-optional = false
-python-versions = "*"
-files = [
-    {file = "colored-1.4.4.tar.gz", hash = "sha256:04ff4d4dd514274fe3b99a21bb52fb96f2688c01e93fba7bef37221e7cb56ce0"},
-]
-
-[[package]]
 name = "datasets"
 version = "2.14.4"
 description = "HuggingFace community-driven open-source library of datasets"
@@ -1966,21 +1956,6 @@ files = [
 mpmath = ">=0.19"
 
 [[package]]
-name = "syrupy"
-version = "4.0.2"
-description = "Pytest Snapshot Test Utility"
-optional = false
-python-versions = ">=3.8.1,<4"
-files = [
-    {file = "syrupy-4.0.2-py3-none-any.whl", hash = "sha256:dfd1f0fad298eee753de4f2471d4346412c4435885c4b7beea648d4934c6620a"},
-    {file = "syrupy-4.0.2.tar.gz", hash = "sha256:3c75ab6866580679b2cb9abe78e74c3e2011fffc6333651c6beb2a78a716ab80"},
-]
-
-[package.dependencies]
-colored = ">=1.3.92,<2.0.0"
-pytest = ">=7.0.0,<8.0.0"
-
-[[package]]
 name = "texttable"
 version = "1.6.7"
 description = "module to create simple ASCII tables"
@@ -2530,4 +2505,4 @@ quantize = ["accelerate", "datasets", "texttable"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "d63895759eebb6b38e24ff173eb55ff519a620a4aaf7a0c3b7ddfd1fdf33f716"
+content-hash = "f2ef5f41a172d14985367a385ad6ce844c8c05b2d68d9ddcc11b41f581921c96"
