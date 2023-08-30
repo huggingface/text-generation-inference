@@ -191,6 +191,7 @@ async fn generate(
                                 response.generated_text.finish_reason,
                             ),
                             generated_tokens: response.generated_text.generated_tokens,
+                            input_tokens: response.input_tokens,
                             prefill: response.prefill,
                             tokens: response.tokens,
                             seed: response.generated_text.seed,
@@ -202,6 +203,7 @@ async fn generate(
             Some(Details {
                 finish_reason: FinishReason::from(response.generated_text.finish_reason),
                 generated_tokens: response.generated_text.generated_tokens,
+                input_tokens: response.input_tokens,
                 prefill: response.prefill,
                 tokens: response.tokens,
                 seed: response.generated_text.seed,
@@ -380,12 +382,15 @@ async fn generate_stream(
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, mut response_stream)) => {
                     // Server-Sent Event stream
+                    let mut number_input_tokens = 0;
                     while let Some(response) = response_stream.next().await {
                         match response {
                             Ok(response) => {
                                 match response {
-                                    // Prefill is ignored
-                                    InferStreamResponse::Prefill(_) => {}
+                                    // Prefill is only used for initial num input tokens
+                                    InferStreamResponse::Prefill(prefill_tokens) => {
+                                        number_input_tokens = prefill_tokens.ids.len() as u32;
+                                    }
                                     // Yield event for every new token
                                     InferStreamResponse::Token(token) => {
                                         tracing::debug!(parent: &span, "Token: {:?}", token);
@@ -411,6 +416,7 @@ async fn generate_stream(
                                             true => Some(StreamDetails {
                                                 finish_reason: FinishReason::from(generated_text.finish_reason),
                                                 generated_tokens: generated_text.generated_tokens,
+                                                input_tokens: number_input_tokens,
                                                 seed: generated_text.seed,
                                             }),
                                             false => None,

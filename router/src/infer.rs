@@ -147,6 +147,7 @@ impl Infer {
         let mut result_generated_text = None;
         let mut result_start = None;
         let mut result_queued = None;
+        let mut number_input_tokens = 0;
 
         // Iterate on stream
         while let Some(response) = stream.next().await {
@@ -155,6 +156,7 @@ impl Infer {
                 InferStreamResponse::Prefill(tokens) => {
                     // Create Token objects
                     // We do that here instead of in the Python code as Rust for loops are faster
+                    number_input_tokens = tokens.ids.len() as u32;
                     result_prefill = tokens
                         .ids
                         .into_iter()
@@ -188,6 +190,7 @@ impl Infer {
             Ok(InferResponse {
                 prefill: result_prefill,
                 tokens: result_tokens,
+                input_tokens: number_input_tokens,
                 generated_text,
                 queued,
                 start,
@@ -581,6 +584,7 @@ pub(crate) struct InferResponse {
     pub(crate) prefill: Vec<PrefillToken>,
     pub(crate) tokens: Vec<Token>,
     pub(crate) generated_text: GeneratedText,
+    pub(crate) input_tokens: u32,
     pub(crate) queued: Instant,
     pub(crate) start: Instant,
 }

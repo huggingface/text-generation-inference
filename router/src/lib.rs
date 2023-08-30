@@ -231,6 +231,8 @@ pub(crate) struct BestOfSequence {
     pub finish_reason: FinishReason,
     #[schema(example = 1)]
     pub generated_tokens: u32,
+    #[schema(example = 100)]
+    pub input_tokens: u32,
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
     pub prefill: Vec<PrefillToken>,
@@ -243,6 +245,8 @@ pub(crate) struct Details {
     pub finish_reason: FinishReason,
     #[schema(example = 1)]
     pub generated_tokens: u32,
+    #[schema(example = 100)]
+    pub input_tokens: u32,
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
     pub prefill: Vec<PrefillToken>,
@@ -265,6 +269,8 @@ pub(crate) struct StreamDetails {
     pub finish_reason: FinishReason,
     #[schema(example = 1)]
     pub generated_tokens: u32,
+    #[schema(example = 100)]
+    pub input_tokens: u32,
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
 }

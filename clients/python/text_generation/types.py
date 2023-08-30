@@ -211,6 +211,8 @@ class StreamDetails(BaseModel):
     finish_reason: FinishReason
     # Number of generated tokens
     generated_tokens: int
+    # Number of input tokens
+    input_tokens: int
     # Sampling seed if sampling was activated
     seed: Optional[int]
 
