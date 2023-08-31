@@ -54,7 +54,10 @@ class FlashRWSharded(FlashCausalLM):
             device,
             dtype,
             process_group=self.process_group,
-            aliases={"lm_head.weight": ["transformer.word_embeddings.weight"]},
+            aliases={
+                "lm_head.weight": ["transformer.word_embeddings.weight"],
+                "transformer.word_embeddings.weight": ["lm_head.weight"],
+            },
         )
 
         config.quantize = quantize
