@@ -18,6 +18,7 @@ The following models are optimized and can be served with TGI, which uses custom
 - [Falcon 40B](https://huggingface.co/tiiuae/falcon-40b)
 - [MPT](https://huggingface.co/mosaicml/mpt-30b)
 - [Llama V2](https://huggingface.co/meta-llama)
+- [Codellama](https://huggingface.co/codellama)
 
 If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models:
 

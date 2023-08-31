@@ -18,7 +18,8 @@ Text Generation Inference implements many optimizations and features, such as:
 - Logits warper (temperature scaling, top-p, top-k, repetition penalty)
 - Stop sequences
 - Log probabilities
-
+- Custom Prompt Generation: Easily generate text by providing custom prompts to guide the model's output.
+- Fine-tuning Support: Utilize fine-tuned models for specific tasks to achieve higher accuracy and performance.
 
 Text Generation Inference is used in production by multiple projects, such as:
 
