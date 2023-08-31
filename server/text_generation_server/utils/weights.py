@@ -222,7 +222,7 @@ class Weights:
         return bits, groupsize
 
     def _set_gptq_params(self, model_id):
-        filename = "quantize_config.json"
+        filename = "config.json"
         try:
             if os.path.exists(os.path.join(model_id, filename)):
                 filename = os.path.join(model_id, filename)
@@ -230,7 +230,18 @@ class Weights:
                 filename = hf_hub_download(model_id, filename=filename)
             with open(filename, "r") as f:
                 data = json.load(f)
-            self.gptq_bits = data["bits"]
-            self.gptq_groupsize = data["group_size"]
+            self.gptq_bits = data["quantization_config"]["bits"]
+            self.gptq_groupsize = data["quantization_config"]["group_size"]
         except Exception:
-            pass
+            filename = "quantize_config.json"
+            try:
+                if os.path.exists(os.path.join(model_id, filename)):
+                    filename = os.path.join(model_id, filename)
+                else:
+                    filename = hf_hub_download(model_id, filename=filename)
+                with open(filename, "r") as f:
+                    data = json.load(f)
+                self.gptq_bits = data["bits"]
+                self.gptq_groupsize = data["group_size"]
+            except Exception:
+                pass
