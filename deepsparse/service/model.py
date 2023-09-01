@@ -7,7 +7,7 @@ from typing import Optional, List, Dict
 from deepsparse import Context
 from deepsparse.engine import LIB
 from deepsparse.pipeline import DEEPSPARSE_ENGINE, create_engine
-from deepsparse.transformers.utils.helpers import overwrite_onnx_model_inputs, create_causal_mask
+from deepsparse.transformers.utils.helpers import overwrite_onnx_model_inputs_for_kv_cache_models, create_causal_mask
 
 PAST_KEY_VALUES_NAME = "past_key_values"
 
@@ -27,7 +27,7 @@ class DeepSparseDecoderEngine:
     ):
         
         # setup ONNX graph
-        onnx_file_path, cached_outputs, data_type = overwrite_onnx_model_inputs(
+        onnx_file_path, cached_outputs, data_type = overwrite_onnx_model_inputs_for_kv_cache_models(
             onnx_file_path=onnx_file_path,
             batch_size=1,
             sequence_length=sequence_length,

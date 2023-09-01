@@ -1,5 +1,4 @@
 import fastapi, uvicorn
-from sse_starlette.sse import EventSourceResponse
 from contextlib import asynccontextmanager
 
 from threading import Thread
@@ -9,15 +8,20 @@ from typing import Optional
 from router import DeepSparseRouter, batching_task
 from utils import GenerateRequestInputs, GenerateRequestOutputs, GenerateRequest
 
-TOKENIZER_PATH = "/home/robertgshaw/.cache/sparsezoo/neuralmagic/codegen_mono-350m-bigpython_bigquery_thepile-base/deployment"
-MODEL_PATH = "/home/robertgshaw/.cache/sparsezoo/neuralmagic/codegen_mono-350m-bigpython_bigquery_thepile-base/model.onnx/model.onnx"
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--deployment-dir", type=str)
+
+args = parser.parse_args()
+deployment_dir = args.deployment_dir
+model_path = deployment_dir + "/model.onnx"
 
 artifacts = {}
 
 @asynccontextmanager
 async def lifespan(app: fastapi.FastAPI):
     print("\n--------------------       Building Router               --------------------\n")
-    artifacts["router"] = DeepSparseRouter(model_path=MODEL_PATH, tokenizer_path=TOKENIZER_PATH)
+    artifacts["router"] = DeepSparseRouter(model_path=model_path, tokenizer_path=deployment_dir)
 
     print("\n--------------------       Starting Batching Task        --------------------\n")
     batching_thread = Thread(target=batching_task, args=[artifacts["router"]])
