@@ -121,9 +121,9 @@ If you're using the free Inference API, you can use `HfInference`. If you're usi
 We can create a `HfInferenceEndpoint` providing our endpoint URL and credential.
 
 ```js
-import { HfInference } from '@huggingface/inference'
+import { HfInferenceEndpoint } from '@huggingface/inference'
 
-const hf = new HfInference('https://YOUR_ENDPOINT.endpoints.huggingface.cloud', 'hf_YOUR_TOKEN')
+const hf = new HfInferenceEndpoint('https://YOUR_ENDPOINT.endpoints.huggingface.cloud', 'hf_YOUR_TOKEN')
 
 // prompt
 const prompt = 'What can you do in Nuremberg, Germany? Give me 3 Tips'
