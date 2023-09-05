@@ -62,7 +62,7 @@ class Weights:
     def get_shape(self, tensor_name: str):
         return self._get_slice(tensor_name).get_shape()
 
-    def get_tensor(self, tensor_name: str):
+    def get_tensor(self, tensor_name: str, to_device = True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         tensor = f.get_tensor(tensor_name)
@@ -70,7 +70,8 @@ class Weights:
         # u4 which are disguised as int32
         if tensor.dtype not in [torch.int32, torch.int64]:
             tensor = tensor.to(dtype=self.dtype)
-        tensor = tensor.to(device=self.device)
+        if to_device:
+            tensor = tensor.to(device=self.device)
         return tensor
 
     def get_partial_sharded(self, tensor_name: str, dim: int):
@@ -137,6 +138,22 @@ class Weights:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
             weight = torch.cat(w, dim=dim)
         return weight
+    
+    def get_tensor_shard(self, var, dim):
+        world_size = self.process_group.size()
+        rank = self.process_group.rank()
+        block_size = var.size()[dim] // world_size
+        start = rank * block_size
+        stop = (rank + 1) * block_size
+        if dim == 0:
+            tensor = var[start:stop]
+        elif dim == 1:
+            tensor = var[:, start:stop]
+        else:
+            raise NotImplementedError("Let's make that generic when needed")
+        tensor = tensor.to(dtype=self.dtype)
+        tensor = tensor.to(device=self.device)
+        return tensor 
 
     def get_multi_weights_row(self, prefix: str, quantize: str):
         if quantize == "gptq":

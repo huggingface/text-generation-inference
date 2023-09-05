@@ -208,13 +208,37 @@ class FlashLlamaAttention(torch.nn.Module):
         if config.num_attention_heads != config.num_key_value_heads:
             self.query_key_value = _load_gqa(config, prefix, weights)
         else:
-            self.query_key_value = TensorParallelColumnLinear.load_multi(
-                config,
-                prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-                dim=0,
-                weights=weights,
-                bias=False,
-            )
+            try:
+                def load_packed(cls, config, prefix: str, weights, bias: bool):
+                    packed_tensor = weights.get_tensor(prefix, to_device=False)
+                    #QKV
+                    total_size = packed_tensor.size()[0]
+                    single_size = total_size // 3
+                    q_tensor = packed_tensor[0: single_size, :]
+                    k_tensor = packed_tensor[single_size: single_size * 2, :]
+                    v_tensor = packed_tensor[single_size * 2 : total_size, :]
+                    q_weight = weights.get_tensor_shard(q_tensor, dim = 0)
+                    k_weight = weights.get_tensor_shard(k_tensor, dim = 0)
+                    v_weight = weights.get_tensor_shard(v_tensor, dim = 0)
+                    weight = torch.concat([q_weight, k_weight, v_weight], dim = 0)
+                    return cls(get_linear(weight, None, config.quantize))
+                
+                self.query_key_value = load_packed(TensorParallelColumnLinear, 
+                    config,
+                    prefix=f"{prefix}.W_pack.weight",
+                    weights=weights,
+                    bias=False,
+                    )
+                
+            except:
+                self.query_key_value = TensorParallelColumnLinear.load_multi(
+                    config,
+                    prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+                    dim=0,
+                    weights=weights,
+                    bias=False,
+                )
+
         self.o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
