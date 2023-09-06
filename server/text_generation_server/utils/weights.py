@@ -170,10 +170,10 @@ class Weights:
                     "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
                 )
 
-            from text_generation_server.utils.layers import HAS_EXLLAMA
+            from text_generation_server.utils.layers import HAS_EXLLAMA, CAN_EXLLAMA
 
             if use_exllama:
-                if not HAS_EXLLAMA:
+                if not HAS_EXLLAMA and CAN_EXLLAMA:
                     logger.warning(
                         "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True"
                     )
