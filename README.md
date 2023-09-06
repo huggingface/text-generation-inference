@@ -82,7 +82,6 @@ text-generation-launcher --help
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route. The 
 Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
 
-
 ### A note on Shared Memory (shm)
 
 [`NCCL`](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html) is a communication framework used by
