@@ -173,10 +173,11 @@ class Weights:
             from text_generation_server.utils.layers import HAS_EXLLAMA, CAN_EXLLAMA
 
             if use_exllama:
-                if not HAS_EXLLAMA and CAN_EXLLAMA:
-                    logger.warning(
-                        "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True"
-                    )
+                if not HAS_EXLLAMA:
+                    if CAN_EXLLAMA:
+                        logger.warning(
+                            "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True"
+                        )
                     use_exllama = False
                 else:
                     logger.info("Using exllama kernels")
