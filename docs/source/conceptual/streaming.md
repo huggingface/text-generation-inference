@@ -137,7 +137,7 @@ for await (const r of stream) {
 
 ## How does Streaming work under the hood?
 
-Under the hood, TGI uses Server-Sent Events (SSE). In an SSE Setup, a client sends a request with the data, opening an HTTP connection and subscribing to updates. Afterward, the server sends data to the client. There is no need for further requests; the server will keep sending the data. SSEs are unidirectional, meaning the client does not send other requests to the server. SSE sends data over HTTP, making it easy to use. One of the limitations of Server-Sent Events is that they limit how many concurrent requests can be handled by the server, but in the context of TGI, backpressure is handled, so this issue will not happen.
+Under the hood, TGI uses Server-Sent Events (SSE). In an SSE Setup, a client sends a request with the data, opening an HTTP connection and subscribing to updates. Afterward, the server sends data to the client. There is no need for further requests; the server will keep sending the data. SSEs are unidirectional, meaning the client does not send other requests to the server. SSE sends data over HTTP, making it easy to use.
 
 SSEs are different than:
 * Polling: where the client keeps calling the server to get data. This means that the server might return empty responses and cause overhead.
