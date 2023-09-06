@@ -18,7 +18,10 @@ from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
 
-major, _minor = torch.cuda.get_device_capability()
+try:
+    major, _minor = torch.cuda.get_device_capability()
+except Exception:
+    major = 1
 HAS_EXLLAMA = False
 CAN_EXLLAMA = major >= 8
 if os.getenv("DISABLE_EXLLAMA") == "True":
