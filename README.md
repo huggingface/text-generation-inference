@@ -16,7 +16,21 @@ to power Hugging Chat, the Inference API and Inference Endpoint.
 
 </div>
 
-## 
+## Table of contents
+
+- [Get Started](#get-started)
+  - [API Documentation](#api-documentation)
+  - [Using a private or gated model](#using-a-private-or-gated-model)
+  - [A note on Shared Memory](#a-note-on-shared-memory-shm)
+  - [Distributed Tracing](#distributed-tracing)
+  - [Local Install](#local-install)
+  - [CUDA Kernels](#cuda-kernels)
+- [Optimized architectures](#optimized-architectures)
+- [Run Falcon](#run-falcon)
+  - [Run](#run)
+  - [Quantization](#quantization)
+- [Develop](#develop)
+- [Testing](#testing)
 
 Text Generation Inference (TGI) is a toolkit for deploying and serving Large Language Models (LLMs). TGI enables high-performance text generation for the most popular open-source LLMs, including Llama, Falcon, StarCoder, BLOOM, GPT-NeoX, and [more](https://huggingface.co/docs/text-generation-inference/supported_models). TGI implements many features, such as:
 
@@ -63,19 +77,7 @@ To see all options to serve your models (in the [code](https://github.com/huggin
 text-generation-launcher --help
 ```
 
-## Optimized architectures
-
-TGI works out of the box to serve optimized models in [this list](https://huggingface.co/docs/text-generation-inference/supported_models).
-
-Other architectures are supported on a best-effort basis using:
-
-`AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
-
-or
-
-`AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")`
-
-## API documentation
+### API documentation
 
 You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route. The 
 Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
@@ -163,6 +165,20 @@ The custom CUDA kernels are only tested on NVIDIA A100s. If you have any install
 the kernels by using the `DISABLE_CUSTOM_KERNELS=True` environment variable.
 
 Be aware that the official Docker image has them enabled by default.
+
+## Optimized architectures
+
+TGI works out of the box to serve optimized models in [this list](https://huggingface.co/docs/text-generation-inference/supported_models).
+
+Other architectures are supported on a best-effort basis using:
+
+`AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
+
+or
+
+`AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")`
+
+
 
 ## Run Falcon
 
