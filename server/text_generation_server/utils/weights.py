@@ -170,13 +170,14 @@ class Weights:
                     "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
                 )
 
-            from text_generation_server.utils.layers import HAS_EXLLAMA
+            from text_generation_server.utils.layers import HAS_EXLLAMA, CAN_EXLLAMA
 
             if use_exllama:
                 if not HAS_EXLLAMA:
-                    logger.warning(
-                        "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True"
-                    )
+                    if CAN_EXLLAMA:
+                        logger.warning(
+                            "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True"
+                        )
                     use_exllama = False
                 else:
                     logger.info("Using exllama kernels")
@@ -222,7 +223,7 @@ class Weights:
         return bits, groupsize
 
     def _set_gptq_params(self, model_id):
-        filename = "quantize_config.json"
+        filename = "config.json"
         try:
             if os.path.exists(os.path.join(model_id, filename)):
                 filename = os.path.join(model_id, filename)
@@ -230,7 +231,18 @@ class Weights:
                 filename = hf_hub_download(model_id, filename=filename)
             with open(filename, "r") as f:
                 data = json.load(f)
-            self.gptq_bits = data["bits"]
-            self.gptq_groupsize = data["group_size"]
+            self.gptq_bits = data["quantization_config"]["bits"]
+            self.gptq_groupsize = data["quantization_config"]["group_size"]
         except Exception:
-            pass
+            filename = "quantize_config.json"
+            try:
+                if os.path.exists(os.path.join(model_id, filename)):
+                    filename = os.path.join(model_id, filename)
+                else:
+                    filename = hf_hub_download(model_id, filename=filename)
+                with open(filename, "r") as f:
+                    data = json.load(f)
+                self.gptq_bits = data["bits"]
+                self.gptq_groupsize = data["group_size"]
+            except Exception:
+                pass

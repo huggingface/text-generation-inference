@@ -1,5 +1,6 @@
 import math
 import itertools
+from text_generation_server.utils.tokens import batch_top_tokens
 import torch
 import torch.distributed
 
@@ -16,6 +17,7 @@ from text_generation_server.models.types import (
     PrefillTokens,
     Generation,
     GeneratedText,
+    TopTokens,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
@@ -165,6 +167,8 @@ class FlashCausalLMBatch(Batch):
     # Generation helpers
     next_token_chooser: HeterogeneousNextTokenChooser
     stopping_criterias: List[StoppingCriteria]
+    top_n_tokens: List[int]
+    top_n_tokens_tensor: torch.Tensor
 
     # Number of blocks in this batch
     blocks: int
@@ -217,6 +221,7 @@ class FlashCausalLMBatch(Batch):
 
         next_token_chooser_parameters = []
         stopping_criterias = []
+        top_n_tokens = []
 
         # Cumulative length
         cumulative_length = 0
@@ -259,6 +264,7 @@ class FlashCausalLMBatch(Batch):
             )
             max_new_tokens = stopping_criteria.max_new_tokens
             stopping_criterias.append(stopping_criteria)
+            top_n_tokens.append(r.top_n_tokens)
 
             # Paged attention
             # Remove one as the first token des not have a past
@@ -352,6 +358,9 @@ class FlashCausalLMBatch(Batch):
             prefill_next_token_indices = torch.tensor(
                 prefill_next_token_indices, dtype=torch.int64, device=device
             )
+        top_n_tokens_tensor = torch.tensor(
+            top_n_tokens, device=device, dtype=torch.int64
+        )
 
         return cls(
             batch_id=pb.id,
@@ -378,6 +387,8 @@ class FlashCausalLMBatch(Batch):
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_chooser=next_token_chooser,
             stopping_criterias=stopping_criterias,
+            top_n_tokens=top_n_tokens,
+            top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
         )
@@ -417,6 +428,7 @@ class FlashCausalLMBatch(Batch):
         read_offsets = []
 
         stopping_criterias = []
+        top_n_tokens = []
 
         blocks = 0
         max_blocks = 0
@@ -442,6 +454,8 @@ class FlashCausalLMBatch(Batch):
 
             stopping_criteria = self.stopping_criterias[idx]
             stopping_criterias.append(stopping_criteria)
+
+            top_n_tokens.append(self.top_n_tokens[idx])
 
             remaining_tokens = (
                 stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
@@ -487,6 +501,7 @@ class FlashCausalLMBatch(Batch):
         input_lengths_tensor = self.input_lengths_tensor[indices]
         slots = self.slots[slot_filtering_indices]
         next_token_chooser = self.next_token_chooser.filter(indices)
+        top_n_tokens_tensor = self.top_n_tokens_tensor[indices]
 
         start_slots = torch.tensor(start_slots, dtype=torch.int64)
 
@@ -518,6 +533,8 @@ class FlashCausalLMBatch(Batch):
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_chooser=next_token_chooser,
             stopping_criterias=stopping_criterias,
+            top_n_tokens=top_n_tokens,
+            top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
         )
@@ -566,6 +583,9 @@ class FlashCausalLMBatch(Batch):
         all_input_ids_tensor = batches[0].all_input_ids_tensor.new_zeros(
             (total_batch_size, max_length)
         )
+        top_n_tokens_tensor = batches[0].top_n_tokens_tensor.new_zeros(
+            total_batch_size,
+        )
 
         start_slots = []
         block_tables = []
@@ -577,6 +597,7 @@ class FlashCausalLMBatch(Batch):
 
         next_token_chooser_parameters = []
         stopping_criterias = []
+        top_n_tokens = []
 
         # Cumulative length
         cumulative_batch_size = 0
@@ -602,6 +623,7 @@ class FlashCausalLMBatch(Batch):
             position_ids[start_index:end_index] = batch.position_ids
             slot_indices[start_index:end_index] = batch.slot_indices + cumulative_slots
             input_lengths_tensor[start_index:end_index] = batch.input_lengths_tensor
+            top_n_tokens_tensor[start_index:end_index] = batch.top_n_tokens_tensor
             slots[slots_start_index:slots_end_index] = batch.slots
 
             all_input_ids_tensor[
@@ -623,6 +645,8 @@ class FlashCausalLMBatch(Batch):
 
             next_token_chooser_parameters.extend([r.parameters for r in batch.requests])
             stopping_criterias.extend(batch.stopping_criterias)
+
+            top_n_tokens.extend(batch.top_n_tokens)
 
             # Update
             cumulative_batch_size += len(batch)
@@ -666,6 +690,8 @@ class FlashCausalLMBatch(Batch):
             all_input_ids_tensor=all_input_ids_tensor,
             next_token_chooser=next_token_chooser,
             stopping_criterias=stopping_criterias,
+            top_n_tokens=top_n_tokens,
+            top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
         )
@@ -831,8 +857,12 @@ class FlashCausalLM(Model):
         else:
             next_token_logits = out
 
-        next_input_ids, next_token_logprobs = batch.next_token_chooser(
+        next_input_ids, next_token_logprobs, logprobs = batch.next_token_chooser(
             batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits
+        )
+
+        batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
+            batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs
         )
 
         if prefill:
@@ -931,8 +961,11 @@ class FlashCausalLM(Model):
             batch.all_input_ids,
             batch.next_token_chooser.do_sample,
             batch.next_token_chooser.seeds,
+            batch.top_n_tokens,
             next_token_ids,
             next_token_logprobs,
+            batch_top_token_ids,
+            batch_top_token_logprobs,
         )
 
         # For each member of the batch
@@ -945,8 +978,11 @@ class FlashCausalLM(Model):
             all_input_ids,
             do_sample,
             seed,
+            top_n_tokens,
             next_token_id,
             next_token_logprob,
+            top_token_ids,
+            top_token_logprobs,
         ) in enumerate(iterator):
             # Append next token to all tokens
             all_input_ids.append(next_token_id)
@@ -1005,6 +1041,24 @@ class FlashCausalLM(Model):
                 else:
                     prefill_tokens = None
 
+                if top_n_tokens > 0:
+                    toptoken_texts = self.tokenizer.batch_decode(
+                        top_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    special_toptokens = [
+                        token_id in self.all_special_ids for token_id in top_token_ids
+                    ]
+                    top_tokens = TopTokens(
+                        top_token_ids,
+                        top_token_logprobs,
+                        toptoken_texts,
+                        special_toptokens,
+                    )
+                else:
+                    top_tokens = None
+
                 generation = Generation(
                     request.id,
                     prefill_tokens,
@@ -1013,6 +1067,7 @@ class FlashCausalLM(Model):
                     next_token_text,
                     next_token_id in self.all_special_ids,
                     generated_text,
+                    top_tokens,
                 )
 
                 generations.append(generation)
