@@ -7,7 +7,7 @@ Tensor parallelism is a technique used to fit a large model in multiple GPUs. Fo
 
 <Tip warning={true}>
 
-Tensor Parallelism only works for models officially supported, it will not work when falling back on `transformers`. You can get more information about unsupported models [here](./basic_tutorials/non_core_models.md).
+Tensor Parallelism only works for [models officially supported](../supported_models), it will not work when falling back to `transformers`. You can get more information about unsupported models [here](../basic_tutorials/non_core_models).
 
 </Tip>
 
