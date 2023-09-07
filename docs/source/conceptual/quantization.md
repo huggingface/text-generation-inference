@@ -6,7 +6,7 @@ TGI offers GPTQ and bits-and-bytes quantization to quantize large language model
 
 GPTQ is a post-training quantization method to make the model smaller. It quantizes each weight by finding a compressed version of that weight, that will yield a minimum mean squared error like below 👇 
 
-Given a layer \(l\) with weight matrix \(W_{l}\) and layer input \(X_{l}\), find quantized weight \(\hat{W}_{l}\):
+Given a layer \\(l\\) with weight matrix \\(W_{l}\\) and layer input \\(X_{l}\\), find quantized weight \\(\\hat{W}_{l}\\):
 
 $$({\hat{W}_{l}}^{*} = argmin_{\hat{W_{l}}} ||W_{l}X-\hat{W}_{l}X||^{2}_{2})$$
 
