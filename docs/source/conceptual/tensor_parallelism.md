@@ -11,4 +11,4 @@ Tensor Parallelism only works for models officially supported, it will not work 
 
 </Tip>
 
-You can learn more in-depth about tensor-parallelism from `transformers` docs in this [link](https://huggingface.co/docs/transformers/main/en/perf_train_gpu_many#tensor-parallelism).
+You can learn a lot more details about tensor-parallelism from [the `transformers` docs](https://huggingface.co/docs/transformers/main/en/perf_train_gpu_many#tensor-parallelism).
