@@ -48,7 +48,7 @@ In TGI, you can use 8-bit quantization by adding `--quantize bitsandbytes` like 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --quantize --bitsandbytes
 ```
 
-4-bit Float (FP4) and 4-bit NormalFloat (NF4) are two data types introduced to use with QLoRA technique, a parameter-efficient fine-tuning technique. These data types can also be used to make a pre-trained model smaller. TGI essentially uses these data types to quantize an already trained model before the inference.
+4-bit quantization is also possible with bitsandbytes. You can choose one of the following 4-bit data types: 4-bit float (`fp4`), or 4-bit `NormalFloat` (`nf4`). These data types were introduced in the context of parameter-efficient fine-tuning, but you can apply them for inference by automatically converting the model weights on load.
 
 In TGI, you can use 4-bit quantization by adding `--quantize bitsandbytes-nf4` or `--quantize bitsandbytes-fp4` like below 👇 
 
