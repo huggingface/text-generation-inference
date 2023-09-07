@@ -21,6 +21,8 @@
 - sections:
   - local: conceptual/streaming
     title: Streaming
+  - local: conceptual/safetensors
+    title: Safetensors
   - local: conceptual/flash_attention
     title: Flash Attention
   title: Conceptual Guides
