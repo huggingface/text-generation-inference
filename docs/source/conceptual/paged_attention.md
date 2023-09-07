@@ -4,6 +4,6 @@ LLMs struggle with memory limitations during generation. In the decoding part of
 
 PagedAttention addresses the memory waste by partitioning the KV cache into blocks, allowing keys and values to be stored in non-contiguous memory. This approach improves GPU utilization and throughput.
 
-PagedAttention keeps a block table for memory sharing. This enables e.g. parallel sampling, where for a given prompt, multiple outputs are generated, and the computation and memory are shared between the outputs.
+The use of a lookup table to access the memory blocks can also help with KV sharing across multiple generations. This is helpful for techniques such as _parallel sampling_, where multiple outputs are generated simultaneously for the same prompt. In this case, the cached KV blocks can be shared among the generations.
 
 You can learn more about PagedAttention by reading the documentation [here](https://vllm.ai/).
