@@ -11,7 +11,7 @@ Given a layer \\(l\\) with weight matrix \\(W_{l}\\) and layer input \\(X_{l}\\)
 $$({\hat{W}_{l}}^{*} = argmin_{\hat{W_{l}}} ||W_{l}X-\hat{W}_{l}X||^{2}_{2})$$
 
 
-TGI allows you to both run an already GPTQ quantized model (see available models [here](https://huggingface.co/models?search=gptq)) or quantize a model of your choice using quantization script by simply passing --quantize like below 👇 
+TGI allows you to both run an already GPTQ quantized model (see available models [here](https://huggingface.co/models?search=gptq)) or quantize a model of your choice using quantization script. You can run a quantized model by simply passing --quantize like below 👇 
 
 ```bash
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --quantize gptq
@@ -19,7 +19,7 @@ docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingf
 
 Note that TGI's GPTQ implementation is different than [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ). 
 
-To run quantization only with a calibration dataset, simply run
+To quantize a given model using GPTQ with a calibration dataset, simply run
 
 ```bash
 text-generation-server quantize tiiuae/falcon-40b /data/falcon-40b-gptq
