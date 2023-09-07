@@ -75,6 +75,7 @@ class Client:
         typical_p: Optional[float] = None,
         watermark: bool = False,
         decoder_input_details: bool = False,
+        top_n_tokens: Optional[int] = None,
     ) -> Response:
         """
         Given a prompt, generate the following text
@@ -113,6 +114,8 @@ class Client:
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
             decoder_input_details (`bool`):
                 Return the decoder input token logprobs and ids
+            top_n_tokens (`int`):
+                Return the `n` most likely tokens at each step
 
         Returns:
             Response: generated response
@@ -134,6 +137,7 @@ class Client:
             typical_p=typical_p,
             watermark=watermark,
             decoder_input_details=decoder_input_details,
+            top_n_tokens=top_n_tokens
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
@@ -164,6 +168,7 @@ class Client:
         truncate: Optional[int] = None,
         typical_p: Optional[float] = None,
         watermark: bool = False,
+        top_n_tokens: Optional[int] = None,
     ) -> Iterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens
@@ -198,6 +203,8 @@ class Client:
                 See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
+            top_n_tokens (`int`):
+                Return the `n` most likely tokens at each step
 
         Returns:
             Iterator[StreamResponse]: stream of generated tokens
@@ -219,6 +226,7 @@ class Client:
             truncate=truncate,
             typical_p=typical_p,
             watermark=watermark,
+            top_n_tokens=top_n_tokens,
         )
         request = Request(inputs=prompt, stream=True, parameters=parameters)
 
@@ -317,6 +325,7 @@ class AsyncClient:
         typical_p: Optional[float] = None,
         watermark: bool = False,
         decoder_input_details: bool = False,
+        top_n_tokens: Optional[int] = None,
     ) -> Response:
         """
         Given a prompt, generate the following text asynchronously
@@ -355,6 +364,8 @@ class AsyncClient:
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
             decoder_input_details (`bool`):
                 Return the decoder input token logprobs and ids
+            top_n_tokens (`int`):
+                Return the `n` most likely tokens at each step
 
         Returns:
             Response: generated response
@@ -376,6 +387,7 @@ class AsyncClient:
             truncate=truncate,
             typical_p=typical_p,
             watermark=watermark,
+            top_n_tokens=top_n_tokens,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
@@ -404,6 +416,7 @@ class AsyncClient:
         truncate: Optional[int] = None,
         typical_p: Optional[float] = None,
         watermark: bool = False,
+        top_n_tokens: Optional[int] = None,
     ) -> AsyncIterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens asynchronously
@@ -438,6 +451,8 @@ class AsyncClient:
                 See [Typical Decoding for Natural Language Generation](https://arxiv.org/abs/2202.00666) for more information
             watermark (`bool`):
                 Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
+            top_n_tokens (`int`):
+                Return the `n` most likely tokens at each step
 
         Returns:
             AsyncIterator[StreamResponse]: stream of generated tokens
@@ -459,6 +474,7 @@ class AsyncClient:
             truncate=truncate,
             typical_p=typical_p,
             watermark=watermark,
+            top_n_tokens=top_n_tokens,
         )
         request = Request(inputs=prompt, stream=True, parameters=parameters)
 

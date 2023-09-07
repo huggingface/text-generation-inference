@@ -23,4 +23,6 @@
     title: Streaming
   - local: conceptual/paged_attention
     title: PagedAttention
+  - local: conceptual/flash_attention
+    title: Flash Attention
   title: Conceptual Guides

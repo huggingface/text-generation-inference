@@ -37,6 +37,7 @@ pub(crate) async fn generation_task(
     batch_size: Vec<u32>,
     sequence_length: u32,
     decode_length: u32,
+    top_n_tokens: Option<u32>,
     n_runs: usize,
     warmups: usize,
     parameters: NextTokenChooserParameters,
@@ -48,7 +49,7 @@ pub(crate) async fn generation_task(
     // End task if a message is received on shutdown_receiver
     // _shutdown_guard_sender will be dropped once the task is finished
     tokio::select! {
-        res = generate_runs(tokenizer, batch_size, sequence_length, decode_length, n_runs, warmups, parameters, client, run_sender.clone())  => {
+        res = generate_runs(tokenizer, batch_size, sequence_length, decode_length, top_n_tokens, n_runs, warmups, parameters, client, run_sender.clone())  => {
             if let Err(err) = res {
                 run_sender.send(Err(err)).await.unwrap_or(());
             }
@@ -64,6 +65,7 @@ async fn generate_runs(
     batch_size: Vec<u32>,
     sequence_length: u32,
     decode_length: u32,
+    top_n_tokens: Option<u32>,
     n_runs: usize,
     warmups: usize,
     parameters: NextTokenChooserParameters,
@@ -82,6 +84,7 @@ async fn generate_runs(
                 b,
                 decode_length,
                 parameters.clone(),
+                top_n_tokens,
                 &mut client,
             )
             .await?;
@@ -97,6 +100,7 @@ async fn generate_runs(
                 b,
                 decode_length,
                 parameters.clone(),
+                top_n_tokens,
                 &mut client,
             )
             .await?;
@@ -130,6 +134,7 @@ async fn prefill(
     batch_size: u32,
     decode_length: u32,
     parameters: NextTokenChooserParameters,
+    top_n_tokens: Option<u32>,
     client: &mut ShardedClient,
 ) -> Result<(Prefill, CachedBatch), ClientError> {
     // Create requests
@@ -145,6 +150,7 @@ async fn prefill(
                 stop_sequences: vec![],
                 ignore_eos_token: true, // Will not stop even if a eos token is generated
             }),
+            top_n_tokens: top_n_tokens.unwrap_or(0),
         })
         .collect();
 

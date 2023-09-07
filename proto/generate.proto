@@ -91,6 +91,8 @@ message Request {
     StoppingCriteriaParameters stopping_parameters = 5;
     /// Return prefill logprobs
     bool prefill_logprobs = 6;
+    /// Return most likely n tokens
+    uint32 top_n_tokens = 7;
 }
 
 message Batch {
@@ -141,6 +143,17 @@ message PrefillTokens {
     repeated string texts = 3;
 }
 
+message TopTokens {
+    /// Top Token IDs
+    repeated uint32 ids = 1;
+    /// Top Logprobs
+    repeated float logprobs = 2;
+    /// Top Token Texts
+    repeated string texts = 3;
+    /// If the tokens are special
+    repeated bool is_special = 6;
+}
+
 message Generation {
     /// Request ID
     uint64 request_id = 1;
@@ -156,6 +169,8 @@ message Generation {
     bool token_is_special = 6;
     /// Complete generated text
     optional GeneratedText generated_text = 7;
+    /// Top tokens
+    TopTokens top_tokens = 8;
 }
 
 message FilterBatchRequest {

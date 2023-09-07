@@ -121,9 +121,9 @@ If you're using the free Inference API, you can use `HfInference`. If you're usi
 We can create a `HfInferenceEndpoint` providing our endpoint URL and credential.
 
 ```js
-import { HfInference } from '@huggingface/inference'
+import { HfInferenceEndpoint } from '@huggingface/inference'
 
-const hf = new HfInference('https://YOUR_ENDPOINT.endpoints.huggingface.cloud', 'hf_YOUR_TOKEN')
+const hf = new HfInferenceEndpoint('https://YOUR_ENDPOINT.endpoints.huggingface.cloud', 'hf_YOUR_TOKEN')
 
 // prompt
 const prompt = 'What can you do in Nuremberg, Germany? Give me 3 Tips'
@@ -143,6 +143,4 @@ SSEs are different than:
 * Polling: where the client keeps calling the server to get data. This means that the server might return empty responses and cause overhead.
 * Webhooks: where there is a bi-directional connection. The server can send information to the client, but the client can also send data to the server after the first request. Webhooks are more complex to operate as they don’t only use HTTP.
 
-One of the limitations of Server-Sent Events is that they limit how many concurrent requests can handle by the server. Instead of timing out when there are too many SSE connections, TGI returns a HTTP Error with an `overloaded` error type (`huggingface_hub` returns `OverloadedError`). This allows the client to manage the overloaded server (e.g. it could display a busy error to the user or it could retry with a new request). To configure the maximum number of concurrent requests, you can specify `--max_concurrent_requests`, allowing to handle backpressure.
-
-One of the limitations of Server-Sent Events is that they limit how many concurrent requests can handle by the server. Instead of timing out when there are too many SSE connections, TGI returns an HTTP Error with an `overloaded` error type (`huggingface_hub` returns `OverloadedError`). This allows the client to manage the overloaded server (e.g., it could display a busy error to the user or retry with a new request). To configure the maximum number of concurrent requests, you can specify `--max_concurrent_requests`, allowing clients to handle backpressure.
+If there are too many requests at the same time, TGI returns an HTTP Error with an `overloaded` error type (`huggingface_hub` returns `OverloadedError`). This allows the client to manage the overloaded server (e.g., it could display a busy error to the user or retry with a new request). To configure the maximum number of concurrent requests, you can specify `--max_concurrent_requests`, allowing clients to handle backpressure.

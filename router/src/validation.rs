@@ -15,6 +15,7 @@ pub struct Validation {
     /// Validation parameters
     max_best_of: usize,
     max_stop_sequences: usize,
+    max_top_n_tokens: u32,
     max_input_length: usize,
     max_total_tokens: usize,
     /// Channel to communicate with the background tokenization task
@@ -27,6 +28,7 @@ impl Validation {
         tokenizer: Option<Tokenizer>,
         max_best_of: usize,
         max_stop_sequences: usize,
+        max_top_n_tokens: u32,
         max_input_length: usize,
         max_total_tokens: usize,
     ) -> Self {
@@ -54,6 +56,7 @@ impl Validation {
             max_best_of,
             sender,
             max_stop_sequences,
+            max_top_n_tokens,
             max_input_length,
             max_total_tokens,
         }
@@ -142,6 +145,7 @@ impl Validation {
             seed,
             watermark,
             decoder_input_details,
+            top_n_tokens,
             ..
         } = request.parameters;
 
@@ -218,6 +222,15 @@ impl Validation {
             }
         };
 
+        let top_n_tokens = top_n_tokens
+            .map(|value| {
+                if value > self.max_top_n_tokens {
+                    return Err(ValidationError::TopNTokens(self.max_top_n_tokens, value));
+                }
+                Ok(value)
+            })
+            .unwrap_or(Ok(0))?;
+
         // Check if inputs is empty
         if request.inputs.is_empty() {
             return Err(EmptyInput);
@@ -263,6 +276,7 @@ impl Validation {
             truncate: truncate.unwrap_or(self.max_input_length) as u32,
             parameters,
             stopping_parameters,
+            top_n_tokens: top_n_tokens,
         })
     }
 
@@ -336,6 +350,7 @@ pub(crate) struct ValidGenerateRequest {
     pub decoder_input_details: bool,
     pub parameters: NextTokenChooserParameters,
     pub stopping_parameters: StoppingCriteriaParameters,
+    pub top_n_tokens: u32,
 }
 
 #[derive(Error, Debug)]
@@ -350,6 +365,10 @@ pub enum ValidationError {
     BestOfSeed,
     #[error("`best_of` != 1 is not supported when streaming tokens")]
     BestOfStream,
+    #[error("`top_n_tokens` must be >= 0 and <= {0}. Given: {1}")]
+    TopNTokens(u32, u32),
+    #[error("`top_n_tokens` != 0 is not allowed for this endpoint")]
+    TopNTokensDisabled,
     #[error("`decoder_input_details` == true is not supported when streaming tokens")]
     PrefillDetailsStream,
     #[error("`temperature` must be strictly positive")]
@@ -391,14 +410,16 @@ mod tests {
         let tokenizer = None;
         let max_best_of = 2;
         let max_stop_sequence = 3;
-        let max_input_length = 4;
-        let max_total_tokens = 5;
+        let max_top_n_tokens = 4;
+        let max_input_length = 5;
+        let max_total_tokens = 6;
         let workers = 1;
         let validation = Validation::new(
             workers,
             tokenizer,
             max_best_of,
             max_stop_sequence,
+            max_top_n_tokens,
             max_input_length,
             max_total_tokens,
         );
@@ -418,14 +439,16 @@ mod tests {
         let tokenizer = Some(get_tokenizer().await);
         let max_best_of = 2;
         let max_stop_sequence = 3;
-        let max_input_length = 4;
-        let max_total_tokens = 5;
+        let max_top_n_tokens = 4;
+        let max_input_length = 5;
+        let max_total_tokens = 6;
         let workers = 1;
         let validation = Validation::new(
             workers,
             tokenizer,
             max_best_of,
             max_stop_sequence,
+            max_top_n_tokens,
             max_input_length,
             max_total_tokens,
         );
@@ -435,7 +458,7 @@ mod tests {
             .validate_input("Hello".to_string(), None, max_new_tokens)
             .await
         {
-            Err(ValidationError::MaxTotalTokens(5, 1, 10)) => (),
+            Err(ValidationError::MaxTotalTokens(6, 1, 10)) => (),
             _ => panic!("Unexpected not max new tokens"),
         }
     }
@@ -445,14 +468,16 @@ mod tests {
         let tokenizer = Some(get_tokenizer().await);
         let max_best_of = 2;
         let max_stop_sequence = 3;
-        let max_input_length = 4;
-        let max_total_tokens = 5;
+        let max_top_n_tokens = 4;
+        let max_input_length = 5;
+        let max_total_tokens = 6;
         let workers = 1;
         let validation = Validation::new(
             workers,
             tokenizer,
             max_best_of,
             max_stop_sequence,
+            max_top_n_tokens,
             max_input_length,
             max_total_tokens,
         );
@@ -477,14 +502,16 @@ mod tests {
         let tokenizer = Some(get_tokenizer().await);
         let max_best_of = 2;
         let max_stop_sequence = 3;
-        let max_input_length = 4;
-        let max_total_tokens = 5;
+        let max_top_n_tokens = 4;
+        let max_input_length = 5;
+        let max_total_tokens = 6;
         let workers = 1;
         let validation = Validation::new(
             workers,
             tokenizer,
             max_best_of,
             max_stop_sequence,
+            max_top_n_tokens,
             max_input_length,
             max_total_tokens,
         );
@@ -530,5 +557,76 @@ mod tests {
             .unwrap();
         // top_p == 1.0 is invalid for users to ask for but it's the default resolved value.
         assert_eq!(valid_request.parameters.top_p, 1.0);
+    }
+
+    #[tokio::test]
+    async fn test_validation_top_n_tokens() {
+        let tokenizer = Some(get_tokenizer().await);
+        let max_best_of = 2;
+        let max_stop_sequences = 3;
+        let max_top_n_tokens = 4;
+        let max_input_length = 5;
+        let max_total_tokens = 6;
+        let workers = 1;
+        let validation = Validation::new(
+            workers,
+            tokenizer,
+            max_best_of,
+            max_stop_sequences,
+            max_top_n_tokens,
+            max_input_length,
+            max_total_tokens,
+        );
+        match validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                parameters: GenerateParameters {
+                    top_n_tokens: Some(5),
+                    ..default_parameters()
+                },
+            })
+            .await
+        {
+            Err(ValidationError::TopNTokens(4, 5)) => (),
+            _ => panic!("Unexpected top_n_tokens"),
+        }
+
+        validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                parameters: GenerateParameters {
+                    top_n_tokens: Some(4),
+                    max_new_tokens: 1,
+                    ..default_parameters()
+                },
+            })
+            .await
+            .unwrap();
+
+        validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                parameters: GenerateParameters {
+                    top_n_tokens: Some(0),
+                    max_new_tokens: 1,
+                    ..default_parameters()
+                },
+            })
+            .await
+            .unwrap();
+
+        let valid_request = validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                parameters: GenerateParameters {
+                    top_n_tokens: None,
+                    max_new_tokens: 1,
+                    ..default_parameters()
+                },
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(valid_request.top_n_tokens, 0);
     }
 }
