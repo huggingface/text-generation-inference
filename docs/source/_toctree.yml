@@ -22,5 +22,5 @@
   - local: conceptual/streaming
     title: Streaming
   - local: conceptual/paged_attention
-    title: Paged Attention
+    title: PagedAttention
   title: Conceptual Guides
