@@ -7,6 +7,7 @@ pub(crate) fn parameters_table(
     tokenizer_name: String,
     sequence_length: u32,
     decode_length: u32,
+    top_n_tokens: Option<u32>,
     n_runs: usize,
     warmups: usize,
     temperature: Option<f32>,
@@ -24,6 +25,7 @@ pub(crate) fn parameters_table(
     builder.push_record(["Model", &tokenizer_name]);
     builder.push_record(["Sequence Length", &sequence_length.to_string()]);
     builder.push_record(["Decode Length", &decode_length.to_string()]);
+    builder.push_record(["Top N Tokens", &format!("{top_n_tokens:?}")]);
     builder.push_record(["N Runs", &n_runs.to_string()]);
     builder.push_record(["Warmups", &warmups.to_string()]);
     builder.push_record(["Temperature", &format!("{temperature:?}")]);

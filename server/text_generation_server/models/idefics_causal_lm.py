@@ -763,6 +763,8 @@ class IdeficsCausalLM(Model):
                 else:
                     prefill_tokens = None
 
+                top_tokens=None
+
                 generation = Generation(
                     request.id,
                     prefill_tokens,
@@ -771,6 +773,7 @@ class IdeficsCausalLM(Model):
                     next_token_text,
                     next_token_id_squeezed.item() in self.all_special_ids,
                     generated_text,
+                    top_tokens
                 )
 
                 generations.append(generation)
