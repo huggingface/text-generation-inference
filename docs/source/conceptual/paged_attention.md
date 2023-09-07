@@ -1,6 +1,6 @@
 # PagedAttention
 
-LLMs struggle with memory limitations during generation. In the decoding part of generation, all input tokens generated keys and values are stored in GPU memory, also referred to as _KV cache_. KV cache is exhaustive for memory, which causes inefficiencies in LLM serving.
+LLMs struggle with memory limitations during generation. In the decoding part of generation, all the attention keys and values generated for previous tokens are stored in GPU memory for reuse. This is called _KV cache_, and it may take up a large amount of memory for large models and long sequences.
 
 PagedAttention addresses the memory waste by partitioning the KV cache into blocks, allowing keys and values to be stored in non-contiguous memory. This approach improves GPU utilization and throughput.
 
