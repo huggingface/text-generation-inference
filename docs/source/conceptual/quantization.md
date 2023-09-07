@@ -45,7 +45,7 @@ bitsandbytes is a library used to apply 8-bit and 4-bit quantization to models. 
 In TGI, you can use 8-bit quantization by adding `--quantize bitsandbytes` like below 👇
 
 ```bash
-docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --quantize --bitsandbytes-nf4
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --quantize --bitsandbytes
 ```
 
 4-bit Float (FP4) and 4-bit NormalFloat (NF4) are two data types introduced to use with QLoRA technique, a parameter-efficient fine-tuning technique. These data types can also be used to make a pre-trained model smaller. TGI essentially uses these data types to quantize an already trained model before the inference.
