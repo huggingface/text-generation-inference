@@ -50,6 +50,7 @@ impl Health {
                     stop_sequences: vec![],
                     ignore_eos_token: false,
                 }),
+                top_n_tokens: 0,
             };
             let batch = Batch {
                 id: BATCH_ID,

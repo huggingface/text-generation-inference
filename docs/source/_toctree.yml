@@ -23,4 +23,8 @@
     title: Streaming
   - local: conceptual/tensor_parallelism
     title: Tensor Parallelism
+  - local: conceptual/safetensors
+    title: Safetensors
+  - local: conceptual/flash_attention
+    title: Flash Attention
   title: Conceptual Guides
