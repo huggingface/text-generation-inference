@@ -8,7 +8,7 @@ You can serve these models using Docker like below 👇
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id gpt2
 ```
 
-If the model you wish to serve is a custom transformers model, but weights and implementation is included in the repository, you can still serve the model by passing `--trust-remote-code` flag to `docker run` command like below 👇 
+If the model you wish to serve is a custom transformers model, and its weights and implementation are available in the Hub, you can still serve the model by passing the `--trust-remote-code` flag to the `docker run` command like below 👇 
 
 ```bash
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id <CUSTOM_MODEL_ID> --trust-remote-code
