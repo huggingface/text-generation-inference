@@ -14,4 +14,10 @@ If the model you wish to serve is a custom transformers model, and its weights a
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id <CUSTOM_MODEL_ID> --trust-remote-code
 ```
 
+Finally, if the model is not on Hugging Face Hub but on your local, you can pass the path to the folder that contains your model like below 👇 
+
+```bash
+docker run --platform linux/x86_64 --shm-size 1g --net=host -p 8080:80 -v $volume:/data -e CUDA_VISIBLE_DEVICES= ghcr.io/huggingface/text-generation-inference:latest --model-id <PATH-TO-FOLDER>
+```
+
 You can refer to [transformers docs on custom models](https://huggingface.co/docs/transformers/main/en/custom_models) for more information.
