@@ -28,6 +28,10 @@ AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
 AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")
 ```
 
+If you wish to serve a different version of a model that exists in a local folder, you can use `weight-cache-override` flag like below 👇 
+```bash
+text-generation-launcher --model-id bigscience/bloom --weights-cache-override <PATH-TO-LOCAL-BLOOM>
+```
 
 ## Supported Hardware
 
