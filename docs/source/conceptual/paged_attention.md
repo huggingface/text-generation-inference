@@ -1,4 +1,4 @@
-# Paged Attention
+# PagedAttention
 
 LLMs struggle with memory limitations during generation. In the decoding part of generation, all input tokens generated keys and values are stored in GPU memory, also referred to as _KV cache_. KV cache is exhaustive for memory, which causes inefficiencies in LLM serving.
 
