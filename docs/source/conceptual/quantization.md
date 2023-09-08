@@ -4,7 +4,7 @@ TGI offers GPTQ and bits-and-bytes quantization to quantize large language model
 
 ## Quantization with GPTQ
 
-GPTQ is a post-training quantization method to make the model smaller. It quantizes each weight by finding a compressed version of that weight, that will yield a minimum mean squared error like below 👇 
+GPTQ is a post-training quantization method to make the model smaller. It quantizes the layers by finding a compressed version of that weight, that will yield a minimum mean squared error like below 👇 
 
 Given a layer \\(l\\) with weight matrix \\(W_{l}\\) and layer input \\(X_{l}\\), find quantized weight \\(\\hat{W}_{l}\\):
 
@@ -17,7 +17,7 @@ TGI allows you to both run an already GPTQ quantized model (see available models
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:latest --model-id $model --quantize gptq
 ```
 
-Note that TGI's GPTQ implementation is different than [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ). 
+Note that TGI's GPTQ implementation doesn't use [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) under the hood. However, models quantized using AutoGPTQ or Optimum can still be served by TGI. 
 
 To quantize a given model using GPTQ with a calibration dataset, simply run
 
