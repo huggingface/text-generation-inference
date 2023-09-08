@@ -23,6 +23,8 @@
     title: Streaming
   - local: conceptual/quantization
     title: Quantization
+  - local: conceptual/paged_attention
+    title: PagedAttention
   - local: conceptual/safetensors
     title: Safetensors
   - local: conceptual/flash_attention
