@@ -149,6 +149,26 @@ class LlamaRMSNorm(nn.Module):
             return normed_hidden_states, res
 
 
+def load_attention(config, prefix, weights):
+    if config.num_attention_heads != config.num_key_value_heads:
+        return _load_gqa(config, prefix, weights)
+    else:
+        if config.model_type == "baichuan":
+            return TensorParallelColumnLinear.load_qkv(
+                config,
+                prefix=f"{prefix}.W_pack",
+                weights=weights,
+                bias=False,
+            )
+        else:
+            return TensorParallelColumnLinear.load_multi(
+                config,
+                prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+                dim=0,
+                weights=weights,
+                bias=False,
+            )
+
 def _load_gqa(config, prefix: str, weights):
     assert config.hidden_size % config.num_attention_heads == 0
     assert config.num_attention_heads % weights.process_group.size() == 0
@@ -205,16 +225,9 @@ class FlashLlamaAttention(torch.nn.Module):
         self.num_key_value_heads = (
             config.num_key_value_heads // weights.process_group.size()
         )
-        if config.num_attention_heads != config.num_key_value_heads:
-            self.query_key_value = _load_gqa(config, prefix, weights)
-        else:
-            self.query_key_value = TensorParallelColumnLinear.load_multi(
-                config,
-                prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-                dim=0,
-                weights=weights,
-                bias=False,
-            )
+
+        self.query_key_value = load_attention(config, prefix, weights)
+
         self.o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
