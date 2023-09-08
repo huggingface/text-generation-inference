@@ -183,7 +183,12 @@ class IdeficsImageProcessor(BaseImageProcessor):
         elif isinstance(image_url_or_urls, str):
             response = requests.get(image_url_or_urls, stream=True, headers=headers)
             response.raise_for_status()
-            return Image.open(BytesIO(response.content))
+            try:
+                image = Image.open(BytesIO(response.content))
+                image.verify()
+            except Exception:
+                raise ValueError(f"Could not load image from url {image_url_or_urls}")    
+            return image
         else:
             raise ValueError(f"only a single or a list of entries is supported but got type={type(image_url_or_urls)}")
 
