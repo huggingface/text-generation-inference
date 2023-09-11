@@ -129,6 +129,17 @@ def get_model(
     config_dict, _ = PretrainedConfig.get_config_dict(
         model_id, revision=revision, trust_remote_code=trust_remote_code
     )
+
+    use_medusa = None
+    if "medusa_num_heads" in config_dict:
+        use_medusa = model_id
+        medusa_config = config_dict
+        model_id = config_dict["base_model_name_or_path"]
+        revision = "main"
+        config_dict, _ = PretrainedConfig.get_config_dict(
+            model_id, revision=revision, trust_remote_code=trust_remote_code
+        )
+
     model_type = config_dict["model_type"]
 
     if model_type == "gpt_bigcode":
@@ -204,6 +215,7 @@ def get_model(
                 quantize=quantize,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                use_medusa=use_medusa
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
