@@ -17,6 +17,8 @@ service TextGenerationService {
     rpc Prefill (PrefillRequest) returns (PrefillResponse);
     /// Decode token for a list of prefilled batches
     rpc Decode (DecodeRequest) returns (DecodeResponse);
+    /// Add to speculative ids to the given requests
+    rpc Speculate (SpeculateRequest) returns (SpeculateResponse);
     /// Health check
     rpc Health (HealthRequest) returns (HealthResponse);
 }
@@ -93,6 +95,17 @@ message Request {
     bool prefill_logprobs = 6;
     /// Return most likely n tokens
     uint32 top_n_tokens = 7;
+    /// The speculative generation
+    optional string speculate = 8;
+}
+
+message Speculate {
+    /// Request ID to speculate on
+    uint64 id = 1;
+    /// The generation context
+    string inputs = 2;
+    /// Context truncation
+    string speculation = 3;
 }
 
 message Batch {
@@ -209,6 +222,17 @@ message DecodeResponse {
     /// Next batch (cached)
     optional CachedBatch batch = 2;
 }
+
+message SpeculateRequest {
+    /// Cached batches
+    repeated Speculate speculations = 1;
+}
+
+message SpeculateResponse {
+    // Next batch (cached)
+    // optional CachedBatch batch = 2;
+}
+
 
 message WarmupRequest {
     /// Batch to warmup on

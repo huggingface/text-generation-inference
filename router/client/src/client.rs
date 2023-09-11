@@ -132,6 +132,7 @@ impl Client {
                 }),
                 prefill_logprobs: true,
                 top_n_tokens: 20,
+                speculate: None
             });
             n_tokens += max_input_length;
         }
@@ -160,6 +161,18 @@ impl Client {
         let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
         Ok((response.generations, response.batch))
+    }
+
+    /// Add speculation proposal to existing requests
+    ///
+    #[instrument(skip_all)]
+    pub async fn speculate(
+        &mut self,
+        speculations: Vec<Speculate>,
+    ) -> Result<()> {
+        let request = tonic::Request::new(SpeculateRequest { speculations }).inject_context();
+        let _response = self.stub.speculate(request).await?.into_inner();
+        Ok(())
     }
 
     /// Generate one token for each request in the given cached batches

@@ -336,6 +336,10 @@ struct Args {
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
     env: bool,
+
+    /// Use speculation on a given model_id
+    #[clap(long, short)]
+    speculate_model_id: Option<String>,
 }
 
 #[derive(Debug)]
