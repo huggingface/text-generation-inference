@@ -28,13 +28,12 @@ AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
 AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")
 ```
 
-If you wish to serve a supported model that already exists on a local folder, Just point to the local folder.
+If you wish to serve a supported model that already exists on a local folder, just point to the local folder.
 
-text-generation-launcher --model-id <PATH-TO-LOCAL-BLOOM>
- 
 ```bash
-text-generation-launcher --model-id bigscience/bloom --weights-cache-override <PATH-TO-LOCAL-BLOOM>
-```
+text-generation-launcher --model-id <PATH-TO-LOCAL-BLOOM>
+``````
+
 
 ## Supported Hardware
 
