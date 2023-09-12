@@ -21,6 +21,8 @@
 - sections:
   - local: conceptual/streaming
     title: Streaming
+  - local: conceptual/quantization
+    title: Quantization
   - local: conceptual/tensor_parallelism
     title: Tensor Parallelism
   - local: conceptual/paged_attention
