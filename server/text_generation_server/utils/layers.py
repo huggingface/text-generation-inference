@@ -17,6 +17,7 @@ except ImportError:
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
+from text_generation_server.utils.awq.quantize.qmodule import WQLinear
 
 try:
     major, _minor = torch.cuda.get_device_capability()
@@ -248,6 +249,19 @@ def get_linear(weight, bias, quantize):
                 bits,
                 groupsize,
             )
+    elif quantize == "awq":
+        try:
+            qweight, qzeros, scales, bits, groupsize = weight
+        except Exception:
+            raise NotImplementedError(
+                f"The passed weight is not `awq` compatible, loader needs to be updated."
+            )
+        in_features = qweight.shape[0]
+        out_features = qweight.shape[1] * 32 // bits
+        linear = WQLinear(w_bit=bits, group_size=groupsize, in_features=in_features, out_features=out_features, bias=bias is not None, dev=qweight.device)
+        linear.qweight = qweight
+        linear.qzeros = qzeros
+        linear.scales = scales
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
@@ -283,8 +297,8 @@ class TensorParallelHead(SuperLayer):
             weight = weights.get_tensor(f"{prefix}.weight")
             should_gather = False
 
-        # GPTQ doesn't quantize heads (nor embeddings)
-        if config.quantize == "gptq":
+        # GPTQ and AWQ don't quantize heads (nor embeddings)
+        if config.quantize in ["gptq", "awq"]:
             quantize = None
         else:
             quantize = config.quantize
