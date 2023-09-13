@@ -1008,9 +1008,11 @@ class FlashCausalLM(Model):
             if i % self.world_size == self.rank:
                 if stop:
                     # Decode generated tokens
-                    output_text = self.decode(
-                        all_input_ids[-stopping_criteria.current_tokens :]
+                    output_text = self.decode_generated_tokens(
+                        all_input_ids,
+                        stopping_criteria.current_tokens,
                     )
+                    
                     generated_text = GeneratedText(
                         output_text,
                         stopping_criteria.current_tokens,

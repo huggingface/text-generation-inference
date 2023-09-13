@@ -641,8 +641,8 @@ class CausalLM(Model):
             if i % self.world_size == self.rank:
                 if stop:
                     # Decode generated tokens
-                    output_text = self.decode(
-                        all_input_ids[-stopping_criteria.current_tokens :, 0]
+                    output_text = self.decode_generated_tokens(
+                        all_input_ids[:, 0], stopping_criteria.current_tokens
                     )
                     # Get seed
                     if isinstance(next_token_chooser.choice, Sampling):

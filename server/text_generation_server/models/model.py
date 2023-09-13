@@ -85,6 +85,21 @@ class Model(ABC):
             return new_text, read_offset, len(all_input_ids)
         else:
             return "", prefix_offset, read_offset
+    
+    def decode_generated_tokens(
+        self,
+        all_input_ids: List[int],
+        num_tokens: int = 0,
+    ) -> str:
+        # Like in `decode_token()`, the prefix text is necessary only to defeat cleanup algorithms in the decode.
+        prefix_text = self.tokenizer.decode(
+            all_input_ids[-num_tokens-1:-num_tokens], skip_special_tokens=False
+        )
+        new_text = self.tokenizer.decode(
+            all_input_ids[-num_tokens-1:], skip_special_tokens=False
+        )
+        new_text = new_text[len(prefix_text):]
+        return new_text
 
     def check_initialized(self):
         uninitialized_parameters = []
