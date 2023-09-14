@@ -642,7 +642,7 @@ class Seq2SeqLM(Model):
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens,
             batch.top_n_tokens_tensor,
-            torch.softmax(logits[:, -1], -1),
+            torch.log_softmax(logits[:, -1], -1),
         )
 
         # Finished requests
