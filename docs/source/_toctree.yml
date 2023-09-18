@@ -17,10 +17,16 @@
     title: Serving Private & Gated Models
   - local: basic_tutorials/using_cli
     title: Using TGI CLI
+  - local: basic_tutorials/non_core_models
+    title: Non-core Model Serving
   title: Tutorials
 - sections:
   - local: conceptual/streaming
     title: Streaming
+  - local: conceptual/quantization
+    title: Quantization
+  - local: conceptual/tensor_parallelism
+    title: Tensor Parallelism
   - local: conceptual/paged_attention
     title: PagedAttention
   - local: conceptual/safetensors
