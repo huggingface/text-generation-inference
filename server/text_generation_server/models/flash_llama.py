@@ -77,7 +77,8 @@ class FlashLlama(FlashCausalLM):
             medusa_head = hf_hub_download(use_medusa, revision=revision, filename="medusa_lm_head.pt")
             medusa_sf = medusa_head[:-len(".pt")] + ".safetensors"
             weights = Weights([medusa_sf], device, dtype, process_group=self.process_group)
-            model.lm_head = MedusaModel(config, weights)
+            lm_head = model.lm_head
+            model.lm_head = MedusaModel(config, weights, lm_head)
 
         torch.distributed.barrier(group=self.process_group)
         super(FlashLlama, self).__init__(

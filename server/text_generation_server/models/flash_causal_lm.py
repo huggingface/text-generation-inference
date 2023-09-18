@@ -46,6 +46,7 @@ class FlashCausalLMBatch(Batch):
 
     # tensor of length b containing the cumulative sequence lengths of the sequences in the batch, only used in prefill
     cu_seqlen_prefill: Optional[torch.Tensor]
+    cu_seqlen_speculative: Optional[torch.Tensor]
 
     # Paged Attention values
 
@@ -121,6 +122,7 @@ class FlashCausalLMBatch(Batch):
 
         position_ids = []
         cu_seqlen_prefill = [0]
+        cu_seqlen_speculative = [0]
         needed_blocks_slots = []
         start_slots = []
         slot_indices = []
@@ -160,8 +162,16 @@ class FlashCausalLMBatch(Batch):
 
             tokenized_input = tokenized_input[-r.truncate :]
 
+            # TODO remove this 
+            # Scaffolding to speculate some ids
+            speculate_ids = [1, 2]
+            tokenized_input.extend([1, 2])
+
+
             input_length = len(tokenized_input)
             input_lengths.append(input_length)
+
+
 
             prefix_offsets.append(input_length - 5)
             read_offsets.append(input_length)
@@ -174,6 +184,7 @@ class FlashCausalLMBatch(Batch):
 
             # Add cumulative lengths of all previous inputs
             cu_seqlen_prefill.append(cumulative_length + input_length)
+            cu_seqlen_speculative.append(cumulative_length + input_length - len(speculate_ids))
 
             next_token_chooser_parameters.append(r.parameters)
 
@@ -255,6 +266,9 @@ class FlashCausalLMBatch(Batch):
         cu_seqlen_prefill = torch.tensor(
             cu_seqlen_prefill, device=device, dtype=torch.int32
         )
+        cu_seqlen_speculative = torch.tensor(
+            cu_seqlen_speculative, device=device, dtype=torch.int32
+        )
 
         position_ids = position_ids.to(device)
         slot_indices = slot_indices.to(device)
@@ -287,6 +301,7 @@ class FlashCausalLMBatch(Batch):
             input_ids=input_ids,
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
+            cu_seqlen_speculative=cu_seqlen_speculative,
             start_slots=start_slots,
             slot_indices=slot_indices,
             needed_blocks_slots=needed_blocks_slots,
@@ -752,15 +767,29 @@ class FlashCausalLM(Model):
             del batch
             raise e
 
+        try:
+            out, speculative_logits = out.logits, out.speculative_logits
+        except Exception:
+            out = out
+            speculative_logits = None
+
+
         if prefill:
             next_token_logits = (
                 out[batch.prefill_next_token_indices] if prefill_logprobs else out
             )
+            if speculative_logits is not None:
+                speculative_logits = (
+                    speculative_logits[batch.prefill_next_token_indices] if prefill_logprobs else speculative_logits
+                )
         else:
             next_token_logits = out
 
-        next_input_ids, next_token_logprobs, logprobs = batch.next_token_chooser(
-            batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits
+
+        
+        import ipdb;ipdb.set_trace()
+        next_input_ids, next_token_logprobs, logprobs, speculative_ids = batch.next_token_chooser(
+            batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, speculative_logits
         )
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
@@ -773,12 +802,20 @@ class FlashCausalLM(Model):
                 # When batch == 1, we will just use the batch.input_ids values directly
                 prefill_tokens_indices = batch.input_ids.new_zeros(len(out))
 
-            next_position_ids = batch.position_ids.new_empty(len(batch))
+            if speculative_ids is not None:
+                # TODO
+                # length = len(batch) * speculative_ids.shape[1]
+                length = len(batch)
+            else:
+                length = len(batch)
+            # import ipdb;ipdb.set_trace()
+            next_position_ids = batch.position_ids.new_empty(length)
             batch.slot_indices = batch.slot_indices[batch.cu_seqlen_prefill[1:] - 1]
             # We do not need cu_seqlen_prefill anymore
             batch.cu_seqlen_prefill = None
         else:
             prefill_logprobs = None
+            # import ipdb;ipdb.set_trace()
             next_position_ids = batch.position_ids
 
         # Cumulative length

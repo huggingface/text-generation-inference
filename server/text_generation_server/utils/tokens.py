@@ -215,7 +215,7 @@ class HeterogeneousNextTokenChooser:
         self.dtype = dtype
         self.device = device
 
-    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor):
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor, speculative_scores: Optional[torch.Tensor] = None):
         if self.watermark_processor is not None:
             scores = self.watermark_processor(input_ids, scores)
         if self.repetition_processor is not None:
@@ -224,11 +224,27 @@ class HeterogeneousNextTokenChooser:
         for warper in self.warpers:
             scores = warper(input_ids, scores)
 
+
         next_ids = self.choice(scores)
         logprobs = torch.log_softmax(scores, -1)
         next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
 
-        return next_ids, next_logprobs, logprobs
+        if speculative_scores is not None:
+            # length, spec_length, vocab_size = speculative_scores.shape
+            # speculative_scores = speculative_scores.view((-1, vocab_size))
+            # if self.watermark_processor is not None:
+            #     speculative_scores = self.watermark_processor(input_ids, speculative_scores)
+            # if self.repetition_processor is not None:
+            #     speculative_scores = self.repetition_processor(input_ids, speculative_scores)
+
+            # speculative_scores = speculative_scores.view((length, spec_length, vocab_size))
+            # for warper in self.warpers:
+            #     speculative_scores = warper(input_ids, speculative_scores)
+            speculative_ids = Greedy()(speculative_scores)
+        else:
+            speculative_ids = None
+
+        return next_ids, next_logprobs, logprobs, speculative_ids
 
     def filter(self, indices):
         if self.watermark_processor is not None:

@@ -1,5 +1,11 @@
 import torch
+from dataclasses import dataclass
 from text_generation_server.utils.layers import TensorParallelHead, FastLinear
+
+@dataclass
+class Output:
+    logits: torch.FloatTensor = None
+    speculative_logits: torch.FloatTensor = None
 
 
 class ResBlock(torch.nn.Module):
@@ -16,12 +22,19 @@ class MedusaModel(torch.nn.Module):
     def __init__(
         self,
         config,
-        weights
+        weights,
+        lm_head
     ):
         super().__init__()
         self.heads = torch.nn.ModuleList(
             [MedusaHead(config, prefix=f"{i}", weights=weights) for i in range(config["medusa_num_heads"])]
         )
+        self.lm_head = lm_head
+
+    def forward(self, x):
+        logits = self.lm_head(x)
+        speculative_logits =  torch.stack([head(x) for head in self.heads], dim=1)
+        return Output(logits=logits, speculative_logits=speculative_logits)
 
 
 class MedusaHead(torch.nn.Module):
