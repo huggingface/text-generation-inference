@@ -31,7 +31,7 @@ class OPTSharded(CausalLM):
             dtype = torch.float16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
