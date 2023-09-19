@@ -492,7 +492,7 @@ class CausalLM(Model):
                 raise ValueError("quantization is not available on CPU")
 
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,

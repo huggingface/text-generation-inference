@@ -34,7 +34,7 @@ class T5Sharded(Seq2SeqLM):
             dtype = torch.float16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
 
         config = AutoConfig.from_pretrained(
             model_id,

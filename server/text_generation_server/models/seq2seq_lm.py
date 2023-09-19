@@ -541,7 +541,7 @@ class Seq2SeqLM(Model):
                 raise ValueError("quantization is not available on CPU")
 
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
 
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_id,

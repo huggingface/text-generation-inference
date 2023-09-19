@@ -153,7 +153,7 @@ def get_model(
         )
     elif model_type == "mpt":
         return MPTSharded(
-            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+            model_id, revision, quantize=quantize, dtype=dtype, trust_remote_code=trust_remote_code
         )
 
     elif model_type == "gpt_neox":
