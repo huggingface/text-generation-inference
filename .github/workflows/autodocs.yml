@@ -35,7 +35,7 @@ jobs:
           git add launcher.md
           git commit -m "Update launcher.md"
           git push
-          
+        fi
 
         launcher_content=$(/docs/source/basic_tutorials/launcher.md)
         if [ "$launcher_content" != "$output" ]; then
