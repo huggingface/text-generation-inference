@@ -2,8 +2,11 @@ name: Automatic Documentation for Launcher
 
 on:
   push:
-    branches:
-      - main
+    paths:
+      - "../../launcher/src/main.rs"
+    push:
+      branches:
+        - main
 
 jobs:
   update_output:
@@ -26,7 +29,3 @@ jobs:
         echo '```' >> ../../docs/source/basic_tutorials/launcher.md
         echo $output >> ../../docs/source/basic_tutorials/launcher.md
         echo '```' >> ../../docs/source/basic_tutorials/launcher.md
-
-        git add launcher.md
-        git commit -m "Update launcher.md"
-        git push
