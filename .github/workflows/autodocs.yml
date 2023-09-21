@@ -25,6 +25,9 @@ jobs:
     
     - name: Update Docs
       run: |
+        if [ ! -f "/docs/source/basic_tutorials/launcher.md" ]; then
+          touch /docs/source/basic_tutorials/launcher.md
+          
         output="${{ steps.run-launcher-help.outputs.output }}"
         launcher_content=$(/docs/source/basic_tutorials/launcher.md)
 
