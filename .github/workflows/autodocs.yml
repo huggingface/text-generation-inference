@@ -13,9 +13,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
     
-    - name: Install TGI
-      id: install-tgi
-      run: make install
+    - name: Install Launcher
+      id: install-launcher
+      run: cargo install launcher
     
     - name: Run TGI Launcher docs
       id: run-launcher-help
