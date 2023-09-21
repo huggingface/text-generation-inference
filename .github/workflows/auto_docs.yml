@@ -3,7 +3,7 @@ name: Automatic Documentation for Launcher
 on:
   push:
     branches:
-      - merveenoyan/autodoc
+      - 'merveenoyan/autodoc'
 
 jobs:
   update_docs:
