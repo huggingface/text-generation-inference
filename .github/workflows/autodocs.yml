@@ -19,8 +19,10 @@ jobs:
     
     - name: Update Docs
       run: |
+        echo text-generation-launcher --help
         output=$(text-generation-launcher --help)
-        { echo '```'; $output; echo '```'; } > launcher_test.md
+        echo $output
+        { echo '```'; echo $output; echo '```'; } > launcher_test.md
         if diff launcher_test.md launcher.md; then
           rm /docs/source/basic_tutorials/launcher.md
           { echo '```'; echo $output; echo '```'; } > launcher.md
