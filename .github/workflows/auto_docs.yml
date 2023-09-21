@@ -1,0 +1,33 @@
+name: Automatic Documentation for Launcher
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update_output:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    
+    - name: Run TGI Launcher docs
+      id: run-launcher-help
+      run: |
+        output=$(text-generation-launcher --help)
+        echo "::set-output name=output::$output"
+    
+    - name: Update Docs
+      run: |
+        output="${{ steps.run-launcher-help.outputs.output }}"
+        
+        echo $output >> ../../docs/source/basic_tutorials/launcher.md
+
+        git add launcher.md
+        git commit -m "Update launcher.md"
+        git push
+        
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
