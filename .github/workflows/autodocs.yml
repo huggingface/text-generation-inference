@@ -25,12 +25,19 @@ jobs:
     
     - name: Update Docs
       run: |
+        output="${{ steps.run-launcher-help.outputs.output }}"
         if [ ! -f "/docs/source/basic_tutorials/launcher.md" ]; then
           touch /docs/source/basic_tutorials/launcher.md
+          echo '```' >> /docs/source/basic_tutorials/launcher.md
+          echo $output >> /docs/source/basic_tutorials/launcher.md
+          echo '```' >> /docs/source/basic_tutorials/launcher.md
+          echo "Docs are updated!"
+          git add launcher.md
+          git commit -m "Update launcher.md"
+          git push
           
-        output="${{ steps.run-launcher-help.outputs.output }}"
-        launcher_content=$(/docs/source/basic_tutorials/launcher.md)
 
+        launcher_content=$(/docs/source/basic_tutorials/launcher.md)
         if [ "$launcher_content" != "$output" ]; then
           rm /docs/source/basic_tutorials/launcher.md
           echo '```' >> /docs/source/basic_tutorials/launcher.md
