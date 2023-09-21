@@ -15,7 +15,7 @@ jobs:
     
     - name: Install Launcher
       id: install-launcher
-      run: cargo install --git git+https://github.com/huggingface/text-generation-inference
+      run: cargo install --git https://github.com/huggingface/text-generation-inference.git text-generation-launcher
     
     - name: Run TGI Launcher docs
       id: run-launcher-help
