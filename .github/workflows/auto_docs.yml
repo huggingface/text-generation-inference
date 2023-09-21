@@ -28,6 +28,3 @@ jobs:
         git add launcher.md
         git commit -m "Update launcher.md"
         git push
-        
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
