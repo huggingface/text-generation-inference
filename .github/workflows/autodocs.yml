@@ -17,32 +17,12 @@ jobs:
       id: install-launcher
       run: cargo install --git https://github.com/huggingface/text-generation-inference.git text-generation-launcher
     
-    - name: Run TGI Launcher docs
-      id: run-launcher-help
-      run: |
-        output=$(text-generation-launcher --help)
-        echo "::set-output name=output::$output"
-    
     - name: Update Docs
       run: |
-        output="${{ steps.run-launcher-help.outputs.output }}"
-        if [ ! -f "docs/source/basic_tutorials/launcher.md" ]; then
-          touch docs/source/basic_tutorials/launcher.md
-          echo '```' >> docs/source/basic_tutorials/launcher.md
-          echo $output >> docs/source/basic_tutorials/launcher.md
-          echo '```' >> docs/source/basic_tutorials/launcher.md
-          echo "Docs are updated!"
-          git add launcher.md
-          git commit -m "Update launcher.md"
-          git push
-        fi
-
-        launcher_content=$(docs/source/basic_tutorials/launcher.md)
-        if [ "$launcher_content" != "$output" ]; then
-          rm docs/source/basic_tutorials/launcher.md
-          echo '```' >> docs/source/basic_tutorials/launcher.md
-          echo $output >> docs/source/basic_tutorials/launcher.md
-          echo '```' >> docs/source/basic_tutorials/launcher.md
+        { echo '```'; $(text-generation-launcher --help); echo '```'; } > launcher_test.md
+        if diff launcher_test.md launcher.md; then
+          rm /docs/source/basic_tutorials/launcher.md
+          { echo '```'; $(text-generation-launcher --help); echo '```'; } > launcher.md
           echo "Docs are updated!"
           git add launcher.md
           git commit -m "Update launcher.md"
