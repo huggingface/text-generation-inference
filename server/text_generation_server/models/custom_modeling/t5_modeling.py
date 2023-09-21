@@ -1033,7 +1033,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         )
 
         self.lm_head = TensorParallelHead.load(
-            config, prefix="lm_head", weights=weights
+            config, prefix="shared", weights=weights
         )
 
     def forward(
