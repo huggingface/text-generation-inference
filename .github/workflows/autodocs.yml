@@ -22,7 +22,7 @@ jobs:
         { echo '```'; $(text-generation-launcher --help); echo '```'; } > launcher_test.md
         if diff launcher_test.md launcher.md; then
           rm /docs/source/basic_tutorials/launcher.md
-          { echo '```'; $(text-generation-launcher --help); echo '```'; } > launcher.md
+          { echo '```'; echo $(text-generation-launcher --help); echo '```'; } > launcher.md
           echo "Docs are updated!"
           git add launcher.md
           git commit -m "Update launcher.md"
