@@ -36,3 +36,4 @@ jobs:
         echo '```' >> /docs/source/basic_tutorials/launcher.md
         echo $output >> /docs/source/basic_tutorials/launcher.md
         echo '```' >> /docs/source/basic_tutorials/launcher.md
+        echo "Docs are updated!"
