@@ -7,7 +7,6 @@ on:
 
 jobs:
   update_docs:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     
     steps:
