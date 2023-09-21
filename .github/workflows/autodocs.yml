@@ -1,0 +1,41 @@
+name: Automatic Documentation for Launcher
+
+on:
+  push:
+    branches:
+      - launcher_docs
+
+jobs:
+  update_docs:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    
+    - name: Install Launcher
+      id: install-launcher
+      run: |
+        cd launcher
+        cargo build
+        cd ..
+    
+    - name: Run TGI Launcher docs
+      id: run-launcher-help
+      run: |
+        output=$(text-generation-launcher --help)
+        echo "::set-output name=output::$output"
+    
+    - name: Update Docs
+      run: |
+        output="${{ steps.run-launcher-help.outputs.output }}"
+        rm /docs/source/basic_tutorials/launcher.md
+        echo '```' >> /docs/source/basic_tutorials/launcher.md
+        echo $output >> /docs/source/basic_tutorials/launcher.md
+        echo '```' >> /docs/source/basic_tutorials/launcher.md
+        echo "Docs are updated!"
+
+        git add launcher.md
+        git commit -m "Update launcher.md"
+        git push
