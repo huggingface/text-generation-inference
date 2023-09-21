@@ -22,8 +22,10 @@ jobs:
     - name: Update Docs
       run: |
         output="${{ steps.run-launcher-help.outputs.output }}"
-        
+        rm ../../docs/source/basic_tutorials/launcher.md
+        echo '```' >> ../../docs/source/basic_tutorials/launcher.md
         echo $output >> ../../docs/source/basic_tutorials/launcher.md
+        echo '```' >> ../../docs/source/basic_tutorials/launcher.md
 
         git add launcher.md
         git commit -m "Update launcher.md"

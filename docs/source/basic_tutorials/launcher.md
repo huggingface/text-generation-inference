@@ -1,3 +1,4 @@
+```
 Text Generation Launcher
 
 Usage: text-generation-launcher [OPTIONS]
@@ -225,3 +226,4 @@ Options:
 
   -V, --version
           Print version
+```
