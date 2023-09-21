@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - autodoc
-    paths:
-      - "/launcher/src/main.rs"
 
 jobs:
   update_docs:
