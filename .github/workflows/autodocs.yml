@@ -23,13 +23,8 @@ jobs:
         output=$(text-generation-launcher --help)
         { echo '```'; echo $output; echo '```'; } > launcher_test.md
         if diff launcher_test.md docs/source/basic_tutorials/launcher.md; then
-          rm docs/source/basic_tutorials/launcher.md
-          { echo '```'; echo $output; echo '```'; } > docs/source/basic_tutorials/launcher.md
-          echo "$(cat docs/source/basic_tutorials/launcher.md)"
-          echo "Docs are updated!"
-          git add docs/source/basic_tutorials/launcher.md
-          git commit -m "Update launcher.md"
-          git push
+          echo "Docs aren't updated, update them!"
+          exit 1
         fi
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
