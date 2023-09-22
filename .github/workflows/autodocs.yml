@@ -1,9 +1,6 @@
 name: Automatic Documentation for Launcher
 
-on:
-  push:
-    branches:
-      - launcher_docs
+on: [push]
 
 jobs:
   update_docs:
@@ -16,9 +13,8 @@ jobs:
     - name: Install Launcher
       id: install-launcher
       run: |
-          repo_owner=${{ github.event.pull_request.user.login }}
-          echo "Repo owner is $repo_owner"
-          branch=${{ github.event.pull_request.ref }}
+          repo_owner=${{ github.event.actor.id }}
+          branch=${GITHUB_REF##*/}
           cargo install --git git+https://github.com/$repo_owner/text-generation-inference.git --branch $branch text-generation-launcher
     
     - name: Update Docs
