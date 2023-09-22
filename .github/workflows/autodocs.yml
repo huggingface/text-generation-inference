@@ -15,7 +15,10 @@ jobs:
     
     - name: Install Launcher
       id: install-launcher
-      run: cargo install --git https://github.com/huggingface/text-generation-inference.git text-generation-launcher
+      run: |
+          repo_owner="${{ github.event.pull_request.head.user.login }}"
+          branch="${{ github.event.pull_request.head.ref }}"
+          cargo install --git https://github.com/${repo_owner}/text-generation-inference.git@${branch} text-generation-launcher
     
     - name: Update Docs
       run: |
