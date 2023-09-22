@@ -13,8 +13,8 @@ jobs:
     - name: Install Launcher
       id: install-launcher
       run: |
-          repo_owner=${{ github.event.actor_id }}
-          branch=${{ github.head_ref }}
+          repo_owner="${{ github.event.actor_id }}"
+          branch="${{ github.head_ref }}"
           cargo install --git git+https://github.com/$repo_owner/text-generation-inference.git --branch $branch text-generation-launcher
     
     - name: Update Docs
