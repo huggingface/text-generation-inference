@@ -18,7 +18,7 @@ jobs:
       run: |
           repo_owner="${{ github.event.pull_request.head.user.login }}"
           branch="${{ github.event.pull_request.head.ref }}"
-          cargo install --git https://github.com/${repo_owner}/text-generation-inference.git@${branch} text-generation-launcher
+          cargo install --git git+https://github.com/${repo_owner}/text-generation-inference.git --branch ${branch} text-generation-launcher
     
     - name: Update Docs
       run: |
