@@ -17,6 +17,7 @@ jobs:
       id: install-launcher
       run: |
           repo_owner=${{ github.event.pull_request.user.login }}
+          echo "Repo owner is $repo_owner"
           branch=${{ github.event.pull_request.ref }}
           cargo install --git git+https://github.com/$repo_owner/text-generation-inference.git --branch $branch text-generation-launcher
     
