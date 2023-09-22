@@ -76,13 +76,11 @@ def get_model(
     dtype: Optional[str],
     trust_remote_code: bool,
 ) -> Model:
-    if dtype is None:
-        dtype = torch.float16
-    elif dtype == "float16":
+    if dtype == "float16":
         dtype = torch.float16
     elif dtype == "bfloat16":
         dtype = torch.bfloat16
-    else:
+    elif dtype is not None:
         raise RuntimeError(f"Unknown dtype {dtype}")
 
     if "facebook/galactica" in model_id:
