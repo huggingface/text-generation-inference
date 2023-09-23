@@ -251,7 +251,7 @@ def get_linear(weight, bias, quantize):
             )
     elif quantize == "awq":
         try:
-            qweight, qzeros, scales, bits, groupsize = weight
+            qweight, qzeros, scales, _, bits, groupsize, _ = weight
         except Exception:
             raise NotImplementedError(
                 f"The passed weight is not `awq` compatible, loader needs to be updated."
