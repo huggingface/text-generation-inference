@@ -73,5 +73,3 @@ win32-setctime==1.1.0 ; python_version >= "3.9" and python_version < "3.13" and 
 wrapt==1.15.0 ; python_version >= "3.9" and python_version < "3.13"
 xxhash==3.3.0 ; python_version >= "3.9" and python_version < "3.13"
 yarl==1.9.2 ; python_version >= "3.9" and python_version < "3.13"
-# Custom 4-bit GEMM AWQ kernels
-git+https://github.com/mit-han-lab/llm-awq.git@f084f40bd996f3cf3a0633c1ad7d9d476c318aaa#subdirectory=awq/kernels

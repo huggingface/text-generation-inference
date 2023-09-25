@@ -111,22 +111,22 @@ RUN make build-flash-attention-v2
 
 # Build Transformers exllama kernels
 FROM kernel-builder as exllama-kernels-builder
-
 WORKDIR /usr/src
-
 COPY server/exllama_kernels/ .
-
-
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 
+# Build Transformers awq kernels
+FROM kernel-builder as awq-kernels-builder
+WORKDIR /usr/src
+COPY server/awq_kernels/ .
+# Build specific version of transformers
+RUN python setup.py build
+
 # Build Transformers CUDA kernels
 FROM kernel-builder as custom-kernels-builder
-
 WORKDIR /usr/src
-
 COPY server/custom_kernels/ .
-
 # Build specific version of transformers
 RUN python setup.py build
 
