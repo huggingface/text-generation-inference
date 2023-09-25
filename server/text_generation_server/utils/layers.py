@@ -17,7 +17,13 @@ except ImportError:
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
-from text_generation_server.utils.awq.quantize.qmodule import WQLinear
+
+
+HAS_AWQ = True
+try: 
+    from text_generation_server.utils.awq.quantize.qmodule import WQLinear
+except ImportError:
+    HAS_AWQ = False
 
 try:
     major, _minor = torch.cuda.get_device_capability()

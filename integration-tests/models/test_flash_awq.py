@@ -2,21 +2,21 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def flash_llama_gptq_handle(launcher):
+def flash_llama_awq_handle(launcher):
     with launcher("abhinavkulkarni/codellama-CodeLlama-7b-Python-hf-w4-g128-awq", num_shard=2, quantize="awq") as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
-async def flash_llama_gptq(flash_llama_gptq_handle):
-    await flash_llama_gptq_handle.health(300)
-    return flash_llama_gptq_handle.client
+async def flash_llama_awq(flash_llama_awq_handle):
+    await flash_llama_awq_handle.health(300)
+    return flash_llama_awq_handle.client
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_gptq(flash_llama_gptq, response_snapshot):
-    response = await flash_llama_gptq.generate(
+async def test_flash_llama_awq(flash_llama_awq, response_snapshot):
+    response = await flash_llama_awq.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
     )
 
@@ -26,8 +26,8 @@ async def test_flash_llama_gptq(flash_llama_gptq, response_snapshot):
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_gptq_all_params(flash_llama_gptq, response_snapshot):
-    response = await flash_llama_gptq.generate(
+async def test_flash_llama_awq_all_params(flash_llama_awq, response_snapshot):
+    response = await flash_llama_awq.generate(
         "Test request",
         max_new_tokens=10,
         repetition_penalty=1.2,
@@ -48,11 +48,11 @@ async def test_flash_llama_gptq_all_params(flash_llama_gptq, response_snapshot):
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_gptq_load(
-    flash_llama_gptq, generate_load, response_snapshot
+async def test_flash_llama_awq_load(
+    flash_llama_awq, generate_load, response_snapshot
 ):
     responses = await generate_load(
-        flash_llama_gptq, "Test request", max_new_tokens=10, n=4
+        flash_llama_awq, "Test request", max_new_tokens=10, n=4
     )
 
     assert len(responses) == 4
