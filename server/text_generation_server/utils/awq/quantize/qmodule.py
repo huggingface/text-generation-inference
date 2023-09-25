@@ -6,14 +6,14 @@ import torch.nn as nn
 import awq_inference_engine  # with CUDA kernels
 
 
-class ScaledActivation(nn.Module):
-    def __init__(self, module, scales):
-        super().__init__()
-        self.act = module
-        self.scales = nn.Parameter(scales.data)
-    
-    def forward(self, x):
-        return self.act(x) / self.scales.view(1, 1, -1).to(x.device)
+# class ScaledActivation(nn.Module):
+#     def __init__(self, module, scales):
+#         super().__init__()
+#         self.act = module
+#         self.scales = nn.Parameter(scales.data)
+#     
+#     def forward(self, x):
+#         return self.act(x) / self.scales.view(1, 1, -1).to(x.device)
 
 
 class WQLinear(nn.Module):
@@ -32,11 +32,11 @@ class WQLinear(nn.Module):
         assert self.in_features % self.group_size == 0
         assert self.out_features % (32 // self.w_bit) == 0
 
-        self.register_buffer('qweight', qweight)
-        self.register_buffer('qzeros', qzeros)
-        self.register_buffer('scales', scales)
+        self.qweight = qweight
+        self.qzeros = qzeros
+        self.scales = scales
         if bias:
-            self.register_buffer('bias', bias)
+            self.bias = bias
         else:
             self.bias = None
 
@@ -46,8 +46,3 @@ class WQLinear(nn.Module):
         out = awq_inference_engine.gemm_forward_cuda(x.reshape(-1, x.shape[-1]), self.qweight, self.scales, self.qzeros, 8)
         out = out + self.bias if self.bias is not None else out
         return out.reshape(out_shape)
-    
-    def extra_repr(self) -> str:
-        return 'in_features={}, out_features={}, bias={}, w_bit={}, group_size={}'.format(
-            self.in_features, self.out_features, self.bias is not None, self.w_bit, self.group_size
-        )
