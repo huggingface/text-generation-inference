@@ -345,4 +345,15 @@ class Weights:
                 self.gptq_bits = data["bits"]
                 self.gptq_groupsize = data["group_size"]
             except Exception:
-                pass
+                filename = "quant_config.json"
+                try:
+                    if os.path.exists(os.path.join(model_id, filename)):
+                        filename = os.path.join(model_id, filename)
+                    else:
+                        filename = hf_hub_download(model_id, filename=filename)
+                    with open(filename, "r") as f:
+                        data = json.load(f)
+                    self.gptq_bits = data["w_bit"]
+                    self.gptq_groupsize = data["q_group_size"]
+                except Exception:
+                    pass
