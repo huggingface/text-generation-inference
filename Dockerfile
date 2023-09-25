@@ -119,9 +119,9 @@ RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 # Build Transformers awq kernels
 FROM kernel-builder as awq-kernels-builder
 WORKDIR /usr/src
-COPY server/awq_kernels/ .
+COPY server/Makefile-awq Makefile
 # Build specific version of transformers
-RUN python setup.py build
+RUN make build-awq
 
 # Build Transformers CUDA kernels
 FROM kernel-builder as custom-kernels-builder
