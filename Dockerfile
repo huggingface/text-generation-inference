@@ -121,7 +121,7 @@ FROM kernel-builder as awq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-awq Makefile
 # Build specific version of transformers
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6" make build-awq
+RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-awq
 
 # Build Transformers CUDA kernels
 FROM kernel-builder as custom-kernels-builder
@@ -175,8 +175,8 @@ COPY --from=flash-att-v2-builder /usr/src/flash-attention-v2/build/lib.linux-x86
 COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 # Copy build artifacts from exllama kernels builder
 COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
-# Copy build artifacts from exllama kernels builder
-COPY --from=awq-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
+# Copy build artifacts from awq kernels builder
+COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 
 # Copy builds artifacts from vllm builder
 COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
