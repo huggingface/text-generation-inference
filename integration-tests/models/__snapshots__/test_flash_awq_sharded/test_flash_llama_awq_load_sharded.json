@@ -12,12 +12,12 @@
         },
         {
           "id": 1724,
-          "logprob": -7.703125,
+          "logprob": -7.6914062,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -1.4765625,
+          "logprob": -1.4746094,
           "text": "is"
         },
         {
@@ -27,12 +27,12 @@
         },
         {
           "id": 29257,
-          "logprob": -1.8652344,
+          "logprob": -1.8623047,
           "text": "Learning"
         },
         {
           "id": 29973,
-          "logprob": -0.7548828,
+          "logprob": -0.7558594,
           "text": "?"
         }
       ],
@@ -40,49 +40,49 @@
       "tokens": [
         {
           "id": 13,
-          "logprob": -1.9306641,
+          "logprob": -1.9228516,
           "special": false,
           "text": "\n"
         },
         {
           "id": 5618,
-          "logprob": -2.4550781,
+          "logprob": -2.4609375,
           "special": false,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -0.5732422,
+          "logprob": -0.57177734,
           "special": false,
           "text": " is"
         },
         {
           "id": 278,
-          "logprob": -1.5761719,
+          "logprob": -1.5722656,
           "special": false,
           "text": " the"
         },
         {
           "id": 4328,
-          "logprob": -1.5888672,
+          "logprob": -1.5859375,
           "special": false,
           "text": " difference"
         },
         {
           "id": 1546,
-          "logprob": -0.026504517,
+          "logprob": -0.02633667,
           "special": false,
           "text": " between"
         },
         {
           "id": 21784,
-          "logprob": -1.4287109,
+          "logprob": -1.4335938,
           "special": false,
           "text": " Deep"
         },
         {
           "id": 29257,
-          "logprob": -0.15856934,
+          "logprob": -0.15991211,
           "special": false,
           "text": " Learning"
         },
@@ -94,7 +94,7 @@
         },
         {
           "id": 6189,
-          "logprob": -0.62646484,
+          "logprob": -0.62060547,
           "special": false,
           "text": " Machine"
         }
@@ -116,12 +116,12 @@
         },
         {
           "id": 1724,
-          "logprob": -7.703125,
+          "logprob": -7.6914062,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -1.4765625,
+          "logprob": -1.4746094,
           "text": "is"
         },
         {
@@ -131,12 +131,12 @@
         },
         {
           "id": 29257,
-          "logprob": -1.8583984,
+          "logprob": -1.8623047,
           "text": "Learning"
         },
         {
           "id": 29973,
-          "logprob": -0.7548828,
+          "logprob": -0.7558594,
           "text": "?"
         }
       ],
@@ -144,49 +144,49 @@
       "tokens": [
         {
           "id": 13,
-          "logprob": -1.9306641,
+          "logprob": -1.9228516,
           "special": false,
           "text": "\n"
         },
         {
           "id": 5618,
-          "logprob": -2.4550781,
+          "logprob": -2.4609375,
           "special": false,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -0.5732422,
+          "logprob": -0.57177734,
           "special": false,
           "text": " is"
         },
         {
           "id": 278,
-          "logprob": -1.5761719,
+          "logprob": -1.5722656,
           "special": false,
           "text": " the"
         },
         {
           "id": 4328,
-          "logprob": -1.5888672,
+          "logprob": -1.5859375,
           "special": false,
           "text": " difference"
         },
         {
           "id": 1546,
-          "logprob": -0.026504517,
+          "logprob": -0.02633667,
           "special": false,
           "text": " between"
         },
         {
           "id": 21784,
-          "logprob": -1.4287109,
+          "logprob": -1.4335938,
           "special": false,
           "text": " Deep"
         },
         {
           "id": 29257,
-          "logprob": -0.15856934,
+          "logprob": -0.15991211,
           "special": false,
           "text": " Learning"
         },
@@ -198,7 +198,7 @@
         },
         {
           "id": 6189,
-          "logprob": -0.62646484,
+          "logprob": -0.62060547,
           "special": false,
           "text": " Machine"
         }
@@ -220,12 +220,12 @@
         },
         {
           "id": 1724,
-          "logprob": -7.703125,
+          "logprob": -7.6914062,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -1.4765625,
+          "logprob": -1.4746094,
           "text": "is"
         },
         {
@@ -235,12 +235,12 @@
         },
         {
           "id": 29257,
-          "logprob": -1.8652344,
+          "logprob": -1.8623047,
           "text": "Learning"
         },
         {
           "id": 29973,
-          "logprob": -0.7548828,
+          "logprob": -0.7558594,
           "text": "?"
         }
       ],
@@ -248,49 +248,49 @@
       "tokens": [
         {
           "id": 13,
-          "logprob": -1.9306641,
+          "logprob": -1.9228516,
           "special": false,
           "text": "\n"
         },
         {
           "id": 5618,
-          "logprob": -2.4550781,
+          "logprob": -2.4609375,
           "special": false,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -0.5732422,
+          "logprob": -0.57177734,
           "special": false,
           "text": " is"
         },
         {
           "id": 278,
-          "logprob": -1.5761719,
+          "logprob": -1.5722656,
           "special": false,
           "text": " the"
         },
         {
           "id": 4328,
-          "logprob": -1.5888672,
+          "logprob": -1.5859375,
           "special": false,
           "text": " difference"
         },
         {
           "id": 1546,
-          "logprob": -0.026504517,
+          "logprob": -0.02633667,
           "special": false,
           "text": " between"
         },
         {
           "id": 21784,
-          "logprob": -1.4287109,
+          "logprob": -1.4335938,
           "special": false,
           "text": " Deep"
         },
         {
           "id": 29257,
-          "logprob": -0.15856934,
+          "logprob": -0.15991211,
           "special": false,
           "text": " Learning"
         },
@@ -302,7 +302,7 @@
         },
         {
           "id": 6189,
-          "logprob": -0.62646484,
+          "logprob": -0.62060547,
           "special": false,
           "text": " Machine"
         }
@@ -324,12 +324,12 @@
         },
         {
           "id": 1724,
-          "logprob": -7.703125,
+          "logprob": -7.6914062,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -1.4765625,
+          "logprob": -1.4746094,
           "text": "is"
         },
         {
@@ -339,12 +339,12 @@
         },
         {
           "id": 29257,
-          "logprob": -1.8652344,
+          "logprob": -1.8623047,
           "text": "Learning"
         },
         {
           "id": 29973,
-          "logprob": -0.7548828,
+          "logprob": -0.7558594,
           "text": "?"
         }
       ],
@@ -352,49 +352,49 @@
       "tokens": [
         {
           "id": 13,
-          "logprob": -1.9306641,
+          "logprob": -1.9228516,
           "special": false,
           "text": "\n"
         },
         {
           "id": 5618,
-          "logprob": -2.4550781,
+          "logprob": -2.4609375,
           "special": false,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -0.5732422,
+          "logprob": -0.57177734,
           "special": false,
           "text": " is"
         },
         {
           "id": 278,
-          "logprob": -1.5761719,
+          "logprob": -1.5722656,
           "special": false,
           "text": " the"
         },
         {
           "id": 4328,
-          "logprob": -1.5888672,
+          "logprob": -1.5859375,
           "special": false,
           "text": " difference"
         },
         {
           "id": 1546,
-          "logprob": -0.026504517,
+          "logprob": -0.02633667,
           "special": false,
           "text": " between"
         },
         {
           "id": 21784,
-          "logprob": -1.4287109,
+          "logprob": -1.4335938,
           "special": false,
           "text": " Deep"
         },
         {
           "id": 29257,
-          "logprob": -0.15856934,
+          "logprob": -0.15991211,
           "special": false,
           "text": " Learning"
         },
@@ -406,7 +406,7 @@
         },
         {
           "id": 6189,
-          "logprob": -0.62646484,
+          "logprob": -0.62060547,
           "special": false,
           "text": " Machine"
         }

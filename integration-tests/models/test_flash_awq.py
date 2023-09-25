@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_llama_awq_handle(launcher):
-    with launcher("abhinavkulkarni/codellama-CodeLlama-7b-Python-hf-w4-g128-awq", num_shard=2, quantize="awq") as handle:
+    with launcher("abhinavkulkarni/codellama-CodeLlama-7b-Python-hf-w4-g128-awq", num_shard=1, quantize="awq") as handle:
         yield handle
 
 
@@ -12,23 +12,24 @@ async def flash_llama_awq(flash_llama_awq_handle):
     await flash_llama_awq_handle.health(300)
     return flash_llama_awq_handle.client
 
-
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_awq(flash_llama_awq, response_snapshot):
     response = await flash_llama_awq.generate(
-        "Test request", max_new_tokens=10, decoder_input_details=True
+        "What is Deep Learning?", max_new_tokens=10, decoder_input_details=True
     )
 
     assert response.details.generated_tokens == 10
+    assert response.generated_text == "\nWhat is the difference between Deep Learning and Machine"
     assert response == response_snapshot
+
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_awq_all_params(flash_llama_awq, response_snapshot):
     response = await flash_llama_awq.generate(
-        "Test request",
+        "What is Deep Learning?",
         max_new_tokens=10,
         repetition_penalty=1.2,
         return_full_text=True,
@@ -52,10 +53,12 @@ async def test_flash_llama_awq_load(
     flash_llama_awq, generate_load, response_snapshot
 ):
     responses = await generate_load(
-        flash_llama_awq, "Test request", max_new_tokens=10, n=4
+        flash_llama_awq, "What is Deep Learning?", max_new_tokens=10, n=4
     )
 
     assert len(responses) == 4
-    assert all([r.generated_text == responses[0].generated_text for r in responses])
+    assert all([r.generated_text ==  "\nWhat is the difference between Deep Learning and Machine" for r in responses])
 
     assert responses == response_snapshot
+
+

@@ -299,8 +299,8 @@ class Weights:
                     "Cannot load `awq` weight, make sure the model is already quantized"
                 )
 
-            qzeros = self.get_tensor(f"{prefix}.qzeros")
-            scales = self.get_tensor(f"{prefix}.scales")
+            qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
+            scales = self.get_sharded(f"{prefix}.scales", dim=0)
             g_idx = None
             use_exllama = False
             
