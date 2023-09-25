@@ -135,18 +135,21 @@ class Weights:
         Highly specific when the underlying tensor is a simple cat of Q,K,V instead of being
         already alternating Q,K,V within the main tensor
         """
-        if quantize == "gptq":
+        if quantize in ["gptq", "awq"]:
             try:
                 qweight = self._get_qweight(f"{prefix}.qweight") 
             except RuntimeError:
                 raise RuntimeError(
-                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                    f"Cannot load `{quantize}` weight, make sure the model is already quantized."
                 )
 
             qzeros = self._get_qweight(f"{prefix}.qzeros") 
             scales = self._get_qweight(f"{prefix}.scales") 
             scales = scales.to(dtype=self.dtype)
-            g_idx = self.get_tensor(f"{prefix}.g_idx")
+            if quantize == "gptq":
+                g_idx = self.get_tensor(f"{prefix}.g_idx")
+            else:
+                g_idx = None
 
             bits, groupsize = self._get_gptq_params()
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
@@ -171,14 +174,14 @@ class Weights:
         return weight
 
     def get_multi_weights_col(self, prefixes: List[str], quantize: str, dim: int):
-        if quantize == "gptq":
+        if quantize in ["gptq", "awq"]:
             try:
                 qweight = torch.cat(
                     [self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1
                 )
             except RuntimeError:
                 raise RuntimeError(
-                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                    f"Cannot load `{quantize}` weight, make sure the model is already quantized"
                 )
 
             qzeros = torch.cat(
@@ -187,10 +190,14 @@ class Weights:
             scales = torch.cat(
                 [self.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1
             )
-            w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
-            for w2 in w[1:]:
-                torch.testing.assert_close(w2, w[0])
-            g_idx = w[0]
+
+            if quantize == "gptq":
+                w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
+                for w2 in w[1:]:
+                    torch.testing.assert_close(w2, w[0])
+                g_idx = w[0]
+            else:
+                g_idx = None
 
             bits, groupsize = self._get_gptq_params()
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
@@ -282,6 +289,22 @@ class Weights:
                 g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
 
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
+        elif quantize == "awq":
+            bits, groupsize = self._get_gptq_params()
+
+            try:
+                qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `awq` weight, make sure the model is already quantized"
+                )
+
+            qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
+            scales = self.get_sharded(f"{prefix}.scales", dim=0)
+            g_idx = None
+            use_exllama = False
+            
+            weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight
@@ -322,4 +345,15 @@ class Weights:
                 self.gptq_bits = data["bits"]
                 self.gptq_groupsize = data["group_size"]
             except Exception:
-                pass
+                filename = "quant_config.json"
+                try:
+                    if os.path.exists(os.path.join(model_id, filename)):
+                        filename = os.path.join(model_id, filename)
+                    else:
+                        filename = hf_hub_download(model_id, filename=filename)
+                    with open(filename, "r") as f:
+                        data = json.load(f)
+                    self.gptq_bits = data["w_bit"]
+                    self.gptq_groupsize = data["q_group_size"]
+                except Exception:
+                    pass
