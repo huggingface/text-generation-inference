@@ -1032,9 +1032,17 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             embed_tokens=self.shared,
         )
 
-        self.lm_head = TensorParallelHead.load(
-            config, prefix="lm_head", weights=weights
-        )
+        try:
+            self.lm_head = TensorParallelHead.load(
+                config, prefix="lm_head", weights=weights
+            )
+        except RuntimeError:
+            # Some models like t5-small were saved with shared weights unlike flan
+            # Since they are declared as the same arch we have no choice but hope
+            # that this is OK instead of using a proper flag.
+            self.lm_head = TensorParallelHead.load(
+                config, prefix="shared", weights=weights
+            )
 
     def forward(
         self,
