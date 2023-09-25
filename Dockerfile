@@ -121,7 +121,7 @@ FROM kernel-builder as awq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-awq Makefile
 # Build specific version of transformers
-RUN make build-awq
+RUN TORCH_CUDA_ARCH_LIST="8.0;8.6" make build-awq
 
 # Build Transformers CUDA kernels
 FROM kernel-builder as custom-kernels-builder
