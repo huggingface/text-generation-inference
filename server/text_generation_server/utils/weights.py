@@ -135,18 +135,26 @@ class Weights:
         Highly specific when the underlying tensor is a simple cat of Q,K,V instead of being
         already alternating Q,K,V within the main tensor
         """
-        if quantize == "gptq":
+        if quantize in ["gptq", "awq"]:
             try:
                 qweight = self._get_qweight(f"{prefix}.qweight") 
             except RuntimeError:
-                raise RuntimeError(
-                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
-                )
+                if quantize == "gptq":
+                    raise RuntimeError(
+                        "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                    )
+                else:
+                    raise RuntimeError(
+                        "Cannot load `awq` weight, make sure the model is already quantized"
+                    )
 
             qzeros = self._get_qweight(f"{prefix}.qzeros") 
             scales = self._get_qweight(f"{prefix}.scales") 
             scales = scales.to(dtype=self.dtype)
-            g_idx = self.get_tensor(f"{prefix}.g_idx")
+            try:
+                g_idx = self.get_tensor(f"{prefix}.g_idx")
+            except RuntimeError:
+                g_idx = None
 
             bits, groupsize = self._get_gptq_params()
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
@@ -171,15 +179,20 @@ class Weights:
         return weight
 
     def get_multi_weights_col(self, prefixes: List[str], quantize: str, dim: int):
-        if quantize == "gptq":
+        if quantize in ["gptq", "awq"]:
             try:
                 qweight = torch.cat(
                     [self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1
                 )
             except RuntimeError:
-                raise RuntimeError(
-                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
-                )
+                if quantize == "gptq":
+                    raise RuntimeError(
+                        "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                    )
+                else:
+                    raise RuntimeError(
+                        "Cannot load `awq` weight, make sure the model is already quantized"
+                    )
 
             qzeros = torch.cat(
                 [self.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1
@@ -187,10 +200,14 @@ class Weights:
             scales = torch.cat(
                 [self.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1
             )
-            w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
-            for w2 in w[1:]:
-                torch.testing.assert_close(w2, w[0])
-            g_idx = w[0]
+
+            try:
+                w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
+                for w2 in w[1:]:
+                    torch.testing.assert_close(w2, w[0])
+                g_idx = w[0]
+            except RuntimeError:
+                g_idx = None
 
             bits, groupsize = self._get_gptq_params()
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
@@ -216,7 +233,7 @@ class Weights:
         return tensor 
 
     def get_multi_weights_row(self, prefix: str, quantize: str):
-        if quantize == "gptq":
+        if quantize in "gptq":
             use_exllama = True
             bits, groupsize = self._get_gptq_params()
 
@@ -282,6 +299,20 @@ class Weights:
                 g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
 
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
+        elif quantize == "awq":
+            bits, groupsize = self._get_gptq_params()
+
+            try:
+                qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `awq` weight, make sure the model is already quantized"
+                )
+
+            qzeros = self.get_tensor(f"{prefix}.qzeros")
+            scales = self.get_tensor(f"{prefix}.scales")
+            
+            weight = (qweight, qzeros, scales, None, bits, groupsize, None)
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight
