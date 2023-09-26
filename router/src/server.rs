@@ -13,7 +13,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{http, Json, Router};
-use axum_tracing_opentelemetry::opentelemetry_tracing_layer;
+use axum_tracing_opentelemetry::middleware::OtelAxumLayer;
 use futures::stream::StreamExt;
 use futures::Stream;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
@@ -396,7 +396,7 @@ async fn generate_stream(
                                         // StreamResponse
                                         let stream_token = StreamResponse {
                                             token,
-                                            top_tokens: top_tokens,
+                                            top_tokens,
                                             generated_text: None,
                                             details: None,
                                         };
@@ -458,7 +458,7 @@ async fn generate_stream(
 
                                         let stream_token = StreamResponse {
                                             token,
-                                            top_tokens: top_tokens,
+                                            top_tokens,
                                             generated_text: Some(output_text),
                                             details
                                         };
@@ -695,7 +695,7 @@ pub async fn run(
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
         .layer(Extension(prom_handle.clone()))
-        .layer(opentelemetry_tracing_layer())
+        .layer(OtelAxumLayer::default())
         .layer(cors_layer);
 
     if ngrok {
@@ -792,7 +792,7 @@ async fn shutdown_signal() {
 
 impl From<i32> for FinishReason {
     fn from(finish_reason: i32) -> Self {
-        let finish_reason = text_generation_client::FinishReason::from_i32(finish_reason).unwrap();
+        let finish_reason = text_generation_client::FinishReason::try_from(finish_reason).unwrap();
         match finish_reason {
             text_generation_client::FinishReason::Length => FinishReason::Length,
             text_generation_client::FinishReason::EosToken => FinishReason::EndOfSequenceToken,

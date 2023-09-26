@@ -276,7 +276,7 @@ impl Validation {
             truncate: truncate.unwrap_or(self.max_input_length) as u32,
             parameters,
             stopping_parameters,
-            top_n_tokens: top_n_tokens,
+            top_n_tokens,
         })
     }
 
