@@ -91,7 +91,7 @@ class IdeficsVisionEmbeddings(nn.Module):
         self.position_embedding = TensorParallelEmbedding(
             prefix="model.vision_model.embeddings.position_embedding", weights=weights
         )
-        self.position_ids = torch.arange(self.num_positions).expand((1, -1))
+        self.position_ids = torch.arange(self.num_positions).expand((1, -1)).to(device=weights.device)
 
     def forward(self, pixel_values: torch.FloatTensor) -> torch.Tensor:
         batch_size = pixel_values.shape[0]
