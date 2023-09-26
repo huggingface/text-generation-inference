@@ -191,7 +191,6 @@ def download_weights(
 
             # Name for this varible depends on transformers version.
             discard_names = getattr(class_, "_tied_weights_keys", [])
-            discard_names.extend(getattr(class_, "_keys_to_ignore_on_load_missing", []))
 
         except Exception as e:
             discard_names = []
