@@ -168,7 +168,7 @@ def test_seq2seq_lm_generate_token_completion(
     assert next_batch is None
 
     assert len(generations) == 1
-    assert generations[0].generated_text.text == " a few weeks"
+    assert generations[0].generated_text.text == "a few weeks"
     assert generations[0].request_id == default_seq2seq_lm_batch.requests[0].id
     assert generations[0].generated_text.generated_tokens == 7
 
@@ -186,7 +186,7 @@ def test_seq2seq_lm_generate_token_completion_multi(
     assert next_batch is not None
 
     assert len(generations) == 2
-    assert generations[1].generated_text.text == " a few "
+    assert generations[1].generated_text.text == "a few "
     assert (
         generations[1].request_id
         == default_multi_requests_seq2seq_lm_batch.requests[1].id
