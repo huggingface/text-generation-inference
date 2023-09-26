@@ -714,6 +714,7 @@ class Seq2SeqLM(Model):
                         all_decoder_input_ids,
                         prefix_offset=len(all_decoder_input_ids) - decoder_input_length - 1,
                         read_offset=len(all_decoder_input_ids) - decoder_input_length,
+                        skip_special_tokens=True
                     )
 
                     # Get seed

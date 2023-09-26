@@ -793,11 +793,6 @@ class FlashCausalLM(Model):
 
         return int(num_blocks * BLOCK_SIZE)
 
-    def decode(self, generated_ids: Union[torch.Tensor, List[int]]) -> str:
-        return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )
-
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -1012,6 +1007,7 @@ class FlashCausalLM(Model):
                         all_input_ids,
                         prefix_offset=len(all_input_ids) - stopping_criteria.current_tokens - 1,
                         read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
+                        skip_special_tokens=True
                     )
                     generated_text = GeneratedText(
                         output_text,

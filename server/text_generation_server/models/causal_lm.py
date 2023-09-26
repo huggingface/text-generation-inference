@@ -645,6 +645,7 @@ class CausalLM(Model):
                         all_input_ids[:, 0],
                         prefix_offset=len(all_input_ids) - stopping_criteria.current_tokens - 1,
                         read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
+                        skip_special_tokens=True
                     )
                     # Get seed
                     if isinstance(next_token_chooser.choice, Sampling):
