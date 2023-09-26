@@ -45,9 +45,9 @@ class Weights:
     def get_filename(self, tensor_name: str) -> (str, str):
         filename = self.routing.get(tensor_name, None)
         if filename is None:
-            aliases = self.aliases.get(tensor_name, [])
-            for alias in aliases:
-                filename = self.routing.get(alias, None)
+            for alias, tensor_list in self.aliases.items():
+                if tensor_name in tensor_list:
+                    filename = self.routing.get(alias, None)
                 if filename is not None:
                     return str(filename), alias
             raise RuntimeError(f"weight {tensor_name} does not exist")

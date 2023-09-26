@@ -63,6 +63,7 @@ class T5Sharded(Seq2SeqLM):
                 "shared.weight": [
                     "encoder.embed_tokens.weight",
                     "decoder.embed_tokens.weight",
+                    "lm_head.weight",
                 ]
             },
         )
