@@ -611,11 +611,6 @@ class IdeficsCausalLM(Model):
     def batch_type(self) -> Type[IdeficsCausalLMBatch]:
         return IdeficsCausalLMBatch
 
-    def decode(self, generated_ids: List[int]) -> str:
-        return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )
-
     def forward(
         self,
         input_ids,
@@ -728,8 +723,11 @@ class IdeficsCausalLM(Model):
             if i % self.world_size == self.rank:
                 if stop:
                     # Decode generated tokens
-                    output_text = self.decode(
-                        all_input_ids[-stopping_criteria.current_tokens :, 0]
+                    output_text, _, _ = self.decode_token(
+                        all_input_ids[:, 0],
+                        prefix_offset=len(all_input_ids) - stopping_criteria.current_tokens - 1,
+                        read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
+                        skip_special_tokens=True
                     )
                     # Get seed
                     if isinstance(next_token_chooser.choice, Sampling):
