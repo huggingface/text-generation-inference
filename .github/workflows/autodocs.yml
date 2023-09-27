@@ -1,6 +1,9 @@
 name: Automatic Documentation for Launcher
 
-on: [push]
+on:
+  # TODO remove this before merging
+  push:
+  pull_request:
 
 jobs:
   update_docs:
@@ -12,14 +15,11 @@ jobs:
     
     - name: Install Launcher
       id: install-launcher
-      run: cargo install --git git+https://github.com/${github.event.actor_id}/text-generation-inference.git --branch ${github.head_ref} text-generation-launcher
+      run: cargo install --git git+https://github.com/${{ github.repository }}/text-generation-inference.git --branch ${{ github.head_ref }} text-generation-launcher
     
     - name: Update Docs
       run: |
         echo text-generation-launcher --help
         output=$(text-generation-launcher --help)
         { echo '```'; echo $output; echo '```'; } > launcher_test.md
-        if diff launcher_test.md docs/source/basic_tutorials/launcher.md; then
-          echo "Docs aren't updated, update them!"
-          exit 1
-        fi
+        diff launcher_test.md docs/source/basic_tutorials/launcher.md
