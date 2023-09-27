@@ -14,18 +14,19 @@ name = "text-generation-benchmark"
 path = "src/main.rs"
 
 [dependencies]
-average = "0.13"
-clap = { version = "4.1.4", features = ["derive", "env"] }
-crossterm = "0.26"
+average = "0.14"
+clap = { version = "4.4.5", features = ["derive", "env"] }
+crossterm = "0.27"
 float-ord = "0.3.2"
-serde = {version = "1.0.142", features = ["derive"]}
+serde = {version = "1.0.188", features = ["derive"]}
 serde_json = "1.0"
-tabled = "0.12.0"
+tabled = "0.14.0"
 text-generation-client = { path = "../router/client" }
-thiserror = "1.0.38"
-tokenizers = "0.13.3"
-tokio = { version = "1.25.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
-tui = {package = "ratatui", version = "0.20", default-features = false, features = ["crossterm"]}
+thiserror = "1.0.48"
+tokenizers = { version = "0.14.0", features = ["http"] }
+tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync", "macros"] }
+tui = {package = "ratatui", version = "0.23", default-features = false, features = ["crossterm"]}
 tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }
+tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
+hf-hub = "0.3.1"
 

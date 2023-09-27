@@ -15,35 +15,37 @@ name = "text-generation-router"
 path = "src/main.rs"
 
 [dependencies]
-async-stream = "0.3.3"
-axum = { version = "0.6.4", features = ["json"] }
-axum-tracing-opentelemetry = "0.10.0"
+async-stream = "0.3.5"
+axum = { version = "0.6.20", features = ["json"] }
+axum-tracing-opentelemetry = "0.14.1"
 text-generation-client = { path = "client" }
-clap = { version = "4.1.4", features = ["derive", "env"] }
-flume = "0.10.14"
-futures = "0.3.26"
-metrics = "0.21.0"
+clap = { version = "4.4.5", features = ["derive", "env"] }
+flume = "0.11.0"
+futures = "0.3.28"
+metrics = "0.21.1"
 metrics-exporter-prometheus = { version = "0.12.1", features = [] }
 nohash-hasher = "0.2.0"
-opentelemetry = { version = "0.19.0", features = ["rt-tokio"] }
-opentelemetry-otlp = "0.12.0"
+opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
+opentelemetry-otlp = "0.13.0"
 rand = "0.8.5"
-reqwest = { version = "0.11.14", features = [] }
-serde = "1.0.152"
-serde_json = "1.0.93"
-thiserror = "1.0.38"
-tokenizers = "0.13.3"
-tokio = { version = "1.25.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
-tower-http = { version = "0.4.0", features = ["cors"] }
+reqwest = { version = "0.11.20", features = [] }
+serde = "1.0.188"
+serde_json = "1.0.107"
+thiserror = "1.0.48"
+tokenizers = { version = "0.14.0", features = ["http"] }
+tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
+tower-http = { version = "0.4.4", features = ["cors"] }
 tracing = "0.1.37"
-tracing-opentelemetry = "0.19.0"
-tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }
-utoipa = { version = "3.0.1", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "3.0.2", features = ["axum"] }
-ngrok = { version = "0.12.3", features = ["axum"], optional = true }
+tracing-opentelemetry = "0.21.0"
+tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
+utoipa = { version = "3.5.0", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "3.1.5", features = ["axum"] }
+ngrok = { version = "0.13.1", features = ["axum"], optional = true }
+hf-hub = "0.3.1"
+init-tracing-opentelemetry = { version = "0.14.1", features = ["opentelemetry-otlp"] }
 
 [build-dependencies]
-vergen = { version = "8.0.0", features = ["build", "git", "gitcl"] }
+vergen = { version = "8.2.5", features = ["build", "git", "gitcl"] }
 
 [features]
 default = ["ngrok"]
