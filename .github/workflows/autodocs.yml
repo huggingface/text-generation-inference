@@ -19,5 +19,5 @@ jobs:
       run: |
         echo text-generation-launcher --help
         output=$(text-generation-launcher --help)
-        { echo '```'; echo $output; echo '```'; } > launcher_test.md
+        { echo '```'; echo "$output"; echo '```'; } > launcher_test.md
         diff launcher_test.md docs/source/basic_tutorials/launcher.md
