@@ -331,7 +331,7 @@ class FlashMistral(FlashCausalLM):
             device=device,
             rank=rank,
             world_size=world_size,
-            repeat_slots=True,
+            sliding_window=config.sliding_window,
         )
 
     @property

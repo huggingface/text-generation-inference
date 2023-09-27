@@ -636,12 +636,11 @@ class FlashCausalLM(Model):
         device: torch.device,
         rank: int = 0,
         world_size: int = 1,
-        repeat_slots: bool = False,
+        sliding_window: Optional[int] = None,
     ):
         self.num_layers = num_layers
         self.num_kv_heads = num_kv_heads
         self.head_size = head_size
-        self.repeat_slots = repeat_slots
 
         super(FlashCausalLM, self).__init__(
             model=model,
@@ -651,6 +650,7 @@ class FlashCausalLM(Model):
             device=device,
             rank=rank,
             world_size=world_size,
+            sliding_window=sliding_window,
         )
 
     @property
@@ -665,7 +665,7 @@ class FlashCausalLM(Model):
                 self.num_layers,
                 self.num_kv_heads,
                 self.head_size,
-                self.repeat_slots,
+                self.sliding_window is not None,
                 self.dtype,
                 self.device,
             )
@@ -705,7 +705,7 @@ class FlashCausalLM(Model):
             self.num_layers,
             self.num_kv_heads,
             self.head_size,
-            self.repeat_slots,
+            self.sliding_window is not None,
             self.dtype,
             self.device,
         )

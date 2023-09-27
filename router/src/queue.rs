@@ -2,6 +2,7 @@ use crate::infer::InferError;
 use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
+use std::cmp::min;
 use std::collections::VecDeque;
 use text_generation_client::{Batch, Request};
 use tokio::sync::oneshot;
@@ -33,12 +34,17 @@ pub(crate) struct Queue {
 }
 
 impl Queue {
-    pub(crate) fn new(requires_padding: bool, block_size: u32) -> Self {
+    pub(crate) fn new(requires_padding: bool, block_size: u32, window_size: Option<u32>) -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = flume::unbounded();
 
         // Launch background queue task
-        tokio::spawn(queue_task(requires_padding, block_size, queue_receiver));
+        tokio::spawn(queue_task(
+            requires_padding,
+            block_size,
+            window_size,
+            queue_receiver,
+        ));
 
         Self { queue_sender }
     }
@@ -84,9 +90,10 @@ impl Queue {
 async fn queue_task(
     requires_padding: bool,
     block_size: u32,
+    window_size: Option<u32>,
     receiver: flume::Receiver<QueueCommand>,
 ) {
-    let mut state = State::new(requires_padding, block_size);
+    let mut state = State::new(requires_padding, block_size, window_size);
 
     while let Ok(cmd) = receiver.recv_async().await {
         match cmd {
@@ -126,16 +133,20 @@ struct State {
 
     /// Paged Attention block size
     block_size: u32,
+
+    /// Sliding window
+    window_size: Option<u32>,
 }
 
 impl State {
-    fn new(requires_padding: bool, block_size: u32) -> Self {
+    fn new(requires_padding: bool, block_size: u32, window_size: Option<u32>) -> Self {
         Self {
             entries: VecDeque::with_capacity(128),
             next_id: 0,
             next_batch_id: 0,
             requires_padding,
             block_size,
+            window_size,
         }
     }
 
@@ -204,11 +215,17 @@ impl State {
             if self.requires_padding {
                 decode_tokens += entry.request.stopping_parameters.max_new_tokens;
             } else {
+                let max_new_tokens = match self.window_size {
+                    None => entry.request.stopping_parameters.max_new_tokens,
+                    Some(window_size) => min(
+                        window_size.saturating_sub(entry.request.input_length),
+                        entry.request.stopping_parameters.max_new_tokens,
+                    ),
+                };
+
                 // pad to block size
                 decode_tokens +=
-                    ((entry.request.stopping_parameters.max_new_tokens + self.block_size - 1)
-                        / self.block_size)
-                        * self.block_size;
+                    ((max_new_tokens + self.block_size - 1) / self.block_size) * self.block_size;
             }
 
             if prefill_tokens > prefill_token_budget
