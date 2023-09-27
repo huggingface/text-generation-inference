@@ -13,7 +13,6 @@ async def flash_mistral(flash_mistral_handle):
     return flash_mistral_handle.client
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_mistral(flash_mistral, response_snapshot):
@@ -25,7 +24,6 @@ async def test_flash_mistral(flash_mistral, response_snapshot):
     assert response == response_snapshot
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_mistral_all_params(flash_mistral, response_snapshot):
@@ -45,11 +43,10 @@ async def test_flash_mistral_all_params(flash_mistral, response_snapshot):
         seed=0,
     )
 
-    assert response.details.generated_tokens == 5
+    assert response.details.generated_tokens == 10
     assert response == response_snapshot
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_mistral_load(flash_mistral, generate_load, response_snapshot):

@@ -1,0 +1,358 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 3735,
+          "logprob": -12.9140625,
+          "text": "Test"
+        },
+        {
+          "id": 2159,
+          "logprob": -10.7578125,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 28747,
+          "logprob": -0.55078125,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 3169,
+          "logprob": -1.4140625,
+          "special": false,
+          "text": " Let"
+        },
+        {
+          "id": 307,
+          "logprob": -3.0273438,
+          "special": false,
+          "text": " n"
+        },
+        {
+          "id": 327,
+          "logprob": -0.94140625,
+          "special": false,
+          "text": " ="
+        },
+        {
+          "id": 28705,
+          "logprob": -0.8173828,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 28740,
+          "logprob": -1.2978516,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 28734,
+          "logprob": -2.0664062,
+          "special": false,
+          "text": "0"
+        },
+        {
+          "id": 387,
+          "logprob": -1.9560547,
+          "special": false,
+          "text": " -"
+        },
+        {
+          "id": 28705,
+          "logprob": -0.5078125,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 28740,
+          "logprob": -1.1787109,
+          "special": false,
+          "text": "1"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": ": Let n = 10 - 1"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 3735,
+          "logprob": -12.9140625,
+          "text": "Test"
+        },
+        {
+          "id": 2159,
+          "logprob": -10.7578125,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 28747,
+          "logprob": -0.54785156,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 3169,
+          "logprob": -1.4111328,
+          "special": false,
+          "text": " Let"
+        },
+        {
+          "id": 307,
+          "logprob": -3.0292969,
+          "special": false,
+          "text": " n"
+        },
+        {
+          "id": 327,
+          "logprob": -0.94433594,
+          "special": false,
+          "text": " ="
+        },
+        {
+          "id": 28705,
+          "logprob": -0.8178711,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 28740,
+          "logprob": -1.2939453,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 28734,
+          "logprob": -2.0644531,
+          "special": false,
+          "text": "0"
+        },
+        {
+          "id": 387,
+          "logprob": -1.9550781,
+          "special": false,
+          "text": " -"
+        },
+        {
+          "id": 28705,
+          "logprob": -0.5078125,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 28740,
+          "logprob": -1.1796875,
+          "special": false,
+          "text": "1"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": ": Let n = 10 - 1"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 3735,
+          "logprob": -12.9140625,
+          "text": "Test"
+        },
+        {
+          "id": 2159,
+          "logprob": -10.7578125,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 28747,
+          "logprob": -0.55078125,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 3169,
+          "logprob": -1.4140625,
+          "special": false,
+          "text": " Let"
+        },
+        {
+          "id": 307,
+          "logprob": -3.0273438,
+          "special": false,
+          "text": " n"
+        },
+        {
+          "id": 327,
+          "logprob": -0.94140625,
+          "special": false,
+          "text": " ="
+        },
+        {
+          "id": 28705,
+          "logprob": -0.8173828,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 28740,
+          "logprob": -1.2978516,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 28734,
+          "logprob": -2.0664062,
+          "special": false,
+          "text": "0"
+        },
+        {
+          "id": 387,
+          "logprob": -1.9560547,
+          "special": false,
+          "text": " -"
+        },
+        {
+          "id": 28705,
+          "logprob": -0.5078125,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 28740,
+          "logprob": -1.1787109,
+          "special": false,
+          "text": "1"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": ": Let n = 10 - 1"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 3735,
+          "logprob": -12.9140625,
+          "text": "Test"
+        },
+        {
+          "id": 2159,
+          "logprob": -10.7578125,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 28747,
+          "logprob": -0.55078125,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 3169,
+          "logprob": -1.4140625,
+          "special": false,
+          "text": " Let"
+        },
+        {
+          "id": 307,
+          "logprob": -3.0273438,
+          "special": false,
+          "text": " n"
+        },
+        {
+          "id": 327,
+          "logprob": -0.94140625,
+          "special": false,
+          "text": " ="
+        },
+        {
+          "id": 28705,
+          "logprob": -0.8173828,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 28740,
+          "logprob": -1.2978516,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 28734,
+          "logprob": -2.0664062,
+          "special": false,
+          "text": "0"
+        },
+        {
+          "id": 387,
+          "logprob": -1.9560547,
+          "special": false,
+          "text": " -"
+        },
+        {
+          "id": 28705,
+          "logprob": -0.5078125,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 28740,
+          "logprob": -1.1787109,
+          "special": false,
+          "text": "1"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": ": Let n = 10 - 1"
+  }
+]
