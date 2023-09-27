@@ -137,7 +137,7 @@ class Client:
             typical_p=typical_p,
             watermark=watermark,
             decoder_input_details=decoder_input_details,
-            top_n_tokens=top_n_tokens
+            top_n_tokens=top_n_tokens,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 

@@ -21,9 +21,16 @@ from urllib.parse import urlparse
 
 from transformers.feature_extraction_utils import BatchFeature
 from transformers.processing_utils import ProcessorMixin
-from transformers.tokenization_utils_base import BatchEncoding, PaddingStrategy, TextInput, TruncationStrategy
+from transformers.tokenization_utils_base import (
+    BatchEncoding,
+    PaddingStrategy,
+    TextInput,
+    TruncationStrategy,
+)
 from transformers.utils import TensorType, is_torch_available
-from text_generation_server.models.custom_modeling.idefics_image_processing import IdeficsImageProcessor
+from text_generation_server.models.custom_modeling.idefics_image_processing import (
+    IdeficsImageProcessor,
+)
 
 
 if is_torch_available():
@@ -124,7 +131,14 @@ class IdeficsProcessor(ProcessorMixin):
     image_processor_class = "IdeficsImageProcessor"
     tokenizer_class = "LlamaTokenizerFast"
 
-    def __init__(self, image_processor, tokenizer=None, image_size=224, add_end_of_utterance_token=None, **kwargs):
+    def __init__(
+        self,
+        image_processor,
+        tokenizer=None,
+        image_size=224,
+        add_end_of_utterance_token=None,
+        **kwargs,
+    ):
         if image_processor is None:
             raise ValueError("You need to specify an `image_processor`.")
         if tokenizer is None:
@@ -142,7 +156,8 @@ class IdeficsProcessor(ProcessorMixin):
 
         self.tokenizer_was_trained_with_end_of_utterance_token = (
             True
-            if "<end_of_utterance>" in self.tokenizer.special_tokens_map.get("additional_special_tokens", [])
+            if "<end_of_utterance>"
+            in self.tokenizer.special_tokens_map.get("additional_special_tokens", [])
             else False
         )
 
@@ -265,7 +280,9 @@ class IdeficsProcessor(ProcessorMixin):
 
         # if the value isn't overriden by the user, check if the tokenizer was trained with this token and then use it
         if add_end_of_utterance_token is None:
-            add_end_of_utterance_token = self.tokenizer_was_trained_with_end_of_utterance_token
+            add_end_of_utterance_token = (
+                self.tokenizer_was_trained_with_end_of_utterance_token
+            )
 
         # turn non-batched prompts into batched
         if not any(isinstance(i, list) for i in prompts):
@@ -358,10 +375,14 @@ class IdeficsProcessor(ProcessorMixin):
             current_images = images[:local_max_num_images]
 
             if len(current_images) > 0:
-                padded_image_tensor = torch.zeros(max_num_images, *current_images.size()[1:])
+                padded_image_tensor = torch.zeros(
+                    max_num_images, *current_images.size()[1:]
+                )
                 padded_image_tensor[: current_images.size(0)] = current_images
             else:
-                padded_image_tensor = torch.zeros(max_num_images, *self.default_image_dims)
+                padded_image_tensor = torch.zeros(
+                    max_num_images, *self.default_image_dims
+                )
 
             output_images.append(padded_image_tensor)
             output_input_ids.append(torch.tensor(padded_input_ids))
@@ -373,14 +394,19 @@ class IdeficsProcessor(ProcessorMixin):
         output_attention_masks = torch.stack(output_attention_masks)
 
         if at_least_one_image:
-            image_attention_mask, _ = image_attention_mask_for_packed_input_ids(output_input_ids, self.tokenizer)
+            image_attention_mask, _ = image_attention_mask_for_packed_input_ids(
+                output_input_ids, self.tokenizer
+            )
             image_attention_mask = incremental_to_binary_attention_mask(
                 image_attention_mask, num_classes=max_num_images
             )
         else:
             # in full language mode we set the image mask to all-0s
             image_attention_mask = torch.zeros(
-                output_input_ids.shape[0], output_input_ids.shape[1], 1, dtype=torch.bool
+                output_input_ids.shape[0],
+                output_input_ids.shape[1],
+                1,
+                dtype=torch.bool,
             )
 
         return BatchFeature(

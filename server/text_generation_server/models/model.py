@@ -71,7 +71,8 @@ class Model(ABC):
         # The prefix text is necessary only to defeat cleanup algorithms in the decode
         # which decide to add a space or not depending on the surrounding ids.
         prefix_text = self.tokenizer.decode(
-            all_input_ids[prefix_offset:read_offset], skip_special_tokens=skip_special_tokens
+            all_input_ids[prefix_offset:read_offset],
+            skip_special_tokens=skip_special_tokens,
         )
         new_text = self.tokenizer.decode(
             all_input_ids[prefix_offset:], skip_special_tokens=skip_special_tokens

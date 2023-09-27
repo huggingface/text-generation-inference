@@ -1005,9 +1005,12 @@ class FlashCausalLM(Model):
                     # Decode generated tokens
                     output_text, _, _ = self.decode_token(
                         all_input_ids,
-                        prefix_offset=len(all_input_ids) - stopping_criteria.current_tokens - 1,
-                        read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
-                        skip_special_tokens=True
+                        prefix_offset=len(all_input_ids)
+                        - stopping_criteria.current_tokens
+                        - 1,
+                        read_offset=len(all_input_ids)
+                        - stopping_criteria.current_tokens,
+                        skip_special_tokens=True,
                     )
                     generated_text = GeneratedText(
                         output_text,
