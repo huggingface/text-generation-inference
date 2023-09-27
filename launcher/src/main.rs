@@ -36,7 +36,10 @@ enum Quantization {
     Gptq,
     /// Bitsandbytes 8bit. Can be applied on any model, will cut the memory requirement in half,
     /// but it is known that the model will be much slower to run than the native f16.
-    #[deprecated(since="1.1.0", note="Use `eetq` instead, which provides better latencies overall and is drop-in in most cases")]
+    #[deprecated(
+        since = "1.1.0",
+        note = "Use `eetq` instead, which provides better latencies overall and is drop-in in most cases"
+    )]
     Bitsandbytes,
     /// Bitsandbytes 4bit. Can be applied on any model, will cut the memory requirement by 4x,
     /// but it is known that the model will be much slower to run than the native f16.
