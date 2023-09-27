@@ -5,6 +5,8 @@ import torch.distributed
 from torch import nn
 from torch.nn import functional as F
 from typing import List
+from loguru import logger
+from functools import lru_cache
 
 HAS_BITS_AND_BYTES = True
 try:
@@ -242,6 +244,10 @@ class Linear4bit(nn.Module):
         return out
 
 
+@lru_cache(1)
+def warn_deprecate_bnb():
+    logger.warning("Bitsandbytes 8bit is deprecated, using `eetq` is a drop-in replacement, and has much better performnce")
+
 def get_linear(weight, bias, quantize):
     if quantize is None:
         linear = FastLinear(weight, bias)
@@ -251,8 +257,7 @@ def get_linear(weight, bias, quantize):
         else:
             raise ImportError("Please install EETQ from https://github.com/NetEase-FuXi/EETQ")
     elif quantize == "bitsandbytes":
-        import warnings
-        warnings.warn("Bitsandbytes 8bit is deprecated, using `eetq` is a drop-in replacement, and has much better performnce", DeprecationWarning)
+        warn_deprecate_bnb()
         linear = Linear8bitLt(
             weight,
             bias,
