@@ -16,12 +16,6 @@ Options:
           
           [env: REVISION=]
 
-      --validation-workers <VALIDATION_WORKERS>
-          The number of tokenizer workers used for payload validation and truncation inside the router
-          
-          [env: VALIDATION_WORKERS=]
-          [default: 2]
-
       --sharded <SHARDED>
           Whether to shard the model across multiple GPUs By default text-generation-inference will use all available GPUs to run the model. Setting it to `false` deactivates `num_shard`
           
@@ -34,16 +28,16 @@ Options:
           [env: NUM_SHARD=]
 
       --quantize <QUANTIZE>
-          Whether you want the model to be quantized. This will use `bitsandbytes` for quantization on the fly, or `gptq`. 4bit quantization is available through `bitsandbytes` by providing the `bitsandbytes-fp4` or `bitsandbytes-nf4` options
+          Whether you want the model to be quantized. This will use `bitsandbytes` for quantization on the fly, or `gptq`
           
           [env: QUANTIZE=]
-          [possible values: bitsandbytes, bitsandbytes-nf4, bitsandbytes-fp4, gptq, awq]
+          [possible values: bitsandbytes, gptq]
 
       --dtype <DTYPE>
           The dtype to be forced upon the model. This option cannot be used with `--quantize`
           
           [env: DTYPE=]
-          [possible values: float16, bfloat16]
+          [possible values: float16, b-float16]
 
       --trust-remote-code
           Whether you want to execute hub modelling code. Explicitly passing a `revision` is encouraged when loading a model with custom code to ensure no malicious code has been contributed in a newer revision
@@ -67,12 +61,6 @@ Options:
           
           [env: MAX_STOP_SEQUENCES=]
           [default: 4]
-
-      --max-top-n-tokens <MAX_TOP_N_TOKENS>
-          This is the maximum allowed value for clients to set `top_n_tokens`. `top_n_tokens is used to return information about the the `n` most likely tokens at each generation step, instead of just the sampled token. This information can be used for downstream tasks like for classification or ranking
-          
-          [env: MAX_TOP_N_TOKENS=]
-          [default: 5]
 
       --max-input-length <MAX_INPUT_LENGTH>
           This is the maximum allowed input length (expressed in number of tokens) for users. The larger this value, the longer prompt users can send which can impact the overall memory required to handle the load. Please note that some models have a finite range of sequence they can handle
@@ -112,6 +100,7 @@ Options:
           Overall this number should be the largest possible amount that fits the remaining memory (after the model is loaded). Since the actual memory overhead depends on other parameters like if you're using quantization, flash attention or the model implementation, text-generation-inference cannot infer this number automatically.
           
           [env: MAX_BATCH_TOTAL_TOKENS=]
+          [default: 16000]
 
       --max-waiting-tokens <MAX_WAITING_TOKENS>
           This setting defines how many tokens can be passed before forcing the waiting queries to be put on the batch (if the size of the batch allows for it). New queries require 1 `prefill` forward, which is different from `decode` and therefore you need to pause the running batch in order to run `prefill` to create the correct values for the waiting queries to be able to join the batch.
@@ -124,12 +113,6 @@ Options:
           
           [env: MAX_WAITING_TOKENS=]
           [default: 20]
-
-      --hostname <HOSTNAME>
-          The IP address to listen on
-          
-          [env: HOSTNAME=]
-          [default: 0.0.0.0]
 
   -p, --port <PORT>
           The port to listen on
@@ -170,29 +153,6 @@ Options:
           
           [env: DISABLE_CUSTOM_KERNELS=]
 
-      --cuda-memory-fraction <CUDA_MEMORY_FRACTION>
-          Limit the CUDA available memory. The allowed value equals the total visible memory multiplied by cuda-memory-fraction
-          
-          [env: CUDA_MEMORY_FRACTION=]
-          [default: 1.0]
-
-      --rope-scaling <ROPE_SCALING>
-          Rope scaling will only be used for RoPE models and allow rescaling the position rotary to accomodate for larger prompts.
-          
-          Goes together with `rope_factor`.
-          
-          `--rope-factor 2.0` gives linear scaling with a factor of 2.0 `--rope-scaling dynamic` gives dynamic scaling with a factor of 1.0 `--rope-scaling linear` gives linear scaling with a factor of 1.0 (Nothing will be changed basically)
-          
-          `--rope-scaling linear --rope-factor` fully describes the scaling you want
-          
-          [env: ROPE_SCALING=]
-          [possible values: linear, dynamic]
-
-      --rope-factor <ROPE_FACTOR>
-          Rope scaling will only be used for RoPE models See `rope_scaling`
-          
-          [env: ROPE_FACTOR=]
-
       --json-output
           Outputs the logs in JSON format (useful for telemetry)
           
@@ -220,10 +180,20 @@ Options:
           
           [env: NGROK_AUTHTOKEN=]
 
-      --ngrok-edge <NGROK_EDGE>
-          ngrok edge
+      --ngrok-domain <NGROK_DOMAIN>
+          ngrok domain name where the axum webserver will be available at
           
-          [env: NGROK_EDGE=]
+          [env: NGROK_DOMAIN=]
+
+      --ngrok-username <NGROK_USERNAME>
+          ngrok basic auth username
+          
+          [env: NGROK_USERNAME=]
+
+      --ngrok-password <NGROK_PASSWORD>
+          ngrok basic auth password
+          
+          [env: NGROK_PASSWORD=]
 
   -e, --env
           Display a lot of information about your runtime environment
