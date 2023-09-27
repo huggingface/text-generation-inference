@@ -290,7 +290,7 @@ class MistralAttention(torch.nn.Module):
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
-                max_past=self.max_past,
+                window_size_left=self.max_past,
             )
         # Decode
         else:

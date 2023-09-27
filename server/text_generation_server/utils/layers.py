@@ -53,6 +53,7 @@ try:
 except ImportError:
     pass
 
+
 # Monkey patching
 @classmethod
 def load_layer_norm(cls, prefix, weights, eps):
