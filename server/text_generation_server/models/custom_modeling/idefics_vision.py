@@ -75,7 +75,9 @@ class IdeficsVisionEmbeddings(nn.Module):
         self.image_size = config.image_size
         self.patch_size = config.patch_size
 
-        self.class_embedding = nn.Parameter(weights.get_tensor(f"{prefix}.class_embedding"))
+        self.class_embedding = nn.Parameter(
+            weights.get_tensor(f"{prefix}.class_embedding")
+        )
 
         self.patch_embedding = nn.Conv2d.load_no_bias(
             prefix=f"{prefix}.patch_embedding",
@@ -91,12 +93,16 @@ class IdeficsVisionEmbeddings(nn.Module):
         self.position_embedding = TensorParallelEmbedding(
             prefix="model.vision_model.embeddings.position_embedding", weights=weights
         )
-        self.position_ids = torch.arange(self.num_positions).expand((1, -1)).to(device=weights.device)
+        self.position_ids = (
+            torch.arange(self.num_positions).expand((1, -1)).to(device=weights.device)
+        )
 
     def forward(self, pixel_values: torch.FloatTensor) -> torch.Tensor:
         batch_size = pixel_values.shape[0]
         target_dtype = self.patch_embedding.weight.dtype
-        patch_embeds = self.patch_embedding(pixel_values.to(dtype=target_dtype))  # shape = [*, width, grid, grid]
+        patch_embeds = self.patch_embedding(
+            pixel_values.to(dtype=target_dtype)
+        )  # shape = [*, width, grid, grid]
         patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
 
         class_embeds = self.class_embedding.expand(batch_size, 1, -1)
@@ -132,7 +138,6 @@ class IdeficsVisionAttention(nn.Module):
         self.num_heads = self.num_heads // weights.process_group.size()
         self.embed_dim = self.embed_dim // weights.process_group.size()
 
-
         self.k_proj = TensorParallelColumnLinear.load(
             config, prefix=f"{prefix}.k_proj", weights=weights, bias=True
         )
@@ -147,7 +152,11 @@ class IdeficsVisionAttention(nn.Module):
         )
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
-        return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        return (
+            tensor.view(bsz, seq_len, self.num_heads, self.head_dim)
+            .transpose(1, 2)
+            .contiguous()
+        )
 
     def forward(
         self,
@@ -186,7 +195,10 @@ class IdeficsVisionAttention(nn.Module):
                     f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is"
                     f" {causal_attention_mask.size()}"
                 )
-            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + causal_attention_mask
+            attn_weights = (
+                attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+                + causal_attention_mask
+            )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         if attention_mask is not None:
@@ -194,7 +206,10 @@ class IdeficsVisionAttention(nn.Module):
                 raise ValueError(
                     f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.size()}"
                 )
-            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
+            attn_weights = (
+                attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+                + attention_mask
+            )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
@@ -204,12 +219,18 @@ class IdeficsVisionAttention(nn.Module):
             # make sure that attn_weights keeps its gradient.
             # In order to do so, attn_weights have to reshaped
             # twice and have to be reused in the following
-            attn_weights_reshaped = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            attn_weights = attn_weights_reshaped.view(bsz * self.num_heads, tgt_len, src_len)
+            attn_weights_reshaped = attn_weights.view(
+                bsz, self.num_heads, tgt_len, src_len
+            )
+            attn_weights = attn_weights_reshaped.view(
+                bsz * self.num_heads, tgt_len, src_len
+            )
         else:
             attn_weights_reshaped = None
 
-        attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
+        attn_probs = nn.functional.dropout(
+            attn_weights, p=self.dropout, training=self.training
+        )
 
         attn_output = torch.bmm(attn_probs, value_states)
 
@@ -253,11 +274,15 @@ class IdeficsVisionEncoderLayer(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         self.embed_dim = config.hidden_size
-        self.self_attn = IdeficsVisionAttention(prefix=f"{prefix}.self_attn", config=config, weights=weights)
+        self.self_attn = IdeficsVisionAttention(
+            prefix=f"{prefix}.self_attn", config=config, weights=weights
+        )
         self.layer_norm1 = nn.LayerNorm.load(
             prefix=f"{prefix}.layer_norm1", weights=weights, eps=config.layer_norm_eps
         )
-        self.mlp = IdeficsVisionMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
+        self.mlp = IdeficsVisionMLP(
+            prefix=f"{prefix}.mlp", config=config, weights=weights
+        )
         self.layer_norm2 = nn.LayerNorm.load(
             prefix=f"{prefix}.layer_norm2", weights=weights, eps=config.layer_norm_eps
         )
@@ -318,7 +343,11 @@ class IdeficsVisionEncoder(nn.Module):
         self.config = config
         self.layers = nn.ModuleList(
             [
-                IdeficsVisionEncoderLayer(prefix=f"{prefix}.encoder.layers.{layer_id}", config=config, weights=weights)
+                IdeficsVisionEncoderLayer(
+                    prefix=f"{prefix}.encoder.layers.{layer_id}",
+                    config=config,
+                    weights=weights,
+                )
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
@@ -362,11 +391,19 @@ class IdeficsVisionEncoder(nn.Module):
             return_dict (`bool`, *optional*):
                 Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
         """
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        output_attentions = (
+            output_attentions
+            if output_attentions is not None
+            else self.config.output_attentions
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        output_hidden_states = (
+            output_hidden_states
+            if output_hidden_states is not None
+            else self.config.output_hidden_states
+        )
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         encoder_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
@@ -406,9 +443,15 @@ class IdeficsVisionEncoder(nn.Module):
             encoder_states = encoder_states + (hidden_states,)
 
         if not return_dict:
-            return tuple(v for v in [hidden_states, encoder_states, all_attentions] if v is not None)
+            return tuple(
+                v
+                for v in [hidden_states, encoder_states, all_attentions]
+                if v is not None
+            )
         return BaseModelOutput(
-            last_hidden_state=hidden_states, hidden_states=encoder_states, attentions=all_attentions
+            last_hidden_state=hidden_states,
+            hidden_states=encoder_states,
+            attentions=all_attentions,
         )
 
 
@@ -419,13 +462,19 @@ class IdeficsVisionTransformer(nn.Module):
         self.config = config
         embed_dim = config.hidden_size
 
-        self.embeddings = IdeficsVisionEmbeddings(prefix=f"{prefix}.embeddings", config=config, weights=weights)
+        self.embeddings = IdeficsVisionEmbeddings(
+            prefix=f"{prefix}.embeddings", config=config, weights=weights
+        )
         self.pre_layrnorm = nn.LayerNorm.load(
             prefix=f"{prefix}.pre_layrnorm", weights=weights, eps=config.layer_norm_eps
         )
-        self.encoder = IdeficsVisionEncoder(prefix=prefix, config=config, weights=weights)
+        self.encoder = IdeficsVisionEncoder(
+            prefix=prefix, config=config, weights=weights
+        )
         self.post_layernorm = nn.LayerNorm.load(
-            prefix=f"{prefix}.post_layernorm", weights=weights, eps=config.layer_norm_eps
+            prefix=f"{prefix}.post_layernorm",
+            weights=weights,
+            eps=config.layer_norm_eps,
         )
 
     # copied from transformers.models.clip.modeling_clip.CLIPVisionTransformer.forward
@@ -440,11 +489,19 @@ class IdeficsVisionTransformer(nn.Module):
         Returns:
 
         """
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        output_attentions = (
+            output_attentions
+            if output_attentions is not None
+            else self.config.output_attentions
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        output_hidden_states = (
+            output_hidden_states
+            if output_hidden_states is not None
+            else self.config.output_hidden_states
+        )
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         if pixel_values is None:
             raise ValueError("You have to specify pixel_values")

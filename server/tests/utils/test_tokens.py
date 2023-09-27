@@ -45,12 +45,15 @@ def test_stopping_criteria_max():
     assert criteria(1, "") == (False, None)
     assert criteria(1, "") == (True, FinishReason.FINISH_REASON_LENGTH)
 
+
 def test_batch_top_tokens():
     top_n_tokens = [0, 2, 3, 4, 5]
     top_n_tokens_tensor = torch.tensor(top_n_tokens)
-    inp_logprobs = torch.tensor([[-1., -3., -4., -2., -3.]] * 5)
+    inp_logprobs = torch.tensor([[-1.0, -3.0, -4.0, -2.0, -3.0]] * 5)
 
-    topn_tok_ids, topn_tok_logprobs = batch_top_tokens(top_n_tokens, top_n_tokens_tensor, inp_logprobs)
+    topn_tok_ids, topn_tok_logprobs = batch_top_tokens(
+        top_n_tokens, top_n_tokens_tensor, inp_logprobs
+    )
 
     assert topn_tok_ids[0] == []
     assert topn_tok_ids[1] == [0, 3]

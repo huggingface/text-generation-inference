@@ -1,14 +1,21 @@
 import pytest
 
+
 @pytest.fixture(scope="module")
 def flash_llama_awq_handle_sharded(launcher):
-    with launcher("abhinavkulkarni/codellama-CodeLlama-7b-Python-hf-w4-g128-awq", num_shard=2, quantize="awq") as handle:
+    with launcher(
+        "abhinavkulkarni/codellama-CodeLlama-7b-Python-hf-w4-g128-awq",
+        num_shard=2,
+        quantize="awq",
+    ) as handle:
         yield handle
+
 
 @pytest.fixture(scope="module")
 async def flash_llama_awq_sharded(flash_llama_awq_handle_sharded):
     await flash_llama_awq_handle_sharded.health(300)
     return flash_llama_awq_handle_sharded.client
+
 
 @pytest.mark.asyncio
 @pytest.mark.private
@@ -18,8 +25,12 @@ async def test_flash_llama_awq_sharded(flash_llama_awq_sharded, response_snapsho
     )
 
     assert response.details.generated_tokens == 10
-    assert response.generated_text == "\nWhat is the difference between Deep Learning and Machine"
+    assert (
+        response.generated_text
+        == "\nWhat is the difference between Deep Learning and Machine"
+    )
     assert response == response_snapshot
+
 
 @pytest.mark.asyncio
 @pytest.mark.private
@@ -31,6 +42,12 @@ async def test_flash_llama_awq_load_sharded(
     )
 
     assert len(responses) == 4
-    assert all([r.generated_text ==  "\nWhat is the difference between Deep Learning and Machine" for r in responses])
+    assert all(
+        [
+            r.generated_text
+            == "\nWhat is the difference between Deep Learning and Machine"
+            for r in responses
+        ]
+    )
 
     assert responses == response_snapshot

@@ -6,6 +6,7 @@ import torch
 from transformers import AutoTokenizer
 from peft import AutoPeftModelForCausalLM, AutoPeftModelForSeq2SeqLM
 
+
 def download_and_unload_peft(model_id, revision, trust_remote_code):
     torch_dtype = torch.float16
 
@@ -33,7 +34,7 @@ def download_and_unload_peft(model_id, revision, trust_remote_code):
     base_model_id = model.peft_config["default"].base_model_name_or_path
 
     model = model.merge_and_unload()
-    
+
     os.makedirs(model_id, exist_ok=True)
     cache_dir = model_id
     logger.info(f"Saving the newly created merged model to {cache_dir}")
@@ -41,6 +42,3 @@ def download_and_unload_peft(model_id, revision, trust_remote_code):
     model.save_pretrained(cache_dir, safe_serialization=True)
     model.config.save_pretrained(cache_dir)
     tokenizer.save_pretrained(cache_dir)
-
-
-

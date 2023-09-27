@@ -11,7 +11,7 @@ import awq_inference_engine  # with CUDA kernels
 #         super().__init__()
 #         self.act = module
 #         self.scales = nn.Parameter(scales.data)
-#     
+#
 #     def forward(self, x):
 #         return self.act(x) / self.scales.view(1, 1, -1).to(x.device)
 
@@ -19,10 +19,10 @@ import awq_inference_engine  # with CUDA kernels
 class WQLinear(nn.Module):
     def __init__(self, w_bit, group_size, qweight, qzeros, scales, bias):
         super().__init__()
-        
+
         if w_bit not in [4]:
             raise NotImplementedError("Only 4-bit are supported for now.")
-        
+
         self.in_features = qweight.shape[0]
         self.out_features = qweight.shape[1] * 32 // w_bit
 
@@ -42,7 +42,9 @@ class WQLinear(nn.Module):
 
     @torch.no_grad()
     def forward(self, x):
-        out_shape = x.shape[:-1] + (self.out_features, )
-        out = awq_inference_engine.gemm_forward_cuda(x.reshape(-1, x.shape[-1]), self.qweight, self.scales, self.qzeros, 8)
+        out_shape = x.shape[:-1] + (self.out_features,)
+        out = awq_inference_engine.gemm_forward_cuda(
+            x.reshape(-1, x.shape[-1]), self.qweight, self.scales, self.qzeros, 8
+        )
         out = out + self.bias if self.bias is not None else out
         return out.reshape(out_shape)

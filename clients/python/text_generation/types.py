@@ -133,7 +133,9 @@ class Request(BaseModel):
             and parameters.best_of > 1
             and field_value
         ):
-            raise ValidationError("`best_of` != 1 is not supported when `stream` == True")
+            raise ValidationError(
+                "`best_of` != 1 is not supported when `stream` == True"
+            )
         return field_value
 
 

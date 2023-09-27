@@ -153,7 +153,11 @@ def get_model(
         )
     elif model_type == "mpt":
         return MPTSharded(
-            model_id, revision, quantize=quantize, dtype=dtype, trust_remote_code=trust_remote_code
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
         )
 
     elif model_type == "gpt_neox":
@@ -252,13 +256,13 @@ def get_model(
         )
     elif model_type == "idefics":
         if FLASH_ATTENTION:
-           return IDEFICSSharded(
-               model_id,
-               revision,
-               quantize=quantize,
-               dtype=dtype,
-               trust_remote_code=trust_remote_code,
-           )
+            return IDEFICSSharded(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
 
@@ -269,13 +273,9 @@ def get_model(
             "gptq quantization is not supported for AutoModel, you can try to quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
         )
     if quantize == "awq":
-        raise ValueError(
-            "awq quantization is not supported for AutoModel"
-        )
+        raise ValueError("awq quantization is not supported for AutoModel")
     elif (quantize == "bitsandbytes-fp4") or (quantize == "bitsandbytes-nf4"):
-        raise ValueError(
-            "4bit quantization is not supported for AutoModel"
-        )
+        raise ValueError("4bit quantization is not supported for AutoModel")
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
         return CausalLM(
             model_id,

@@ -169,6 +169,7 @@ def load_attention(config, prefix, weights):
                 bias=False,
             )
 
+
 def _load_gqa(config, prefix: str, weights):
     assert config.hidden_size % config.num_attention_heads == 0
     assert config.num_attention_heads % weights.process_group.size() == 0
@@ -211,7 +212,10 @@ class FlashLlamaAttention(torch.nn.Module):
         #     config=config, prefix=f"{prefix}.rotary_emb", weights=weights
         # )
         self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config, dim=self.head_size, base=config.rope_theta, device=weights.device
+            config=config,
+            dim=self.head_size,
+            base=config.rope_theta,
+            device=weights.device,
         )
 
         self.softmax_scale = self.head_size**-0.5
