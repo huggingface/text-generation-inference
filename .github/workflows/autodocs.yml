@@ -15,7 +15,7 @@ jobs:
     
     - name: Install Launcher
       id: install-launcher
-      run: cargo install --git git+https://github.com/${{ github.repository }}/text-generation-inference.git --branch ${{ github.head_ref }} text-generation-launcher
+      run: cargo install --git git+https://github.com/${{ github.repository }} --branch ${{ github.head_ref }} text-generation-launcher
     
     - name: Update Docs
       run: |
