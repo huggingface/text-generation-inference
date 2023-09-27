@@ -35,6 +35,13 @@ elif CAN_EXLLAMA:
 
 from typing import Optional
 
+HAS_EETQ = False
+try:
+    from EETQ import quant_weights, w8_a16_gemm
+    HAS_EETQ = True
+except ImportError:
+    pass
+
 # Monkey patching
 @classmethod
 def load_layer_norm(cls, prefix, weights, eps):
@@ -111,6 +118,30 @@ class FastLinear(nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return F.linear(input, self.weight, self.bias)
+
+
+class WeightOnlyLinear(nn.Module):
+    def __init__(
+        self,
+        weight,
+        bias,
+    ) -> None:
+        super().__init__()
+        device = weight.device
+        weight = torch.t(weight).contiguous().cpu()
+        weight, scale = quant_weights(weight, torch.int8, False)
+        if bias:
+            bias = weights.get_tensor(f"{prefix}.bias")
+        else:
+            bias = None
+        self.weight = weight.cuda(device)
+        self.scale = scale.cuda(device)
+        self.bias = bias.cuda(device) if bias is not None else None
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        output = w8_a16_gemm(input, self.weight, self.scale)
+        output = output + self.bias if self.bias is not None else output
+        return output
 
 
 class Linear8bitLt(nn.Module):
@@ -207,6 +238,11 @@ class Linear4bit(nn.Module):
 def get_linear(weight, bias, quantize):
     if quantize is None:
         linear = FastLinear(weight, bias)
+    elif quantize == "eetq":
+        if HAS_EETQ:
+            linear = WeightOnlyLinear(weight, bias)
+        else:
+            raise ImportError("Please install EETQ from https://github.com/NetEase-FuXi/EETQ")
     elif quantize == "bitsandbytes":
         linear = Linear8bitLt(
             weight,
@@ -284,7 +320,7 @@ class TensorParallelHead(SuperLayer):
             should_gather = False
 
         # GPTQ doesn't quantize heads (nor embeddings)
-        if config.quantize == "gptq":
+        if config.quantize in ["gptq", "eetq"]:
             quantize = None
         else:
             quantize = config.quantize
