@@ -5,6 +5,8 @@ import torch.distributed
 from torch import nn
 from torch.nn import functional as F
 from typing import List
+from loguru import logger
+from functools import lru_cache
 
 HAS_BITS_AND_BYTES = True
 try:
@@ -41,6 +43,13 @@ elif CAN_EXLLAMA:
             pass
 
 from typing import Optional
+
+HAS_EETQ = False
+try:
+    from EETQ import quant_weights, w8_a16_gemm
+    HAS_EETQ = True
+except ImportError:
+    pass
 
 # Monkey patching
 @classmethod
@@ -118,6 +127,30 @@ class FastLinear(nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return F.linear(input, self.weight, self.bias)
+
+
+class EETQLinear(nn.Module):
+    def __init__(
+        self,
+        weight,
+        bias,
+    ) -> None:
+        super().__init__()
+        device = weight.device
+        weight = torch.t(weight).contiguous().cpu()
+        weight, scale = quant_weights(weight, torch.int8, False)
+        if bias:
+            bias = weights.get_tensor(f"{prefix}.bias")
+        else:
+            bias = None
+        self.weight = weight.cuda(device)
+        self.scale = scale.cuda(device)
+        self.bias = bias.cuda(device) if bias is not None else None
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        output = w8_a16_gemm(input, self.weight, self.scale)
+        output = output + self.bias if self.bias is not None else output
+        return output
 
 
 class Linear8bitLt(nn.Module):
@@ -211,10 +244,20 @@ class Linear4bit(nn.Module):
         return out
 
 
+@lru_cache(1)
+def warn_deprecate_bnb():
+    logger.warning("Bitsandbytes 8bit is deprecated, using `eetq` is a drop-in replacement, and has much better performnce")
+
 def get_linear(weight, bias, quantize):
     if quantize is None:
         linear = FastLinear(weight, bias)
+    elif quantize == "eetq":
+        if HAS_EETQ:
+            linear = EETQLinear(weight, bias)
+        else:
+            raise ImportError("Please install EETQ from https://github.com/NetEase-FuXi/EETQ")
     elif quantize == "bitsandbytes":
+        warn_deprecate_bnb()
         linear = Linear8bitLt(
             weight,
             bias,
@@ -298,8 +341,8 @@ class TensorParallelHead(SuperLayer):
             weight = weights.get_tensor(f"{prefix}.weight")
             should_gather = False
 
-        # GPTQ and AWQ don't quantize heads (nor embeddings)
-        if config.quantize in ["gptq", "awq"]:
+        # GPTQ,AWQ,EETQ don't quantize heads (nor embeddings)
+        if config.quantize in ["gptq", "awq", "eetq"]:
             quantize = None
         else:
             quantize = config.quantize
