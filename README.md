@@ -68,6 +68,7 @@ to power Hugging Chat, the Inference API and Inference Endpoint.
 - [MPT](https://huggingface.co/mosaicml/mpt-30b)
 - [Llama V2](https://huggingface.co/meta-llama)
 - [Code Llama](https://huggingface.co/codellama)
+- [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1)
 
 Other architectures are supported on a best effort basis using:
 

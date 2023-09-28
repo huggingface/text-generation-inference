@@ -21,6 +21,7 @@ class Model(ABC):
         device: torch.device,
         rank: int = 0,
         world_size: int = 1,
+        sliding_window: Optional[int] = None,
     ):
         self.model = model.eval()
         self.tokenizer = tokenizer
@@ -30,6 +31,7 @@ class Model(ABC):
         self.device = device
         self.rank = rank
         self.world_size = world_size
+        self.sliding_window = sliding_window
 
         self.has_position_ids = (
             inspect.signature(model.forward).parameters.get("position_ids", None)
@@ -40,10 +42,14 @@ class Model(ABC):
 
     @property
     def info(self) -> InfoResponse:
+        if self.requires_padding and self.sliding_window is not None:
+            raise NotImplementedError("sliding_window is not implemented with padding")
+
         return InfoResponse(
             requires_padding=self.requires_padding,
             dtype=str(self.dtype),
             device_type=self.device.type,
+            window_size=self.sliding_window,
         )
 
     @property

@@ -40,7 +40,7 @@ class Parameters(BaseModel):
     # Get decoder input token logprobs and ids
     decoder_input_details: bool = False
     # Return the N most likely tokens at each step
-    top_n_tokens: Optional[int]
+    top_n_tokens: Optional[int] = None
 
     @validator("best_of")
     def valid_best_of(cls, field_value, values):
@@ -188,7 +188,7 @@ class BestOfSequence(BaseModel):
     # Generated tokens
     tokens: List[Token]
     # Most likely tokens
-    top_tokens: Optional[List[List[Token]]]
+    top_tokens: Optional[List[List[Token]]] = None
 
 
 # `generate` details
@@ -204,7 +204,7 @@ class Details(BaseModel):
     # Generated tokens
     tokens: List[Token]
     # Most likely tokens
-    top_tokens: Optional[List[List[Token]]]
+    top_tokens: Optional[List[List[Token]]] = None
     # Additional sequences when using the `best_of` parameter
     best_of_sequences: Optional[List[BestOfSequence]] = None
 
@@ -232,7 +232,7 @@ class StreamResponse(BaseModel):
     # Generated token
     token: Token
     # Most likely tokens
-    top_tokens: Optional[List[Token]]
+    top_tokens: Optional[List[Token]] = None
     # Complete generated text
     # Only available when the generation is finished
     generated_text: Optional[str] = None

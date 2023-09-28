@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 3735,
+        "logprob": -12.9140625,
+        "text": "Test"
+      },
+      {
+        "id": 2159,
+        "logprob": -10.7578125,
+        "text": "request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 28747,
+        "logprob": 0.0,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 3169,
+        "logprob": -0.1307373,
+        "special": false,
+        "text": " Let"
+      },
+      {
+        "id": 332,
+        "logprob": -2.3359375,
+        "special": false,
+        "text": " u"
+      },
+      {
+        "id": 347,
+        "logprob": 0.0,
+        "special": false,
+        "text": " be"
+      },
+      {
+        "id": 325,
+        "logprob": -1.0234375,
+        "special": false,
+        "text": " ("
+      },
+      {
+        "id": 28734,
+        "logprob": -2.0292969,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 648,
+        "logprob": -1.0439453,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 28705,
+        "logprob": -0.24499512,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 28770,
+        "logprob": -0.5073242,
+        "special": false,
+        "text": "3"
+      },
+      {
+        "id": 387,
+        "logprob": -1.5507812,
+        "special": false,
+        "text": " -"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request: Let u be (0 + 3 -"
+}

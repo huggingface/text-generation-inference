@@ -19,98 +19,16 @@ from text_generation_server.models.types import (
     GeneratedText,
     TopTokens,
 )
+from text_generation_server.models.cache_manager import (
+    get_cache_manager,
+    set_cache_manager,
+    BLOCK_SIZE,
+)
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
 tracer = trace.get_tracer(__name__)
-
-BLOCK_SIZE = 16
-# Will be set in warmup
-CACHE_MANAGER: Optional["CacheManager"] = None
-
-
-class CacheManager:
-    def __init__(
-        self,
-        num_blocks: int,
-        num_layers: int,
-        num_heads: int,
-        head_size: int,
-        dtype: torch.dtype,
-        device: torch.device,
-    ):
-        self.block_size = BLOCK_SIZE
-        self.num_blocks = num_blocks
-
-        element_size = torch.tensor([], dtype=dtype).element_size()
-        x = self.block_size // element_size
-
-        self.kv_cache = [
-            (
-                torch.empty(
-                    (num_blocks, num_heads, head_size // x, self.block_size, x),
-                    dtype=dtype,
-                    device=device,
-                ),
-                torch.empty(
-                    (num_blocks, num_heads, head_size, self.block_size),
-                    dtype=dtype,
-                    device=device,
-                ),
-            )
-            for _ in range(num_layers)
-        ]
-        self.free_block_mask = torch.ones(num_blocks, dtype=torch.int32, device="cpu")
-        self.slots = torch.arange(
-            0, num_blocks * self.block_size, dtype=torch.int32
-        ).view(num_blocks, self.block_size)
-
-    def allocate(self, batch: "FlashCausalLMBatch"):
-        # Get free blocks indices by finding values in mask that are not set to 0
-        free_block_indices = self.free_block_mask.nonzero()
-        assert (
-            len(free_block_indices) >= batch.blocks
-        ), f"Out of available cache blocks: asked {batch.blocks}, only {len(free_block_indices)} free blocks"
-
-        # Slice by the number of required blocks
-        block_indices = free_block_indices[: batch.blocks]
-        block_indices = block_indices.flatten()
-
-        # Padded block tables
-        block_tables_tensor = torch.zeros(
-            (len(batch), batch.max_blocks), dtype=torch.int32
-        )
-
-        # Allocate paged attention blocks
-        cumulative_blocks = 0
-        slots = []
-        block_tables = []
-        for i, (needed_blocks, needed_slots) in enumerate(batch.needed_blocks_slots):
-            # Get allocated blocks for this sequence
-            allocated_blocks = block_indices[
-                cumulative_blocks : cumulative_blocks + needed_blocks
-            ]
-            # Get slots for the allocated blocks
-            allocated_slots = self.slots[allocated_blocks].flatten()[:needed_slots]
-
-            slots.append(allocated_slots)
-            block_tables.append(allocated_blocks.tolist())
-            block_tables_tensor[i, :needed_blocks] = allocated_blocks
-            cumulative_blocks += needed_blocks
-
-        batch.needed_blocks_slots = None
-        batch.block_tables = block_tables
-        batch.block_tables_tensor = block_tables_tensor.to(batch.input_ids.device)
-        batch.slots = torch.concat(slots).to(batch.input_ids.device)
-
-        # Allocate the required number of blocks by setting the mask to 0
-        self.free_block_mask[block_indices] = 0
-
-    def free(self, block_indices: Optional[List[int]]):
-        if block_indices is not None and block_indices:
-            # Reset mask
-            self.free_block_mask[block_indices] = 1
 
 
 @dataclass
@@ -481,7 +399,6 @@ class FlashCausalLMBatch(Batch):
 
             max_blocks = max(max_blocks, len(request_block_table))
 
-        global CACHE_MANAGER
         block_indices_to_free = []
         # Iterate on all requests
         for i, r in enumerate(self.requests):
@@ -489,7 +406,7 @@ class FlashCausalLMBatch(Batch):
             if r.id not in requests_idx_mapping.keys():
                 block_indices_to_free.extend(self.block_tables[i])
         # Free blocks
-        CACHE_MANAGER.free(block_indices_to_free)
+        get_cache_manager().free(block_indices_to_free)
         # Needed to avoid dropping blocks when the batches will go out of scope
         self.block_tables = None
 
@@ -508,7 +425,7 @@ class FlashCausalLMBatch(Batch):
         # Move to GPU now that we have the whole tensor
         slot_indices = slot_indices.to(device)
 
-        return FlashCausalLMBatch(
+        return type(self)(
             batch_id=self.batch_id,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
@@ -665,7 +582,7 @@ class FlashCausalLMBatch(Batch):
             b.block_tables = None
             del b
 
-        return FlashCausalLMBatch(
+        return cls(
             batch_id=batches[0].batch_id,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
@@ -698,9 +615,10 @@ class FlashCausalLMBatch(Batch):
 
     def __del__(self):
         if self.block_tables is not None and self.block_tables:
-            global CACHE_MANAGER
             # Free blocks
-            CACHE_MANAGER.free(list(itertools.chain.from_iterable(self.block_tables)))
+            get_cache_manager().free(
+                list(itertools.chain.from_iterable(self.block_tables))
+            )
 
     def __len__(self):
         return len(self.requests)
@@ -718,6 +636,7 @@ class FlashCausalLM(Model):
         device: torch.device,
         rank: int = 0,
         world_size: int = 1,
+        sliding_window: Optional[int] = None,
     ):
         self.num_layers = num_layers
         self.num_kv_heads = num_kv_heads
@@ -731,6 +650,7 @@ class FlashCausalLM(Model):
             device=device,
             rank=rank,
             world_size=world_size,
+            sliding_window=sliding_window,
         )
 
     @property
@@ -738,15 +658,14 @@ class FlashCausalLM(Model):
         return FlashCausalLMBatch
 
     def warmup(self, batch: FlashCausalLMBatch):
-        global CACHE_MANAGER
-
         torch.cuda.empty_cache()
         try:
-            CACHE_MANAGER = CacheManager(
+            cache_manager = set_cache_manager(
                 batch.blocks,
                 self.num_layers,
                 self.num_kv_heads,
                 self.head_size,
+                self.sliding_window is not None,
                 self.dtype,
                 self.device,
             )
@@ -775,48 +694,36 @@ class FlashCausalLM(Model):
         num_blocks = (
             int(free_memory // total_cache_size)
             # Add batch.blocks as we allocated it above, so it is included in the peak memory.
-            + CACHE_MANAGER.num_blocks
+            + cache_manager.num_blocks
         )
 
-        del CACHE_MANAGER
         del batch
-        torch.cuda.empty_cache()
+        del cache_manager
 
-        CACHE_MANAGER = CacheManager(
+        set_cache_manager(
             num_blocks,
             self.num_layers,
             self.num_kv_heads,
             self.head_size,
+            self.sliding_window is not None,
             self.dtype,
             self.device,
         )
 
         return int(num_blocks * BLOCK_SIZE)
 
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        cu_seqlen_prefill: Optional[torch.Tensor],
-        block_tables: torch.Tensor,
-        slots: torch.Tensor,
-        input_lengths: torch.Tensor,
-        max_s: int,
-        lm_head_indices: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        global CACHE_MANAGER
-
+    def forward(self, batch: FlashCausalLMBatch) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
         return self.model.forward(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            cu_seqlen_prefill=cu_seqlen_prefill,
-            kv_cache=CACHE_MANAGER.kv_cache,
-            block_tables=block_tables,
-            slots=slots,
-            input_lengths=input_lengths,
-            max_s=max_s,
-            lm_head_indices=lm_head_indices,
+            input_ids=batch.input_ids,
+            position_ids=batch.position_ids,
+            cu_seqlen_prefill=batch.cu_seqlen_prefill,
+            kv_cache=get_cache_manager().kv_cache,
+            block_tables=batch.block_tables_tensor,
+            slots=batch.slots[batch.slot_indices],
+            input_lengths=batch.input_lengths_tensor,
+            max_s=batch.max_seqlen,
+            lm_head_indices=batch.prefill_head_indices,
         )
 
     @tracer.start_as_current_span("generate_token")
@@ -828,19 +735,19 @@ class FlashCausalLM(Model):
 
         if batch.needed_blocks_slots:
             # Allocate blocks to this batch
-            CACHE_MANAGER.allocate(batch)
+            block_tables, block_tables_tensor, slots = get_cache_manager().allocate(
+                batch.needed_blocks_slots,
+                batch.blocks,
+                batch.max_blocks,
+                batch.input_ids.device,
+            )
+            batch.needed_blocks_slots = None
+            batch.block_tables = block_tables
+            batch.block_tables_tensor = block_tables_tensor
+            batch.slots = slots
 
         try:
-            out = self.forward(
-                batch.input_ids,
-                batch.position_ids,
-                batch.cu_seqlen_prefill,
-                batch.block_tables_tensor,
-                batch.slots[batch.slot_indices],
-                batch.input_lengths_tensor,
-                batch.max_seqlen,
-                batch.prefill_head_indices,
-            )
+            out = self.forward(batch)
         except Exception as e:
             del batch
             raise e

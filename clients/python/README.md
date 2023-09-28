@@ -140,6 +140,8 @@ class Parameters:
     watermark: bool
     # Get decoder input token logprobs and ids
     decoder_input_details: bool
+    # Return the N most likely tokens at each step
+    top_n_tokens: Optional[int] 
 
 # Decoder input tokens
 class InputToken:
@@ -189,6 +191,8 @@ class BestOfSequence:
     prefill: List[InputToken]
     # Generated tokens
     tokens: List[Token]
+    # Most likely tokens
+    top_tokens: Optional[List[List[Token]]] 
 
 
 # `generate` details
@@ -203,6 +207,8 @@ class Details:
     prefill: List[InputToken]
     # Generated tokens
     tokens: List[Token]
+    # Most likely tokens
+    top_tokens: Optional[List[List[Token]]]
     # Additional sequences when using the `best_of` parameter
     best_of_sequences: Optional[List[BestOfSequence]]
 
@@ -229,6 +235,8 @@ class StreamDetails:
 class StreamResponse:
     # Generated token
     token: Token
+    # Most likely tokens
+    top_tokens: Optional[List[Token]] 
     # Complete generated text
     # Only available when the generation is finished
     generated_text: Optional[str]
