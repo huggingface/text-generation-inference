@@ -11,7 +11,7 @@ def main():
     output = subprocess.check_output(["text-generation-launcher", "--help"]).decode(
         "utf-8"
     )
-    final_doc = f"# Text-generation-launcher arguments\n```\n{output}\n```"
+    final_doc = f"# Text-generation-launcher arguments\n\n```\n{output}\n```"
 
     filename = "docs/source/basic_tutorials/launcher.md"
     if args.check:
