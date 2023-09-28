@@ -2,7 +2,7 @@
 
 <!-- WRAP CODE BLOCKS -->
 
-```
+```shell
 Text Generation Launcher
 
 Usage: text-generation-launcher [OPTIONS]

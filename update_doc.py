@@ -12,7 +12,7 @@ def main():
         "utf-8"
     )
     wrap_code_blocks_flag = "<!-- WRAP CODE BLOCKS -->"
-    final_doc = f"# Text-generation-launcher arguments\n\n{wrap_code_blocks_flag}\n\n```\n{output}\n```"
+    final_doc = f"# Text-generation-launcher arguments\n\n{wrap_code_blocks_flag}\n\n```shell\n{output}\n```"
 
     filename = "docs/source/basic_tutorials/launcher.md"
     if args.check:
