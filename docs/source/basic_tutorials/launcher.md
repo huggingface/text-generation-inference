@@ -1,5 +1,7 @@
 # Text-generation-launcher arguments
 
+<!-- WRAP CODE BLOCKS -->
+
 ```
 Text Generation Launcher
 
