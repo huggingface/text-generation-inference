@@ -42,7 +42,7 @@ class IDEFICSSharded(IdeficsCausalLM):
             dtype = torch.bfloat16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
         self.device, self.dtype = device, dtype
 
         config = IdeficsConfig.from_pretrained(

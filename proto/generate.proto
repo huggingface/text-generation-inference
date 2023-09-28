@@ -31,6 +31,7 @@ message InfoResponse {
     bool requires_padding = 1;
     string dtype = 2;
     string device_type = 3;
+    optional uint32 window_size = 4;
 }
 
 /// Empty request

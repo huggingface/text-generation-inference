@@ -137,7 +137,7 @@ class Client:
             typical_p=typical_p,
             watermark=watermark,
             decoder_input_details=decoder_input_details,
-            top_n_tokens=top_n_tokens
+            top_n_tokens=top_n_tokens,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
@@ -482,7 +482,6 @@ class AsyncClient:
             headers=self.headers, cookies=self.cookies, timeout=self.timeout
         ) as session:
             async with session.post(self.base_url, json=request.dict()) as resp:
-
                 if resp.status != 200:
                     raise parse_error(resp.status, await resp.json())
 

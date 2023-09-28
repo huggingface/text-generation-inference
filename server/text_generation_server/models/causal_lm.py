@@ -492,7 +492,7 @@ class CausalLM(Model):
                 raise ValueError("quantization is not available on CPU")
 
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
@@ -579,7 +579,7 @@ class CausalLM(Model):
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens,
             batch.top_n_tokens_tensor,
-            torch.softmax(logits[:, -1], -1),
+            torch.log_softmax(logits[:, -1], -1),
         )
 
         # Zipped iterator
@@ -641,8 +641,14 @@ class CausalLM(Model):
             if i % self.world_size == self.rank:
                 if stop:
                     # Decode generated tokens
-                    output_text = self.decode(
-                        all_input_ids[-stopping_criteria.current_tokens :, 0]
+                    output_text, _, _ = self.decode_token(
+                        all_input_ids[:, 0],
+                        prefix_offset=len(all_input_ids)
+                        - stopping_criteria.current_tokens
+                        - 1,
+                        read_offset=len(all_input_ids)
+                        - stopping_criteria.current_tokens,
+                        skip_special_tokens=True,
                     )
                     # Get seed
                     if isinstance(next_token_chooser.choice, Sampling):

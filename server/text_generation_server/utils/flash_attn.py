@@ -57,6 +57,7 @@ def attention(
     cu_seqlens,
     max_s,
     softmax_scale,
+    window_size_left=-1,
 ):
     if HAS_FLASH_ATTN_V2:
         return flash_attn_2_cuda.varlen_fwd(
@@ -72,11 +73,18 @@ def attention(
             softmax_scale,
             False,
             True,
+            window_size_left,
+            0,
             False,
             None,
         )
 
     if HAS_FLASH_ATTN:
+        if window_size_left != 0:
+            raise NotImplementedError(
+                "window_size_left is only available with flash attn v2"
+            )
+
         # Flash attention v1 requires q, k and v to have the same number of heads
         if k.shape[1] != q.shape[1]:
             # MQA expand

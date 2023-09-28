@@ -52,13 +52,15 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
 
 ## Get Started
 
+### Docker
+
 For a detailed starting guide, please see the [Quick Tour](https://huggingface.co/docs/text-generation-inference/quicktour). The easiest way of getting started is using the official Docker container:
 
 ```shell
 model=tiiuae/falcon-7b-instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.0.3 --model-id $model
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.1.0 --model-id $model
 ```
 
 And then you can make requests like
@@ -79,8 +81,29 @@ text-generation-launcher --help
 
 ### API documentation
 
-You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route. The 
-Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
+You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route.
+The Swagger UI is also available at: [https://huggingface.github.io/text-generation-inference](https://huggingface.github.io/text-generation-inference).
+
+### Using a private or gated model
+
+You have the option to utilize the `HUGGING_FACE_HUB_TOKEN` environment variable for configuring the token employed by
+`text-generation-inference`. This allows you to gain access to protected resources.
+
+For example, if you want to serve the gated Llama V2 model variants:
+
+1. Go to https://huggingface.co/settings/tokens
+2. Copy your cli READ token
+3. Export `HUGGING_FACE_HUB_TOKEN=<your cli READ token>`
+
+or with Docker:
+
+```shell
+model=meta-llama/Llama-2-7b-chat-hf
+volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+token=<your cli READ token>
+
+docker run --gpus all --shm-size 1g -e HUGGING_FACE_HUB_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.1.0 --model-id $model
+```
 
 ### A note on Shared Memory (shm)
 

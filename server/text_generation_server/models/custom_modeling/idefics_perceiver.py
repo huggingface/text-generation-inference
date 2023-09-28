@@ -46,7 +46,8 @@ from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
 )
 
-EPS=1e-5
+EPS = 1e-5
+
 
 class IdeficsPerceiverResampler(nn.Module):
     def __init__(
@@ -78,7 +79,12 @@ class IdeficsPerceiverResampler(nn.Module):
 
         """
         super().__init__()
-        self.embed_dim, self.n_heads, self.head_dim, self.n_latents = embed_dim, n_heads, head_dim, n_latents
+        self.embed_dim, self.n_heads, self.head_dim, self.n_latents = (
+            embed_dim,
+            n_heads,
+            head_dim,
+            n_latents,
+        )
         self.qk_layer_norms = config.perceiver_config.qk_layer_norms_perceiver
 
         # Create Latents for Perceiver
@@ -107,14 +113,16 @@ class IdeficsPerceiverResampler(nn.Module):
                             prefix=f"{prefix}.blocks.{layer_id}.1",
                             intermediate_size=self.intermediate_dim,
                             config=config,
-                            weights=weights
+                            weights=weights,
                         ),
                     ]
                 )
                 for layer_id in range(depth)
             ]
         )
-        self.layer_norm = nn.LayerNorm.load(prefix=f"{prefix}.layer_norm", weights=weights, eps=EPS)
+        self.layer_norm = nn.LayerNorm.load(
+            prefix=f"{prefix}.layer_norm", weights=weights, eps=EPS
+        )
 
     def forward(self, context: torch.Tensor) -> torch.Tensor:
         """Resample arbitrary length context & *compress* down to self.n_latents latent embeddings"""
@@ -130,25 +138,34 @@ class IdeficsPerceiverResampler(nn.Module):
 
 
 class IdeficsPerceiverAttention(nn.Module):
-    def __init__(self,
-            prefix,
-            config,
-            embed_dim: int,
-            n_heads: int,
-            head_dim: int,
-            qk_layer_norms: bool,
-            weights
-        ) -> None:
+    def __init__(
+        self,
+        prefix,
+        config,
+        embed_dim: int,
+        n_heads: int,
+        head_dim: int,
+        qk_layer_norms: bool,
+        weights,
+    ) -> None:
         """Perceiver Cross-Attention Module --> let long-form inputs be `context`, resampled embeddings be `latents`"""
         super().__init__()
         self.embed_dim, self.n_heads, self.head_dim = embed_dim, n_heads, head_dim
         self.qk_layer_norms = qk_layer_norms
         # Normalization & Scaling
-        self.context_layer_norm = nn.LayerNorm.load(prefix=f"{prefix}.context_layer_norm", weights=weights, eps=EPS)
-        self.latents_layer_norm = nn.LayerNorm.load(prefix=f"{prefix}.latents_layer_norm", weights=weights, eps=EPS)
+        self.context_layer_norm = nn.LayerNorm.load(
+            prefix=f"{prefix}.context_layer_norm", weights=weights, eps=EPS
+        )
+        self.latents_layer_norm = nn.LayerNorm.load(
+            prefix=f"{prefix}.latents_layer_norm", weights=weights, eps=EPS
+        )
         if self.qk_layer_norms:
-            self.q_layer_norm = nn.LayerNorm.load(prefix=f"{prefix}.q_layer_norm", weights=weights, eps=EPS)
-            self.k_layer_norm = nn.LayerNorm.load(prefix=f"{prefix}.k_layer_norm", weights=weights, eps=EPS)
+            self.q_layer_norm = nn.LayerNorm.load(
+                prefix=f"{prefix}.q_layer_norm", weights=weights, eps=EPS
+            )
+            self.k_layer_norm = nn.LayerNorm.load(
+                prefix=f"{prefix}.k_layer_norm", weights=weights, eps=EPS
+            )
 
         self.qk_scale = self.head_dim**-0.5
 
@@ -164,10 +181,10 @@ class IdeficsPerceiverAttention(nn.Module):
         self.q_proj = TensorParallelColumnLinear.load(
             config=config, prefix=f"{prefix}.q_proj", weights=weights, bias=False
         )
-        self.k_proj =  TensorParallelColumnLinear.load(
+        self.k_proj = TensorParallelColumnLinear.load(
             config=config, prefix=f"{prefix}.k_proj", weights=weights, bias=False
         )
-        self.v_proj =  TensorParallelColumnLinear.load(
+        self.v_proj = TensorParallelColumnLinear.load(
             config=config, prefix=f"{prefix}.v_proj", weights=weights, bias=False
         )
 
@@ -202,7 +219,12 @@ class IdeficsPerceiverAttention(nn.Module):
         # Multiheaded Self-Attention w/ stable softmax (subtract per-row max -- `amax` -- before softmax call)
         #   =>> `attn` should be a 2D matrix of shape [n_latents x (context + n_latents)]
         # einsum.rearrange(x, "bsz seq (heads embed) -> bsz heads seq embed", heads=self.n_heads)
-        q, k, v = [x.reshape(batch_size, x.shape[1], self.n_heads, self.head_dim).transpose(1, 2) for x in (q, k, v)]
+        q, k, v = [
+            x.reshape(batch_size, x.shape[1], self.n_heads, self.head_dim).transpose(
+                1, 2
+            )
+            for x in (q, k, v)
+        ]
 
         if self.qk_layer_norms:
             q = self.q_layer_norm(q)
@@ -219,25 +241,34 @@ class IdeficsPerceiverAttention(nn.Module):
 
 
 class IdeficsMLP(nn.Module):
-    def __init__(self,
-            prefix,
-            intermediate_size,
-            config,
-            weights,
-        ):
+    def __init__(
+        self,
+        prefix,
+        intermediate_size,
+        config,
+        weights,
+    ):
         """Simple MLP block with intermediate_size and embedding size"""
         super().__init__()
         self.embed_dim = config.vision_config.embed_dim
         self.ln = nn.LayerNorm.load(prefix=f"{prefix}.ln", weights=weights, eps=EPS)
         self.fc = TensorParallelColumnLinear.load(
-            config=config, prefix=f"{prefix}.fc", weights=weights, bias=False,
+            config=config,
+            prefix=f"{prefix}.fc",
+            weights=weights,
+            bias=False,
         )
         self.act = nn.ReLU()
         self.c_proj = TensorParallelRowLinear.load(
-            config=config, prefix=f"{prefix}.c_proj", weights=weights, bias=False,
+            config=config,
+            prefix=f"{prefix}.c_proj",
+            weights=weights,
+            bias=False,
         )
 
-    def forward(self, hidden_states: Optional[Tuple[torch.FloatTensor]]) -> torch.FloatTensor:
+    def forward(
+        self, hidden_states: Optional[Tuple[torch.FloatTensor]]
+    ) -> torch.FloatTensor:
         hidden_states = self.ln(hidden_states)
         hidden_states = self.fc(hidden_states)
         hidden_states = self.act(hidden_states)

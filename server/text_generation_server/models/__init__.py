@@ -67,6 +67,16 @@ if FLASH_ATTENTION:
     __all__.append(FlashLlama)
     __all__.append(IDEFICSSharded)
 
+MISTRAL = True
+try:
+    from text_generation_server.models.flash_mistral import FlashMistral
+except ImportError as e:
+    logger.warning(f"Could not import Mistral model: {e}")
+    MISTRAL = False
+
+if MISTRAL:
+    __all__.append(FlashMistral)
+
 
 def get_model(
     model_id: str,
@@ -153,7 +163,11 @@ def get_model(
         )
     elif model_type == "mpt":
         return MPTSharded(
-            model_id, revision, quantize=quantize, trust_remote_code=trust_remote_code
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
         )
 
     elif model_type == "gpt_neox":
@@ -182,7 +196,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    elif model_type == "llama":
+    elif model_type == "llama" or model_type == "baichuan":
         if FLASH_ATTENTION:
             return FlashLlama(
                 model_id,
@@ -233,7 +247,18 @@ def get_model(
                     trust_remote_code=trust_remote_code,
                 )
 
-    elif model_type == "opt":
+    if model_type == "mistral":
+        if MISTRAL:
+            return FlashMistral(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        raise NotImplementedError("Mistral model requires flash attention v2")
+
+    if model_type == "opt":
         return OPTSharded(
             model_id,
             revision,
@@ -242,7 +267,7 @@ def get_model(
             trust_remote_code=trust_remote_code,
         )
 
-    elif model_type == "t5":
+    if model_type == "t5":
         return T5Sharded(
             model_id,
             revision,
@@ -250,15 +275,15 @@ def get_model(
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
-    elif model_type == "idefics":
+    if model_type == "idefics":
         if FLASH_ATTENTION:
-           return IDEFICSSharded(
-               model_id,
-               revision,
-               quantize=quantize,
-               dtype=dtype,
-               trust_remote_code=trust_remote_code,
-           )
+            return IDEFICSSharded(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
 
@@ -268,10 +293,10 @@ def get_model(
         raise ValueError(
             "gptq quantization is not supported for AutoModel, you can try to quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
         )
+    if quantize == "awq":
+        raise ValueError("awq quantization is not supported for AutoModel")
     elif (quantize == "bitsandbytes-fp4") or (quantize == "bitsandbytes-nf4"):
-        raise ValueError(
-            "4bit quantization is not supported for AutoModel"
-        )
+        raise ValueError("4bit quantization is not supported for AutoModel")
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
         return CausalLM(
             model_id,

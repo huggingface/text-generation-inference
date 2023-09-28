@@ -17,7 +17,7 @@
         },
         {
           "id": 2009,
-          "logprob": -11.5546875,
+          "logprob": -11.546875,
           "text": "request"
         }
       ],
@@ -25,25 +25,25 @@
       "tokens": [
         {
           "id": 363,
-          "logprob": -1.5380859,
+          "logprob": -1.5351562,
           "special": false,
           "text": " for"
         },
         {
           "id": 847,
-          "logprob": -2.5859375,
+          "logprob": -2.5566406,
           "special": false,
           "text": " /"
         },
         {
           "id": 2754,
-          "logprob": -2.2695312,
+          "logprob": -2.2519531,
           "special": false,
           "text": "api"
         },
         {
           "id": 29914,
-          "logprob": -0.03439331,
+          "logprob": -0.03414917,
           "special": false,
           "text": "/"
         },
@@ -55,13 +55,13 @@
         },
         {
           "id": 29896,
-          "logprob": -0.36694336,
+          "logprob": -0.3647461,
           "special": false,
           "text": "1"
         },
         {
           "id": 29914,
-          "logprob": -0.013114929,
+          "logprob": -0.012901306,
           "special": false,
           "text": "/"
         },
@@ -73,19 +73,20 @@
         },
         {
           "id": 29914,
-          "logprob": -0.43847656,
+          "logprob": -0.4362793,
           "special": false,
           "text": "/"
         },
         {
           "id": 29896,
-          "logprob": -1.9433594,
+          "logprob": -1.9394531,
           "special": false,
           "text": "1"
         }
-      ]
+      ],
+      "top_tokens": null
     },
-    "generated_text": "for /api/v1/projects/1"
+    "generated_text": " for /api/v1/projects/1"
   },
   {
     "details": {
@@ -105,7 +106,7 @@
         },
         {
           "id": 2009,
-          "logprob": -11.5546875,
+          "logprob": -11.546875,
           "text": "request"
         }
       ],
@@ -113,43 +114,43 @@
       "tokens": [
         {
           "id": 363,
-          "logprob": -1.5322266,
+          "logprob": -1.5332031,
           "special": false,
           "text": " for"
         },
         {
           "id": 847,
-          "logprob": -2.5585938,
+          "logprob": -2.5625,
           "special": false,
           "text": " /"
         },
         {
           "id": 2754,
-          "logprob": -2.265625,
+          "logprob": -2.2617188,
           "special": false,
           "text": "api"
         },
         {
           "id": 29914,
-          "logprob": -0.034088135,
+          "logprob": -0.033996582,
           "special": false,
           "text": "/"
         },
         {
           "id": 29894,
-          "logprob": -0.96240234,
+          "logprob": -0.9609375,
           "special": false,
           "text": "v"
         },
         {
           "id": 29896,
-          "logprob": -0.36816406,
+          "logprob": -0.36572266,
           "special": false,
           "text": "1"
         },
         {
           "id": 29914,
-          "logprob": -0.013191223,
+          "logprob": -0.0129776,
           "special": false,
           "text": "/"
         },
@@ -161,19 +162,20 @@
         },
         {
           "id": 29914,
-          "logprob": -0.43774414,
+          "logprob": -0.4362793,
           "special": false,
           "text": "/"
         },
         {
           "id": 29896,
-          "logprob": -1.9443359,
+          "logprob": -1.9394531,
           "special": false,
           "text": "1"
         }
-      ]
+      ],
+      "top_tokens": null
     },
-    "generated_text": "for /api/v1/projects/1"
+    "generated_text": " for /api/v1/projects/1"
   },
   {
     "details": {
@@ -193,7 +195,7 @@
         },
         {
           "id": 2009,
-          "logprob": -11.5546875,
+          "logprob": -11.546875,
           "text": "request"
         }
       ],
@@ -201,43 +203,43 @@
       "tokens": [
         {
           "id": 363,
-          "logprob": -1.5322266,
+          "logprob": -1.5332031,
           "special": false,
           "text": " for"
         },
         {
           "id": 847,
-          "logprob": -2.5585938,
+          "logprob": -2.5625,
           "special": false,
           "text": " /"
         },
         {
           "id": 2754,
-          "logprob": -2.265625,
+          "logprob": -2.2617188,
           "special": false,
           "text": "api"
         },
         {
           "id": 29914,
-          "logprob": -0.034088135,
+          "logprob": -0.033996582,
           "special": false,
           "text": "/"
         },
         {
           "id": 29894,
-          "logprob": -0.96240234,
+          "logprob": -0.9609375,
           "special": false,
           "text": "v"
         },
         {
           "id": 29896,
-          "logprob": -0.36816406,
+          "logprob": -0.36572266,
           "special": false,
           "text": "1"
         },
         {
           "id": 29914,
-          "logprob": -0.013191223,
+          "logprob": -0.0129776,
           "special": false,
           "text": "/"
         },
@@ -249,19 +251,20 @@
         },
         {
           "id": 29914,
-          "logprob": -0.43774414,
+          "logprob": -0.4362793,
           "special": false,
           "text": "/"
         },
         {
           "id": 29896,
-          "logprob": -1.9443359,
+          "logprob": -1.9394531,
           "special": false,
           "text": "1"
         }
-      ]
+      ],
+      "top_tokens": null
     },
-    "generated_text": "for /api/v1/projects/1"
+    "generated_text": " for /api/v1/projects/1"
   },
   {
     "details": {
@@ -281,7 +284,7 @@
         },
         {
           "id": 2009,
-          "logprob": -11.5546875,
+          "logprob": -11.546875,
           "text": "request"
         }
       ],
@@ -289,43 +292,43 @@
       "tokens": [
         {
           "id": 363,
-          "logprob": -1.5322266,
+          "logprob": -1.5332031,
           "special": false,
           "text": " for"
         },
         {
           "id": 847,
-          "logprob": -2.5585938,
+          "logprob": -2.5625,
           "special": false,
           "text": " /"
         },
         {
           "id": 2754,
-          "logprob": -2.265625,
+          "logprob": -2.2617188,
           "special": false,
           "text": "api"
         },
         {
           "id": 29914,
-          "logprob": -0.034088135,
+          "logprob": -0.033996582,
           "special": false,
           "text": "/"
         },
         {
           "id": 29894,
-          "logprob": -0.96240234,
+          "logprob": -0.9609375,
           "special": false,
           "text": "v"
         },
         {
           "id": 29896,
-          "logprob": -0.36816406,
+          "logprob": -0.36572266,
           "special": false,
           "text": "1"
         },
         {
           "id": 29914,
-          "logprob": -0.013191223,
+          "logprob": -0.0129776,
           "special": false,
           "text": "/"
         },
@@ -337,18 +340,19 @@
         },
         {
           "id": 29914,
-          "logprob": -0.43774414,
+          "logprob": -0.4362793,
           "special": false,
           "text": "/"
         },
         {
           "id": 29896,
-          "logprob": -1.9443359,
+          "logprob": -1.9394531,
           "special": false,
           "text": "1"
         }
-      ]
+      ],
+      "top_tokens": null
     },
-    "generated_text": "for /api/v1/projects/1"
+    "generated_text": " for /api/v1/projects/1"
   }
 ]
