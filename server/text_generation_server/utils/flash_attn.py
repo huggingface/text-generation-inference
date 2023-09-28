@@ -57,7 +57,7 @@ def attention(
     cu_seqlens,
     max_s,
     softmax_scale,
-    window_size_left=0,
+    window_size_left=-1,
 ):
     if HAS_FLASH_ATTN_V2:
         return flash_attn_2_cuda.varlen_fwd(
