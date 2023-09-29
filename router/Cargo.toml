@@ -32,7 +32,7 @@ reqwest = { version = "0.11.14", features = [] }
 serde = "1.0.152"
 serde_json = "1.0.93"
 thiserror = "1.0.38"
-tokenizers = "0.14.0"
+tokenizers = "0.13.3"
 tokio = { version = "1.25.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tower-http = { version = "0.4.0", features = ["cors"] }
 tracing = "0.1.37"
