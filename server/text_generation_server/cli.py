@@ -17,6 +17,8 @@ class Quantization(str, Enum):
     bitsandbytes_nf4 = "bitsandbytes-nf4"
     bitsandbytes_fp4 = "bitsandbytes-fp4"
     gptq = "gptq"
+    awq = "awq"
+    eetq = "eetq"
 
 
 class Dtype(str, Enum):
@@ -123,8 +125,12 @@ def download_weights(
 
     if not is_local_model:
         try:
-            adapter_config_filename = hf_hub_download(model_id, revision=revision, filename="adapter_config.json")
-            utils.download_and_unload_peft(model_id, revision, trust_remote_code=trust_remote_code)
+            adapter_config_filename = hf_hub_download(
+                model_id, revision=revision, filename="adapter_config.json"
+            )
+            utils.download_and_unload_peft(
+                model_id, revision, trust_remote_code=trust_remote_code
+            )
             is_local_model = True
             utils.weight_files(model_id, revision, extension)
             return
@@ -177,8 +183,12 @@ def download_weights(
             import transformers
             import json
 
-
-            config_filename = hf_hub_download(model_id, revision=revision, filename="config.json")
+            if is_local_model:
+                config_filename = os.path.join(model_id, "config.json")
+            else:
+                config_filename = hf_hub_download(
+                    model_id, revision=revision, filename="config.json"
+                )
             with open(config_filename, "r") as f:
                 config = json.load(f)
             architecture = config["architectures"][0]
@@ -187,7 +197,6 @@ def download_weights(
 
             # Name for this varible depends on transformers version.
             discard_names = getattr(class_, "_tied_weights_keys", [])
-            discard_names.extend(getattr(class_, "_keys_to_ignore_on_load_missing", []))
 
         except Exception as e:
             discard_names = []

@@ -5,6 +5,8 @@ import torch.distributed
 from torch import nn
 from torch.nn import functional as F
 from typing import List
+from loguru import logger
+from functools import lru_cache
 
 HAS_BITS_AND_BYTES = True
 try:
@@ -18,6 +20,13 @@ from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
 
+
+HAS_AWQ = True
+try:
+    from text_generation_server.utils.awq.quantize.qmodule import WQLinear
+except ImportError:
+    HAS_AWQ = False
+
 try:
     major, _minor = torch.cuda.get_device_capability()
 except Exception:
@@ -27,13 +36,23 @@ CAN_EXLLAMA = major >= 8
 if os.getenv("DISABLE_EXLLAMA") == "True":
     HAS_EXLLAMA = False
 elif CAN_EXLLAMA:
-        try:
-            from text_generation_server.utils.gptq.exllama import Ex4bitLinear
-            HAS_EXLLAMA = True
-        except ImportError:
-            pass
+    try:
+        from text_generation_server.utils.gptq.exllama import Ex4bitLinear
+
+        HAS_EXLLAMA = True
+    except ImportError:
+        pass
 
 from typing import Optional
+
+HAS_EETQ = False
+try:
+    from EETQ import quant_weights, w8_a16_gemm
+
+    HAS_EETQ = True
+except ImportError:
+    pass
+
 
 # Monkey patching
 @classmethod
@@ -58,12 +77,18 @@ def load_layer_norm_no_bias(cls, prefix, weights, eps):
     ln.bias = None
     return ln
 
+
 @classmethod
 def load_conv2d(cls, prefix, weights, in_channels, out_channels, kernel_size, stride):
     weight = weights.get_tensor(f"{prefix}.weight")
     bias = weights.get_tensor(f"{prefix}.bias")
     with init_empty_weights():
-        conv2d = cls(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride)
+        conv2d = cls(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+        )
 
     conv2d.weight = nn.Parameter(weight)
     conv2d.bias = nn.Parameter(bias)
@@ -71,10 +96,17 @@ def load_conv2d(cls, prefix, weights, in_channels, out_channels, kernel_size, st
 
 
 @classmethod
-def load_conv2d_no_bias(cls, prefix, weights, in_channels, out_channels, kernel_size, stride):
+def load_conv2d_no_bias(
+    cls, prefix, weights, in_channels, out_channels, kernel_size, stride
+):
     weight = weights.get_tensor(f"{prefix}.weight")
     with init_empty_weights():
-        conv2d = cls(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride)
+        conv2d = cls(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+        )
 
     conv2d.weight = nn.Parameter(weight)
     conv2d.bias = None
@@ -111,6 +143,30 @@ class FastLinear(nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return F.linear(input, self.weight, self.bias)
+
+
+class EETQLinear(nn.Module):
+    def __init__(
+        self,
+        weight,
+        bias,
+    ) -> None:
+        super().__init__()
+        device = weight.device
+        weight = torch.t(weight).contiguous().cpu()
+        weight, scale = quant_weights(weight, torch.int8, False)
+        if bias:
+            bias = weights.get_tensor(f"{prefix}.bias")
+        else:
+            bias = None
+        self.weight = weight.cuda(device)
+        self.scale = scale.cuda(device)
+        self.bias = bias.cuda(device) if bias is not None else None
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        output = w8_a16_gemm(input, self.weight, self.scale)
+        output = output + self.bias if self.bias is not None else output
+        return output
 
 
 class Linear8bitLt(nn.Module):
@@ -175,7 +231,10 @@ class Linear4bit(nn.Module):
     def __init__(self, weight, bias, quant_type):
         super().__init__()
         self.weight = Params4bit(
-            weight.data, requires_grad=False, compress_statistics=True, quant_type=quant_type
+            weight.data,
+            requires_grad=False,
+            compress_statistics=True,
+            quant_type=quant_type,
         )
         self.compute_dtype = None
         self.weight.cuda(weight.device)
@@ -204,10 +263,25 @@ class Linear4bit(nn.Module):
         return out
 
 
+@lru_cache(1)
+def warn_deprecate_bnb():
+    logger.warning(
+        "Bitsandbytes 8bit is deprecated, using `eetq` is a drop-in replacement, and has much better performnce"
+    )
+
+
 def get_linear(weight, bias, quantize):
     if quantize is None:
         linear = FastLinear(weight, bias)
+    elif quantize == "eetq":
+        if HAS_EETQ:
+            linear = EETQLinear(weight, bias)
+        else:
+            raise ImportError(
+                "Please install EETQ from https://github.com/NetEase-FuXi/EETQ"
+            )
     elif quantize == "bitsandbytes":
+        warn_deprecate_bnb()
         linear = Linear8bitLt(
             weight,
             bias,
@@ -248,6 +322,21 @@ def get_linear(weight, bias, quantize):
                 bits,
                 groupsize,
             )
+    elif quantize == "awq":
+        try:
+            qweight, qzeros, scales, _, bits, groupsize, _ = weight
+        except Exception:
+            raise NotImplementedError(
+                f"The passed weight is not `awq` compatible, loader needs to be updated."
+            )
+        linear = WQLinear(
+            w_bit=bits,
+            group_size=groupsize,
+            qweight=qweight,
+            qzeros=qzeros,
+            scales=scales,
+            bias=bias is not None,
+        )
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
@@ -283,8 +372,8 @@ class TensorParallelHead(SuperLayer):
             weight = weights.get_tensor(f"{prefix}.weight")
             should_gather = False
 
-        # GPTQ doesn't quantize heads (nor embeddings)
-        if config.quantize == "gptq":
+        # GPTQ,AWQ,EETQ don't quantize heads (nor embeddings)
+        if config.quantize in ["gptq", "awq", "eetq"]:
             quantize = None
         else:
             quantize = config.quantize
@@ -331,6 +420,17 @@ class TensorParallelHead(SuperLayer):
 
 
 class TensorParallelColumnLinear(SuperLayer):
+    @classmethod
+    def load_qkv(cls, config, prefix: str, weights, bias: bool):
+        """Specific method when the QKV was joined after the fact"""
+        weight = weights.get_weights_col_packed_qkv(prefix, quantize=config.quantize)
+        if bias:
+            raise NotImplementedError("packed_qkv only implemented for baichuan")
+        else:
+            bias = None
+        linear = get_linear(weight, bias, config.quantize)
+        return cls(linear)
+
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
         return cls.load_multi(config, [prefix], weights, bias, dim=0)
@@ -459,14 +559,16 @@ try:
 
     def _create_inv_freq(dim, base, device):
         inv_freq = 1.0 / (
-            base
-            ** (torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim)
+            base ** (torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim)
         )
         return inv_freq
 
     def _get_rope_config(config):
         if os.getenv("ROPE_SCALING", None) is not None:
-            rope_scaling = {"type": os.environ["ROPE_SCALING"], "factor": float(os.environ["ROPE_FACTOR"])}
+            rope_scaling = {
+                "type": os.environ["ROPE_SCALING"],
+                "factor": float(os.environ["ROPE_FACTOR"]),
+            }
             return rope_scaling
         return getattr(config, "rope_scaling", None)
 
@@ -492,9 +594,17 @@ try:
                 if rope_scaling["type"] == "linear":
                     pass
                 elif rope_scaling["type"] == "dynamic":
-                    return DynamicPositionRotaryEmbedding(dim=dim, max_position_embeddings=config.max_position_embeddings, base=base, device=inv_freq.device, scaling_factor=scaling_factor)
+                    return DynamicPositionRotaryEmbedding(
+                        dim=dim,
+                        max_position_embeddings=config.max_position_embeddings,
+                        base=base,
+                        device=inv_freq.device,
+                        scaling_factor=scaling_factor,
+                    )
                 else:
-                    raise NotImplementedError(f"rope scaling type {rope_scaling['type']} is not implemented or invalid")
+                    raise NotImplementedError(
+                        f"rope scaling type {rope_scaling['type']} is not implemented or invalid"
+                    )
             return cls(inv_freq, scaling_factor)
 
         @classmethod
@@ -512,9 +622,17 @@ try:
                 if rope_scaling["type"] == "linear":
                     pass
                 elif rope_scaling["type"] == "dynamic":
-                    return DynamicPositionRotaryEmbedding(dim=2*inv_freq.shape[0], max_position_embeddings=config.max_position_embeddings, base=10000.0, device=inv_freq.device, scaling_factor=scaling_factor)
+                    return DynamicPositionRotaryEmbedding(
+                        dim=2 * inv_freq.shape[0],
+                        max_position_embeddings=config.max_position_embeddings,
+                        base=10000.0,
+                        device=inv_freq.device,
+                        scaling_factor=scaling_factor,
+                    )
                 else:
-                    raise NotImplementedError(f"rope scaling type {rope_scaling['type']} is not implemented or invalid")
+                    raise NotImplementedError(
+                        f"rope scaling type {rope_scaling['type']} is not implemented or invalid"
+                    )
             return cls(inv_freq, scaling_factor)
 
         def _update_cos_sin_cache(self, dtype, device, seqlen):
@@ -574,8 +692,13 @@ try:
                 or self._cos_cached.dtype != dtype
             ):
                 if seqlen > self.max_position_embeddings:
-                    newbase = self.base * ((self.scaling_factor * seqlen / self.max_position_embeddings) - (self.scaling_factor - 1)) ** (self.dim / (self.dim - 2))
-                    self.inv_freq = _create_inv_freq(self.dim, newbase, self.inv_freq.device)
+                    newbase = self.base * (
+                        (self.scaling_factor * seqlen / self.max_position_embeddings)
+                        - (self.scaling_factor - 1)
+                    ) ** (self.dim / (self.dim - 2))
+                    self.inv_freq = _create_inv_freq(
+                        self.dim, newbase, self.inv_freq.device
+                    )
                 self._seq_len_cached = seqlen
                 t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
                 # Don't do einsum, it converts fp32 to fp16
@@ -584,7 +707,6 @@ try:
                 freqs = torch.outer(t, self.inv_freq.to(device=t.device))
                 self._cos_cached = torch.cos(freqs).to(dtype)
                 self._sin_cached = torch.sin(freqs).to(dtype)
-
 
 except ImportError:
     pass

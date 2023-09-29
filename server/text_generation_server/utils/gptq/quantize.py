@@ -578,7 +578,9 @@ def get_c4_new(nsamples, seed, seqlen, model_id, trust_remote_code):
     return trainloader, valenc
 
 
-def get_loaders(name, nsamples=128, seed=0, seqlen=2048, model_id="", trust_remote_code=False):
+def get_loaders(
+    name, nsamples=128, seed=0, seqlen=2048, model_id="", trust_remote_code=False
+):
     if "wikitext2" in name:
         return get_wikitext2(nsamples, seed, seqlen, model_id, trust_remote_code)
     if "ptb" in name:
@@ -927,7 +929,7 @@ def quantize(
         seed=seed,
         model_id=model_id,
         seqlen=model.seqlen,
-        trust_remote_code=trust_remote_code
+        trust_remote_code=trust_remote_code,
     )
 
     tick = time.time()

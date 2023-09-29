@@ -541,7 +541,7 @@ class Seq2SeqLM(Model):
                 raise ValueError("quantization is not available on CPU")
 
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
 
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_id,
@@ -642,7 +642,7 @@ class Seq2SeqLM(Model):
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens,
             batch.top_n_tokens_tensor,
-            torch.softmax(logits[:, -1], -1),
+            torch.log_softmax(logits[:, -1], -1),
         )
 
         # Finished requests
@@ -710,8 +710,13 @@ class Seq2SeqLM(Model):
                 if stop:
                     # Slice with decoder_input_length to remove padding
                     # Decode all tokens
-                    output_text = self.decode(
-                        all_decoder_input_ids[-decoder_input_length:]
+                    output_text, _, _ = self.decode_token(
+                        all_decoder_input_ids,
+                        prefix_offset=len(all_decoder_input_ids)
+                        - decoder_input_length
+                        - 1,
+                        read_offset=len(all_decoder_input_ids) - decoder_input_length,
+                        skip_special_tokens=True,
                     )
 
                     # Get seed

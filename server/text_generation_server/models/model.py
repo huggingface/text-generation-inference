@@ -21,6 +21,7 @@ class Model(ABC):
         device: torch.device,
         rank: int = 0,
         world_size: int = 1,
+        sliding_window: Optional[int] = None,
     ):
         self.model = model.eval()
         self.tokenizer = tokenizer
@@ -30,6 +31,7 @@ class Model(ABC):
         self.device = device
         self.rank = rank
         self.world_size = world_size
+        self.sliding_window = sliding_window
 
         self.has_position_ids = (
             inspect.signature(model.forward).parameters.get("position_ids", None)
@@ -40,10 +42,14 @@ class Model(ABC):
 
     @property
     def info(self) -> InfoResponse:
+        if self.requires_padding and self.sliding_window is not None:
+            raise NotImplementedError("sliding_window is not implemented with padding")
+
         return InfoResponse(
             requires_padding=self.requires_padding,
             dtype=str(self.dtype),
             device_type=self.device.type,
+            window_size=self.sliding_window,
         )
 
     @property
@@ -64,16 +70,18 @@ class Model(ABC):
         all_input_ids: List[int],
         prefix_offset: int = 0,
         read_offset: int = 0,
+        skip_special_tokens: bool = False,
     ) -> Tuple[str, int, int]:
         """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
 
         # The prefix text is necessary only to defeat cleanup algorithms in the decode
         # which decide to add a space or not depending on the surrounding ids.
         prefix_text = self.tokenizer.decode(
-            all_input_ids[prefix_offset:read_offset], skip_special_tokens=False
+            all_input_ids[prefix_offset:read_offset],
+            skip_special_tokens=skip_special_tokens,
         )
         new_text = self.tokenizer.decode(
-            all_input_ids[prefix_offset:], skip_special_tokens=False
+            all_input_ids[prefix_offset:], skip_special_tokens=skip_special_tokens
         )
 
         if len(new_text) > len(prefix_text) and not new_text.endswith("�"):

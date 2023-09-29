@@ -18,7 +18,8 @@ The following models are optimized and can be served with TGI, which uses custom
 - [Falcon 40B](https://huggingface.co/tiiuae/falcon-40b)
 - [MPT](https://huggingface.co/mosaicml/mpt-30b)
 - [Llama V2](https://huggingface.co/meta-llama)
-- [Codellama](https://huggingface.co/codellama)
+- [Code Llama](https://huggingface.co/codellama)
+- [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1)
 
 If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models:
 
@@ -29,6 +30,12 @@ AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
 AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")
 ```
 
+If you wish to serve a supported model that already exists on a local folder, just point to the local folder.
+
+```bash
+text-generation-launcher --model-id <PATH-TO-LOCAL-BLOOM>
+``````
+
 
 ## Supported Hardware
 
@@ -36,6 +43,5 @@ TGI optimized models are supported on NVIDIA [A100](https://www.nvidia.com/en-us
 
 TGI is also supported on the following AI hardware accelerators:
 - *Habana first-gen Gaudi and Gaudi2:* check out this [example](https://github.com/huggingface/optimum-habana/tree/main/text-generation-inference) how to serve models with TGI on Gaudi and Gaudi2 with [Optimum Habana](https://huggingface.co/docs/optimum/habana/index)
-
 
 

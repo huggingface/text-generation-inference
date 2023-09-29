@@ -159,3 +159,5 @@ safetensors
 flash-attention/
 flash-attention-v2/
 vllm/
+llm-awq/
+eetq/

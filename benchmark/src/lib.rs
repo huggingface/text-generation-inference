@@ -33,7 +33,7 @@ pub async fn run(
     watermark: bool,
     do_sample: bool,
     client: ShardedClient,
-) -> Result<(), crossterm::ErrorKind> {
+) -> Result<(), std::io::Error> {
     let parameters = NextTokenChooserParameters {
         temperature: temperature.unwrap_or(1.0),
         top_k: top_k.unwrap_or(0),
