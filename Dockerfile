@@ -128,7 +128,7 @@ FROM kernel-builder as eetq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-eetq Makefile
 # Build specific version of transformers
-RUN make build-eetq
+RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-eetq
 
 # Build Transformers CUDA kernels
 FROM kernel-builder as custom-kernels-builder
