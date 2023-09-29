@@ -1,5 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cu118
 
+accelerate==0.20.3 ; python_version >= "3.9" and python_version < "4.0"
 aiohttp==3.8.5 ; python_version >= "3.9" and python_version < "4.0"
 aiosignal==1.3.1 ; python_version >= "3.9" and python_version < "4.0"
 async-timeout==4.0.3 ; python_version >= "3.9" and python_version < "4.0"
@@ -48,6 +49,7 @@ opentelemetry-semantic-conventions==0.36b0 ; python_version >= "3.9" and python_
 packaging==23.1 ; python_version >= "3.9" and python_version < "4.0"
 pandas==2.0.3 ; python_version >= "3.9" and python_version < "4.0"
 protobuf==4.24.1 ; python_version >= "3.9" and python_version < "4.0"
+psutil==5.9.5 ; python_version >= "3.9" and python_version < "4.0"
 pyarrow==13.0.0 ; python_version >= "3.9" and python_version < "4.0"
 python-dateutil==2.8.2 ; python_version >= "3.9" and python_version < "4.0"
 pytz==2023.3 ; python_version >= "3.9" and python_version < "4.0"
@@ -63,7 +65,7 @@ texttable==1.6.7 ; python_version >= "3.9" and python_version < "4.0"
 tokenizers==0.13.3 ; python_version >= "3.9" and python_version < "4.0"
 torch==2.0.1+cu118 ; python_version >= "3.9" and python_version < "4.0"
 tqdm==4.66.1 ; python_version >= "3.9" and python_version < "4.0"
-transformers==4.32.0 ; python_version >= "3.9" and python_version < "4.0"
+transformers==4.33.3 ; python_version >= "3.9" and python_version < "4.0"
 triton==2.0.0 ; platform_system == "Linux" and platform_machine == "x86_64" and python_version >= "3.9" and python_version < "4.0"
 typer==0.6.1 ; python_version >= "3.9" and python_version < "4.0"
 typing-extensions==4.7.1 ; python_version >= "3.9" and python_version < "4.0"
