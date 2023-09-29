@@ -123,6 +123,13 @@ COPY server/Makefile-awq Makefile
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-awq
 
+# Build eetq kernels
+FROM kernel-builder as eetq-kernels-builder
+WORKDIR /usr/src
+COPY server/Makefile-eetq Makefile
+# Build specific version of transformers
+RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-eetq
+
 # Build Transformers CUDA kernels
 FROM kernel-builder as custom-kernels-builder
 WORKDIR /usr/src
@@ -178,6 +185,8 @@ COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39 /o
 COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 # Copy build artifacts from awq kernels builder
 COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
+# Copy build artifacts from eetq kernels builder
+COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 
 # Copy builds artifacts from vllm builder
 COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
