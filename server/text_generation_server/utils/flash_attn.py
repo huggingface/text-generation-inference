@@ -80,7 +80,7 @@ def attention(
         )
 
     if HAS_FLASH_ATTN:
-        if window_size_left != 0:
+        if window_size_left != -1:
             raise NotImplementedError(
                 "window_size_left is only available with flash attn v2"
             )
