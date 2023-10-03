@@ -74,7 +74,7 @@ class BLOOMSharded(CausalLM):
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(
-            filenames, device=device, dtype=dtype, process_group=self.process_group
+            filenames, device=device, dtype=dtype, process_group=self.process_group, prefix="transformer",
         )
         if config.quantize == "gptq":
             weights._set_gptq_params(model_id)
