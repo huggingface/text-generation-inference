@@ -198,7 +198,7 @@ class IdeficsImageProcessor(BaseImageProcessor):
             response.raise_for_status()
             try:
                 image = Image.open(BytesIO(response.content))
-                image.verify()
+                # image.verify()
             except Exception:
                 raise ValueError(f"Could not load image from url {image_url_or_urls}")    
             return image
