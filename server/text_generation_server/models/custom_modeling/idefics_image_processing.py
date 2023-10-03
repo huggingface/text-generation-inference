@@ -181,7 +181,7 @@ class IdeficsImageProcessor(BaseImageProcessor):
         if isinstance(image_url_or_urls, list):
             return [self.fetch_images(x) for x in image_url_or_urls]
         elif isinstance(image_url_or_urls, str):
-            response = requests.get(image_url_or_urls, stream=True, headers=headers)
+            response = requests.get(image_url_or_urls, stream=True, headers=headers, timeout=(1, 5))
             response.raise_for_status()
             try:
                 image = Image.open(BytesIO(response.content))
