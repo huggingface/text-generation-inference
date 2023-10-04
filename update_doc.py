@@ -23,7 +23,7 @@ def main():
         if line.startswith("  -") or line.startswith("      -"):
             rendered_block = '\n'.join(block)
             if header:
-                final_doc += f"#{header}\n```shell\n{rendered_block}\n```\n"
+                final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
             else:
                 final_doc += f"```shell\n{rendered_block}\n```\n"
             block = []
@@ -36,7 +36,7 @@ def main():
         block.append(line)
 
     rendered_block = '\n'.join(block)
-    final_doc += f"#{header}\n```shell\n{rendered_block}\n```\n"
+    final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
     block = []
 
     print(final_doc)

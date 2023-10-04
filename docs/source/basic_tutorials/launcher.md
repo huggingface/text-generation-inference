@@ -9,7 +9,7 @@ Usage: text-generation-launcher [OPTIONS]
 
 Options:
 ```
-#MODEL_ID
+## MODEL_ID
 ```shell
       --model-id <MODEL_ID>
           The name of the model to load. Can be a MODEL_ID as listed on <https://hf.co/models> like `gpt2` or `OpenAssistant/oasst-sft-1-pythia-12b`. Or it can be a local directory containing the necessary files as saved by `save_pretrained(...)` methods of transformers
@@ -18,7 +18,7 @@ Options:
           [default: bigscience/bloom-560m]
 
 ```
-#REVISION
+## REVISION
 ```shell
       --revision <REVISION>
           The actual revision of the model if you're referring to a model on the hub. You can use a specific commit id or a branch like `refs/pr/2`
@@ -26,7 +26,7 @@ Options:
           [env: REVISION=]
 
 ```
-#VALIDATION_WORKERS
+## VALIDATION_WORKERS
 ```shell
       --validation-workers <VALIDATION_WORKERS>
           The number of tokenizer workers used for payload validation and truncation inside the router
@@ -35,7 +35,7 @@ Options:
           [default: 2]
 
 ```
-#SHARDED
+## SHARDED
 ```shell
       --sharded <SHARDED>
           Whether to shard the model across multiple GPUs By default text-generation-inference will use all available GPUs to run the model. Setting it to `false` deactivates `num_shard`
@@ -44,7 +44,7 @@ Options:
           [possible values: true, false]
 
 ```
-#NUM_SHARD
+## NUM_SHARD
 ```shell
       --num-shard <NUM_SHARD>
           The number of shards to use if you don't want to use all GPUs on a given machine. You can use `CUDA_VISIBLE_DEVICES=0,1 text-generation-launcher... --num_shard 2` and `CUDA_VISIBLE_DEVICES=2,3 text-generation-launcher... --num_shard 2` to launch 2 copies with 2 shard each on a given machine with 4 GPUs for instance
@@ -52,7 +52,7 @@ Options:
           [env: NUM_SHARD=]
 
 ```
-#QUANTIZE
+## QUANTIZE
 ```shell
       --quantize <QUANTIZE>
           Whether you want the model to be quantized
@@ -68,7 +68,7 @@ Options:
           - bitsandbytes-fp4: Bitsandbytes 4bit. nf4 should be preferred in most cases but maybe this one has better perplexity performance for you model
 
 ```
-#DTYPE
+## DTYPE
 ```shell
       --dtype <DTYPE>
           The dtype to be forced upon the model. This option cannot be used with `--quantize`
@@ -77,7 +77,7 @@ Options:
           [possible values: float16, bfloat16]
 
 ```
-#trust-remote-code
+## trust-remote-code
 ```shell
       --trust-remote-code
           Whether you want to execute hub modelling code. Explicitly passing a `revision` is encouraged when loading a model with custom code to ensure no malicious code has been contributed in a newer revision
@@ -85,7 +85,7 @@ Options:
           [env: TRUST_REMOTE_CODE=]
 
 ```
-#MAX_CONCURRENT_REQUESTS
+## MAX_CONCURRENT_REQUESTS
 ```shell
       --max-concurrent-requests <MAX_CONCURRENT_REQUESTS>
           The maximum amount of concurrent requests for this particular deployment. Having a low limit will refuse clients requests instead of having them wait for too long and is usually good to handle backpressure correctly
@@ -94,7 +94,7 @@ Options:
           [default: 128]
 
 ```
-#MAX_BEST_OF
+## MAX_BEST_OF
 ```shell
       --max-best-of <MAX_BEST_OF>
           This is the maximum allowed value for clients to set `best_of`. Best of makes `n` generations at the same time, and return the best in terms of overall log probability over the entire generated sequence
@@ -103,7 +103,7 @@ Options:
           [default: 2]
 
 ```
-#MAX_STOP_SEQUENCES
+## MAX_STOP_SEQUENCES
 ```shell
       --max-stop-sequences <MAX_STOP_SEQUENCES>
           This is the maximum allowed value for clients to set `stop_sequences`. Stop sequences are used to allow the model to stop on more than just the EOS token, and enable more complex "prompting" where users can preprompt the model in a specific way and define their "own" stop token aligned with their prompt
@@ -112,7 +112,7 @@ Options:
           [default: 4]
 
 ```
-#MAX_TOP_N_TOKENS
+## MAX_TOP_N_TOKENS
 ```shell
       --max-top-n-tokens <MAX_TOP_N_TOKENS>
           This is the maximum allowed value for clients to set `top_n_tokens`. `top_n_tokens is used to return information about the the `n` most likely tokens at each generation step, instead of just the sampled token. This information can be used for downstream tasks like for classification or ranking
@@ -121,7 +121,7 @@ Options:
           [default: 5]
 
 ```
-#MAX_INPUT_LENGTH
+## MAX_INPUT_LENGTH
 ```shell
       --max-input-length <MAX_INPUT_LENGTH>
           This is the maximum allowed input length (expressed in number of tokens) for users. The larger this value, the longer prompt users can send which can impact the overall memory required to handle the load. Please note that some models have a finite range of sequence they can handle
@@ -130,7 +130,7 @@ Options:
           [default: 1024]
 
 ```
-#MAX_TOTAL_TOKENS
+## MAX_TOTAL_TOKENS
 ```shell
       --max-total-tokens <MAX_TOTAL_TOKENS>
           This is the most important value to set as it defines the "memory budget" of running clients requests. Clients will send input sequences and ask to generate `max_new_tokens` on top. with a value of `1512` users can send either a prompt of `1000` and ask for `512` new tokens, or send a prompt of `1` and ask for `1511` max_new_tokens. The larger this value, the larger amount each request will be in your RAM and the less effective batching can be
@@ -139,7 +139,7 @@ Options:
           [default: 2048]
 
 ```
-#WAITING_SERVED_RATIO
+## WAITING_SERVED_RATIO
 ```shell
       --waiting-served-ratio <WAITING_SERVED_RATIO>
           This represents the ratio of waiting queries vs running queries where you want to start considering pausing the running queries to include the waiting ones into the same batch. `waiting_served_ratio=1.2` Means when 12 queries are waiting and there's only 10 queries left in the current batch we check if we can fit those 12 waiting queries into the batching strategy, and if yes, then batching happens delaying the 10 running queries by a `prefill` run.
@@ -150,7 +150,7 @@ Options:
           [default: 1.2]
 
 ```
-#MAX_BATCH_PREFILL_TOKENS
+## MAX_BATCH_PREFILL_TOKENS
 ```shell
       --max-batch-prefill-tokens <MAX_BATCH_PREFILL_TOKENS>
           Limits the number of tokens for the prefill operation. Since this operation take the most memory and is compute bound, it is interesting to limit the number of requests that can be sent
@@ -159,7 +159,7 @@ Options:
           [default: 4096]
 
 ```
-#MAX_BATCH_TOTAL_TOKENS
+## MAX_BATCH_TOTAL_TOKENS
 ```shell
       --max-batch-total-tokens <MAX_BATCH_TOTAL_TOKENS>
           **IMPORTANT** This is one critical control to allow maximum usage of the available hardware.
@@ -175,7 +175,7 @@ Options:
           [env: MAX_BATCH_TOTAL_TOKENS=]
 
 ```
-#MAX_WAITING_TOKENS
+## MAX_WAITING_TOKENS
 ```shell
       --max-waiting-tokens <MAX_WAITING_TOKENS>
           This setting defines how many tokens can be passed before forcing the waiting queries to be put on the batch (if the size of the batch allows for it). New queries require 1 `prefill` forward, which is different from `decode` and therefore you need to pause the running batch in order to run `prefill` to create the correct values for the waiting queries to be able to join the batch.
@@ -190,7 +190,7 @@ Options:
           [default: 20]
 
 ```
-#HOSTNAME
+## HOSTNAME
 ```shell
       --hostname <HOSTNAME>
           The IP address to listen on
@@ -199,7 +199,7 @@ Options:
           [default: 0.0.0.0]
 
 ```
-#PORT
+## PORT
 ```shell
   -p, --port <PORT>
           The port to listen on
@@ -208,7 +208,7 @@ Options:
           [default: 3000]
 
 ```
-#SHARD_UDS_PATH
+## SHARD_UDS_PATH
 ```shell
       --shard-uds-path <SHARD_UDS_PATH>
           The name of the socket for gRPC communication between the webserver and the shards
@@ -217,7 +217,7 @@ Options:
           [default: /tmp/text-generation-server]
 
 ```
-#MASTER_ADDR
+## MASTER_ADDR
 ```shell
       --master-addr <MASTER_ADDR>
           The address the master shard will listen on. (setting used by torch distributed)
@@ -226,7 +226,7 @@ Options:
           [default: localhost]
 
 ```
-#MASTER_PORT
+## MASTER_PORT
 ```shell
       --master-port <MASTER_PORT>
           The address the master port will listen on. (setting used by torch distributed)
@@ -235,7 +235,7 @@ Options:
           [default: 29500]
 
 ```
-#HUGGINGFACE_HUB_CACHE
+## HUGGINGFACE_HUB_CACHE
 ```shell
       --huggingface-hub-cache <HUGGINGFACE_HUB_CACHE>
           The location of the huggingface hub cache. Used to override the location if you want to provide a mounted disk for instance
@@ -243,7 +243,7 @@ Options:
           [env: HUGGINGFACE_HUB_CACHE=]
 
 ```
-#WEIGHTS_CACHE_OVERRIDE
+## WEIGHTS_CACHE_OVERRIDE
 ```shell
       --weights-cache-override <WEIGHTS_CACHE_OVERRIDE>
           The location of the huggingface hub cache. Used to override the location if you want to provide a mounted disk for instance
@@ -251,7 +251,7 @@ Options:
           [env: WEIGHTS_CACHE_OVERRIDE=]
 
 ```
-#disable-custom-kernels
+## disable-custom-kernels
 ```shell
       --disable-custom-kernels
           For some models (like bloom), text-generation-inference implemented custom cuda kernels to speed up inference. Those kernels were only tested on A100. Use this flag to disable them if you're running on different hardware and encounter issues
@@ -259,7 +259,7 @@ Options:
           [env: DISABLE_CUSTOM_KERNELS=]
 
 ```
-#CUDA_MEMORY_FRACTION
+## CUDA_MEMORY_FRACTION
 ```shell
       --cuda-memory-fraction <CUDA_MEMORY_FRACTION>
           Limit the CUDA available memory. The allowed value equals the total visible memory multiplied by cuda-memory-fraction
@@ -268,7 +268,7 @@ Options:
           [default: 1.0]
 
 ```
-#ROPE_SCALING
+## ROPE_SCALING
 ```shell
       --rope-scaling <ROPE_SCALING>
           Rope scaling will only be used for RoPE models and allow rescaling the position rotary to accomodate for larger prompts.
@@ -283,7 +283,7 @@ Options:
           [possible values: linear, dynamic]
 
 ```
-#ROPE_FACTOR
+## ROPE_FACTOR
 ```shell
       --rope-factor <ROPE_FACTOR>
           Rope scaling will only be used for RoPE models See `rope_scaling`
@@ -291,7 +291,7 @@ Options:
           [env: ROPE_FACTOR=]
 
 ```
-#json-output
+## json-output
 ```shell
       --json-output
           Outputs the logs in JSON format (useful for telemetry)
@@ -299,31 +299,31 @@ Options:
           [env: JSON_OUTPUT=]
 
 ```
-#OTLP_ENDPOINT
+## OTLP_ENDPOINT
 ```shell
       --otlp-endpoint <OTLP_ENDPOINT>
           [env: OTLP_ENDPOINT=]
 
 ```
-#CORS_ALLOW_ORIGIN
+## CORS_ALLOW_ORIGIN
 ```shell
       --cors-allow-origin <CORS_ALLOW_ORIGIN>
           [env: CORS_ALLOW_ORIGIN=]
 
 ```
-#WATERMARK_GAMMA
+## WATERMARK_GAMMA
 ```shell
       --watermark-gamma <WATERMARK_GAMMA>
           [env: WATERMARK_GAMMA=]
 
 ```
-#WATERMARK_DELTA
+## WATERMARK_DELTA
 ```shell
       --watermark-delta <WATERMARK_DELTA>
           [env: WATERMARK_DELTA=]
 
 ```
-#ngrok
+## ngrok
 ```shell
       --ngrok
           Enable ngrok tunneling
@@ -331,7 +331,7 @@ Options:
           [env: NGROK=]
 
 ```
-#NGROK_AUTHTOKEN
+## NGROK_AUTHTOKEN
 ```shell
       --ngrok-authtoken <NGROK_AUTHTOKEN>
           ngrok authentication token
@@ -339,7 +339,7 @@ Options:
           [env: NGROK_AUTHTOKEN=]
 
 ```
-#NGROK_EDGE
+## NGROK_EDGE
 ```shell
       --ngrok-edge <NGROK_EDGE>
           ngrok edge
@@ -347,19 +347,19 @@ Options:
           [env: NGROK_EDGE=]
 
 ```
-#env
+## env
 ```shell
   -e, --env
           Display a lot of information about your runtime environment
 
 ```
-#help
+## help
 ```shell
   -h, --help
           Print help (see a summary with '-h')
 
 ```
-#version
+## version
 ```shell
   -V, --version
           Print version
