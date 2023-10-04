@@ -11,8 +11,34 @@ def main():
     output = subprocess.check_output(["text-generation-launcher", "--help"]).decode(
         "utf-8"
     )
+
     wrap_code_blocks_flag = "<!-- WRAP CODE BLOCKS -->"
-    final_doc = f"# Text-generation-launcher arguments\n\n{wrap_code_blocks_flag}\n\n```shell\n{output}\n```"
+    final_doc = f"# Text-generation-launcher arguments\n\n{wrap_code_blocks_flag}\n\n"
+
+    lines = output.split("\n")
+
+    header = ""
+    block = []
+    for line in lines:
+        if line.startswith("  -") or line.startswith("      -"):
+            rendered_block = '\n'.join(block)
+            if header:
+                final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
+            else:
+                final_doc += f"```shell\n{rendered_block}\n```\n"
+            block = []
+            tokens = line.split("<")
+            if len(tokens)>1:
+                header = tokens[-1][:-1]
+            else:
+                header = line.split("--")[-1]
+            header = header.upper().replace("-", "_")
+
+        block.append(line)
+
+    rendered_block = '\n'.join(block)
+    final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
+    block = []
 
     filename = "docs/source/basic_tutorials/launcher.md"
     if args.check:
