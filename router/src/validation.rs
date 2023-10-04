@@ -84,9 +84,9 @@ impl Validation {
             let (inputs, input_length) = response_receiver.await.unwrap()?;
 
             // Get total tokens
-            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens{
+            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
                 max_new_tokens
-            }else{
+            } else {
                 self.max_total_tokens.saturating_sub(input_length) as u32
             };
             let total_tokens = input_length + max_new_tokens as usize;
@@ -117,9 +117,9 @@ impl Validation {
             // However, the inputs will be truncated by the python servers
             // We make sure that truncate + max_new_tokens <= self.max_total_tokens
             let input_length = truncate.unwrap_or(self.max_input_length);
-            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens{
+            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
                 max_new_tokens
-            }else{
+            } else {
                 self.max_total_tokens.saturating_sub(input_length) as u32
             };
 
