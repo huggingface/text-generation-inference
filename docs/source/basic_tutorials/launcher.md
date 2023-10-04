@@ -77,7 +77,7 @@ Options:
           [possible values: float16, bfloat16]
 
 ```
-## trust-remote-code
+## TRUST_REMOTE_CODE
 ```shell
       --trust-remote-code
           Whether you want to execute hub modelling code. Explicitly passing a `revision` is encouraged when loading a model with custom code to ensure no malicious code has been contributed in a newer revision
@@ -251,7 +251,7 @@ Options:
           [env: WEIGHTS_CACHE_OVERRIDE=]
 
 ```
-## disable-custom-kernels
+## DISABLE_CUSTOM_KERNELS
 ```shell
       --disable-custom-kernels
           For some models (like bloom), text-generation-inference implemented custom cuda kernels to speed up inference. Those kernels were only tested on A100. Use this flag to disable them if you're running on different hardware and encounter issues
@@ -291,7 +291,7 @@ Options:
           [env: ROPE_FACTOR=]
 
 ```
-## json-output
+## JSON_OUTPUT
 ```shell
       --json-output
           Outputs the logs in JSON format (useful for telemetry)
@@ -323,7 +323,7 @@ Options:
           [env: WATERMARK_DELTA=]
 
 ```
-## ngrok
+## NGROK
 ```shell
       --ngrok
           Enable ngrok tunneling
@@ -347,19 +347,19 @@ Options:
           [env: NGROK_EDGE=]
 
 ```
-## env
+## ENV
 ```shell
   -e, --env
           Display a lot of information about your runtime environment
 
 ```
-## help
+## HELP
 ```shell
   -h, --help
           Print help (see a summary with '-h')
 
 ```
-## version
+## VERSION
 ```shell
   -V, --version
           Print version

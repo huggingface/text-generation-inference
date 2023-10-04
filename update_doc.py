@@ -32,16 +32,13 @@ def main():
                 header = tokens[-1][:-1]
             else:
                 header = line.split("--")[-1]
+            header = header.upper().replace("-", "_")
 
         block.append(line)
 
     rendered_block = '\n'.join(block)
     final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
     block = []
-
-    print(final_doc)
-    
-
 
     filename = "docs/source/basic_tutorials/launcher.md"
     if args.check:
