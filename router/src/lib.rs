@@ -107,8 +107,8 @@ pub(crate) struct GenerateParameters {
     #[schema(default = "false", example = true)]
     pub do_sample: bool,
     #[serde(default = "default_max_new_tokens")]
-    #[schema(exclusive_minimum = 0, exclusive_maximum = 512, default = "20")]
-    pub max_new_tokens: u32,
+    #[schema(nullable = true, default = "null", example = "20")]
+    pub max_new_tokens: Option<u32>,
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = false)]
     pub return_full_text: Option<bool>,
@@ -140,8 +140,8 @@ pub(crate) struct GenerateParameters {
     pub top_n_tokens: Option<u32>,
 }
 
-fn default_max_new_tokens() -> u32 {
-    20
+fn default_max_new_tokens() -> Option<u32> {
+    None
 }
 
 fn default_parameters() -> GenerateParameters {
