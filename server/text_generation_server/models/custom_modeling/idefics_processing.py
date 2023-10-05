@@ -112,6 +112,11 @@ def is_url(string):
     result = urlparse(string)
     return all([result.scheme, result.netloc])
 
+def is_image(string):
+    """Checks if the passed string contains a valid url and nothing else. e.g. if space is included it's immediately
+    invalidated the url"""
+    return is_url(string) or string.startswith("data:")
+
 
 class IdeficsProcessor(ProcessorMixin):
     r"""
@@ -314,7 +319,7 @@ class IdeficsProcessor(ProcessorMixin):
 
                 if isinstance(item, str):
                     item = item.strip(" ")
-                    if is_url(item):
+                    if is_image(item):
                         image = self.image_processor.fetch_images(item)
                         full_text += image_tokens(last_was_image)
                         image_objects.append(image)
@@ -338,6 +343,7 @@ class IdeficsProcessor(ProcessorMixin):
                 print(f"{full_text=}")
 
             image_objects = self.image_processor(image_objects, transform=transform)
+
 
             text_encoding = self.tokenizer(
                 text=full_text,
