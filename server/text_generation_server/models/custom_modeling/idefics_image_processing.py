@@ -201,8 +201,13 @@ class IdeficsImageProcessor(BaseImageProcessor):
                 response = requests.get(image_url_or_urls, stream=True, headers=headers, timeout=(1, 5))
                 response.raise_for_status()
                 content = response.content
-            else:
+            elif image.startswith("data:"):
+                # https://stackoverflow.com/questions/17090571/is-there-a-way-to-set-background-image-as-a-base64-encoded-image
+                # data:image/png;base64,xxx
+                image = image.split(",")[-1]
                 content = base64.b64decode(image)
+            else:
+                raise ValueError(f"Unrecognized image {image}")
 
             try:
                 image = Image.open(BytesIO(content))
