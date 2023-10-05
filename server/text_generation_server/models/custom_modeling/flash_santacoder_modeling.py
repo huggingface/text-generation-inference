@@ -363,6 +363,7 @@ class Block(nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
         hidden_states = self.attn(
