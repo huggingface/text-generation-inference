@@ -291,6 +291,22 @@ Options:
           [env: ROPE_FACTOR=]
 
 ```
+## SLIDING_WINDOW
+```shell
+      --sliding-window <SLIDING_WINDOW>
+          Sliding Window will only be used by flash attention optimized models Limit the Paged Attention context window size
+          
+          [env: SLIDING_WINDOW=]
+
+```
+## ATTENTION_SINKS
+```shell
+      --attention-sinks <ATTENTION_SINKS>
+          If `sliding_window` is set, always keep the first `attention_sinks` tokens in the context See: [Efficient Streaming Language Models with Attention Sinks](https://arxiv.org/abs/2309.17453)
+          
+          [env: ATTENTION_SINKS=]
+
+```
 ## JSON_OUTPUT
 ```shell
       --json-output
