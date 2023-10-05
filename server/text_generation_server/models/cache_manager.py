@@ -15,12 +15,14 @@ class CacheManager:
         num_layers: int,
         num_heads: int,
         head_size: int,
+        attention_sinks: int,
         repeat_slots: bool,
         dtype: torch.dtype,
         device: torch.device,
     ):
         self.block_size = BLOCK_SIZE
         self.num_blocks = num_blocks
+        self.attention_sinks = attention_sinks
         self.repeat_slots = repeat_slots
 
         element_size = torch.tensor([], dtype=dtype).element_size()
@@ -82,8 +84,23 @@ class CacheManager:
 
             # Repeat slots in the case of context sliding window
             if needed_slots > len(all_slots) and self.repeat_slots:
-                repeats = math.ceil(needed_slots / len(all_slots))
-                all_slots = all_slots.repeat(repeats)
+                repeats = math.ceil(
+                    needed_slots / (len(all_slots) - self.attention_sinks)
+                )
+
+                if self.attention_sinks > 0:
+                    # Remove attention sinks from the repeat to not override them
+                    all_slots = torch.cat(
+                        [
+                            all_slots,
+                            all_slots[self.attention_sinks :].repeat(repeats - 1),
+                        ]
+                    )
+                else:
+                    all_slots = all_slots.repeat(repeats)
+
+            elif needed_slots > len(all_slots):
+                raise RuntimeError("Out of available slots. This is a bug")
 
             allocated_slots = all_slots[:needed_slots]
 
@@ -112,6 +129,7 @@ def set_cache_manager(
     num_layers: int,
     num_heads: int,
     head_size: int,
+    attention_sinks: int,
     repeat_slots: bool,
     dtype: torch.dtype,
     device: torch.device,
@@ -122,7 +140,14 @@ def set_cache_manager(
         torch.cuda.empty_cache()
 
     CACHE_MANAGER = CacheManager(
-        num_blocks, num_layers, num_heads, head_size, repeat_slots, dtype, device
+        num_blocks,
+        num_layers,
+        num_heads,
+        head_size,
+        attention_sinks,
+        repeat_slots,
+        dtype,
+        device,
     )
     return CACHE_MANAGER
 

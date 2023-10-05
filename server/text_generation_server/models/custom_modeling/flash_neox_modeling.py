@@ -133,6 +133,7 @@ class FlashNeoxAttention(torch.nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
@@ -141,20 +142,28 @@ class FlashNeoxAttention(torch.nn.Module):
         self.rotary_emb(qkv[:, 0], cos, sin)
         self.rotary_emb(qkv[:, 1], cos, sin)
 
+        query, kv = qkv.split([1, 2], dim=1)
+        query = query.view(-1, self.num_heads, self.head_size)
+
+        if prefill_cache_indices is not None:
+            kv_to_cache = kv[prefill_cache_indices]
+        else:
+            kv_to_cache = kv
+
         vllm_cache_ops.reshape_and_cache(
-            qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots
+            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
         # output tensor
-        attn_output = torch.empty_like(qkv[:, 0])
+        attn_output = torch.empty_like(query)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attention(
-                qkv[:, 0],
-                qkv[:, 1],
-                qkv[:, 2],
+                query,
+                kv[:, 0],
+                kv[:, 1],
                 attn_output,
                 cu_seqlen_prefill,
                 max_s,
@@ -166,7 +175,7 @@ class FlashNeoxAttention(torch.nn.Module):
             block_size = kv_cache[1].shape[3]
             vllm_attention_ops.single_query_cached_kv_attention(
                 attn_output,
-                qkv[:, 0],
+                query,
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
@@ -245,6 +254,7 @@ class FlashNeoXLayer(nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         if self.use_parallel_residual:
             ln1_hidden_states, _ = self.input_layernorm(hidden_states)
@@ -259,6 +269,7 @@ class FlashNeoXLayer(nn.Module):
                 slots,
                 input_lengths,
                 max_s,
+                prefill_cache_indices,
             )
 
             ln2_hidden_states, _ = self.post_attention_layernorm(hidden_states)
@@ -283,6 +294,7 @@ class FlashNeoXLayer(nn.Module):
                 slots,
                 input_lengths,
                 max_s,
+                prefill_cache_indices,
             )
 
             hidden_states, residual = self.post_attention_layernorm(
@@ -337,6 +349,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
         hidden_states = self.embed_in(input_ids)
 
@@ -359,6 +372,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 slots,
                 input_lengths,
                 max_s,
+                prefill_cache_indices,
             )
 
         hidden_states, _ = self.final_layer_norm(hidden_states, residual)
@@ -385,8 +399,19 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        sliding_window: int,
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if prefill_cache_indices is not None:
+            # Slots also need to be sliced as it has the same size as the whole kv tensor
+            slots = slots[prefill_cache_indices]
+        elif sliding_window != -1:
+            # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
+            # kernel requires the true values
+            max_s = min(sliding_window, max_s)
+            input_lengths = torch.clamp(input_lengths, max=sliding_window)
+
         hidden_states = self.gpt_neox(
             input_ids,
             position_ids,
@@ -396,6 +421,7 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
             slots,
             input_lengths,
             max_s,
+            prefill_cache_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

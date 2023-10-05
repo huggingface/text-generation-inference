@@ -333,6 +333,16 @@ struct Args {
     #[clap(long, env)]
     rope_factor: Option<f32>,
 
+    /// Sliding Window will only be used by flash attention optimized models
+    /// Limit the Paged Attention context window size
+    #[clap(long, env)]
+    sliding_window: Option<u32>,
+
+    /// If `sliding_window` is set, always keep the first `attention_sinks` tokens in the context
+    /// See: [Efficient Streaming Language Models with Attention Sinks](https://arxiv.org/abs/2309.17453)
+    #[clap(long, env)]
+    attention_sinks: Option<u32>,
+
     /// Outputs the logs in JSON format (useful for telemetry)
     #[clap(long, env)]
     json_output: bool,
@@ -390,6 +400,8 @@ fn shard_manager(
     cuda_memory_fraction: f32,
     rope_scaling: Option<RopeScaling>,
     rope_factor: Option<f32>,
+    sliding_window: Option<u32>,
+    attention_sinks: Option<u32>,
     otlp_endpoint: Option<String>,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
@@ -493,6 +505,17 @@ fn shard_manager(
     if let Some((scaling, factor)) = rope {
         envs.push(("ROPE_SCALING".into(), scaling.to_string().into()));
         envs.push(("ROPE_FACTOR".into(), factor.to_string().into()));
+    }
+
+    // Detect sliding window
+    // Sending as env instead of CLI args to not bloat everything
+    // those only can be used by flash attention models, so passing information around
+    // for all models will complexify code unnecessarily
+    if let Some(sliding_window) = sliding_window {
+        envs.push(("SLIDING_WINDOW".into(), sliding_window.to_string().into()));
+    }
+    if let Some(attention_sinks) = attention_sinks {
+        envs.push(("ATTENTION_SINKS".into(), attention_sinks.to_string().into()));
     }
 
     // If huggingface_hub_cache is some, pass it to the shard
@@ -891,6 +914,8 @@ fn spawn_shards(
         let cuda_memory_fraction = args.cuda_memory_fraction;
         let rope_scaling = args.rope_scaling;
         let rope_factor = args.rope_factor;
+        let sliding_window = args.sliding_window;
+        let attention_sinks = args.attention_sinks;
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -911,6 +936,8 @@ fn spawn_shards(
                 cuda_memory_fraction,
                 rope_scaling,
                 rope_factor,
+                sliding_window,
+                attention_sinks,
                 otlp_endpoint,
                 status_sender,
                 shutdown,

@@ -246,6 +246,7 @@ class FlashMQAttention(torch.nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         qkv = self.c_attn(hidden_states)
 
@@ -258,8 +259,13 @@ class FlashMQAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         key_value = key_value.view(-1, 2, 1, self.head_size)
 
+        if prefill_cache_indices is not None:
+            kv_to_cache = key_value[prefill_cache_indices]
+        else:
+            kv_to_cache = key_value
+
         vllm_cache_ops.reshape_and_cache(
-            key_value[:, 0], key_value[:, 1], kv_cache[0], kv_cache[1], slots
+            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
         # output
@@ -367,6 +373,7 @@ class Block(nn.Module):
             slots,
             input_lengths,
             max_s,
+            prefill_cache_indices,
         )
 
         hidden_states, residual = self.ln_2(hidden_states, residual)
@@ -420,6 +427,7 @@ class FlashSantacoderModel(nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices,
     ) -> torch.Tensor:
         hidden_states = self.wte(input_ids) + self.wpe(position_ids)
 
@@ -437,6 +445,7 @@ class FlashSantacoderModel(nn.Module):
                 slots,
                 input_lengths,
                 max_s,
+                prefill_cache_indices,
             )
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
@@ -462,8 +471,19 @@ class FlashSantacoderForCausalLM(nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        sliding_window: int,
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if prefill_cache_indices is not None:
+            # Slots also need to be sliced as it has the same size as the whole kv tensor
+            slots = slots[prefill_cache_indices]
+        elif sliding_window != -1:
+            # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
+            # kernel requires the true values
+            max_s = min(sliding_window, max_s)
+            input_lengths = torch.clamp(input_lengths, max=sliding_window)
+
         hidden_states = self.transformer(
             input_ids,
             position_ids,
@@ -473,6 +493,7 @@ class FlashSantacoderForCausalLM(nn.Module):
             slots,
             input_lengths,
             max_s,
+            prefill_cache_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

@@ -201,9 +201,6 @@ class MistralAttention(torch.nn.Module):
         weights,
     ):
         super().__init__()
-        self.max_past = (
-            config.sliding_window if config.sliding_window is not None else 0
-        )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
@@ -252,6 +249,7 @@ class MistralAttention(torch.nn.Module):
         input_lengths,
         max_s,
         prefill_cache_indices,
+        sliding_window,
     ):
         qkv = self.query_key_value(hidden_states)
         query, kv = qkv.split(
@@ -290,7 +288,7 @@ class MistralAttention(torch.nn.Module):
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
-                window_size_left=self.max_past,
+                window_size_left=sliding_window,
             )
         # Decode
         else:
@@ -381,6 +379,7 @@ class MistralLayer(nn.Module):
         input_lengths,
         max_s,
         prefill_cache_indices,
+        sliding_window,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -396,6 +395,7 @@ class MistralLayer(nn.Module):
             input_lengths,
             max_s,
             prefill_cache_indices,
+            sliding_window,
         )
 
         # faster post attention rms norm
@@ -449,6 +449,7 @@ class MistralModel(torch.nn.Module):
         input_lengths: torch.Tensor,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        sliding_window: int,
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
@@ -472,6 +473,7 @@ class MistralModel(torch.nn.Module):
                 input_lengths,
                 max_s,
                 prefill_cache_indices,
+                sliding_window,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -489,9 +491,6 @@ class FlashMistralForCausalLM(torch.nn.Module):
             prefix="lm_head",
             weights=weights,
         )
-        self.max_past = config.sliding_window
-        if self.max_past is None:
-            raise ValueError("max_past cannot be None")
 
     def forward(
         self,
@@ -504,16 +503,17 @@ class FlashMistralForCausalLM(torch.nn.Module):
         input_lengths: torch.Tensor,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        sliding_window: int,
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if prefill_cache_indices is not None:
             # Slots also need to be sliced as it has the same size as the whole kv tensor
             slots = slots[prefill_cache_indices]
-        else:
+        elif sliding_window != -1:
             # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
             # kernel requires the true values
-            max_s = min(self.max_past, max_s)
-            input_lengths = torch.clamp(input_lengths, max=self.max_past)
+            max_s = min(sliding_window, max_s)
+            input_lengths = torch.clamp(input_lengths, max=sliding_window)
 
         hidden_states = self.model(
             input_ids,
@@ -525,6 +525,7 @@ class FlashMistralForCausalLM(torch.nn.Module):
             input_lengths,
             max_s,
             prefill_cache_indices,
+            sliding_window,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

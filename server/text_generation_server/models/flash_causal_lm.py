@@ -9,7 +9,7 @@ import numpy as np
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
-from typing import Optional, Tuple, List, Type, Union, Dict
+from typing import Optional, Tuple, List, Type, Dict
 
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
@@ -23,6 +23,10 @@ from text_generation_server.models.cache_manager import (
     get_cache_manager,
     set_cache_manager,
     BLOCK_SIZE,
+)
+from text_generation_server.models.sliding_window import (
+    set_sliding_window_from_env,
+    get_sliding_window,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
@@ -46,6 +50,12 @@ class FlashCausalLMBatch(Batch):
 
     # tensor of length b containing the cumulative sequence lengths of the sequences in the batch, only used in prefill
     cu_seqlen_prefill: Optional[torch.Tensor]
+
+    # Sliding window values
+
+    # Prefill cache indices is used to slice into the kv tensor before caching it into the paged attention buffers
+    # as we only keep SLIDING_WINDOW values instead of the whole tensor
+    prefill_cache_indices: Optional[torch.Tensor]
 
     # Paged Attention values
 
@@ -109,6 +119,8 @@ class FlashCausalLMBatch(Batch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "FlashCausalLMBatch":
+        sliding_window = get_sliding_window()
+
         batch_inputs = []
         max_truncation = 0
         for r in pb.requests:
@@ -124,6 +136,7 @@ class FlashCausalLMBatch(Batch):
         needed_blocks_slots = []
         start_slots = []
         slot_indices = []
+        prefill_cache_indices = []
 
         input_lengths = []
         prefix_offsets = []
@@ -187,8 +200,15 @@ class FlashCausalLMBatch(Batch):
             # Paged attention
             # Remove one as the first token des not have a past
             total_tokens = input_length + max_new_tokens - 1
+
             needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
+
+            # If using sliding window
+            if sliding_window is not None:
+                # Needed blocks can not go over SLIDING_WINDOW_BLOCKS
+                needed_blocks = min(needed_blocks, sliding_window.blocks)
             blocks += needed_blocks
+
             needed_blocks_slots.append((needed_blocks, total_tokens))
             start_slots.append(cumulative_max_length)
 
@@ -198,6 +218,32 @@ class FlashCausalLMBatch(Batch):
                 dtype=torch.int64,
             )
             slot_indices.append(request_slot_indices)
+
+            # If using sliding window
+            if sliding_window is not None:
+                # Start of the sliding window cache
+                start_offset = max(
+                    0,
+                    input_length - sliding_window.size + sliding_window.attention_sinks,
+                )
+
+                if sliding_window.attention_sinks > 0 and start_offset > 0:
+                    # Attention sinks indices
+                    request_attention_sinks_cache_indices = torch.arange(
+                        cumulative_length,
+                        cumulative_length
+                        + min(sliding_window.attention_sinks, start_offset),
+                        dtype=torch.int64,
+                    )
+                    prefill_cache_indices.append(request_attention_sinks_cache_indices)
+
+                # Create tensor to slice into the kv tensor in prefill
+                request_prefill_cache_indices = torch.arange(
+                    cumulative_length + start_offset,
+                    cumulative_length + input_length,
+                    dtype=torch.int64,
+                )
+                prefill_cache_indices.append(request_prefill_cache_indices)
 
             all_prefill_logprobs = all_prefill_logprobs and r.prefill_logprobs
             no_prefill_logprobs = no_prefill_logprobs and not r.prefill_logprobs
@@ -252,12 +298,26 @@ class FlashCausalLMBatch(Batch):
             position_ids = position_ids[0]
             slot_indices = slot_indices[0]
 
+        if len(prefill_cache_indices) > 1:
+            prefill_cache_indices = (
+                torch.cat(prefill_cache_indices) if prefill_cache_indices else None
+            )
+        else:
+            prefill_cache_indices = (
+                prefill_cache_indices[0] if prefill_cache_indices else None
+            )
+
         cu_seqlen_prefill = torch.tensor(
             cu_seqlen_prefill, device=device, dtype=torch.int32
         )
 
         position_ids = position_ids.to(device)
         slot_indices = slot_indices.to(device)
+        prefill_cache_indices = (
+            prefill_cache_indices.to(device)
+            if prefill_cache_indices is not None
+            else None
+        )
         input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         input_lengths_tensor = torch.tensor(
             input_lengths, dtype=torch.int32, device=device
@@ -309,6 +369,7 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
+            prefill_cache_indices=prefill_cache_indices,
         )
 
     @tracer.start_as_current_span("filter")
@@ -425,7 +486,7 @@ class FlashCausalLMBatch(Batch):
         # Move to GPU now that we have the whole tensor
         slot_indices = slot_indices.to(device)
 
-        return type(self)(
+        return FlashCausalLMBatch(
             batch_id=self.batch_id,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
@@ -454,6 +515,7 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
+            prefill_cache_indices=None,
         )
 
     @classmethod
@@ -611,6 +673,7 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
+            prefill_cache_indices=None,
         )
 
     def __del__(self):
@@ -636,11 +699,11 @@ class FlashCausalLM(Model):
         device: torch.device,
         rank: int = 0,
         world_size: int = 1,
-        sliding_window: Optional[int] = None,
     ):
         self.num_layers = num_layers
         self.num_kv_heads = num_kv_heads
         self.head_size = head_size
+        set_sliding_window_from_env()
 
         super(FlashCausalLM, self).__init__(
             model=model,
@@ -650,7 +713,6 @@ class FlashCausalLM(Model):
             device=device,
             rank=rank,
             world_size=world_size,
-            sliding_window=sliding_window,
         )
 
     @property
@@ -658,6 +720,8 @@ class FlashCausalLM(Model):
         return FlashCausalLMBatch
 
     def warmup(self, batch: FlashCausalLMBatch):
+        sliding_window = get_sliding_window()
+
         torch.cuda.empty_cache()
         try:
             cache_manager = set_cache_manager(
@@ -665,7 +729,8 @@ class FlashCausalLM(Model):
                 self.num_layers,
                 self.num_kv_heads,
                 self.head_size,
-                self.sliding_window is not None,
+                sliding_window.attention_sinks if sliding_window is not None else 0,
+                True if sliding_window is not None else False,
                 self.dtype,
                 self.device,
             )
@@ -705,7 +770,8 @@ class FlashCausalLM(Model):
             self.num_layers,
             self.num_kv_heads,
             self.head_size,
-            self.sliding_window is not None,
+            sliding_window.attention_sinks if sliding_window is not None else 0,
+            True if sliding_window is not None else False,
             self.dtype,
             self.device,
         )
@@ -713,8 +779,10 @@ class FlashCausalLM(Model):
         return int(num_blocks * BLOCK_SIZE)
 
     def forward(self, batch: FlashCausalLMBatch) -> Tuple[torch.Tensor, torch.Tensor]:
+        sliding_window = get_sliding_window()
+
         # Model Forward
-        return self.model.forward(
+        logits = self.model.forward(
             input_ids=batch.input_ids,
             position_ids=batch.position_ids,
             cu_seqlen_prefill=batch.cu_seqlen_prefill,
@@ -723,8 +791,13 @@ class FlashCausalLM(Model):
             slots=batch.slots[batch.slot_indices],
             input_lengths=batch.input_lengths_tensor,
             max_s=batch.max_seqlen,
+            prefill_cache_indices=batch.prefill_cache_indices,
+            sliding_window=sliding_window.size if sliding_window is not None else -1,
             lm_head_indices=batch.prefill_head_indices,
         )
+        if batch.prefill_cache_indices is not None:
+            batch.prefill_cache_indices = None
+        return logits
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(

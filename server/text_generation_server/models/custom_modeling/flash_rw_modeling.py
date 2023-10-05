@@ -174,6 +174,7 @@ class FlashRWAttention(torch.nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         qkv = self.query_key_value(hidden_states)
 
@@ -191,8 +192,13 @@ class FlashRWAttention(torch.nn.Module):
         self.rotary_emb(query, cos, sin)
         self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
 
+        if prefill_cache_indices is not None:
+            kv_to_cache = kv[prefill_cache_indices]
+        else:
+            kv_to_cache = kv
+
         vllm_cache_ops.reshape_and_cache(
-            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
+            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
         # output
@@ -294,6 +300,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, self.num_groups, self.num_heads + 2, self.head_size)
@@ -310,9 +317,14 @@ class FlashRWLargeAttention(torch.nn.Module):
         self.rotary_emb(query, cos, sin)
         self.rotary_emb(torch.select(kv, dim=2, index=0), cos, sin)
 
+        if prefill_cache_indices is not None:
+            kv_to_cache = kv[prefill_cache_indices]
+        else:
+            kv_to_cache = kv
+
         vllm_cache_ops.reshape_and_cache(
-            kv[:, :, 0].contiguous(),
-            kv[:, :, 1].contiguous(),
+            kv_to_cache[:, :, 0].contiguous(),
+            kv_to_cache[:, :, 1].contiguous(),
             kv_cache[0],
             kv_cache[1],
             slots,
@@ -428,6 +440,7 @@ class FlashRWLayer(nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         if self.parallel_attn:
             ln_hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -442,6 +455,7 @@ class FlashRWLayer(nn.Module):
                 slots,
                 input_lengths,
                 max_s,
+                prefill_cache_indices,
             )
 
             mlp_output = self.mlp(ln_hidden_states)
@@ -464,6 +478,7 @@ class FlashRWLayer(nn.Module):
                 slots,
                 input_lengths,
                 max_s,
+                prefill_cache_indices,
             )
 
             hidden_states, residual = self.post_attention_layernorm(
@@ -513,6 +528,7 @@ class FlashRWLargeLayer(nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         ln_attn, residual = self.ln_attn(hidden_states, residual)
         ln_mlp, _ = self.ln_mlp(residual)
@@ -528,6 +544,7 @@ class FlashRWLargeLayer(nn.Module):
             slots,
             input_lengths,
             max_s,
+            prefill_cache_indices,
         )
 
         # MLP.
@@ -589,6 +606,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices,
     ) -> torch.Tensor:
         hidden_states = self.word_embeddings(input_ids)
 
@@ -611,6 +629,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 slots,
                 input_lengths,
                 max_s,
+                prefill_cache_indices,
             )
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
@@ -638,8 +657,19 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        sliding_window: int,
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if prefill_cache_indices is not None:
+            # Slots also need to be sliced as it has the same size as the whole kv tensor
+            slots = slots[prefill_cache_indices]
+        elif sliding_window != -1:
+            # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
+            # kernel requires the true values
+            max_s = min(sliding_window, max_s)
+            input_lengths = torch.clamp(input_lengths, max=sliding_window)
+
         hidden_states = self.transformer(
             input_ids,
             position_ids,
@@ -649,6 +679,7 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
             slots,
             input_lengths,
             max_s,
+            prefill_cache_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

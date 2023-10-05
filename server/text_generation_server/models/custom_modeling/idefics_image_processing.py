@@ -198,7 +198,9 @@ class IdeficsImageProcessor(BaseImageProcessor):
             image = image_url_or_urls
 
             if image.startswith("http://") or image.startswith("https://"):
-                response = requests.get(image_url_or_urls, stream=True, headers=headers, timeout=(1, 5))
+                response = requests.get(
+                    image_url_or_urls, stream=True, headers=headers, timeout=(1, 5)
+                )
                 response.raise_for_status()
                 content = response.content
             else:
@@ -208,7 +210,7 @@ class IdeficsImageProcessor(BaseImageProcessor):
                 image = Image.open(BytesIO(content))
                 # image.verify()
             except Exception:
-                raise ValueError(f"Could not load image from url {image_url_or_urls}")    
+                raise ValueError(f"Could not load image from url {image_url_or_urls}")
             return image
         else:
             raise ValueError(

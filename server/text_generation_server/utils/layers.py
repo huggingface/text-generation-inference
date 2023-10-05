@@ -604,15 +604,16 @@ try:
                 elif rope_scaling["type"] == "yarn":
                     return YarnPositionRotaryEmbedding(
                         dim=2 * inv_freq.shape[0],
-                        max_position_embeddings=rope_scaling["original_max_position_embeddings"],
+                        max_position_embeddings=rope_scaling[
+                            "original_max_position_embeddings"
+                        ],
                         base=10000.0,
                         device=inv_freq.device,
                         scaling_factor=scaling_factor,
                         extrapolation_factor=1,
                         attn_factor=1,
                         beta_fast=32,
-                        beta_slow=1
-
+                        beta_slow=1,
                     )
                 else:
                     raise NotImplementedError(
@@ -645,15 +646,16 @@ try:
                 elif rope_scaling["type"] == "yarn":
                     return YarnPositionRotaryEmbedding(
                         dim=2 * inv_freq.shape[0],
-                        max_position_embeddings=rope_scaling["original_max_position_embeddings"],
+                        max_position_embeddings=rope_scaling[
+                            "original_max_position_embeddings"
+                        ],
                         base=10000.0,
                         device=inv_freq.device,
                         scaling_factor=scaling_factor,
                         extrapolation_factor=1,
                         attn_factor=1,
                         beta_fast=32,
-                        beta_slow=1
-
+                        beta_slow=1,
                     )
                 else:
                     raise NotImplementedError(
@@ -734,19 +736,27 @@ try:
                 self._cos_cached = torch.cos(freqs).to(dtype)
                 self._sin_cached = torch.sin(freqs).to(dtype)
 
-
     # Inverse dim formula to find dim based on number of rotations
     import math
-    def find_correction_dim(num_rotations, dim, base=10000, max_position_embeddings=2048):
-        return (dim * math.log(max_position_embeddings/(num_rotations * 2 * math.pi)))/(2 * math.log(base))
+
+    def find_correction_dim(
+        num_rotations, dim, base=10000, max_position_embeddings=2048
+    ):
+        return (
+            dim * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))
+        ) / (2 * math.log(base))
 
     # Find dim range bounds based on rotations
-    def find_correction_range(low_rot, high_rot, dim, base=10000, max_position_embeddings=2048):
-        low = math.floor(find_correction_dim(
-            low_rot, dim, base, max_position_embeddings))
-        high = math.ceil(find_correction_dim(
-            high_rot, dim, base, max_position_embeddings))
-        return max(low, 0), min(high, dim-1)  # Clamp values just in case
+    def find_correction_range(
+        low_rot, high_rot, dim, base=10000, max_position_embeddings=2048
+    ):
+        low = math.floor(
+            find_correction_dim(low_rot, dim, base, max_position_embeddings)
+        )
+        high = math.ceil(
+            find_correction_dim(high_rot, dim, base, max_position_embeddings)
+        )
+        return max(low, 0), min(high, dim - 1)  # Clamp values just in case
 
     def linear_ramp_mask(min, max, dim):
         if min == max:
@@ -762,7 +772,19 @@ try:
         return 0.1 * math.log(scale) + 1.0
 
     class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
-        def __init__(self, dim, max_position_embeddings, base, device, scaling_factor,*, extrapolation_factor, attn_factor, beta_fast, beta_slow):
+        def __init__(
+            self,
+            dim,
+            max_position_embeddings,
+            base,
+            device,
+            scaling_factor,
+            *,
+            extrapolation_factor,
+            attn_factor,
+            beta_fast,
+            beta_slow,
+        ):
             inv_freq = _create_inv_freq(dim, base, device)
             super().__init__(inv_freq, scaling_factor)
             self.dim = dim
@@ -772,7 +794,9 @@ try:
             self.attn_factor = attn_factor
             self.beta_fast = beta_fast
             self.beta_slow = beta_slow
-            self.mscale = float(get_mscale(self.scaling_factor) * self.attn_factor) # Get n-d magnitude scaling corrected for interpolation
+            self.mscale = float(
+                get_mscale(self.scaling_factor) * self.attn_factor
+            )  # Get n-d magnitude scaling corrected for interpolation
 
         def _update_cos_sin_cache(self, dtype, device, seqlen):
             # Reset the tables if the sequence length has changed,
@@ -788,13 +812,26 @@ try:
                     )
                     freqs = 1.0 / inv_freq_extrapolation
                     inv_freq_interpolation = 1.0 / (self.scaling_factor * freqs)
-                    low, high = find_correction_range(self.beta_fast, self.beta_slow, self.dim, self.base, self.max_position_embeddings)
-                    inv_freq_mask = (1 - linear_ramp_mask(low, high, self.dim // 2).float().to(device)) * self.extrapolation_factor # Get n-d rotational scaling corrected for extrapolation
-                    inv_freq = inv_freq_interpolation * (1 - inv_freq_mask) + inv_freq_extrapolation * inv_freq_mask
+                    low, high = find_correction_range(
+                        self.beta_fast,
+                        self.beta_slow,
+                        self.dim,
+                        self.base,
+                        self.max_position_embeddings,
+                    )
+                    inv_freq_mask = (
+                        1
+                        - linear_ramp_mask(low, high, self.dim // 2).float().to(device)
+                    ) * self.extrapolation_factor  # Get n-d rotational scaling corrected for extrapolation
+                    inv_freq = (
+                        inv_freq_interpolation * (1 - inv_freq_mask)
+                        + inv_freq_extrapolation * inv_freq_mask
+                    )
 
                     self.inv_freq = inv_freq
-                    self.mscale = float(get_mscale(self.scaling_factor) * self.attn_factor) # Get n-d magnitude scaling corrected for interpolation
-
+                    self.mscale = float(
+                        get_mscale(self.scaling_factor) * self.attn_factor
+                    )  # Get n-d magnitude scaling corrected for interpolation
 
                 self._seq_len_cached = seqlen
                 t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
