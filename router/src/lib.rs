@@ -138,6 +138,9 @@ pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 5)]
     pub top_n_tokens: Option<u32>,
+    #[serde(default)]
+    #[schema(default = "false")]
+    pub ignore_eos_token: bool
 }
 
 fn default_max_new_tokens() -> Option<u32> {
@@ -162,6 +165,7 @@ fn default_parameters() -> GenerateParameters {
         decoder_input_details: false,
         seed: None,
         top_n_tokens: None,
+        ignore_eos_token: false,
     }
 }
 
