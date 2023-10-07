@@ -192,13 +192,13 @@ files = [
 
 [[package]]
 name = "bitsandbytes"
-version = "0.38.1"
-description = "8-bit optimizers and matrix multiplication routines."
+version = "0.41.1"
+description = "k-bit optimizers and matrix multiplication routines."
 optional = true
 python-versions = "*"
 files = [
-    {file = "bitsandbytes-0.38.1-py3-none-any.whl", hash = "sha256:5f532e7b1353eb7049ae831da2eb62ed8a1e0444116bd51b9e088a6e0bc7a34a"},
-    {file = "bitsandbytes-0.38.1.tar.gz", hash = "sha256:ba95a806b5065ea3263558e188f07eacb32ad691842932fb0d36a879883167ce"},
+    {file = "bitsandbytes-0.41.1-py3-none-any.whl", hash = "sha256:b25228c27636367f222232ed4d1e1502eedd2064be215633734fb8ea0c1c65f4"},
+    {file = "bitsandbytes-0.41.1.tar.gz", hash = "sha256:b3f8e7e1e5f88d4813d10ebd4072034ba6a18eca7f0e255376f8320e5499032c"},
 ]
 
 [[package]]
@@ -2404,4 +2404,4 @@ quantize = ["accelerate", "datasets", "texttable"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "97d180d834128bb5b7b3c34986f9d40ab9e597347a10fe9a07d5d19f8ab604f1"
+content-hash = "250322f2b82caf9060bd19ba6842be217215f911554aec8fdd4d0c791470d6d1"
