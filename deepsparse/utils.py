@@ -11,10 +11,10 @@ class Greedy:
     def __call__(self, logits: np.ndarray):
         # assert b=1 for now
         # shape == (batch, vocabulary_size)
-        assert(logits.shape[0] == 1)
+        #assert(logits.shape[0] == 1)
         assert(len(logits.shape) == 2)      
         
-        return np.argmax(logits[0,:])
+        return np.argmax(logits[0,:])  # XXXXXXXXXXXXXXX fix
 
 # TODO: sample for b > 1 with vectorized code
 # https://stackoverflow.com/questions/47722005/vectorizing-numpy-random-choice-for-given-2d-array-of-probabilities-along-an-a

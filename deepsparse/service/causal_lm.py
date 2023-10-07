@@ -57,6 +57,8 @@ class DeepSparseCausalLMBatch:
                 )
             )
 
+            print(r.generation_parameters)
+
             # get next token chooser based on input
             next_token_chooser_list.append(
                 NextTokenChooser(
@@ -142,6 +144,8 @@ class DeepSparseCausalLMBatch:
             # concatenate request, input_ids, and past_key_values lists
             requests.extend(batch.requests)
             input_ids_list.extend(batch.input_ids_list)
+            print(f"pkv {past_key_values_list}")
+            print(f"bpkv {batch.past_key_values_list}")
             past_key_values_list.extend(batch.past_key_values_list)
             stopping_criteria_list.extend(batch.stopping_criteria_list)
             next_token_chooser_list.extend(batch.next_token_chooser_list)
@@ -202,24 +206,30 @@ class DeepSparseCausalLM:
         iterator = zip(
             batch.requests, 
             batch.input_ids_list, 
-            batch.past_key_values_list,
             batch.stopping_criteria_list,
             batch.next_token_chooser_list,
         )
+
+        #assert len(input_ids.shape) == 2
+        #assert input_ids.shape[0] == 1
+
+        print(batch.past_key_values_list)
+        print(len(batch.past_key_values_list))
+        print(batch.input_ids_list)
+        print(len(batch.input_ids_list))
+
+        # a) run inference
+        logits, batch.past_key_values_list = self.model(batch.input_ids_list, batch.past_key_values_list)
+
+        print(logits)
+        print(logits.shape)
+
         for i, (
             request, 
             input_ids, 
-            past_key_values,
             stopping_criteria,
             next_token_chooser
         ) in enumerate(iterator):
-            # assert input_ids is b=1
-            assert len(input_ids.shape) == 2
-            assert input_ids.shape[0] == 1
-            
-            # a) run inference
-            logits, past_key_values = self.model(input_ids, past_key_values)
-
             # b) sample token and check stopping criteria
             # TODO: should use NextTokenChooser/StoppingCriteria (simple for now)
             generated_token_id = next_token_chooser(input_ids=input_ids, scores=logits[:,-1,:])
@@ -241,13 +251,12 @@ class DeepSparseCausalLM:
             # d) update batch 
             # TODO: this does not occur in place
             assert len(batch.input_ids_list[i].shape) == 2
-            assert batch.input_ids_list[i].shape[0] == 1
+            #assert batch.input_ids_list[i].shape[0] == 1
             batch.input_ids_list[i] = np.append(
                 batch.input_ids_list[i],
                 np.array([[generated_token_id]]),
                 axis=1
             )
-            batch.past_key_values_list[i] = past_key_values
 
         # if all elements of the batch are done, return null for batch
         if all_stopped:
