@@ -18,71 +18,43 @@ to power Hugging Chat, the Inference API and Inference Endpoint.
 
 ## Table of contents
 
-- [Features](#features)
-- [Optimized Architectures](#optimized-architectures)
 - [Get Started](#get-started)
-  - [Docker](#docker)
   - [API Documentation](#api-documentation)
   - [Using a private or gated model](#using-a-private-or-gated-model)
   - [A note on Shared Memory](#a-note-on-shared-memory-shm)
   - [Distributed Tracing](#distributed-tracing)
   - [Local Install](#local-install)
   - [CUDA Kernels](#cuda-kernels)
+- [Optimized architectures](#optimized-architectures)
 - [Run Falcon](#run-falcon)
   - [Run](#run)
   - [Quantization](#quantization)
 - [Develop](#develop)
 - [Testing](#testing)
-- [Other supported hardware](#other-supported-hardware)
 
-## Features
+Text Generation Inference (TGI) is a toolkit for deploying and serving Large Language Models (LLMs). TGI enables high-performance text generation for the most popular open-source LLMs, including Llama, Falcon, StarCoder, BLOOM, GPT-NeoX, and [more](https://huggingface.co/docs/text-generation-inference/supported_models). TGI implements many features, such as:
 
-- Serve the most popular Large Language Models with a simple launcher
+- Simple launcher to serve most popular LLMs
+- Production ready (distributed tracing with Open Telemetry, Prometheus metrics)
 - Tensor Parallelism for faster inference on multiple GPUs
 - Token streaming using Server-Sent Events (SSE)
-- [Continuous batching of incoming requests](https://github.com/huggingface/text-generation-inference/tree/main/router) for increased total throughput
-- Optimized transformers code for inference using [flash-attention](https://github.com/HazyResearch/flash-attention) and [Paged Attention](https://github.com/vllm-project/vllm) on the most popular architectures
+- Continuous batching of incoming requests for increased total throughput
+- Optimized transformers code for inference using [Flash Attention](https://github.com/HazyResearch/flash-attention) and [Paged Attention](https://github.com/vllm-project/vllm) on the most popular architectures
 - Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes) and [GPT-Q](https://arxiv.org/abs/2210.17323)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 - Logits warper (temperature scaling, top-p, top-k, repetition penalty, more details see [transformers.LogitsProcessor](https://huggingface.co/docs/transformers/internal/generation_utils#transformers.LogitsProcessor))
 - Stop sequences
 - Log probabilities
-- Production ready (distributed tracing with Open Telemetry, Prometheus metrics)
-- Custom Prompt Generation: Easily generate text by providing custom prompts to guide the model's output.
-- Fine-tuning Support: Utilize fine-tuned models for specific tasks to achieve higher accuracy and performance.
+- Custom Prompt Generation: Easily generate text by providing custom prompts to guide the model's output
+- Fine-tuning Support: Utilize fine-tuned models for specific tasks to achieve higher accuracy and performance
 
 
-## Optimized architectures
-
-- [BLOOM](https://huggingface.co/bigscience/bloom)
-- [FLAN-T5](https://huggingface.co/google/flan-t5-xxl)
-- [Galactica](https://huggingface.co/facebook/galactica-120b)
-- [GPT-Neox](https://huggingface.co/EleutherAI/gpt-neox-20b)
-- [Llama](https://github.com/facebookresearch/llama)
-- [OPT](https://huggingface.co/facebook/opt-66b)
-- [SantaCoder](https://huggingface.co/bigcode/santacoder)
-- [Starcoder](https://huggingface.co/bigcode/starcoder)
-- [Falcon 7B](https://huggingface.co/tiiuae/falcon-7b)
-- [Falcon 40B](https://huggingface.co/tiiuae/falcon-40b)
-- [MPT](https://huggingface.co/mosaicml/mpt-30b)
-- [Llama V2](https://huggingface.co/meta-llama)
-- [Code Llama](https://huggingface.co/codellama)
-- [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1)
-
-Other architectures are supported on a best effort basis using:
-
-`AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
-
-or
-
-`AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")`
-
-## Get started
+## Get Started
 
 ### Docker
 
-The easiest way of getting started is using the official Docker container:
+For a detailed starting guide, please see the [Quick Tour](https://huggingface.co/docs/text-generation-inference/quicktour). The easiest way of getting started is using the official Docker container:
 
 ```shell
 model=tiiuae/falcon-7b-instruct
@@ -90,46 +62,21 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.1.0 --model-id $model
 ```
-**Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 11.8 or higher. For running the Docker container on a machine with no GPUs or CUDA support, it is enough to remove the `--gpus all` flag and add `--disable-custom-kernels`, please note CPU is not the intended platform for this project, so performance might be subpar.
 
-To see all options to serve your models (in the [code](https://github.com/huggingface/text-generation-inference/blob/main/launcher/src/main.rs) or in the cli):
-```
-text-generation-launcher --help
-```
+And then you can make requests like
 
-You can then query the model using either the `/generate` or `/generate_stream` routes:
-
-```shell
+```bash
 curl 127.0.0.1:8080/generate \
     -X POST \
     -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
     -H 'Content-Type: application/json'
 ```
 
-```shell
-curl 127.0.0.1:8080/generate_stream \
-    -X POST \
-    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
-    -H 'Content-Type: application/json'
+**Note:** To use GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 11.8 or higher. For running the Docker container on a machine with no GPUs or CUDA support, it is enough to remove the `--gpus all` flag and add `--disable-custom-kernels`, please note CPU is not the intended platform for this project, so performance might be subpar.
+
+To see all options to serve your models (in the [code](https://github.com/huggingface/text-generation-inference/blob/main/launcher/src/main.rs) or in the cli):
 ```
-
-or from Python:
-
-```shell
-pip install text-generation
-```
-
-```python
-from text_generation import Client
-
-client = Client("http://127.0.0.1:8080")
-print(client.generate("What is Deep Learning?", max_new_tokens=20).generated_text)
-
-text = ""
-for response in client.generate_stream("What is Deep Learning?", max_new_tokens=20):
-    if not response.token.special:
-        text += response.token.text
-print(text)
+text-generation-launcher --help
 ```
 
 ### API documentation
@@ -241,6 +188,20 @@ the kernels by using the `DISABLE_CUSTOM_KERNELS=True` environment variable.
 
 Be aware that the official Docker image has them enabled by default.
 
+## Optimized architectures
+
+TGI works out of the box to serve optimized models in [this list](https://huggingface.co/docs/text-generation-inference/supported_models).
+
+Other architectures are supported on a best-effort basis using:
+
+`AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
+
+or
+
+`AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")`
+
+
+
 ## Run Falcon
 
 ### Run
@@ -279,10 +240,3 @@ make rust-tests
 # integration tests
 make integration-tests
 ```
-
-
-## Other supported hardware
-
-TGI is also supported on the following AI hardware accelerators:
-- *Habana first-gen Gaudi and Gaudi2:* checkout [here](https://github.com/huggingface/optimum-habana/tree/main/text-generation-inference) how to serve models with TGI on Gaudi and Gaudi2 with [Optimum Habana](https://huggingface.co/docs/optimum/habana/index)
-
