@@ -15,6 +15,7 @@ from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
     Weights,
+    is_torch_npu_available,
 )
 
 
@@ -30,6 +31,9 @@ class GPTNeoxSharded(CausalLM):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16 if dtype is None else dtype
+        elif is_torch_npu_available():
+            device = torch.device(f"npu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
             device = torch.device("cpu")

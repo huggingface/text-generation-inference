@@ -4,6 +4,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import List, Optional, Tuple
 
 from text_generation_server.models import CausalLM
+from text_generation_server.utils import is_torch_npu_available
 
 
 class RW(CausalLM):
@@ -17,6 +18,9 @@ class RW(CausalLM):
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
+            dtype = torch.float16 if dtype is None else dtype
+        elif is_torch_npu_available():
+            device = torch.device("npu")
             dtype = torch.float16 if dtype is None else dtype
         else:
             if quantize:
@@ -44,6 +48,8 @@ class RW(CausalLM):
         )
         if torch.cuda.is_available() and torch.cuda.device_count() == 1:
             model = model.cuda()
+        elif is_torch_npu_available():
+            model = model.npu()
 
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:

@@ -19,6 +19,7 @@ from text_generation_server.utils.tokens import (
     Sampling,
     Greedy,
 )
+from text_generation_server.utils.import_utils import is_torch_npu_available
 
 __all__ = [
     "convert_file",
@@ -39,4 +40,5 @@ __all__ = [
     "StopSequenceCriteria",
     "FinishReason",
     "Weights",
+    "is_torch_npu_available",
 ]

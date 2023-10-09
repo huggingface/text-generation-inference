@@ -22,6 +22,7 @@ from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
     Weights,
+    is_torch_npu_available,
 )
 
 
@@ -39,6 +40,9 @@ class IDEFICSSharded(IdeficsCausalLM):
             device = torch.device(f"cuda:{rank}")
             # 9b seems to work correctly enough in float16, but 80b seems
             # to be really saturating for f16.
+            dtype = torch.bfloat16 if dtype is None else dtype
+        elif is_torch_npu_available():
+            device = torch.device(f"npu:{rank}")
             dtype = torch.bfloat16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
