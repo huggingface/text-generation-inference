@@ -37,7 +37,7 @@ RUN cargo build --release
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
-FROM debian:bullseye-slim as pytorch-install
+FROM nvidia/cuda:12.1.0-devel-ubuntu20.04 as pytorch-install
 
 ARG PYTORCH_VERSION=2.1.0
 ARG PYTHON_VERSION=3.9
@@ -49,9 +49,12 @@ ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
 ARG TARGETPLATFORM
 
-ENV PATH /opt/conda/bin:$PATH
+# Conda env
+ENV PATH=/opt/conda/bin:$PATH \
+    CONDA_PREFIX=/opt/conda
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ninja-build \
         build-essential \
         ca-certificates \
         ccache \
@@ -79,18 +82,8 @@ RUN case ${TARGETPLATFORM} in \
     esac && \
     /opt/conda/bin/conda clean -ya
 
-# CUDA kernels builder image
-FROM pytorch-install as kernel-builder
-
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ninja-build \
-        && rm -rf /var/lib/apt/lists/*
-
-RUN /opt/conda/bin/conda install -c "nvidia/label/cuda-12.1.0"  cuda==12.1 && \
-    /opt/conda/bin/conda clean -ya
-
 # Build Flash Attention CUDA kernels
-FROM kernel-builder as flash-att-builder
+FROM pytorch-install as flash-att-builder
 
 WORKDIR /usr/src
 
@@ -100,7 +93,7 @@ COPY server/Makefile-flash-att Makefile
 RUN make build-flash-attention
 
 # Build Flash Attention v2 CUDA kernels
-FROM kernel-builder as flash-att-v2-builder
+FROM pytorch-install as flash-att-v2-builder
 
 WORKDIR /usr/src
 
@@ -110,35 +103,35 @@ COPY server/Makefile-flash-att-v2 Makefile
 RUN make build-flash-attention-v2
 
 # Build Transformers exllama kernels
-FROM kernel-builder as exllama-kernels-builder
+FROM pytorch-install as exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 
 # Build Transformers awq kernels
-FROM kernel-builder as awq-kernels-builder
+FROM pytorch-install as awq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-awq Makefile
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-awq
 
 # Build eetq kernels
-FROM kernel-builder as eetq-kernels-builder
+FROM pytorch-install as eetq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-eetq Makefile
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-eetq
 
 # Build Transformers CUDA kernels
-FROM kernel-builder as custom-kernels-builder
+FROM pytorch-install as custom-kernels-builder
 WORKDIR /usr/src
 COPY server/custom_kernels/ .
 # Build specific version of transformers
 RUN python setup.py build
 
 # Build vllm CUDA kernels
-FROM kernel-builder as vllm-builder
+FROM pytorch-install as vllm-builder
 
 WORKDIR /usr/src
 
