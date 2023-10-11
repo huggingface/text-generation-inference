@@ -3,7 +3,7 @@ deployment:
   port: 8080
   max_concurrent_requests: 64
   local: True
-  endpoint: http://guanaco-65b-merged.inference.takomo.internal 
+  endpoint: ""
 
 macros:
   tokenizer_name: bigscience/bloom-560m
