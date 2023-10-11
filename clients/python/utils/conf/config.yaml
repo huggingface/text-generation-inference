@@ -1,0 +1,17 @@
+deployment:
+  addr: http://127.0.0.1
+  port: 8080
+  max_concurrent_requests: 64
+  local: True
+  endpoint: http://guanaco-65b-merged.inference.takomo.internal 
+
+macros:
+  tokenizer_name: bigscience/bloom-560m
+
+GenerationConfig:
+  max_new_tokens: 100
+  repetition_penalty: 1.5
+  do_sample: True
+  stop_sequences: 
+    - "length"
+  sequence_length: 100
