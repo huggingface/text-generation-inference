@@ -261,7 +261,7 @@ class DeepSparseDecoderModel:
 
             if len(input_ids) == self.batch_size and self.batch_size != 1:
                 engine_inputs = self.engine_inputs_for_decode(input_ids)
-                print(f"GOT HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! {past_key_values}")
+                #print(f"GOT HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! {past_key_values}")
                 logits, new_key_values = self.batched_singletoken_engine(
                     engine_inputs,
                     past_key_values
@@ -329,10 +329,10 @@ class DeepSparseDecoderModel:
         #print(f"forward pkv {past_key_values} {past_key_values[0] is None}")
         if past_key_values[0] is None:
             assert len(input_ids) == 1
-            print("PREFILL!!!!!!!!!!!!!!!!!!!!!")
+            #print("PREFILL!!!!!!!!!!!!!!!!!!!!!")
             return self.prefill(input_ids[0])
         else:
-            print("DECODE!!!!!!!!!!!!!!!!!!!!!")
+            #print("DECODE!!!!!!!!!!!!!!!!!!!!!")
             return self.decode(input_ids, past_key_values)
 
     def __call__(
