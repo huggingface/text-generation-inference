@@ -57,8 +57,6 @@ class DeepSparseCausalLMBatch:
                 )
             )
 
-            print(r.generation_parameters)
-
             # get next token chooser based on input
             next_token_chooser_list.append(
                 NextTokenChooser(
@@ -123,6 +121,8 @@ class DeepSparseCausalLMBatch:
         self.stopping_criteria_list = stopping_criteria_list
         self.next_token_chooser_list = next_token_chooser_list
 
+        assert len(self.input_ids_list) == len(self.past_key_values_list)
+
         return self
 
     # combine two batches into one
@@ -144,8 +144,8 @@ class DeepSparseCausalLMBatch:
             # concatenate request, input_ids, and past_key_values lists
             requests.extend(batch.requests)
             input_ids_list.extend(batch.input_ids_list)
-            print(f"pkv {past_key_values_list}")
-            print(f"bpkv {batch.past_key_values_list}")
+            #print(f"pkv {past_key_values_list}")
+            #print(f"bpkv {batch.past_key_values_list}")
             past_key_values_list.extend(batch.past_key_values_list)
             stopping_criteria_list.extend(batch.stopping_criteria_list)
             next_token_chooser_list.extend(batch.next_token_chooser_list)
@@ -158,6 +158,8 @@ class DeepSparseCausalLMBatch:
                     requests_idx_mapping[k] = v + start_index
             
             start_index += len(batch)
+
+        assert len(input_ids_list) == len(past_key_values_list)
 
         return cls(
             batch_id=batches[0].batch_id,
@@ -187,6 +189,7 @@ class DeepSparseCausalLM:
             onnx_file_path = model_path,
             sequence_length = DEEPSPARSE_SEQUENCE_LENGTH,
             multitoken_length = DEEPSPARSE_MULTITOKEN_LENGTH,
+            batch_size=4
         )
 
     def generate_token(
@@ -213,16 +216,22 @@ class DeepSparseCausalLM:
         #assert len(input_ids.shape) == 2
         #assert input_ids.shape[0] == 1
 
-        print(batch.past_key_values_list)
-        print(len(batch.past_key_values_list))
-        print(batch.input_ids_list)
-        print(len(batch.input_ids_list))
+        #print(batch.past_key_values_list)
+        #print(len(batch.past_key_values_list))
+        #print(batch.input_ids_list)
+        #print(len(batch.input_ids_list))
+
+        #print(f"before {len(batch.input_ids_list)} {len(batch.past_key_values_list)}")
 
         # a) run inference
         logits, batch.past_key_values_list = self.model(batch.input_ids_list, batch.past_key_values_list)
 
-        print(logits)
-        print(logits.shape)
+        #print(f"after {len(batch.input_ids_list)} {len(batch.past_key_values_list)} {batch.past_key_values_list}")
+
+        assert len(batch.input_ids_list) == len(batch.past_key_values_list)
+
+        #print(logits)
+        #print(logits.shape)
 
         for i, (
             request, 
