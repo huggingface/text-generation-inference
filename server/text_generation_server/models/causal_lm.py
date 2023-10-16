@@ -511,7 +511,7 @@ class CausalLM(Model):
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
-        if torch.cuda.is_available() and torch.cuda.device_count() == 1:
+        if torch.cuda.is_available() and torch.cuda.device_count() == 1 and quantize != "bitsandbytes":
             model = model.cuda()
 
         if tokenizer.pad_token_id is None:
