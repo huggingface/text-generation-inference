@@ -112,6 +112,12 @@ RUN make build-flash-attention-v2
 FROM kernel-builder as exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
+
+# Build Transformers exllama kernels
+FROM kernel-builder as exllama-kernels-builder
+WORKDIR /usr/src
+COPY server/exllamav2_kernels/ .
+
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 
