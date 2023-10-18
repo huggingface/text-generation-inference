@@ -50,7 +50,7 @@ def test_parameters_validation():
     with pytest.raises(ValidationError):
         Parameters(top_p=-1)
     with pytest.raises(ValidationError):
-        Parameters(top_p=1)
+        Parameters(top_p=1.01)
 
     # Test truncate
     Parameters(truncate=1)
