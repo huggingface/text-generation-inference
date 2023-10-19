@@ -155,10 +155,7 @@ class EETQLinear(nn.Module):
         device = weight.device
         weight = torch.t(weight).contiguous().cpu()
         weight, scale = quant_weights(weight, torch.int8, False)
-        if bias:
-            bias = weights.get_tensor(f"{prefix}.bias")
-        else:
-            bias = None
+
         self.weight = weight.cuda(device)
         self.scale = scale.cuda(device)
         self.bias = bias.cuda(device) if bias is not None else None
