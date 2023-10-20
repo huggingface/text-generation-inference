@@ -385,7 +385,7 @@ async fn prefill(
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
             // Update health
-            generation_health.store(true, Ordering::SeqCst);
+            generation_health.store(true, Ordering::Relaxed);
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
@@ -399,7 +399,7 @@ async fn prefill(
         // If we have an error, we discard the whole batch
         Err(err) => {
             // Update health
-            generation_health.store(false, Ordering::SeqCst);
+            generation_health.store(false, Ordering::Relaxed);
             let _ = client.clear_cache(Some(batch_id)).await;
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
@@ -424,7 +424,7 @@ async fn decode(
     match client.decode(batches).await {
         Ok((generations, next_batch)) => {
             // Update health
-            generation_health.store(true, Ordering::SeqCst);
+            generation_health.store(true, Ordering::Relaxed);
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
@@ -437,7 +437,7 @@ async fn decode(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
-            generation_health.store(false, Ordering::SeqCst);
+            generation_health.store(false, Ordering::Relaxed);
             for id in batch_ids {
                 let _ = client.clear_cache(Some(id)).await;
             }
