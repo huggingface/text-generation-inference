@@ -1,8 +1,8 @@
-vllm_commit := 25dbff97d5a8f2ba331847237b458b2692e9ae78
+vllm_commit := f8a1e39fae05ca610be8d5a78be9d40f5274e5fc
 
 vllm:
     # Clone vllm
-	git clone https://github.com/OlivierDehaene/vllm.git
+	git clone https://github.com/vllm-project/vllm.git
 
 build-vllm: vllm
 	cd vllm && git fetch && git checkout $(vllm_commit)
