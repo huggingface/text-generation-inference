@@ -321,9 +321,9 @@ mod tests {
 
     fn default_entry() -> (
         Entry,
-        flume::Receiver<Result<InferStreamResponse, InferError>>,
+        mpsc::UnboundedReceiver<Result<InferStreamResponse, InferError>>,
     ) {
-        let (response_tx, receiver_tx) = flume::unbounded();
+        let (response_tx, receiver_tx) = mpsc::unbounded_channel();
 
         let entry = Entry {
             request: ValidGenerateRequest {
