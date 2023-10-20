@@ -23,7 +23,7 @@ impl Health {
     }
 
     pub(crate) async fn check(&mut self) -> bool {
-        if self.generation_health.load(Ordering::Relaxed) {
+        if self.generation_health.load(Ordering::SeqCst) {
             // Generation is healthy, we only check that the shards are answering gRPC calls
             self.client.health().await.is_ok()
         } else {
@@ -61,7 +61,7 @@ impl Health {
             // Skips the queue
             let value = self.client.prefill(batch).await.is_ok();
             // Update generation health
-            self.generation_health.store(value, Ordering::Relaxed);
+            self.generation_health.store(value, Ordering::SeqCst);
             value
         }
     }
