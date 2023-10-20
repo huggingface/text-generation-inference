@@ -257,7 +257,6 @@ impl Infer {
 ///
 /// Batches requests and sends them to the inference server
 #[allow(clippy::too_many_arguments)]
-#[instrument(skip_all)]
 async fn batching_task(
     mut client: ShardedClient,
     waiting_served_ratio: f32,
@@ -276,7 +275,6 @@ async fn batching_task(
         // Get the next batch from the queue
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the queue
-        tracing::debug!("First batch");
         while let Some((mut entries, batch, span)) = queue
             .next_batch(None, max_batch_prefill_tokens, max_batch_total_tokens)
             .await
@@ -380,8 +378,6 @@ async fn prefill(
     let batch_id = batch.id;
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "prefill");
 
-    tracing::debug!("Prefill");
-
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
             // Update health
@@ -419,15 +415,12 @@ async fn decode(
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "decode");
 
-    tracing::debug!("Decode");
-
     match client.decode(batches).await {
         Ok((generations, next_batch)) => {
             // Update health
             generation_health.store(true, Ordering::Relaxed);
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
-            tracing::debug!("filter batch");
 
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
@@ -473,11 +466,9 @@ async fn filter_batch(
         // Next batch is now empty
         // Clear it from the Python shards cache
         // We unwrap here as we need to panic since we cannot recover if this method fails
-        tracing::info!("Call python clear cache");
         client.clear_cache(Some(id)).await.unwrap();
         None
     } else {
-        tracing::info!("Call python filter batch");
         // Filter Python shard cache
         // We unwrap here as we need to panic since we cannot recover if this method fails
         client.filter_batch(id, batch.request_ids).await.unwrap()
@@ -522,7 +513,6 @@ fn send_responses(
 ) -> Result<bool, Box<SendTimeoutError<Result<InferStreamResponse, InferError>>>> {
     // Return directly if the channel is disconnected
     if entry.response_tx.is_disconnected() {
-        tracing::debug!("Disconnected");
         metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
         return Ok(true);
     }
@@ -531,7 +521,6 @@ fn send_responses(
 
     if let Some(prefill_tokens) = generation.prefill_tokens {
         // Send message
-        tracing::debug!("Send prefill");
         entry.response_tx.send_timeout(
             Ok(InferStreamResponse::Prefill(prefill_tokens)),
             Duration::from_millis(10),
@@ -548,7 +537,6 @@ fn send_responses(
 
     // generation.top_tokens
 
-    tracing::debug!("Top tokens");
     let mut top_tokens = Vec::new();
     if let Some(top_tokens_) = generation.top_tokens {
         top_tokens.extend(
@@ -571,7 +559,6 @@ fn send_responses(
         // Generation has ended
         stopped = true;
         // Send message
-        tracing::debug!("send final");
         entry.response_tx.send_timeout(
             Ok(InferStreamResponse::End {
                 token,
@@ -583,7 +570,6 @@ fn send_responses(
             Duration::from_millis(10),
         )?;
     } else {
-        tracing::debug!("send intermediate");
         // Send message
         entry.response_tx.send_timeout(
             Ok(InferStreamResponse::Intermediate { token, top_tokens }),

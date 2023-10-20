@@ -82,9 +82,7 @@ impl Queue {
             .unwrap();
         // Await on response channel
         // Unwrap is safe here
-        let response = response_receiver.await.unwrap();
-        tracing::debug!("Next batch: {}", response.is_some());
-        response
+        response_receiver.await.unwrap()
     }
 }
 
