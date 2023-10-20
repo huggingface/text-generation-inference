@@ -4,16 +4,13 @@ use crate::{Entry, Queue, Token};
 use crate::{GenerateRequest, PrefillToken};
 use futures::future::try_join_all;
 use nohash_hasher::IntMap;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 use text_generation_client::{
     Batch, CachedBatch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
 };
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
+use tokio::sync::{mpsc, watch, Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
@@ -50,7 +47,7 @@ impl Infer {
         max_concurrent_requests: usize,
         requires_padding: bool,
         window_size: Option<u32>,
-        generation_health: Arc<AtomicBool>,
+        generation_health: watch::Sender<bool>,
     ) -> Self {
         // Infer shared state
         let queue = Queue::new(requires_padding, 16, window_size);
@@ -264,7 +261,7 @@ async fn batching_task(
     max_waiting_tokens: usize,
     queue: Queue,
     shared: Arc<Shared>,
-    generation_health: Arc<AtomicBool>,
+    generation_health: watch::Sender<bool>,
 ) {
     // Infinite loop
     loop {
@@ -371,7 +368,7 @@ async fn prefill(
     client: &mut ShardedClient,
     batch: Batch,
     entries: &mut IntMap<u64, Entry>,
-    generation_health: &Arc<AtomicBool>,
+    generation_health: &watch::Sender<bool>,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
@@ -380,7 +377,7 @@ async fn prefill(
     match client.prefill(batch).await {
         Ok((generations, next_batch)) => {
             // Update health
-            generation_health.store(true, Ordering::SeqCst);
+            let _ = generation_health.send(true);
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
@@ -394,7 +391,7 @@ async fn prefill(
         // If we have an error, we discard the whole batch
         Err(err) => {
             // Update health
-            generation_health.store(false, Ordering::SeqCst);
+            let _ = generation_health.send(false);
             let _ = client.clear_cache(Some(batch_id)).await;
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
@@ -408,7 +405,7 @@ async fn decode(
     client: &mut ShardedClient,
     batches: Vec<CachedBatch>,
     entries: &mut IntMap<u64, Entry>,
-    generation_health: &Arc<AtomicBool>,
+    generation_health: &watch::Sender<bool>,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
@@ -417,7 +414,7 @@ async fn decode(
     match client.decode(batches).await {
         Ok((generations, next_batch)) => {
             // Update health
-            generation_health.store(true, Ordering::SeqCst);
+            let _ = generation_health.send(true);
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
@@ -430,7 +427,7 @@ async fn decode(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
-            generation_health.store(false, Ordering::SeqCst);
+            let _ = generation_health.send(false);
             for id in batch_ids {
                 let _ = client.clear_cache(Some(id)).await;
             }

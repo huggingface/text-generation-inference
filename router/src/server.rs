@@ -19,11 +19,10 @@ use futures::Stream;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use text_generation_client::{ShardInfo, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::signal;
+use tokio::sync::watch;
 use tokio::time::Instant;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
@@ -584,8 +583,8 @@ pub async fn run(
         max_input_length,
         max_total_tokens,
     );
-    let generation_health = Arc::new(AtomicBool::new(false));
-    let health_ext = Health::new(client.clone(), generation_health.clone());
+    let (generation_health_sender, generation_health_receiver) = watch::channel(false);
+    let health_ext = Health::new(client.clone(), generation_health_receiver);
     let infer = Infer::new(
         client,
         validation,
@@ -596,7 +595,7 @@ pub async fn run(
         max_concurrent_requests,
         shard_info.requires_padding,
         shard_info.window_size,
-        generation_health,
+        generation_health_sender,
     );
 
     // Duration buckets
