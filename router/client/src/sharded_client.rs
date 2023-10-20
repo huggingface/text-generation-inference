@@ -100,7 +100,9 @@ impl ShardedClient {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.warmup(max_input_length, max_prefill_tokens, max_total_tokens)))
+            .map(|client| {
+                Box::pin(client.warmup(max_input_length, max_prefill_tokens, max_total_tokens))
+            })
             .collect();
         // Take the minimum value
         let results = join_all(futures)

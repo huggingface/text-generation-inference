@@ -122,7 +122,7 @@ impl Validation {
                 if let Some(truncate) = truncate {
                     self.max_total_tokens.saturating_sub(truncate) as u32
                 } else {
-                    return Err(ValidationError::UnsetMaxNewTokens)
+                    return Err(ValidationError::UnsetMaxNewTokens);
                 }
             };
             let input_length = truncate.unwrap_or(self.max_input_length);

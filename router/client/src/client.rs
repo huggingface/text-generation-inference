@@ -128,7 +128,7 @@ impl Client {
                     watermark: true,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
-                    max_new_tokens: max_total_tokens-truncate,
+                    max_new_tokens: max_total_tokens - truncate,
                     stop_sequences: vec![],
                     ignore_eos_token: true,
                 }),
