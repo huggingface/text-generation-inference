@@ -5,7 +5,7 @@ use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use std::collections::VecDeque;
 use text_generation_client::{Batch, Request};
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
 
@@ -15,7 +15,7 @@ pub(crate) struct Entry {
     /// Request
     pub request: ValidGenerateRequest,
     /// Response sender to communicate between the Infer struct and the batching_task
-    pub response_tx: flume::Sender<Result<InferStreamResponse, InferError>>,
+    pub response_tx: mpsc::UnboundedSender<Result<InferStreamResponse, InferError>>,
     /// Span that will live as long as entry
     pub span: Span,
     /// Temporary span used as a guard when logging inference, wait times...
@@ -30,13 +30,13 @@ pub(crate) struct Entry {
 #[derive(Debug, Clone)]
 pub(crate) struct Queue {
     /// Channel to communicate with the background queue task
-    queue_sender: flume::Sender<QueueCommand>,
+    queue_sender: mpsc::UnboundedSender<QueueCommand>,
 }
 
 impl Queue {
     pub(crate) fn new(requires_padding: bool, block_size: u32, window_size: Option<u32>) -> Self {
         // Create channel
-        let (queue_sender, queue_receiver) = flume::unbounded();
+        let (queue_sender, queue_receiver) = mpsc::unbounded_channel();
 
         // Launch background queue task
         tokio::spawn(queue_task(
@@ -91,11 +91,11 @@ async fn queue_task(
     requires_padding: bool,
     block_size: u32,
     window_size: Option<u32>,
-    receiver: flume::Receiver<QueueCommand>,
+    mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
 ) {
     let mut state = State::new(requires_padding, block_size, window_size);
 
-    while let Ok(cmd) = receiver.recv_async().await {
+    while let Some(cmd) = receiver.recv().await {
         match cmd {
             QueueCommand::Append(entry, span) => {
                 span.in_scope(|| state.append(*entry));
@@ -195,7 +195,7 @@ impl State {
         while let Some((id, mut entry)) = self.entries.pop_front() {
             // Filter entries where the response receiver was dropped (== entries where the request
             // was dropped by the client)
-            if entry.response_tx.is_disconnected() {
+            if entry.response_tx.is_closed() {
                 metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
                 continue;
             }
@@ -321,9 +321,9 @@ mod tests {
 
     fn default_entry() -> (
         Entry,
-        flume::Receiver<Result<InferStreamResponse, InferError>>,
+        mpsc::UnboundedReceiver<Result<InferStreamResponse, InferError>>,
     ) {
-        let (response_tx, receiver_tx) = flume::unbounded();
+        let (response_tx, receiver_tx) = mpsc::unbounded_channel();
 
         let entry = Entry {
             request: ValidGenerateRequest {

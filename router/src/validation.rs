@@ -6,6 +6,7 @@ use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParamet
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::TruncationDirection;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
 
@@ -19,7 +20,7 @@ pub struct Validation {
     max_input_length: usize,
     max_total_tokens: usize,
     /// Channel to communicate with the background tokenization task
-    sender: Option<flume::Sender<TokenizerRequest>>,
+    sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
 }
 
 impl Validation {
@@ -34,19 +35,25 @@ impl Validation {
     ) -> Self {
         // If we have a fast tokenizer
         let sender = if let Some(tokenizer) = tokenizer {
-            // Create channel
-            let (validation_sender, validation_receiver) = flume::unbounded();
+            // Create round robin channel
+            let (validation_sender, validation_round_robin_receiver) = mpsc::unbounded_channel();
+            let mut senders = Vec::with_capacity(workers);
 
             // Create workers
             for _ in 0..workers {
                 let tokenizer_clone = tokenizer.clone();
-                let receiver_clone = validation_receiver.clone();
+                let (tokenizer_sender, tokenizer_receiver) = mpsc::unbounded_channel();
+                senders.push(tokenizer_sender);
 
                 // Spawn worker
                 tokio::task::spawn_blocking(move || {
-                    tokenizer_worker(tokenizer_clone, receiver_clone)
+                    tokenizer_worker(tokenizer_clone, tokenizer_receiver)
                 });
             }
+
+            // Create tokenization round robin task
+            tokio::spawn(round_robin_task(validation_round_robin_receiver, senders));
+
             Some(validation_sender)
         } else {
             None
@@ -118,12 +125,10 @@ impl Validation {
             // We make sure that truncate + max_new_tokens <= self.max_total_tokens
             let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
                 max_new_tokens
+            } else if let Some(truncate) = truncate {
+                self.max_total_tokens.saturating_sub(truncate) as u32
             } else {
-                if let Some(truncate) = truncate {
-                    self.max_total_tokens.saturating_sub(truncate) as u32
-                } else {
-                    return Err(ValidationError::UnsetMaxNewTokens);
-                }
+                return Err(ValidationError::UnsetMaxNewTokens);
             };
             let input_length = truncate.unwrap_or(self.max_input_length);
 
@@ -309,10 +314,25 @@ impl Validation {
     }
 }
 
+/// Round robin tokenization task
+async fn round_robin_task(
+    mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>,
+    senders: Vec<mpsc::UnboundedSender<TokenizerRequest>>,
+) {
+    loop {
+        for sender in &senders {
+            match receiver.recv().await {
+                None => return,
+                Some(request) => sender.send(request).unwrap(),
+            };
+        }
+    }
+}
+
 /// Start tokenization workers
-fn tokenizer_worker(tokenizer: Tokenizer, receiver: flume::Receiver<TokenizerRequest>) {
+fn tokenizer_worker(tokenizer: Tokenizer, mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>) {
     // Loop over requests
-    while let Ok(((inputs, truncate), response_tx, parent_span)) = receiver.recv() {
+    while let Some(((inputs, truncate), response_tx, parent_span)) = receiver.blocking_recv() {
         parent_span.in_scope(|| {
             response_tx
                 .send(prepare_input(inputs, truncate, &tokenizer))

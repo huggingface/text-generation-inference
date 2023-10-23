@@ -107,15 +107,14 @@ impl Client {
     ) -> Result<Option<u32>> {
         let mut n_tokens = 0;
         let mut requests = Vec::new();
-        let mut truncate = 0;
         // Create requests
         while n_tokens < max_prefill_tokens {
-            truncate = min(max_input_length, max_prefill_tokens - n_tokens);
+            let truncate = min(max_input_length, max_prefill_tokens - n_tokens);
             requests.push(Request {
                 id: 0,
                 // We truncate the input on the server side to be sure that it has the correct size
                 inputs: "_test ".to_string().repeat(max_input_length as usize),
-                truncate: truncate,
+                truncate,
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,
