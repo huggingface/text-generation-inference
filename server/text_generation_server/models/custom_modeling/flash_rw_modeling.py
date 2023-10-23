@@ -6,10 +6,7 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
-# vllm imports
-import vllm_cache_ops
-import vllm_attention_ops
-
+from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.flash_attn import attention
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -191,7 +188,7 @@ class FlashRWAttention(torch.nn.Module):
         self.rotary_emb(query, cos, sin)
         self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
 
-        vllm_cache_ops.reshape_and_cache(
+        paged_attention.reshape_and_cache(
             kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
@@ -201,7 +198,7 @@ class FlashRWAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            flash_attn.attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
@@ -212,9 +209,7 @@ class FlashRWAttention(torch.nn.Module):
             )
         # Decode
         else:
-            # kv_cache[1] => [num_blocks, num_heads_kv, head_size, block_size]
-            block_size = kv_cache[1].shape[3]
-            vllm_attention_ops.single_query_cached_kv_attention(
+            paged_attention.attention(
                 attn_output,
                 query,
                 kv_cache[0],
@@ -223,7 +218,6 @@ class FlashRWAttention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 input_lengths,
-                block_size,
                 max_s,
             )
 
@@ -310,7 +304,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         self.rotary_emb(query, cos, sin)
         self.rotary_emb(torch.select(kv, dim=2, index=0), cos, sin)
 
-        vllm_cache_ops.reshape_and_cache(
+        paged_attention.reshape_and_cache(
             kv[:, :, 0].contiguous(),
             kv[:, :, 1].contiguous(),
             kv_cache[0],
@@ -324,7 +318,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            flash_attn.attention(
                 query,
                 torch.select(kv, dim=2, index=0),
                 torch.select(kv, dim=2, index=1),
@@ -335,9 +329,7 @@ class FlashRWLargeAttention(torch.nn.Module):
             )
         # Decode
         else:
-            # kv_cache[1] => [num_blocks, num_groups, head_size, block_size]
-            block_size = kv_cache[1].shape[3]
-            vllm_attention_ops.single_query_cached_kv_attention(
+            paged_attention.attention(
                 attn_output,
                 query,
                 kv_cache[0],
@@ -346,7 +338,6 @@ class FlashRWLargeAttention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 input_lengths,
-                block_size,
                 max_s,
             )
 
