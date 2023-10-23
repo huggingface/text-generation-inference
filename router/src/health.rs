@@ -1,7 +1,8 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use text_generation_client::{
     Batch, NextTokenChooserParameters, Request, ShardedClient, StoppingCriteriaParameters,
 };
-use tokio::sync::watch;
 
 // Note: Request ids and batch ids cannot collide.
 const LIVENESS_ID: u64 = u64::MAX;
@@ -10,11 +11,11 @@ const BATCH_ID: u64 = u64::MAX;
 #[derive(Clone, Debug)]
 pub(crate) struct Health {
     client: ShardedClient,
-    generation_health: watch::Receiver<bool>,
+    generation_health: Arc<AtomicBool>,
 }
 
 impl Health {
-    pub(crate) fn new(client: ShardedClient, generation_health: watch::Receiver<bool>) -> Self {
+    pub(crate) fn new(client: ShardedClient, generation_health: Arc<AtomicBool>) -> Self {
         Self {
             client,
             generation_health,
@@ -22,7 +23,7 @@ impl Health {
     }
 
     pub(crate) async fn check(&mut self) -> bool {
-        if *self.generation_health.borrow() {
+        if self.generation_health.load(Ordering::SeqCst) {
             // Generation is healthy, we only check that the shards are answering gRPC calls
             self.client.health().await.is_ok()
         } else {
@@ -58,7 +59,10 @@ impl Health {
                 max_tokens: 2,
             };
             // Skips the queue
-            self.client.prefill(batch).await.is_ok()
+            let value = self.client.prefill(batch).await.is_ok();
+            // Update generation health
+            self.generation_health.store(value, Ordering::SeqCst);
+            value
         }
     }
 }
