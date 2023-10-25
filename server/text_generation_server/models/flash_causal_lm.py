@@ -670,7 +670,7 @@ class FlashCausalLM(Model):
                 self.device,
             )
             _, batch = self.generate_token(batch)
-        except Exception as e:
+        except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
                 f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
                 f"You need to decrease `--max-batch-prefill-tokens`"
