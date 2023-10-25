@@ -744,18 +744,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28a80e3145d8ad11ba0995949bbcf48b9df2be62772b3d351ef017dff6ecb853"
 
 [[package]]
-name = "flume"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55ac459de2512911e4b674ce33cf20befaba382d05b62b008afc1c8b57cbf181"
-dependencies = [
- "futures-core",
- "futures-sink",
- "nanorand",
- "spin 0.9.8",
-]
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -900,10 +888,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be4136b2a15dd319360be1c07d9933517ccf0be8f16bf62a3bee4f0d618df427"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "wasi",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -1506,15 +1492,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
-]
-
-[[package]]
-name = "nanorand"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
-dependencies = [
- "getrandom",
 ]
 
 [[package]]
@@ -2313,7 +2290,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell",
- "spin 0.5.2",
+ "spin",
  "untrusted",
  "web-sys",
  "winapi",
@@ -2679,15 +2656,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
-name = "spin"
-version = "0.9.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
-dependencies = [
- "lock_api",
-]
-
-[[package]]
 name = "spm_precompiled"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2808,7 +2776,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "average",
  "clap",
@@ -2829,7 +2797,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "futures",
  "grpc-metadata",
@@ -2845,7 +2813,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "clap",
  "ctrlc",
@@ -2861,13 +2829,12 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "async-stream",
  "axum",
  "axum-tracing-opentelemetry",
  "clap",
- "flume",
  "futures",
  "hf-hub 0.3.1",
  "init-tracing-opentelemetry",
@@ -2885,6 +2852,7 @@ dependencies = [
  "thiserror",
  "tokenizers",
  "tokio",
+ "tokio-stream",
  "tower-http",
  "tracing",
  "tracing-opentelemetry",

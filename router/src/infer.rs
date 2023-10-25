@@ -2,22 +2,21 @@
 use crate::validation::{Validation, ValidationError};
 use crate::{Entry, Queue, Token};
 use crate::{GenerateRequest, PrefillToken};
-use flume::r#async::RecvStream;
-use flume::SendTimeoutError;
 use futures::future::try_join_all;
-use futures::stream::StreamExt;
 use nohash_hasher::IntMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use std::time::Duration;
 use text_generation_client::{
     Batch, CachedBatch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
 };
 use thiserror::Error;
-use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
+use tokio::sync::mpsc::error::SendError;
+use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::StreamExt;
 use tracing::{info_span, instrument, Instrument, Span};
 
 /// Inference struct
@@ -90,7 +89,7 @@ impl Infer {
     ) -> Result<
         (
             OwnedSemaphorePermit,
-            RecvStream<Result<InferStreamResponse, InferError>>,
+            UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
         ),
         InferError,
     > {
@@ -113,7 +112,7 @@ impl Infer {
         })?;
 
         // MPSC channel to communicate with the background batching task
-        let (response_tx, response_rx) = flume::unbounded();
+        let (response_tx, response_rx) = mpsc::unbounded_channel();
 
         // Append the request to the queue
         self.queue.append(Entry {
@@ -130,7 +129,7 @@ impl Infer {
         self.shared.batching_task.notify_one();
 
         // Return stream
-        Ok((permit, response_rx.into_stream()))
+        Ok((permit, UnboundedReceiverStream::new(response_rx)))
     }
 
     /// Add a new request to the queue and return a InferResponse
@@ -493,10 +492,7 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
         // If the receive an error from the Flume channel, it means that the client dropped the
         // request and we need to stop generating hence why we unwrap_or(true)
         let stopped = send_responses(generation, entry).map_err(|err| {
-            if let SendTimeoutError::Timeout(_) = *err {
-                tracing::error!("Entry response channel timed out.")
-            }
-
+            tracing::error!("Entry response channel error.");
             metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
             err
         }).unwrap_or(true);
@@ -510,9 +506,10 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
 fn send_responses(
     generation: Generation,
     entry: &Entry,
-) -> Result<bool, Box<SendTimeoutError<Result<InferStreamResponse, InferError>>>> {
+) -> Result<bool, Box<SendError<Result<InferStreamResponse, InferError>>>> {
     // Return directly if the channel is disconnected
-    if entry.response_tx.is_disconnected() {
+    if entry.response_tx.is_closed() {
+        metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
         return Ok(true);
     }
 
@@ -520,10 +517,9 @@ fn send_responses(
 
     if let Some(prefill_tokens) = generation.prefill_tokens {
         // Send message
-        entry.response_tx.send_timeout(
-            Ok(InferStreamResponse::Prefill(prefill_tokens)),
-            Duration::from_millis(10),
-        )?;
+        entry
+            .response_tx
+            .send(Ok(InferStreamResponse::Prefill(prefill_tokens)))?;
     }
 
     // Create last Token
@@ -558,22 +554,18 @@ fn send_responses(
         // Generation has ended
         stopped = true;
         // Send message
-        entry.response_tx.send_timeout(
-            Ok(InferStreamResponse::End {
-                token,
-                top_tokens,
-                generated_text,
-                queued: entry.queue_time,
-                start: entry.batch_time.unwrap(),
-            }),
-            Duration::from_millis(10),
-        )?;
+        entry.response_tx.send(Ok(InferStreamResponse::End {
+            token,
+            top_tokens,
+            generated_text,
+            queued: entry.queue_time,
+            start: entry.batch_time.unwrap(),
+        }))?;
     } else {
         // Send message
-        entry.response_tx.send_timeout(
-            Ok(InferStreamResponse::Intermediate { token, top_tokens }),
-            Duration::from_millis(10),
-        )?;
+        entry
+            .response_tx
+            .send(Ok(InferStreamResponse::Intermediate { token, top_tokens }))?;
     }
     Ok(stopped)
 }
@@ -591,7 +583,7 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
         // unwrap_or is valid here as we don't care if the receiver is gone.
         entry
             .response_tx
-            .send_timeout(Err(err), Duration::from_millis(10))
+            .send(Err(err))
             .unwrap_or(());
     });
 }
