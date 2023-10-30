@@ -3,6 +3,8 @@ import torch
 
 from loguru import logger
 
+from .import_utils import is_cuda_system, is_rocm_system
+
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
     raise ImportError("`USE_FLASH_ATTENTION` is false.")
 
@@ -41,10 +43,17 @@ except ImportError as e:
             "or install flash attention with `cd server && make install install-flash-attention`"
         ) from e
 
-    if not (is_sm75 or is_sm8x or is_sm90):
+    if is_cuda_system() and not (is_sm75 or is_sm8x or is_sm90):
         raise ImportError(
             f"GPU with CUDA capability {major} {minor} is not supported"
         ) from e
+    elif is_rocm_system():
+        for idx in range(torch.cuda.device_count()):
+            if "MI210" not in torch.cuda.get_device_name(idx) and "MI250" not in torch.cuda.get_device_name(idx):
+                raise ImportError(
+                    f"AMD GPU {torch.cuda.get_device_name(idx)} does not support flash-attention"
+                )
+
     logger.warning(f"Unable to use Flash Attention V2: {e}")
     HAS_FLASH_ATTN = True
 
@@ -59,6 +68,7 @@ def attention(
     softmax_scale,
     window_size_left=-1,
 ):
+    # logger.info(f"HAS_FLASH_ATTN_V2 {HAS_FLASH_ATTN_V2}")
     if HAS_FLASH_ATTN_V2:
         return flash_attn_2_cuda.varlen_fwd(
             q,
@@ -78,7 +88,8 @@ def attention(
             False,
             None,
         )
-
+    
+    # logger.info(f"HAS_FLASH_ATTN {HAS_FLASH_ATTN}")
     if HAS_FLASH_ATTN:
         if window_size_left != -1:
             raise NotImplementedError(
@@ -124,7 +135,8 @@ def attention(
             softmax_scale,
             False,
             True,
-            False,
+            False,  # is_deterministic => rocm specific argument
+            False,  # return_softmax
             0,
             None,
         )

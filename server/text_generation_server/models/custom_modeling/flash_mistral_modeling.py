@@ -27,7 +27,7 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 # Flash attention imports
-import dropout_layer_norm
+# import dropout_layer_norm
 
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.flash_attn import attention, HAS_FLASH_ATTN_V2
@@ -110,45 +110,45 @@ class MistralRMSNorm(nn.Module):
         self.variance_epsilon = eps
 
     def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 8192:
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
+        # if hidden_states.shape[-1] > 8192:
+        if residual is not None:
+            hidden_states += residual
+        residual = hidden_states
 
-            hidden_states = hidden_states.to(torch.float32)
-            variance = hidden_states.pow(2).mean(-1, keepdim=True)
-            hidden_states = hidden_states * torch.rsqrt(
-                variance + self.variance_epsilon
-            )
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(
+            variance + self.variance_epsilon
+        )
 
-            # convert into half-precision if necessary
-            if self.weight.dtype in [torch.float16, torch.bfloat16]:
-                hidden_states = hidden_states.to(self.weight.dtype)
+        # convert into half-precision if necessary
+        if self.weight.dtype in [torch.float16, torch.bfloat16]:
+            hidden_states = hidden_states.to(self.weight.dtype)
 
-            return self.weight * hidden_states, residual
-        else:
-            # faster post attention rms norm
-            normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-                hidden_states,
-                residual,
-                self.weight,
-                None,
-                None,
-                None,
-                None,
-                None,
-                0.0,
-                self.variance_epsilon,
-                1.0,
-                0,
-                None,
-                False,
-                True,  # Activate RMSNorm
-            )
-            if res is None:
-                res = hidden_states
+        return self.weight * hidden_states, residual
+        # else:
+        #     # faster post attention rms norm
+        #     normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
+        #         hidden_states,
+        #         residual,
+        #         self.weight,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         0.0,
+        #         self.variance_epsilon,
+        #         1.0,
+        #         0,
+        #         None,
+        #         False,
+        #         True,  # Activate RMSNorm
+        #     )
+        #     if res is None:
+        #         res = hidden_states
 
-            return normed_hidden_states, res
+        #     return normed_hidden_states, res
 
 
 def load_attention(config, prefix, weights):

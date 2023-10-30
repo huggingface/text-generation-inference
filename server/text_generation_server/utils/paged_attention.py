@@ -4,6 +4,8 @@ import torch
 from vllm import cache_ops
 from vllm import attention_ops
 
+from loguru import logger
+
 _PARTITION_SIZE = 512
 
 
@@ -54,6 +56,7 @@ def attention(
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
     use_v1 = max_num_partitions == 1 or num_seqs * num_heads > 512
+    logger.info(f"paged attention use_v1 {use_v1}")
     if use_v1:
         attention_ops.paged_attention_v1(
             out,

@@ -26,8 +26,10 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
+from loguru import logger
+
 # Flash attention imports
-import dropout_layer_norm
+# import dropout_layer_norm
 
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.layers import (
@@ -39,6 +41,9 @@ from text_generation_server.utils.layers import (
     get_linear,
 )
 
+from vllm import layernorm_ops
+
+torch.set_printoptions(threshold=10000000, sci_mode=True)
 
 class LlamaConfig(PretrainedConfig):
     def __init__(
@@ -121,28 +126,43 @@ class LlamaRMSNorm(nn.Module):
 
             return self.weight * hidden_states, residual
         else:
-            # faster post attention rms norm
-            normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-                hidden_states,
-                residual,
-                self.weight,
-                None,
-                None,
-                None,
-                None,
-                None,
-                0.0,
-                self.variance_epsilon,
-                1.0,
-                0,
-                None,
-                False,
-                True,  # Activate RMSNorm
-            )
-            if res is None:
-                res = hidden_states
+            # We use VLLM kernels that are compiled for RoCm instead of Flash Attention ones that can't be used.
+            if residual is not None:
+                hidden_states += residual
+            residual = hidden_states
 
-            return normed_hidden_states, res
+            out = torch.empty_like(hidden_states)
+            layernorm_ops.rms_norm(
+                out,
+                hidden_states,
+                self.weight.data,
+                self.variance_epsilon,
+            )
+            return out, residual
+
+        # else:
+        #     # faster post attention rms norm
+        #     normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
+        #         hidden_states,
+        #         residual,
+        #         self.weight,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         0.0,
+        #         self.variance_epsilon,
+        #         1.0,
+        #         0,
+        #         None,
+        #         False,
+        #         True,  # Activate RMSNorm
+        #     )
+        #     if res is None:
+        #         res = hidden_states
+
+        #     return normed_hidden_states, res
 
 
 def load_attention(config, prefix, weights):
@@ -262,6 +282,11 @@ class FlashLlamaAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
 
+        # logger.info(f"query before rotary {query[:10, ..., :8]}")
+        # logger.info(f"cos before rotary {cos[:10]}")
+        # logger.info(f"sin before rotary {sin[:10]}")
+        # TODO: maybe we can use VLLM rotary here, which would require position_ids? Probably too big of a change...
+        # Flash Attention kernel may be usable since it is Triton-based
         self.rotary_emb(query, cos, sin)
         self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
 
@@ -272,6 +297,9 @@ class FlashLlamaAttention(torch.nn.Module):
         # output tensor
         attn_output = torch.empty_like(query)
 
+
+        # logger.info(f"query {query.shape}")
+        # logger.info(f"query piece {query[:10, ..., :8]}")
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
@@ -297,6 +325,9 @@ class FlashLlamaAttention(torch.nn.Module):
                 input_lengths,
                 max_s,
             )
+        
+        # logger.info(f"attn_output {attn_output.shape}")
+        # logger.info(f"attn_output piece {attn_output[:10, ..., :8]}")
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 

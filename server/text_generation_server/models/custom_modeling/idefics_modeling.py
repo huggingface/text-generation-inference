@@ -55,7 +55,7 @@ from text_generation_server.utils.layers import (
     PositionRotaryEmbedding,
     FastLinear,
 )
-import dropout_layer_norm
+# import dropout_layer_norm
 
 
 @dataclass
@@ -354,54 +354,54 @@ class IdeficsRMSNorm(nn.Module):
         self.variance_epsilon = eps
 
     def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 8192:
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
+        # if hidden_states.shape[-1] > 8192:
+        if residual is not None:
+            hidden_states += residual
+        residual = hidden_states
 
-            hidden_states = hidden_states.to(torch.float32)
-            variance = hidden_states.pow(2).mean(-1, keepdim=True)
-            hidden_states = hidden_states * torch.rsqrt(
-                variance + self.variance_epsilon
-            )
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(
+            variance + self.variance_epsilon
+        )
 
-            # convert into half-precision if necessary
-            if self.weight.dtype in [torch.float16, torch.bfloat16]:
-                hidden_states = hidden_states.to(self.weight.dtype)
+        # convert into half-precision if necessary
+        if self.weight.dtype in [torch.float16, torch.bfloat16]:
+            hidden_states = hidden_states.to(self.weight.dtype)
 
-            return self.weight * hidden_states
-        else:
-            # faster post attention rms norm
-            unwrap = False
-            if len(hidden_states.shape) > 2:
-                unwrap = True
-                shape = hidden_states.shape
-                hidden_states = hidden_states.reshape(-1, shape[-1])
+        return self.weight * hidden_states
+        # else:
+        #     # faster post attention rms norm
+        #     unwrap = False
+        #     if len(hidden_states.shape) > 2:
+        #         unwrap = True
+        #         shape = hidden_states.shape
+        #         hidden_states = hidden_states.reshape(-1, shape[-1])
 
-            normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-                hidden_states,
-                residual,
-                self.weight,
-                None,
-                None,
-                None,
-                None,
-                None,
-                0.0,
-                self.variance_epsilon,
-                1.0,
-                0,
-                None,
-                False,
-                True,  # Activate RMSNorm
-            )
-            if res is None:
-                res = hidden_states
+        #     normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
+        #         hidden_states,
+        #         residual,
+        #         self.weight,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         0.0,
+        #         self.variance_epsilon,
+        #         1.0,
+        #         0,
+        #         None,
+        #         False,
+        #         True,  # Activate RMSNorm
+        #     )
+        #     if res is None:
+        #         res = hidden_states
 
-            if unwrap:
-                normed_hidden_states = normed_hidden_states.view(*shape)
+        #     if unwrap:
+        #         normed_hidden_states = normed_hidden_states.view(*shape)
 
-            return normed_hidden_states
+        #     return normed_hidden_states
 
 
 # this was adapted from LlamaMLP

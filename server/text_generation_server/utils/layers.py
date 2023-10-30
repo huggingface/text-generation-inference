@@ -509,50 +509,50 @@ class TensorParallelEmbedding(nn.Module):
 
 
 try:
-    import dropout_layer_norm
+    # import dropout_layer_norm
 
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
-            if hidden_states.shape[-1] > 8192:
-                if residual is not None:
-                    hidden_states += residual
-                residual = hidden_states
+            # if hidden_states.shape[-1] > 8192:
+            if residual is not None:
+                hidden_states += residual
+            residual = hidden_states
 
-                return super(FastLayerNorm, self).forward(hidden_states), residual
-            else:
-                (
-                    normed_hidden_states,
-                    residual,
-                    *rest,
-                ) = dropout_layer_norm.dropout_add_ln_fwd(
-                    hidden_states,
-                    residual,
-                    self.weight,
-                    self.bias,
-                    None,
-                    None,
-                    None,
-                    None,
-                    0.0,
-                    self.eps,
-                    1.0,
-                    0,
-                    None,
-                    False,
-                    False,
-                )
-                if residual is None:
-                    residual = hidden_states
+            return super(FastLayerNorm, self).forward(hidden_states), residual
+            # else:
+            #     (
+            #         normed_hidden_states,
+            #         residual,
+            #         *rest,
+            #     ) = dropout_layer_norm.dropout_add_ln_fwd(
+            #         hidden_states,
+            #         residual,
+            #         self.weight,
+            #         self.bias,
+            #         None,
+            #         None,
+            #         None,
+            #         None,
+            #         0.0,
+            #         self.eps,
+            #         1.0,
+            #         0,
+            #         None,
+            #         False,
+            #         False,
+            #     )
+            #     if residual is None:
+            #         residual = hidden_states
 
-                return normed_hidden_states, residual
+            #     return normed_hidden_states, residual
 
 except ImportError:
     pass
 
 
 try:
-    from flash_attn.layers.rotary import RotaryEmbedding
-    import rotary_emb
+    # from flash_attn.layers.rotary import RotaryEmbedding
+    # import rotary_emb
 
     def _create_inv_freq(dim, base, device):
         inv_freq = 1.0 / (
@@ -692,11 +692,19 @@ try:
 
         def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
             rotary_dim = cos.shape[-1]
-            x1 = x[..., :rotary_dim]
-            x2 = x[..., rotary_dim : 2 * rotary_dim]
 
-            rotary_emb.apply_rotary(x1, x2, cos, sin, x1, x2, False)
-            return x
+            dtype = x.dtype
+            x_upcast = x.to(torch.float32)
+            cos = cos.to(torch.float32)
+            sin = sin.to(torch.float32)
+            
+            x1 = x_upcast[..., :rotary_dim]
+            x2 = x_upcast[..., rotary_dim : 2 * rotary_dim]
+
+            # rotary_emb.apply_rotary(x1, x2, cos, sin, x1, x2, False)
+            # Flash Attention kernel casts everything to float, not sure why. In place op here
+            x[..., :rotary_dim] = (x1 * cos - x2 * sin).to(dtype)
+            x[..., rotary_dim : 2 * rotary_dim] = (x1 * sin + x2 * cos).to(dtype)
 
     class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
         def __init__(self, dim, max_position_embeddings, base, device, scaling_factor):
