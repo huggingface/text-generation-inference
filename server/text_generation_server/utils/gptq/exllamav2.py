@@ -87,53 +87,63 @@ class QuantLinear(nn.Module):
 
     """Linear layer implementation with per-group 4-bit quantization of the weights"""
 
-    def __init__(self, bits, group_size, infeatures, outfeatures, bias, trainable=False, **kwargs):
+    # def __init__(self, bits, group_size, infeatures, outfeatures, bias, trainable=False, **kwargs):
+    def __init__(self, qweight, qzeros, scales, g_idx, bias, bits, groupsize):
         super().__init__()
         if bits != 4:
             raise ValueError(
                 f"Exllamav2 kernel supports only bits=4, requested bits={bits}. Something is wrong in the model initialization.")
-        if trainable:
-            raise NotImplementedError("Exllamav2 kernel does not support training.")
+        # if trainable:
+        #     raise NotImplementedError("Exllamav2 kernel does not support training.")
 
         self.q_handle = None
         self.q_tensors = None
-        self.padding = - outfeatures % 32
-        
-        self.infeatures = infeatures
-        self.outfeatures = outfeatures + self.padding
+        # self.padding = - outfeatures % 32
+        # 
+        # self.infeatures = infeatures
+        # self.outfeatures = outfeatures + self.padding
         self.bits = bits
-        self.group_size = group_size if group_size != -1 else infeatures
-        self.trainable = trainable
+        # self.group_size = group_size if group_size != -1 else infeatures
+        # self.trainable = trainable
         self.maxq = 2 ** self.bits - 1
+        self.infeatures = qweight.shape[0] // self.bits * 32
+        self.outfeatures = qweight.shape[1]
 
-        assert infeatures % 32 == 0
-        assert infeatures % self.group_size == 0
-        assert outfeatures % 32 == 0
-        
-        # I need to register the tensors, otherwise, we won't be able to load them easily using transformers ... 
-        self.register_buffer(
-            'qweight',
-            torch.zeros((infeatures // 32 * self.bits, outfeatures), dtype=torch.int32)
-        )
-        self.register_buffer(
-            'qzeros',
-            torch.zeros((math.ceil(infeatures / self.group_size), outfeatures // 32 * self.bits), dtype=torch.int32)
-        )
-        self.register_buffer(
-            'scales',
-            torch.zeros((math.ceil(infeatures / self.group_size), outfeatures), dtype=torch.float16)
-        )
-        self.register_buffer(
-            'g_idx',
-            torch.tensor([i // self.group_size for i in range(infeatures)], dtype=torch.int32)
-        )
+        # assert infeatures % 32 == 0
+        # assert infeatures % self.group_size == 0
+        # assert outfeatures % 32 == 0
+        # 
+        # # I need to register the tensors, otherwise, we won't be able to load them easily using transformers ... 
+        # self.register_buffer(
+        #     'qweight',
+        #     torch.zeros((infeatures // 32 * self.bits, outfeatures), dtype=torch.int32)
+        # )
+        # self.register_buffer(
+        #     'qzeros',
+        #     torch.zeros((math.ceil(infeatures / self.group_size), outfeatures // 32 * self.bits), dtype=torch.int32)
+        # )
+        # self.register_buffer(
+        #     'scales',
+        #     torch.zeros((math.ceil(infeatures / self.group_size), outfeatures), dtype=torch.float16)
+        # )
+        # self.register_buffer(
+        #     'g_idx',
+        #     torch.tensor([i // self.group_size for i in range(infeatures)], dtype=torch.int32)
+        # )
+        self.device = qweight.device
+        self.qweight = qweight
+        self.qzeros = qzeros
+        self.scales = scales
+        self.g_idx = g_idx
+        self.bias = bias if bias is not None else None
 
-        if bias:
-            self.register_buffer('bias', torch.zeros((outfeatures), dtype=torch.float16))
-        else:
-            self.bias = None
+        # if bias:
+        #     self.register_buffer('bias', torch.zeros((outfeatures), dtype=torch.float16))
+        # else:
+        #     self.bias = None
 
-    def post_init(self, temp_dq):
+    # def post_init(self, temp_dq):
+        temp_dq = ExLlamaV2DeviceTensors(self.qweight.device.index , self.temp_dq_size())
         assert self.qweight.device.type == "cuda"
         assert self.qweight.device.index is not None
         self.q_tensors = {

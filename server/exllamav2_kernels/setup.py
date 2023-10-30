@@ -7,9 +7,9 @@ setup(
         CUDAExtension(
             name="exllamav2_kernels",
             sources=[
-                "autogptq_extension/exllamav2/ext.cpp",
-                "autogptq_extension/exllamav2/cuda/q_matrix.cu",
-                "autogptq_extension/exllamav2/cuda/q_gemm.cu",
+                "exllamav2_kernels/ext.cpp",
+                "exllamav2_kernels/cuda/q_matrix.cu",
+                "exllamav2_kernels/cuda/q_gemm.cu",
             ],
         )
     ],
