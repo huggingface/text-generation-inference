@@ -265,6 +265,9 @@ pub(crate) struct GenerateResponse {
     pub generated_text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<Details>,
+    // Model which generate the text
+    #[schema(example = "bigscience/blomm-560m")]
+    pub model_id: String,
 }
 
 #[derive(Serialize, ToSchema)]
