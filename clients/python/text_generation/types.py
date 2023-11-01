@@ -215,6 +215,8 @@ class Response(BaseModel):
     generated_text: str
     # Generation details
     details: Details
+    # model id
+    model_id: str
 
 
 # `generate_stream` details
