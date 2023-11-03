@@ -69,7 +69,7 @@ impl Validation {
         }
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip(self, inputs))]
     async fn validate_input(
         &self,
         inputs: String,

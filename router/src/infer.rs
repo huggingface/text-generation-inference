@@ -82,7 +82,7 @@ impl Infer {
     }
 
     /// Add a new request to the queue and return a stream of InferStreamResponse
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     pub(crate) async fn generate_stream(
         &self,
         request: GenerateRequest,
@@ -133,7 +133,7 @@ impl Infer {
     }
 
     /// Add a new request to the queue and return a InferResponse
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     pub(crate) async fn generate(
         &self,
         request: GenerateRequest,
@@ -214,7 +214,7 @@ impl Infer {
     }
     /// Add best_of new requests to the queue and return a InferResponse of the sequence with
     /// the highest log probability per token
-    #[instrument(skip(self))]
+    #[instrument(skip(self, request))]
     pub(crate) async fn generate_best_of(
         &self,
         request: GenerateRequest,
