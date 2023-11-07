@@ -1,6 +1,6 @@
 <div align="center">
   
-[![Making TGI deployment optimal](https://img.youtube.com/vi/JLMbpiywVxQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=jlMAX2Oaht0)
+[![Making TGI deployment optimal](https://github.com/huggingface/text-generation-inference/assets/204321/e784670a-8a66-4af8-801f-897b56263a6d)](https://www.youtube.com/watch?v=jlMAX2Oaht0)
 
 # Text Generation Inference
 
