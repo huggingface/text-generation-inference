@@ -1,6 +1,7 @@
 <div align="center">
 
-![image](https://github.com/huggingface/text-generation-inference/assets/3841370/38ba1531-ea0d-4851-b31a-a6d4ddc944b0)
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/jlMAX2Oaht0?si=mh7STo7c83mIL9Q_" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 
 # Text Generation Inference
 
@@ -135,6 +136,10 @@ this will impact performance.
 
 `text-generation-inference` is instrumented with distributed tracing using OpenTelemetry. You can use this feature
 by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
+
+### Architecture
+
+![image](https://github.com/huggingface/text-generation-inference/assets/3841370/38ba1531-ea0d-4851-b31a-a6d4ddc944b0)
 
 ### Local install
 
