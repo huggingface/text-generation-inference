@@ -1,7 +1,7 @@
 <div align="center">
   
 <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
-  <img width=560 width=315 alt="Making TGI deployment optimal" src="https://img.youtube.com/vi/jlMAX2Oaht0/maxresdefault.jpg">
+  <img width=560 width=315 alt="Making TGI deployment optimal" src="https://huggingface.co/datasets/Narsil/tgi_assets/resolve/main/thumbnail.png">
 </a>
 
 # Text Generation Inference
