@@ -1,7 +1,8 @@
 <div align="center">
-
-<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/jlMAX2Oaht0?si=mh7STo7c83mIL9Q_" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-
+  
+<a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
+  <img width=560 width=315 alt="Making TGI deployment optimal" src="https://img.youtube.com/vi/jlMAX2Oaht0/maxresdefault.jpg">
+</a>
 
 # Text Generation Inference
 
