@@ -1,6 +1,6 @@
 <div align="center">
 <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
-  <img alt="Making TGI deployment optimal" src="https://github.com/huggingface/text-generation-inference/assets/204321/e784670a-8a66-4af8-801f-897b56263a6d">
+  <img width=560 height=315 alt="Making TGI deployment optimal" src="https://github.com/huggingface/text-generation-inference/assets/204321/e784670a-8a66-4af8-801f-897b56263a6d">
 </a>
 
 # Text Generation Inference
