@@ -22,7 +22,8 @@ install-torch:
 
 install: gen-server install-torch
 	pip install pip --upgrade
-	pip install -r requirements.txt
+	pip install -r requirements_common.txt
+	pip install -r requirements_cuda.txt
 	pip install -e ".[bnb, accelerate]"
 
 run-dev:
