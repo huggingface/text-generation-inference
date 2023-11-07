@@ -516,7 +516,6 @@ try:
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
             if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
-                # Mistral does not use RMSNorm.
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
