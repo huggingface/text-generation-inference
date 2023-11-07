@@ -1,6 +1,8 @@
 <div align="center">
   
-[![Making TGI deployment optimal](https://img.youtube.com/vi/jlMAX2Oaht0/maxresdefault.jpg)](https://www.youtube.com/watch?v=jlMAX2Oaht0)
+<a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
+  <img alt="Making TGI deployment optimal" src="https://img.youtube.com/vi/JLMbpiywVxQ/maxresdefault.jpg">
+</a>
 
 # Text Generation Inference
 
