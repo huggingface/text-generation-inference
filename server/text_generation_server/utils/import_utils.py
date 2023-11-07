@@ -1,15 +1,16 @@
 import subprocess
 
-def is_cuda_system():
-    try:
-        subprocess.check_output("nvidia-smi")
-        return True
-    except Exception:
-        return False
+IS_CUDA_SYSTEM = False
+IS_ROCM_SYSTEM = False
 
-def is_rocm_system():
-    try:
-        subprocess.check_output("rocm-smi")
-        return True
-    except Exception:
-        return False
+try:
+    subprocess.check_output("nvidia-smi")
+    IS_CUDA_SYSTEM = True
+except Exception:
+    IS_CUDA_SYSTEM = False
+
+try:
+    subprocess.check_output("rocm-smi")
+    IS_ROCM_SYSTEM = True
+except Exception:
+    IS_ROCM_SYSTEM = False

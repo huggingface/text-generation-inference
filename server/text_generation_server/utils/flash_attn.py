@@ -3,7 +3,7 @@ import torch
 
 from loguru import logger
 
-from .import_utils import is_cuda_system, is_rocm_system
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
 
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
     raise ImportError("`USE_FLASH_ATTENTION` is false.")
@@ -17,7 +17,8 @@ is_sm8x = major == 8 and minor >= 0
 is_sm90 = major == 9 and minor == 0
 
 HAS_FLASH_ATTN = False
-HAS_FLASH_ATTN_V2 = False
+HAS_FLASH_ATTN_V2_CUDA = False
+HAS_FLASH_ATTN_V2_ROCM = False
 try:
     try:
         import flash_attn_2_cuda
@@ -32,7 +33,8 @@ try:
             f"GPU with CUDA capability {major} {minor} is not supported for "
             "Flash Attention V2"
         )
-    HAS_FLASH_ATTN_V2 = True
+    HAS_FLASH_ATTN_V2_CUDA = IS_CUDA_SYSTEM
+    HAS_FLASH_ATTN_V2_ROCM = IS_ROCM_SYSTEM
 except ImportError as e:
     try:
         import flash_attn_cuda
@@ -43,11 +45,11 @@ except ImportError as e:
             "or install flash attention with `cd server && make install install-flash-attention`"
         ) from e
 
-    if is_cuda_system() and not (is_sm75 or is_sm8x or is_sm90):
+    if IS_CUDA_SYSTEM and not (is_sm75 or is_sm8x or is_sm90):
         raise ImportError(
             f"GPU with CUDA capability {major} {minor} is not supported"
         ) from e
-    elif is_rocm_system():
+    elif IS_ROCM_SYSTEM:
         for idx in range(torch.cuda.device_count()):
             if "MI210" not in torch.cuda.get_device_name(idx) and "MI250" not in torch.cuda.get_device_name(idx):
                 raise ImportError(
@@ -69,7 +71,7 @@ def attention(
     window_size_left=-1,
 ):
     # logger.info(f"HAS_FLASH_ATTN_V2 {HAS_FLASH_ATTN_V2}")
-    if HAS_FLASH_ATTN_V2:
+    if HAS_FLASH_ATTN_V2_CUDA:
         return flash_attn_2_cuda.varlen_fwd(
             q,
             k,
@@ -88,9 +90,25 @@ def attention(
             False,
             None,
         )
-    
-    # logger.info(f"HAS_FLASH_ATTN {HAS_FLASH_ATTN}")
-    if HAS_FLASH_ATTN:
+    elif HAS_FLASH_ATTN_V2_ROCM:
+        # RoCm flash API does not take the window_size_left and window_size_right arguments.
+        return flash_attn_2_cuda.varlen_fwd(
+            q,
+            k,
+            v,
+            out,
+            cu_seqlens,
+            cu_seqlens,
+            max_s,
+            max_s,
+            0.0,
+            softmax_scale,
+            False,
+            True,
+            False,
+            None,
+        )
+    elif HAS_FLASH_ATTN:
         if window_size_left != -1:
             raise NotImplementedError(
                 "window_size_left is only available with flash attn v2"
@@ -135,8 +153,7 @@ def attention(
             softmax_scale,
             False,
             True,
-            False,  # is_deterministic => rocm specific argument
-            False,  # return_softmax
+            False,
             0,
             None,
         )

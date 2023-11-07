@@ -1,0 +1,2 @@
+# We use nightly
+torch>2.1.0 ; python_version >= "3.9" and python_version < "3.13"

@@ -12,14 +12,13 @@ HAS_BITS_AND_BYTES = True
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn import Int8Params, Params4bit
-
 except ImportError:
     HAS_BITS_AND_BYTES = False
 
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
-
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM 
 
 HAS_AWQ = True
 try:
@@ -509,50 +508,80 @@ class TensorParallelEmbedding(nn.Module):
 
 
 try:
-    # import dropout_layer_norm
+    if IS_CUDA_SYSTEM:
+        import dropout_layer_norm
+    else:
+        dropout_layer_norm = None
 
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
-            # if hidden_states.shape[-1] > 8192:
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
+            if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
+                # Mistral does not use RMSNorm.
+                if residual is not None:
+                    hidden_states += residual
+                residual = hidden_states
 
-            return super(FastLayerNorm, self).forward(hidden_states), residual
-            # else:
-            #     (
-            #         normed_hidden_states,
-            #         residual,
-            #         *rest,
-            #     ) = dropout_layer_norm.dropout_add_ln_fwd(
-            #         hidden_states,
-            #         residual,
-            #         self.weight,
-            #         self.bias,
-            #         None,
-            #         None,
-            #         None,
-            #         None,
-            #         0.0,
-            #         self.eps,
-            #         1.0,
-            #         0,
-            #         None,
-            #         False,
-            #         False,
-            #     )
-            #     if residual is None:
-            #         residual = hidden_states
+                return super(FastLayerNorm, self).forward(hidden_states), residual
+            else:
+                (
+                    normed_hidden_states,
+                    residual,
+                    *rest,
+                ) = dropout_layer_norm.dropout_add_ln_fwd(
+                    hidden_states,
+                    residual,
+                    self.weight,
+                    self.bias,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0.0,
+                    self.eps,
+                    1.0,
+                    0,
+                    None,
+                    False,
+                    False,
+                )
+                if residual is None:
+                    residual = hidden_states
 
-            #     return normed_hidden_states, residual
-
+                return normed_hidden_states, residual
 except ImportError:
     pass
 
 
 try:
-    # from flash_attn.layers.rotary import RotaryEmbedding
-    # import rotary_emb
+    if IS_CUDA_SYSTEM:
+        from flash_attn.layers.rotary import RotaryEmbedding
+        import rotary_emb
+
+        def rope_forward_cuda(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
+            rotary_dim = cos.shape[-1]
+            x1 = x[..., :rotary_dim]
+            x2 = x[..., rotary_dim : 2 * rotary_dim]
+
+            rotary_emb.apply_rotary(x1, x2, cos, sin, x1, x2, False)
+            return x
+    elif IS_ROCM_SYSTEM:
+        # For RoCm, we fall back on a manual implementation given that Flash Attention's ROPE kernel can not be compiled for RoCm.
+        # We could use VLLM ROPE kernel here (compatible with RoCm), but the API is different and would require position_ids: https://github.com/vllm-project/vllm/blob/1a2bbc930135cd3b94fbff2aafbdf5c568acc8bd/csrc/pos_encoding.cpp#L3
+        def rope_forward_rocm(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
+            rotary_dim = cos.shape[-1]
+
+            dtype = x.dtype
+            x_upcast = x.to(torch.float32)
+            cos = cos.to(torch.float32)
+            sin = sin.to(torch.float32)
+
+            x1 = x_upcast[..., :rotary_dim]
+            x2 = x_upcast[..., rotary_dim : 2 * rotary_dim]
+
+            # Flash Attention rotary_emb kernel casts everything to float, not sure why, so we do so here as well.
+            x[..., :rotary_dim] = (x1 * cos - x2 * sin).to(dtype)
+            x[..., rotary_dim : 2 * rotary_dim] = (x1 * sin + x2 * cos).to(dtype)
+            return x
 
     def _create_inv_freq(dim, base, device):
         inv_freq = 1.0 / (
@@ -690,21 +719,10 @@ try:
             sin = torch.index_select(self._sin_cached, 0, position_ids)
             return cos.unsqueeze(1), sin.unsqueeze(1)
 
-        def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
-            rotary_dim = cos.shape[-1]
-
-            dtype = x.dtype
-            x_upcast = x.to(torch.float32)
-            cos = cos.to(torch.float32)
-            sin = sin.to(torch.float32)
-            
-            x1 = x_upcast[..., :rotary_dim]
-            x2 = x_upcast[..., rotary_dim : 2 * rotary_dim]
-
-            # rotary_emb.apply_rotary(x1, x2, cos, sin, x1, x2, False)
-            # Flash Attention kernel casts everything to float, not sure why. In place op here
-            x[..., :rotary_dim] = (x1 * cos - x2 * sin).to(dtype)
-            x[..., rotary_dim : 2 * rotary_dim] = (x1 * sin + x2 * cos).to(dtype)
+    if IS_CUDA_SYSTEM:
+        PositionRotaryEmbedding.forward = rope_forward_cuda
+    elif IS_ROCM_SYSTEM:
+        PositionRotaryEmbedding.forward = rope_forward_rocm
 
     class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
         def __init__(self, dim, max_position_embeddings, base, device, scaling_factor):

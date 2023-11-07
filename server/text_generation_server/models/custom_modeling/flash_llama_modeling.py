@@ -28,9 +28,6 @@ from typing import Optional, List, Tuple
 
 from loguru import logger
 
-# Flash attention imports
-# import dropout_layer_norm
-
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -40,8 +37,12 @@ from text_generation_server.utils.layers import (
     TensorParallelHead,
     get_linear,
 )
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
 
-from vllm import layernorm_ops
+if IS_CUDA_SYSTEM:
+    import dropout_layer_norm
+elif IS_ROCM_SYSTEM:
+    from vllm import layernorm_ops
 
 torch.set_printoptions(threshold=10000000, sci_mode=True)
 
@@ -125,8 +126,31 @@ class LlamaRMSNorm(nn.Module):
                 hidden_states = hidden_states.to(self.weight.dtype)
 
             return self.weight * hidden_states, residual
-        else:
-            # We use VLLM kernels that are compiled for RoCm instead of Flash Attention ones that can't be used.
+        elif IS_CUDA_SYSTEM:
+            # faster post attention rms norm
+            normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
+                hidden_states,
+                residual,
+                self.weight,
+                None,
+                None,
+                None,
+                None,
+                None,
+                0.0,
+                self.variance_epsilon,
+                1.0,
+                0,
+                None,
+                False,
+                True,  # Activate RMSNorm
+            )
+            if res is None:
+                res = hidden_states
+
+            return normed_hidden_states, res
+        elif IS_ROCM_SYSTEM:
+            # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
             if residual is not None:
                 hidden_states += residual
             residual = hidden_states
@@ -139,30 +163,6 @@ class LlamaRMSNorm(nn.Module):
                 self.variance_epsilon,
             )
             return out, residual
-
-        # else:
-        #     # faster post attention rms norm
-        #     normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-        #         hidden_states,
-        #         residual,
-        #         self.weight,
-        #         None,
-        #         None,
-        #         None,
-        #         None,
-        #         None,
-        #         0.0,
-        #         self.variance_epsilon,
-        #         1.0,
-        #         0,
-        #         None,
-        #         False,
-        #         True,  # Activate RMSNorm
-        #     )
-        #     if res is None:
-        #         res = hidden_states
-
-        #     return normed_hidden_states, res
 
 
 def load_attention(config, prefix, weights):
@@ -282,11 +282,6 @@ class FlashLlamaAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
 
-        # logger.info(f"query before rotary {query[:10, ..., :8]}")
-        # logger.info(f"cos before rotary {cos[:10]}")
-        # logger.info(f"sin before rotary {sin[:10]}")
-        # TODO: maybe we can use VLLM rotary here, which would require position_ids? Probably too big of a change...
-        # Flash Attention kernel may be usable since it is Triton-based
         self.rotary_emb(query, cos, sin)
         self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
 
@@ -297,9 +292,6 @@ class FlashLlamaAttention(torch.nn.Module):
         # output tensor
         attn_output = torch.empty_like(query)
 
-
-        # logger.info(f"query {query.shape}")
-        # logger.info(f"query piece {query[:10, ..., :8]}")
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
@@ -326,9 +318,6 @@ class FlashLlamaAttention(torch.nn.Module):
                 max_s,
             )
         
-        # logger.info(f"attn_output {attn_output.shape}")
-        # logger.info(f"attn_output piece {attn_output[:10, ..., :8]}")
-
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
 

@@ -55,8 +55,12 @@ from text_generation_server.utils.layers import (
     PositionRotaryEmbedding,
     FastLinear,
 )
-# import dropout_layer_norm
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
 
+if IS_CUDA_SYSTEM:
+    import dropout_layer_norm
+elif IS_ROCM_SYSTEM:
+    from vllm import layernorm_ops
 
 @dataclass
 class BaseModelOutputWithPastImage(BaseModelOutputWithPast):
@@ -354,54 +358,80 @@ class IdeficsRMSNorm(nn.Module):
         self.variance_epsilon = eps
 
     def forward(self, hidden_states, residual=None):
-        # if hidden_states.shape[-1] > 8192:
-        if residual is not None:
-            hidden_states += residual
-        residual = hidden_states
+        if hidden_states.shape[-1] > 8192:
+            if residual is not None:
+                hidden_states += residual
+            residual = hidden_states
 
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(
-            variance + self.variance_epsilon
-        )
+            hidden_states = hidden_states.to(torch.float32)
+            variance = hidden_states.pow(2).mean(-1, keepdim=True)
+            hidden_states = hidden_states * torch.rsqrt(
+                variance + self.variance_epsilon
+            )
 
-        # convert into half-precision if necessary
-        if self.weight.dtype in [torch.float16, torch.bfloat16]:
-            hidden_states = hidden_states.to(self.weight.dtype)
+            # convert into half-precision if necessary
+            if self.weight.dtype in [torch.float16, torch.bfloat16]:
+                hidden_states = hidden_states.to(self.weight.dtype)
 
-        return self.weight * hidden_states
-        # else:
-        #     # faster post attention rms norm
-        #     unwrap = False
-        #     if len(hidden_states.shape) > 2:
-        #         unwrap = True
-        #         shape = hidden_states.shape
-        #         hidden_states = hidden_states.reshape(-1, shape[-1])
+            return self.weight * hidden_states
+        elif IS_CUDA_SYSTEM:
+            # faster post attention rms norm
+            unwrap = False
+            if len(hidden_states.shape) > 2:
+                unwrap = True
+                shape = hidden_states.shape
+                hidden_states = hidden_states.reshape(-1, shape[-1])
 
-        #     normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-        #         hidden_states,
-        #         residual,
-        #         self.weight,
-        #         None,
-        #         None,
-        #         None,
-        #         None,
-        #         None,
-        #         0.0,
-        #         self.variance_epsilon,
-        #         1.0,
-        #         0,
-        #         None,
-        #         False,
-        #         True,  # Activate RMSNorm
-        #     )
-        #     if res is None:
-        #         res = hidden_states
+            normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
+                hidden_states,
+                residual,
+                self.weight,
+                None,
+                None,
+                None,
+                None,
+                None,
+                0.0,
+                self.variance_epsilon,
+                1.0,
+                0,
+                None,
+                False,
+                True,  # Activate RMSNorm
+            )
+            if res is None:
+                res = hidden_states
 
-        #     if unwrap:
-        #         normed_hidden_states = normed_hidden_states.view(*shape)
+            if unwrap:
+                normed_hidden_states = normed_hidden_states.view(*shape)
 
-        #     return normed_hidden_states
+            return normed_hidden_states
+        elif IS_ROCM_SYSTEM:
+            # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
+            if residual is not None:
+                hidden_states += residual
+            residual = hidden_states
+
+            unwrap = False
+            if len(hidden_states.shape) > 2:
+                unwrap = True
+                shape = hidden_states.shape
+                hidden_states = hidden_states.reshape(-1, shape[-1])
+
+            out = torch.empty_like(hidden_states)
+            layernorm_ops.rms_norm(
+                out,
+                hidden_states,
+                self.weight.data,
+                self.variance_epsilon,
+            )
+            if res is None:
+                res = hidden_states
+
+            if unwrap:
+                out = out.view(*shape)
+
+            return out
 
 
 # this was adapted from LlamaMLP

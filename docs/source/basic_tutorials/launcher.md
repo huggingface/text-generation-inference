@@ -254,7 +254,7 @@ Options:
 ## DISABLE_CUSTOM_KERNELS
 ```shell
       --disable-custom-kernels
-          For some models (like bloom), text-generation-inference implemented custom cuda kernels to speed up inference. Those kernels were only tested on A100. Use this flag to disable them if you're running on different hardware and encounter issues
+          For some models (like bloom), text-generation-inference implemented custom cuda kernels to speed up inference. Those kernels were only tested on Nvidia A100, AMD MI210 and AMD MI250. Use this flag to disable them if you're running on different hardware and encounter issues
           
           [env: DISABLE_CUSTOM_KERNELS=]
 

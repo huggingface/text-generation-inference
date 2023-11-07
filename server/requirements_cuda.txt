@@ -1,0 +1,3 @@
+torch==2.0.1 ; python_version >= "3.9" and python_version < "3.13"
+# bitsandbytes can not compile on RoCm systems, hence only installed for Nvidia GPUs
+bitsandbytes==0.41.1 ; python_version >= "3.9" and python_version < "3.13"
