@@ -160,6 +160,8 @@ class LlamaRMSNorm(nn.Module):
                 self.variance_epsilon,
             )
             return out, residual
+        else:
+            raise RuntimeError("system not supported")
 
 
 def load_attention(config, prefix, weights):
