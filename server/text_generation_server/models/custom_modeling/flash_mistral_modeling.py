@@ -43,7 +43,7 @@ if IS_CUDA_SYSTEM:
 elif IS_ROCM_SYSTEM:
     from vllm import layernorm_ops
 
-if not HAS_FLASH_ATTN_V2_ROCM and not HAS_FLASH_ATTN_V2_ROCM:
+if not HAS_FLASH_ATTN_V2_CUDA and not HAS_FLASH_ATTN_V2_ROCM:
     raise ImportError("Mistral model requires flash attn v2")
 
 
