@@ -10,7 +10,7 @@ build-vllm-rocm: build-vllm
 
 vllm:
     # Clone vllm
-	pip install -U ninja  --no-cache-dir
+	pip install -U ninja packaging --no-cache-dir
 	git clone --single-branch --branch $(BRANCH) $(REPOSITORY) vllm
 
 build-vllm: vllm

@@ -90,6 +90,9 @@ def attention(
             None,
         )
     elif HAS_FLASH_ATTN_V2_ROCM:
+        if window_size_left != -1:
+            raise ValueError(f"RoCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left}).")
+        
         # RoCm flash API does not take the window_size_left and window_size_right arguments.
         return flash_attn_2_cuda.varlen_fwd(
             q,
