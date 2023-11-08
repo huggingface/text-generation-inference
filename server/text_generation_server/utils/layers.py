@@ -38,6 +38,7 @@ if os.getenv("DISABLE_EXLLAMA") == "True":
 elif CAN_EXLLAMA:
     try:
         from text_generation_server.utils.gptq.exllama import Ex4bitLinear
+        from text_generation_server.utils.gptq.exllamav2 import QuantLinear as exllamav2QuantLinear
 
         HAS_EXLLAMA = True
     except ImportError:
@@ -308,7 +309,7 @@ def get_linear(weight, bias, quantize):
             )
 
         if use_exllama:
-            linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
+            linear = exllamav2QuantLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
         else:
             linear = QuantLinear(
                 qweight,
