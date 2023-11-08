@@ -432,6 +432,8 @@ class IdeficsRMSNorm(nn.Module):
                 out = out.view(*shape)
 
             return out
+        else:
+            raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
 
 
 # this was adapted from LlamaMLP
