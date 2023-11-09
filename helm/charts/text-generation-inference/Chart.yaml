@@ -1,0 +1,29 @@
+apiVersion: v2
+name: text-generation-inference
+description: A Helm chart Huggingface's text generation inference
+type: application
+version: 0.1.0
+appVersion: "1.1.0"
+kubeVersion: "^1.27.0-0"
+home: https://github.com/huggingface/text-generation-inference
+annotations:
+  "artifacthub.io/license": HFOILv1.0
+  "artifacthub.io/links": |
+    - name: Upstream Project
+      url: https://github.com/huggingface/text-generation-inference
+    - name: Documentation
+      url: https://huggingface.co/docs/text-generation-inference/index
+maintainers:
+  - name: wilfriedroset
+keywords:
+  - bloom
+  - deep-learning
+  - falcon
+  - gpt
+  - inference
+  - inference
+  - llm
+  - nlp
+  - pytorch
+  - starcoder
+  - transformer
