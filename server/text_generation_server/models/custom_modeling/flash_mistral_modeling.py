@@ -166,6 +166,8 @@ class MistralRMSNorm(nn.Module):
                 self.variance_epsilon,
             )
             return out, residual
+        else:
+            raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
 
 
 def load_attention(config, prefix, weights):

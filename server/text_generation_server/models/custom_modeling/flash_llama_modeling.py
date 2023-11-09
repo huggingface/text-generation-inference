@@ -161,7 +161,7 @@ class LlamaRMSNorm(nn.Module):
             )
             return out, residual
         else:
-            raise RuntimeError("system not supported")
+            raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
 
 
 def load_attention(config, prefix, weights):
