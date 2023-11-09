@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "text-generation-inference.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "text-generation-inference.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  serviceName: text-generation-inference
+  selector:
+    matchLabels:
+      {{- include "text-generation-inference.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      name: text-generation-inference
+      labels:
+        {{- include "text-generation-inference.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: text-generation-inference
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+          ports:
+            - containerPort: 80
+          command:
+            - "text-generation-launcher"
+            {{- range .Values.args }}
+            - {{ . | quote }}
+            {{- end }}
+          env:
+          {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: "/data"
+              name: storage
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-storage
+      restartPolicy: Always
+        {{- with .Values.nodeSelector }}
+        nodeSelector:
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.affinity }}
+        affinity:
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.tolerations }}
+        tolerations:
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ .Release.Name }}-storage
+      spec:
+        accessModes:
+          {{- range .Values.persistence.accessModes }}
+          - {{ . | quote }}
+          {{- end }}
+        storageClassName: {{ .Values.persistence.storageClassName }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.storage }}

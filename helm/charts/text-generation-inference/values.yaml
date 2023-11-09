@@ -1,0 +1,69 @@
+---
+replicaCount: 1
+
+image:
+  repository: ghcr.io/huggingface/text-generation-inference
+  tag: "1.1.0"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  limits:
+    nvidia.com/gpu: "1"
+  requests:
+    nvidia.com/gpu: "1"
+
+args:
+  []
+  # See: https://huggingface.co/docs/text-generation-inference/basic_tutorials/launcher
+  # - "--model-id"
+  # - "bigcode/starcoderbase-7b"
+  # - "--revision"
+  # - "4ab631381edb607557cbb04b6e9a225bad16807c"
+  # - "--num-shard"
+  # - "1"
+
+env:
+  {}
+  # See: https://huggingface.co/settings/tokens
+  # HUGGING_FACE_HUB_TOKEN: xxx
+
+ingress:
+  enabled: false
+  className: ""
+  annotations:
+    {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: Prefix
+          # backend:
+          #   service:
+          #     name: text-generation-inference
+          #     port:
+          #       number: 80
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+persistence:
+  storageClassName: "default"
+  accessModes: ["ReadWriteOnce"]
+  storage: 10Gi
+
+## See `kubectl explain poddisruptionbudget.spec` for more
+## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+podDisruptionBudget:
+  apiVersion: "policy/v1"
+  minAvailable: 1
+  maxUnavailable: 1
