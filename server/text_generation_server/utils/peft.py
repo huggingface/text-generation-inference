@@ -8,6 +8,8 @@ from peft import AutoPeftModelForCausalLM, AutoPeftModelForSeq2SeqLM
 
 
 def download_and_unload_peft(model_id, revision, trust_remote_code):
+    print(f"download_and_unload_peft called with model_id: {model_id} revision: {revision} tmc: {trust_remote_code}")
+
     torch_dtype = torch.float16
 
     logger.info("Peft model detected.")
@@ -35,6 +37,7 @@ def download_and_unload_peft(model_id, revision, trust_remote_code):
 
     model = model.merge_and_unload()
 
+    print(f"Creating dir: {model_id}")
     os.makedirs(model_id, exist_ok=True)
     cache_dir = model_id
     logger.info(f"Saving the newly created merged model to {cache_dir}")
