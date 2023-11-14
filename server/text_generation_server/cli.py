@@ -123,7 +123,6 @@ def download_weights(
         "WEIGHTS_CACHE_OVERRIDE", None
     ) is not None
 
-    print(f"is_local_model: {is_local_model}")
     if not is_local_model:
         try:
             adapter_config_filename = hf_hub_download(
@@ -150,23 +149,6 @@ def download_weights(
             # Check if we want to automatically convert to safetensors or if we can use .bin weights instead
             if not extension == ".safetensors" or not auto_convert:
                 raise e
-            
-    # Try to load as a PEFT model
-    # Newly added
-    try:
-        
-        # adapter_config_filename = hf_hub_download(
-        #     model_id, revision=revision, filename="adapter_config.json"
-        # )
-
-        utils.download_and_unload_peft(
-            model_id, revision, trust_remote_code=trust_remote_code
-        )
-        utils.weight_files(model_id, revision, extension)
-        return
-    except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
-        pass
-    
 
     # Try to see if there are local pytorch weights
     try:

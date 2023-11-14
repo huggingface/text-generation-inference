@@ -83,11 +83,8 @@ def weight_files(
     model_id: str, revision: Optional[str] = None, extension: str = ".safetensors"
 ) -> List[Path]:
     """Get the local files"""
-    print(f"weight_files called with model_id: {model_id} revision: {revision} extension: {extension}")
-
     # Local model
     if Path(model_id).exists() and Path(model_id).is_dir():
-        print(f"Finding local files with extension: {extension}")
         local_files = list(Path(model_id).glob(f"*{extension}"))
         if not local_files:
             raise FileNotFoundError(
