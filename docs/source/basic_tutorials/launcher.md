@@ -195,7 +195,7 @@ Options:
       --hostname <HOSTNAME>
           The IP address to listen on
           
-          [env: HOSTNAME=]
+          [env: HOSTNAME=hf-amd-mi210-dev]
           [default: 0.0.0.0]
 
 ```
@@ -204,7 +204,7 @@ Options:
   -p, --port <PORT>
           The port to listen on
           
-          [env: PORT=]
+          [env: PORT=80]
           [default: 3000]
 
 ```
@@ -240,7 +240,7 @@ Options:
       --huggingface-hub-cache <HUGGINGFACE_HUB_CACHE>
           The location of the huggingface hub cache. Used to override the location if you want to provide a mounted disk for instance
           
-          [env: HUGGINGFACE_HUB_CACHE=]
+          [env: HUGGINGFACE_HUB_CACHE=/data]
 
 ```
 ## WEIGHTS_CACHE_OVERRIDE
@@ -254,7 +254,7 @@ Options:
 ## DISABLE_CUSTOM_KERNELS
 ```shell
       --disable-custom-kernels
-          For some models (like bloom), text-generation-inference implemented custom cuda kernels to speed up inference. Those kernels were only tested on Nvidia A100, AMD MI210 and AMD MI250. Use this flag to disable them if you're running on different hardware and encounter issues
+          For some models (like bloom), text-generation-inference implemented custom cuda kernels to speed up inference. Those kernels were only tested on A100. Use this flag to disable them if you're running on different hardware and encounter issues
           
           [env: DISABLE_CUSTOM_KERNELS=]
 
