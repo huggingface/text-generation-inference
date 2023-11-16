@@ -62,7 +62,7 @@ For a detailed starting guide, please see the [Quick Tour](https://huggingface.c
 model=tiiuae/falcon-7b-instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.1.0 --model-id $model
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.1.1 --model-id $model
 ```
 
 And then you can make requests like
@@ -104,7 +104,7 @@ model=meta-llama/Llama-2-7b-chat-hf
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 token=<your cli READ token>
 
-docker run --gpus all --shm-size 1g -e HUGGING_FACE_HUB_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.1.0 --model-id $model
+docker run --gpus all --shm-size 1g -e HUGGING_FACE_HUB_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:1.1.1 --model-id $model
 ```
 
 ### A note on Shared Memory (shm)
