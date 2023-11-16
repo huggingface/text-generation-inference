@@ -223,9 +223,6 @@ class FlashLlamaAttention(torch.nn.Module):
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
-        # self.rotary_emb = PositionRotaryEmbedding.load(
-        #     config=config, prefix=f"{prefix}.rotary_emb", weights=weights
-        # )
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
             dim=self.head_size,
@@ -280,9 +277,8 @@ class FlashLlamaAttention(torch.nn.Module):
         )
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
-
-        self.rotary_emb(query, cos, sin)
-        self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
+        
+        self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
         paged_attention.reshape_and_cache(
             kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots

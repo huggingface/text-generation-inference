@@ -4,8 +4,8 @@ build-vllm-cuda: BRANCH=main
 build-vllm-cuda: build-vllm
 
 build-vllm-rocm: REPOSITORY=https://github.com/fxmarty/vllm-public.git
-build-vllm-rocm: VLLM_COMMIT=65f4a79621b4d992cf97f6b84598804eb4ca87b6
-build-vllm-rocm: BRANCH=port-to-rocm
+build-vllm-rocm: VLLM_COMMIT=ad9b7c4095ef54419a0533d254f2ad84bd2dfcae
+build-vllm-rocm: BRANCH=rotary-no-positions-split-cos-sin
 build-vllm-rocm: build-vllm
 
 vllm:

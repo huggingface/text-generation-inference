@@ -555,6 +555,8 @@ try:
     if IS_CUDA_SYSTEM:
         from flash_attn.layers.rotary import RotaryEmbedding
         import rotary_emb
+    elif IS_ROCM_SYSTEM:
+        from vllm import pos_encoding_ops
 
     def _create_inv_freq(dim, base, device):
         inv_freq = 1.0 / (
@@ -583,32 +585,34 @@ try:
             self.scaling_factor = scaling_factor
             self.dynamic_args = None
 
-        def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
+        def forward(self, query: torch.Tensor, key: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
             # Such controlflows may add some overhead.
             if IS_CUDA_SYSTEM:
                 rotary_dim = cos.shape[-1]
-                x1 = x[..., :rotary_dim]
-                x2 = x[..., rotary_dim : 2 * rotary_dim]
+                q1 = query[..., :rotary_dim]
+                q2 = query[..., rotary_dim : 2 * rotary_dim]
 
-                rotary_emb.apply_rotary(x1, x2, cos, sin, x1, x2, False)
-                return x
+                rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, False)
+
+                k1 = key[..., :rotary_dim]
+                k2 = key[..., rotary_dim : 2 * rotary_dim]
+
+                rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
             elif IS_ROCM_SYSTEM:
-                # For RoCm, we fall back on a manual implementation given that Flash Attention's ROPE kernel can not be compiled for RoCm.
-                # We could use VLLM ROPE kernel here (compatible with RoCm), but the API is different and would require position_ids: https://github.com/vllm-project/vllm/blob/1a2bbc930135cd3b94fbff2aafbdf5c568acc8bd/csrc/pos_encoding.cpp#L3
-                rotary_dim = cos.shape[-1]
+                # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
+                # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773
 
-                dtype = x.dtype
-                x_upcast = x.to(torch.float32)
-                cos = cos.to(torch.float32)
-                sin = sin.to(torch.float32)
+                head_size = query.shape[-1]
 
-                x1 = x_upcast[..., :rotary_dim]
-                x2 = x_upcast[..., rotary_dim : 2 * rotary_dim]
-
-                # Flash Attention rotary_emb kernel casts everything to float, not sure why, so we do so here as well.
-                x[..., :rotary_dim] = (x1 * cos - x2 * sin).to(dtype)
-                x[..., rotary_dim : 2 * rotary_dim] = (x1 * sin + x2 * cos).to(dtype)
-                return x
+                # Inplace operation, updating query and key.
+                pos_encoding_ops.rotary_embedding(
+                    query,
+                    key,
+                    head_size,
+                    cos,
+                    sin,
+                    True
+                )
             else:
                 raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
 
@@ -714,12 +718,18 @@ try:
             """
             Return cos and sin for the asked position ids
             """
+            if IS_ROCM_SYSTEM:
+                # For RoCm, we always use float cos/sin to avoid a cast.
+                # For NVIDIA, for some reason, the flash-attn rotary kernel requires cos/sin and query/key to be of same dtype: https://github.com/Dao-AILab/flash-attention/blob/017716451d446e464dde9aca3a3c1ed2209caaa9/csrc/rotary/rotary.cpp#L26
+                # But later on goes and cast cos/sin to float anyway: https://github.com/Dao-AILab/flash-attention/blob/017716451d446e464dde9aca3a3c1ed2209caaa9/csrc/rotary/rotary_cuda.cu#L29, which looks suboptimal.
+                dtype = torch.float32
 
             self._update_cos_sin_cache(dtype, position_ids.device, max_s)
 
             cos = torch.index_select(self._cos_cached, 0, position_ids)
             sin = torch.index_select(self._sin_cached, 0, position_ids)
-            return cos.unsqueeze(1), sin.unsqueeze(1)
+            # Note: this unsqueeze is not necessary on RoCm + VLLM ROPE implementation, but we leave it as is to avoid yet an other controlflow.
+            return cos.unsqueeze(1).float(), sin.unsqueeze(1).float()
 
     class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
         def __init__(self, dim, max_position_embeddings, base, device, scaling_factor):
@@ -729,7 +739,7 @@ try:
             self.max_position_embeddings = max_position_embeddings
             self.base = base
 
-        def _update_cos_sin_cache(self, dtype, device, seqlen):
+        def _update_cos_sin_cache(self, dtype, device, seqlen):            
             # Reset the tables if the sequence length has changed,
             # or if we're on a new device (possibly due to tracing for instance)
             if (

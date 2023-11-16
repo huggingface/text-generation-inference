@@ -425,8 +425,6 @@ class IdeficsRMSNorm(nn.Module):
                 self.weight.data,
                 self.variance_epsilon,
             )
-            if res is None:
-                res = hidden_states
 
             if unwrap:
                 out = out.view(*shape)
@@ -613,15 +611,12 @@ class IdeficsAttention(nn.Module):
                 position_ids.view(-1), max_s, hidden_states.dtype
             )
 
-            shape = query_states.shape
-            query_states = self.rotary_emb(
-                query_states.view(-1, *shape[2:]), cos, sin
-            ).view(shape)
-
-            shape = key_states.shape
-            key_states = self.rotary_emb(
-                key_states.reshape(-1, *shape[2:]), cos, sin
-            ).view(shape)
+            query_shape = query_states.shape
+            key_shape = key_states.shape
+            self.rotary_emb(query_states.view(-1, *query_shape[2:]), key_states.reshape(-1, *key_shape[2:]), cos, sin)
+            
+            query_states = query_states.view(query_shape)
+            key_states = key_states.view(key_shape)
 
             query_states = query_states.transpose(1, 2)
             key_states = key_states.transpose(1, 2)
