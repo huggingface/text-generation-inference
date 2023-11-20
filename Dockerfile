@@ -42,7 +42,7 @@ FROM debian:bullseye-slim as pytorch-install
 ARG PYTORCH_VERSION=2.1.0
 ARG PYTHON_VERSION=3.9
 # Keep in sync with `server/pyproject.toml
-ARG CUDA_VERSION=11.8
+ARG CUDA_VERSION=12.1
 ARG MAMBA_VERSION=23.1.0-1
 ARG CUDA_CHANNEL=nvidia
 ARG INSTALL_CHANNEL=pytorch
@@ -148,7 +148,7 @@ COPY server/Makefile-vllm Makefile
 RUN make build-vllm
 
 # Text Generation Inference base image
-FROM nvidia/cuda:11.8.0-base-ubuntu20.04 as base
+FROM nvidia/cuda:12.1.0-base-ubuntu20.04 as base
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
