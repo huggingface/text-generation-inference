@@ -206,7 +206,7 @@ jobs:
           images: |
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
           tags: |
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}+rocm
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}-rocm
       # If main, release or tag
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name != 'pull_request' }}
@@ -220,10 +220,10 @@ jobs:
             ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
-            type=semver,pattern={{version}}+rocm
-            type=semver,pattern={{major}}.{{minor}}+rocm
-            type=raw,value=latest+rocm,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}+rocm
+            type=semver,pattern={{version}}-rocm
+            type=semver,pattern={{major}}.{{minor}}-rocm
+            type=raw,value=latest-rocm,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}-rocm
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
@@ -234,11 +234,11 @@ jobs:
           platforms: 'linux/amd64'
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
-            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}+rocm
+            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}-rocm
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache+rocm,mode=min
-          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache+rocm,mode=min
+          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache-rocm,mode=min
+          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache-rocm,mode=min
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker
       # repository is public to avoid leaking data.
@@ -253,7 +253,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         if: ${{ github.event_name != 'pull_request' }}
         with:
-          image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}+rocm'
+          image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}-rocm'
           format: 'github'
           output: 'dependency-results.sbom.json'
           github-pat: ${{ secrets.GITHUB_TOKEN }}
@@ -262,7 +262,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         if: ${{ github.event_name != 'pull_request' }}
         with:
-          image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}+rocm'
+          image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}-rocm'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL'
