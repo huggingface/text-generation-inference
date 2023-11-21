@@ -279,6 +279,7 @@ impl Validation {
             do_sample,
             seed,
             watermark,
+            logits_processors: vec![],
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,

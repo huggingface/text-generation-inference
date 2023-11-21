@@ -50,6 +50,13 @@ message ClearCacheRequest {
 /// Empty response
 message ClearCacheResponse {}
 
+message LogitsProcessorParameters {
+    // The name of the processor to apply
+    string name = 1;
+    // The parameters to pass to the processor
+    repeated string parameters = 2;
+}
+
 message NextTokenChooserParameters {
     /// exponential scaling output probability distribution
     float temperature = 1;
@@ -67,6 +74,8 @@ message NextTokenChooserParameters {
     float repetition_penalty = 7;
     /// token watermarking using "A Watermark for Large Language Models"
     bool watermark = 8;
+    /// Optional Logits Processors definitions
+    repeated LogitsProcessorParameters logits_processors = 9;
 }
 
 message StoppingCriteriaParameters {
