@@ -1,5 +1,6 @@
 import re
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, NamedTuple, Optional, Tuple
+from text_generation_server.utils.custom_logits_processors import CustomLogitsProcessorsManager
 
 import torch
 from text_generation_server.pb import generate_pb2
@@ -16,6 +17,9 @@ from text_generation_server.utils.logits_process import (
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcessor
 
+class LogitsProcessorParams(NamedTuple):
+    name: str
+    params: List[str]
 
 class NextTokenChooser:
     def __init__(
@@ -29,6 +33,8 @@ class NextTokenChooser:
         do_sample=False,
         seed=0,
         device="cpu",
+        logits_processors_params: Optional[List[LogitsProcessorParams]] = None,
+        tokenizer: PreTrainedTokenizerBase=None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -51,7 +57,10 @@ class NextTokenChooser:
             )
         else:
             self.static_warper = None
-
+        if logits_processors_params:
+            self.custom_warpers = [CustomLogitsProcessorsManager.create_warper(name, params, tokenizer) for name, params in logits_processors_params]
+        else:
+            self.custom_warpers = None
         sampling = do_sample or has_warpers
         self.choice = Sampling(seed, device) if sampling else Greedy()
 
@@ -60,7 +69,9 @@ class NextTokenChooser:
             scores = self.watermark_processor(input_ids, scores)
         if self.repetition_processor is not None:
             scores = self.repetition_processor(input_ids, scores)
-
+        if self.custom_warpers is not None:
+            for warper in self.custom_warpers:
+                scores = warper(input_ids, scores)
         if self.static_warper is None:
             next_logprob = torch.log_softmax(scores, -1)
         else:
@@ -75,7 +86,12 @@ class NextTokenChooser:
         cls,
         pb: generate_pb2.NextTokenChooserParameters,
         device: torch.device,
+        tokenizer: PreTrainedTokenizerBase,
     ) -> "NextTokenChooser":
+        if pb.logits_processors:
+            processors_params = [LogitsProcessorParams(name, params) for name, params in pb.logits_processors]
+        else:
+            processors_params = None
         return NextTokenChooser(
             watermark=pb.watermark,
             temperature=pb.temperature,
@@ -86,6 +102,8 @@ class NextTokenChooser:
             do_sample=pb.do_sample,
             seed=pb.seed,
             device=device,
+            logits_processors_params=processors_params,
+            tokenizer=tokenizer,
         )
 
 

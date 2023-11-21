@@ -4,7 +4,7 @@ import typer
 
 from pathlib import Path
 from loguru import logger
-from typing import Optional
+from typing import List, Optional
 from enum import Enum
 from huggingface_hub import hf_hub_download
 
@@ -38,6 +38,7 @@ def serve(
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
+    custom_modules: Optional[List[str]] = None,
 ):
     if sharded:
         assert (
@@ -64,6 +65,14 @@ def serve(
         backtrace=True,
         diagnose=False,
     )
+
+    # Import custom modules. This can be used for Custom Logits Processors,
+    # in which these modules CustomLogitsProcessorsManager.register_factory() in their __init__.py,
+    # registering themselves for custom logits processing.
+    from importlib import import_module
+    if custom_modules:
+        for custom_module in custom_modules:
+            import_module(custom_module)
 
     # Import here after the logger is added to log potential import exceptions
     from text_generation_server import server
