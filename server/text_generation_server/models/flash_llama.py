@@ -16,9 +16,12 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
+import os
 
 tracer = trace.get_tracer(__name__)
-
+USE_CUSTOM_NCCL = int(os.getenv("OMPI_COMM_WORLD_SIZE", "1")) > 1 and int(os.getenv("USE_CUSTOM_NCCL", "0")) == 1
+if USE_CUSTOM_NCCL:
+    from text_generation_server.utils.my_dist import initialize_mpi_distributed
 
 class FlashLlama(FlashCausalLM):
     def __init__(
@@ -29,7 +32,10 @@ class FlashLlama(FlashCausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        self.process_group, rank, world_size = initialize_torch_distributed()
+        if USE_CUSTOM_NCCL:
+            self.process_group, rank, world_size, COMM = initialize_mpi_distributed()
+        else:
+            self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
@@ -37,6 +43,7 @@ class FlashLlama(FlashCausalLM):
             raise NotImplementedError("FlashLlama is only available on GPU")
 
         try:
+            raise
             tokenizer = LlamaTokenizer.from_pretrained(
                 model_id,
                 revision=revision,
@@ -58,7 +65,10 @@ class FlashLlama(FlashCausalLM):
         )
         config.quantize = quantize
 
-        torch.distributed.barrier(group=self.process_group)
+        if USE_CUSTOM_NCCL:
+            COMM.barrier()
+        else:
+            torch.distributed.barrier(group=self.process_group)
 
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(filenames, device, dtype, process_group=self.process_group)
@@ -67,7 +77,10 @@ class FlashLlama(FlashCausalLM):
 
         model = FlashLlamaForCausalLM(config, weights)
 
-        torch.distributed.barrier(group=self.process_group)
+        if USE_CUSTOM_NCCL:
+            COMM.barrier()
+        else:
+            torch.distributed.barrier(group=self.process_group)
         super(FlashLlama, self).__init__(
             model=model,
             tokenizer=tokenizer,

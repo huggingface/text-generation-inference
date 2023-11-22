@@ -1,6 +1,5 @@
 import os
 import torch
-import torch.distributed
 
 from torch import nn
 from torch.nn import functional as F
@@ -52,7 +51,9 @@ try:
     HAS_EETQ = True
 except ImportError:
     pass
-
+import my_custom_comm
+USE_CUSTOM_NCCL = int(os.getenv("OMPI_COMM_WORLD_SIZE", "1")) > 1 and int(os.getenv("USE_CUSTOM_NCCL", "0")) == 1
+USE_LM_HEAD_PARALLEL = int(os.getenv("USE_LM_HEAD_PARALLEL", "1"))
 
 # Monkey patching
 @classmethod
@@ -358,6 +359,7 @@ class TensorParallelHead(SuperLayer):
     def load(config, prefix: str, weights):
         if weights.process_group.size() > 1:
             try:
+                assert USE_CUSTOM_NCCL == 0 and USE_LM_HEAD_PARALLEL == 1
                 weight = weights.get_sharded(f"{prefix}.weight", dim=0)
                 should_gather = True
             except AssertionError:
@@ -365,6 +367,7 @@ class TensorParallelHead(SuperLayer):
                 # just load the entire thing.
                 weight = weights.get_tensor(f"{prefix}.weight")
                 should_gather = False
+                logger.info("Disabled lm head parallel! ")
         else:
             weight = weights.get_tensor(f"{prefix}.weight")
             should_gather = False
@@ -469,7 +472,10 @@ class TensorParallelRowLinear(SuperLayer):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         out = super().forward(input)
         if self.process_group.size() > 1:
-            torch.distributed.all_reduce(out, group=self.process_group)
+            if USE_CUSTOM_NCCL:
+                my_custom_comm.custom_allreduce(out, self.process_group.tp_comm)
+            else:
+                torch.distributed.all_reduce(out, group=self.process_group)
         return out
 
 
@@ -504,7 +510,10 @@ class TensorParallelEmbedding(nn.Module):
         )
         out = torch.nn.functional.embedding(input, self.weight)
         if self.reduce and self.process_group.size() > 1:
-            torch.distributed.all_reduce(out, group=self.process_group)
+            if USE_CUSTOM_NCCL:
+                my_custom_comm.custom_allreduce(out, self.process_group.tp_comm)
+            else:
+                torch.distributed.all_reduce(out, group=self.process_group)
         return out
 
 

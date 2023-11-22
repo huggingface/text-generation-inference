@@ -402,9 +402,19 @@ class FlashLlamaModel(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
-        )
+        
+        import os
+        if int(os.getenv("USE_TP_EMBEDDING", "1")) == 1:
+            self.embed_tokens = TensorParallelEmbedding(
+                prefix="model.embed_tokens", weights=weights
+            )
+        else:
+            from torch.nn import functional as F
+            from loguru import logger
+            embeddings = weights.get_tensor(f"model.embed_tokens.weight")
+            self.embed_tokens = nn.Embedding.from_pretrained(F.pad(embeddings, (0, 0, 0, 1)),
+                                                            padding_idx=config.pad_token_id)
+            logger.info("Disabled embedding tensor parallel! ")
         self.layers = nn.ModuleList(
             [
                 FlashLlamaLayer(

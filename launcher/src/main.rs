@@ -524,22 +524,29 @@ fn shard_manager(
     if let Some(watermark_delta) = watermark_delta {
         envs.push(("WATERMARK_DELTA".into(), watermark_delta.to_string().into()))
     }
-
+    // for mpi
+    let n_devices = match num_cuda_devices() {
+        Some(value) => value.to_string(),
+        None => String::from("0"),
+    };
     // Start process
     tracing::info!("Starting shard");
-    let mut p = match Command::new("text-generation-server")
-        .args(shard_args)
-        .envs(envs)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .process_group(0)
-        .spawn()
+    tracing::info!("run with mpi and use cuda device num: {}", n_devices);
+    // tracing::info!("{:?}", shard_args);
+    tracing::info!("{:?}", envs);
+    let mut p = match Command::new("mpirun")
+    .args(&["-n", &n_devices, "--allow-run-as-root", "text-generation-server"])
+    .args(shard_args)
+    .envs(envs)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .process_group(0)
+    .spawn()
     {
         Ok(p) => p,
         Err(err) => {
             if err.kind() == io::ErrorKind::NotFound {
-                tracing::error!("text-generation-server not found in PATH");
-                tracing::error!("Please install it with `make install-server`")
+                tracing::error!("start mpi failed! ");
             }
             {
                 tracing::error!("{}", err);
