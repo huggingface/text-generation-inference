@@ -202,7 +202,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements.txt && \
-    pip install ".[bnb, accelerate, quantize]" --no-cache-dir
+    pip install ".[bnb, accelerate, quantize, peft]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
