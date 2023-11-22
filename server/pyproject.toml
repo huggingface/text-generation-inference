@@ -47,7 +47,7 @@ pytest = "^7.3.0"
 
 [[tool.poetry.source]]
 name = "pytorch-gpu-src"
-url = "https://download.pytorch.org/whl/cu121"
+url = "https://download.pytorch.org/whl/cu118"
 priority = "explicit"
 
 [tool.pytest.ini_options]

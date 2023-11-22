@@ -18,7 +18,7 @@ gen-server:
 
 install-torch:
 	# Install specific version of torch
-	pip install torch==2.1.0 --extra-index-url https://download.pytorch.org/whl/cu121 --no-cache-dir
+	pip install torch==2.1.0 --extra-index-url https://download.pytorch.org/whl/cu118 --no-cache-dir
 
 install: gen-server install-torch
 	pip install pip --upgrade

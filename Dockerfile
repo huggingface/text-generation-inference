@@ -37,12 +37,12 @@ RUN cargo build --release
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
-FROM debian:bullseye-slim as conda-install
+FROM debian:bullseye-slim as pytorch-install
 
 ARG PYTORCH_VERSION=2.1.0
 ARG PYTHON_VERSION=3.10
 # Keep in sync with `server/pyproject.toml
-ARG CUDA_VERSION=12.1
+ARG CUDA_VERSION=11.8
 ARG MAMBA_VERSION=23.3.1-1
 ARG CUDA_CHANNEL=nvidia
 ARG INSTALL_CHANNEL=pytorch
@@ -70,35 +70,24 @@ RUN chmod +x ~/mambaforge.sh && \
     bash ~/mambaforge.sh -b -p /opt/conda && \
     rm ~/mambaforge.sh
 
-FROM conda-install as pytorch-install
-
 # Install pytorch
 # On arm64 we exit with an error code
 RUN case ${TARGETPLATFORM} in \
          "linux/arm64")  exit 1 ;; \
          *)              /opt/conda/bin/conda update -y conda &&  \
-                         /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" pytorch==$PYTORCH_VERSION "pytorch-cuda=${CUDA_VERSION}"  ;; \
+                         /opt/conda/bin/conda config --remove channels conda-forge && \
+                         /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" pytorch==$PYTORCH_VERSION "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
     esac && \
     /opt/conda/bin/conda clean -ya
 
 # CUDA kernels builder image
-FROM conda-install as kernel-builder
+FROM pytorch-install as kernel-builder
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ninja-build \
         && rm -rf /var/lib/apt/lists/*
 
-# FIXME: for some reason if we install cuda after, some libs are not properly linked...
-RUN /opt/conda/bin/conda install -c "nvidia/label/cuda-12.1.0" cuda && \
-    /opt/conda/bin/conda clean -ya
-
-# Install pytorch
-# On arm64 we exit with an error code
-RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  exit 1 ;; \
-         *)              /opt/conda/bin/conda update -y conda &&  \
-                         /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" pytorch==$PYTORCH_VERSION "pytorch-cuda=${CUDA_VERSION}"  ;; \
-    esac && \
+RUN /opt/conda/bin/conda install -c "nvidia/label/cuda-11.8.0"  cuda==11.8 && \
     /opt/conda/bin/conda clean -ya
 
 # Build Flash Attention CUDA kernels
@@ -160,7 +149,7 @@ COPY server/Makefile-vllm Makefile
 RUN make build-vllm
 
 # Text Generation Inference base image
-FROM nvidia/cuda:12.1.0-base-ubuntu20.04 as base
+FROM nvidia/cuda:11.8.0-base-ubuntu20.04 as base
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
