@@ -195,7 +195,7 @@ Options:
       --hostname <HOSTNAME>
           The IP address to listen on
           
-          [env: HOSTNAME=hf-amd-mi210-dev]
+          [env: HOSTNAME=]
           [default: 0.0.0.0]
 
 ```
