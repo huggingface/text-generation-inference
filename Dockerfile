@@ -39,10 +39,13 @@ RUN cargo build --release
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
 FROM nvidia/cuda:12.1.0-devel-ubuntu20.04 as pytorch-install
 
-ARG PYTORCH_VERSION=2.1.0
+ARG PYTORCH_VERSION=2.1.1
 ARG PYTHON_VERSION=3.10
 # Keep in sync with `server/pyproject.toml
+ARG CUDA_VERSION=12.1
 ARG MAMBA_VERSION=23.3.1-1
+ARG CUDA_CHANNEL=nvidia
+ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
 ARG TARGETPLATFORM
 
@@ -72,11 +75,9 @@ RUN chmod +x ~/mambaforge.sh && \
 RUN case ${TARGETPLATFORM} in \
          "linux/arm64")  exit 1 ;; \
          *)              /opt/conda/bin/conda update -y conda &&  \
-                         /opt/conda/bin/conda install -y "python=${PYTHON_VERSION}" ;; \
+                         /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" "pytorch=$PYTORCH_VERSION" "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
     esac && \
     /opt/conda/bin/conda clean -ya
-
-RUN pip install torch==${PYTORCH_VERSION} --extra-index-url https://download.pytorch.org/whl/cu121 --no-cache-dir
 
 # CUDA kernels builder image
 FROM pytorch-install as kernel-builder

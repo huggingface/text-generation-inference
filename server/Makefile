@@ -16,14 +16,10 @@ gen-server:
 	find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
 	touch text_generation_server/pb/__init__.py
 
-install-torch:
-	# Install specific version of torch
-	pip install torch==2.1.0 --extra-index-url https://download.pytorch.org/whl/cu121 --no-cache-dir
-
-install: gen-server install-torch
+install: gen-server
 	pip install pip --upgrade
 	pip install -r requirements.txt
-	pip install -e ".[bnb, accelerate, torch, peft]"
+	pip install -e ".[bnb, accelerate, quantize, peft]"
 
 run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded
