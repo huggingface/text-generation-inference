@@ -45,15 +45,6 @@ __all__ = [
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
 FLASH_ATTENTION = True
-from text_generation_server.models.flash_rw import FlashRWSharded
-from text_generation_server.models.flash_neox import FlashNeoXSharded
-from text_generation_server.models.flash_llama import (
-    FlashLlama,
-)
-from text_generation_server.models.flash_santacoder import (
-    FlashSantacoderSharded,
-)
-from text_generation_server.models.idefics import IDEFICSSharded
 try:
     from text_generation_server.models.flash_rw import FlashRWSharded
     from text_generation_server.models.flash_neox import FlashNeoXSharded
