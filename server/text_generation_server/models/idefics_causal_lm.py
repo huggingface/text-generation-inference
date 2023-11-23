@@ -583,7 +583,7 @@ class IdeficsCausalLM(Model):
 
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.float16 if dtype is None else dtype
+            dtype = torch.bfloat16 if dtype is None else dtype
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")

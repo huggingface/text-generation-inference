@@ -318,6 +318,7 @@ def launcher(event_loop):
             ],
             volumes=volumes,
             ports={"80/tcp": port},
+            shm_size="1G"
         )
 
         yield ContainerLauncherHandle(client, container.name, port)
