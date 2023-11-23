@@ -39,8 +39,7 @@ class IDEFICSSharded(IdeficsCausalLM):
             device = torch.device(f"cuda:{rank}")
             # 9b seems to work correctly enough in float16, but 80b seems
             # to be really saturating for f16.
-            if dtype is None or dtype == torch.float16:
-                dtype = torch.bfloat16
+            dtype = torch.bfloat16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
             dtype = torch.float32 if dtype is None else dtype
