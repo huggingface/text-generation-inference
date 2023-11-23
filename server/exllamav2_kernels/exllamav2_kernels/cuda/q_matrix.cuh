@@ -38,6 +38,8 @@ public:
 
     half* temp_dq;
 
+    bool failed;
+
     QMatrix
     (
         const int _device,
@@ -62,7 +64,7 @@ public:
     ~QMatrix();
 
     void reconstruct(half* out);
-    void make_sequential(const uint32_t* cpu_g_idx);
+    bool make_sequential(const uint32_t* cpu_g_idx);
 
 private:
 

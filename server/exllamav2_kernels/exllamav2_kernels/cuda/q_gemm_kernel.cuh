@@ -1,5 +1,8 @@
 #include "compat.cuh"
 
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
+
 __forceinline__ __device__ half2 dot22_8(half2(&dq)[4], const half* a_ptr, const half2 g_result, const half qs_h)
 {
     half2 result = {};

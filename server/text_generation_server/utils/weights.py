@@ -278,7 +278,7 @@ class Weights:
                         )
                     use_exllama = False
                 else:
-                    logger.info("Using exllama kernels")
+                    logger.info(f"Using exllama kernels v{HAS_EXLLAMA}")
 
             if use_exllama:
                 if groupsize >= 0:
