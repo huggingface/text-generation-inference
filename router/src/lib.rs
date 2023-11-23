@@ -300,15 +300,22 @@ mod tests {
     use tokenizers::Tokenizer;
 
     pub(crate) async fn get_tokenizer() -> Tokenizer {
-        if !std::path::Path::new("tokenizer.json").exists() {
+        let filename = std::path::Path::new("tokenizer.json");
+        if !filename.exists() {
             let content = reqwest::get("https://huggingface.co/gpt2/raw/main/tokenizer.json")
                 .await
                 .unwrap()
                 .bytes()
                 .await
                 .unwrap();
-            let mut file = std::fs::File::create("tokenizer.json").unwrap();
+            let tmp_filename = "tokenizer.json.temp";
+            let mut file = std::fs::File::create(tmp_filename).unwrap();
             file.write_all(&content).unwrap();
+            // Re-check if another process has written this file maybe.
+            if !filename.exists() {
+                std::fs::rename(tmp_filename, filename).unwrap()
+            }
+
         }
         Tokenizer::from_file("tokenizer.json").unwrap()
     }
