@@ -127,11 +127,10 @@ RUN pip install einops --no-cache-dir
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
-RUN cd server && pip install -r requirements_common.txt && \
-    pip install -r requirements_rocm.txt
-
 RUN cd server && \
-    make gen-server && pip install ".[accelerate]" --no-cache-dir
+    make gen-server && \
+    pip install -r requirements_rocm.txt && \
+    pip install ".[accelerate, peft]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark

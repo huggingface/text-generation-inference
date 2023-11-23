@@ -199,7 +199,6 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_common.txt && \
     pip install -r requirements_cuda.txt && \
     pip install ".[bnb, accelerate, quantize, peft]" --no-cache-dir
 
