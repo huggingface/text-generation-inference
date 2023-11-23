@@ -37,15 +37,12 @@ RUN cargo build --release
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
-FROM debian:bullseye-slim as pytorch-install
+FROM nvidia/cuda:12.1.0-devel-ubuntu20.04 as pytorch-install
 
 ARG PYTORCH_VERSION=2.1.0
 ARG PYTHON_VERSION=3.10
 # Keep in sync with `server/pyproject.toml
-ARG CUDA_VERSION=11.8
 ARG MAMBA_VERSION=23.3.1-1
-ARG CUDA_CHANNEL=nvidia
-ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
 ARG TARGETPLATFORM
 
@@ -75,20 +72,20 @@ RUN chmod +x ~/mambaforge.sh && \
 RUN case ${TARGETPLATFORM} in \
          "linux/arm64")  exit 1 ;; \
          *)              /opt/conda/bin/conda update -y conda &&  \
-                         /opt/conda/bin/conda config --remove channels conda-forge && \
-                         /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" pytorch==$PYTORCH_VERSION "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
+                         /opt/conda/bin/conda install -y "python=${PYTHON_VERSION}" ;; \
     esac && \
     /opt/conda/bin/conda clean -ya
+
+RUN pip install torch==${PYTORCH_VERSION} --extra-index-url https://download.pytorch.org/whl/cu121 --no-cache-dir
 
 # CUDA kernels builder image
 FROM pytorch-install as kernel-builder
 
+ARG MAX_JOBS=8
+
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ninja-build \
         && rm -rf /var/lib/apt/lists/*
-
-RUN /opt/conda/bin/conda install -c "nvidia/label/cuda-11.8.0"  cuda==11.8 && \
-    /opt/conda/bin/conda clean -ya
 
 # Build Flash Attention CUDA kernels
 FROM kernel-builder as flash-att-builder
@@ -149,7 +146,7 @@ COPY server/Makefile-vllm Makefile
 RUN make build-vllm
 
 # Text Generation Inference base image
-FROM nvidia/cuda:11.8.0-base-ubuntu20.04 as base
+FROM nvidia/cuda:12.1.0-base-ubuntu20.04 as base
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
