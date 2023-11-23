@@ -204,7 +204,7 @@ Options:
   -p, --port <PORT>
           The port to listen on
           
-          [env: PORT=80]
+          [env: PORT=]
           [default: 3000]
 
 ```
@@ -240,7 +240,7 @@ Options:
       --huggingface-hub-cache <HUGGINGFACE_HUB_CACHE>
           The location of the huggingface hub cache. Used to override the location if you want to provide a mounted disk for instance
           
-          [env: HUGGINGFACE_HUB_CACHE=/data]
+          [env: HUGGINGFACE_HUB_CACHE=]
 
 ```
 ## WEIGHTS_CACHE_OVERRIDE
