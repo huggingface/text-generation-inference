@@ -44,7 +44,7 @@ __all__ = [
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
-FLASH_ATTENTION = False
+FLASH_ATTENTION = True
 try:
     from text_generation_server.models.flash_rw import FlashRWSharded
     from text_generation_server.models.flash_neox import FlashNeoXSharded
@@ -248,17 +248,8 @@ def get_model(
                 )
 
     if model_type == "mistral":
-        # if MISTRAL:
-        #     return FlashMistral(
-        #         model_id,
-        #         revision,
-        #         quantize=quantize,
-        #         dtype=dtype,
-        #         trust_remote_code=trust_remote_code,
-        #     )
-        # raise NotImplementedError("Mistral model requires flash attention v2")
         if FLASH_ATTENTION:
-            return FlashLlama(
+            return FlashMistral(
                 model_id,
                 revision,
                 quantize=quantize,
