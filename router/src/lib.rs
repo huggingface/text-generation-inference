@@ -315,7 +315,6 @@ mod tests {
             if !filename.exists() {
                 std::fs::rename(tmp_filename, filename).unwrap()
             }
-
         }
         Tokenizer::from_file("tokenizer.json").unwrap()
     }
