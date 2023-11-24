@@ -209,7 +209,7 @@ jobs:
         uses: docker/metadata-action@v4.3.0
         with:
           flavor: |
-            latest=auto
+            latest=false
           images: |
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
             ghcr.io/huggingface/text-generation-inference
