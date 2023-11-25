@@ -31,15 +31,31 @@ try:
     major, _minor = torch.cuda.get_device_capability()
 except Exception:
     major = 1
+
 HAS_EXLLAMA = False
 CAN_EXLLAMA = major >= 8
+V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
+if V2 and int(os.getenv("WORLD_SIZE", "1")) > 1:
+    logger.warning("Disabling exllama v2 and using v1 instead because there are issues when sharding")
+    V2 = False
+
 if os.getenv("DISABLE_EXLLAMA") == "True":
     HAS_EXLLAMA = False
 elif CAN_EXLLAMA:
     try:
-        from text_generation_server.utils.gptq.exllama import Ex4bitLinear
+        if V2:
+            from text_generation_server.utils.gptq.exllamav2 import (QuantLinear as ExllamaQuantLinear, 
+                    create_exllama_buffers,
+                    set_device,
+                                                                     )
+            HAS_EXLLAMA = "2"
+        else:
+            from text_generation_server.utils.gptq.exllama import (Ex4bitLinear as ExllamaQuantLinear,
+                    create_exllama_buffers,
+                    set_device,
+                )
+            HAS_EXLLAMA = "1"
 
-        HAS_EXLLAMA = True
     except ImportError:
         pass
 
@@ -308,7 +324,7 @@ def get_linear(weight, bias, quantize):
             )
 
         if use_exllama:
-            linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
+            linear = ExllamaQuantLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
         else:
             linear = QuantLinear(
                 qweight,

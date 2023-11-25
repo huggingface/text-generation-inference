@@ -112,6 +112,14 @@ RUN make build-flash-attention-v2
 FROM kernel-builder as exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
+
+RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
+
+# Build Transformers exllama kernels
+FROM kernel-builder as exllamav2-kernels-builder
+WORKDIR /usr/src
+COPY server/exllamav2_kernels/ .
+
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 
@@ -182,6 +190,8 @@ COPY --from=flash-att-v2-builder /usr/src/flash-attention-v2/build/lib.linux-x86
 COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 # Copy build artifacts from exllama kernels builder
 COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+# Copy build artifacts from exllamav2 kernels builder
+COPY --from=exllamav2-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 # Copy build artifacts from awq kernels builder
 COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 # Copy build artifacts from eetq kernels builder
