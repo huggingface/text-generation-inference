@@ -51,7 +51,7 @@ def ext_make_q_matrix(w: dict, temp_dq, key: str = None):
             w["scales"] = w["scales"].half()
 
         # GPTQ with g_idx (act_order)
-        if "g_idx" in w and not (w["g_idx"] == 0).all().item():
+        if w.get("g_idx", None) is not None and not (w["g_idx"] == 0).all().item():
             w["q_perm"] = torch.empty((w["qweight"].shape[0] * 8,), dtype = torch.short, device = w["qweight"].device)
             w["q_invperm"] = torch.empty_like(w["q_perm"])
             # make_q4 segfaults if g_idx is not on cpu in the act-order case. In the non act-order case, None needs to be passed for g_idx.
@@ -113,12 +113,24 @@ class QuantLinear(nn.Module):
         self.maxq = 2 ** self.bits - 1
         self.infeatures = qweight.shape[0] // self.bits * 32
         self.outfeatures = qweight.shape[1]
+        self.padding = - self.outfeatures % 32
+        self.outfeatures = self.outfeatures + self.padding
+
         self.device = qweight.device
         self.qweight = qweight
         self.qzeros = qzeros
         self.scales = scales
         self.g_idx = g_idx
         self.bias = bias if bias is not None else None
+        self.group_size = groupsize
+
+        infeatures = self.infeatures
+        outfeatures = self.outfeatures
+        assert qweight.shape == (infeatures // 32 * self.bits, outfeatures)
+        assert infeatures % self.group_size == 0
+        assert qzeros.shape == (infeatures // self.group_size, outfeatures // 32 * self.bits)
+        assert scales.shape == (infeatures // self.group_size, outfeatures)
+        assert g_idx.shape == (infeatures, ), f"{g_idx.shape}, {infeatures}"
 
         global FIXED_BYTES, LAYERS
         FIXED_BYTES = max(FIXED_BYTES, self.scratch_space_fixed())
