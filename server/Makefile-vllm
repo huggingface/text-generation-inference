@@ -1,4 +1,4 @@
-vllm_commit := f8a1e39fae05ca610be8d5a78be9d40f5274e5fc
+vllm_commit := c5f7740d89737744438e08c26da1d4fbadcb3893
 
 vllm:
     # Clone vllm
