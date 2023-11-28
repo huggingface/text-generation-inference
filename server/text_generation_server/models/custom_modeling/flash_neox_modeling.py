@@ -135,8 +135,7 @@ class FlashNeoxAttention(torch.nn.Module):
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
 
         # Inplace rotary
-        self.rotary_emb(qkv[:, 0], cos, sin)
-        self.rotary_emb(qkv[:, 1], cos, sin)
+        self.rotary_emb(qkv[:, 0], qkv[:, 1], cos, sin)
 
         paged_attention.reshape_and_cache(
             qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots

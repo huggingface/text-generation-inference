@@ -185,8 +185,7 @@ class FlashRWAttention(torch.nn.Module):
         kv = kv.view(-1, 2, self.num_heads_kv, self.head_size)
 
         # Inplace rotary
-        self.rotary_emb(query, cos, sin)
-        self.rotary_emb(torch.select(kv, dim=1, index=0), cos, sin)
+        self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
         paged_attention.reshape_and_cache(
             kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
@@ -301,8 +300,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         query = query.reshape(-1, self.num_groups * self.num_heads, self.head_size)
 
         # Inplace rotary
-        self.rotary_emb(query, cos, sin)
-        self.rotary_emb(torch.select(kv, dim=2, index=0), cos, sin)
+        self.rotary_emb(query, torch.select(kv, dim=2, index=0), cos, sin)
 
         paged_attention.reshape_and_cache(
             kv[:, :, 0].contiguous(),

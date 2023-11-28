@@ -1,0 +1,153 @@
+# Rust builder
+FROM lukemathwalker/cargo-chef:latest-rust-1.71 AS chef
+WORKDIR /usr/src
+
+ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+FROM chef as planner
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY benchmark benchmark
+COPY router router
+COPY launcher launcher
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+
+ARG GIT_SHA
+ARG DOCKER_LABEL
+
+RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
+    curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
+    unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
+    unzip -o $PROTOC_ZIP -d /usr/local 'include/*' && \
+    rm -f $PROTOC_ZIP
+
+COPY --from=planner /usr/src/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY benchmark benchmark
+COPY router router
+COPY launcher launcher
+RUN cargo build --release
+
+# Text Generation Inference base image for RoCm
+FROM rocm/dev-ubuntu-20.04:5.7 as base
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    ccache \
+    curl \
+    git \
+    make \
+    libssl-dev \
+    g++ \
+    # Needed to build VLLM & flash.
+    rocthrust-dev \
+    hipsparse-dev \
+    hipblas-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Keep in sync with `server/pyproject.toml
+ARG MAMBA_VERSION=23.1.0-1
+ARG PYTORCH_VERSION='2.2.0.dev0'
+ARG ROCM_VERSION='5.7'
+ARG PYTHON_VERSION='3.10.10'
+# Automatically set by buildx
+ARG TARGETPLATFORM
+ENV PATH /opt/conda/bin:$PATH
+
+# TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
+# Install mamba
+# translating Docker's TARGETPLATFORM into mamba arches
+RUN case ${TARGETPLATFORM} in \
+         "linux/arm64")  MAMBA_ARCH=aarch64  ;; \
+         *)              MAMBA_ARCH=x86_64   ;; \
+    esac && \
+    curl -fsSL -v -o ~/mambaforge.sh -O  "https://github.com/conda-forge/miniforge/releases/download/${MAMBA_VERSION}/Mambaforge-${MAMBA_VERSION}-Linux-${MAMBA_ARCH}.sh"
+RUN chmod +x ~/mambaforge.sh && \
+    bash ~/mambaforge.sh -b -p /opt/conda && \
+    mamba init && \
+    rm ~/mambaforge.sh
+
+# Install PyTorch nightly (2.2.0.dev2023) compiled against RoCm 5.7, as VLLM can not be compiled with RoCm 5.6.
+RUN pip install --pre torch==2.2.0.dev20231106 --index-url https://download.pytorch.org/whl/nightly/rocm5.7
+
+FROM base AS kernel-builder
+
+# Build vllm kernels
+FROM kernel-builder AS vllm-builder
+WORKDIR /usr/src
+
+COPY server/Makefile-vllm Makefile
+
+# Build specific version of vllm
+RUN make build-vllm-rocm
+
+# Build Flash Attention v2 kernels
+FROM kernel-builder AS flash-att-v2-builder
+WORKDIR /usr/src
+
+COPY server/Makefile-flash-att-v2 Makefile
+
+# Build specific version of flash attention v2
+RUN make build-flash-attention-v2-rocm
+
+# Build Transformers CUDA kernels (gpt-neox and bloom)
+FROM kernel-builder as custom-kernels-builder
+WORKDIR /usr/src
+COPY server/custom_kernels/ .
+RUN PYTORCH_ROCM_ARCH=gfx90a python setup.py build
+
+FROM base as base-copy
+
+# Text Generation Inference base env
+ENV HUGGINGFACE_HUB_CACHE=/data \
+    HF_HUB_ENABLE_HF_TRANSFER=1 \
+    PORT=80
+
+# Copy builds artifacts from vllm builder
+COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+
+# Copy build artifacts from flash attention v2 builder
+COPY --from=flash-att-v2-builder /usr/src/flash-attention-v2/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+
+# Copy build artifacts from custom kernels builder
+COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+
+# Install flash-attention dependencies
+RUN pip install einops --no-cache-dir
+
+# Install server
+COPY proto proto
+COPY server server
+COPY server/Makefile server/Makefile
+RUN cd server && \
+    make gen-server && \
+    pip install -r requirements_rocm.txt && \
+    pip install ".[accelerate, peft]" --no-cache-dir
+
+# Install benchmarker
+COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+# Install router
+COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
+# Install launcher
+COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+
+# AWS Sagemaker compatible image
+FROM base-copy as sagemaker
+COPY sagemaker-entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]
+
+# Final image
+FROM base-copy
+
+ENTRYPOINT ["text-generation-launcher"]
+CMD ["--json-output"]

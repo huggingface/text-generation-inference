@@ -278,23 +278,13 @@ class Weights:
                         )
                     use_exllama = False
                 else:
-                    logger.info("Using exllama kernels")
+                    logger.info(f"Using exllama kernels v{HAS_EXLLAMA}")
 
             if use_exllama:
-                if groupsize >= 0:
-                    # Exllama reorders the weights in advance and the activations on the fly, thus
-                    # the scales and zero-points do not need to be reordered.
-                    qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
-                    scales = self.get_sharded(f"{prefix}.scales", dim=0)
-                else:
-                    qzeros = self.get_tensor(f"{prefix}.qzeros")
-                    scales = self.get_tensor(f"{prefix}.scales")
-
-                # For tp > 1, at this point we know we do not use act-order
-                if self.process_group.size() == 1:
-                    g_idx = self.get_tensor(f"{prefix}.g_idx")
-                else:
-                    g_idx = None
+                qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
+                scales = self.get_sharded(f"{prefix}.scales", dim=0)
+                g_idx = self.get_sharded(f"{prefix}.g_idx", dim= 0)
+                g_idx = g_idx - g_idx[0]
             else:
                 # The triton kernel reorders the scales/zero points instead of the weight/activation.
                 # Thus, each rank needs the full qzeros/scales.
