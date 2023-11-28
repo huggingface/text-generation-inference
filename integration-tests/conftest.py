@@ -210,6 +210,7 @@ def launcher(event_loop):
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
         use_flash_attention: bool = True,
+        dtype: Optional[str] = None
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -237,6 +238,9 @@ def launcher(event_loop):
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)
+        if dtype is not None:
+            args.append("--dtype")
+            args.append(dtype)
         if trust_remote_code:
             args.append("--trust-remote-code")
 
@@ -269,6 +273,7 @@ def launcher(event_loop):
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
         use_flash_attention: bool = True,
+        dtype: Optional[str] = None
     ):
         port = random.randint(8000, 10_000)
 
@@ -279,6 +284,9 @@ def launcher(event_loop):
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)
+        if dtype is not None:
+            args.append("--dtype")
+            args.append(dtype)
         if trust_remote_code:
             args.append("--trust-remote-code")
 
