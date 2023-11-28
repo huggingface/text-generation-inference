@@ -76,7 +76,7 @@ def serve(
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = None if dtype is None else dtype.value
-    if dtype is not None and quantize is not None:
+    if dtype is not None and quantize not in {None, "bitsandbytes", "bitsandbytes-nf4", "bitsandbytes-fp4"}:
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
