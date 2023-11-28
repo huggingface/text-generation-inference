@@ -301,6 +301,7 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
+            import ipdb;ipdb.set_trace()
             paged_attention.attention(
                 attn_output,
                 query,
@@ -450,7 +451,15 @@ class FlashLlamaModel(torch.nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        speculative_ids: Optional[torch.Tensor]
     ) -> torch.Tensor:
+        if speculative_ids is not None:
+            print(speculative_ids.shape, input_ids.shape)
+            new_input_ids = torch.cat([input_ids.unsqueeze(-1), speculative_ids], dim=1).squeeze(0)
+            new_position_ids = (position_ids.view((1, -1)).expand(speculative_ids.shape[1] + 1, 1) + torch.arange(speculative_ids.shape[1] + 1).unsqueeze(1).to(device="cuda:0")).squeeze(0).squeeze(-1)
+            input_ids = new_input_ids
+            position_ids = new_position_ids
+
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
@@ -501,6 +510,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         input_lengths: torch.Tensor,
         max_s: int,
         lm_head_indices: Optional[torch.Tensor] = None,
+        speculative_ids: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         hidden_states = self.model(
             input_ids,
@@ -511,6 +521,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             slots,
             input_lengths,
             max_s,
+            speculative_ids,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

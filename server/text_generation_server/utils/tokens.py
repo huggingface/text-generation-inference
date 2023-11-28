@@ -215,7 +215,7 @@ class HeterogeneousNextTokenChooser:
         self.dtype = dtype
         self.device = device
 
-    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor, speculative_scores: Optional[torch.Tensor] = None):
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor, speculated_ids: Optional[torch.Tensor] = None, speculative_scores: Optional[torch.Tensor] = None):
         if self.watermark_processor is not None:
             scores = self.watermark_processor(input_ids, scores)
         if self.repetition_processor is not None:
@@ -226,6 +226,20 @@ class HeterogeneousNextTokenChooser:
 
 
         next_ids = self.choice(scores)
+        if speculated_ids is not None:
+            validate_speculative = next_ids[1:] == speculated_ids[0]
+            index = 1
+            for valid in validate_speculative.tolist():
+                if valid:
+                    index += 1
+            print(f"Validated {index - 1}")
+            next_ids = next_ids[:index]
+            scores = scores[:index]
+            speculative_scores = speculative_scores[index - 1:index]
+            if index > 1:
+                import ipdb;ipdb.set_trace()
+
+
         logprobs = torch.log_softmax(scores, -1)
         next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
 

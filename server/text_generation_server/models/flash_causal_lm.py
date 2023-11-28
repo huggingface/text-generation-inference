@@ -41,6 +41,7 @@ class FlashCausalLMBatch(Batch):
     # Decoder values
     input_ids: torch.Tensor
     position_ids: torch.Tensor
+    speculative_ids: torch.Tensor
 
     # Flash Attention values
 
@@ -121,6 +122,7 @@ class FlashCausalLMBatch(Batch):
         )["input_ids"]
 
         position_ids = []
+        speculative_ids = []
         cu_seqlen_prefill = [0]
         cu_seqlen_speculative = [0]
         needed_blocks_slots = []
@@ -162,10 +164,11 @@ class FlashCausalLMBatch(Batch):
 
             tokenized_input = tokenized_input[-r.truncate :]
 
-            # TODO remove this 
-            # Scaffolding to speculate some ids
-            speculate_ids = [1, 2]
-            tokenized_input.extend([1, 2])
+            # # TODO remove this 
+            # # Scaffolding to speculate some ids
+            # speculate_ids = [1, 2]
+            # tokenized_input.extend([1, 2])
+            speculate_ids = []
 
 
             input_length = len(tokenized_input)
@@ -324,6 +327,7 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
+            speculative_ids=None,
         )
 
     @tracer.start_as_current_span("filter")
@@ -739,6 +743,7 @@ class FlashCausalLM(Model):
             input_lengths=batch.input_lengths_tensor,
             max_s=batch.max_seqlen,
             lm_head_indices=batch.prefill_head_indices,
+            speculative_ids =batch.speculative_ids
         )
 
     @tracer.start_as_current_span("generate_token")
@@ -786,16 +791,17 @@ class FlashCausalLM(Model):
             next_token_logits = out
 
 
-        
-        import ipdb;ipdb.set_trace()
+        # if next_token_logits.shape[0] == 3:
+        #     import ipdb;ipdb.set_trace()
         next_input_ids, next_token_logprobs, logprobs, speculative_ids = batch.next_token_chooser(
-            batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, speculative_logits
+            batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, batch.speculative_ids, speculative_logits
         )
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs
         )
 
+        speculative_length = 0 if speculative_ids is None else speculative_ids.shape[1]
         if prefill:
             if len(batch) > 1 and prefill_logprobs:
                 # We create the prefill_tokens_indices tensor that will be used to gather prefill logprobs
@@ -803,13 +809,13 @@ class FlashCausalLM(Model):
                 prefill_tokens_indices = batch.input_ids.new_zeros(len(out))
 
             if speculative_ids is not None:
-                # TODO
-                # length = len(batch) * speculative_ids.shape[1]
+                # length = len(batch) * (1 + speculative_length)
                 length = len(batch)
             else:
                 length = len(batch)
             # import ipdb;ipdb.set_trace()
             next_position_ids = batch.position_ids.new_empty(length)
+            # Keep only 1 slot index, TODO make sure we recover the speculated ids slots later
             batch.slot_indices = batch.slot_indices[batch.cu_seqlen_prefill[1:] - 1]
             # We do not need cu_seqlen_prefill anymore
             batch.cu_seqlen_prefill = None
@@ -836,6 +842,7 @@ class FlashCausalLM(Model):
         # It is faster if we delay this sync for the maximum amount of time
 
         # For each member of the batch
+        step = 1 + speculative_length
         for i, (
             input_length,
             all_input_ids,
@@ -852,6 +859,8 @@ class FlashCausalLM(Model):
 
                 # Initialize position_ids
                 # In decode, we do not need this as we can just increment position ids
+                # for j in range(1 + speculative_length):
+                #     next_position_ids[i * step + j] = batch.position_ids[end_index - 1] + j
                 next_position_ids[i] = batch.position_ids[end_index - 1]
 
                 # Used to gather prefill logprobs
@@ -872,7 +881,9 @@ class FlashCausalLM(Model):
             cumulative_length += input_length
 
         # Set values in batch
+        # batch.input_ids = torch.cat([next_input_ids.unsqueeze(-1), speculative_ids], dim=1).view(-1)
         batch.input_ids = next_input_ids
+        batch.speculative_ids = speculative_ids
         batch.position_ids = next_position_ids + 1
         batch.input_lengths_tensor += 1
         batch.slot_indices += 1
@@ -1031,6 +1042,8 @@ class FlashCausalLM(Model):
         batch.prefill_cu_outlens = None
         batch.prefill_head_indices = None
         batch.prefill_next_token_indices = None
+        if prefill:
+            batch.max_seqlen += speculative_length
         batch.max_seqlen = batch.max_seqlen + 1
 
         return generations, batch
