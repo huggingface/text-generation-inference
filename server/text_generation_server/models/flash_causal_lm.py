@@ -14,10 +14,9 @@ from typing import Optional, Tuple, List, Type, Union, Dict
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
     Batch,
-    PrefillTokens,
+    Tokens,
     Generation,
     GeneratedText,
-    TopTokens,
 )
 from text_generation_server.models.cache_manager import (
     get_cache_manager,
@@ -952,14 +951,17 @@ class FlashCausalLM(Model):
             # Append next token to all tokens
             _next_token_ids = next_token_ids[index: index+n_accepted_ids]
             _next_token_logprobs = next_token_logprobs[index: index+n_accepted_ids]
-            all_input_ids.extend(_next_token_ids)
 
-            # Generated token
-            next_token_text, prefix_offset, read_offset = self.decode_token(
-                all_input_ids,
-                prefix_offset,
-                read_offset,
-            )
+            next_token_texts = []
+            for j in range(index, index + n_accepted_ids):
+                # Generated token
+                all_input_ids.append(next_token_ids[j])
+                next_token_text, prefix_offset, read_offset = self.decode_token(
+                    all_input_ids,
+                    prefix_offset,
+                    read_offset,
+                )
+                next_token_texts.append(next_token_text)
 
             # Evaluate stopping criteria
 
@@ -1013,8 +1015,8 @@ class FlashCausalLM(Model):
                         clean_up_tokenization_spaces=False,
                         skip_special_tokens=False,
                     )
-                    prefill_tokens = PrefillTokens(
-                        prefill_token_ids, request_prefill_logprobs, prefill_texts
+                    prefill_tokens = Tokens(
+                        prefill_token_ids, request_prefill_logprobs, prefill_texts, is_special = []
                     )
                 else:
                     prefill_tokens = None
@@ -1028,7 +1030,7 @@ class FlashCausalLM(Model):
                     special_toptokens = [
                         token_id in self.all_special_ids for token_id in top_token_ids
                     ]
-                    top_tokens = TopTokens(
+                    top_tokens = Tokens(
                         top_token_ids,
                         top_token_logprobs,
                         toptoken_texts,
@@ -1037,16 +1039,15 @@ class FlashCausalLM(Model):
                 else:
                     top_tokens = None
 
-                next_token_ids = _next_token_ids[0]
-                next_token_logprob = _next_token_logprobs[0]
-
                 generation = Generation(
                     request.id,
                     prefill_tokens,
-                    next_token_id,
-                    next_token_logprob,
-                    next_token_text,
-                    next_token_id in self.all_special_ids,
+                    Tokens(
+                        _next_token_ids,
+                        _next_token_logprobs,
+                        next_token_texts,
+                        [nid in self.all_special_ids for nid in _next_token_ids],
+                    ),
                     generated_text,
                     top_tokens,
                 )

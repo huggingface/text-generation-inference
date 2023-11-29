@@ -9,7 +9,7 @@ use std::sync::{
     Arc,
 };
 use text_generation_client::{
-    Batch, CachedBatch, ClientError, GeneratedText, Generation, PrefillTokens, ShardedClient,
+    Batch, CachedBatch, ClientError, GeneratedText, Generation, Tokens, ShardedClient,
 };
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
@@ -167,21 +167,21 @@ impl Infer {
                         .collect();
                 }
                 // Push last token
-                InferStreamResponse::Intermediate { token, top_tokens } => {
-                    result_tokens.push(token);
-                    result_top_tokens.push(top_tokens);
+                InferStreamResponse::Intermediate { tokens, top_tokens } => {
+                    result_tokens.extend(tokens);
+                    result_top_tokens.extend(top_tokens);
                 }
                 // Final message
                 // Set return values
                 InferStreamResponse::End {
-                    token,
+                    tokens,
                     generated_text,
                     start,
                     queued,
                     top_tokens,
                 } => {
-                    result_tokens.push(token);
-                    result_top_tokens.push(top_tokens);
+                    result_tokens.extend(tokens);
+                    result_top_tokens.extend(top_tokens);
                     result_generated_text = Some(generated_text);
                     result_start = Some(start);
                     result_queued = Some(queued)
@@ -523,31 +523,41 @@ fn send_responses(
     }
 
     // Create last Token
-    let token = Token {
-        id: generation.token_id,
-        text: generation.token_text,
-        logprob: generation.token_logprob,
-        special: generation.token_is_special,
-    };
-
-    // generation.top_tokens
-
-    let mut top_tokens = Vec::new();
-    if let Some(top_tokens_) = generation.top_tokens {
-        top_tokens.extend(
-            top_tokens_
-                .ids
-                .into_iter()
-                .zip(top_tokens_.logprobs.into_iter())
-                .zip(top_tokens_.texts.into_iter())
-                .zip(top_tokens_.is_special.into_iter())
+    let tokens: Vec<Token> = if let Some(tokens_) = generation.tokens{
+        tokens_.ids.into_iter()
+                .zip(tokens_.logprobs.into_iter())
+                .zip(tokens_.texts.into_iter())
+                .zip(tokens_.is_special.into_iter())
                 .map(|(((id, logprob), text), special)| Token {
                     id,
                     text,
                     logprob,
                     special,
-                }),
-        )
+                }).collect()
+    }else{
+        vec![]
+    };
+
+    // generation.top_tokens
+
+    let mut top_tokens = Vec::new();
+    for top_tokens_ in generation.top_tokens{
+        let mut local_top_tokens = Vec::new();
+            local_top_tokens.extend(
+                top_tokens_
+                    .ids
+                    .into_iter()
+                    .zip(top_tokens_.logprobs.into_iter())
+                    .zip(top_tokens_.texts.into_iter())
+                    .zip(top_tokens_.is_special.into_iter())
+                    .map(|(((id, logprob), text), special)| Token {
+                        id,
+                        text,
+                        logprob,
+                        special,
+                    }),
+            );
+        top_tokens.push(local_top_tokens);
     }
 
     if let Some(generated_text) = generation.generated_text {
@@ -555,7 +565,7 @@ fn send_responses(
         stopped = true;
         // Send message
         entry.response_tx.send(Ok(InferStreamResponse::End {
-            token,
+            tokens,
             top_tokens,
             generated_text,
             queued: entry.queue_time,
@@ -565,7 +575,7 @@ fn send_responses(
         // Send message
         entry
             .response_tx
-            .send(Ok(InferStreamResponse::Intermediate { token, top_tokens }))?;
+            .send(Ok(InferStreamResponse::Intermediate { tokens, top_tokens }))?;
     }
     Ok(stopped)
 }
@@ -591,16 +601,16 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
 #[derive(Debug)]
 pub(crate) enum InferStreamResponse {
     // Optional first message
-    Prefill(PrefillTokens),
+    Prefill(Tokens),
     // Intermediate messages
     Intermediate {
-        token: Token,
-        top_tokens: Vec<Token>,
+        tokens: Vec<Token>,
+        top_tokens: Vec<Vec<Token>>,
     },
     // Last message
     End {
-        token: Token,
-        top_tokens: Vec<Token>,
+        tokens: Vec<Token>,
+        top_tokens: Vec<Vec<Token>>,
         generated_text: GeneratedText,
         start: Instant,
         queued: Instant,
