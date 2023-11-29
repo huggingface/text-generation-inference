@@ -793,7 +793,7 @@ class FlashCausalLM(Model):
 
         # if next_token_logits.shape[0] == 3:
         #     import ipdb;ipdb.set_trace()
-        next_input_ids, next_token_logprobs, logprobs, speculative_ids = batch.next_token_chooser(
+        next_input_ids, next_token_logprobs, logprobs, accepted_ids, speculative_ids = batch.next_token_chooser(
             batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, batch.speculative_ids, speculative_logits
         )
 
@@ -835,6 +835,7 @@ class FlashCausalLM(Model):
         iterator = zip(
             batch.input_lengths,
             batch.all_input_ids,
+            accepted_ids
         )
 
         # We do two for loops as the first one can run completely asynchronously from the GPU while for the second
@@ -842,10 +843,11 @@ class FlashCausalLM(Model):
         # It is faster if we delay this sync for the maximum amount of time
 
         # For each member of the batch
-        step = 1 + speculative_length
+        index = 0
         for i, (
             input_length,
             all_input_ids,
+            n_accepted_ids
         ) in enumerate(iterator):
             # Indexing metadata
             start_index = cumulative_length
@@ -859,8 +861,6 @@ class FlashCausalLM(Model):
 
                 # Initialize position_ids
                 # In decode, we do not need this as we can just increment position ids
-                # for j in range(1 + speculative_length):
-                #     next_position_ids[i * step + j] = batch.position_ids[end_index - 1] + j
                 next_position_ids[i] = batch.position_ids[end_index - 1]
 
                 # Used to gather prefill logprobs
@@ -876,17 +876,29 @@ class FlashCausalLM(Model):
                             start_index + 1 : start_index + out_length
                         ]
 
-            batch.all_input_ids_tensor[i, input_length] = next_input_ids[i]
+            for j in range(n_accepted_ids):
+                batch.all_input_ids_tensor[i, input_length + j] = next_input_ids[index]
+                index += 1
 
             cumulative_length += input_length
 
+
+        # if accepted_ids[0] > 1:
+        #     import ipdb;ipdb.set_trace()
+
+        if len(accepted_ids) > 1:
+            raise Exception("Implemtent the batched behavior")
+
         # Set values in batch
         # batch.input_ids = torch.cat([next_input_ids.unsqueeze(-1), speculative_ids], dim=1).view(-1)
-        batch.input_ids = next_input_ids
-        batch.speculative_ids = speculative_ids
-        batch.position_ids = next_position_ids + 1
-        batch.input_lengths_tensor += 1
-        batch.slot_indices += 1
+        
+        for n_accepted_ids in accepted_ids:
+            # TODO Make this batched
+            batch.input_ids = next_input_ids[-1:]
+            batch.speculative_ids = speculative_ids
+            batch.position_ids = next_position_ids + n_accepted_ids
+            batch.input_lengths_tensor += n_accepted_ids
+            batch.slot_indices += n_accepted_ids
 
         if prefill and prefill_logprobs:
             # Get prefill logprobs
@@ -899,7 +911,7 @@ class FlashCausalLM(Model):
 
         # GPU <-> CPU sync
         next_token_logprobs = next_token_logprobs.tolist()
-        next_token_ids = batch.input_ids.tolist()
+        next_token_ids = next_input_ids.tolist()
 
         # Zipped iterator
         iterator = zip(
@@ -912,13 +924,15 @@ class FlashCausalLM(Model):
             batch.next_token_chooser.do_sample,
             batch.next_token_chooser.seeds,
             batch.top_n_tokens,
-            next_token_ids,
-            next_token_logprobs,
+            # next_token_ids,
+            # next_token_logprobs,
+            accepted_ids,
             batch_top_token_ids,
             batch_top_token_logprobs,
         )
 
         # For each member of the batch
+        index = 0
         for i, (
             request,
             input_length,
@@ -929,13 +943,16 @@ class FlashCausalLM(Model):
             do_sample,
             seed,
             top_n_tokens,
-            next_token_id,
-            next_token_logprob,
+            # next_token_id,
+            # next_token_logprob,
+            n_accepted_ids,
             top_token_ids,
             top_token_logprobs,
         ) in enumerate(iterator):
             # Append next token to all tokens
-            all_input_ids.append(next_token_id)
+            _next_token_ids = next_token_ids[index: index+n_accepted_ids]
+            _next_token_logprobs = next_token_logprobs[index: index+n_accepted_ids]
+            all_input_ids.extend(_next_token_ids)
 
             # Generated token
             next_token_text, prefix_offset, read_offset = self.decode_token(
@@ -945,13 +962,18 @@ class FlashCausalLM(Model):
             )
 
             # Evaluate stopping criteria
-            stop, reason = stopping_criteria(
-                next_token_id,
-                next_token_text,
-            )
 
-            if not stop:
-                stopped = False
+            for next_token_id in _next_token_ids:
+                stop, reason = stopping_criteria(
+                    next_token_id,
+                    next_token_text,
+                )
+
+                if stop:
+                    stopped = True
+                    break
+                if not stop:
+                    stopped = False
 
             # Shard generations
             # All generations will be appended in the rust sharded client
@@ -1014,6 +1036,9 @@ class FlashCausalLM(Model):
                     )
                 else:
                     top_tokens = None
+
+                next_token_ids = _next_token_ids[0]
+                next_token_logprob = _next_token_logprobs[0]
 
                 generation = Generation(
                     request.id,

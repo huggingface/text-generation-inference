@@ -301,7 +301,6 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            import ipdb;ipdb.set_trace()
             paged_attention.attention(
                 attn_output,
                 query,
@@ -454,9 +453,20 @@ class FlashLlamaModel(torch.nn.Module):
         speculative_ids: Optional[torch.Tensor]
     ) -> torch.Tensor:
         if speculative_ids is not None:
-            print(speculative_ids.shape, input_ids.shape)
+            speculative_length = speculative_ids.shape[1] 
+            new_length = speculative_length + 1
             new_input_ids = torch.cat([input_ids.unsqueeze(-1), speculative_ids], dim=1).squeeze(0)
-            new_position_ids = (position_ids.view((1, -1)).expand(speculative_ids.shape[1] + 1, 1) + torch.arange(speculative_ids.shape[1] + 1).unsqueeze(1).to(device="cuda:0")).squeeze(0).squeeze(-1)
+            new_position_ids = (position_ids.view((1, -1)).expand(new_length, 1) + torch.arange(new_length).unsqueeze(1).to(device=position_ids.device)).squeeze(0).squeeze(-1)
+
+            # Add an extra block just in case
+            block_tables = torch.cat([block_tables, block_tables[:, -1:] + 1], dim=1)
+            # Add Copy the block tables for all members
+            block_tables = block_tables.expand(new_length, -1).contiguous()
+            slots = slots.expand(new_length) + torch.arange(new_length, dtype=slots.dtype).to(device=slots.device)
+            input_lengths = input_lengths.expand(new_length) + torch.arange(new_length, dtype=input_lengths.dtype).to(device=input_lengths.device)
+            max_s = max_s + speculative_length
+
+
             input_ids = new_input_ids
             position_ids = new_position_ids
 
