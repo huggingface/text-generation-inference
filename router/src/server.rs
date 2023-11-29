@@ -388,14 +388,15 @@ async fn generate_stream(
                                     InferStreamResponse::Prefill(_) => {}
                                     // Yield event for every new token
                                     InferStreamResponse::Intermediate{
-                                        token,
+                                        tokens,
                                         top_tokens,
                                     } => {
-                                        tracing::debug!(parent: &span, "Token: {:?}", token);
+                                        tracing::debug!(parent: &span, "Tokens: {:?}", tokens);
 
                                         // StreamResponse
                                         let stream_token = StreamResponse {
-                                            token,
+                                            tokens,
+                                            text,
                                             top_tokens,
                                             generated_text: None,
                                             details: None,
@@ -405,7 +406,8 @@ async fn generate_stream(
                                     }
                                     // Yield event for last token and compute timings
                                     InferStreamResponse::End {
-                                        token,
+                                        tokens,
+                                        text,
                                         generated_text,
                                         start,
                                         queued,
@@ -457,8 +459,9 @@ async fn generate_stream(
                                         tracing::info!(parent: &span, "Success");
 
                                         let stream_token = StreamResponse {
-                                            token,
+                                            tokens,
                                             top_tokens,
+                                            text
                                             generated_text: Some(output_text),
                                             details
                                         };
