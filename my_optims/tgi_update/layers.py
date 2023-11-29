@@ -359,7 +359,6 @@ class TensorParallelHead(SuperLayer):
     def load(config, prefix: str, weights):
         if weights.process_group.size() > 1:
             try:
-                assert USE_CUSTOM_NCCL == 0 and USE_LM_HEAD_PARALLEL == 1
                 weight = weights.get_sharded(f"{prefix}.weight", dim=0)
                 should_gather = True
             except AssertionError:
@@ -402,14 +401,18 @@ class TensorParallelHead(SuperLayer):
 
             torch.mm(input, self.linear.weight.T, out=local_out)
 
-            torch.distributed.all_gather_into_tensor(
-                world_out, gather_input, group=self.process_group
-            )
+            if USE_CUSTOM_NCCL:
+                my_custom_comm.custom_allgather_into_tensor(world_out, gather_input, self.process_group.tp_comm)
+            else:
+                torch.distributed.all_gather_into_tensor(
+                    world_out, gather_input, group=self.process_group
+                )
 
             if input.shape[0] == 1:
                 return world_out
             return world_out.T
 
+        assert USE_CUSTOM_NCCL == 0, "should not be here for llama with custom nccl"
         output = super().forward(input)
         world_output = [
             torch.empty_like(output) for _ in range(self.process_group.size())

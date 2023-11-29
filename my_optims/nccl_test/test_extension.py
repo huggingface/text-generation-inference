@@ -12,11 +12,13 @@ torch.cuda.set_device(device)
 torch.cuda.set_per_process_memory_fraction(1., device)
 print(rank, world_size)
 
-t = torch.tensor([[1, 2, 3, 4], [3, 3, 3, 3.1]],
-                 dtype=torch.float16).to('cuda')
-
+t = torch.tensor([rank+3.1]*4, dtype=torch.float16).to('cuda').view((1,-1))
+print(t.shape)
+world_out = t.new_empty(1, 8)
+print(my_custom_comm.custom_allgather_into_tensor(world_out, t, tp_ptr))
 print(my_custom_comm.custom_allreduce(t, tp_ptr))
-print(t)
-
+print(t, world_out)
 torch.cuda.synchronize()
+
+
 my_custom_comm.finalize_nccl(tp_ptr, pp_ptr)
