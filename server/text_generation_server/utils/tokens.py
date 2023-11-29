@@ -225,19 +225,21 @@ class HeterogeneousNextTokenChooser:
             scores = warper(input_ids, scores)
 
 
+        accepted_ids = []
         next_ids = self.choice(scores)
         if speculated_ids is not None:
-            validate_speculative = next_ids[1:] == speculated_ids[0]
+            validate_speculative = next_ids[:-1] == speculated_ids[0]
             index = 1
             for valid in validate_speculative.tolist():
                 if valid:
                     index += 1
-            print(f"Validated {index - 1}")
+            # print(f"Validated {index - 1}")
             next_ids = next_ids[:index]
             scores = scores[:index]
             speculative_scores = speculative_scores[index - 1:index]
-            if index > 1:
-                import ipdb;ipdb.set_trace()
+            accepted_ids.append(index)
+        else:
+            accepted_ids.append(1)
 
 
         logprobs = torch.log_softmax(scores, -1)
@@ -255,10 +257,12 @@ class HeterogeneousNextTokenChooser:
             # for warper in self.warpers:
             #     speculative_scores = warper(input_ids, speculative_scores)
             speculative_ids = Greedy()(speculative_scores)
+            # # Ignore first head, it seems to be a regular head.
+            # speculative_ids = speculative_ids[:, 1:]
         else:
             speculative_ids = None
 
-        return next_ids, next_logprobs, logprobs, speculative_ids
+        return next_ids, next_logprobs, logprobs, accepted_ids, speculative_ids
 
     def filter(self, indices):
         if self.watermark_processor is not None:
