@@ -391,38 +391,28 @@ async fn generate_stream(
                                         tokens,
                                         top_tokens,
                                     } => {
-                                        tracing::debug!(parent: &span, "Tokens: {:?}", tokens);
 
-                                        // StreamResponse
-                                        let stream_token = StreamResponse {
-                                            tokens,
-                                            text,
-                                            top_tokens,
-                                            generated_text: None,
-                                            details: None,
-                                        };
+                                        for (token, top_tokens) in tokens.into_iter().zip(top_tokens.into_iter()) {
+                                            // StreamResponse
+                                            let stream_token = StreamResponse {
+                                                token,
+                                                top_tokens,
+                                                generated_text: None,
+                                                details: None,
+                                            };
 
-                                        yield Ok(Event::default().json_data(stream_token).unwrap())
+                                            yield Ok(Event::default().json_data(stream_token).unwrap());
+                                        }
                                     }
                                     // Yield event for last token and compute timings
                                     InferStreamResponse::End {
                                         tokens,
-                                        text,
                                         generated_text,
                                         start,
                                         queued,
                                         top_tokens,
                                     } => {
                                         // Token details
-                                        let details = match details {
-                                            true => Some(StreamDetails {
-                                                finish_reason: FinishReason::from(generated_text.finish_reason),
-                                                generated_tokens: generated_text.generated_tokens,
-                                                seed: generated_text.seed,
-                                            }),
-                                            false => None,
-                                        };
-
                                         // Timings
                                         let total_time = start_time.elapsed();
                                         let validation_time = queued - start_time;
@@ -450,23 +440,45 @@ async fn generate_stream(
                                         // StreamResponse
                                         end_reached = true;
 
-                                        let mut output_text = generated_text.text;
-                                        if let Some(prompt) = add_prompt {
-                                            output_text = prompt + &output_text;
+                                        let n_tokens = tokens.len();
+                                        for (i, (token, top_tokens)) in tokens.into_iter().zip(top_tokens.into_iter()).enumerate() {
+                                            // StreamResponse
+                                            let stream_token = if i < n_tokens - 1 {
+                                                StreamResponse {
+                                                    token,
+                                                    top_tokens,
+                                                    generated_text: None,
+                                                    details: None,
+                                                }
+
+                                            }else{
+                                                let details = match details {
+                                                    true => Some(StreamDetails {
+                                                        finish_reason: FinishReason::from(generated_text.finish_reason),
+                                                        generated_tokens: generated_text.generated_tokens,
+                                                        seed: generated_text.seed,
+                                                    }),
+                                                    false => None,
+                                                };
+                                                let output_text = if let Some(prompt) = &add_prompt {
+                                                    prompt.to_owned() + &generated_text.text
+                                                }else{
+                                                    generated_text.text.to_owned()
+                                                };
+
+                                                tracing::debug!(parent: &span, "Output: {}", output_text);
+                                                tracing::info!(parent: &span, "Success");
+
+                                                StreamResponse {
+                                                    token,
+                                                    top_tokens,
+                                                    generated_text: Some(output_text),
+                                                    details
+                                                }
+                                            };
+                                            yield Ok(Event::default().json_data(stream_token).unwrap());
                                         }
 
-                                        tracing::debug!(parent: &span, "Output: {}", output_text);
-                                        tracing::info!(parent: &span, "Success");
-
-                                        let stream_token = StreamResponse {
-                                            tokens,
-                                            top_tokens,
-                                            text
-                                            generated_text: Some(output_text),
-                                            details
-                                        };
-
-                                        yield Ok(Event::default().json_data(stream_token).unwrap());
                                         break;
                                     }
                                 }
