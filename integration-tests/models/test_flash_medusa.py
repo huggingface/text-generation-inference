@@ -53,6 +53,6 @@ async def test_flash_medusa_load(flash_medusa, generate_load, response_snapshot)
     responses = await generate_load(flash_medusa, "Test request", max_new_tokens=10, n=4)
 
     assert len(responses) == 4
-    assert all([r.generated_text == responses[0].generated_text for r in responses])
+    assert all([r.generated_text == responses[0].generated_text for r in responses]), f"{[r.generated_text for r in responses]}"
 
     assert responses == response_snapshot

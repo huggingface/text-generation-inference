@@ -228,7 +228,7 @@ class HeterogeneousNextTokenChooser:
         next_ids = self.choice(scores)
         from loguru import logger
         if speculated_ids is not None:
-            logger.info(f"CHOOSER {next_ids} {speculated_ids}")
+            # logger.info(f"CHOOSER {next_ids} {speculated_ids}")
             accepted_ids = []
             B = next_ids.shape[0] // (speculated_ids.shape[1] + 1)
             S = speculated_ids.shape[1] + 1
