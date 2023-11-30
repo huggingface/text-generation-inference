@@ -279,10 +279,9 @@ pub(crate) struct StreamDetails {
 
 #[derive(Serialize, ToSchema)]
 pub(crate) struct StreamResponse {
-    pub tokens: Vec<Token>,
+    pub token: Token,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub top_tokens: Vec<Vec<Token>>,
-    pub text: String,
+    pub top_tokens: Vec<Token>,
     #[schema(nullable = true, default = "null", example = "test")]
     pub generated_text: Option<String>,
     #[schema(nullable = true, default = "null")]

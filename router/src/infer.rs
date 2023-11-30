@@ -515,6 +515,7 @@ fn send_responses(
 
     let mut stopped = false;
 
+    tracing::info!("Generation: {:?}", generation);
     if let Some(prefill_tokens) = generation.prefill_tokens {
         // Send message
         entry
@@ -558,6 +559,11 @@ fn send_responses(
                     }),
             );
         top_tokens.push(local_top_tokens);
+    }
+    // Force top_tokens to be the same size as tokens, both are going to be 
+    // zipped later
+    if top_tokens.len() != tokens.len(){
+        top_tokens = (0..tokens.len()).map(|_| Vec::new()).collect();
     }
 
     if let Some(generated_text) = generation.generated_text {
