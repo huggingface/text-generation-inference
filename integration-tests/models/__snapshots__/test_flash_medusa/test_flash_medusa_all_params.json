@@ -1,0 +1,58 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "stop_sequence",
+    "generated_tokens": 5,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 4321,
+        "logprob": -10.0625,
+        "text": "Test"
+      },
+      {
+        "id": 2009,
+        "logprob": -12.28125,
+        "text": "request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 5229,
+        "logprob": -1.7587891,
+        "special": false,
+        "text": " failed"
+      },
+      {
+        "id": 363,
+        "logprob": -0.5175781,
+        "special": false,
+        "text": " for"
+      },
+      {
+        "id": 1404,
+        "logprob": 0.0,
+        "special": false,
+        "text": " user"
+      },
+      {
+        "id": 376,
+        "logprob": 0.0,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 1688,
+        "logprob": -0.20422363,
+        "special": false,
+        "text": "test"
+      }
+    ]
+  },
+  "generated_text": "Test request failed for user \"test"
+}

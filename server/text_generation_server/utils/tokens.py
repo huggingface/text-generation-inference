@@ -225,21 +225,35 @@ class HeterogeneousNextTokenChooser:
             scores = warper(input_ids, scores)
 
 
-        accepted_ids = []
         next_ids = self.choice(scores)
+        from loguru import logger
         if speculated_ids is not None:
-            validate_speculative = next_ids[:-1] == speculated_ids[0]
-            index = 1
-            for valid in validate_speculative.tolist():
-                if valid:
-                    index += 1
-            # print(f"Validated {index - 1}")
-            next_ids = next_ids[:index]
-            scores = scores[:index]
-            speculative_scores = speculative_scores[index - 1:index]
-            accepted_ids.append(index)
+            logger.info(f"CHOOSER {next_ids} {speculated_ids}")
+            accepted_ids = []
+            B = next_ids.shape[0] // (speculated_ids.shape[1] + 1)
+            S = speculated_ids.shape[1] + 1
+            indices = []
+            for i in range(B):
+                _next_ids = next_ids[i*S: (i + 1)*S]
+                _speculated_ids = speculated_ids[i]
+                validate_speculative = _next_ids[:-1] == _speculated_ids
+                index = i * S
+                accepted = 1
+                # First is always valid
+                indices.append(index)
+                for valid in validate_speculative.tolist():
+                    if valid:
+                        index += 1
+                        accepted += 1
+                        indices.append(index)
+                # print(f"Validated {accepted}")
+                accepted_ids.append(accepted)
+            accepted_ids = torch.tensor(accepted_ids, device=input_ids.device, dtype=input_ids.dtype)
+            next_ids = next_ids[indices]
+            scores = scores[indices]
+            speculative_scores = speculative_scores[accepted_ids.cumsum(dim=-1) - 1]
         else:
-            accepted_ids.append(1)
+            accepted_ids = torch.ones_like(next_ids)
 
 
         logprobs = torch.log_softmax(scores, -1)
