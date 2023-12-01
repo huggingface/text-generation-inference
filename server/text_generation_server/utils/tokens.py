@@ -16,7 +16,6 @@ from text_generation_server.utils.logits_process import (
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcessor
 
-
 class NextTokenChooser:
     def __init__(
         self,
@@ -289,8 +288,6 @@ class HeterogeneousNextTokenChooser:
                         indices.append(index)
                     else:
                         break
-                # if accepted > 1:
-                #     import ipdb;ipdb.set_trace()
                 accepted_ids.append(accepted)
             accepted_ids = torch.tensor(accepted_ids, device=input_ids.device, dtype=input_ids.dtype)
             next_ids = next_ids[indices]

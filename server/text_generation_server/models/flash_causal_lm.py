@@ -232,7 +232,7 @@ class FlashCausalLMBatch(Batch):
             cumulative_max_length += total_tokens
             max_seqlen = max(max_seqlen, input_length)
             max_blocks = max(max_blocks, needed_blocks)
-            max_length = max(max_length, input_length + max_new_tokens)
+            max_length = max(max_length, input_length + max_new_tokens + speculative_length)
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters, dtype, device
@@ -479,6 +479,7 @@ class FlashCausalLMBatch(Batch):
         max_blocks = 0
         max_length = 0
         max_seqlen = 0
+        speculative_length = 0 if batches[0].speculative_ids is None else batches[0].speculative_ids.shape[1]
         for b in batches:
             total_batch_size += len(b)
             total_slots += len(b.slots)
@@ -489,6 +490,7 @@ class FlashCausalLMBatch(Batch):
                 max_length,
                 max(
                     input_length
+                    + speculative_length
                     + stopping_criteria.max_new_tokens
                     - stopping_criteria.current_tokens
                     for input_length, stopping_criteria in zip(

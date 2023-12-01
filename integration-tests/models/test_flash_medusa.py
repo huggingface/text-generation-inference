@@ -17,7 +17,7 @@ async def flash_medusa(flash_medusa_handle):
 @pytest.mark.private
 async def test_flash_medusa_simple(flash_medusa, response_snapshot):
     response = await flash_medusa.generate(
-        "Test request", max_new_tokens=10, decoder_input_details=True
+        "What is Deep Learning?", max_new_tokens=10, decoder_input_details=True
     )
 
     assert response.details.generated_tokens == 10
@@ -28,7 +28,7 @@ async def test_flash_medusa_simple(flash_medusa, response_snapshot):
 @pytest.mark.private
 async def test_flash_medusa_all_params(flash_medusa, response_snapshot):
     response = await flash_medusa.generate(
-        "Test request",
+        "What is Deep Learning?",
         max_new_tokens=10,
         repetition_penalty=1.2,
         return_full_text=True,
@@ -43,17 +43,17 @@ async def test_flash_medusa_all_params(flash_medusa, response_snapshot):
         seed=0,
     )
 
-    assert response.details.generated_tokens == 5
+    assert response.details.generated_tokens == 10
     assert response == response_snapshot
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_medusa_load(flash_medusa, generate_load, response_snapshot):
-    responses = await generate_load(flash_medusa, "Test request", max_new_tokens=10, n=4)
+    responses = await generate_load(flash_medusa, "What is Deep Learning?", max_new_tokens=10, n=4)
 
     assert len(responses) == 4
     assert all([r.generated_text == responses[0].generated_text for r in responses]), f"{[r.generated_text for r in responses]}"
-    assert responses[0].generated_text == ' for the "Get all users" endpoint.\n' 
+    assert responses[0].generated_text == 'ep learning is a subset of machine learning that involves' 
 
     assert responses == response_snapshot
