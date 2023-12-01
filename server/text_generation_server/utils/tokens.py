@@ -147,6 +147,49 @@ class StoppingCriteria:
         )
 
 
+def longest_match(input_ids: List[int]) -> Optional[int]:
+    longest_match = 0
+    seed = input_ids[-1]
+    final_matches = []
+    current_matches = []
+    for i in range(1, len(input_ids)):
+        index = len(input_ids) - i - 1
+
+        _current_matches  = []
+        for (_index, length) in current_matches:
+            if input_ids[index] == input_ids[len(input_ids) - length - 1]:
+                _current_matches.append((_index, length + 1))
+            elif length > longest_match:
+                longest_match = length
+                final_matches.append((_index, length))
+            else:
+                pass
+        current_matches = _current_matches
+
+        if input_ids[index] == seed:
+            current_matches.append( (index, 1) )
+    if not final_matches:
+        return 0
+    return final_matches[-1][0]
+
+
+
+def create_n_gram_speculation(input_ids: torch.Tensor, next_ids: torch.Tensor, accepted_ids: torch.Tensor, speculate: int):
+    B = accepted_ids.shape[0]
+    device = input_ids.device
+    dtype = input_ids.dtype
+    speculative_ids = torch.zeros((B, speculate), device=device, dtype=dtype)
+    input_ids = input_ids.tolist()
+
+    index = 0
+    for i, (_input_ids, n_accepted_ids) in enumerate(zip(input_ids, accepted_ids.tolist())):
+        _input_ids.extend(next_ids[index: index + n_accepted_ids].tolist())
+        index = longest_match(_input_ids) + 1
+        ids = _input_ids[index:index+speculate]
+        speculative_ids[i, :len(ids)] = torch.tensor(ids, device=device, dtype=dtype)
+        index += n_accepted_ids
+    return speculative_ids
+
 class HeterogeneousNextTokenChooser:
     def __init__(
         self,
@@ -215,7 +258,7 @@ class HeterogeneousNextTokenChooser:
         self.dtype = dtype
         self.device = device
 
-    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor, speculated_ids: Optional[torch.Tensor] = None, speculative_scores: Optional[torch.Tensor] = None):
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor, speculate: int, speculated_ids: Optional[torch.Tensor] = None, speculative_scores: Optional[torch.Tensor] = None):
         if self.watermark_processor is not None:
             scores = self.watermark_processor(input_ids, scores)
         if self.repetition_processor is not None:
@@ -225,40 +268,51 @@ class HeterogeneousNextTokenChooser:
             scores = warper(input_ids, scores)
 
 
-        accepted_ids = []
         next_ids = self.choice(scores)
         if speculated_ids is not None:
-            validate_speculative = next_ids[:-1] == speculated_ids[0]
-            index = 1
-            for valid in validate_speculative.tolist():
-                if valid:
-                    index += 1
-            # print(f"Validated {index - 1}")
-            next_ids = next_ids[:index]
-            scores = scores[:index]
-            speculative_scores = speculative_scores[index - 1:index]
-            accepted_ids.append(index)
+            accepted_ids = []
+            B = next_ids.shape[0] // (speculated_ids.shape[1] + 1)
+            S = speculated_ids.shape[1] + 1
+            indices = []
+            for i in range(B):
+                _next_ids = next_ids[i*S: (i + 1)*S]
+                _speculated_ids = speculated_ids[i]
+                validate_speculative = _next_ids[:-1] == _speculated_ids
+                index = i * S
+                accepted = 1
+                # First is always valid
+                indices.append(index)
+                for valid in validate_speculative.tolist():
+                    if valid:
+                        index += 1
+                        accepted += 1
+                        indices.append(index)
+                    else:
+                        break
+                # if accepted > 1:
+                #     import ipdb;ipdb.set_trace()
+                accepted_ids.append(accepted)
+            accepted_ids = torch.tensor(accepted_ids, device=input_ids.device, dtype=input_ids.dtype)
+            next_ids = next_ids[indices]
+            scores = scores[indices]
+            indices = torch.arange(B, device=input_ids.device) * S
+            if speculative_scores is not None:
+                speculative_scores = speculative_scores[indices + accepted_ids - 1]
         else:
-            accepted_ids.append(1)
+            accepted_ids = torch.ones_like(next_ids)
 
 
         logprobs = torch.log_softmax(scores, -1)
         next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
 
-        if speculative_scores is not None:
-            # length, spec_length, vocab_size = speculative_scores.shape
-            # speculative_scores = speculative_scores.view((-1, vocab_size))
-            # if self.watermark_processor is not None:
-            #     speculative_scores = self.watermark_processor(input_ids, speculative_scores)
-            # if self.repetition_processor is not None:
-            #     speculative_scores = self.repetition_processor(input_ids, speculative_scores)
-
-            # speculative_scores = speculative_scores.view((length, spec_length, vocab_size))
-            # for warper in self.warpers:
-            #     speculative_scores = warper(input_ids, speculative_scores)
-            speculative_ids = Greedy()(speculative_scores)
-            # # Ignore first head, it seems to be a regular head.
-            # speculative_ids = speculative_ids[:, 1:]
+        if speculate > 0:
+            if speculative_scores is not None:
+                # TODO This will only speculate the top score
+                # Medusa provided some scores
+                speculative_ids = Greedy()(speculative_scores)
+            else:
+                # n-gram
+                speculative_ids = create_n_gram_speculation(input_ids, next_ids, accepted_ids, speculate)
         else:
             speculative_ids = None
 

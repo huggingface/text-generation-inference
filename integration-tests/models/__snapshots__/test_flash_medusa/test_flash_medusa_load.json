@@ -1,0 +1,354 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -10.0625,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -12.28125,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 363,
+          "logprob": -2.0878906,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 278,
+          "logprob": -3.4082031,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 376,
+          "logprob": -3.8457031,
+          "special": false,
+          "text": " \""
+        },
+        {
+          "id": 2577,
+          "logprob": -3.5605469,
+          "special": false,
+          "text": "Get"
+        },
+        {
+          "id": 599,
+          "logprob": -3.4707031,
+          "special": false,
+          "text": " all"
+        },
+        {
+          "id": 4160,
+          "logprob": -3.2421875,
+          "special": false,
+          "text": " users"
+        },
+        {
+          "id": 29908,
+          "logprob": -0.49072266,
+          "special": false,
+          "text": "\""
+        },
+        {
+          "id": 16248,
+          "logprob": -1.2353516,
+          "special": false,
+          "text": " endpoint"
+        },
+        {
+          "id": 29889,
+          "logprob": -0.8833008,
+          "special": false,
+          "text": "."
+        },
+        {
+          "id": 13,
+          "logprob": -0.42089844,
+          "special": false,
+          "text": "\n"
+        }
+      ]
+    },
+    "generated_text": " for the \"Get all users\" endpoint.\n"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -10.0625,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -12.28125,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 363,
+          "logprob": -2.0878906,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 278,
+          "logprob": -3.4082031,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 376,
+          "logprob": -3.8457031,
+          "special": false,
+          "text": " \""
+        },
+        {
+          "id": 2577,
+          "logprob": -3.5625,
+          "special": false,
+          "text": "Get"
+        },
+        {
+          "id": 599,
+          "logprob": -3.4726562,
+          "special": false,
+          "text": " all"
+        },
+        {
+          "id": 4160,
+          "logprob": -3.2382812,
+          "special": false,
+          "text": " users"
+        },
+        {
+          "id": 29908,
+          "logprob": -0.49047852,
+          "special": false,
+          "text": "\""
+        },
+        {
+          "id": 16248,
+          "logprob": -1.2412109,
+          "special": false,
+          "text": " endpoint"
+        },
+        {
+          "id": 29889,
+          "logprob": -0.87402344,
+          "special": false,
+          "text": "."
+        },
+        {
+          "id": 13,
+          "logprob": -0.41723633,
+          "special": false,
+          "text": "\n"
+        }
+      ]
+    },
+    "generated_text": " for the \"Get all users\" endpoint.\n"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -10.0625,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -12.28125,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 363,
+          "logprob": -2.0878906,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 278,
+          "logprob": -3.4082031,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 376,
+          "logprob": -3.8457031,
+          "special": false,
+          "text": " \""
+        },
+        {
+          "id": 2577,
+          "logprob": -3.5605469,
+          "special": false,
+          "text": "Get"
+        },
+        {
+          "id": 599,
+          "logprob": -3.4707031,
+          "special": false,
+          "text": " all"
+        },
+        {
+          "id": 4160,
+          "logprob": -3.2421875,
+          "special": false,
+          "text": " users"
+        },
+        {
+          "id": 29908,
+          "logprob": -0.49072266,
+          "special": false,
+          "text": "\""
+        },
+        {
+          "id": 16248,
+          "logprob": -1.2353516,
+          "special": false,
+          "text": " endpoint"
+        },
+        {
+          "id": 29889,
+          "logprob": -0.8833008,
+          "special": false,
+          "text": "."
+        },
+        {
+          "id": 13,
+          "logprob": -0.42089844,
+          "special": false,
+          "text": "\n"
+        }
+      ]
+    },
+    "generated_text": " for the \"Get all users\" endpoint.\n"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4321,
+          "logprob": -10.0625,
+          "text": "Test"
+        },
+        {
+          "id": 2009,
+          "logprob": -12.28125,
+          "text": "request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 363,
+          "logprob": -2.0878906,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 278,
+          "logprob": -3.4082031,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 376,
+          "logprob": -3.8457031,
+          "special": false,
+          "text": " \""
+        },
+        {
+          "id": 2577,
+          "logprob": -3.5605469,
+          "special": false,
+          "text": "Get"
+        },
+        {
+          "id": 599,
+          "logprob": -3.4707031,
+          "special": false,
+          "text": " all"
+        },
+        {
+          "id": 4160,
+          "logprob": -3.2421875,
+          "special": false,
+          "text": " users"
+        },
+        {
+          "id": 29908,
+          "logprob": -0.49072266,
+          "special": false,
+          "text": "\""
+        },
+        {
+          "id": 16248,
+          "logprob": -1.2353516,
+          "special": false,
+          "text": " endpoint"
+        },
+        {
+          "id": 29889,
+          "logprob": -0.8833008,
+          "special": false,
+          "text": "."
+        },
+        {
+          "id": 13,
+          "logprob": -0.42089844,
+          "special": false,
+          "text": "\n"
+        }
+      ]
+    },
+    "generated_text": " for the \"Get all users\" endpoint.\n"
+  }
+]

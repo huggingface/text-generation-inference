@@ -272,6 +272,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
             blocks=blocks,
             max_blocks=max_blocks,
             prefill_cache_indices=prefill_cache_indices,
+            speculative_ids=None
         )
 
 

@@ -46,7 +46,6 @@ class FlashCausalLMBatch(Batch):
 
     # tensor of length b containing the cumulative sequence lengths of the sequences in the batch, only used in prefill
     cu_seqlen_prefill: Optional[torch.Tensor]
-    cu_seqlen_speculative: Optional[torch.Tensor]
 
     # Paged Attention values
 
@@ -123,7 +122,6 @@ class FlashCausalLMBatch(Batch):
         position_ids = []
         speculative_ids = []
         cu_seqlen_prefill = [0]
-        cu_seqlen_speculative = [0]
         needed_blocks_slots = []
         start_slots = []
         slot_indices = []
@@ -163,10 +161,6 @@ class FlashCausalLMBatch(Batch):
 
             tokenized_input = tokenized_input[-r.truncate :]
 
-            # # TODO remove this 
-            # # Scaffolding to speculate some ids
-            # speculate_ids = [1, 2]
-            # tokenized_input.extend([1, 2])
             speculate_ids = []
 
 
@@ -186,7 +180,6 @@ class FlashCausalLMBatch(Batch):
 
             # Add cumulative lengths of all previous inputs
             cu_seqlen_prefill.append(cumulative_length + input_length)
-            cu_seqlen_speculative.append(cumulative_length + input_length - len(speculate_ids))
 
             next_token_chooser_parameters.append(r.parameters)
 
@@ -199,7 +192,9 @@ class FlashCausalLMBatch(Batch):
 
             # Paged attention
             # Remove one as the first token des not have a past
-            total_tokens = input_length + max_new_tokens - 1
+            from text_generation_server.models import SPECULATE
+            speculative_length = SPECULATE
+            total_tokens = input_length + max_new_tokens - 1 + speculative_length
             needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
             blocks += needed_blocks
             needed_blocks_slots.append((needed_blocks, total_tokens))
@@ -268,10 +263,6 @@ class FlashCausalLMBatch(Batch):
         cu_seqlen_prefill = torch.tensor(
             cu_seqlen_prefill, device=device, dtype=torch.int32
         )
-        cu_seqlen_speculative = torch.tensor(
-            cu_seqlen_speculative, device=device, dtype=torch.int32
-        )
-
         position_ids = position_ids.to(device)
         slot_indices = slot_indices.to(device)
         input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
@@ -303,7 +294,6 @@ class FlashCausalLMBatch(Batch):
             input_ids=input_ids,
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
-            cu_seqlen_speculative=cu_seqlen_speculative,
             start_slots=start_slots,
             slot_indices=slot_indices,
             needed_blocks_slots=needed_blocks_slots,
@@ -437,6 +427,7 @@ class FlashCausalLMBatch(Batch):
         slots = self.slots[slot_filtering_indices]
         next_token_chooser = self.next_token_chooser.filter(indices)
         top_n_tokens_tensor = self.top_n_tokens_tensor[indices]
+        speculative_ids = self.speculative_ids[indices]
 
         start_slots = torch.tensor(start_slots, dtype=torch.int64)
 
@@ -472,6 +463,7 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
+            speculative_ids=speculative_ids,
         )
 
     @classmethod
@@ -595,6 +587,8 @@ class FlashCausalLMBatch(Batch):
             device=batches[0].next_token_chooser.device,
         )
 
+        speculative_ids = None if batches[0].speculative_ids is None else torch.cat([b.speculative_ids for b in batches], dim=0)
+
         # Needed to avoid dropping blocks when the batches will go out of scope
         for b in batches:
             b.block_tables = None
@@ -629,6 +623,7 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens_tensor=top_n_tokens_tensor,
             blocks=blocks,
             max_blocks=max_blocks,
+            speculative_ids=speculative_ids
         )
 
     def __del__(self):
@@ -732,17 +727,55 @@ class FlashCausalLM(Model):
 
     def forward(self, batch: FlashCausalLMBatch) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
+        if batch.speculative_ids is not None:
+            input_ids=batch.input_ids
+            position_ids=batch.position_ids
+            cu_seqlen_prefill=batch.cu_seqlen_prefill
+            kv_cache=get_cache_manager().kv_cache
+            block_tables=batch.block_tables_tensor
+            slots=batch.slots[batch.slot_indices]
+            input_lengths=batch.input_lengths_tensor
+            max_s=batch.max_seqlen
+            lm_head_indices=batch.prefill_head_indices
+
+            speculative_ids = batch.speculative_ids
+
+            B, speculative_length = speculative_ids.shape 
+            new_length = speculative_length + 1
+            new_input_ids = torch.cat([input_ids.unsqueeze(-1), speculative_ids], dim=1).reshape(-1)
+            arange = torch.arange(new_length, device=position_ids.device).unsqueeze(0)
+            arange_int = arange.to(dtype=torch.int32)
+            new_position_ids = (position_ids.unsqueeze(-1).expand(B, new_length) + arange).view(-1)
+            slots = (slots.unsqueeze(-1).expand(B, new_length) + arange_int).view(-1)
+            input_lengths = (input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int).view(-1)
+
+            # Add Copy the block tables for all members
+            block_tables = block_tables.unsqueeze(1).expand(B, new_length, -1).reshape(B* new_length, -1).contiguous()
+            max_s = max_s + speculative_length
+
+            input_ids = new_input_ids
+            position_ids = new_position_ids
+        else:
+            input_ids=batch.input_ids
+            position_ids=batch.position_ids
+            cu_seqlen_prefill=batch.cu_seqlen_prefill
+            kv_cache=get_cache_manager().kv_cache
+            block_tables=batch.block_tables_tensor
+            slots=batch.slots[batch.slot_indices]
+            input_lengths=batch.input_lengths_tensor
+            max_s=batch.max_seqlen
+            lm_head_indices=batch.prefill_head_indices
+
         return self.model.forward(
-            input_ids=batch.input_ids,
-            position_ids=batch.position_ids,
-            cu_seqlen_prefill=batch.cu_seqlen_prefill,
-            kv_cache=get_cache_manager().kv_cache,
-            block_tables=batch.block_tables_tensor,
-            slots=batch.slots[batch.slot_indices],
-            input_lengths=batch.input_lengths_tensor,
-            max_s=batch.max_seqlen,
-            lm_head_indices=batch.prefill_head_indices,
-            speculative_ids =batch.speculative_ids
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=kv_cache,
+            block_tables=block_tables,
+            slots=slots,
+            input_lengths=input_lengths,
+            max_s=max_s,
+            lm_head_indices=lm_head_indices,
         )
 
     @tracer.start_as_current_span("generate_token")
@@ -792,8 +825,9 @@ class FlashCausalLM(Model):
 
         # if next_token_logits.shape[0] == 3:
         #     import ipdb;ipdb.set_trace()
+        from text_generation_server.models import SPECULATE
         next_input_ids, next_token_logprobs, logprobs, accepted_ids, speculative_ids = batch.next_token_chooser(
-            batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, batch.speculative_ids, speculative_logits
+            batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, SPECULATE, batch.speculative_ids, speculative_logits
         )
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
@@ -807,14 +841,8 @@ class FlashCausalLM(Model):
                 # When batch == 1, we will just use the batch.input_ids values directly
                 prefill_tokens_indices = batch.input_ids.new_zeros(len(out))
 
-            if speculative_ids is not None:
-                # length = len(batch) * (1 + speculative_length)
-                length = len(batch)
-            else:
-                length = len(batch)
-            # import ipdb;ipdb.set_trace()
+            length = len(batch)
             next_position_ids = batch.position_ids.new_empty(length)
-            # Keep only 1 slot index, TODO make sure we recover the speculated ids slots later
             batch.slot_indices = batch.slot_indices[batch.cu_seqlen_prefill[1:] - 1]
             # We do not need cu_seqlen_prefill anymore
             batch.cu_seqlen_prefill = None
@@ -885,19 +913,17 @@ class FlashCausalLM(Model):
         # if accepted_ids[0] > 1:
         #     import ipdb;ipdb.set_trace()
 
-        if len(accepted_ids) > 1:
-            raise Exception("Implemtent the batched behavior")
+        # if len(accepted_ids) > 1:
+        #     raise Exception("Implemtent the batched behavior")
 
         # Set values in batch
         # batch.input_ids = torch.cat([next_input_ids.unsqueeze(-1), speculative_ids], dim=1).view(-1)
         
-        for n_accepted_ids in accepted_ids:
-            # TODO Make this batched
-            batch.input_ids = next_input_ids[-1:]
-            batch.speculative_ids = speculative_ids
-            batch.position_ids = next_position_ids + n_accepted_ids
-            batch.input_lengths_tensor += n_accepted_ids
-            batch.slot_indices += n_accepted_ids
+        batch.input_ids = next_input_ids[accepted_ids.cumsum(dim=-1) - 1]
+        batch.speculative_ids = speculative_ids
+        batch.position_ids = next_position_ids + accepted_ids
+        batch.input_lengths_tensor += accepted_ids
+        batch.slot_indices += accepted_ids
 
         if prefill and prefill_logprobs:
             # Get prefill logprobs
@@ -962,6 +988,7 @@ class FlashCausalLM(Model):
                     read_offset,
                 )
                 next_token_texts.append(next_token_text)
+            index += n_accepted_ids
 
             # Evaluate stopping criteria
 
