@@ -243,5 +243,11 @@ class StreamResponse(BaseModel):
 
 # Inference API currently deployed model
 class DeployedModel(BaseModel):
+    model_config = {
+        # Pydantic 2 sets `model_` prefix as protected namespace and raises a
+        # warning when this model is loaded. Set this option to disable the warning.
+        "protected_namespaces": (),
+    }
+
     model_id: str
     sha: str
