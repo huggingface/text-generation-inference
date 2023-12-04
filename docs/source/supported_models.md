@@ -48,3 +48,4 @@ TGI also has support of ROCm-enabled AMD Instinct MI210 and MI250 GPUs, with pag
 
 TGI is also supported on the following AI hardware accelerators:
 - *Habana first-gen Gaudi and Gaudi2:* check out this [example](https://github.com/huggingface/optimum-habana/tree/main/text-generation-inference) how to serve models with TGI on Gaudi and Gaudi2 with [Optimum Habana](https://huggingface.co/docs/optimum/habana/index)
+* *AWS Inferentia2:* check out this [guide](https://github.com/huggingface/optimum-neuron/tree/main/text-generation-inference) on how to serve models with TGI on Inferentia2.
