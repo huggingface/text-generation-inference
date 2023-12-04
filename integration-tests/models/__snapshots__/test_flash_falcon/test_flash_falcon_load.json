@@ -17,17 +17,17 @@
         },
         {
           "id": 1622,
-          "logprob": -5.6171875,
+          "logprob": -5.6132812,
           "text": "af"
         },
         {
           "id": 249,
-          "logprob": -6.5039062,
+          "logprob": -6.5,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -8.0703125,
+          "logprob": -8.0625,
           "text": "ron"
         },
         {
@@ -42,22 +42,22 @@
         },
         {
           "id": 335,
-          "logprob": -0.04837036,
+          "logprob": -0.04840088,
           "text": " with"
         },
         {
           "id": 26680,
-          "logprob": -3.9960938,
+          "logprob": -4.0,
           "text": " gir"
         },
         {
           "id": 1903,
-          "logprob": -0.07525635,
+          "logprob": -0.07519531,
           "text": "aff"
         },
         {
           "id": 255,
-          "logprob": -0.006790161,
+          "logprob": -0.006755829,
           "text": "es"
         },
         {
@@ -72,7 +72,7 @@
         },
         {
           "id": 758,
-          "logprob": -3.7363281,
+          "logprob": -3.734375,
           "text": " most"
         },
         {
@@ -87,7 +87,7 @@
         },
         {
           "id": 313,
-          "logprob": -1.1845703,
+          "logprob": -1.1835938,
           "text": " on"
         },
         {
@@ -97,32 +97,32 @@
         },
         {
           "id": 1936,
-          "logprob": -2.3828125,
+          "logprob": -2.3847656,
           "text": " face"
         },
         {
           "id": 275,
-          "logprob": -0.0044403076,
+          "logprob": -0.004432678,
           "text": " of"
         },
         {
           "id": 414,
-          "logprob": -1.9667969,
+          "logprob": -1.9677734,
           "text": " this"
         },
         {
           "id": 6490,
-          "logprob": -2.0449219,
+          "logprob": -2.046875,
           "text": " Earth"
         },
         {
           "id": 25,
-          "logprob": -0.28198242,
+          "logprob": -0.28173828,
           "text": "."
         },
         {
           "id": 401,
-          "logprob": -7.921875,
+          "logprob": -7.9179688,
           "text": " G"
         },
         {
@@ -132,7 +132,7 @@
         },
         {
           "id": 694,
-          "logprob": -0.62353516,
+          "logprob": -0.6230469,
           "text": "ft"
         },
         {
@@ -147,17 +147,17 @@
         },
         {
           "id": 455,
-          "logprob": -4.5625,
+          "logprob": -4.5664062,
           "text": " all"
         },
         {
           "id": 599,
-          "logprob": -2.7402344,
+          "logprob": -2.7382812,
           "text": " other"
         },
         {
           "id": 5632,
-          "logprob": -0.21899414,
+          "logprob": -0.21923828,
           "text": " animals"
         },
         {
@@ -172,17 +172,17 @@
         },
         {
           "id": 635,
-          "logprob": -4.234375,
+          "logprob": -4.2304688,
           "text": " when"
         },
         {
           "id": 4354,
-          "logprob": -0.5131836,
+          "logprob": -0.5136719,
           "text": " compared"
         },
         {
           "id": 271,
-          "logprob": -0.103515625,
+          "logprob": -0.10357666,
           "text": " to"
         },
         {
@@ -207,27 +207,27 @@
         },
         {
           "id": 248,
-          "logprob": -0.3544922,
+          "logprob": -0.35424805,
           "text": " the"
         },
         {
           "id": 26680,
-          "logprob": -0.24609375,
+          "logprob": -0.24645996,
           "text": " gir"
         },
         {
           "id": 23226,
-          "logprob": -0.02960205,
+          "logprob": -0.029693604,
           "text": "affe"
         },
         {
           "id": 25,
-          "logprob": -0.17358398,
+          "logprob": -0.17321777,
           "text": "."
         },
         {
           "id": 193,
-          "logprob": -1.3925781,
+          "logprob": -1.3945312,
           "text": "\n"
         },
         {
@@ -247,12 +247,12 @@
         },
         {
           "id": 23,
-          "logprob": -0.99365234,
+          "logprob": -0.9941406,
           "text": ","
         },
         {
           "id": 29033,
-          "logprob": -2.2304688,
+          "logprob": -2.2324219,
           "text": " Gir"
         },
         {
@@ -262,52 +262,52 @@
         },
         {
           "id": 249,
-          "logprob": -0.04257202,
+          "logprob": -0.042541504,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -0.0024871826,
+          "logprob": -0.0024738312,
           "text": "ron"
         },
         {
           "id": 12,
-          "logprob": -1.4277344,
+          "logprob": -1.4267578,
           "text": "!"
         },
         {
           "id": 193,
-          "logprob": -1.1005859,
+          "logprob": -1.0996094,
           "text": "\n"
         },
         {
           "id": 50,
-          "logprob": -0.056915283,
+          "logprob": -0.05709839,
           "text": "G"
         },
         {
           "id": 330,
-          "logprob": -0.1315918,
+          "logprob": -0.13232422,
           "text": "ir"
         },
         {
           "id": 1622,
-          "logprob": -0.0071105957,
+          "logprob": -0.0070991516,
           "text": "af"
         },
         {
           "id": 249,
-          "logprob": -0.008453369,
+          "logprob": -0.008483887,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -0.0006928444,
+          "logprob": -0.0006914139,
           "text": "ron"
         },
         {
           "id": 37,
-          "logprob": -0.0074920654,
+          "logprob": -0.0074768066,
           "text": ":"
         }
       ],
@@ -315,37 +315,37 @@
       "tokens": [
         {
           "id": 23090,
-          "logprob": -1.828125,
+          "logprob": -1.8251953,
           "special": false,
           "text": " Hello"
         },
         {
           "id": 23,
-          "logprob": -0.3178711,
+          "logprob": -0.31762695,
           "special": false,
           "text": ","
         },
         {
           "id": 8156,
-          "logprob": -0.23925781,
+          "logprob": -0.23803711,
           "special": false,
           "text": " Daniel"
         },
         {
           "id": 12,
-          "logprob": -0.5698242,
+          "logprob": -0.56933594,
           "special": false,
           "text": "!"
         },
         {
           "id": 193,
-          "logprob": -0.61279297,
+          "logprob": -0.61376953,
           "special": false,
           "text": "\n"
         },
         {
           "id": 23626,
-          "logprob": -0.4177246,
+          "logprob": -0.42016602,
           "special": false,
           "text": "Daniel"
         },
@@ -357,7 +357,7 @@
         },
         {
           "id": 1634,
-          "logprob": -2.0605469,
+          "logprob": -2.0625,
           "special": false,
           "text": " What"
         },
@@ -369,7 +369,7 @@
         },
         {
           "id": 94,
-          "logprob": -0.007965088,
+          "logprob": -0.0079422,
           "special": false,
           "text": "s"
         }
@@ -395,7 +395,7 @@
         },
         {
           "id": 1622,
-          "logprob": -5.6171875,
+          "logprob": -5.6132812,
           "text": "af"
         },
         {
@@ -405,7 +405,7 @@
         },
         {
           "id": 1480,
-          "logprob": -8.0703125,
+          "logprob": -8.0625,
           "text": "ron"
         },
         {
@@ -420,7 +420,7 @@
         },
         {
           "id": 335,
-          "logprob": -0.048339844,
+          "logprob": -0.04840088,
           "text": " with"
         },
         {
@@ -430,17 +430,17 @@
         },
         {
           "id": 1903,
-          "logprob": -0.07531738,
+          "logprob": -0.07519531,
           "text": "aff"
         },
         {
           "id": 255,
-          "logprob": -0.006793976,
+          "logprob": -0.006755829,
           "text": "es"
         },
         {
           "id": 23,
-          "logprob": -1.5478516,
+          "logprob": -1.546875,
           "text": ","
         },
         {
@@ -450,17 +450,17 @@
         },
         {
           "id": 758,
-          "logprob": -3.7363281,
+          "logprob": -3.734375,
           "text": " most"
         },
         {
           "id": 21735,
-          "logprob": -5.1132812,
+          "logprob": -5.109375,
           "text": " glorious"
         },
         {
           "id": 5985,
-          "logprob": -2.0957031,
+          "logprob": -2.09375,
           "text": " animal"
         },
         {
@@ -470,32 +470,32 @@
         },
         {
           "id": 248,
-          "logprob": -0.77685547,
+          "logprob": -0.77734375,
           "text": " the"
         },
         {
           "id": 1936,
-          "logprob": -2.3808594,
+          "logprob": -2.3847656,
           "text": " face"
         },
         {
           "id": 275,
-          "logprob": -0.004436493,
+          "logprob": -0.004432678,
           "text": " of"
         },
         {
           "id": 414,
-          "logprob": -1.9638672,
+          "logprob": -1.9677734,
           "text": " this"
         },
         {
           "id": 6490,
-          "logprob": -2.0449219,
+          "logprob": -2.046875,
           "text": " Earth"
         },
         {
           "id": 25,
-          "logprob": -0.28198242,
+          "logprob": -0.28173828,
           "text": "."
         },
         {
@@ -505,7 +505,7 @@
         },
         {
           "id": 6013,
-          "logprob": -2.2734375,
+          "logprob": -2.2714844,
           "text": "ira"
         },
         {
@@ -520,12 +520,12 @@
         },
         {
           "id": 9369,
-          "logprob": -4.5546875,
+          "logprob": -4.5507812,
           "text": " believes"
         },
         {
           "id": 455,
-          "logprob": -4.5703125,
+          "logprob": -4.5664062,
           "text": " all"
         },
         {
@@ -535,12 +535,12 @@
         },
         {
           "id": 5632,
-          "logprob": -0.21948242,
+          "logprob": -0.21923828,
           "text": " animals"
         },
         {
           "id": 362,
-          "logprob": -0.7661133,
+          "logprob": -0.76708984,
           "text": " are"
         },
         {
@@ -550,12 +550,12 @@
         },
         {
           "id": 635,
-          "logprob": -4.234375,
+          "logprob": -4.2304688,
           "text": " when"
         },
         {
           "id": 4354,
-          "logprob": -0.5131836,
+          "logprob": -0.5136719,
           "text": " compared"
         },
         {
@@ -570,12 +570,12 @@
         },
         {
           "id": 21735,
-          "logprob": -3.6816406,
+          "logprob": -3.6796875,
           "text": " glorious"
         },
         {
           "id": 64398,
-          "logprob": -1.8203125,
+          "logprob": -1.8222656,
           "text": " majesty"
         },
         {
@@ -585,22 +585,22 @@
         },
         {
           "id": 248,
-          "logprob": -0.35473633,
+          "logprob": -0.35424805,
           "text": " the"
         },
         {
           "id": 26680,
-          "logprob": -0.24572754,
+          "logprob": -0.24645996,
           "text": " gir"
         },
         {
           "id": 23226,
-          "logprob": -0.029586792,
+          "logprob": -0.029693604,
           "text": "affe"
         },
         {
           "id": 25,
-          "logprob": -0.17346191,
+          "logprob": -0.17321777,
           "text": "."
         },
         {
@@ -615,7 +615,7 @@
         },
         {
           "id": 37,
-          "logprob": -4.59375,
+          "logprob": -4.5898438,
           "text": ":"
         },
         {
@@ -625,7 +625,7 @@
         },
         {
           "id": 23,
-          "logprob": -0.99316406,
+          "logprob": -0.9941406,
           "text": ","
         },
         {
@@ -635,52 +635,52 @@
         },
         {
           "id": 1622,
-          "logprob": -0.10797119,
+          "logprob": -0.107788086,
           "text": "af"
         },
         {
           "id": 249,
-          "logprob": -0.04248047,
+          "logprob": -0.042541504,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -0.0024814606,
+          "logprob": -0.0024738312,
           "text": "ron"
         },
         {
           "id": 12,
-          "logprob": -1.4277344,
+          "logprob": -1.4267578,
           "text": "!"
         },
         {
           "id": 193,
-          "logprob": -1.1005859,
+          "logprob": -1.0996094,
           "text": "\n"
         },
         {
           "id": 50,
-          "logprob": -0.056884766,
+          "logprob": -0.05709839,
           "text": "G"
         },
         {
           "id": 330,
-          "logprob": -0.1315918,
+          "logprob": -0.13232422,
           "text": "ir"
         },
         {
           "id": 1622,
-          "logprob": -0.007095337,
+          "logprob": -0.0070991516,
           "text": "af"
         },
         {
           "id": 249,
-          "logprob": -0.00844574,
+          "logprob": -0.008483887,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -0.00068998337,
+          "logprob": -0.0006914139,
           "text": "ron"
         },
         {
@@ -705,49 +705,49 @@
         },
         {
           "id": 8156,
-          "logprob": -0.2388916,
+          "logprob": -0.23803711,
           "special": false,
           "text": " Daniel"
         },
         {
           "id": 12,
-          "logprob": -0.5698242,
+          "logprob": -0.56933594,
           "special": false,
           "text": "!"
         },
         {
           "id": 193,
-          "logprob": -0.6152344,
+          "logprob": -0.61376953,
           "special": false,
           "text": "\n"
         },
         {
           "id": 23626,
-          "logprob": -0.42211914,
+          "logprob": -0.42016602,
           "special": false,
           "text": "Daniel"
         },
         {
           "id": 37,
-          "logprob": -0.002336502,
+          "logprob": -0.0023345947,
           "special": false,
           "text": ":"
         },
         {
           "id": 1634,
-          "logprob": -2.0605469,
+          "logprob": -2.0625,
           "special": false,
           "text": " What"
         },
         {
           "id": 18,
-          "logprob": -1.5292969,
+          "logprob": -1.5283203,
           "special": false,
           "text": "'"
         },
         {
           "id": 94,
-          "logprob": -0.007926941,
+          "logprob": -0.0079422,
           "special": false,
           "text": "s"
         }
@@ -773,7 +773,7 @@
         },
         {
           "id": 1622,
-          "logprob": -5.6171875,
+          "logprob": -5.6132812,
           "text": "af"
         },
         {
@@ -783,7 +783,7 @@
         },
         {
           "id": 1480,
-          "logprob": -8.0703125,
+          "logprob": -8.0625,
           "text": "ron"
         },
         {
@@ -798,7 +798,7 @@
         },
         {
           "id": 335,
-          "logprob": -0.048339844,
+          "logprob": -0.04840088,
           "text": " with"
         },
         {
@@ -808,17 +808,17 @@
         },
         {
           "id": 1903,
-          "logprob": -0.07531738,
+          "logprob": -0.07519531,
           "text": "aff"
         },
         {
           "id": 255,
-          "logprob": -0.006793976,
+          "logprob": -0.006755829,
           "text": "es"
         },
         {
           "id": 23,
-          "logprob": -1.5478516,
+          "logprob": -1.546875,
           "text": ","
         },
         {
@@ -828,17 +828,17 @@
         },
         {
           "id": 758,
-          "logprob": -3.7363281,
+          "logprob": -3.734375,
           "text": " most"
         },
         {
           "id": 21735,
-          "logprob": -5.1132812,
+          "logprob": -5.109375,
           "text": " glorious"
         },
         {
           "id": 5985,
-          "logprob": -2.0957031,
+          "logprob": -2.09375,
           "text": " animal"
         },
         {
@@ -848,32 +848,32 @@
         },
         {
           "id": 248,
-          "logprob": -0.77685547,
+          "logprob": -0.77734375,
           "text": " the"
         },
         {
           "id": 1936,
-          "logprob": -2.3808594,
+          "logprob": -2.3847656,
           "text": " face"
         },
         {
           "id": 275,
-          "logprob": -0.004436493,
+          "logprob": -0.004432678,
           "text": " of"
         },
         {
           "id": 414,
-          "logprob": -1.9638672,
+          "logprob": -1.9677734,
           "text": " this"
         },
         {
           "id": 6490,
-          "logprob": -2.0449219,
+          "logprob": -2.046875,
           "text": " Earth"
         },
         {
           "id": 25,
-          "logprob": -0.28198242,
+          "logprob": -0.28173828,
           "text": "."
         },
         {
@@ -883,7 +883,7 @@
         },
         {
           "id": 6013,
-          "logprob": -2.2734375,
+          "logprob": -2.2714844,
           "text": "ira"
         },
         {
@@ -898,12 +898,12 @@
         },
         {
           "id": 9369,
-          "logprob": -4.5546875,
+          "logprob": -4.5507812,
           "text": " believes"
         },
         {
           "id": 455,
-          "logprob": -4.5703125,
+          "logprob": -4.5664062,
           "text": " all"
         },
         {
@@ -913,12 +913,12 @@
         },
         {
           "id": 5632,
-          "logprob": -0.21948242,
+          "logprob": -0.21923828,
           "text": " animals"
         },
         {
           "id": 362,
-          "logprob": -0.7661133,
+          "logprob": -0.76708984,
           "text": " are"
         },
         {
@@ -928,12 +928,12 @@
         },
         {
           "id": 635,
-          "logprob": -4.234375,
+          "logprob": -4.2304688,
           "text": " when"
         },
         {
           "id": 4354,
-          "logprob": -0.5131836,
+          "logprob": -0.5136719,
           "text": " compared"
         },
         {
@@ -948,12 +948,12 @@
         },
         {
           "id": 21735,
-          "logprob": -3.6816406,
+          "logprob": -3.6796875,
           "text": " glorious"
         },
         {
           "id": 64398,
-          "logprob": -1.8203125,
+          "logprob": -1.8222656,
           "text": " majesty"
         },
         {
@@ -963,22 +963,22 @@
         },
         {
           "id": 248,
-          "logprob": -0.35473633,
+          "logprob": -0.35424805,
           "text": " the"
         },
         {
           "id": 26680,
-          "logprob": -0.24572754,
+          "logprob": -0.24645996,
           "text": " gir"
         },
         {
           "id": 23226,
-          "logprob": -0.029586792,
+          "logprob": -0.029693604,
           "text": "affe"
         },
         {
           "id": 25,
-          "logprob": -0.17346191,
+          "logprob": -0.17321777,
           "text": "."
         },
         {
@@ -993,7 +993,7 @@
         },
         {
           "id": 37,
-          "logprob": -4.59375,
+          "logprob": -4.5898438,
           "text": ":"
         },
         {
@@ -1003,7 +1003,7 @@
         },
         {
           "id": 23,
-          "logprob": -0.99316406,
+          "logprob": -0.9941406,
           "text": ","
         },
         {
@@ -1013,52 +1013,52 @@
         },
         {
           "id": 1622,
-          "logprob": -0.10797119,
+          "logprob": -0.107788086,
           "text": "af"
         },
         {
           "id": 249,
-          "logprob": -0.04248047,
+          "logprob": -0.042541504,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -0.0024814606,
+          "logprob": -0.0024738312,
           "text": "ron"
         },
         {
           "id": 12,
-          "logprob": -1.4277344,
+          "logprob": -1.4267578,
           "text": "!"
         },
         {
           "id": 193,
-          "logprob": -1.1005859,
+          "logprob": -1.0996094,
           "text": "\n"
         },
         {
           "id": 50,
-          "logprob": -0.056884766,
+          "logprob": -0.05709839,
           "text": "G"
         },
         {
           "id": 330,
-          "logprob": -0.1315918,
+          "logprob": -0.13232422,
           "text": "ir"
         },
         {
           "id": 1622,
-          "logprob": -0.007095337,
+          "logprob": -0.0070991516,
           "text": "af"
         },
         {
           "id": 249,
-          "logprob": -0.00844574,
+          "logprob": -0.008483887,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -0.00068998337,
+          "logprob": -0.0006914139,
           "text": "ron"
         },
         {
@@ -1083,49 +1083,49 @@
         },
         {
           "id": 8156,
-          "logprob": -0.2388916,
+          "logprob": -0.23803711,
           "special": false,
           "text": " Daniel"
         },
         {
           "id": 12,
-          "logprob": -0.5698242,
+          "logprob": -0.56933594,
           "special": false,
           "text": "!"
         },
         {
           "id": 193,
-          "logprob": -0.6152344,
+          "logprob": -0.61376953,
           "special": false,
           "text": "\n"
         },
         {
           "id": 23626,
-          "logprob": -0.42211914,
+          "logprob": -0.42016602,
           "special": false,
           "text": "Daniel"
         },
         {
           "id": 37,
-          "logprob": -0.002336502,
+          "logprob": -0.0023345947,
           "special": false,
           "text": ":"
         },
         {
           "id": 1634,
-          "logprob": -2.0605469,
+          "logprob": -2.0625,
           "special": false,
           "text": " What"
         },
         {
           "id": 18,
-          "logprob": -1.5292969,
+          "logprob": -1.8017578,
           "special": false,
           "text": "'"
         },
         {
           "id": 94,
-          "logprob": -0.007926941,
+          "logprob": -0.034454346,
           "special": false,
           "text": "s"
         }
@@ -1151,7 +1151,7 @@
         },
         {
           "id": 1622,
-          "logprob": -5.6171875,
+          "logprob": -5.6132812,
           "text": "af"
         },
         {
@@ -1161,7 +1161,7 @@
         },
         {
           "id": 1480,
-          "logprob": -8.0703125,
+          "logprob": -8.0625,
           "text": "ron"
         },
         {
@@ -1176,7 +1176,7 @@
         },
         {
           "id": 335,
-          "logprob": -0.048339844,
+          "logprob": -0.04840088,
           "text": " with"
         },
         {
@@ -1186,17 +1186,17 @@
         },
         {
           "id": 1903,
-          "logprob": -0.07531738,
+          "logprob": -0.07519531,
           "text": "aff"
         },
         {
           "id": 255,
-          "logprob": -0.006793976,
+          "logprob": -0.006755829,
           "text": "es"
         },
         {
           "id": 23,
-          "logprob": -1.5478516,
+          "logprob": -1.546875,
           "text": ","
         },
         {
@@ -1206,17 +1206,17 @@
         },
         {
           "id": 758,
-          "logprob": -3.7363281,
+          "logprob": -3.734375,
           "text": " most"
         },
         {
           "id": 21735,
-          "logprob": -5.1132812,
+          "logprob": -5.109375,
           "text": " glorious"
         },
         {
           "id": 5985,
-          "logprob": -2.0957031,
+          "logprob": -2.09375,
           "text": " animal"
         },
         {
@@ -1226,32 +1226,32 @@
         },
         {
           "id": 248,
-          "logprob": -0.77685547,
+          "logprob": -0.77734375,
           "text": " the"
         },
         {
           "id": 1936,
-          "logprob": -2.3808594,
+          "logprob": -2.3847656,
           "text": " face"
         },
         {
           "id": 275,
-          "logprob": -0.004436493,
+          "logprob": -0.004432678,
           "text": " of"
         },
         {
           "id": 414,
-          "logprob": -1.9638672,
+          "logprob": -1.9677734,
           "text": " this"
         },
         {
           "id": 6490,
-          "logprob": -2.0449219,
+          "logprob": -2.046875,
           "text": " Earth"
         },
         {
           "id": 25,
-          "logprob": -0.28198242,
+          "logprob": -0.28173828,
           "text": "."
         },
         {
@@ -1261,7 +1261,7 @@
         },
         {
           "id": 6013,
-          "logprob": -2.2734375,
+          "logprob": -2.2714844,
           "text": "ira"
         },
         {
@@ -1276,12 +1276,12 @@
         },
         {
           "id": 9369,
-          "logprob": -4.5546875,
+          "logprob": -4.5507812,
           "text": " believes"
         },
         {
           "id": 455,
-          "logprob": -4.5703125,
+          "logprob": -4.5664062,
           "text": " all"
         },
         {
@@ -1291,12 +1291,12 @@
         },
         {
           "id": 5632,
-          "logprob": -0.21948242,
+          "logprob": -0.21923828,
           "text": " animals"
         },
         {
           "id": 362,
-          "logprob": -0.7661133,
+          "logprob": -0.76708984,
           "text": " are"
         },
         {
@@ -1306,12 +1306,12 @@
         },
         {
           "id": 635,
-          "logprob": -4.234375,
+          "logprob": -4.2304688,
           "text": " when"
         },
         {
           "id": 4354,
-          "logprob": -0.5131836,
+          "logprob": -0.5136719,
           "text": " compared"
         },
         {
@@ -1326,12 +1326,12 @@
         },
         {
           "id": 21735,
-          "logprob": -3.6816406,
+          "logprob": -3.6796875,
           "text": " glorious"
         },
         {
           "id": 64398,
-          "logprob": -1.8203125,
+          "logprob": -1.8222656,
           "text": " majesty"
         },
         {
@@ -1341,22 +1341,22 @@
         },
         {
           "id": 248,
-          "logprob": -0.35473633,
+          "logprob": -0.35424805,
           "text": " the"
         },
         {
           "id": 26680,
-          "logprob": -0.24572754,
+          "logprob": -0.24645996,
           "text": " gir"
         },
         {
           "id": 23226,
-          "logprob": -0.029586792,
+          "logprob": -0.029693604,
           "text": "affe"
         },
         {
           "id": 25,
-          "logprob": -0.17346191,
+          "logprob": -0.17321777,
           "text": "."
         },
         {
@@ -1371,7 +1371,7 @@
         },
         {
           "id": 37,
-          "logprob": -4.59375,
+          "logprob": -4.5898438,
           "text": ":"
         },
         {
@@ -1381,7 +1381,7 @@
         },
         {
           "id": 23,
-          "logprob": -0.99316406,
+          "logprob": -0.9941406,
           "text": ","
         },
         {
@@ -1391,52 +1391,52 @@
         },
         {
           "id": 1622,
-          "logprob": -0.10797119,
+          "logprob": -0.107788086,
           "text": "af"
         },
         {
           "id": 249,
-          "logprob": -0.04248047,
+          "logprob": -0.042541504,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -0.0024814606,
+          "logprob": -0.0024738312,
           "text": "ron"
         },
         {
           "id": 12,
-          "logprob": -1.4277344,
+          "logprob": -1.4267578,
           "text": "!"
         },
         {
           "id": 193,
-          "logprob": -1.1005859,
+          "logprob": -1.0996094,
           "text": "\n"
         },
         {
           "id": 50,
-          "logprob": -0.056884766,
+          "logprob": -0.05709839,
           "text": "G"
         },
         {
           "id": 330,
-          "logprob": -0.1315918,
+          "logprob": -0.13232422,
           "text": "ir"
         },
         {
           "id": 1622,
-          "logprob": -0.007095337,
+          "logprob": -0.0070991516,
           "text": "af"
         },
         {
           "id": 249,
-          "logprob": -0.00844574,
+          "logprob": -0.008483887,
           "text": "at"
         },
         {
           "id": 1480,
-          "logprob": -0.00068998337,
+          "logprob": -0.0006914139,
           "text": "ron"
         },
         {
@@ -1461,49 +1461,49 @@
         },
         {
           "id": 8156,
-          "logprob": -0.2388916,
+          "logprob": -0.23803711,
           "special": false,
           "text": " Daniel"
         },
         {
           "id": 12,
-          "logprob": -0.5698242,
+          "logprob": -0.56933594,
           "special": false,
           "text": "!"
         },
         {
           "id": 193,
-          "logprob": -0.6152344,
+          "logprob": -0.61376953,
           "special": false,
           "text": "\n"
         },
         {
           "id": 23626,
-          "logprob": -0.42211914,
+          "logprob": -0.42016602,
           "special": false,
           "text": "Daniel"
         },
         {
           "id": 37,
-          "logprob": -0.002336502,
+          "logprob": -0.0023345947,
           "special": false,
           "text": ":"
         },
         {
           "id": 1634,
-          "logprob": -2.0605469,
+          "logprob": -2.0625,
           "special": false,
           "text": " What"
         },
         {
           "id": 18,
-          "logprob": -1.5292969,
+          "logprob": -1.5283203,
           "special": false,
           "text": "'"
         },
         {
           "id": 94,
-          "logprob": -0.007926941,
+          "logprob": -0.0079422,
           "special": false,
           "text": "s"
         }
