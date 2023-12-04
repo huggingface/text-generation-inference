@@ -17,7 +17,7 @@
         },
         {
           "id": 338,
-          "logprob": -1.5488281,
+          "logprob": -1.5498047,
           "text": "is"
         },
         {
@@ -27,12 +27,12 @@
         },
         {
           "id": 29257,
-          "logprob": -1.2753906,
+          "logprob": -1.2734375,
           "text": "Learning"
         },
         {
           "id": 29973,
-          "logprob": -0.48046875,
+          "logprob": -0.48217773,
           "text": "?"
         }
       ],
@@ -40,19 +40,19 @@
       "tokens": [
         {
           "id": 13,
-          "logprob": -1.1845703,
+          "logprob": -1.1875,
           "special": false,
           "text": "\n"
         },
         {
           "id": 2772,
-          "logprob": -0.5727539,
+          "logprob": -0.5708008,
           "special": false,
           "text": "De"
         },
         {
           "id": 1022,
-          "logprob": -0.00010967255,
+          "logprob": -0.00010931492,
           "special": false,
           "text": "ep"
         },
@@ -64,37 +64,37 @@
         },
         {
           "id": 338,
-          "logprob": -0.04510498,
+          "logprob": -0.044433594,
           "special": false,
           "text": " is"
         },
         {
           "id": 263,
-          "logprob": -0.018295288,
+          "logprob": -0.018310547,
           "special": false,
           "text": " a"
         },
         {
           "id": 11306,
-          "logprob": -0.45922852,
+          "logprob": -0.46044922,
           "special": false,
           "text": " subset"
         },
         {
           "id": 310,
-          "logprob": -0.00020992756,
+          "logprob": -0.0002104044,
           "special": false,
           "text": " of"
         },
         {
           "id": 4933,
-          "logprob": -0.0046539307,
+          "logprob": -0.004711151,
           "special": false,
           "text": " machine"
         },
         {
           "id": 6509,
-          "logprob": -0.00025844574,
+          "logprob": -0.00025820732,
           "special": false,
           "text": " learning"
         },
@@ -112,7 +112,7 @@
         }
       ]
     },
-    "generated_text": "ep learning is a subset of machine learning that involves"
+    "generated_text": "\nDeep learning is a subset of machine learning that involves"
   },
   {
     "details": {
@@ -127,12 +127,12 @@
         },
         {
           "id": 1724,
-          "logprob": -10.734375,
+          "logprob": -10.7421875,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -1.5488281,
+          "logprob": -1.5498047,
           "text": "is"
         },
         {
@@ -155,19 +155,19 @@
       "tokens": [
         {
           "id": 13,
-          "logprob": -1.1826172,
+          "logprob": -1.1835938,
           "special": false,
           "text": "\n"
         },
         {
           "id": 2772,
-          "logprob": -0.56689453,
+          "logprob": -0.57470703,
           "special": false,
           "text": "De"
         },
         {
           "id": 1022,
-          "logprob": -0.000108003616,
+          "logprob": -0.00010788441,
           "special": false,
           "text": "ep"
         },
@@ -179,13 +179,13 @@
         },
         {
           "id": 338,
-          "logprob": -0.044433594,
+          "logprob": -0.04510498,
           "special": false,
           "text": " is"
         },
         {
           "id": 263,
-          "logprob": -0.018295288,
+          "logprob": -0.018585205,
           "special": false,
           "text": " a"
         },
@@ -197,19 +197,19 @@
         },
         {
           "id": 310,
-          "logprob": -0.0002104044,
+          "logprob": -0.00021457672,
           "special": false,
           "text": " of"
         },
         {
           "id": 4933,
-          "logprob": -0.004711151,
+          "logprob": -0.004776001,
           "special": false,
           "text": " machine"
         },
         {
           "id": 6509,
-          "logprob": -0.00025892258,
+          "logprob": -0.0002593994,
           "special": false,
           "text": " learning"
         },
@@ -227,7 +227,7 @@
         }
       ]
     },
-    "generated_text": "ep learning is a subset of machine learning that involves"
+    "generated_text": "\nDeep learning is a subset of machine learning that involves"
   },
   {
     "details": {
@@ -242,12 +242,12 @@
         },
         {
           "id": 1724,
-          "logprob": -10.734375,
+          "logprob": -10.7421875,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -1.5488281,
+          "logprob": -1.5498047,
           "text": "is"
         },
         {
@@ -270,19 +270,19 @@
       "tokens": [
         {
           "id": 13,
-          "logprob": -1.1826172,
+          "logprob": -1.1835938,
           "special": false,
           "text": "\n"
         },
         {
           "id": 2772,
-          "logprob": -0.56689453,
+          "logprob": -0.57470703,
           "special": false,
           "text": "De"
         },
         {
           "id": 1022,
-          "logprob": -0.000108003616,
+          "logprob": -0.00010788441,
           "special": false,
           "text": "ep"
         },
@@ -294,13 +294,13 @@
         },
         {
           "id": 338,
-          "logprob": -0.044433594,
+          "logprob": -0.04510498,
           "special": false,
           "text": " is"
         },
         {
           "id": 263,
-          "logprob": -0.018295288,
+          "logprob": -0.018585205,
           "special": false,
           "text": " a"
         },
@@ -312,19 +312,19 @@
         },
         {
           "id": 310,
-          "logprob": -0.0002104044,
+          "logprob": -0.00021457672,
           "special": false,
           "text": " of"
         },
         {
           "id": 4933,
-          "logprob": -0.004711151,
+          "logprob": -0.004776001,
           "special": false,
           "text": " machine"
         },
         {
           "id": 6509,
-          "logprob": -0.00025892258,
+          "logprob": -0.0002593994,
           "special": false,
           "text": " learning"
         },
@@ -342,7 +342,7 @@
         }
       ]
     },
-    "generated_text": "ep learning is a subset of machine learning that involves"
+    "generated_text": "\nDeep learning is a subset of machine learning that involves"
   },
   {
     "details": {
@@ -357,12 +357,12 @@
         },
         {
           "id": 1724,
-          "logprob": -10.734375,
+          "logprob": -10.7421875,
           "text": "What"
         },
         {
           "id": 338,
-          "logprob": -1.5488281,
+          "logprob": -1.5498047,
           "text": "is"
         },
         {
@@ -385,19 +385,19 @@
       "tokens": [
         {
           "id": 13,
-          "logprob": -1.1826172,
+          "logprob": -1.1835938,
           "special": false,
           "text": "\n"
         },
         {
           "id": 2772,
-          "logprob": -0.56689453,
+          "logprob": -0.57470703,
           "special": false,
           "text": "De"
         },
         {
           "id": 1022,
-          "logprob": -0.000108003616,
+          "logprob": -0.00010788441,
           "special": false,
           "text": "ep"
         },
@@ -409,13 +409,13 @@
         },
         {
           "id": 338,
-          "logprob": -0.044433594,
+          "logprob": -0.04510498,
           "special": false,
           "text": " is"
         },
         {
           "id": 263,
-          "logprob": -0.018295288,
+          "logprob": -0.018585205,
           "special": false,
           "text": " a"
         },
@@ -427,19 +427,19 @@
         },
         {
           "id": 310,
-          "logprob": -0.0002104044,
+          "logprob": -0.00021457672,
           "special": false,
           "text": " of"
         },
         {
           "id": 4933,
-          "logprob": -0.004711151,
+          "logprob": -0.004776001,
           "special": false,
           "text": " machine"
         },
         {
           "id": 6509,
-          "logprob": -0.00025892258,
+          "logprob": -0.0002593994,
           "special": false,
           "text": " learning"
         },
@@ -457,6 +457,6 @@
         }
       ]
     },
-    "generated_text": "ep learning is a subset of machine learning that involves"
+    "generated_text": "\nDeep learning is a subset of machine learning that involves"
   }
 ]

@@ -479,19 +479,19 @@ class FlashCausalLMBatch(Batch):
         max_blocks = 0
         max_length = 0
         max_seqlen = 0
-        speculative_length = 0 if batches[0].speculative_ids is None else batches[0].speculative_ids.shape[1]
         for b in batches:
             total_batch_size += len(b)
             total_slots += len(b.slots)
             blocks += b.blocks
+            speculative_length = 0 if b.speculative_ids is None else b.speculative_ids.shape[1]
             max_blocks = max(max_blocks, b.max_blocks)
             max_seqlen = max(max_seqlen, b.max_seqlen)
             max_length = max(
                 max_length,
                 max(
                     input_length
-                    + speculative_length
                     + stopping_criteria.max_new_tokens
+                    + speculative_length
                     - stopping_criteria.current_tokens
                     for input_length, stopping_criteria in zip(
                         b.input_lengths, b.stopping_criterias
@@ -994,7 +994,8 @@ class FlashCausalLM(Model):
 
             # Evaluate stopping criteria
 
-            for next_token_id in _next_token_ids:
+            left = 0
+            for j, next_token_id in enumerate(_next_token_ids):
                 stop, reason = stopping_criteria(
                     next_token_id,
                     next_token_text,
@@ -1002,21 +1003,26 @@ class FlashCausalLM(Model):
 
                 if stop:
                     stopped = True
+                    left = len(_next_token_ids) - 1 - j
                     break
-                if not stop:
+                else:
                     stopped = False
+            _next_token_ids = _next_token_ids[:len(_next_token_ids) - left]
 
             # Shard generations
             # All generations will be appended in the rust sharded client
             if i % self.world_size == self.rank:
                 if stop:
                     # Decode generated tokens
+                    # Remove potentially accepted ids that do not respect
+                    # the stopping_criteria
+                    _ids = all_input_ids[:len(all_input_ids)-left]
                     output_text, _, _ = self.decode_token(
-                        all_input_ids,
-                        prefix_offset=len(all_input_ids)
+                        _ids,
+                        prefix_offset=len(_ids)
                         - stopping_criteria.current_tokens
                         - 1,
-                        read_offset=len(all_input_ids)
+                        read_offset=len(_ids)
                         - stopping_criteria.current_tokens,
                         skip_special_tokens=True,
                     )

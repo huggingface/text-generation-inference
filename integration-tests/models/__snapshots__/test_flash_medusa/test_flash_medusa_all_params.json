@@ -57,22 +57,28 @@
         "text": " learning"
       },
       {
-        "id": 313,
-        "logprob": -1.0712891,
+        "id": 508,
+        "logprob": -1.5087891,
         "special": false,
-        "text": " ("
+        "text": " can"
       },
       {
-        "id": 15189,
-        "logprob": -0.7578125,
-        "special": false,
-        "text": "also"
-      },
-      {
-        "id": 2998,
+        "id": 367,
         "logprob": 0.0,
         "special": false,
-        "text": " known"
+        "text": " be"
+      },
+      {
+        "id": 2714,
+        "logprob": -0.6538086,
+        "special": false,
+        "text": " thought"
+      },
+      {
+        "id": 310,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
       },
       {
         "id": 408,
@@ -81,18 +87,18 @@
         "text": " as"
       },
       {
-        "id": 6483,
+        "id": 263,
         "logprob": 0.0,
         "special": false,
-        "text": " deep"
+        "text": " a"
       },
       {
-        "id": 19677,
-        "logprob": 0.0,
+        "id": 11306,
+        "logprob": -0.5488281,
         "special": false,
-        "text": " neural"
+        "text": " subset"
       }
     ]
   },
-  "generated_text": "What is Deep Learning?\nDeep learning (also known as deep neural"
+  "generated_text": "What is Deep Learning?\nDeep learning can be thought of as a subset"
 }

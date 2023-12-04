@@ -101,6 +101,8 @@ def get_model(
     else:
         raise RuntimeError(f"Unknown dtype {dtype}")
 
+    SPECULATE = 2
+
     if "facebook/galactica" in model_id:
         return GalacticaSharded(
             model_id,

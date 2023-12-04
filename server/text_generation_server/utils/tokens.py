@@ -258,16 +258,34 @@ class HeterogeneousNextTokenChooser:
         self.device = device
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor, speculate: int, speculated_ids: Optional[torch.Tensor] = None, speculative_scores: Optional[torch.Tensor] = None):
-        if self.watermark_processor is not None:
-            scores = self.watermark_processor(input_ids, scores)
-        if self.repetition_processor is not None:
-            scores = self.repetition_processor(input_ids, scores)
+        if speculated_ids is not None:
+            B = scores.shape[0] // (speculated_ids.shape[1] + 1)
+            S = speculated_ids.shape[1] + 1
+            scores = scores.view(B, S, -1)
+        else:
+            B = scores.shape[0]
+            S = 1
+            scores = scores.view(B, S, -1)
 
-        for warper in self.warpers:
-            scores = warper(input_ids, scores)
+        all_next_ids = []
+        all_scores = []
+        for j in range(S):
+            _scores = scores[:, j]
+            if self.watermark_processor is not None:
+                _scores = self.watermark_processor(input_ids, _scores)
+            if self.repetition_processor is not None:
+                _scores = self.repetition_processor(input_ids, _scores)
+
+            for warper in self.warpers:
+                _scores = warper(input_ids, _scores)
 
 
-        next_ids = self.choice(scores)
+            next_ids = self.choice(_scores)
+            scores[:, j] = _scores
+            all_next_ids.append(next_ids.unsqueeze(1))
+        next_ids = torch.cat(all_next_ids, dim=1).reshape(B*S)
+        scores = scores.view( B* S, -1)
+
         if speculated_ids is not None:
             accepted_ids = []
             B = next_ids.shape[0] // (speculated_ids.shape[1] + 1)
@@ -289,6 +307,9 @@ class HeterogeneousNextTokenChooser:
                     else:
                         break
                 accepted_ids.append(accepted)
+
+            from loguru import logger
+            logger.info(f"ACCEPTED IDS {accepted_ids}")
             accepted_ids = torch.tensor(accepted_ids, device=input_ids.device, dtype=input_ids.dtype)
             next_ids = next_ids[indices]
             scores = scores[indices]
@@ -297,7 +318,6 @@ class HeterogeneousNextTokenChooser:
                 speculative_scores = speculative_scores[indices + accepted_ids - 1]
         else:
             accepted_ids = torch.ones_like(next_ids)
-
 
         logprobs = torch.log_softmax(scores, -1)
         next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)

@@ -43,7 +43,7 @@ async def test_flash_llama_all_params(flash_llama, response_snapshot):
         seed=0,
     )
 
-    assert response.details.generated_tokens == 5
+    assert response.details.generated_tokens == 10
     assert response == response_snapshot
 
 

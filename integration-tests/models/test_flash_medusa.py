@@ -54,6 +54,6 @@ async def test_flash_medusa_load(flash_medusa, generate_load, response_snapshot)
 
     assert len(responses) == 4
     assert all([r.generated_text == responses[0].generated_text for r in responses]), f"{[r.generated_text for r in responses]}"
-    assert responses[0].generated_text == 'ep learning is a subset of machine learning that involves' 
+    assert responses[0].generated_text == '\nDeep learning is a subset of machine learning that involves' 
 
     assert responses == response_snapshot
