@@ -96,20 +96,8 @@
         "logprob": -0.00026226044,
         "special": false,
         "text": " learning"
-      },
-      {
-        "id": 393,
-        "logprob": -0.09161377,
-        "special": false,
-        "text": " that"
-      },
-      {
-        "id": 20789,
-        "logprob": -0.49560547,
-        "special": false,
-        "text": " involves"
       }
     ]
   },
-  "generated_text": "\nDeep learning is a subset of machine learning that involves"
+  "generated_text": "\nDeep learning is a subset of machine learning"
 }
