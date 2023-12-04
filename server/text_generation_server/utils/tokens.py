@@ -308,8 +308,6 @@ class HeterogeneousNextTokenChooser:
                         break
                 accepted_ids.append(accepted)
 
-            from loguru import logger
-            logger.info(f"ACCEPTED IDS {accepted_ids}")
             accepted_ids = torch.tensor(accepted_ids, device=input_ids.device, dtype=input_ids.dtype)
             next_ids = next_ids[indices]
             scores = scores[indices]

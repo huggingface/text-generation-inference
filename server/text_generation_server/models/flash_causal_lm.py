@@ -825,8 +825,6 @@ class FlashCausalLM(Model):
             next_token_logits = out
 
 
-        # if next_token_logits.shape[0] == 3:
-        #     import ipdb;ipdb.set_trace()
         from text_generation_server.models import SPECULATE
         next_input_ids, next_token_logprobs, logprobs, accepted_ids, speculative_ids = batch.next_token_chooser(
             batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, SPECULATE, batch.speculative_ids, speculative_logits
@@ -850,7 +848,6 @@ class FlashCausalLM(Model):
             batch.cu_seqlen_prefill = None
         else:
             prefill_logprobs = None
-            # import ipdb;ipdb.set_trace()
             next_position_ids = batch.position_ids
 
         # Cumulative length
@@ -912,15 +909,6 @@ class FlashCausalLM(Model):
             cumulative_length += input_length
 
 
-        # if accepted_ids[0] > 1:
-        #     import ipdb;ipdb.set_trace()
-
-        # if len(accepted_ids) > 1:
-        #     raise Exception("Implemtent the batched behavior")
-
-        # Set values in batch
-        # batch.input_ids = torch.cat([next_input_ids.unsqueeze(-1), speculative_ids], dim=1).view(-1)
-        
         batch.input_ids = next_input_ids[accepted_ids.cumsum(dim=-1) - 1]
         batch.speculative_ids = speculative_ids
         batch.position_ids = next_position_ids + accepted_ids
