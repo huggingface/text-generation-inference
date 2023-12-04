@@ -142,7 +142,7 @@ by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
 
 ### Architecture
 
-![image](https://github.com/huggingface/text-generation-inference/assets/3841370/38ba1531-ea0d-4851-b31a-a6d4ddc944b0)
+![TGI architecture](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/TGI.png)
 
 ### Local install
 
