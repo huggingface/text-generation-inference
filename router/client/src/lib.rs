@@ -10,7 +10,7 @@ pub use pb::generate::v1::HealthResponse;
 pub use pb::generate::v1::InfoResponse as ShardInfo;
 pub use pb::generate::v1::{
     Batch, CachedBatch, FinishReason, GeneratedText, Generation, NextTokenChooserParameters,
-    Tokens, Request, StoppingCriteriaParameters,
+    Request, StoppingCriteriaParameters, Tokens,
 };
 pub use sharded_client::ShardedClient;
 use thiserror::Error;

@@ -9,7 +9,7 @@ use std::sync::{
     Arc,
 };
 use text_generation_client::{
-    Batch, CachedBatch, ClientError, GeneratedText, Generation, Tokens, ShardedClient,
+    Batch, CachedBatch, ClientError, GeneratedText, Generation, ShardedClient, Tokens,
 };
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
@@ -524,45 +524,48 @@ fn send_responses(
     }
 
     // Create last Token
-    let tokens: Vec<Token> = if let Some(tokens_) = generation.tokens{
-        tokens_.ids.into_iter()
-                .zip(tokens_.logprobs.into_iter())
-                .zip(tokens_.texts.into_iter())
-                .zip(tokens_.is_special.into_iter())
-                .map(|(((id, logprob), text), special)| Token {
-                    id,
-                    text,
-                    logprob,
-                    special,
-                }).collect()
-    }else{
+    let tokens: Vec<Token> = if let Some(tokens_) = generation.tokens {
+        tokens_
+            .ids
+            .into_iter()
+            .zip(tokens_.logprobs.into_iter())
+            .zip(tokens_.texts.into_iter())
+            .zip(tokens_.is_special.into_iter())
+            .map(|(((id, logprob), text), special)| Token {
+                id,
+                text,
+                logprob,
+                special,
+            })
+            .collect()
+    } else {
         vec![]
     };
 
     // generation.top_tokens
 
     let mut top_tokens = Vec::new();
-    for top_tokens_ in generation.top_tokens{
+    for top_tokens_ in generation.top_tokens {
         let mut local_top_tokens = Vec::new();
-            local_top_tokens.extend(
-                top_tokens_
-                    .ids
-                    .into_iter()
-                    .zip(top_tokens_.logprobs.into_iter())
-                    .zip(top_tokens_.texts.into_iter())
-                    .zip(top_tokens_.is_special.into_iter())
-                    .map(|(((id, logprob), text), special)| Token {
-                        id,
-                        text,
-                        logprob,
-                        special,
-                    }),
-            );
+        local_top_tokens.extend(
+            top_tokens_
+                .ids
+                .into_iter()
+                .zip(top_tokens_.logprobs.into_iter())
+                .zip(top_tokens_.texts.into_iter())
+                .zip(top_tokens_.is_special.into_iter())
+                .map(|(((id, logprob), text), special)| Token {
+                    id,
+                    text,
+                    logprob,
+                    special,
+                }),
+        );
         top_tokens.push(local_top_tokens);
     }
-    // Force top_tokens to be the same size as tokens, both are going to be 
+    // Force top_tokens to be the same size as tokens, both are going to be
     // zipped later
-    if top_tokens.len() != tokens.len(){
+    if top_tokens.len() != tokens.len() {
         top_tokens = (0..tokens.len()).map(|_| Vec::new()).collect();
     }
 

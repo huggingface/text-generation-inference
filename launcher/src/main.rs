@@ -162,7 +162,6 @@ struct Args {
     #[clap(long, env)]
     speculate: Option<usize>,
 
-
     /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
     #[clap(long, env, value_enum)]
     dtype: Option<Dtype>,
