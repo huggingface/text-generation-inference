@@ -525,23 +525,22 @@ fn send_responses(
     // Create last Token
     let tokens_ = generation.tokens.expect("Non empty tokens in generation");
     let n = tokens_.ids.len();
-    metrics::histogram!(
-        "tgi_request_skipped_tokens",
-        (n - 1) as f64
-    );
+    metrics::histogram!("tgi_request_skipped_tokens", (n - 1) as f64);
     for (i, (((id, logprob), text), special)) in tokens_
-            .ids
-            .into_iter()
-            .zip(tokens_.logprobs.into_iter())
-            .zip(tokens_.texts.into_iter())
-            .zip(tokens_.is_special.into_iter()).enumerate() {
-            let token = Token {
-                id,
-                text,
-                logprob,
-                special,
-            };
-        let top_tokens = if let Some(top_tokens_) = generation.top_tokens.get(i){
+        .ids
+        .into_iter()
+        .zip(tokens_.logprobs.into_iter())
+        .zip(tokens_.texts.into_iter())
+        .zip(tokens_.is_special.into_iter())
+        .enumerate()
+    {
+        let token = Token {
+            id,
+            text,
+            logprob,
+            special,
+        };
+        let top_tokens = if let Some(top_tokens_) = generation.top_tokens.get(i) {
             top_tokens_
                 .ids
                 .iter()
@@ -553,12 +552,12 @@ fn send_responses(
                     text: text.to_string(),
                     logprob,
                     special,
-                }).collect()
-        }else{
+                })
+                .collect()
+        } else {
             vec![]
-
         };
-        match (&generation.generated_text, i){
+        match (&generation.generated_text, i) {
             (Some(generated_text), i) if i == n - 1 => {
                 // Generation has ended
                 stopped = true;
