@@ -833,7 +833,7 @@ class FlashCausalLM(Model):
             batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs
         )
 
-        speculative_length = speculative_ids.shape[1]
+        speculative_length = 0 if speculative_ids is None else speculative_ids.shape[1]
         if prefill:
             if len(batch) > 1 and prefill_logprobs:
                 # We create the prefill_tokens_indices tensor that will be used to gather prefill logprobs

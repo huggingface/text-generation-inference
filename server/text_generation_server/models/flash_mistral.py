@@ -21,6 +21,7 @@ from text_generation_server.models.custom_modeling.flash_mistral_modeling import
     FlashMistralForCausalLM,
     MistralConfig,
 )
+from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -132,8 +133,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
 
             # Paged attention
             # Remove one as the first token des not have a past
-            from text_generation_server.models import SPECULATE
-            speculative_length = SPECULATE
+            speculative_length = get_speculate()
             total_tokens = input_length + max_new_tokens - 1 + speculative_length
 
             # Needed blocks can not go over SLIDING_WINDOW_BLOCKS
