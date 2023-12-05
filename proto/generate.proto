@@ -32,7 +32,7 @@ message InfoResponse {
     string dtype = 2;
     string device_type = 3;
     optional uint32 window_size = 4;
-    optional uint32 speculate = 5;
+    uint32 speculate = 5;
 }
 
 /// Empty request

@@ -50,10 +50,11 @@ impl Infer {
         max_concurrent_requests: usize,
         requires_padding: bool,
         window_size: Option<u32>,
+        speculate: u32,
         generation_health: Arc<AtomicBool>,
     ) -> Self {
         // Infer shared state
-        let queue = Queue::new(requires_padding, 16, window_size);
+        let queue = Queue::new(requires_padding, 16, window_size, speculate);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });

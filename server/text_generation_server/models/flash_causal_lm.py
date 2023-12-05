@@ -938,8 +938,6 @@ class FlashCausalLM(Model):
             batch.next_token_chooser.do_sample,
             batch.next_token_chooser.seeds,
             batch.top_n_tokens,
-            # next_token_ids,
-            # next_token_logprobs,
             accepted_ids,
             batch_top_token_ids,
             batch_top_token_logprobs,
@@ -957,8 +955,6 @@ class FlashCausalLM(Model):
             do_sample,
             seed,
             top_n_tokens,
-            # next_token_id,
-            # next_token_logprob,
             n_accepted_ids,
             top_token_ids,
             top_token_logprobs,
@@ -968,21 +964,18 @@ class FlashCausalLM(Model):
             _next_token_logprobs = next_token_logprobs[index: index+n_accepted_ids]
 
             next_token_texts = []
+            left = 0
             for j in range(index, index + n_accepted_ids):
                 # Generated token
-                all_input_ids.append(next_token_ids[j])
+                next_token_id = next_token_ids[j]
+                all_input_ids.append(next_token_id)
                 next_token_text, prefix_offset, read_offset = self.decode_token(
                     all_input_ids,
                     prefix_offset,
                     read_offset,
                 )
                 next_token_texts.append(next_token_text)
-            index += n_accepted_ids
 
-            # Evaluate stopping criteria
-
-            left = 0
-            for j, next_token_id in enumerate(_next_token_ids):
                 stop, reason = stopping_criteria(
                     next_token_id,
                     next_token_text,
@@ -994,6 +987,7 @@ class FlashCausalLM(Model):
                     break
                 else:
                     stopped = False
+            index += n_accepted_ids
             _next_token_ids = _next_token_ids[:len(_next_token_ids) - left]
 
             # Shard generations
@@ -1003,7 +997,7 @@ class FlashCausalLM(Model):
                     # Decode generated tokens
                     # Remove potentially accepted ids that do not respect
                     # the stopping_criteria
-                    _ids = all_input_ids[:len(all_input_ids)-left]
+                    _ids = all_input_ids
                     output_text, _, _ = self.decode_token(
                         _ids,
                         prefix_offset=len(_ids)
