@@ -6,6 +6,7 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
 from typing import Optional
 
+from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
@@ -77,9 +78,6 @@ except ImportError as e:
 if MISTRAL:
     __all__.append(FlashMistral)
 
-SPECULATE = None
-
-
 def get_model(
     model_id: str,
     revision: Optional[str],
@@ -89,7 +87,6 @@ def get_model(
     dtype: Optional[str],
     trust_remote_code: bool,
 ) -> Model:
-    global SPECULATE
     if dtype is None:
         # Keep it as default for now and let
         # every model resolve their own default dtype.
@@ -101,7 +98,10 @@ def get_model(
     else:
         raise RuntimeError(f"Unknown dtype {dtype}")
 
-    SPECULATE = 2
+    if speculate is not None:
+        set_speculate(speculate)
+    else:
+        set_speculate(2)
 
     if "facebook/galactica" in model_id:
         return GalacticaSharded(
@@ -144,18 +144,22 @@ def get_model(
         medusa_config = config_dict
         model_id = config_dict["base_model_name_or_path"]
         revision = "main"
-        SPECULATE = config_dict["medusa_num_heads"]
+        speculate_medusa = config_dict["medusa_num_heads"]
+        if speculate is not None:
+            if speculate > speculate_medusa:
+                raise RuntimeError("Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match")
+            else:
+                set_speculate(speculate)
+        else:
+            set_speculate(speculate_medusa)
+
         config_dict, _ = PretrainedConfig.get_config_dict(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         method = "medusa"
     else:
-        if speculate is not None:
-            SPECULATE = speculate
-        else:
-            SPECULATE = 2
         method = "n-gram"
-    logger.info(f"Using speculation {method} with {SPECULATE} input ids.")
+    logger.info(f"Using speculation {method} with {get_speculate()} input ids.")
 
     model_type = config_dict["model_type"]
 

@@ -167,21 +167,21 @@ impl Infer {
                         .collect();
                 }
                 // Push last token
-                InferStreamResponse::Intermediate { tokens, top_tokens } => {
-                    result_tokens.extend(tokens);
-                    result_top_tokens.extend(top_tokens);
+                InferStreamResponse::Intermediate { token, top_tokens } => {
+                    result_tokens.push(token);
+                    result_top_tokens.push(top_tokens);
                 }
                 // Final message
                 // Set return values
                 InferStreamResponse::End {
-                    tokens,
+                    token,
                     generated_text,
                     start,
                     queued,
                     top_tokens,
                 } => {
-                    result_tokens.extend(tokens);
-                    result_top_tokens.extend(top_tokens);
+                    result_tokens.push(token);
+                    result_top_tokens.push(top_tokens);
                     result_generated_text = Some(generated_text);
                     result_start = Some(start);
                     result_queued = Some(queued)
@@ -515,7 +515,6 @@ fn send_responses(
 
     let mut stopped = false;
 
-    tracing::info!("Generation: {:?}", generation);
     if let Some(prefill_tokens) = generation.prefill_tokens {
         // Send message
         entry
@@ -524,68 +523,63 @@ fn send_responses(
     }
 
     // Create last Token
-    let tokens: Vec<Token> = if let Some(tokens_) = generation.tokens {
-        tokens_
+    let tokens_ = generation.tokens.expect("Non empty tokens in generation");
+    let n = tokens_.ids.len();
+    metrics::histogram!(
+        "tgi_request_skipped_tokens",
+        (n - 1) as f64
+    );
+    for (i, (((id, logprob), text), special)) in tokens_
             .ids
             .into_iter()
             .zip(tokens_.logprobs.into_iter())
             .zip(tokens_.texts.into_iter())
-            .zip(tokens_.is_special.into_iter())
-            .map(|(((id, logprob), text), special)| Token {
+            .zip(tokens_.is_special.into_iter()).enumerate() {
+            let token = Token {
                 id,
                 text,
                 logprob,
                 special,
-            })
-            .collect()
-    } else {
-        vec![]
-    };
-
-    // generation.top_tokens
-
-    let mut top_tokens = Vec::new();
-    for top_tokens_ in generation.top_tokens {
-        let mut local_top_tokens = Vec::new();
-        local_top_tokens.extend(
+            };
+        let top_tokens = if let Some(top_tokens_) = generation.top_tokens.get(i){
             top_tokens_
                 .ids
-                .into_iter()
-                .zip(top_tokens_.logprobs.into_iter())
-                .zip(top_tokens_.texts.into_iter())
-                .zip(top_tokens_.is_special.into_iter())
-                .map(|(((id, logprob), text), special)| Token {
+                .iter()
+                .zip(top_tokens_.logprobs.iter())
+                .zip(top_tokens_.texts.iter())
+                .zip(top_tokens_.is_special.iter())
+                .map(|(((&id, &logprob), text), &special)| Token {
                     id,
-                    text,
+                    text: text.to_string(),
                     logprob,
                     special,
-                }),
-        );
-        top_tokens.push(local_top_tokens);
-    }
-    // Force top_tokens to be the same size as tokens, both are going to be
-    // zipped later
-    if top_tokens.len() != tokens.len() {
-        top_tokens = (0..tokens.len()).map(|_| Vec::new()).collect();
+                }).collect()
+        }else{
+            vec![]
+
+        };
+        match (&generation.generated_text, i){
+            (Some(generated_text), i) if i == n - 1 => {
+                // Generation has ended
+                stopped = true;
+                // Send message
+                entry.response_tx.send(Ok(InferStreamResponse::End {
+                    token,
+                    top_tokens,
+                    generated_text: generated_text.clone(),
+                    queued: entry.queue_time,
+                    start: entry.batch_time.unwrap(),
+                }))?;
+            }
+            _ => {
+                // Send message
+                entry
+                    .response_tx
+                    .send(Ok(InferStreamResponse::Intermediate { token, top_tokens }))?;
+            }
+        }
     }
 
-    if let Some(generated_text) = generation.generated_text {
-        // Generation has ended
-        stopped = true;
-        // Send message
-        entry.response_tx.send(Ok(InferStreamResponse::End {
-            tokens,
-            top_tokens,
-            generated_text,
-            queued: entry.queue_time,
-            start: entry.batch_time.unwrap(),
-        }))?;
-    } else {
-        // Send message
-        entry
-            .response_tx
-            .send(Ok(InferStreamResponse::Intermediate { tokens, top_tokens }))?;
-    }
     Ok(stopped)
 }
 
@@ -613,13 +607,13 @@ pub(crate) enum InferStreamResponse {
     Prefill(Tokens),
     // Intermediate messages
     Intermediate {
-        tokens: Vec<Token>,
-        top_tokens: Vec<Vec<Token>>,
+        token: Token,
+        top_tokens: Vec<Token>,
     },
     // Last message
     End {
-        tokens: Vec<Token>,
-        top_tokens: Vec<Vec<Token>>,
+        token: Token,
+        top_tokens: Vec<Token>,
         generated_text: GeneratedText,
         start: Instant,
         queued: Instant,

@@ -11,7 +11,8 @@ from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Union, Dict
 
-from text_generation_server.models import Model
+from text_generation_server.models import Model 
+from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.models.types import (
     Batch,
     Tokens,
@@ -192,8 +193,7 @@ class FlashCausalLMBatch(Batch):
 
             # Paged attention
             # Remove one as the first token des not have a past
-            from text_generation_server.models import SPECULATE
-            speculative_length = SPECULATE
+            speculative_length = get_speculate()
             total_tokens = input_length + max_new_tokens - 1 + speculative_length
             needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
             blocks += needed_blocks
@@ -483,7 +483,7 @@ class FlashCausalLMBatch(Batch):
             total_batch_size += len(b)
             total_slots += len(b.slots)
             blocks += b.blocks
-            speculative_length = 0 if b.speculative_ids is None else b.speculative_ids.shape[1]
+            speculative_length = b.speculative_ids.shape[1]
             max_blocks = max(max_blocks, b.max_blocks)
             max_seqlen = max(max_seqlen, b.max_seqlen)
             max_length = max(
@@ -589,7 +589,7 @@ class FlashCausalLMBatch(Batch):
             device=batches[0].next_token_chooser.device,
         )
 
-        speculative_ids = None if batches[0].speculative_ids is None else torch.cat([b.speculative_ids for b in batches], dim=0)
+        speculative_ids = torch.cat([b.speculative_ids for b in batches], dim=0)
 
         # Needed to avoid dropping blocks when the batches will go out of scope
         for b in batches:
@@ -825,16 +825,15 @@ class FlashCausalLM(Model):
             next_token_logits = out
 
 
-        from text_generation_server.models import SPECULATE
         next_input_ids, next_token_logprobs, logprobs, accepted_ids, speculative_ids = batch.next_token_chooser(
-            batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, SPECULATE, batch.speculative_ids, speculative_logits
+            batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, get_speculate(), batch.speculative_ids, speculative_logits
         )
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs
         )
 
-        speculative_length = 0 if speculative_ids is None else speculative_ids.shape[1]
+        speculative_length = speculative_ids.shape[1]
         if prefill:
             if len(batch) > 1 and prefill_logprobs:
                 # We create the prefill_tokens_indices tensor that will be used to gather prefill logprobs
@@ -1038,6 +1037,7 @@ class FlashCausalLM(Model):
                         clean_up_tokenization_spaces=False,
                         skip_special_tokens=False,
                     )
+
                     prefill_tokens = Tokens(
                         prefill_token_ids, request_prefill_logprobs, prefill_texts, is_special = []
                     )

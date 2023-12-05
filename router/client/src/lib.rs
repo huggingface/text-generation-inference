@@ -6,9 +6,9 @@ mod pb;
 mod sharded_client;
 
 pub use client::Client;
-pub use pb::generate::v1::HealthResponse;
-pub use pb::generate::v1::InfoResponse as ShardInfo;
-pub use pb::generate::v1::{
+pub use pb::generate::v2::HealthResponse;
+pub use pb::generate::v2::InfoResponse as ShardInfo;
+pub use pb::generate::v2::{
     Batch, CachedBatch, FinishReason, GeneratedText, Generation, NextTokenChooserParameters,
     Request, StoppingCriteriaParameters, Tokens,
 };
