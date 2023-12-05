@@ -101,7 +101,7 @@ def get_model(
     if speculate is not None:
         set_speculate(speculate)
     else:
-        set_speculate(2)
+        set_speculate(0)
 
     if "facebook/galactica" in model_id:
         return GalacticaSharded(
@@ -159,7 +159,10 @@ def get_model(
         method = "medusa"
     else:
         method = "n-gram"
-    logger.info(f"Using speculation {method} with {get_speculate()} input ids.")
+
+    speculate = get_speculate()
+    if speculate > 0:
+        logger.info(f"Using speculation {method} with {speculate} input ids.")
 
     model_type = config_dict["model_type"]
 

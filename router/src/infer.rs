@@ -527,13 +527,14 @@ fn send_responses(
     let tokens_ = generation.tokens.expect("Non empty tokens in generation");
     let n = tokens_.ids.len();
     metrics::histogram!("tgi_request_skipped_tokens", (n - 1) as f64);
-    for (i, (((id, logprob), text), special)) in tokens_
+    let mut iterator = tokens_
         .ids
         .into_iter()
         .zip(tokens_.logprobs.into_iter())
         .zip(tokens_.texts.into_iter())
         .zip(tokens_.is_special.into_iter())
-        .enumerate()
+        .enumerate().peekable();
+    while let Some( (i, (((id, logprob), text), special))) = iterator.next() 
     {
         let token = Token {
             id,
@@ -557,9 +558,9 @@ fn send_responses(
                 .collect()
         } else {
             vec![]
-        };
-        match (&generation.generated_text, i) {
-            (Some(generated_text), i) if i == n - 1 => {
+        }; 
+        match (&generation.generated_text, iterator.peek()) {
+            (Some(generated_text), None) => {
                 // Generation has ended
                 stopped = true;
                 // Send message

@@ -960,9 +960,6 @@ class FlashCausalLM(Model):
             top_token_logprobs,
         ) in enumerate(iterator):
             # Append next token to all tokens
-            _next_token_ids = next_token_ids[index: index+n_accepted_ids]
-            _next_token_logprobs = next_token_logprobs[index: index+n_accepted_ids]
-
             next_token_texts = []
             left = 0
             for j in range(index, index + n_accepted_ids):
@@ -983,12 +980,14 @@ class FlashCausalLM(Model):
 
                 if stop:
                     stopped = True
-                    left = len(_next_token_ids) - 1 - j
+                    left = n_accepted_ids - 1 - j
                     break
                 else:
                     stopped = False
+
+            _next_token_ids = next_token_ids[index: index+n_accepted_ids - left]
+            _next_token_logprobs = next_token_logprobs[index: index+n_accepted_ids - left]
             index += n_accepted_ids
-            _next_token_ids = _next_token_ids[:len(_next_token_ids) - left]
 
             # Shard generations
             # All generations will be appended in the rust sharded client
@@ -1085,8 +1084,6 @@ class FlashCausalLM(Model):
         batch.prefill_cu_outlens = None
         batch.prefill_head_indices = None
         batch.prefill_next_token_indices = None
-        if prefill:
-            batch.max_seqlen += speculative_length
         batch.max_seqlen = batch.max_seqlen + 1
 
         return generations, batch
