@@ -533,9 +533,9 @@ fn send_responses(
         .zip(tokens_.logprobs.into_iter())
         .zip(tokens_.texts.into_iter())
         .zip(tokens_.is_special.into_iter())
-        .enumerate().peekable();
-    while let Some( (i, (((id, logprob), text), special))) = iterator.next() 
-    {
+        .enumerate()
+        .peekable();
+    while let Some((i, (((id, logprob), text), special))) = iterator.next() {
         let token = Token {
             id,
             text,
@@ -558,7 +558,7 @@ fn send_responses(
                 .collect()
         } else {
             vec![]
-        }; 
+        };
         match (&generation.generated_text, iterator.peek()) {
             (Some(generated_text), None) => {
                 // Generation has ended
