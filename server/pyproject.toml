@@ -9,52 +9,32 @@ text-generation-server = 'text_generation_server.cli:app'
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-protobuf = "^4.21.7"
+protobuf = "^3.20.3"
 grpcio = "^1.51.1"
-grpcio-status = "^1.51.1"
-grpcio-reflection = "^1.51.1"
+grpcio-status = "*"
+grpcio-reflection = "*"
 grpc-interceptor = "^0.15.0"
 typer = "^0.6.1"
-accelerate = { version = "^0.20.0", optional = true }
-bitsandbytes = { version = "^0.41.1", optional = true }
-safetensors = "^0.3.2"
+safetensors = "0.3.2"
 loguru = "^0.6.0"
 opentelemetry-api = "^1.15.0"
 opentelemetry-exporter-otlp = "^1.15.0"
 opentelemetry-instrumentation-grpc = "^0.36b0"
 hf-transfer = "^0.1.2"
 sentencepiece = "^0.1.97"
-tokenizers = "^0.13.3"
+tokenizers = "^0.14.1"
 huggingface-hub = "^0.16.4"
-transformers = "^4.32.1"
-einops = "^0.6.1"
-texttable = { version = "^1.6.7", optional = true }
-datasets = { version = "^2.14.0", optional = true }
 peft = "^0.4.0"
-torch = { version = "^2.0.1" }
-scipy = "^1.11.1"
-pillow = "^10.0.0"
-
-[tool.poetry.extras]
-accelerate = ["accelerate"]
-bnb = ["bitsandbytes"]
-quantize = ["texttable", "datasets", "accelerate"]
+deepspeed = { git = "https://github.com/HabanaAI/DeepSpeed.git", branch = "1.13.0" }
+optimum-habana =  { git = "https://github.com/huggingface/optimum-habana.git", branch = "main" }
 
 [tool.poetry.group.dev.dependencies]
-grpcio-tools = "^1.51.1"
+grpcio-tools = "*"
 pytest = "^7.3.0"
-
-
-[[tool.poetry.source]]
-name = "pytorch-gpu-src"
-url = "https://download.pytorch.org/whl/cu118"
-priority = "explicit"
 
 [tool.pytest.ini_options]
 markers = ["private: marks tests as requiring an admin hf token (deselect with '-m \"not private\"')"]
 
 [build-system]
-requires = [
-    "poetry-core>=1.0.0",
-]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

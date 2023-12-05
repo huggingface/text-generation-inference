@@ -1,9 +1,6 @@
 install-server:
 	cd server && make install
 
-install-custom-kernels:
-	if [ "$$BUILD_EXTENSIONS" = "True" ]; then cd server/custom_kernels && python setup.py install; else echo "Custom kernels are disabled, you need to set the BUILD_EXTENSIONS environment variable to 'True' in order to build them. (Please read the docs, kernels might not work on all hardware)"; fi
-
 install-integration-tests:
 	cd integration-tests && pip install -r requirements.txt
 	cd clients/python && pip install .
@@ -45,8 +42,8 @@ python-tests: python-server-tests python-client-tests
 run-falcon-7b-instruct:
 	text-generation-launcher --model-id tiiuae/falcon-7b-instruct --port 8080
 
-run-falcon-7b-instruct-quantize:
-	text-generation-launcher --model-id tiiuae/falcon-7b-instruct --quantize bitsandbytes --port 8080
-
 clean:
 	rm -rf target aml
+
+debug_image_build:
+	docker build --no-cache --progress=plain -t debug_tgi .

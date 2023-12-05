@@ -30,13 +30,9 @@ class NextTokenChooser:
         seed=0,
         device="cpu",
     ):
-        self.watermark_processor = (
-            WatermarkLogitsProcessor(device=device) if watermark else None
-        )
+        self.watermark_processor = WatermarkLogitsProcessor(device=device) if watermark else None
         self.repetition_processor = (
-            RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty)
-            if repetition_penalty
-            else None
+            RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty) if repetition_penalty else None
         )
 
         has_warpers = (
@@ -46,9 +42,7 @@ class NextTokenChooser:
             or (typical_p is not None and typical_p < 1.0)
         )
         if has_warpers:
-            self.static_warper = static_warper(
-                temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p
-            )
+            self.static_warper = static_warper(temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p)
         else:
             self.static_warper = None
 
@@ -136,9 +130,7 @@ class StoppingCriteria:
         pb: generate_pb2.StoppingCriteriaParameters,
         tokenizer: PreTrainedTokenizerBase,
     ) -> "StoppingCriteria":
-        stop_sequence_criterias = [
-            StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
-        ]
+        stop_sequence_criterias = [StopSequenceCriteria(sequence) for sequence in pb.stop_sequences]
         return StoppingCriteria(
             tokenizer.eos_token_id,
             stop_sequence_criterias,
@@ -176,20 +168,14 @@ class HeterogeneousNextTokenChooser:
         )
 
         self.repetition_processor = (
-            HeterogeneousRepetitionPenaltyLogitsProcessor(
-                repetition_penalty, dtype, device
-            )
+            HeterogeneousRepetitionPenaltyLogitsProcessor(repetition_penalty, dtype, device)
             if any([x != 1.0 for x in repetition_penalty])
             else None
         )
 
         if any([x != 1.0 for x in temperature]):
-            do_sample = [
-                sample or x != 1.0 for x, sample in zip(temperature, do_sample)
-            ]
-            warpers.append(
-                HeterogeneousTemperatureLogitsWarper(temperature, dtype, device)
-            )
+            do_sample = [sample or x != 1.0 for x, sample in zip(temperature, do_sample)]
+            warpers.append(HeterogeneousTemperatureLogitsWarper(temperature, dtype, device))
 
         if any([x != 0 for x in top_k]):
             do_sample = [sample or x != 0 for x, sample in zip(top_k, do_sample)]
@@ -277,7 +263,7 @@ class HeterogeneousNextTokenChooser:
 
 class Sampling:
     def __init__(self, seed: int, device: str = "cpu"):
-        self.generator = torch.Generator(device)
+        self.generator = torch.Generator("cpu")
         self.generator.manual_seed(seed)
         self.seed = seed
 
@@ -355,30 +341,21 @@ def batch_top_tokens(
     # Parallel kthvalue adapted from https://discuss.pytorch.org/t/how-to-efficiently-get-the-k-th-largest-values-in-parallel/160529/2
     # Sorted topk is faster than torch.sort() since we only need a small subset
     sorted_top_k = torch.topk(logprobs, k=max_top_n, dim=1, sorted=True).values
-    nth_highest = torch.gather(
-        sorted_top_k, 1, (top_n_tokens_tensor - 1).clip(min=0).unsqueeze(1)
-    )
+    nth_highest = torch.gather(sorted_top_k, 1, (top_n_tokens_tensor - 1).clip(min=0).unsqueeze(1))
     nth_highest[nth_highest == -float("inf")] = torch.finfo(logprobs.dtype).min
 
     # Find the new "fuzzy" top n values
     top_n_indices = (logprobs >= nth_highest).nonzero()
     _, top_n_ishes = torch.unique_consecutive(top_n_indices[:, 0], return_counts=True)
 
-    k = 1 if top_n_ishes.numel() == 0 else top_n_ishes.max()
     # Take a new topk for these new max n values
-    top_k = torch.topk(logprobs, k=k, dim=1, sorted=True)
+    top_k = torch.topk(logprobs, k=top_n_ishes.max(), dim=1, sorted=True)
 
     top_n_ishes = top_n_ishes.tolist()
     top_indices = top_k.indices.tolist()
     top_values = top_k.values.tolist()
 
     return (
-        [
-            idxs[:n] if req_n > 0 else []
-            for idxs, n, req_n in zip(top_indices, top_n_ishes, top_n_tokens)
-        ],
-        [
-            vals[:n] if req_n > 0 else []
-            for vals, n, req_n in zip(top_values, top_n_ishes, top_n_tokens)
-        ],
+        [idxs[:n] if req_n > 0 else [] for idxs, n, req_n in zip(top_indices, top_n_ishes, top_n_tokens)],
+        [vals[:n] if req_n > 0 else [] for vals, n, req_n in zip(top_values, top_n_ishes, top_n_tokens)],
     )

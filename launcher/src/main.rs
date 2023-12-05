@@ -459,7 +459,9 @@ fn shard_manager(
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
     // Torch Distributed Env vars
-    envs.push(("RANK".into(), rank.to_string().into()));
+    if  world_size == 1 {
+        envs.push(("RANK".into(), rank.to_string().into()));
+    }
     envs.push(("WORLD_SIZE".into(), world_size.to_string().into()));
     envs.push(("MASTER_ADDR".into(), master_addr.into()));
     envs.push(("MASTER_PORT".into(), master_port.to_string().into()));
@@ -870,7 +872,7 @@ fn spawn_shards(
     running: Arc<AtomicBool>,
 ) -> Result<(), LauncherError> {
     // Start shard processes
-    for rank in 0..num_shard {
+    for rank in 0..1 {
         let model_id = args.model_id.clone();
         let revision = args.revision.clone();
         let uds_path = args.shard_uds_path.clone();
@@ -921,12 +923,12 @@ fn spawn_shards(
     drop(shutdown_sender);
 
     // Wait for shard to start
-    let mut shard_ready = 0;
+   let mut shard_ready = 0;
     while running.load(Ordering::SeqCst) {
         match status_receiver.try_recv() {
             Ok(ShardStatus::Ready) => {
                 shard_ready += 1;
-                if shard_ready == num_shard {
+                if shard_ready == 1 {
                     break;
                 }
             }

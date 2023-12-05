@@ -1,5 +1,6 @@
 import math
 import torch
+import habana_frameworks.torch.core as htcore
 
 from functools import lru_cache
 from typing import Optional, List, Dict, Union
@@ -36,37 +37,31 @@ class StaticWarper:
         if typical_p is not None and typical_p < 1.0:
             self.warpers.append(TypicalLogitsWarper(mass=typical_p))
 
-        self.cuda_graph = None
+        self.hpu_graph = None
         self.static_scores = None
         self.static_warped_scores = None
         self.static_next_logprob = None
 
     def __call__(self, scores):
-        if torch.cuda.is_available():
-            if self.cuda_graph is None:
-                self.static_scores = scores
-                self.cuda_graph = torch.cuda.CUDAGraph()
+        if self.hpu_graph is None:
+            self.static_scores = scores.clone().contiguous()
+            self.static_warped_scores = scores.clone().contiguous()
+            self.static_next_logprob = scores.clone().contiguous()
+            self.hpu_graph = htcore.hpu.HPUGraph()
 
-                with torch.cuda.graph(self.cuda_graph, pool=mempool):
-                    local_scores = self.static_scores
-                    for warper in self.warpers:
-                        local_scores = warper(None, local_scores)
+            with htcore.hpu.graph(self.hpu_graph):
+                local_scores = self.static_scores
+                for warper in self.warpers:
+                    local_scores = warper(None, local_scores)
 
-                    self.static_warped_scores = local_scores
-                    # Compute logprobs
-                    self.static_next_logprob = torch.log_softmax(
-                        self.static_warped_scores, -1
-                    )
+                self.static_warped_scores.copy_(local_scores)
+                # Compute logprobs
+                self.static_next_logprob.copy_(torch.log_softmax(self.static_warped_scores, -1))
 
-            self.static_scores.copy_(scores)
-            self.cuda_graph.replay()
+        self.static_scores.copy_(scores)
+        self.hpu_graph.replay()
 
-            return self.static_warped_scores, self.static_next_logprob
-
-        # CPU branch
-        for warper in self.warpers:
-            scores = warper(None, scores)
-        return scores, torch.log_softmax(scores, -1)
+        return self.static_warped_scores, self.static_next_logprob
 
 
 @lru_cache(10)
@@ -76,9 +71,7 @@ def static_warper(
     top_p: Optional[float],
     typical_p: Optional[float],
 ) -> StaticWarper:
-    return StaticWarper(
-        temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p
-    )
+    return StaticWarper(temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p)
 
 
 class HeterogeneousRepetitionPenaltyLogitsProcessor(LogitsProcessor):
@@ -95,17 +88,13 @@ class HeterogeneousRepetitionPenaltyLogitsProcessor(LogitsProcessor):
 
     def __init__(self, penalty: List[float], dtype: torch.dtype, device: torch.device):
         self.penalty = penalty
-        self.penalty_tensor = torch.tensor(
-            penalty, dtype=dtype, device=device
-        ).unsqueeze(1)
+        self.penalty_tensor = torch.tensor(penalty, dtype=dtype, device=device).unsqueeze(1)
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
         score = torch.gather(scores, 1, input_ids)
 
         # if score < 0 then repetition penalty has to be multiplied to reduce the previous token probability
-        score = torch.where(
-            score < 0, score * self.penalty_tensor, score / self.penalty_tensor
-        )
+        score = torch.where(score < 0, score * self.penalty_tensor, score / self.penalty_tensor)
 
         scores.scatter_(1, input_ids, score)
         return scores
@@ -129,13 +118,9 @@ class HeterogeneousTemperatureLogitsWarper:
             The value used to module the logits distribution.
     """
 
-    def __init__(
-        self, temperature: List[float], dtype: torch.dtype, device: torch.device
-    ):
+    def __init__(self, temperature: List[float], dtype: torch.dtype, device: torch.device):
         self.temperature = temperature
-        self.temperature_tensor = torch.tensor(
-            temperature, dtype=dtype, device=device
-        ).unsqueeze(1)
+        self.temperature_tensor = torch.tensor(temperature, dtype=dtype, device=device).unsqueeze(1)
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
         scores.div_(self.temperature_tensor)
@@ -174,9 +159,7 @@ class HeterogeneousTopPLogitsWarper(LogitsWarper):
         min_tokens_to_keep: int = 1,
     ):
         self.top_p = top_p
-        self.top_p_opposite = 1 - torch.tensor(
-            top_p, dtype=dtype, device=device
-        ).unsqueeze(1)
+        self.top_p_opposite = 1 - torch.tensor(top_p, dtype=dtype, device=device).unsqueeze(1)
         self.filter_value = filter_value
         self.min_tokens_to_keep = min_tokens_to_keep
 
@@ -193,9 +176,7 @@ class HeterogeneousTopPLogitsWarper(LogitsWarper):
         sorted_indices_to_remove[..., -self.min_tokens_to_keep :] = 0
 
         # scatter sorted tensors to original indexing
-        indices_to_remove = sorted_indices_to_remove.scatter(
-            1, sorted_indices, sorted_indices_to_remove
-        )
+        indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
         warped_scores = scores.masked_fill_(indices_to_remove, self.filter_value)
 
         return warped_scores
@@ -243,9 +224,7 @@ class HeterogeneousTopKLogitsWarper(LogitsWarper):
         disabled = [x == 0 for x in top_k]
 
         if any(disabled):
-            self.top_k_disabled_mask = torch.tensor(
-                disabled, dtype=torch.bool, device=device
-            ).view(-1, 1)
+            self.top_k_disabled_mask = torch.tensor(disabled, dtype=torch.bool, device=device).view(-1, 1)
         else:
             self.top_k_disabled_mask = None
 
@@ -281,9 +260,7 @@ class HeterogeneousTopKLogitsWarper(LogitsWarper):
             self.max_top_k = max(self.top_k)
 
             if self.top_k_disabled_mask is not None:
-                self.top_k_disabled_mask = (
-                    self.top_k_disabled_mask[indices] if any(disabled) else None
-                )
+                self.top_k_disabled_mask = self.top_k_disabled_mask[indices] if any(disabled) else None
 
             return self
         return None
@@ -349,15 +326,11 @@ class HeterogeneousTypicalLogitsWarper(LogitsWarper):
         if self.disabled_mask is not None:
             last_ind.masked_fill_(self.disabled_mask, scores.shape[-1] - 1)
 
-        sorted_indices_to_remove = sorted_scores > sorted_scores.gather(
-            1, last_ind.view(-1, 1)
-        )
+        sorted_indices_to_remove = sorted_scores > sorted_scores.gather(1, last_ind.view(-1, 1))
         if self.min_tokens_to_keep > 1:
             # Keep at least min_tokens_to_keep (set to min_tokens_to_keep-1 because we add the first one below)
             sorted_indices_to_remove[..., : self.min_tokens_to_keep] = 0
-        indices_to_remove = sorted_indices_to_remove.scatter(
-            1, sorted_indices, sorted_indices_to_remove
-        )
+        indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
 
         warped_scores = scores.masked_fill_(indices_to_remove, self.filter_value)
 
@@ -371,9 +344,7 @@ class HeterogeneousTypicalLogitsWarper(LogitsWarper):
             self.mass_tensor = self.mass_tensor[indices]
 
             if self.disabled_mask is not None:
-                self.disabled_mask = (
-                    self.disabled_mask[indices] if any(disabled) else None
-                )
+                self.disabled_mask = self.disabled_mask[indices] if any(disabled) else None
 
             return self
         return None
