@@ -229,7 +229,7 @@ impl State {
             }
 
             if self.requires_padding {
-                decode_tokens += entry.request.stopping_parameters.max_new_tokens;
+                decode_tokens += entry.request.stopping_parameters.max_new_tokens + self.speculate;
             } else {
                 let max_new_tokens = match self.window_size {
                     None => entry.request.stopping_parameters.max_new_tokens,

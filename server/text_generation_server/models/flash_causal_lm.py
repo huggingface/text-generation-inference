@@ -829,6 +829,9 @@ class FlashCausalLM(Model):
             batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, get_speculate(), batch.speculative_ids, speculative_logits
         )
 
+        from loguru import logger
+        logger.info(f"Accepted id {accepted_ids}")
+
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs
         )
