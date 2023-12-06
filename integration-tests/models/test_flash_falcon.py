@@ -54,7 +54,7 @@ async def test_flash_falcon_all_params(flash_falcon, response_snapshot):
 async def test_flash_falcon_load(flash_falcon, generate_load, response_snapshot):
     responses = await generate_load(
         flash_falcon,
-        "What is Deep Learning?",
+        "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:",
         max_new_tokens=10,
         n=4,
     )
