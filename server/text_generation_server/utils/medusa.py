@@ -33,7 +33,7 @@ class MedusaModel(torch.nn.Module):
 
     def forward(self, x):
         logits = self.lm_head(x)
-        speculative_logits =  torch.stack([head(x) for head in self.heads], dim=1)
+        speculative_logits = torch.stack([head(x) for head in self.heads], dim=1)
         return logits, speculative_logits
 
 

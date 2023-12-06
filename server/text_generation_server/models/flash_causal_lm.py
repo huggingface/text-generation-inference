@@ -820,10 +820,20 @@ class FlashCausalLM(Model):
         else:
             next_token_logits = out
 
+        # import datetime
+        # from loguru import logger
 
+        # start = datetime.datetime.now()
         next_input_ids, next_token_logprobs, logprobs, accepted_ids, speculative_ids = batch.next_token_chooser(
             batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, get_speculate(), batch.speculative_ids, speculative_logits
         )
+        # took = datetime.datetime.now() - start
+        # logger.info(f"Next token chooser {batch.all_input_ids_tensor.shape} took {took}")
+        # if batch.all_input_ids_tensor.shape[1] < 2000 and took > datetime.timedelta(milliseconds=5):
+        #     next_input_ids, next_token_logprobs, logprobs, accepted_ids, speculative_ids = batch.next_token_chooser(
+        #         batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, get_speculate(), batch.speculative_ids, speculative_logits, verbose=True
+        #     )
+        #     import ipdb;ipdb.set_trace()
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs
