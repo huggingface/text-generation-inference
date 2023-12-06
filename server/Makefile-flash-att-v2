@@ -1,4 +1,4 @@
-flash_att_v2_commit := 601b4dc48dbe9d87c468daa2b4c0c8388b83753c
+flash_att_v2_commit := 02ac572f3ffc4f402e4183aaa6824b45859d3ed3
 
 flash-attention-v2:
     # Clone flash attention

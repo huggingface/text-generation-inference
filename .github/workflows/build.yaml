@@ -79,11 +79,6 @@ jobs:
           install: true
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
-      - name: Install cosign
-        if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@f3c664df7af409cb4873aa5068053ba9d61a57b6 #v2.6.0
-        with:
-          cosign-release: 'v1.13.1'
       - name: Tailscale
         uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
         with:
@@ -150,39 +145,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=min
           cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=min
-      # Sign the resulting Docker image digest except on PRs.
-      # This will only write to the public Rekor transparency log when the Docker
-      # repository is public to avoid leaking data.
-      - name: Sign the published Docker image
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        # This step uses the identity token to provision an ephemeral certificate
-        # against the sigstore community Fulcio instance.
-        run: echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign {}@${{ steps.build-and-push.outputs.digest }}
-      - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
-        uses: aquasecurity/trivy-action@master
-        if: ${{ github.event_name != 'pull_request' }}
-        with:
-          image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}'
-          format: 'github'
-          output: 'dependency-results.sbom.json'
-          github-pat: ${{ secrets.GITHUB_TOKEN }}
-          scanners: 'vuln'
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        if: ${{ github.event_name != 'pull_request' }}
-        with:
-          image-ref: 'ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL'
-          scanners: 'vuln'
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
-        if: ${{ github.event_name != 'pull_request' }}
-        with:
-          sarif_file: 'trivy-results.sarif'
 
   integration-tests:
     concurrency:

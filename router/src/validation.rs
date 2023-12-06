@@ -6,6 +6,7 @@ use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParamet
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::TruncationDirection;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
 
@@ -19,7 +20,7 @@ pub struct Validation {
     max_input_length: usize,
     max_total_tokens: usize,
     /// Channel to communicate with the background tokenization task
-    sender: Option<flume::Sender<TokenizerRequest>>,
+    sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
 }
 
 impl Validation {
@@ -34,19 +35,25 @@ impl Validation {
     ) -> Self {
         // If we have a fast tokenizer
         let sender = if let Some(tokenizer) = tokenizer {
-            // Create channel
-            let (validation_sender, validation_receiver) = flume::unbounded();
+            // Create round robin channel
+            let (validation_sender, validation_round_robin_receiver) = mpsc::unbounded_channel();
+            let mut senders = Vec::with_capacity(workers);
 
             // Create workers
             for _ in 0..workers {
                 let tokenizer_clone = tokenizer.clone();
-                let receiver_clone = validation_receiver.clone();
+                let (tokenizer_sender, tokenizer_receiver) = mpsc::unbounded_channel();
+                senders.push(tokenizer_sender);
 
                 // Spawn worker
                 tokio::task::spawn_blocking(move || {
-                    tokenizer_worker(tokenizer_clone, receiver_clone)
+                    tokenizer_worker(tokenizer_clone, tokenizer_receiver)
                 });
             }
+
+            // Create tokenization round robin task
+            tokio::spawn(round_robin_task(validation_round_robin_receiver, senders));
+
             Some(validation_sender)
         } else {
             None
@@ -67,8 +74,8 @@ impl Validation {
         &self,
         inputs: String,
         truncate: Option<usize>,
-        max_new_tokens: u32,
-    ) -> Result<(String, usize), ValidationError> {
+        max_new_tokens: Option<u32>,
+    ) -> Result<(String, usize, u32), ValidationError> {
         // If we have a fast tokenizer
         if let Some(sender) = &self.sender {
             // Create response channel
@@ -84,6 +91,11 @@ impl Validation {
             let (inputs, input_length) = response_receiver.await.unwrap()?;
 
             // Get total tokens
+            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
+                max_new_tokens
+            } else {
+                self.max_total_tokens.saturating_sub(input_length) as u32
+            };
             let total_tokens = input_length + max_new_tokens as usize;
 
             // Validate MaxTotalTokens
@@ -104,13 +116,20 @@ impl Validation {
             }
 
             metrics::histogram!("tgi_request_input_length", input_length as f64);
-            Ok((inputs, input_length))
+            Ok((inputs, input_length, max_new_tokens))
         }
         // Return inputs without validation
         else {
             // In this case, we don't know the real length in tokens of the inputs
             // However, the inputs will be truncated by the python servers
             // We make sure that truncate + max_new_tokens <= self.max_total_tokens
+            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
+                max_new_tokens
+            } else if let Some(truncate) = truncate {
+                self.max_total_tokens.saturating_sub(truncate) as u32
+            } else {
+                return Err(ValidationError::UnsetMaxNewTokens);
+            };
             let input_length = truncate.unwrap_or(self.max_input_length);
 
             // Validate MaxNewTokens
@@ -121,7 +140,7 @@ impl Validation {
                 ));
             }
 
-            Ok((inputs, input_length))
+            Ok((inputs, input_length, max_new_tokens))
         }
     }
 
@@ -200,7 +219,7 @@ impl Validation {
             })
             .unwrap_or(Ok(0))?;
 
-        if max_new_tokens == 0 {
+        if max_new_tokens == Some(0) {
             return Err(ValidationError::NegativeMaxNewTokens);
         }
 
@@ -247,7 +266,7 @@ impl Validation {
             .unwrap_or(Ok(None))?;
 
         // Validate inputs
-        let (inputs, input_length) = self
+        let (inputs, input_length, max_new_tokens) = self
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
@@ -295,10 +314,25 @@ impl Validation {
     }
 }
 
+/// Round robin tokenization task
+async fn round_robin_task(
+    mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>,
+    senders: Vec<mpsc::UnboundedSender<TokenizerRequest>>,
+) {
+    loop {
+        for sender in &senders {
+            match receiver.recv().await {
+                None => return,
+                Some(request) => sender.send(request).unwrap(),
+            };
+        }
+    }
+}
+
 /// Start tokenization workers
-fn tokenizer_worker(tokenizer: Tokenizer, receiver: flume::Receiver<TokenizerRequest>) {
+fn tokenizer_worker(tokenizer: Tokenizer, mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>) {
     // Loop over requests
-    while let Ok(((inputs, truncate), response_tx, parent_span)) = receiver.recv() {
+    while let Some(((inputs, truncate), response_tx, parent_span)) = receiver.blocking_recv() {
         parent_span.in_scope(|| {
             response_tx
                 .send(prepare_input(inputs, truncate, &tokenizer))
@@ -383,6 +417,8 @@ pub enum ValidationError {
     Truncate(usize, usize),
     #[error("`typical_p` must be > 0.0 and < 1.0")]
     TypicalP,
+    #[error("one of `max_new_tokens` or `truncate` must be set if a fast tokenizer is not in use")]
+    UnsetMaxNewTokens,
     #[error("`max_new_tokens` must be strictly positive")]
     NegativeMaxNewTokens,
     #[error("`max_new_tokens` must be <= {0}. Given: {1}")]
@@ -426,7 +462,7 @@ mod tests {
 
         let max_new_tokens = 10;
         match validation
-            .validate_input("Hello".to_string(), None, max_new_tokens)
+            .validate_input("Hello".to_string(), None, Some(max_new_tokens))
             .await
         {
             Err(ValidationError::MaxNewTokens(1, 10)) => (),
@@ -455,7 +491,7 @@ mod tests {
 
         let max_new_tokens = 10;
         match validation
-            .validate_input("Hello".to_string(), None, max_new_tokens)
+            .validate_input("Hello".to_string(), None, Some(max_new_tokens))
             .await
         {
             Err(ValidationError::MaxTotalTokens(6, 1, 10)) => (),
@@ -534,7 +570,6 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_p: Some(0.99),
-                    max_new_tokens: 1,
                     ..default_parameters()
                 },
             })
@@ -549,7 +584,6 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_p: None,
-                    max_new_tokens: 1,
                     ..default_parameters()
                 },
             })
@@ -596,7 +630,6 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_n_tokens: Some(4),
-                    max_new_tokens: 1,
                     ..default_parameters()
                 },
             })
@@ -608,7 +641,6 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_n_tokens: Some(0),
-                    max_new_tokens: 1,
                     ..default_parameters()
                 },
             })
@@ -620,7 +652,6 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_n_tokens: None,
-                    max_new_tokens: 1,
                     ..default_parameters()
                 },
             })

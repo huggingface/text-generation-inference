@@ -27,10 +27,7 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.models.gpt_neox import GPTNeoXConfig
 from typing import Optional, List, Tuple
 
-# vllm imports
-import vllm_cache_ops
-import vllm_attention_ops
-
+from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.flash_attn import attention
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -141,7 +138,7 @@ class FlashNeoxAttention(torch.nn.Module):
         self.rotary_emb(qkv[:, 0], cos, sin)
         self.rotary_emb(qkv[:, 1], cos, sin)
 
-        vllm_cache_ops.reshape_and_cache(
+        paged_attention.reshape_and_cache(
             qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots
         )
 
@@ -151,7 +148,7 @@ class FlashNeoxAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            flash_attn.attention(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],
@@ -162,9 +159,7 @@ class FlashNeoxAttention(torch.nn.Module):
             )
         # Decode
         else:
-            # kv_cache[1] => [num_blocks, num_heads, head_size, block_size]
-            block_size = kv_cache[1].shape[3]
-            vllm_attention_ops.single_query_cached_kv_attention(
+            paged_attention.attention(
                 attn_output,
                 qkv[:, 0],
                 kv_cache[0],
@@ -173,7 +168,6 @@ class FlashNeoxAttention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 input_lengths,
-                block_size,
                 max_s,
             )
 

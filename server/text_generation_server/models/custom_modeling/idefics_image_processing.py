@@ -35,6 +35,7 @@ from transformers.image_utils import (
     valid_images,
 )
 from io import BytesIO
+import base64
 import requests
 from transformers import TensorType, is_torch_available
 
@@ -194,9 +195,26 @@ class IdeficsImageProcessor(BaseImageProcessor):
         if isinstance(image_url_or_urls, list):
             return [self.fetch_images(x) for x in image_url_or_urls]
         elif isinstance(image_url_or_urls, str):
-            response = requests.get(image_url_or_urls, stream=True, headers=headers)
-            response.raise_for_status()
-            return Image.open(BytesIO(response.content))
+            image = image_url_or_urls
+
+            if image.startswith("http://") or image.startswith("https://"):
+                response = requests.get(image_url_or_urls, stream=True, headers=headers, timeout=(1, 5))
+                response.raise_for_status()
+                content = response.content
+            elif image.startswith("data:"):
+                # https://stackoverflow.com/questions/17090571/is-there-a-way-to-set-background-image-as-a-base64-encoded-image
+                # data:image/png;base64,xxx
+                image = image.split(",")[-1]
+                content = base64.b64decode(image)
+            else:
+                raise ValueError(f"Unrecognized image {image}")
+
+            try:
+                image = Image.open(BytesIO(content))
+                # image.verify()
+            except Exception:
+                raise ValueError(f"Could not load image from url {image_url_or_urls}")    
+            return image
         else:
             raise ValueError(
                 f"only a single or a list of entries is supported but got type={type(image_url_or_urls)}"
