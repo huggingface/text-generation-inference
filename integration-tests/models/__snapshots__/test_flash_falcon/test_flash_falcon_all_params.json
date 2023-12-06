@@ -11,22 +11,22 @@
       },
       {
         "id": 1622,
-        "logprob": -7.7421875,
+        "logprob": -7.8125,
         "text": "af"
       },
       {
         "id": 249,
-        "logprob": -4.484375,
+        "logprob": -4.5,
         "text": "at"
       },
       {
         "id": 1480,
-        "logprob": -10.890625,
+        "logprob": -10.875,
         "text": "ron"
       },
       {
         "id": 37,
-        "logprob": -3.6757812,
+        "logprob": -3.6875,
         "text": ":"
       }
     ],
@@ -34,65 +34,65 @@
     "tokens": [
       {
         "id": 836,
-        "logprob": -1.2822266,
+        "logprob": -1.265625,
         "special": false,
         "text": " i"
       },
       {
         "id": 18,
-        "logprob": -0.14953613,
+        "logprob": -0.119628906,
         "special": false,
         "text": "'"
       },
       {
-        "id": 88,
-        "logprob": -0.11138916,
+        "id": 298,
+        "logprob": -2.265625,
         "special": false,
-        "text": "m"
+        "text": "ve"
       },
       {
-        "id": 416,
-        "logprob": -0.074401855,
+        "id": 650,
+        "logprob": -0.49804688,
         "special": false,
-        "text": " not"
+        "text": " been"
       },
       {
-        "id": 830,
-        "logprob": -2.2148438,
+        "id": 1241,
+        "logprob": 0.0,
         "special": false,
-        "text": " even"
-      },
-      {
-        "id": 1310,
-        "logprob": -0.19958496,
-        "special": false,
-        "text": " sure"
-      },
-      {
-        "id": 637,
-        "logprob": -0.19787598,
-        "special": false,
-        "text": " what"
+        "text": " using"
       },
       {
         "id": 334,
-        "logprob": -0.6386719,
+        "logprob": 0.0,
         "special": false,
         "text": " it"
       },
       {
-        "id": 304,
-        "logprob": 0.0,
+        "id": 312,
+        "logprob": -1.2421875,
         "special": false,
-        "text": " is"
+        "text": " for"
+      },
+      {
+        "id": 909,
+        "logprob": -0.99609375,
+        "special": false,
+        "text": " years"
       },
       {
         "id": 193,
-        "logprob": 0.0,
+        "logprob": -0.30273438,
         "special": false,
         "text": "\n"
+      },
+      {
+        "id": 807,
+        "logprob": -1.078125,
+        "special": false,
+        "text": "ik"
       }
     ]
   },
-  "generated_text": "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron: i'm not even sure what it is\n"
+  "generated_text": "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron: i've been using it for years\nik"
 }

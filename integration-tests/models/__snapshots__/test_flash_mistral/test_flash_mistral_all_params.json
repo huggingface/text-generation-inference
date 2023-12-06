@@ -35,10 +35,10 @@
         "text": " Let"
       },
       {
-        "id": 268,
-        "logprob": -2.0234375,
+        "id": 332,
+        "logprob": -2.3359375,
         "special": false,
-        "text": " s"
+        "text": " u"
       },
       {
         "id": 347,
@@ -47,42 +47,43 @@
         "text": " be"
       },
       {
+        "id": 325,
+        "logprob": -1.0234375,
+        "special": false,
+        "text": " ("
+      },
+      {
+        "id": 28734,
+        "logprob": -2.0292969,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 648,
+        "logprob": -1.0439453,
+        "special": false,
+        "text": " +"
+      },
+      {
         "id": 28705,
-        "logprob": -0.44458008,
+        "logprob": -0.24499512,
         "special": false,
         "text": " "
       },
       {
-        "id": 28784,
-        "logprob": -0.94189453,
+        "id": 28770,
+        "logprob": -0.5073242,
         "special": false,
-        "text": "6"
+        "text": "3"
       },
       {
-        "id": 28748,
-        "logprob": 0.0,
+        "id": 387,
+        "logprob": -1.5507812,
         "special": false,
-        "text": "/"
-      },
-      {
-        "id": 6422,
-        "logprob": 0.0,
-        "special": false,
-        "text": "(-"
-      },
-      {
-        "id": 28783,
-        "logprob": -0.2590332,
-        "special": false,
-        "text": "8"
-      },
-      {
-        "id": 28731,
-        "logprob": -1.0039062,
-        "special": false,
-        "text": ")"
+        "text": " -"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": "Test request: Let s be 6/(-8)"
+  "generated_text": "Test request: Let u be (0 + 3 -"
 }
