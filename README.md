@@ -58,11 +58,11 @@ For more information and documentation about Text Generation Inference, checkout
 Not all features of TGI are currently supported as this is still a work in progress.
 
 New changes are added for the current release:
-- Sharded feature with support for DeepSpeed-inference auto tensor parallism. Also use HPU graph for performance improvement.
+- Sharded feature with support for DeepSpeed-inference auto tensor parallelism. Also, use HPU graphs for performance improvement.
 - Torch profile.
 
 
-Enviroment Variables Added:
+Environment Variables Added:
 
 <div align="center">
 

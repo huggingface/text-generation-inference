@@ -55,8 +55,12 @@ from text_generation_server.utils.layers import (
     PositionRotaryEmbedding,
     FastLinear,
 )
-import dropout_layer_norm
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
 
+if IS_CUDA_SYSTEM:
+    import dropout_layer_norm
+elif IS_ROCM_SYSTEM:
+    from vllm import layernorm_ops
 
 @dataclass
 class BaseModelOutputWithPastImage(BaseModelOutputWithPast):
@@ -370,7 +374,7 @@ class IdeficsRMSNorm(nn.Module):
                 hidden_states = hidden_states.to(self.weight.dtype)
 
             return self.weight * hidden_states
-        else:
+        elif IS_CUDA_SYSTEM:
             # faster post attention rms norm
             unwrap = False
             if len(hidden_states.shape) > 2:
@@ -402,6 +406,32 @@ class IdeficsRMSNorm(nn.Module):
                 normed_hidden_states = normed_hidden_states.view(*shape)
 
             return normed_hidden_states
+        elif IS_ROCM_SYSTEM:
+            # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
+            if residual is not None:
+                hidden_states += residual
+            residual = hidden_states
+
+            unwrap = False
+            if len(hidden_states.shape) > 2:
+                unwrap = True
+                shape = hidden_states.shape
+                hidden_states = hidden_states.reshape(-1, shape[-1])
+
+            out = torch.empty_like(hidden_states)
+            layernorm_ops.rms_norm(
+                out,
+                hidden_states,
+                self.weight.data,
+                self.variance_epsilon,
+            )
+
+            if unwrap:
+                out = out.view(*shape)
+
+            return out
+        else:
+            raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
 
 
 # this was adapted from LlamaMLP
@@ -581,15 +611,12 @@ class IdeficsAttention(nn.Module):
                 position_ids.view(-1), max_s, hidden_states.dtype
             )
 
-            shape = query_states.shape
-            query_states = self.rotary_emb(
-                query_states.view(-1, *shape[2:]), cos, sin
-            ).view(shape)
-
-            shape = key_states.shape
-            key_states = self.rotary_emb(
-                key_states.reshape(-1, *shape[2:]), cos, sin
-            ).view(shape)
+            query_shape = query_states.shape
+            key_shape = key_states.shape
+            self.rotary_emb(query_states.view(-1, *query_shape[2:]), key_states.reshape(-1, *key_shape[2:]), cos, sin)
+            
+            query_states = query_states.view(query_shape)
+            key_states = key_states.view(key_shape)
 
             query_states = query_states.transpose(1, 2)
             key_states = key_states.transpose(1, 2)

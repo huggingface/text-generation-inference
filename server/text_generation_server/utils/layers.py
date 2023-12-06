@@ -12,14 +12,13 @@ HAS_BITS_AND_BYTES = True
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn import Int8Params, Params4bit
-
 except ImportError:
     HAS_BITS_AND_BYTES = False
 
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
-
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM 
 
 HAS_AWQ = True
 try:
@@ -31,15 +30,31 @@ try:
     major, _minor = torch.cuda.get_device_capability()
 except Exception:
     major = 1
+
 HAS_EXLLAMA = False
 CAN_EXLLAMA = major >= 8
+V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
+if V2 and int(os.getenv("WORLD_SIZE", "1")) > 1:
+    logger.warning("Disabling exllama v2 and using v1 instead because there are issues when sharding")
+    V2 = False
+
 if os.getenv("DISABLE_EXLLAMA") == "True":
     HAS_EXLLAMA = False
 elif CAN_EXLLAMA:
     try:
-        from text_generation_server.utils.gptq.exllama import Ex4bitLinear
+        if V2:
+            from text_generation_server.utils.gptq.exllamav2 import (QuantLinear as ExllamaQuantLinear, 
+                    create_exllama_buffers,
+                    set_device,
+                                                                     )
+            HAS_EXLLAMA = "2"
+        else:
+            from text_generation_server.utils.gptq.exllama import (Ex4bitLinear as ExllamaQuantLinear,
+                    create_exllama_buffers,
+                    set_device,
+                )
+            HAS_EXLLAMA = "1"
 
-        HAS_EXLLAMA = True
     except ImportError:
         pass
 
@@ -308,7 +323,7 @@ def get_linear(weight, bias, quantize):
             )
 
         if use_exllama:
-            linear = Ex4bitLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
+            linear = ExllamaQuantLinear(qweight, qzeros, scales, g_idx, bias, bits, groupsize)
         else:
             linear = QuantLinear(
                 qweight,
@@ -509,11 +524,14 @@ class TensorParallelEmbedding(nn.Module):
 
 
 try:
-    import dropout_layer_norm
+    if IS_CUDA_SYSTEM:
+        import dropout_layer_norm
+    else:
+        dropout_layer_norm = None
 
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
-            if hidden_states.shape[-1] > 8192:
+            if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
@@ -545,14 +563,16 @@ try:
                     residual = hidden_states
 
                 return normed_hidden_states, residual
-
 except ImportError:
     pass
 
 
 try:
-    from flash_attn.layers.rotary import RotaryEmbedding
-    import rotary_emb
+    if IS_CUDA_SYSTEM:
+        from flash_attn.layers.rotary import RotaryEmbedding
+        import rotary_emb
+    elif IS_ROCM_SYSTEM:
+        from vllm import pos_encoding_ops
 
     def _create_inv_freq(dim, base, device):
         inv_freq = 1.0 / (
@@ -580,6 +600,37 @@ try:
             self._sin_k_cached = None
             self.scaling_factor = scaling_factor
             self.dynamic_args = None
+
+        def forward(self, query: torch.Tensor, key: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
+            # Such controlflows may add some overhead.
+            if IS_CUDA_SYSTEM:
+                rotary_dim = cos.shape[-1]
+                q1 = query[..., :rotary_dim]
+                q2 = query[..., rotary_dim : 2 * rotary_dim]
+
+                rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, False)
+
+                k1 = key[..., :rotary_dim]
+                k2 = key[..., rotary_dim : 2 * rotary_dim]
+
+                rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
+            elif IS_ROCM_SYSTEM:
+                # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
+                # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773
+
+                head_size = query.shape[-1]
+
+                # Inplace operation, updating query and key.
+                pos_encoding_ops.rotary_embedding(
+                    query,
+                    key,
+                    head_size,
+                    cos,
+                    sin,
+                    True
+                )
+            else:
+                raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
 
         @classmethod
         def static(cls, config, dim, base, device):
@@ -683,20 +734,18 @@ try:
             """
             Return cos and sin for the asked position ids
             """
+            if IS_ROCM_SYSTEM:
+                # For RoCm, we always use float cos/sin to avoid a cast.
+                # For NVIDIA, for some reason, the flash-attn rotary kernel requires cos/sin and query/key to be of same dtype: https://github.com/Dao-AILab/flash-attention/blob/017716451d446e464dde9aca3a3c1ed2209caaa9/csrc/rotary/rotary.cpp#L26
+                # But later on goes and cast cos/sin to float anyway: https://github.com/Dao-AILab/flash-attention/blob/017716451d446e464dde9aca3a3c1ed2209caaa9/csrc/rotary/rotary_cuda.cu#L29, which looks suboptimal.
+                dtype = torch.float32
 
             self._update_cos_sin_cache(dtype, position_ids.device, max_s)
 
             cos = torch.index_select(self._cos_cached, 0, position_ids)
             sin = torch.index_select(self._sin_cached, 0, position_ids)
+            # Note: this unsqueeze is not necessary on RoCm + VLLM ROPE implementation, but we leave it as is to avoid yet an other controlflow.
             return cos.unsqueeze(1), sin.unsqueeze(1)
-
-        def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
-            rotary_dim = cos.shape[-1]
-            x1 = x[..., :rotary_dim]
-            x2 = x[..., rotary_dim : 2 * rotary_dim]
-
-            rotary_emb.apply_rotary(x1, x2, cos, sin, x1, x2, False)
-            return x
 
     class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
         def __init__(self, dim, max_position_embeddings, base, device, scaling_factor):
@@ -706,7 +755,7 @@ try:
             self.max_position_embeddings = max_position_embeddings
             self.base = base
 
-        def _update_cos_sin_cache(self, dtype, device, seqlen):
+        def _update_cos_sin_cache(self, dtype, device, seqlen):            
             # Reset the tables if the sequence length has changed,
             # or if we're on a new device (possibly due to tracing for instance)
             if (

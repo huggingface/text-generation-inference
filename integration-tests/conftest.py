@@ -24,6 +24,7 @@ DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 
 
 class ResponseComparator(JSONSnapshotExtension):
+    rtol = 0.2
     def serialize(
         self,
         data,
@@ -58,7 +59,7 @@ class ResponseComparator(JSONSnapshotExtension):
             return (
                 token.id == other.id
                 and token.text == other.text
-                and math.isclose(token.logprob, other.logprob, rel_tol=0.2)
+                and math.isclose(token.logprob, other.logprob, rel_tol=self.rtol)
                 and token.special == other.special
             )
 
@@ -68,7 +69,7 @@ class ResponseComparator(JSONSnapshotExtension):
                     prefill_token.id == other.id
                     and prefill_token.text == other.text
                     and (
-                        math.isclose(prefill_token.logprob, other.logprob, rel_tol=0.2)
+                        math.isclose(prefill_token.logprob, other.logprob, rel_tol=self.rtol)
                         if prefill_token.logprob is not None
                         else prefill_token.logprob == other.logprob
                     )
@@ -148,6 +149,10 @@ class ResponseComparator(JSONSnapshotExtension):
         )
 
 
+class GenerousResponseComparator(ResponseComparator):
+    # Needed for GPTQ with exllama which has serious numerical fluctuations.
+    rtol = 0.75
+
 class LauncherHandle:
     def __init__(self, port: int):
         self.client = AsyncClient(f"http://localhost:{port}")
@@ -193,6 +198,10 @@ class ProcessLauncherHandle(LauncherHandle):
 def response_snapshot(snapshot):
     return snapshot.use_extension(ResponseComparator)
 
+@pytest.fixture
+def generous_response_snapshot(snapshot):
+    return snapshot.use_extension(GenerousResponseComparator)
+
 
 @pytest.fixture(scope="module")
 def event_loop():
@@ -210,6 +219,7 @@ def launcher(event_loop):
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
         use_flash_attention: bool = True,
+        dtype: Optional[str] = None
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -237,6 +247,9 @@ def launcher(event_loop):
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)
+        if dtype is not None:
+            args.append("--dtype")
+            args.append(dtype)
         if trust_remote_code:
             args.append("--trust-remote-code")
 
@@ -269,6 +282,7 @@ def launcher(event_loop):
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
         use_flash_attention: bool = True,
+        dtype: Optional[str] = None
     ):
         port = random.randint(8000, 10_000)
 
@@ -279,6 +293,9 @@ def launcher(event_loop):
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)
+        if dtype is not None:
+            args.append("--dtype")
+            args.append(dtype)
         if trust_remote_code:
             args.append("--trust-remote-code")
 
@@ -318,6 +335,7 @@ def launcher(event_loop):
             ],
             volumes=volumes,
             ports={"80/tcp": port},
+            shm_size="1G"
         )
 
         yield ContainerLauncherHandle(client, container.name, port)
