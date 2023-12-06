@@ -40,7 +40,7 @@
       },
       {
         "id": 2772,
-        "logprob": 0.0,
+        "logprob": -0.23083496,
         "special": false,
         "text": "De"
       },
@@ -57,42 +57,42 @@
         "text": " learning"
       },
       {
-        "id": 508,
-        "logprob": -1.5087891,
+        "id": 756,
+        "logprob": -0.48095703,
         "special": false,
-        "text": " can"
+        "text": " has"
       },
       {
-        "id": 367,
+        "id": 19479,
         "logprob": 0.0,
         "special": false,
-        "text": " be"
+        "text": " revolution"
       },
       {
-        "id": 2714,
-        "logprob": -0.6538086,
+        "id": 1891,
+        "logprob": 0.0,
         "special": false,
-        "text": " thought"
+        "text": "ized"
+      },
+      {
+        "id": 278,
+        "logprob": 0.0,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 1746,
+        "logprob": 0.0,
+        "special": false,
+        "text": " field"
       },
       {
         "id": 310,
         "logprob": 0.0,
         "special": false,
         "text": " of"
-      },
-      {
-        "id": 408,
-        "logprob": 0.0,
-        "special": false,
-        "text": " as"
-      },
-      {
-        "id": 263,
-        "logprob": 0.0,
-        "special": false,
-        "text": " a"
       }
     ]
   },
-  "generated_text": "What is Deep Learning?\nDeep learning can be thought of as a"
+  "generated_text": "What is Deep Learning?\nDeep learning has revolutionized the field of"
 }
