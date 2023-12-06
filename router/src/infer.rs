@@ -527,11 +527,6 @@ fn send_responses(
     let tokens_ = generation.tokens.expect("Non empty tokens in generation");
     let n = tokens_.ids.len();
     metrics::histogram!("tgi_request_skipped_tokens", (n - 1) as f64);
-
-    assert_eq!(n, tokens_.logprobs.len());
-    assert_eq!(n, tokens_.texts.len());
-    assert_eq!(n, tokens_.is_special.len());
-
     let mut iterator = tokens_
         .ids
         .into_iter()

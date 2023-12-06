@@ -186,6 +186,8 @@ def create_n_gram_speculation(input_ids: torch.Tensor, next_ids: torch.Tensor, a
     index = 0
     for i, (_input_ids, n_accepted_ids) in enumerate(zip(cpu_input_ids, accepted_ids.tolist())):
         stop = len(_input_ids)
+        # TODO 0 is not necessarily the pad token.
+        # Remove zero padded end.
         for j, _id in enumerate(_input_ids):
             if _id == 0:
                 stop = j

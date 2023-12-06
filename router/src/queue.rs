@@ -229,7 +229,7 @@ impl State {
             }
 
             if self.requires_padding {
-                decode_tokens += entry.request.stopping_parameters.max_new_tokens + self.speculate;
+                decode_tokens += entry.request.stopping_parameters.max_new_tokens;
             } else {
                 let max_new_tokens = match self.window_size {
                     None => entry.request.stopping_parameters.max_new_tokens,
@@ -237,7 +237,7 @@ impl State {
                         window_size.saturating_sub(entry.request.input_length),
                         entry.request.stopping_parameters.max_new_tokens,
                     ),
-                } + self.speculate;
+                };
 
                 // pad to block size
                 decode_tokens +=
@@ -245,7 +245,7 @@ impl State {
             }
 
             if prefill_tokens > prefill_token_budget
-                || (prefill_tokens + decode_tokens) > token_budget
+                || (prefill_tokens + decode_tokens + self.speculate) > token_budget
             {
                 // Entry is over budget
                 // Add it back to the front
@@ -543,7 +543,15 @@ mod tests {
         queue.append(entry1);
         queue.append(entry2);
 
+        // Budget of 1 is not enough
         assert!(queue.next_batch(None, 1, 1).await.is_none());
+
+        let (entries, batch, _) = queue.next_batch(None, 6, 6).await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries.contains_key(&0));
+        assert!(entries.contains_key(&1));
+        assert_eq!(batch.id, 0);
+        assert_eq!(batch.size, 2);
     }
 
     #[tokio::test]

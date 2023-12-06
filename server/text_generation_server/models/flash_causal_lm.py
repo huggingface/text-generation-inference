@@ -162,9 +162,6 @@ class FlashCausalLMBatch(Batch):
 
             tokenized_input = tokenized_input[-r.truncate :]
 
-            speculate_ids = []
-
-
             input_length = len(tokenized_input)
             input_lengths.append(input_length)
 
@@ -806,10 +803,9 @@ class FlashCausalLM(Model):
             del batch
             raise e
 
-        try:
-            out, speculative_logits = out.logits, out.speculative_logits
-        except Exception:
-            out = out
+        if isinstance(out, tuple):
+            out, speculative_logits = out
+        else:
             speculative_logits = None
 
 
@@ -829,9 +825,6 @@ class FlashCausalLM(Model):
             batch.all_input_ids_tensor[:, : batch.max_seqlen], next_token_logits, get_speculate(), batch.speculative_ids, speculative_logits
         )
 
-        from loguru import logger
-        logger.info(f"Accepted id {accepted_ids}")
-
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs
         )
@@ -843,8 +836,7 @@ class FlashCausalLM(Model):
                 # When batch == 1, we will just use the batch.input_ids values directly
                 prefill_tokens_indices = batch.input_ids.new_zeros(len(out))
 
-            length = len(batch)
-            next_position_ids = batch.position_ids.new_empty(length)
+            next_position_ids = batch.position_ids.new_empty(len(batch))
             batch.slot_indices = batch.slot_indices[batch.cu_seqlen_prefill[1:] - 1]
             # We do not need cu_seqlen_prefill anymore
             batch.cu_seqlen_prefill = None
@@ -965,6 +957,9 @@ class FlashCausalLM(Model):
             # Append next token to all tokens
             next_token_texts = []
             left = 0
+            before = stopping_criteria.current_tokens
+
+            current_stopped = False
             for j in range(index, index + n_accepted_ids):
                 # Generated token
                 next_token_id = next_token_ids[j]
@@ -982,11 +977,12 @@ class FlashCausalLM(Model):
                 )
 
                 if stop:
-                    stopped = True
                     left = index + n_accepted_ids - j - 1
+                    current_stopped = True
                     break
                 else:
-                    stopped = False
+                    current_stopped = False
+            stopped = stopped and current_stopped
 
             _next_token_ids = next_token_ids[index: index+n_accepted_ids - left]
             _next_token_logprobs = next_token_logprobs[index: index+n_accepted_ids - left]
@@ -997,15 +993,12 @@ class FlashCausalLM(Model):
             if i % self.world_size == self.rank:
                 if stop:
                     # Decode generated tokens
-                    # Remove potentially accepted ids that do not respect
-                    # the stopping_criteria
-                    _ids = all_input_ids
                     output_text, _, _ = self.decode_token(
-                        _ids,
-                        prefix_offset=len(_ids)
+                        all_input_ids,
+                        prefix_offset=len(all_input_ids)
                         - stopping_criteria.current_tokens
                         - 1,
-                        read_offset=len(_ids)
+                        read_offset=len(all_input_ids)
                         - stopping_criteria.current_tokens,
                         skip_special_tokens=True,
                     )
