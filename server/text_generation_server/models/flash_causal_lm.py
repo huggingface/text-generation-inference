@@ -11,8 +11,6 @@ from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Union, Dict
 
-from loguru import logger
-
 from text_generation_server.models import Model 
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.models.types import (
@@ -320,7 +318,6 @@ class FlashCausalLMBatch(Batch):
 
     @tracer.start_as_current_span("filter")
     def filter(self, request_ids: List[int]) -> "FlashCausalLMBatch":
-        # logger.info(f"Filter {request_ids}")
         if len(request_ids) == 0:
             raise ValueError("Batch must have at least one request")
         # We assume that if len(requests) == len(self) then the requests are the same
@@ -471,7 +468,6 @@ class FlashCausalLMBatch(Batch):
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["FlashCausalLMBatch"]) -> "FlashCausalLMBatch":
-        # logger.info(f"Concatenate {[[r.id for r in batch.requests] for batch in batches]}")
         # Batch attributes
         requests = []
         requests_idx_mapping = {}
@@ -501,7 +497,6 @@ class FlashCausalLMBatch(Batch):
                     )
                 ),
             )
-        # logger.info(f"total slots {total_slots}  {[b.slots.shape for b in batches]}")
 
         input_ids = batches[0].input_ids.new_empty(total_batch_size)
         position_ids = batches[0].position_ids.new_empty(total_batch_size)
@@ -788,8 +783,6 @@ class FlashCausalLM(Model):
     def generate_token(
         self, batch: FlashCausalLMBatch
     ) -> Tuple[List[Generation], Optional[FlashCausalLMBatch]]:
-        # logger.info(f"GENERATE {[r.id for r in batch.requests]}")
-        # logger.info(f"GENERATE {batch.position_ids} {batch.max_seqlen} {batch.input_lengths} { batch.input_lengths_tensor}")
         prefill = batch.cu_seqlen_prefill is not None
         prefill_logprobs = batch.prefill_next_token_indices is not None
 
@@ -805,8 +798,6 @@ class FlashCausalLM(Model):
             batch.block_tables = block_tables
             batch.block_tables_tensor = block_tables_tensor
             batch.slots = slots
-
-        # logger.info(f"GENERATE {batch.slots.shape} {batch.slot_indices}")
 
         try:
             out = self.forward(batch)
