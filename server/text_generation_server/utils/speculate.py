@@ -1,7 +1,7 @@
 
 SPECULATE = None
 
-def get_speculate():
+def get_speculate() -> int:
     global SPECULATE
     return SPECULATE
 

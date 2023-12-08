@@ -742,6 +742,9 @@ try:
 
             self._update_cos_sin_cache(dtype, position_ids.device, max_s)
 
+            if position_ids.max().item() >= max_s:
+                import ipdb;ipdb.set_trace()
+
             cos = torch.index_select(self._cos_cached, 0, position_ids)
             sin = torch.index_select(self._sin_cached, 0, position_ids)
             # Note: this unsqueeze is not necessary on RoCm + VLLM ROPE implementation, but we leave it as is to avoid yet an other controlflow.
