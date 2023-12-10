@@ -1,4 +1,3 @@
-import os
 import torch
 
 from loguru import logger
@@ -287,6 +286,7 @@ def get_model(
         if MISTRAL:
             return FlashMistral(
                 model_id,
+                config_dict.get("architectures", []),
                 revision,
                 quantize=quantize,
                 dtype=dtype,

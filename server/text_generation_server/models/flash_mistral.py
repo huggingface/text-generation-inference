@@ -8,14 +8,13 @@ from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from transformers.models.llama import LlamaTokenizerFast
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple, Type, List
 
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch, BLOCK_SIZE
 from text_generation_server.models.cache_manager import (
     get_cache_manager,
-    set_cache_manager,
 )
 from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
     FlashMistralForCausalLM,
@@ -282,6 +281,7 @@ class FlashMistral(FlashCausalLM):
     def __init__(
         self,
         model_id: str,
+        architectures: List[str],
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
@@ -305,7 +305,15 @@ class FlashMistral(FlashCausalLM):
             trust_remote_code=trust_remote_code,
         )
 
-        config = MistralConfig.from_pretrained(
+        if "MixtralForCausalLM" in architectures:
+            from text_generation_server.models.custom_modeling.flash_mixtral_modeling import MixtralConfig, FlashMixtralForCausalLM
+            config_cls = MixtralConfig
+            model_cls = FlashMixtralForCausalLM
+        else:
+            config_cls = MistralConfig
+            model_cls = FlashMistralForCausalLM
+
+        config = config_cls.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
@@ -321,7 +329,7 @@ class FlashMistral(FlashCausalLM):
         if config.quantize in ["gptq", "awq"]:
             weights._set_gptq_params(model_id)
 
-        model = FlashMistralForCausalLM(config, weights)
+        model = model_cls(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
         super(FlashMistral, self).__init__(
