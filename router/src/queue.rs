@@ -44,7 +44,8 @@ impl Queue {
         max_input_length: u32,
         max_total_tokens: u32,
         block_size: u32,
-        window_size: Option<u32>
+        window_size: Option<u32>,
+        speculate: u32,
     ) -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = mpsc::unbounded_channel();
@@ -56,6 +57,7 @@ impl Queue {
             max_total_tokens,
             block_size,
             window_size,
+            speculate,
             queue_receiver,
         ));
 
@@ -106,6 +108,7 @@ async fn queue_task(
     max_total_tokens: u32,
     block_size: u32,
     window_size: Option<u32>,
+    speculate: u32,
     mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
 ) {
     let mut state = State::new(
@@ -113,7 +116,8 @@ async fn queue_task(
         max_input_length,
         max_total_tokens,
         block_size,
-        window_size
+        window_size,
+        speculate
     );
 
     while let Some(cmd) = receiver.recv().await {
@@ -256,6 +260,9 @@ struct State {
 
     /// Sliding window
     window_size: Option<u32>,
+
+    /// Speculation amount
+    speculate: u32,
 }
 
 impl State {
@@ -265,6 +272,7 @@ impl State {
         max_total_tokens: u32,
         block_size: u32,
         window_size: Option<u32>,
+        speculate: u32,
     ) -> Self {
         let default_threshold: u64 = 120;
         let threshold: u64 = match env::var("QUEUE_THRESHOLD_MS") {
@@ -281,6 +289,7 @@ impl State {
             max_total_tokens,
             block_size,
             window_size,
+            speculate,
         }
     }
 
@@ -365,7 +374,7 @@ impl State {
             }
 
             if prefill_tokens > prefill_token_budget
-                || (prefill_tokens + decode_tokens) > token_budget
+                || (prefill_tokens + decode_tokens + self.speculate) > token_budget
             {
                 // Entry is over budget
                 // Add it back to the front
@@ -457,13 +466,13 @@ mod tests {
 
     fn default_queue() -> Queue {
         Queue::new(
-            true, 1, 2, 1, None
+            true, 1, 2, 1, None, 0
         )
     }
 
     fn default_state() -> State {
         State::new(
-            true, 1, 2, 1, None
+            true, 1, 2, 1, None, 0
         )
     }
 
@@ -664,6 +673,25 @@ mod tests {
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
         assert_eq!(batch.id, 1);
+        assert_eq!(batch.size, 2);
+    }
+
+    #[tokio::test]
+    async fn test_queue_next_batch_token_speculate() {
+        let queue = Queue::new(true, 1, 2, 1, None, 2);
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        queue.append(entry1);
+        queue.append(entry2);
+
+        // Budget of 1 is not enough
+        assert!(queue.next_batch(None, 1, 1).await.is_none());
+
+        let (entries, batch, _) = queue.next_batch(None, 6, 6).await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries.contains_key(&0));
+        assert!(entries.contains_key(&1));
+        assert_eq!(batch.id, 0);
         assert_eq!(batch.size, 2);
     }
 

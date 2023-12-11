@@ -1,0 +1,414 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1724,
+          "logprob": -10.734375,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -1.5488281,
+          "text": "is"
+        },
+        {
+          "id": 21784,
+          "logprob": -9.2890625,
+          "text": "Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -1.2753906,
+          "text": "Learning"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.48046875,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 13,
+          "logprob": -1.1845703,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2772,
+          "logprob": -0.5727539,
+          "special": false,
+          "text": "De"
+        },
+        {
+          "id": 1022,
+          "logprob": -0.00010967255,
+          "special": false,
+          "text": "ep"
+        },
+        {
+          "id": 6509,
+          "logprob": -0.1239624,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 338,
+          "logprob": -0.04510498,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 263,
+          "logprob": -0.018295288,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 11306,
+          "logprob": -0.45922852,
+          "special": false,
+          "text": " subset"
+        },
+        {
+          "id": 310,
+          "logprob": -0.00020992756,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 4933,
+          "logprob": -0.0046539307,
+          "special": false,
+          "text": " machine"
+        },
+        {
+          "id": 6509,
+          "logprob": -0.00025844574,
+          "special": false,
+          "text": " learning"
+        }
+      ]
+    },
+    "generated_text": "\nDeep learning is a subset of machine learning"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1724,
+          "logprob": -10.734375,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -1.5488281,
+          "text": "is"
+        },
+        {
+          "id": 21784,
+          "logprob": -9.2890625,
+          "text": "Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -1.2724609,
+          "text": "Learning"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.47729492,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 13,
+          "logprob": -1.1826172,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2772,
+          "logprob": -0.56689453,
+          "special": false,
+          "text": "De"
+        },
+        {
+          "id": 1022,
+          "logprob": -0.000108003616,
+          "special": false,
+          "text": "ep"
+        },
+        {
+          "id": 6509,
+          "logprob": -0.1239624,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 338,
+          "logprob": -0.044433594,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 263,
+          "logprob": -0.018295288,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 11306,
+          "logprob": -0.45922852,
+          "special": false,
+          "text": " subset"
+        },
+        {
+          "id": 310,
+          "logprob": -0.0002104044,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 4933,
+          "logprob": -0.004711151,
+          "special": false,
+          "text": " machine"
+        },
+        {
+          "id": 6509,
+          "logprob": -0.00025892258,
+          "special": false,
+          "text": " learning"
+        }
+      ]
+    },
+    "generated_text": "\nDeep learning is a subset of machine learning"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1724,
+          "logprob": -10.734375,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -1.5488281,
+          "text": "is"
+        },
+        {
+          "id": 21784,
+          "logprob": -9.2890625,
+          "text": "Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -1.2724609,
+          "text": "Learning"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.47729492,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 13,
+          "logprob": -1.1826172,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2772,
+          "logprob": -0.56689453,
+          "special": false,
+          "text": "De"
+        },
+        {
+          "id": 1022,
+          "logprob": -0.000108003616,
+          "special": false,
+          "text": "ep"
+        },
+        {
+          "id": 6509,
+          "logprob": -0.1239624,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 338,
+          "logprob": -0.044433594,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 263,
+          "logprob": -0.018295288,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 11306,
+          "logprob": -0.45922852,
+          "special": false,
+          "text": " subset"
+        },
+        {
+          "id": 310,
+          "logprob": -0.0002104044,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 4933,
+          "logprob": -0.004711151,
+          "special": false,
+          "text": " machine"
+        },
+        {
+          "id": 6509,
+          "logprob": -0.00025892258,
+          "special": false,
+          "text": " learning"
+        }
+      ]
+    },
+    "generated_text": "\nDeep learning is a subset of machine learning"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1724,
+          "logprob": -10.734375,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -1.5488281,
+          "text": "is"
+        },
+        {
+          "id": 21784,
+          "logprob": -9.2890625,
+          "text": "Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -1.2724609,
+          "text": "Learning"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.47729492,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 13,
+          "logprob": -1.1826172,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2772,
+          "logprob": -0.56689453,
+          "special": false,
+          "text": "De"
+        },
+        {
+          "id": 1022,
+          "logprob": -0.000108003616,
+          "special": false,
+          "text": "ep"
+        },
+        {
+          "id": 6509,
+          "logprob": -0.1239624,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 338,
+          "logprob": -0.044433594,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 263,
+          "logprob": -0.018295288,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 11306,
+          "logprob": -0.45922852,
+          "special": false,
+          "text": " subset"
+        },
+        {
+          "id": 310,
+          "logprob": -0.0002104044,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 4933,
+          "logprob": -0.004711151,
+          "special": false,
+          "text": " machine"
+        },
+        {
+          "id": 6509,
+          "logprob": -0.00025892258,
+          "special": false,
+          "text": " learning"
+        }
+      ]
+    },
+    "generated_text": "\nDeep learning is a subset of machine learning"
+  }
+]

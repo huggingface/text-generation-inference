@@ -35,10 +35,9 @@ from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
     Batch,
-    PrefillTokens,
+    Tokens,
     Generation,
     GeneratedText,
-    TopTokens,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import (
@@ -48,6 +47,7 @@ from text_generation_server.utils import (
     is_tokenizer_transparent,
 )
 from text_generation_server.utils.debug import dbg_trace
+from text_generation_server.utils.speculate import get_speculate
 
 tracer = trace.get_tracer(__name__)
 
@@ -647,6 +647,8 @@ class CausalLM(Model):
             kwargs["attn_softmax_bf16"] = True
             kwargs["trim_logits"] = True
 
+        self.speculate = get_speculate()
+
         super(CausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
@@ -842,12 +844,12 @@ class CausalLM(Model):
                 # Select next token
                 input_length = batch.input_length
                 if logits.shape[-2] > 1:
-                    next_token_ids, next_token_logprobs, logprobs = batch.next_token_chooser(
-                        batch.input_ids, logits[:, input_length - 1: input_length, :].squeeze(-2)
+                    next_token_ids, next_token_logprobs, logprobs, _, _ = batch.next_token_chooser(
+                        batch.input_ids, logits[:, input_length - 1: input_length, :].squeeze(-2), self.speculate
                     )
                 else:
-                    next_token_ids, next_token_logprobs, logprobs = batch.next_token_chooser(
-                        batch.input_ids, logits.squeeze(-2)
+                    next_token_ids, next_token_logprobs, logprobs, _, _ = batch.next_token_chooser(
+                        batch.input_ids, logits.squeeze(-2), self.speculate
                     )
                 batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
                     batch.top_n_tokens,
@@ -1017,7 +1019,9 @@ class CausalLM(Model):
                         clean_up_tokenization_spaces=False,
                         skip_special_tokens=False,
                     )
-                    prefill_tokens = PrefillTokens(prefill_token_ids, prefill_logprobs, prefill_texts)
+                    prefill_tokens = Tokens(
+                        prefill_token_ids, prefill_logprobs, prefill_texts, is_special=[]
+                    )
                 else:
                     prefill_tokens = None
 
@@ -1027,8 +1031,10 @@ class CausalLM(Model):
                         clean_up_tokenization_spaces=False,
                         skip_special_tokens=False,
                     )
-                    special_toptokens = [token_id in self.all_special_ids for token_id in top_token_ids]
-                    top_tokens = TopTokens(
+                    special_toptokens = [
+                        token_id in self.all_special_ids for token_id in top_token_ids
+                    ]
+                    top_tokens = Tokens(
                         top_token_ids,
                         top_token_logprobs,
                         toptoken_texts,
@@ -1040,10 +1046,12 @@ class CausalLM(Model):
                 generation = Generation(
                     request.id,
                     prefill_tokens,
-                    next_token_id,
-                    next_token_logprob,
-                    next_token_text,
-                    next_token_id in self.all_special_ids,
+                    Tokens(
+                        [next_token_id],
+                        [next_token_logprob],
+                        [next_token_text],
+                        [next_token_id in self.all_special_ids],
+                    ),
                     generated_text,
                     top_tokens,
                 )

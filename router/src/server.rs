@@ -600,6 +600,7 @@ pub async fn run(
         max_input_length as u32,
         max_total_tokens as u32,
         shard_info.window_size,
+        shard_info.speculate,
         generation_health,
     );
 

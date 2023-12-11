@@ -21,6 +21,7 @@ from text_generation_server.models.custom_modeling.flash_mistral_modeling import
     FlashMistralForCausalLM,
     MistralConfig,
 )
+from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -132,7 +133,8 @@ class FlashMistralBatch(FlashCausalLMBatch):
 
             # Paged attention
             # Remove one as the first token des not have a past
-            total_tokens = input_length + max_new_tokens - 1
+            speculative_length = get_speculate()
+            total_tokens = input_length + max_new_tokens - 1 + speculative_length
 
             # Needed blocks can not go over SLIDING_WINDOW_BLOCKS
             needed_blocks = min(
@@ -183,7 +185,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
             cumulative_max_length += total_tokens
             max_seqlen = max(max_seqlen, input_length)
             max_blocks = max(max_blocks, needed_blocks)
-            max_length = max(max_length, input_length + max_new_tokens)
+            max_length = max(max_length, input_length + max_new_tokens + speculative_length)
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters, dtype, device
@@ -272,6 +274,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
             blocks=blocks,
             max_blocks=max_blocks,
             prefill_cache_indices=prefill_cache_indices,
+            speculative_ids=None
         )
 
 
@@ -340,17 +343,55 @@ class FlashMistral(FlashCausalLM):
 
     def forward(self, batch: FlashMistralBatch) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
+        if batch.speculative_ids is not None:
+            input_ids=batch.input_ids
+            position_ids=batch.position_ids
+            cu_seqlen_prefill=batch.cu_seqlen_prefill
+            kv_cache=get_cache_manager().kv_cache
+            block_tables=batch.block_tables_tensor
+            slots=batch.slots[batch.slot_indices]
+            input_lengths=batch.input_lengths_tensor
+            max_s=batch.max_seqlen
+            lm_head_indices=batch.prefill_head_indices
+
+            speculative_ids = batch.speculative_ids
+
+            B, speculative_length = speculative_ids.shape 
+            new_length = speculative_length + 1
+            new_input_ids = torch.cat([input_ids.unsqueeze(-1), speculative_ids], dim=1).reshape(-1)
+            arange = torch.arange(new_length, device=position_ids.device).unsqueeze(0)
+            arange_int = arange.to(dtype=torch.int32)
+            new_position_ids = (position_ids.unsqueeze(-1).expand(B, new_length) + arange).view(-1)
+            slots = (slots.unsqueeze(-1).expand(B, new_length) + arange_int).view(-1)
+            input_lengths = (input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int).view(-1)
+
+            # Add Copy the block tables for all members
+            block_tables = block_tables.unsqueeze(1).expand(B, new_length, -1).reshape(B* new_length, -1).contiguous()
+            max_s = max_s + speculative_length
+
+            input_ids = new_input_ids
+            position_ids = new_position_ids
+        else:
+            input_ids=batch.input_ids
+            position_ids=batch.position_ids
+            cu_seqlen_prefill=batch.cu_seqlen_prefill
+            kv_cache=get_cache_manager().kv_cache
+            block_tables=batch.block_tables_tensor
+            slots=batch.slots[batch.slot_indices]
+            input_lengths=batch.input_lengths_tensor
+            max_s=batch.max_seqlen
+            lm_head_indices=batch.prefill_head_indices
         logits = self.model.forward(
-            input_ids=batch.input_ids,
-            position_ids=batch.position_ids,
-            cu_seqlen_prefill=batch.cu_seqlen_prefill,
-            kv_cache=get_cache_manager().kv_cache,
-            block_tables=batch.block_tables_tensor,
-            slots=batch.slots[batch.slot_indices],
-            input_lengths=batch.input_lengths_tensor,
-            max_s=batch.max_seqlen,
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=kv_cache,
+            block_tables=block_tables,
+            slots=slots,
+            input_lengths=input_lengths,
+            max_s=max_s,
             prefill_cache_indices=batch.prefill_cache_indices,
-            lm_head_indices=batch.prefill_head_indices,
+            lm_head_indices=lm_head_indices,
         )
         if batch.prefill_cache_indices is not None:
             batch.prefill_cache_indices = None

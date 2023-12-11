@@ -11,8 +11,7 @@ from text_generation_server.models.types import (
     GeneratedText,
     Batch,
     Generation,
-    PrefillTokens,
-    TopTokens,
+    Tokens,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
@@ -733,10 +732,11 @@ class Seq2SeqLM(Model):
 
                 # Prefill
                 if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
-                    prefill_tokens = PrefillTokens(
+                    prefill_tokens = Tokens(
                         [self.tokenizer.bos_token_id],
                         [float("nan")],
                         [self.tokenizer.bos_token],
+                        [False]
                     )
                 else:
                     prefill_tokens = None
@@ -750,7 +750,7 @@ class Seq2SeqLM(Model):
                     special_toptokens = [
                         token_id in self.all_special_ids for token_id in top_token_ids
                     ]
-                    top_tokens = TopTokens(
+                    top_tokens = Tokens(
                         top_token_ids,
                         top_token_logprobs,
                         toptoken_texts,
@@ -762,10 +762,12 @@ class Seq2SeqLM(Model):
                 generation = Generation(
                     request.id,
                     prefill_tokens,
-                    next_token_id_squeezed,
-                    next_token_logprob,
-                    next_token_text,
-                    next_token_id_squeezed.item() in self.all_special_ids,
+                    Tokens(
+                    [next_token_id_squeezed],
+                    [next_token_logprob],
+                    [next_token_text],
+                    [next_token_id_squeezed.item() in self.all_special_ids],
+                    ),
                     generated_text,
                     top_tokens,
                 )

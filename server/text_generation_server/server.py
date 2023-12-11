@@ -107,9 +107,11 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 def serve(
     model_id: str,
     revision: Optional[str],
-    dtype: Optional[str],
-    uds_path: Path,
     sharded: bool,
+    speculate: Optional[int],
+    dtype: Optional[str],
+    trust_remote_code: bool,
+    uds_path: Path,
 ):
     # Remove default handler
     logger.remove()
@@ -126,8 +128,10 @@ def serve(
     async def serve_inner(
         model_id: str,
         revision: Optional[str],
-        dtype: Optional[str] = None,
         sharded: bool = False,
+        speculate: Optional[int] = None,
+        dtype: Optional[str] = None,
+        trust_remote_code: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
         logger.info("Server:server_inner: sharded ={}".format(sharded))
@@ -151,7 +155,9 @@ def serve(
         if revision == "None":
             revision = None
         try:
-            model = get_model(model_id, revision=revision, dtype=data_type)
+            model = get_model(
+                model_id, revision, speculate, dtype=data_type, trust_remote_code=trust_remote_code
+            )
         except Exception:
             logger.exception("Error when initializing model")
             raise
@@ -181,13 +187,7 @@ def serve(
         except KeyboardInterrupt:
             logger.info("Signal received. Shutting down")
             await server.stop(0)
-        finally:
-            if hasattr(model,'finish_quantization_measurements'):
-                model.finish_quantization_measurements()
 
-    logger.info(
-        "Starting Server : model_id= {}, revision = {}  dtype = {}  sharded = {} ".format(
-            model_id, revision, dtype, sharded
-        )
+    asyncio.run(
+        serve_inner(model_id, revision, sharded, speculate, dtype, trust_remote_code)
     )
-    asyncio.run(serve_inner(model_id, revision, dtype, sharded))

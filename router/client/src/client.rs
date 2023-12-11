@@ -1,8 +1,8 @@
 /// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
 
 /// Single shard Client
-use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
-use crate::pb::generate::v1::*;
+use crate::pb::generate::v2::text_generation_service_client::TextGenerationServiceClient;
+use crate::pb::generate::v2::*;
 use crate::Result;
 use std::env;
 use rand::{distributions::Uniform, Rng};

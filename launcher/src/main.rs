@@ -157,6 +157,13 @@ struct Args {
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
 
+    /// The number of input_ids to speculate on
+    /// If using a medusa model, the heads will be picked up automatically
+    /// Other wise, it will use n-gram speculation which is relatively free
+    /// in terms of compute, but the speedup heavily depends on the task.
+    #[clap(long, env)]
+    speculate: Option<usize>,
+
     /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
     #[clap(long, env, value_enum)]
     dtype: Option<Dtype>,
@@ -377,6 +384,7 @@ fn shard_manager(
     model_id: String,
     revision: Option<String>,
     quantize: Option<Quantization>,
+    speculate: Option<usize>,
     dtype: Option<Dtype>,
     max_total_tokens: usize,
     trust_remote_code: bool,
@@ -433,6 +441,11 @@ fn shard_manager(
     if let Some(quantize) = quantize {
         shard_args.push("--quantize".to_string());
         shard_args.push(quantize.to_string())
+    }
+
+    if let Some(speculate) = speculate {
+        shard_args.push("--speculate".to_string());
+        shard_args.push(speculate.to_string())
     }
 
     if let Some(dtype) = dtype {
@@ -890,6 +903,7 @@ fn spawn_shards(
         let shutdown_sender = shutdown_sender.clone();
         let otlp_endpoint = args.otlp_endpoint.clone();
         let quantize = args.quantize;
+        let speculate = args.speculate;
         let dtype = args.dtype;
         let max_total_tokens = args.max_total_tokens;
         let trust_remote_code = args.trust_remote_code;
@@ -905,6 +919,7 @@ fn spawn_shards(
                 model_id,
                 revision,
                 quantize,
+                speculate,
                 dtype,
                 max_total_tokens,
                 trust_remote_code,
