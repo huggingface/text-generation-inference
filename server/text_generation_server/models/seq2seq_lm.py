@@ -736,7 +736,7 @@ class Seq2SeqLM(Model):
                         [self.tokenizer.bos_token_id],
                         [float("nan")],
                         [self.tokenizer.bos_token],
-                        [False]
+                        [False],
                     )
                 else:
                     prefill_tokens = None
@@ -763,10 +763,10 @@ class Seq2SeqLM(Model):
                     request.id,
                     prefill_tokens,
                     Tokens(
-                    [next_token_id_squeezed],
-                    [next_token_logprob],
-                    [next_token_text],
-                    [next_token_id_squeezed.item() in self.all_special_ids],
+                        [next_token_id_squeezed],
+                        [next_token_logprob],
+                        [next_token_text],
+                        [next_token_id_squeezed.item() in self.all_special_ids],
                     ),
                     generated_text,
                     top_tokens,

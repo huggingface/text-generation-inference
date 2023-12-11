@@ -43,7 +43,9 @@ def get_model(
         speculate_medusa = config_dict["medusa_num_heads"]
         if speculate is not None:
             if speculate > speculate_medusa:
-                raise RuntimeError("Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match")
+                raise RuntimeError(
+                    "Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match"
+                )
             else:
                 set_speculate(speculate)
         else:

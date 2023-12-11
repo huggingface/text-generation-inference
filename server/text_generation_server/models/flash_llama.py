@@ -71,12 +71,19 @@ class FlashLlama(FlashCausalLM):
             from text_generation_server.utils.medusa import MedusaModel
             from huggingface_hub import hf_hub_download
             import json
-            medusa_config = hf_hub_download(use_medusa, revision=revision, filename="config.json")
+
+            medusa_config = hf_hub_download(
+                use_medusa, revision=revision, filename="config.json"
+            )
             with open(medusa_config, "r") as f:
                 config = json.load(f)
-            medusa_head = hf_hub_download(use_medusa, revision=revision, filename="medusa_lm_head.pt")
-            medusa_sf = medusa_head[:-len(".pt")] + ".safetensors"
-            weights = Weights([medusa_sf], device, dtype, process_group=self.process_group)
+            medusa_head = hf_hub_download(
+                use_medusa, revision=revision, filename="medusa_lm_head.pt"
+            )
+            medusa_sf = medusa_head[: -len(".pt")] + ".safetensors"
+            weights = Weights(
+                [medusa_sf], device, dtype, process_group=self.process_group
+            )
             lm_head = model.lm_head
             model.lm_head = MedusaModel(config, weights, lm_head)
 

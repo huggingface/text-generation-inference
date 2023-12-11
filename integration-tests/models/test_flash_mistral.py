@@ -56,7 +56,9 @@ async def test_flash_mistral_load(flash_mistral, generate_load, response_snapsho
     )
 
     assert len(responses) == 4
-    assert all([r.generated_text == responses[0].generated_text for r in responses]), f"{[r.generated_text  for r in responses]}"
+    assert all(
+        [r.generated_text == responses[0].generated_text for r in responses]
+    ), f"{[r.generated_text  for r in responses]}"
     assert responses[0].generated_text == ": Let n = 10 - 1"
 
     assert responses == response_snapshot

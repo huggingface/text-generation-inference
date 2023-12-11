@@ -45,11 +45,11 @@ class FlashMistralBatch(FlashCausalLMBatch):
 
     @classmethod
     def from_pb(
-            cls,
-            pb: generate_pb2.Batch,
-            tokenizer: PreTrainedTokenizerBase,
-            dtype: torch.dtype,
-            device: torch.device,
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
+        device: torch.device,
     ) -> "FlashCausalLMBatch":
         global SLIDING_WINDOW
         global SLIDING_WINDOW_BLOCKS
@@ -99,12 +99,12 @@ class FlashMistralBatch(FlashCausalLMBatch):
 
         # Parse batch
         for i, (r, tokenized_input) in enumerate(
-                zip(pb.requests, batch_tokenized_inputs)
+            zip(pb.requests, batch_tokenized_inputs)
         ):
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 
-            tokenized_input = tokenized_input[-r.truncate:]
+            tokenized_input = tokenized_input[-r.truncate :]
 
             input_length = len(tokenized_input)
             input_lengths.append(input_length)
@@ -184,7 +184,9 @@ class FlashMistralBatch(FlashCausalLMBatch):
             cumulative_max_length += total_tokens
             max_seqlen = max(max_seqlen, input_length)
             max_blocks = max(max_blocks, needed_blocks)
-            max_length = max(max_length, input_length + max_new_tokens + speculative_length)
+            max_length = max(
+                max_length, input_length + max_new_tokens + speculative_length
+            )
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters, dtype, device
@@ -273,20 +275,20 @@ class FlashMistralBatch(FlashCausalLMBatch):
             blocks=blocks,
             max_blocks=max_blocks,
             prefill_cache_indices=prefill_cache_indices,
-            speculative_ids=None
+            speculative_ids=None,
         )
 
 
 class BaseFlashMistral(FlashCausalLM):
     def __init__(
-            self,
-            config_cls,
-            model_cls,
-            model_id: str,
-            revision: Optional[str] = None,
-            quantize: Optional[str] = None,
-            dtype: Optional[torch.dtype] = None,
-            trust_remote_code: bool = False,
+        self,
+        config_cls,
+        model_cls,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
     ):
         global SLIDING_WINDOW
         global SLIDING_WINDOW_BLOCKS
@@ -345,43 +347,54 @@ class BaseFlashMistral(FlashCausalLM):
     def forward(self, batch: FlashMistralBatch) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
         if batch.speculative_ids is not None:
-            input_ids=batch.input_ids
-            position_ids=batch.position_ids
-            cu_seqlen_prefill=batch.cu_seqlen_prefill
-            kv_cache=get_cache_manager().kv_cache
-            block_tables=batch.block_tables_tensor
-            slots=batch.slots[batch.slot_indices]
-            input_lengths=batch.input_lengths_tensor
-            max_s=batch.max_seqlen
-            lm_head_indices=batch.prefill_head_indices
+            input_ids = batch.input_ids
+            position_ids = batch.position_ids
+            cu_seqlen_prefill = batch.cu_seqlen_prefill
+            kv_cache = get_cache_manager().kv_cache
+            block_tables = batch.block_tables_tensor
+            slots = batch.slots[batch.slot_indices]
+            input_lengths = batch.input_lengths_tensor
+            max_s = batch.max_seqlen
+            lm_head_indices = batch.prefill_head_indices
 
             speculative_ids = batch.speculative_ids
 
-            B, speculative_length = speculative_ids.shape 
+            B, speculative_length = speculative_ids.shape
             new_length = speculative_length + 1
-            new_input_ids = torch.cat([input_ids.unsqueeze(-1), speculative_ids], dim=1).reshape(-1)
+            new_input_ids = torch.cat(
+                [input_ids.unsqueeze(-1), speculative_ids], dim=1
+            ).reshape(-1)
             arange = torch.arange(new_length, device=position_ids.device).unsqueeze(0)
             arange_int = arange.to(dtype=torch.int32)
-            new_position_ids = (position_ids.unsqueeze(-1).expand(B, new_length) + arange).view(-1)
+            new_position_ids = (
+                position_ids.unsqueeze(-1).expand(B, new_length) + arange
+            ).view(-1)
             slots = (slots.unsqueeze(-1).expand(B, new_length) + arange_int).view(-1)
-            input_lengths = (input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int).view(-1)
+            input_lengths = (
+                input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int
+            ).view(-1)
 
             # Add Copy the block tables for all members
-            block_tables = block_tables.unsqueeze(1).expand(B, new_length, -1).reshape(B* new_length, -1).contiguous()
+            block_tables = (
+                block_tables.unsqueeze(1)
+                .expand(B, new_length, -1)
+                .reshape(B * new_length, -1)
+                .contiguous()
+            )
             max_s = max_s + speculative_length
 
             input_ids = new_input_ids
             position_ids = new_position_ids
         else:
-            input_ids=batch.input_ids
-            position_ids=batch.position_ids
-            cu_seqlen_prefill=batch.cu_seqlen_prefill
-            kv_cache=get_cache_manager().kv_cache
-            block_tables=batch.block_tables_tensor
-            slots=batch.slots[batch.slot_indices]
-            input_lengths=batch.input_lengths_tensor
-            max_s=batch.max_seqlen
-            lm_head_indices=batch.prefill_head_indices
+            input_ids = batch.input_ids
+            position_ids = batch.position_ids
+            cu_seqlen_prefill = batch.cu_seqlen_prefill
+            kv_cache = get_cache_manager().kv_cache
+            block_tables = batch.block_tables_tensor
+            slots = batch.slots[batch.slot_indices]
+            input_lengths = batch.input_lengths_tensor
+            max_s = batch.max_seqlen
+            lm_head_indices = batch.prefill_head_indices
         logits = self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
@@ -401,12 +414,12 @@ class BaseFlashMistral(FlashCausalLM):
 
 class FlashMistral(BaseFlashMistral):
     def __init__(
-            self,
-            model_id: str,
-            revision: Optional[str] = None,
-            quantize: Optional[str] = None,
-            dtype: Optional[torch.dtype] = None,
-            trust_remote_code: bool = False,
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
     ):
         super(FlashMistral, self).__init__(
             config_cls=MistralConfig,
@@ -415,5 +428,5 @@ class FlashMistral(BaseFlashMistral):
             revision=revision,
             quantize=quantize,
             dtype=dtype,
-            trust_remote_code=trust_remote_code
+            trust_remote_code=trust_remote_code,
         )

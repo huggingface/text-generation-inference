@@ -66,7 +66,10 @@ class Tokens:
 
     def to_pb(self) -> generate_pb2.Tokens:
         return generate_pb2.Tokens(
-            ids=self.token_ids, logprobs=self.logprobs, texts=self.texts, is_special=self.is_special
+            ids=self.token_ids,
+            logprobs=self.logprobs,
+            texts=self.texts,
+            is_special=self.is_special,
         )
 
     def __len__(self):

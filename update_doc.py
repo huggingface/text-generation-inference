@@ -21,14 +21,14 @@ def main():
     block = []
     for line in lines:
         if line.startswith("  -") or line.startswith("      -"):
-            rendered_block = '\n'.join(block)
+            rendered_block = "\n".join(block)
             if header:
                 final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
             else:
                 final_doc += f"```shell\n{rendered_block}\n```\n"
             block = []
             tokens = line.split("<")
-            if len(tokens)>1:
+            if len(tokens) > 1:
                 header = tokens[-1][:-1]
             else:
                 header = line.split("--")[-1]
@@ -36,7 +36,7 @@ def main():
 
         block.append(line)
 
-    rendered_block = '\n'.join(block)
+    rendered_block = "\n".join(block)
     final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
     block = []
 

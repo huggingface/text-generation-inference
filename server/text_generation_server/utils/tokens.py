@@ -142,20 +142,29 @@ class StoppingCriteria:
         )
 
 
-def create_n_gram_speculation(input_ids: torch.Tensor, next_ids: torch.Tensor, accepted_ids: torch.Tensor, speculate: int, verbose: bool):
+def create_n_gram_speculation(
+    input_ids: torch.Tensor,
+    next_ids: torch.Tensor,
+    accepted_ids: torch.Tensor,
+    speculate: int,
+    verbose: bool,
+):
     # Very trivial approach, find first match in the string.
     # This is much less refined than actual n-gram but seems to work
     # relatively OK in grounded mode and is by far much faster with
     # much less worst case complexity as everything happens on device.
     B = accepted_ids.shape[0]
     device = input_ids.device
-    seeds = next_ids[accepted_ids.cumsum(dim=-1) -1 ]
+    seeds = next_ids[accepted_ids.cumsum(dim=-1) - 1]
     indices = (input_ids == seeds.unsqueeze(-1)).max(dim=1).indices + 1
-    all_indices = indices.unsqueeze(-1).expand(B, speculate) + torch.arange(speculate, device=device)
+    all_indices = indices.unsqueeze(-1).expand(B, speculate) + torch.arange(
+        speculate, device=device
+    )
     all_indices = torch.clamp(all_indices, max=input_ids.shape[1] - 1)
 
     speculative_ids = input_ids.gather(dim=-1, index=all_indices)
     return speculative_ids
+
 
 
 class HeterogeneousNextTokenChooser:
@@ -229,7 +238,7 @@ class HeterogeneousNextTokenChooser:
         speculate: int,
         speculated_ids: Optional[torch.Tensor] = None,
         speculative_scores: Optional[torch.Tensor] = None,
-        verbose=False
+        verbose=False,
     ):
         if speculated_ids is not None:
             B = scores.shape[0] // (speculated_ids.shape[1] + 1)
@@ -254,8 +263,8 @@ class HeterogeneousNextTokenChooser:
             _next_ids = self.choice(_scores)
             scores[:, j] = _scores
             next_ids[:, j] = _next_ids
-        next_ids = next_ids.view(B*S)
-        scores = scores.view( B* S, -1)
+        next_ids = next_ids.view(B * S)
+        scores = scores.view(B * S, -1)
 
         if speculated_ids is not None:
             accepted_ids = []
@@ -263,7 +272,7 @@ class HeterogeneousNextTokenChooser:
             S = speculated_ids.shape[1] + 1
             indices = []
             for i in range(B):
-                _next_ids = next_ids[i*S: (i + 1)*S]
+                _next_ids = next_ids[i * S : (i + 1) * S]
                 _speculated_ids = speculated_ids[i]
                 validate_speculative = _next_ids[:-1] == _speculated_ids
                 index = i * S
@@ -279,7 +288,9 @@ class HeterogeneousNextTokenChooser:
                         break
                 accepted_ids.append(accepted)
 
-            accepted_ids = torch.tensor(accepted_ids, device=input_ids.device, dtype=input_ids.dtype)
+            accepted_ids = torch.tensor(
+                accepted_ids, device=input_ids.device, dtype=input_ids.dtype
+            )
             next_ids = next_ids[indices]
             scores = scores[indices]
             indices = torch.arange(B, device=input_ids.device) * S
@@ -302,7 +313,9 @@ class HeterogeneousNextTokenChooser:
                 speculative_ids = Greedy()(speculative_scores)
             else:
                 # n-gram
-                speculative_ids = create_n_gram_speculation(input_ids, next_ids, accepted_ids, speculate, verbose)
+                speculative_ids = create_n_gram_speculation(
+                    input_ids, next_ids, accepted_ids, speculate, verbose
+                )
         else:
             speculative_ids = None
 

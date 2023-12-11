@@ -51,7 +51,7 @@ class Model(ABC):
             requires_padding=self.requires_padding,
             dtype=str(self.dtype),
             device_type=self.device.type,
-            speculate=self.speculate
+            speculate=self.speculate,
         )
 
     @property

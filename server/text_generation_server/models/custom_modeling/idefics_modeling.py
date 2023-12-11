@@ -62,6 +62,7 @@ if IS_CUDA_SYSTEM:
 elif IS_ROCM_SYSTEM:
     from vllm import layernorm_ops
 
+
 @dataclass
 class BaseModelOutputWithPastImage(BaseModelOutputWithPast):
     image_hidden_states: Optional[torch.FloatTensor] = None
@@ -431,7 +432,9 @@ class IdeficsRMSNorm(nn.Module):
 
             return out
         else:
-            raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
+            raise ValueError(
+                "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
+            )
 
 
 # this was adapted from LlamaMLP
@@ -613,8 +616,13 @@ class IdeficsAttention(nn.Module):
 
             query_shape = query_states.shape
             key_shape = key_states.shape
-            self.rotary_emb(query_states.view(-1, *query_shape[2:]), key_states.reshape(-1, *key_shape[2:]), cos, sin)
-            
+            self.rotary_emb(
+                query_states.view(-1, *query_shape[2:]),
+                key_states.reshape(-1, *key_shape[2:]),
+                cos,
+                sin,
+            )
+
             query_states = query_states.view(query_shape)
             key_states = key_states.view(key_shape)
 

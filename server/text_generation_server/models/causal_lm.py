@@ -1020,7 +1020,10 @@ class CausalLM(Model):
                         skip_special_tokens=False,
                     )
                     prefill_tokens = Tokens(
-                        prefill_token_ids, prefill_logprobs, prefill_texts, is_special=[]
+                        prefill_token_ids,
+                        prefill_logprobs,
+                        prefill_texts,
+                        is_special=[],
                     )
                 else:
                     prefill_tokens = None

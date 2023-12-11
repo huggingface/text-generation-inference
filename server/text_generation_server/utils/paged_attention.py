@@ -7,23 +7,26 @@ from vllm import attention_ops
 _PARTITION_SIZE = 512
 
 
-def reshape_and_cache(key: torch.Tensor, value: torch.Tensor, key_cache: torch.Tensor, value_cache: torch.Tensor,
-                      slots: torch.Tensor):
-    cache_ops.reshape_and_cache(
-        key, value, key_cache, value_cache, slots
-    )
+def reshape_and_cache(
+    key: torch.Tensor,
+    value: torch.Tensor,
+    key_cache: torch.Tensor,
+    value_cache: torch.Tensor,
+    slots: torch.Tensor,
+):
+    cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
 
 
 def attention(
-        out: torch.Tensor,
-        query: torch.Tensor,
-        key_cache: torch.Tensor,
-        value_cache: torch.Tensor,
-        kv_head_mapping: torch.Tensor,
-        softmax_scale: float,
-        block_tables: torch.Tensor,
-        input_lengths: torch.Tensor,
-        max_s: int,
+    out: torch.Tensor,
+    query: torch.Tensor,
+    key_cache: torch.Tensor,
+    value_cache: torch.Tensor,
+    kv_head_mapping: torch.Tensor,
+    softmax_scale: float,
+    block_tables: torch.Tensor,
+    input_lengths: torch.Tensor,
+    max_s: int,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -45,9 +48,7 @@ def attention(
     # value_cache => [num_blocks, num_heads, head_size, block_size]
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
-    max_num_partitions = (
-            (max_s + _PARTITION_SIZE - 1) //
-            _PARTITION_SIZE)
+    max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
     # V1 to avoid the overhead of reduction. Also, if the number of
