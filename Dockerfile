@@ -154,6 +154,11 @@ COPY server/Makefile-vllm Makefile
 # Build specific version of vllm
 RUN make build-vllm-cuda
 
+# Build megablocks
+FROM kernel-builder as megablocks-builder
+
+RUN pip install git+https://github.com/OlivierDehaene/megablocks@16c5350f7b313a5ab52ab109feb45f159f1e5d3d
+
 # Text Generation Inference base image
 FROM nvidia/cuda:12.1.0-base-ubuntu20.04 as base
 
@@ -173,7 +178,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         ca-certificates \
         make \
         curl \
-        git \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
@@ -210,7 +214,6 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
-    pip install git+https://github.com/OlivierDehaene/megablocks@e42a064355c540099046214bd3086ffdfe651d46 && \
     pip install -r requirements_cuda.txt && \
     pip install ".[bnb, accelerate, quantize, peft]" --no-cache-dir
 
