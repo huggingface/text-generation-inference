@@ -91,8 +91,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
 
+        # from torch.profiler import profile, ProfilerActivity
+        # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prefill_prof:
         generations, next_batch = self.model.generate_token(batch)
         self.cache.set(next_batch)
+        # if self.model.rank == 0:
+        #     prefill_prof.export_chrome_trace("prefill.json")
 
         return generate_pb2.PrefillResponse(
             generations=[generation.to_pb() for generation in generations],
@@ -118,8 +122,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         else:
             batch = batches[0]
 
+        # from torch.profiler import profile, ProfilerActivity
+        # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prefill_prof:
         generations, next_batch = self.model.generate_token(batch)
         self.cache.set(next_batch)
+        # if self.model.rank == 0:
+        #     prefill_prof.export_chrome_trace("decode.json")
 
         return generate_pb2.DecodeResponse(
             generations=[generation.to_pb() for generation in generations],

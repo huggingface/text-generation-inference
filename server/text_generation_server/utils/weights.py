@@ -23,7 +23,7 @@ class Weights:
             with safe_open(filename, framework="pytorch") as f:
                 for k in f.keys():
                     if k in routing:
-                        logger.warning(
+                        raise RuntimeError(
                             f"Key {k} was found in multiple files: {filename} and {routing[k]}"
                         )
                     routing[k] = filename
@@ -116,7 +116,7 @@ class Weights:
         size = slice_.get_shape()[dim]
         assert (
             size % world_size == 0
-        ), f"The chosen size {size} is not compatible with sharding on {world_size} shards"
+        ), f"The choosen size {size} is not compatible with sharding on {world_size} shards"
         return self.get_partial_sharded(tensor_name, dim)
 
     def _get_qweight(self, name: str):

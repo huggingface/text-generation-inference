@@ -98,10 +98,7 @@ def weight_files(
         if extension != ".safetensors":
             raise e
         # Try to see if there are pytorch weights
-        try:
-            pt_filenames = weight_hub_files(model_id, revision, extension=".bin")
-        except EntryNotFoundError:
-            pt_filenames = weight_hub_files(model_id, revision, extension=".pt")
+        pt_filenames = weight_hub_files(model_id, revision, extension=".bin")
         # Change pytorch extension to safetensors extension
         # It is possible that we have safetensors weights locally even though they are not on the
         # hub if we converted weights locally without pushing them

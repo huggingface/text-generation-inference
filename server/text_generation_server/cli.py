@@ -188,10 +188,7 @@ def download_weights(
     # Try to see if there are local pytorch weights
     try:
         # Get weights for a local model, a hub cached model and inside the WEIGHTS_CACHE_OVERRIDE
-        try:
-            local_pt_files = utils.weight_files(model_id, revision, extension=".bin")
-        except (FileNotFoundError, utils.EntryNotFoundError):
-            local_pt_files = utils.weight_files(model_id, revision, extension=".pt")
+        local_pt_files = utils.weight_files(model_id, revision, ".bin")
 
     # No local pytorch weights
     except utils.LocalEntryNotFoundError:
@@ -202,10 +199,7 @@ def download_weights(
             )
 
         # Try to see if there are pytorch weights on the hub
-        try:
-            pt_filenames = utils.weight_hub_files(model_id, revision, extension=".bin")
-        except utils.EntryNotFoundError:
-            pt_filenames = utils.weight_hub_files(model_id, revision, extension=".pt")
+        pt_filenames = utils.weight_hub_files(model_id, revision, ".bin")
         # Download pytorch weights
         local_pt_files = utils.download_weights(pt_filenames, model_id, revision)
 

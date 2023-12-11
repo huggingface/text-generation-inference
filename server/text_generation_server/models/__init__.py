@@ -282,7 +282,7 @@ def get_model(
                     trust_remote_code=trust_remote_code,
                 )
 
-    if model_type == "mistral":
+    if model_type in ["mistral", "mixtral"]:
         if MISTRAL:
             return FlashMistral(
                 model_id,
@@ -292,7 +292,7 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-        raise NotImplementedError("Mistral model requires flash attention v2")
+        raise NotImplementedError("Mistral models requires flash attention v2")
 
     if model_type == "opt":
         return OPTSharded(
