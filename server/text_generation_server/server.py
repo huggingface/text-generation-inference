@@ -159,7 +159,13 @@ def serve(
 
         try:
             model = get_model(
-                model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code
+                model_id,
+                revision,
+                sharded,
+                quantize,
+                speculate,
+                dtype,
+                trust_remote_code,
             )
         except Exception:
             logger.exception("Error when initializing model")
@@ -207,5 +213,7 @@ def serve(
             await server.stop(0)
 
     asyncio.run(
-        serve_inner(model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code)
+        serve_inner(
+            model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code
+        )
     )

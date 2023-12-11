@@ -50,10 +50,16 @@ async def test_flash_medusa_all_params(flash_medusa, response_snapshot):
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_medusa_load(flash_medusa, generate_load, response_snapshot):
-    responses = await generate_load(flash_medusa, "What is Deep Learning?", max_new_tokens=10, n=4)
+    responses = await generate_load(
+        flash_medusa, "What is Deep Learning?", max_new_tokens=10, n=4
+    )
 
     assert len(responses) == 4
-    assert all([r.generated_text == responses[0].generated_text for r in responses]), f"{[r.generated_text for r in responses]}"
-    assert responses[0].generated_text == '\nDeep learning is a subset of machine learning' 
+    assert all(
+        [r.generated_text == responses[0].generated_text for r in responses]
+    ), f"{[r.generated_text for r in responses]}"
+    assert (
+        responses[0].generated_text == "\nDeep learning is a subset of machine learning"
+    )
 
     assert responses == response_snapshot

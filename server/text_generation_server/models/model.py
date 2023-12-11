@@ -56,7 +56,7 @@ class Model(ABC):
             dtype=str(self.dtype),
             device_type=self.device.type,
             window_size=self.sliding_window,
-            speculate=self.speculate
+            speculate=self.speculate,
         )
 
     @property

@@ -792,7 +792,10 @@ class IdeficsCausalLM(Model):
                         skip_special_tokens=False,
                     )
                     prefill_tokens = Tokens(
-                        prefill_token_ids, prefill_logprobs, prefill_texts, is_special=[]
+                        prefill_token_ids,
+                        prefill_logprobs,
+                        prefill_texts,
+                        is_special=[],
                     )
                 else:
                     prefill_tokens = None
@@ -803,10 +806,10 @@ class IdeficsCausalLM(Model):
                     request.id,
                     prefill_tokens,
                     Tokens(
-                    [next_token_id_squeezed],
-                    [next_token_logprob],
-                    [next_token_text],
-                    [next_token_id_squeezed.item() in self.all_special_ids],
+                        [next_token_id_squeezed],
+                        [next_token_logprob],
+                        [next_token_text],
+                        [next_token_id_squeezed.item() in self.all_special_ids],
                     ),
                     generated_text,
                     top_tokens,

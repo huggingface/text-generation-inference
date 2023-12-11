@@ -34,8 +34,9 @@ from text_generation_server.utils.layers import (
     PositionRotaryEmbedding,
     TensorParallelHead,
     get_linear,
-    FastRMSNorm
+    FastRMSNorm,
 )
+
 
 class LlamaConfig(PretrainedConfig):
     def __init__(
@@ -202,7 +203,7 @@ class FlashLlamaAttention(torch.nn.Module):
         )
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
-        
+
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
         paged_attention.reshape_and_cache(
@@ -237,7 +238,7 @@ class FlashLlamaAttention(torch.nn.Module):
                 input_lengths,
                 max_s,
             )
-        
+
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
 
@@ -288,7 +289,9 @@ class FlashLlamaLayer(nn.Module):
         )
         self.mlp = LlamaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
-        self.input_layernorm = FastRMSNorm.load(prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps)
+        self.input_layernorm = FastRMSNorm.load(
+            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
+        )
         self.post_attention_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.post_attention_layernorm",
             weights=weights,

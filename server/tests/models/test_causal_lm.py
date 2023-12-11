@@ -129,8 +129,20 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     )
     assert all([generation.generated_text is None for generation in generations])
     assert all([len(generation.prefill_tokens) == 1 for generation in generations])
-    assert all([token_id.item() == 13 for generation in generations for token_id in generation.tokens.token_ids])
-    assert all([token_text == "." for generation in generations for token_text in generation.tokens.texts])
+    assert all(
+        [
+            token_id.item() == 13
+            for generation in generations
+            for token_id in generation.tokens.token_ids
+        ]
+    )
+    assert all(
+        [
+            token_text == "."
+            for generation in generations
+            for token_text in generation.tokens.texts
+        ]
+    )
     assert generations[0].request_id == 0
 
 

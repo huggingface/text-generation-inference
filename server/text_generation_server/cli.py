@@ -77,12 +77,24 @@ def serve(
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = None if dtype is None else dtype.value
-    if dtype is not None and quantize not in {None, "bitsandbytes", "bitsandbytes-nf4", "bitsandbytes-fp4"}:
+    if dtype is not None and quantize not in {
+        None,
+        "bitsandbytes",
+        "bitsandbytes-nf4",
+        "bitsandbytes-fp4",
+    }:
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
     server.serve(
-        model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code, uds_path
+        model_id,
+        revision,
+        sharded,
+        quantize,
+        speculate,
+        dtype,
+        trust_remote_code,
+        uds_path,
     )
 
 
@@ -140,12 +152,17 @@ def download_weights(
 
         try:
             import json
-            medusa_head = hf_hub_download(model_id, revision=revision, filename="medusa_lm_head.pt")
+
+            medusa_head = hf_hub_download(
+                model_id, revision=revision, filename="medusa_lm_head.pt"
+            )
             if auto_convert:
-                medusa_sf = Path(medusa_head[:-len(".pt")] + ".safetensors")
+                medusa_sf = Path(medusa_head[: -len(".pt")] + ".safetensors")
                 if not medusa_sf.exists():
                     utils.convert_files([Path(medusa_head)], [medusa_sf], [])
-            medusa_config = hf_hub_download(model_id, revision=revision, filename="config.json")
+            medusa_config = hf_hub_download(
+                model_id, revision=revision, filename="config.json"
+            )
             with open(medusa_config, "r") as f:
                 config = json.load(f)
 
@@ -153,10 +170,17 @@ def download_weights(
             revision = "main"
             try:
                 utils.weight_files(model_id, revision, extension)
-                logger.info(f"Files for parent {model_id} are already present on the host. " "Skipping download.")
+                logger.info(
+                    f"Files for parent {model_id} are already present on the host. "
+                    "Skipping download."
+                )
                 return
             # Local files not found
-            except (utils.LocalEntryNotFoundError, FileNotFoundError, utils.EntryNotFoundError):
+            except (
+                utils.LocalEntryNotFoundError,
+                FileNotFoundError,
+                utils.EntryNotFoundError,
+            ):
                 pass
         except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
             pass

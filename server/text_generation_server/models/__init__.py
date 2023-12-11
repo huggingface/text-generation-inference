@@ -88,7 +88,6 @@ if MIXTRAL:
     __all__.append(FlashMixtral)
 
 
-
 def get_model(
     model_id: str,
     revision: Optional[str],
@@ -157,7 +156,9 @@ def get_model(
         speculate_medusa = config_dict["medusa_num_heads"]
         if speculate is not None:
             if speculate > speculate_medusa:
-                raise RuntimeError("Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match")
+                raise RuntimeError(
+                    "Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match"
+                )
             else:
                 set_speculate(speculate)
         else:
@@ -249,7 +250,7 @@ def get_model(
                 quantize=quantize,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
-                use_medusa=use_medusa
+                use_medusa=use_medusa,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
@@ -313,7 +314,9 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-        raise NotImplementedError("Mixtral models requires flash attention v2, stk and megablocks")
+        raise NotImplementedError(
+            "Mixtral models requires flash attention v2, stk and megablocks"
+        )
 
     if model_type == "opt":
         return OPTSharded(
@@ -354,7 +357,7 @@ def get_model(
         raise ValueError("awq quantization is not supported for AutoModel")
     elif (quantize == "bitsandbytes-fp4") or (quantize == "bitsandbytes-nf4"):
         raise ValueError("4bit quantization is not supported for AutoModel")
-    elif (quantize == "eetq"):
+    elif quantize == "eetq":
         raise ValueError("Eetq quantization is not supported for AutoModel")
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
         return CausalLM(

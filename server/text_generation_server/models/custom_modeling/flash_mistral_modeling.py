@@ -27,7 +27,11 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.flash_attn import attention, HAS_FLASH_ATTN_V2_ROCM, HAS_FLASH_ATTN_V2_CUDA
+from text_generation_server.utils.flash_attn import (
+    attention,
+    HAS_FLASH_ATTN_V2_ROCM,
+    HAS_FLASH_ATTN_V2_CUDA,
+)
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -35,7 +39,7 @@ from text_generation_server.utils.layers import (
     PositionRotaryEmbedding,
     TensorParallelHead,
     get_linear,
-    FastRMSNorm
+    FastRMSNorm,
 )
 
 
@@ -95,6 +99,7 @@ class MistralConfig(PretrainedConfig):
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
+
 
 def load_attention(config, prefix, weights):
     if config.num_attention_heads != config.num_key_value_heads:

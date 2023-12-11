@@ -510,7 +510,11 @@ class CausalLM(Model):
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
-        if torch.cuda.is_available() and torch.cuda.device_count() == 1 and quantize != "bitsandbytes":
+        if (
+            torch.cuda.is_available()
+            and torch.cuda.device_count() == 1
+            and quantize != "bitsandbytes"
+        ):
             model = model.cuda()
 
         if tokenizer.pad_token_id is None:
@@ -676,7 +680,10 @@ class CausalLM(Model):
                         skip_special_tokens=False,
                     )
                     prefill_tokens = Tokens(
-                        prefill_token_ids, prefill_logprobs, prefill_texts, is_special=[]
+                        prefill_token_ids,
+                        prefill_logprobs,
+                        prefill_texts,
+                        is_special=[],
                     )
                 else:
                     prefill_tokens = None
@@ -703,11 +710,11 @@ class CausalLM(Model):
                     request.id,
                     prefill_tokens,
                     Tokens(
-                    [next_token_id_squeezed],
-                    [next_token_logprob],
-                    [next_token_text],
-                    [next_token_id_squeezed.item() in self.all_special_ids],
-                     ),
+                        [next_token_id_squeezed],
+                        [next_token_logprob],
+                        [next_token_text],
+                        [next_token_id_squeezed.item() in self.all_special_ids],
+                    ),
                     generated_text,
                     top_tokens,
                 )
