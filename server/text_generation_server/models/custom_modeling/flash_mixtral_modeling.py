@@ -56,7 +56,7 @@ except ImportError:
 
 
 class MixtralConfig(PretrainedConfig):
-    model_type = "mistral"
+    model_type = "mixtral"
 
     def __init__(
             self,

@@ -77,6 +77,18 @@ except ImportError as e:
 if MISTRAL:
     __all__.append(FlashMistral)
 
+MIXTRAL = True
+try:
+    from text_generation_server.models.flash_mixtral import FlashMixtral
+except ImportError as e:
+    logger.warning(f"Could not import Mixtral model: {e}")
+    MIXTRAL = False
+
+if MIXTRAL:
+    __all__.append(FlashMixtral)
+
+
+
 def get_model(
     model_id: str,
     revision: Optional[str],
@@ -282,7 +294,7 @@ def get_model(
                     trust_remote_code=trust_remote_code,
                 )
 
-    if model_type in ["mistral", "mixtral"]:
+    if model_type == "mistral":
         if MISTRAL:
             return FlashMistral(
                 model_id,
@@ -293,6 +305,17 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
         raise NotImplementedError("Mistral models requires flash attention v2")
+
+    if model_type == "mixtral":
+        if MIXTRAL:
+            return FlashMixtral(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        raise NotImplementedError("Mixtral models requires flash attention v2, stk and megablocks")
 
     if model_type == "opt":
         return OPTSharded(
