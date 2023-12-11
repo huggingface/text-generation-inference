@@ -17,7 +17,7 @@ gen-server:
 	touch text_generation_server/pb/__init__.py
 
 install-megablocks:
-	pip install git+https://github.com/OlivierDehaene/megablocks#33fad2b0eae7c47b8fedfb3ad415af8169386918
+	pip install git+https://github.com/OlivierDehaene/megablocks@e42a064355c540099046214bd3086ffdfe651d46
 
 install: gen-server
 	pip install pip --upgrade

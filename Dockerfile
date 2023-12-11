@@ -173,6 +173,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         ca-certificates \
         make \
         curl \
+        git \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
@@ -209,10 +210,9 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
+    pip install git+https://github.com/OlivierDehaene/megablocks@e42a064355c540099046214bd3086ffdfe651d46 && \
     pip install -r requirements_cuda.txt && \
     pip install ".[bnb, accelerate, quantize, peft]" --no-cache-dir
-
-RUN pip install git+https://github.com/OlivierDehaene/megablocks#33fad2b0eae7c47b8fedfb3ad415af8169386918
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
