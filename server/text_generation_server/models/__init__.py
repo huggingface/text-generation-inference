@@ -1,4 +1,3 @@
-import os
 import torch
 
 from loguru import logger
@@ -78,6 +77,18 @@ except ImportError as e:
 if MISTRAL:
     __all__.append(FlashMistral)
 
+MIXTRAL = True
+try:
+    from text_generation_server.models.flash_mixtral import FlashMixtral
+except ImportError as e:
+    logger.warning(f"Could not import Mixtral model: {e}")
+    MIXTRAL = False
+
+if MIXTRAL:
+    __all__.append(FlashMixtral)
+
+
+
 def get_model(
     model_id: str,
     revision: Optional[str],
@@ -141,7 +152,6 @@ def get_model(
     use_medusa = None
     if "medusa_num_heads" in config_dict:
         use_medusa = model_id
-        medusa_config = config_dict
         model_id = config_dict["base_model_name_or_path"]
         revision = "main"
         speculate_medusa = config_dict["medusa_num_heads"]
@@ -292,7 +302,18 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-        raise NotImplementedError("Mistral model requires flash attention v2")
+        raise NotImplementedError("Mistral models requires flash attention v2")
+
+    if model_type == "mixtral":
+        if MIXTRAL:
+            return FlashMixtral(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        raise NotImplementedError("Mixtral models requires flash attention v2, stk and megablocks")
 
     if model_type == "opt":
         return OPTSharded(

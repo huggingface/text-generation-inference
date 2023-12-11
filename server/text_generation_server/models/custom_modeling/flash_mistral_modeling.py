@@ -35,13 +35,9 @@ from text_generation_server.utils.layers import (
     PositionRotaryEmbedding,
     TensorParallelHead,
     get_linear,
+    FastRMSNorm
 )
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
 
-if IS_CUDA_SYSTEM:
-    import dropout_layer_norm
-elif IS_ROCM_SYSTEM:
-    from vllm import layernorm_ops
 
 if not HAS_FLASH_ATTN_V2_CUDA and not HAS_FLASH_ATTN_V2_ROCM:
     raise ImportError("Mistral model requires flash attn v2")
@@ -99,76 +95,6 @@ class MistralConfig(PretrainedConfig):
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
-
-
-class MistralRMSNorm(nn.Module):
-    def __init__(self, prefix, weights, eps=1e-6):
-        """
-        LlamaRMSNorm is equivalent to T5LayerNorm
-        """
-        super().__init__()
-
-        weight = weights.get_tensor(f"{prefix}.weight")
-        self.weight = nn.Parameter(weight)
-        self.variance_epsilon = eps
-
-    def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 8192:
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
-
-            hidden_states = hidden_states.to(torch.float32)
-            variance = hidden_states.pow(2).mean(-1, keepdim=True)
-            hidden_states = hidden_states * torch.rsqrt(
-                variance + self.variance_epsilon
-            )
-
-            # convert into half-precision if necessary
-            if self.weight.dtype in [torch.float16, torch.bfloat16]:
-                hidden_states = hidden_states.to(self.weight.dtype)
-
-            return self.weight * hidden_states, residual
-        elif IS_CUDA_SYSTEM:
-            # faster post attention rms norm
-            normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-                hidden_states,
-                residual,
-                self.weight,
-                None,
-                None,
-                None,
-                None,
-                None,
-                0.0,
-                self.variance_epsilon,
-                1.0,
-                0,
-                None,
-                False,
-                True,  # Activate RMSNorm
-            )
-            if res is None:
-                res = hidden_states
-
-            return normed_hidden_states, res
-        elif IS_ROCM_SYSTEM:
-            # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
-
-            out = torch.empty_like(hidden_states)
-            layernorm_ops.rms_norm(
-                out,
-                hidden_states,
-                self.weight.data,
-                self.variance_epsilon,
-            )
-            return out, residual
-        else:
-            raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
-
 
 def load_attention(config, prefix, weights):
     if config.num_attention_heads != config.num_key_value_heads:
@@ -371,10 +297,10 @@ class MistralLayer(nn.Module):
         )
         self.mlp = MistralMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
-        self.input_layernorm = MistralRMSNorm(
+        self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
         )
-        self.post_attention_layernorm = MistralRMSNorm(
+        self.post_attention_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.post_attention_layernorm",
             weights=weights,
             eps=config.rms_norm_eps,
@@ -440,7 +366,7 @@ class MistralModel(torch.nn.Module):
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
-        self.norm = MistralRMSNorm(
+        self.norm = FastRMSNorm.load(
             prefix="model.norm", weights=weights, eps=config.rms_norm_eps
         )
 
