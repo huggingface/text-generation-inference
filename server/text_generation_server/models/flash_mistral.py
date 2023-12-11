@@ -8,14 +8,13 @@ from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from transformers.models.llama import LlamaTokenizerFast
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple, Type, List
 
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch, BLOCK_SIZE
 from text_generation_server.models.cache_manager import (
     get_cache_manager,
-    set_cache_manager,
 )
 from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
     FlashMistralForCausalLM,
@@ -46,11 +45,11 @@ class FlashMistralBatch(FlashCausalLMBatch):
 
     @classmethod
     def from_pb(
-        cls,
-        pb: generate_pb2.Batch,
-        tokenizer: PreTrainedTokenizerBase,
-        dtype: torch.dtype,
-        device: torch.device,
+            cls,
+            pb: generate_pb2.Batch,
+            tokenizer: PreTrainedTokenizerBase,
+            dtype: torch.dtype,
+            device: torch.device,
     ) -> "FlashCausalLMBatch":
         global SLIDING_WINDOW
         global SLIDING_WINDOW_BLOCKS
@@ -100,12 +99,12 @@ class FlashMistralBatch(FlashCausalLMBatch):
 
         # Parse batch
         for i, (r, tokenized_input) in enumerate(
-            zip(pb.requests, batch_tokenized_inputs)
+                zip(pb.requests, batch_tokenized_inputs)
         ):
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 
-            tokenized_input = tokenized_input[-r.truncate :]
+            tokenized_input = tokenized_input[-r.truncate:]
 
             input_length = len(tokenized_input)
             input_lengths.append(input_length)
@@ -278,14 +277,16 @@ class FlashMistralBatch(FlashCausalLMBatch):
         )
 
 
-class FlashMistral(FlashCausalLM):
+class BaseFlashMistral(FlashCausalLM):
     def __init__(
-        self,
-        model_id: str,
-        revision: Optional[str] = None,
-        quantize: Optional[str] = None,
-        dtype: Optional[torch.dtype] = None,
-        trust_remote_code: bool = False,
+            self,
+            config_cls,
+            model_cls,
+            model_id: str,
+            revision: Optional[str] = None,
+            quantize: Optional[str] = None,
+            dtype: Optional[torch.dtype] = None,
+            trust_remote_code: bool = False,
     ):
         global SLIDING_WINDOW
         global SLIDING_WINDOW_BLOCKS
@@ -305,7 +306,7 @@ class FlashMistral(FlashCausalLM):
             trust_remote_code=trust_remote_code,
         )
 
-        config = MistralConfig.from_pretrained(
+        config = config_cls.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
@@ -321,10 +322,10 @@ class FlashMistral(FlashCausalLM):
         if config.quantize in ["gptq", "awq"]:
             weights._set_gptq_params(model_id)
 
-        model = FlashMistralForCausalLM(config, weights)
+        model = model_cls(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(FlashMistral, self).__init__(
+        super(BaseFlashMistral, self).__init__(
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),
@@ -396,3 +397,23 @@ class FlashMistral(FlashCausalLM):
         if batch.prefill_cache_indices is not None:
             batch.prefill_cache_indices = None
         return logits
+
+
+class FlashMistral(BaseFlashMistral):
+    def __init__(
+            self,
+            model_id: str,
+            revision: Optional[str] = None,
+            quantize: Optional[str] = None,
+            dtype: Optional[torch.dtype] = None,
+            trust_remote_code: bool = False,
+    ):
+        super(FlashMistral, self).__init__(
+            config_cls=MistralConfig,
+            model_cls=FlashMistralForCausalLM,
+            model_id=model_id,
+            revision=revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code
+        )

@@ -38,7 +38,6 @@ def get_model(
     use_medusa = None
     if "medusa_num_heads" in config_dict:
         use_medusa = model_id
-        medusa_config = config_dict
         model_id = config_dict["base_model_name_or_path"]
         revision = "main"
         speculate_medusa = config_dict["medusa_num_heads"]
