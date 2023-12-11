@@ -401,7 +401,7 @@ class BlockSparseMoE(nn.Module):
             self.offsets_block_rows = block_rows
             offsets = self.offsets
         else:
-            offsets = self.offsets[:block_rows]
+            offsets = self.offsets[: block_rows + 1]
 
         # Indices for the sparse matrix. The indices for
         # the intermediate matrix are dynamic depending
@@ -632,6 +632,7 @@ class MixtralModel(torch.nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
@@ -639,7 +640,7 @@ class MixtralModel(torch.nn.Module):
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
+            position_ids, true_max_s, hidden_states.dtype
         )
 
         residual = None
@@ -690,6 +691,7 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        true_max_s = max_s
         if prefill_cache_indices is not None:
             # Slots also need to be sliced as it has the same size as the whole kv tensor
             slots = slots[prefill_cache_indices]
@@ -708,6 +710,7 @@ class FlashMixtralForCausalLM(torch.nn.Module):
             slots,
             input_lengths,
             max_s,
+            true_max_s,
             prefill_cache_indices,
         )
         if lm_head_indices is not None:
