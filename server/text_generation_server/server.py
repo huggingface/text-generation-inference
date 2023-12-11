@@ -153,6 +153,8 @@ def serve(
             data_type = torch.bfloat16
         else:
             data_type = torch.float
+        if revision == "None":
+            revision = None
         try:
             model = get_model(model_id, revision=revision, dtype=data_type)
         except Exception:
