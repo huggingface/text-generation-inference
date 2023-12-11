@@ -68,6 +68,14 @@ Options:
           - bitsandbytes-fp4: Bitsandbytes 4bit. nf4 should be preferred in most cases but maybe this one has better perplexity performance for you model
 
 ```
+## SPECULATE
+```shell
+      --speculate <SPECULATE>
+          The number of input_ids to speculate on If using a medusa model, the heads will be picked up automatically Other wise, it will use n-gram speculation which is relatively free in terms of compute, but the speedup heavily depends on the task
+          
+          [env: SPECULATE=]
+
+```
 ## DTYPE
 ```shell
       --dtype <DTYPE>

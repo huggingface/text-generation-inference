@@ -32,6 +32,7 @@ def serve(
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: Optional[Quantization] = None,
+    speculate: Optional[int] = None,
     dtype: Optional[Dtype] = None,
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
@@ -81,7 +82,7 @@ def serve(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
     server.serve(
-        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path
+        model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code, uds_path
     )
 
 
@@ -116,7 +117,7 @@ def download_weights(
         logger.info("Files are already present on the host. " "Skipping download.")
         return
     # Local files not found
-    except (utils.LocalEntryNotFoundError, FileNotFoundError):
+    except (utils.LocalEntryNotFoundError, FileNotFoundError, utils.EntryNotFoundError):
         pass
 
     is_local_model = (Path(model_id).exists() and Path(model_id).is_dir()) or os.getenv(
@@ -134,6 +135,29 @@ def download_weights(
             is_local_model = True
             utils.weight_files(model_id, revision, extension)
             return
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+            pass
+
+        try:
+            import json
+            medusa_head = hf_hub_download(model_id, revision=revision, filename="medusa_lm_head.pt")
+            if auto_convert:
+                medusa_sf = Path(medusa_head[:-len(".pt")] + ".safetensors")
+                if not medusa_sf.exists():
+                    utils.convert_files([Path(medusa_head)], [medusa_sf], [])
+            medusa_config = hf_hub_download(model_id, revision=revision, filename="config.json")
+            with open(medusa_config, "r") as f:
+                config = json.load(f)
+
+            model_id = config["base_model_name_or_path"]
+            revision = "main"
+            try:
+                utils.weight_files(model_id, revision, extension)
+                logger.info(f"Files for parent {model_id} are already present on the host. " "Skipping download.")
+                return
+            # Local files not found
+            except (utils.LocalEntryNotFoundError, FileNotFoundError, utils.EntryNotFoundError):
+                pass
         except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
             pass
 

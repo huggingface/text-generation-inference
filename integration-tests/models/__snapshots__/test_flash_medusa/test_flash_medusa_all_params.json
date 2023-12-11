@@ -1,0 +1,98 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 338,
+        "logprob": -10.0078125,
+        "text": "is"
+      },
+      {
+        "id": 21784,
+        "logprob": -15.515625,
+        "text": "Deep"
+      },
+      {
+        "id": 29257,
+        "logprob": -2.8847656,
+        "text": "Learning"
+      },
+      {
+        "id": 29973,
+        "logprob": -4.140625,
+        "text": "?"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -1.1582031,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 2772,
+        "logprob": -0.23083496,
+        "special": false,
+        "text": "De"
+      },
+      {
+        "id": 1022,
+        "logprob": 0.0,
+        "special": false,
+        "text": "ep"
+      },
+      {
+        "id": 6509,
+        "logprob": 0.0,
+        "special": false,
+        "text": " learning"
+      },
+      {
+        "id": 29892,
+        "logprob": -0.61816406,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 607,
+        "logprob": -0.7089844,
+        "special": false,
+        "text": " which"
+      },
+      {
+        "id": 508,
+        "logprob": -1.7724609,
+        "special": false,
+        "text": " can"
+      },
+      {
+        "id": 367,
+        "logprob": 0.0,
+        "special": false,
+        "text": " be"
+      },
+      {
+        "id": 5545,
+        "logprob": 0.0,
+        "special": false,
+        "text": " considered"
+      },
+      {
+        "id": 408,
+        "logprob": -0.3869629,
+        "special": false,
+        "text": " as"
+      }
+    ]
+  },
+  "generated_text": "What is Deep Learning?\nDeep learning, which can be considered as"
+}

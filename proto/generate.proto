@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package generate.v1;
+package generate.v2;
 
 service TextGenerationService {
     /// Model Info
@@ -32,6 +32,7 @@ message InfoResponse {
     string dtype = 2;
     string device_type = 3;
     optional uint32 window_size = 4;
+    uint32 speculate = 5;
 }
 
 /// Empty request
@@ -135,43 +136,27 @@ message GeneratedText {
     optional uint64 seed = 4;
 }
 
-message PrefillTokens {
-    /// Prefill Token IDs
+message Tokens {
+    /// Token IDs
     repeated uint32 ids = 1;
-    /// Prefill Logprobs
+    /// Logprobs
     repeated float logprobs = 2;
-    /// Prefill tokens
+    /// tokens
     repeated string texts = 3;
-}
-
-message TopTokens {
-    /// Top Token IDs
-    repeated uint32 ids = 1;
-    /// Top Logprobs
-    repeated float logprobs = 2;
-    /// Top Token Texts
-    repeated string texts = 3;
-    /// If the tokens are special
-    repeated bool is_special = 6;
+    /// special
+    repeated bool is_special = 4;
 }
 
 message Generation {
     /// Request ID
     uint64 request_id = 1;
     /// Prefill tokens (optional)
-    PrefillTokens prefill_tokens = 2;
-    /// Token ID
-    uint32 token_id = 3;
-    /// Logprob
-    float token_logprob = 4;
-    /// Text
-    string token_text = 5;
-    /// Is it a special token
-    bool token_is_special = 6;
+    Tokens prefill_tokens = 2;
+    Tokens tokens = 3;
     /// Complete generated text
-    optional GeneratedText generated_text = 7;
+    optional GeneratedText generated_text = 4;
     /// Top tokens
-    TopTokens top_tokens = 8;
+    repeated Tokens top_tokens = 5;
 }
 
 message FilterBatchRequest {
