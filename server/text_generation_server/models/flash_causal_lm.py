@@ -422,8 +422,6 @@ class FlashCausalLMBatch(Batch):
         block_tables_tensor = self.block_tables_tensor[indices]
         input_lengths_tensor = self.input_lengths_tensor[indices]
         slots = self.slots[slot_filtering_indices]
-        if slot_indices.max().item() > slots.shape[0]:
-            import ipdb;ipdb.set_trace()
         next_token_chooser = self.next_token_chooser.filter(indices)
         top_n_tokens_tensor = self.top_n_tokens_tensor[indices]
         speculative_ids = self.speculative_ids[indices] if self.speculative_ids is not None else None
