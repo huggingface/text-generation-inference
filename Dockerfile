@@ -157,7 +157,7 @@ RUN make build-vllm-cuda
 # Build megablocks
 FROM kernel-builder as megablocks-builder
 
-RUN pip install git+https://github.com/OlivierDehaene/megablocks@16c5350f7b313a5ab52ab109feb45f159f1e5d3d
+RUN pip install git+https://github.com/OlivierDehaene/megablocks@3de516d9b774ea5dd1b79c68e2c475880f3983e7
 
 # Text Generation Inference base image
 FROM nvidia/cuda:12.1.0-base-ubuntu20.04 as base

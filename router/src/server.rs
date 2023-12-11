@@ -629,6 +629,9 @@ pub async fn run(
     // Batch size buckets
     let batch_size_matcher = Matcher::Full(String::from("tgi_batch_next_size"));
     let batch_size_buckets: Vec<f64> = (0..1024).map(|x| (x + 1) as f64).collect();
+    // Speculated tokens buckets
+    let skipped_matcher = Matcher::Full(String::from("tgi_request_skipped_tokens"));
+    let skipped_buckets: Vec<f64> = (0..shard_info.speculate + 1).map(|x| x as f64).collect();
 
     // Prometheus handler
     let builder = PrometheusBuilder::new()
@@ -641,6 +644,8 @@ pub async fn run(
         .set_buckets_for_metric(max_new_tokens_matcher, &max_new_tokens_buckets)
         .unwrap()
         .set_buckets_for_metric(batch_size_matcher, &batch_size_buckets)
+        .unwrap()
+        .set_buckets_for_metric(skipped_matcher, &skipped_buckets)
         .unwrap();
     let prom_handle = builder
         .install_recorder()
