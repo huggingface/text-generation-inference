@@ -136,9 +136,9 @@ class FlashMistralBatch(FlashCausalLMBatch):
             total_tokens = input_length + max_new_tokens - 1 + speculative_length
 
             # Needed blocks can not go over SLIDING_WINDOW_BLOCKS
-            needed_blocks = min(
-                math.ceil(total_tokens / BLOCK_SIZE), SLIDING_WINDOW_BLOCKS
-            )
+            needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
+            if SLIDING_WINDOW_BLOCKS is not None:
+                needed_blocks = min(needed_blocks, SLIDING_WINDOW_BLOCKS)
             blocks += needed_blocks
 
             needed_blocks_slots.append((needed_blocks, total_tokens))
@@ -152,12 +152,13 @@ class FlashMistralBatch(FlashCausalLMBatch):
             slot_indices.append(request_slot_indices)
 
             # Create tensor to slice into the kv tensor in prefill
-            request_prefill_cache_indices = torch.arange(
-                cumulative_length + max(0, input_length - SLIDING_WINDOW),
-                cumulative_length + input_length,
-                dtype=torch.int64,
-            )
-            prefill_cache_indices.append(request_prefill_cache_indices)
+            if SLIDING_WINDOW is not None:
+                request_prefill_cache_indices = torch.arange(
+                    cumulative_length + max(0, input_length - SLIDING_WINDOW),
+                    cumulative_length + input_length,
+                    dtype=torch.int64,
+                )
+                prefill_cache_indices.append(request_prefill_cache_indices)
 
             all_prefill_logprobs = all_prefill_logprobs and r.prefill_logprobs
             no_prefill_logprobs = no_prefill_logprobs and not r.prefill_logprobs
@@ -209,12 +210,14 @@ class FlashMistralBatch(FlashCausalLMBatch):
             input_ids = np.concatenate(all_input_ids, dtype=np.int64)
             position_ids = torch.cat(position_ids)
             slot_indices = torch.cat(slot_indices)
-            prefill_cache_indices = torch.cat(prefill_cache_indices)
+            if SLIDING_WINDOW is not None:
+                prefill_cache_indices = torch.cat(prefill_cache_indices)
         else:
             input_ids = all_input_ids[0]
             position_ids = position_ids[0]
             slot_indices = slot_indices[0]
-            prefill_cache_indices = prefill_cache_indices[0]
+            if SLIDING_WINDOW is not None:
+                prefill_cache_indices = prefill_cache_indices[0]
 
         cu_seqlen_prefill = torch.tensor(
             cu_seqlen_prefill, device=device, dtype=torch.int32
@@ -222,7 +225,9 @@ class FlashMistralBatch(FlashCausalLMBatch):
 
         position_ids = position_ids.to(device)
         slot_indices = slot_indices.to(device)
-        prefill_cache_indices = prefill_cache_indices.to(device)
+        prefill_cache_indices = (
+            prefill_cache_indices.to(device) if SLIDING_WINDOW is not None else None
+        )
         input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         input_lengths_tensor = torch.tensor(
             input_lengths, dtype=torch.int32, device=device
@@ -314,8 +319,9 @@ class BaseFlashMistral(FlashCausalLM):
         config.quantize = quantize
 
         # Set context windows
-        SLIDING_WINDOW = config.sliding_window
-        SLIDING_WINDOW_BLOCKS = math.ceil(config.sliding_window / BLOCK_SIZE)
+        if config.sliding_window is not None:
+            SLIDING_WINDOW = config.sliding_window
+            SLIDING_WINDOW_BLOCKS = math.ceil(config.sliding_window / BLOCK_SIZE)
 
         torch.distributed.barrier(group=self.process_group)
 
