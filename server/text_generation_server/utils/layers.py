@@ -64,8 +64,6 @@ elif CAN_EXLLAMA:
     except ImportError:
         pass
 
-from typing import Optional
-
 HAS_EETQ = False
 try:
     from EETQ import quant_weights, w8_a16_gemm
@@ -489,9 +487,9 @@ class TensorParallelRowLinear(SuperLayer):
             process_group=weights.process_group,
         )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: torch.Tensor, reduce: bool = True) -> torch.Tensor:
         out = super().forward(input)
-        if self.process_group.size() > 1:
+        if self.process_group.size() > 1 and reduce:
             torch.distributed.all_reduce(out, group=self.process_group)
         return out
 
