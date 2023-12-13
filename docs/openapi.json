@@ -523,7 +523,7 @@
           "max_new_tokens": {
             "type": "integer",
             "format": "int32",
-            "default": "null",
+            "default": "20",
             "example": "20",
             "nullable": true,
             "minimum": 0
