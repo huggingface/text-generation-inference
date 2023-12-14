@@ -4,6 +4,7 @@ use crate::pb::generate::v2::*;
 use crate::Result;
 use grpc_metadata::InjectTelemetryContext;
 use std::cmp::min;
+use std::time::Duration;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
 
@@ -157,10 +158,14 @@ impl Client {
     pub async fn prefill(
         &mut self,
         batch: Batch,
-    ) -> Result<(Vec<Generation>, Option<CachedBatch>)> {
+    ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
         let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
-        Ok((response.generations, response.batch))
+        Ok((
+            response.generations,
+            response.batch,
+            PrefillTimings::new(response.forward_ns, response.decode_ns, response.total_ns),
+        ))
     }
 
     /// Generate one token for each request in the given cached batches
@@ -171,9 +176,52 @@ impl Client {
     pub async fn decode(
         &mut self,
         batches: Vec<CachedBatch>,
-    ) -> Result<(Vec<Generation>, Option<CachedBatch>)> {
+    ) -> Result<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)> {
         let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
         let response = self.stub.decode(request).await?.into_inner();
-        Ok((response.generations, response.batch))
+        Ok((
+            response.generations,
+            response.batch,
+            DecodeTimings::new(
+                response.concat_ns,
+                response.forward_ns,
+                response.decode_ns,
+                response.total_ns,
+            ),
+        ))
+    }
+}
+
+pub struct PrefillTimings {
+    pub forward: Duration,
+    pub decode: Duration,
+    pub total: Duration,
+}
+
+impl PrefillTimings {
+    fn new(forward_ns: u64, decode_ns: u64, total_ns: u64) -> Self {
+        Self {
+            forward: Duration::from_nanos(forward_ns),
+            decode: Duration::from_nanos(decode_ns),
+            total: Duration::from_nanos(total_ns),
+        }
+    }
+}
+
+pub struct DecodeTimings {
+    pub concat: Option<Duration>,
+    pub forward: Duration,
+    pub decode: Duration,
+    pub total: Duration,
+}
+
+impl DecodeTimings {
+    fn new(concat_ns: Option<u64>, forward_ns: u64, decode_ns: u64, total_ns: u64) -> Self {
+        Self {
+            concat: concat_ns.map(|v| Duration::from_nanos(v)),
+            forward: Duration::from_nanos(forward_ns),
+            decode: Duration::from_nanos(decode_ns),
+            total: Duration::from_nanos(total_ns),
+        }
     }
 }

@@ -379,15 +379,20 @@ async fn prefill(
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "prefill");
 
     match client.prefill(batch).await {
-        Ok((generations, next_batch)) => {
+        Ok((generations, next_batch, timings)) => {
             // Update health
             generation_health.store(true, Ordering::SeqCst);
+
+            let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
 
+            metrics::histogram!("tgi_batch_forward_duration", timings.forward.as_secs_f64(), "method" => "prefill");
+            metrics::histogram!("tgi_batch_decode_duration", timings.decode.as_secs_f64(), "method" => "prefill");
+            metrics::histogram!("tgi_batch_filter_duration", start_filtering_time.elapsed().as_secs_f64(), "method" => "prefill");
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "prefill");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
             next_batch
@@ -416,15 +421,23 @@ async fn decode(
     metrics::increment_counter!("tgi_batch_inference_count", "method" => "decode");
 
     match client.decode(batches).await {
-        Ok((generations, next_batch)) => {
+        Ok((generations, next_batch, timings)) => {
             // Update health
             generation_health.store(true, Ordering::SeqCst);
+
+            let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
 
+            if let Some(concat_duration) = timings.concat {
+                metrics::histogram!("tgi_batch_concat_duration", concat_duration.as_secs_f64(), "method" => "decode");
+            }
+            metrics::histogram!("tgi_batch_forward_duration", timings.forward.as_secs_f64(), "method" => "decode");
+            metrics::histogram!("tgi_batch_decode_duration", timings.decode.as_secs_f64(), "method" => "decode");
+            metrics::histogram!("tgi_batch_filter_duration", start_filtering_time.elapsed().as_secs_f64(), "method" => "decode");
             metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "decode");
             metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
             next_batch

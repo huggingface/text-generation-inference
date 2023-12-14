@@ -1,6 +1,7 @@
 import asyncio
 import os
 import torch
+import time
 
 from grpc import aio
 from loguru import logger
@@ -76,6 +77,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         )
 
     async def Prefill(self, request, context):
+        start = time.time_ns()
         if (
             self.model.batch_type == IdeficsCausalLMBatch
         ):  # Hack, i would rather use kwargs in the `from_pb` call
@@ -91,15 +93,19 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
 
-        generations, next_batch = self.model.generate_token(batch)
+        generations, next_batch, timings = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
         return generate_pb2.PrefillResponse(
             generations=[generation.to_pb() for generation in generations],
             batch=next_batch.to_pb() if next_batch else None,
+            forward_ns=timings[0],
+            decode_ns=timings[1],
+            total_ns=time.time_ns() - start,
         )
 
     async def Decode(self, request, context):
+        start = time.time_ns()
         if len(request.batches) == 0:
             raise ValueError("Must provide at least one batch")
 
@@ -114,16 +120,23 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             raise ValueError("All batches are empty")
 
         if len(batches) > 1:
+            start_concat = time.time_ns()
             batch = self.model.batch_type.concatenate(batches)
+            concat_ns = time.time_ns() - start_concat
         else:
             batch = batches[0]
+            concat_ns = None
 
-        generations, next_batch = self.model.generate_token(batch)
+        generations, next_batch, timings = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
         return generate_pb2.DecodeResponse(
             generations=[generation.to_pb() for generation in generations],
             batch=next_batch.to_pb() if next_batch else None,
+            concat_ns=concat_ns,
+            forward_ns=timings[0],
+            decode_ns=timings[1],
+            total_ns=time.time_ns() - start,
         )
 
 
