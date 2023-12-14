@@ -943,7 +943,7 @@ class FlashCausalLM(Model):
         # GPU <-> CPU sync
         next_token_logprobs = next_token_logprobs.tolist()
         next_token_ids = next_input_ids.tolist()
-        forward_ns = time.time_ns() - start
+        start_decode = time.time_ns()
 
         # Zipped iterator
         iterator = zip(
@@ -1105,12 +1105,14 @@ class FlashCausalLM(Model):
         if stopped:
             del batch
             # No need to return a batch if we know that all requests stopped
-            decode_ns = time.time_ns() - start
+            forward_ns = start_decode - start
+            decode_ns = time.time_ns() - start_decode
             return generations, None, (forward_ns, decode_ns)
 
         batch.prefill_cu_outlens = None
         batch.prefill_head_indices = None
         batch.prefill_next_token_indices = None
 
-        decode_ns = time.time_ns() - start
+        forward_ns = start_decode - start
+        decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)

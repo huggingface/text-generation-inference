@@ -586,7 +586,7 @@ class CausalLM(Model):
             torch.log_softmax(logits[:, -1], -1),
         )
 
-        forward_ns = time.time_ns() - start
+        start_decode = time.time_ns()
 
         # Zipped iterator
         iterator = zip(
@@ -734,7 +734,8 @@ class CausalLM(Model):
 
         # We finished all generations in the batch; there is no next batch
         if stopped:
-            decode_ns = time.time_ns() - start
+            forward_ns = start_decode - start
+            decode_ns = time.time_ns() - start_decode
             return generations, None, (forward_ns, decode_ns)
 
         # Slice unused values from prefill
@@ -751,5 +752,6 @@ class CausalLM(Model):
         # Update past key values
         batch.past_key_values = past
 
-        decode_ns = time.time_ns() - start
+        forward_ns = start_decode - start
+        decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)

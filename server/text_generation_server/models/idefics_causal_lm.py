@@ -694,7 +694,7 @@ class IdeficsCausalLM(Model):
         # Hardcoded remove image tokens
         logits[:, 32000:32001] = torch.finfo(logits.dtype).min
 
-        forward_ns = time.time_ns() - start
+        start_decode = time.time_ns()
 
         # Results
         generations: List[Generation] = []
@@ -824,7 +824,8 @@ class IdeficsCausalLM(Model):
 
         # We finished all generations in the batch; there is no next batch
         if stopped:
-            decode_ns = time.time_ns() - start
+            forward_ns = start_decode - start
+            decode_ns = time.time_ns() - start_decode
             return generations, None, (forward_ns, decode_ns)
 
         # Slice unused values from prefill
@@ -845,5 +846,6 @@ class IdeficsCausalLM(Model):
         batch.past_key_values = past
         batch.image_hidden_states = image_hidden_states
 
-        decode_ns = time.time_ns() - start
+        forward_ns = start_decode - start
+        decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)

@@ -646,7 +646,7 @@ class Seq2SeqLM(Model):
             torch.log_softmax(logits[:, -1], -1),
         )
 
-        forward_ns = time.time_ns() - start
+        start_decode = time.time_ns()
 
         # Finished requests
         generations: List[Generation] = []
@@ -792,7 +792,8 @@ class Seq2SeqLM(Model):
 
         # We finished all generations in the batch; there is no next batch
         if stopped:
-            decode_ns = time.time_ns() - start
+            forward_ns = start_decode - start
+            decode_ns = time.time_ns() - start_decode
             return generations, None, (forward_ns, decode_ns)
 
         # We don't need input_ids after the prefill forward
@@ -804,5 +805,6 @@ class Seq2SeqLM(Model):
             batch.decoder_attention_mask[:, -batch.padding_right_offset] = 1
         batch.padding_right_offset -= 1
 
-        decode_ns = time.time_ns() - start
+        forward_ns = start_decode - start
+        decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)
