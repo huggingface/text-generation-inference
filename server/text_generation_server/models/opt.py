@@ -55,7 +55,7 @@ class OPTSharded(CausalLM):
             filenames, device=device, dtype=dtype, process_group=self.process_group
         )
         if config.quantize == "gptq":
-            weights._set_gptq_params(model_id)
+            weights._set_gptq_params(model_id, revision)
 
         model = OPTForCausalLM(config, weights)
 

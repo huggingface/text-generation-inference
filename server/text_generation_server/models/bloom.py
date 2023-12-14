@@ -81,7 +81,7 @@ class BLOOMSharded(CausalLM):
             prefix="transformer",
         )
         if config.quantize == "gptq":
-            weights._set_gptq_params(model_id)
+            weights._set_gptq_params(model_id, revision)
 
         model = BloomForCausalLM(config, weights)
 
