@@ -8,8 +8,6 @@ use std::time::Duration;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
 
-
-
 /// Text Generation Inference gRPC client
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -163,7 +161,11 @@ impl Client {
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
         let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
-        Ok((response.generations, response.batch, PrefillTimings::new(response.forward_ns, response.decode_ns, response.total_ns)))
+        Ok((
+            response.generations,
+            response.batch,
+            PrefillTimings::new(response.forward_ns, response.decode_ns, response.total_ns),
+        ))
     }
 
     /// Generate one token for each request in the given cached batches
@@ -177,7 +179,16 @@ impl Client {
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)> {
         let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
         let response = self.stub.decode(request).await?.into_inner();
-        Ok((response.generations, response.batch, DecodeTimings::new(response.concat_ns, response.forward_ns, response.decode_ns, response.total_ns)))
+        Ok((
+            response.generations,
+            response.batch,
+            DecodeTimings::new(
+                response.concat_ns,
+                response.forward_ns,
+                response.decode_ns,
+                response.total_ns,
+            ),
+        ))
     }
 }
 

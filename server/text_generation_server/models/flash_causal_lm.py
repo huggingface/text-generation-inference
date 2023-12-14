@@ -943,6 +943,7 @@ class FlashCausalLM(Model):
         # GPU <-> CPU sync
         next_token_logprobs = next_token_logprobs.tolist()
         next_token_ids = next_input_ids.tolist()
+        accepted_ids = accepted_ids.tolist()
         start_decode = time.time_ns()
 
         # Zipped iterator
@@ -980,7 +981,6 @@ class FlashCausalLM(Model):
             # Append next token to all tokens
             next_token_texts = []
             left = 0
-            before = stopping_criteria.current_tokens
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):
@@ -1095,7 +1095,7 @@ class FlashCausalLM(Model):
                 generations.append(generation)
 
             # Update values
-            batch.input_lengths[i] = input_length + n_accepted_ids.item()
+            batch.input_lengths[i] = input_length + n_accepted_ids
             if batch.input_lengths[i] > batch.max_seqlen:
                 batch.max_seqlen = batch.input_lengths[i]
             batch.prefix_offsets[i] = prefix_offset

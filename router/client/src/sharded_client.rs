@@ -1,10 +1,10 @@
+use crate::client::{DecodeTimings, PrefillTimings};
 /// Multi shard Client
 use crate::{Batch, CachedBatch, Client, Generation, HealthResponse, ShardInfo};
 use crate::{ClientError, Result};
 use futures::future::join_all;
 use tonic::transport::Uri;
 use tracing::instrument;
-use crate::client::{DecodeTimings, PrefillTimings};
 
 #[derive(Debug, Clone)]
 /// Text Generation Inference gRPC multi client
@@ -131,7 +131,8 @@ impl ShardedClient {
             join_all(futures).await.into_iter().collect();
         let mut results = results?;
 
-        let (mut generations, next_batch, mut timings) = results.pop().ok_or(ClientError::EmptyResults)?;
+        let (mut generations, next_batch, mut timings) =
+            results.pop().ok_or(ClientError::EmptyResults)?;
 
         // Merge generations from different model shards
         for (mut shard_generations, _, shard_timings) in results.into_iter() {
@@ -162,7 +163,8 @@ impl ShardedClient {
             join_all(futures).await.into_iter().collect();
         let mut results = results?;
 
-        let (mut generations, next_batch, mut timings) = results.pop().ok_or(ClientError::EmptyResults)?;
+        let (mut generations, next_batch, mut timings) =
+            results.pop().ok_or(ClientError::EmptyResults)?;
 
         // Merge generations from different model shards
         for (mut shard_generations, _, shard_timings) in results.into_iter() {

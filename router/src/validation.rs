@@ -229,6 +229,15 @@ impl Validation {
                 stop_sequences.len(),
             ));
         }
+        for s in stop_sequences {
+            if s.chars().len() > 50 {
+                return Err(ValidationError::StopSequence(
+                    self.max_stop_sequences,
+                    stop_sequences.len(),
+                ));
+
+            }
+        }
 
         // If seed is None, assign a random one
         let seed = match seed {
