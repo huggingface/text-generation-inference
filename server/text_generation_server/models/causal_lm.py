@@ -7,6 +7,7 @@ import itertools
 import math
 import os
 import tempfile
+import time
 from typing import Dict, List, Optional, Tuple, Type
 
 import torch
@@ -33,6 +34,7 @@ from transformers import (
 
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models import Model
+from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models.types import (
     Batch,
     Tokens,
@@ -821,7 +823,10 @@ class CausalLM(Model):
             return outputs.logits, outputs.past_key_values
 
     @tracer.start_as_current_span("generate_token")
-    def generate_token(self, batches: List[CausalLMBatch]) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
+    def generate_token(
+        self, batches: List[CausalLMBatch]
+    ) -> Tuple[List[Generation], Optional[CausalLMBatch], Tuple[int, int]]:
+        start = time.time_ns()
         # Results
         generations: List[Generation] = []
         prev_batches = []
@@ -938,6 +943,8 @@ class CausalLM(Model):
             )
 
         htorch.core.mark_step()
+
+        start_decode = time.time_ns()
 
         # Stage 3. Finish and return previous generations
         stopped = len(requests_to_generate) > 0
@@ -1073,13 +1080,16 @@ class CausalLM(Model):
                 self.hb_profiler.stop()
             else:
                 self.hb_profiler.step()
-        return generations, batch if not stopped else None
+
+        forward_ns = start_decode - start
+        decode_ns = time.time_ns() - start_decode
+        return generations, batch if not stopped else None, (forward_ns, decode_ns)
 
     def warmup(self, batches: List[CausalLMBatch]) -> None:
         # prefill
-        _, prefill_batch = self.generate_token([batches.pop(0)])
+        _, prefill_batch, _ = self.generate_token([batches.pop(0)])
         # decode
-        _, decode_batch = self.generate_token([prefill_batch])
+        _, decode_batch, _ = self.generate_token([prefill_batch])
         # shifts
         self.shifting_warmup(decode_batch)
 
@@ -1088,12 +1098,12 @@ class CausalLM(Model):
             return
 
         # prefill
-        _, prefill_batch = self.generate_token([batches.pop(0)])
+        _, prefill_batch, _ = self.generate_token([batches.pop(0)])
         # concatenate and decode
-        _, decode_batch = self.generate_token([decode_batch, prefill_batch])
+        _, decode_batch, _ = self.generate_token([decode_batch, prefill_batch])
         # decodes
         while decode_batch is not None:
-            _, decode_batch = self.generate_token([decode_batch])
+            _, decode_batch, _ = self.generate_token([decode_batch])
 
     def shifting_warmup(self, batch: CausalLMBatch) -> None:
         chunk_sizes = CHUNK_SIZES.copy()

@@ -1,17 +1,11 @@
 import torch
-import inspect
-import re
-from io import BytesIO
-import base64
-from PIL import Image
-import re
+import time
 
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
     AutoProcessor,
     AutoTokenizer,
-    AutoModelForCausalLM,
     PreTrainedTokenizerBase,
     ProcessorMixin,
 )
@@ -670,7 +664,8 @@ class IdeficsCausalLM(Model):
     @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: IdeficsCausalLMBatch
-    ) -> Tuple[List[Generation], Optional[IdeficsCausalLMBatch]]:
+    ) -> Tuple[List[Generation], Optional[IdeficsCausalLMBatch], Tuple[int, int]]:
+        start = time.time_ns()
         # slice the attention mask to the correct shape
         attention_mask = batch.attention_mask[:, : -batch.padding_right_offset]
         if batch.input_ids.size(1) == 1:
@@ -698,6 +693,8 @@ class IdeficsCausalLM(Model):
         )
         # Hardcoded remove image tokens
         logits[:, 32000:32001] = torch.finfo(logits.dtype).min
+
+        start_decode = time.time_ns()
 
         # Results
         generations: List[Generation] = []
@@ -827,7 +824,9 @@ class IdeficsCausalLM(Model):
 
         # We finished all generations in the batch; there is no next batch
         if stopped:
-            return generations, None
+            forward_ns = start_decode - start
+            decode_ns = time.time_ns() - start_decode
+            return generations, None, (forward_ns, decode_ns)
 
         # Slice unused values from prefill
         batch.input_ids = batch.input_ids[:, :1]
@@ -847,4 +846,6 @@ class IdeficsCausalLM(Model):
         batch.past_key_values = past
         batch.image_hidden_states = image_hidden_states
 
-        return generations, batch
+        forward_ns = start_decode - start
+        decode_ns = time.time_ns() - start_decode
+        return generations, batch, (forward_ns, decode_ns)

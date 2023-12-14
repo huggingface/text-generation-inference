@@ -105,7 +105,7 @@ def test_causal_lm_batch_type(default_bloom):
 @pytest.mark.skip
 def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     sequence_length = len(default_bloom_batch.all_input_ids[0])
-    generations, next_batch = default_bloom.generate_token(default_bloom_batch)
+    generations, next_batch, _ = default_bloom.generate_token(default_bloom_batch)
 
     assert len(generations) == len(default_bloom_batch)
     assert isinstance(next_batch, CausalLMBatch)
@@ -156,10 +156,10 @@ def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
 def test_causal_lm_generate_token_completion(default_bloom, default_bloom_batch):
     next_batch = default_bloom_batch
     for _ in range(default_bloom_batch.stopping_criterias[0].max_new_tokens - 1):
-        generations, next_batch = default_bloom.generate_token(next_batch)
+        generations, next_batch, _ = default_bloom.generate_token(next_batch)
         assert len(generations) == len(default_bloom_batch)
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generations, next_batch, _ = default_bloom.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
@@ -182,10 +182,10 @@ def test_causal_lm_generate_token_completion_multi(
     for i in range(
         default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens - 1
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
+        generations, next_batch, _ = default_bloom.generate_token(next_batch)
         assert len(generations) == len(default_multi_requests_bloom_batch)
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generations, next_batch, _ = default_bloom.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 2
@@ -205,10 +205,10 @@ def test_causal_lm_generate_token_completion_multi(
     for _ in range(
         stopping_criterias[0].max_new_tokens - stopping_criterias[1].max_new_tokens - 1
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
+        generations, next_batch, _ = default_bloom.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generations, next_batch, _ = default_bloom.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
@@ -229,11 +229,11 @@ def test_batch_concatenate(
     default_bloom, default_bloom_batch, default_multi_requests_bloom_batch
 ):
     next_batch_0 = default_bloom_batch
-    _, next_batch_0 = default_bloom.generate_token(next_batch_0)
-    _, next_batch_0 = default_bloom.generate_token(next_batch_0)
+    _, next_batch_0, _ = default_bloom.generate_token(next_batch_0)
+    _, next_batch_0, _ = default_bloom.generate_token(next_batch_0)
 
     next_batch_1 = default_multi_requests_bloom_batch
-    _, next_batch_1 = default_bloom.generate_token(next_batch_1)
+    _, next_batch_1, _ = default_bloom.generate_token(next_batch_1)
 
     # Clone past_key_values before concatenating to compare after,
     # because they are removed from the concatenated batches
@@ -293,10 +293,10 @@ def test_batch_concatenate(
     for _ in range(
         default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens - 2
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
+        generations, next_batch, _ = default_bloom.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generations, next_batch, _ = default_bloom.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 3
@@ -318,10 +318,10 @@ def test_batch_concatenate(
         - default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
         - 2
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
+        generations, next_batch, _ = default_bloom.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generations, next_batch, _ = default_bloom.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 2
@@ -342,10 +342,10 @@ def test_batch_concatenate(
         - default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
         - 4
     ):
-        generations, next_batch = default_bloom.generate_token(next_batch)
+        generations, next_batch, _ = default_bloom.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_bloom.generate_token(next_batch)
+    generations, next_batch, _ = default_bloom.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1

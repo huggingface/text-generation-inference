@@ -60,7 +60,9 @@ class Model(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def generate_token(self, batch: B) -> Tuple[List[Generation], Optional[B]]:
+    def generate_token(
+        self, batch: B
+    ) -> Tuple[List[Generation], Optional[B], Tuple[int, int]]:
         raise NotImplementedError
 
     def warmup(self, batch: B, max_total_tokens: int):

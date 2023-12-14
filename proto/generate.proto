@@ -182,6 +182,12 @@ message PrefillResponse {
     repeated Generation generations = 1;
     /// Next batch (cached)
     optional CachedBatch batch = 2;
+    /// Forward elapsed time in nanoseconds
+    uint64 forward_ns = 3;
+    /// Decode elapsed time in nanoseconds
+    uint64 decode_ns = 4;
+    /// Total elapsed time in nanoseconds
+    uint64 total_ns = 5;
 }
 
 message DecodeRequest {
@@ -194,6 +200,14 @@ message DecodeResponse {
     repeated Generation generations = 1;
     /// Next batch (cached)
     optional CachedBatch batch = 2;
+    /// Forward elapsed time in nanoseconds
+    uint64 forward_ns = 3;
+    /// Decode elapsed time in nanoseconds
+    uint64 decode_ns = 4;
+    /// Total elapsed time in nanoseconds
+    uint64 total_ns = 5;
+    /// Concatenate elapsed time in nanoseconds
+    optional uint64 concat_ns = 6;
 }
 
 message WarmupRequest {
