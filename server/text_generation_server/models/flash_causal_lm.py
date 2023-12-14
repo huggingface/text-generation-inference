@@ -1,6 +1,6 @@
 import math
+import time
 import itertools
-from text_generation_server.utils.tokens import batch_top_tokens
 import torch
 import torch.distributed
 
@@ -9,9 +9,10 @@ import numpy as np
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
-from typing import Optional, Tuple, List, Type, Union, Dict
+from typing import Optional, Tuple, List, Type, Dict
 
 from text_generation_server.models import Model
+from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.models.types import (
     Batch,
@@ -689,7 +690,7 @@ class FlashCausalLM(Model):
                 self.dtype,
                 self.device,
             )
-            _, batch = self.generate_token(batch)
+            _, batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
                 f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
@@ -799,7 +800,8 @@ class FlashCausalLM(Model):
     @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: FlashCausalLMBatch
-    ) -> Tuple[List[Generation], Optional[FlashCausalLMBatch]]:
+    ) -> Tuple[List[Generation], Optional[FlashCausalLMBatch], Tuple[int, int]]:
+        start = time.time_ns()
         prefill = batch.cu_seqlen_prefill is not None
         prefill_logprobs = batch.prefill_next_token_indices is not None
 
@@ -941,6 +943,7 @@ class FlashCausalLM(Model):
         # GPU <-> CPU sync
         next_token_logprobs = next_token_logprobs.tolist()
         next_token_ids = next_input_ids.tolist()
+        forward_ns = time.time_ns() - start
 
         # Zipped iterator
         iterator = zip(
@@ -1102,10 +1105,12 @@ class FlashCausalLM(Model):
         if stopped:
             del batch
             # No need to return a batch if we know that all requests stopped
-            return generations, None
+            decode_ns = time.time_ns() - start
+            return generations, None, (forward_ns, decode_ns)
 
         batch.prefill_cu_outlens = None
         batch.prefill_head_indices = None
         batch.prefill_next_token_indices = None
 
-        return generations, batch
+        decode_ns = time.time_ns() - start
+        return generations, batch, (forward_ns, decode_ns)

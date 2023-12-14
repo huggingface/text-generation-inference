@@ -55,10 +55,10 @@ def test_santacoder_generate_token_completion(default_santacoder, default_pb_bat
     next_batch = batch
 
     for _ in range(batch.stopping_criterias[0].max_new_tokens - 1):
-        generations, next_batch = default_santacoder.generate_token(next_batch)
+        generations, next_batch, _ = default_santacoder.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_santacoder.generate_token(next_batch)
+    generations, next_batch, _ = default_santacoder.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
@@ -83,10 +83,10 @@ def test_fim_santacoder_generate_token_completion(
     next_batch = batch
 
     for _ in range(batch.stopping_criterias[0].max_new_tokens - 1):
-        generations, next_batch = default_santacoder.generate_token(next_batch)
+        generations, next_batch, _ = default_santacoder.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_santacoder.generate_token(next_batch)
+    generations, next_batch, _ = default_santacoder.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
