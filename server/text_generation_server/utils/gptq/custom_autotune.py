@@ -90,7 +90,7 @@ class Autotuner(triton.KernelInterface):
             return triton.testing.do_bench(
                 kernel_call, percentiles=(0.5, 0.2, 0.8), rep=40
             )
-        except triton.compiler.OutOfResources:
+        except triton.OutOfResources:
             return (float("inf"), float("inf"), float("inf"))
 
     def run(self, *args, **kwargs):
