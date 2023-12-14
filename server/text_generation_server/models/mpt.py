@@ -81,7 +81,7 @@ class MPTSharded(CausalLM):
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(filenames, device, dtype, process_group=self.process_group)
         if config.quantize == "gptq":
-            weights._set_gptq_params(model_id)
+            weights._set_gptq_params(model_id, revision)
 
         config.quantize = quantize
         model = MPTForCausalLM(config, weights)

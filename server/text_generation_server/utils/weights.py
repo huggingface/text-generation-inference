@@ -327,13 +327,15 @@ class Weights:
 
         return bits, groupsize
 
-    def _set_gptq_params(self, model_id):
+    def _set_gptq_params(self, model_id, revision):
         filename = "config.json"
         try:
             if os.path.exists(os.path.join(model_id, filename)):
                 filename = os.path.join(model_id, filename)
             else:
-                filename = hf_hub_download(model_id, filename=filename)
+                filename = hf_hub_download(
+                    model_id, filename=filename, revision=revision
+                )
             with open(filename, "r") as f:
                 data = json.load(f)
             self.gptq_bits = data["quantization_config"]["bits"]
@@ -344,7 +346,9 @@ class Weights:
                 if os.path.exists(os.path.join(model_id, filename)):
                     filename = os.path.join(model_id, filename)
                 else:
-                    filename = hf_hub_download(model_id, filename=filename)
+                    filename = hf_hub_download(
+                        model_id, filename=filename, revision=revision
+                    )
                 with open(filename, "r") as f:
                     data = json.load(f)
                 self.gptq_bits = data["bits"]
@@ -355,7 +359,9 @@ class Weights:
                     if os.path.exists(os.path.join(model_id, filename)):
                         filename = os.path.join(model_id, filename)
                     else:
-                        filename = hf_hub_download(model_id, filename=filename)
+                        filename = hf_hub_download(
+                            model_id, filename=filename, revision=revision
+                        )
                     with open(filename, "r") as f:
                         data = json.load(f)
                     self.gptq_bits = data["w_bit"]
