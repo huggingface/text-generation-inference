@@ -540,7 +540,7 @@ mod tests {
         let max_stop_sequence = 3;
         let max_top_n_tokens = 4;
         let max_input_length = 5;
-        let max_total_tokens = 6;
+        let max_total_tokens = 106;
         let workers = 1;
         let validation = Validation::new(
             workers,
@@ -600,7 +600,7 @@ mod tests {
         let max_stop_sequences = 3;
         let max_top_n_tokens = 4;
         let max_input_length = 5;
-        let max_total_tokens = 6;
+        let max_total_tokens = 106;
         let workers = 1;
         let validation = Validation::new(
             workers,
