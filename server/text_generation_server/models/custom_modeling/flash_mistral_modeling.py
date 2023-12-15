@@ -60,7 +60,7 @@ class MistralConfig(PretrainedConfig):
         pretraining_tp=1,
         tie_word_embeddings=False,
         rope_theta=10000.0,
-        sliding_window=4096,
+        sliding_window=None,
         **kwargs,
     ):
         self.vocab_size = vocab_size
