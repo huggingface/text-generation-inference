@@ -5,7 +5,6 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
 from typing import Optional
 
-from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
@@ -58,10 +57,12 @@ try:
     from text_generation_server.models.idefics import IDEFICSSharded
     from text_generation_server.models.flash_mistral import FlashMistral
     from text_generation_server.models.flash_mixtral import FlashMixtral
+    from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
 
 except ImportError as e:
     logger.warning(f"Could not import Flash Attention enabled models: {e}")
     FLASH_ATTENTION = False
+    HAS_FLASH_ATTN_V2_CUDA = False
 
 if FLASH_ATTENTION:
     __all__.append(FlashNeoXSharded)
