@@ -72,7 +72,7 @@ class MixtralConfig(PretrainedConfig):
         pretraining_tp=1,
         tie_word_embeddings=False,
         rope_theta=10000.0,
-        sliding_window=4096,
+        sliding_window=None,
         num_experts_per_tok=2,
         num_local_experts=8,
         **kwargs,

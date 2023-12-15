@@ -281,9 +281,10 @@ def get_model(
                 )
 
     if model_type == "mistral":
-        if (config_dict["sliding_window"] is None and FLASH_ATTENTION) or (
-            config_dict["sliding_window"] > 0 and HAS_FLASH_ATTN_V2_CUDA
-        ):
+        sliding_window = config_dict.get("sliding_window", -1)
+        if (
+            (sliding_window is None or sliding_window == -1) and FLASH_ATTENTION
+        ) or HAS_FLASH_ATTN_V2_CUDA:
             return FlashMistral(
                 model_id,
                 revision,
@@ -293,9 +294,10 @@ def get_model(
             )
 
     if model_type == "mixtral":
-        if (config_dict["sliding_window"] is None and FLASH_ATTENTION) or (
-            config_dict["sliding_window"] > 0 and HAS_FLASH_ATTN_V2_CUDA
-        ):
+        sliding_window = config_dict.get("sliding_window", -1)
+        if (
+            (sliding_window is None or sliding_window == -1) and FLASH_ATTENTION
+        ) or HAS_FLASH_ATTN_V2_CUDA:
             return FlashMixtral(
                 model_id,
                 revision,

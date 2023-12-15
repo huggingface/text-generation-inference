@@ -33,7 +33,7 @@ class Model(ABC):
         self.device = device
         self.rank = rank
         self.world_size = world_size
-        self.sliding_window = sliding_window
+        self.sliding_window = sliding_window if sliding_window != -1 else None
 
         if speculate is None:
             speculate = get_speculate()
