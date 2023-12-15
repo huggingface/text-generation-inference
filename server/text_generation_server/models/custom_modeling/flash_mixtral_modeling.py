@@ -27,12 +27,9 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
+from loguru import logger
 
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.flash_attn import (
-    HAS_FLASH_ATTN_V2_ROCM,
-    HAS_FLASH_ATTN_V2_CUDA,
-)
 from text_generation_server.utils.layers import (
     FastLinear,
     FastRMSNorm,
@@ -44,18 +41,13 @@ from text_generation_server.utils.layers import (
     get_linear,
 )
 
-if not HAS_FLASH_ATTN_V2_CUDA and not HAS_FLASH_ATTN_V2_ROCM:
-    raise ImportError("Mixtral model requires flash attn v2")
-
-try:
-    import megablocks.ops as ops
-except ImportError:
-    raise ImportError("Mixtral model requires megablocks to be installed")
-
+HAS_MEGABLOCKS = True
 try:
     import stk
+    import megablocks.ops as ops
 except ImportError:
-    raise ImportError("Mixtral model requires stk to be installed")
+    logger.warning("Mixtral: megablocks is not installed")
+    HAS_MEGABLOCKS = False
 
 
 class MixtralConfig(PretrainedConfig):
@@ -590,7 +582,7 @@ class BlockSparseMoE(nn.Module):
         return out
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if len(x) > 256:
+        if len(x) > 256 and HAS_MEGABLOCKS:
             return self.sparse_forward(x)
         # This is faster when there is not a lot of tokens
         return self.dense_forward(x)

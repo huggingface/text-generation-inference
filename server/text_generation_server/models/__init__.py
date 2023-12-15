@@ -55,10 +55,14 @@ try:
         FlashSantacoderSharded,
     )
     from text_generation_server.models.idefics import IDEFICSSharded
+    from text_generation_server.models.flash_mistral import FlashMistral
+    from text_generation_server.models.flash_mixtral import FlashMixtral
+    from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
 
 except ImportError as e:
     logger.warning(f"Could not import Flash Attention enabled models: {e}")
     FLASH_ATTENTION = False
+    HAS_FLASH_ATTN_V2_CUDA = False
 
 if FLASH_ATTENTION:
     __all__.append(FlashNeoXSharded)
@@ -66,25 +70,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashSantacoderSharded)
     __all__.append(FlashLlama)
     __all__.append(IDEFICSSharded)
-
-MISTRAL = True
-try:
-    from text_generation_server.models.flash_mistral import FlashMistral
-except ImportError as e:
-    logger.warning(f"Could not import Mistral model: {e}")
-    MISTRAL = False
-
-if MISTRAL:
     __all__.append(FlashMistral)
-
-MIXTRAL = True
-try:
-    from text_generation_server.models.flash_mixtral import FlashMixtral
-except ImportError as e:
-    logger.warning(f"Could not import Mixtral model: {e}")
-    MIXTRAL = False
-
-if MIXTRAL:
     __all__.append(FlashMixtral)
 
 
@@ -295,7 +281,9 @@ def get_model(
                 )
 
     if model_type == "mistral":
-        if MISTRAL:
+        if (config_dict["sliding_window"] is None and FLASH_ATTENTION) or (
+            config_dict["sliding_window"] > 0 and HAS_FLASH_ATTN_V2_CUDA
+        ):
             return FlashMistral(
                 model_id,
                 revision,
@@ -303,10 +291,11 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-        raise NotImplementedError("Mistral models requires flash attention v2")
 
     if model_type == "mixtral":
-        if MIXTRAL:
+        if (config_dict["sliding_window"] is None and FLASH_ATTENTION) or (
+            config_dict["sliding_window"] > 0 and HAS_FLASH_ATTN_V2_CUDA
+        ):
             return FlashMixtral(
                 model_id,
                 revision,
@@ -314,9 +303,6 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-        raise NotImplementedError(
-            "Mixtral models requires flash attention v2, stk and megablocks"
-        )
 
     if model_type == "opt":
         return OPTSharded(
@@ -348,17 +334,17 @@ def get_model(
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
 
     if sharded:
-        raise ValueError("sharded is not supported for AutoModel")
+        raise NotImplementedError("sharded is not supported for AutoModel")
     if quantize == "gptq":
-        raise ValueError(
+        raise NotImplementedError(
             "gptq quantization is not supported for AutoModel, you can try to quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
         )
     if quantize == "awq":
-        raise ValueError("awq quantization is not supported for AutoModel")
+        raise NotImplementedError("awq quantization is not supported for AutoModel")
     elif (quantize == "bitsandbytes-fp4") or (quantize == "bitsandbytes-nf4"):
-        raise ValueError("4bit quantization is not supported for AutoModel")
+        raise NotImplementedError("4bit quantization is not supported for AutoModel")
     elif quantize == "eetq":
-        raise ValueError("Eetq quantization is not supported for AutoModel")
+        raise NotImplementedError("Eetq quantization is not supported for AutoModel")
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
         return CausalLM(
             model_id,
