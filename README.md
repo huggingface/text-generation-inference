@@ -36,6 +36,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 
    docker run -p 8080:80 -v $volume:/data --runtime=habana -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host tgi_gaudi --model-id $model --sharded true --num-shard 8
    ```
+   **NOTE:** Set LIMIT_HPU_GRAPH=True for a larger sequence/decode lengths.
 4. You can then send a request:
    ```bash
    curl 127.0.0.1:8080/generate \
@@ -73,7 +74,7 @@ Environment Variables Added:
 |  PROF_WARMUPSTEP      | integer        | 0           | Enable/disable profile, control profile warmup step, 0 means disable profile |  add -e in docker run command  |
 |  PROF_STEP            | interger       | 5           | Control profile step                                                         |  add -e in docker run command  |
 |  PROF_PATH            | string         | /root/text-generation-inference                                   | Define profile folder  | add -e in docker run command  |
-| LIMIT_HPU_GRAPH       | True/False     | False       | Skip HPU graph usage for prefill to save memory | add -e in docker run command |
+| LIMIT_HPU_GRAPH       | True/False     | False       | Skip HPU graph usage for prefill to save memory, set True for large sequence/decode lengths | add -e in docker run command |
 
 </div>
 
