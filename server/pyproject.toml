@@ -15,7 +15,7 @@ grpcio-status = "^1.51.1"
 grpcio-reflection = "^1.51.1"
 grpc-interceptor = "^0.15.0"
 typer = "^0.6.1"
-accelerate = { version = "^0.20.0", optional = true }
+accelerate = { version = "^0.25.0", optional = true }
 bitsandbytes = { version = "^0.41.1", optional = true }
 safetensors = "^0.3.2"
 loguru = "^0.6.0"
@@ -24,9 +24,9 @@ opentelemetry-exporter-otlp = "^1.15.0"
 opentelemetry-instrumentation-grpc = "^0.36b0"
 hf-transfer = "^0.1.2"
 sentencepiece = "^0.1.97"
-tokenizers = "^0.13.3"
-huggingface-hub = "^0.16.4"
-transformers = "^4.32.1"
+tokenizers = "^0.15.0"
+huggingface-hub = "^0.19.3"
+transformers = "^4.36.1"
 einops = "^0.6.1"
 texttable = { version = "^1.6.7", optional = true }
 datasets = { version = "^2.14.0", optional = true }

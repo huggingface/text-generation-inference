@@ -27,11 +27,6 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.flash_attn import (
-    attention,
-    HAS_FLASH_ATTN_V2_ROCM,
-    HAS_FLASH_ATTN_V2_CUDA,
-)
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -41,10 +36,6 @@ from text_generation_server.utils.layers import (
     get_linear,
     FastRMSNorm,
 )
-
-
-if not HAS_FLASH_ATTN_V2_CUDA and not HAS_FLASH_ATTN_V2_ROCM:
-    raise ImportError("Mistral model requires flash attn v2")
 
 
 class MistralConfig(PretrainedConfig):
