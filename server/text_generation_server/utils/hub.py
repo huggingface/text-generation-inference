@@ -125,13 +125,14 @@ def weight_files(
 ) -> List[Path]:
     """Get the local files"""
     # Local model
-    if Path(model_id).exists() and Path(model_id).is_dir():
-        local_files = list(Path(model_id).glob(f"*{extension}"))
+    d = Path(model_id)
+    if d.exists() and d.is_dir():
+        local_files = _weight_files_from_dir(d, extension)
         if not local_files:
             raise FileNotFoundError(
                 f"No local weights found in {model_id} with extension {extension}"
             )
-        return local_files
+        return [Path(f) for f in local_files]
 
     try:
         filenames = weight_hub_files(model_id, revision, extension)
