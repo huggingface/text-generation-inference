@@ -19,9 +19,16 @@ from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
-    def __init__(self, model: Model, cache: Cache, server_urls: List[str]):
+    def __init__(
+        self,
+        model: Model,
+        cache: Cache,
+        quantize: Optional[str],
+        server_urls: List[str],
+    ):
         self.cache = cache
         self.model = model
+        self.quantize = quantize
         self.server_urls = server_urls
         # For some reason, inference_mode does not work well with GLOO which we use on CPU
         if model.device.type == "cuda":
@@ -56,6 +63,21 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
+        if self.quantize == "gptq":
+            try:
+                # When using GPTQ, Exllama kernels need some global kernels
+                # For which we have the finale shapes only after the model has loaded
+                # This will allocate those buffers.
+                from text_generation_server.utils.layers import (
+                    create_exllama_buffers,
+                    set_device,
+                )
+
+                set_device(self.model.device)
+                create_exllama_buffers(request.max_prefill_tokens)
+            except ImportError:
+                pass
+
         if (
             self.model.batch_type == IdeficsCausalLMBatch
         ):  # Hack, i would rather use kwargs in the `from_pb` call
@@ -184,21 +206,6 @@ def serve(
             logger.exception("Error when initializing model")
             raise
 
-        if quantize == "gptq":
-            try:
-                # When using GPTQ, Exllama kernels need some global kernels
-                # For which we have the finale shapes only after the model has loaded
-                # This will allocate those buffers.
-                from text_generation_server.utils.layers import (
-                    create_exllama_buffers,
-                    set_device,
-                )
-
-                set_device(model.device)
-                create_exllama_buffers()
-            except ImportError:
-                pass
-
         server = aio.server(
             interceptors=[
                 ExceptionInterceptor(),
@@ -206,7 +213,7 @@ def serve(
             ]
         )
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
-            TextGenerationService(model, Cache(), server_urls), server
+            TextGenerationService(model, Cache(), quantize, server_urls), server
         )
         SERVICE_NAMES = (
             generate_pb2.DESCRIPTOR.services_by_name["TextGenerationService"].full_name,

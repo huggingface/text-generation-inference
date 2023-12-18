@@ -213,6 +213,9 @@ message DecodeResponse {
 message WarmupRequest {
     /// Batch to warmup on
     Batch batch = 1;
+    uint32 max_input_length = 2;
+    uint32 max_prefill_tokens = 3;
+    uint32 max_total_tokens = 4;
 }
 
 /// Empty response

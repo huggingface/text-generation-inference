@@ -101,7 +101,7 @@ def set_device(device):
     DEVICE = device
 
 
-def create_exllama_buffers():
+def create_exllama_buffers(max_total_tokens: int):
     global FIXED_BYTES, LAYERS, DEVICE
     temp_dq = ExLlamaV2DeviceTensors(DEVICE, FIXED_BYTES)
 
@@ -137,17 +137,6 @@ class QuantLinear(nn.Module):
         self.g_idx = g_idx
         self.bias = bias if bias is not None else None
         self.group_size = groupsize
-
-        infeatures = self.infeatures
-        outfeatures = self.outfeatures
-        assert qweight.shape == (infeatures // 32 * self.bits, outfeatures)
-        assert infeatures % self.group_size == 0
-        assert qzeros.shape == (
-            infeatures // self.group_size,
-            outfeatures // 32 * self.bits,
-        )
-        assert scales.shape == (infeatures // self.group_size, outfeatures)
-        assert g_idx.shape == (infeatures,), f"{g_idx.shape}, {infeatures}"
 
         global FIXED_BYTES, LAYERS
         FIXED_BYTES = max(FIXED_BYTES, self.scratch_space_fixed())
