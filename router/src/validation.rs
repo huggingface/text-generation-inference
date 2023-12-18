@@ -585,6 +585,7 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_p: Some(1.0),
+                    max_new_tokens: Some(5),
                     ..default_parameters()
                 },
             })
@@ -599,6 +600,7 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_p: Some(0.99),
+                    max_new_tokens: Some(5),
                     ..default_parameters()
                 },
             })
@@ -613,6 +615,7 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_p: None,
+                    max_new_tokens: Some(5),
                     ..default_parameters()
                 },
             })
@@ -645,6 +648,7 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_n_tokens: Some(5),
+                    max_new_tokens: Some(5),
                     ..default_parameters()
                 },
             })
@@ -659,6 +663,7 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_n_tokens: Some(4),
+                    max_new_tokens: Some(5),
                     ..default_parameters()
                 },
             })
@@ -670,6 +675,7 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_n_tokens: Some(0),
+                    max_new_tokens: Some(5),
                     ..default_parameters()
                 },
             })
@@ -681,6 +687,7 @@ mod tests {
                 inputs: "Hello".to_string(),
                 parameters: GenerateParameters {
                     top_n_tokens: None,
+                    max_new_tokens: Some(5),
                     ..default_parameters()
                 },
             })
