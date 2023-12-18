@@ -21,7 +21,12 @@ from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
-    def __init__(self, model: Model, cache: Cache, server_urls: List[str]):
+    def __init__(
+        self,
+        model: Model,
+        cache: Cache,
+        server_urls: List[str],
+    ):
         self.cache = cache
         self.model = model
         self.server_urls = server_urls

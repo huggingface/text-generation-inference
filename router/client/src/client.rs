@@ -167,7 +167,12 @@ impl Client {
                 );
                 num_batches
             ];
-            let request = tonic::Request::new(WarmupRequest { batches }).inject_context();
+            let request = tonic::Request::new(WarmupRequest {
+                batches,
+                max_input_length,
+                max_prefill_tokens,
+                max_total_tokens,
+            }).inject_context();
             let _response = self.stub.warmup(request).await?.into_inner();
         }
 
@@ -188,7 +193,12 @@ impl Client {
                 );
                 num_batches
             ];
-            let request = tonic::Request::new(WarmupRequest { batches }).inject_context();
+            let request = tonic::Request::new(WarmupRequest {
+                batches,
+                max_input_length,
+                max_prefill_tokens,
+                max_total_tokens,
+            }).inject_context();
             let _response = self.stub.warmup(request).await?.into_inner();
         }
         Ok(None) // No support for maximum total tokens
