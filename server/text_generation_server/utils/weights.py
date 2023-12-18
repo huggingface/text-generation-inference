@@ -281,17 +281,17 @@ class Weights:
                 else:
                     logger.info(f"Using exllama kernels v{HAS_EXLLAMA}")
 
-            if use_exllama:
+            if use_exllama and groupsize != -1:
                 qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
                 scales = self.get_sharded(f"{prefix}.scales", dim=0)
-                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
-                g_idx = g_idx - g_idx[0]
             else:
-                # The triton kernel reorders the scales/zero points instead of the weight/activation.
-                # Thus, each rank needs the full qzeros/scales.
                 qzeros = self.get_tensor(f"{prefix}.qzeros")
                 scales = self.get_tensor(f"{prefix}.scales")
-                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
+
+            g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
+
+            if use_exllama:
+                g_idx = g_idx - g_idx[0]
 
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
         elif quantize == "awq":
