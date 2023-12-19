@@ -240,5 +240,9 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
+# Update ldcache so that triton can find libcuda.so
+RUN echo "/usr/local/cuda-12.1/compat" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/local/cuda-12.1/lib64" >> /etc/ld.so.conf.d/nvidia.conf && ldconfig
+
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]
