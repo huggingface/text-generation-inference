@@ -1,3 +1,7 @@
+## Warning
+
+This is a personal copy of [huggingface/text-generation-inference](https://github.com/huggingface/text-generation-inference). It contains experimental changes that are not meant for any serious use.
+
 <div align="center">
   
 <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">

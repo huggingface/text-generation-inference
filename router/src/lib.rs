@@ -123,6 +123,12 @@ pub(crate) struct GenerateParameters {
     pub watermark: bool,
     #[serde(default)]
     #[schema(default = "true")]
+    pub use_grammar_constraint: bool,
+    #[serde(default)]
+    #[schema(default = "false")]
+    pub grammar: String,
+    #[serde(default)]
+    #[schema(default = "")]
     pub details: bool,
     #[serde(default)]
     #[schema(default = "true")]
@@ -158,6 +164,8 @@ fn default_parameters() -> GenerateParameters {
         stop: Vec::new(),
         truncate: None,
         watermark: false,
+        use_grammar_constraint: false,
+        grammar: "".to_string(),
         details: false,
         decoder_input_details: false,
         seed: None,

@@ -68,6 +68,8 @@ message NextTokenChooserParameters {
     float repetition_penalty = 7;
     /// token watermarking using "A Watermark for Large Language Models"
     bool watermark = 8;
+    bool use_grammar_constraint = 9;
+    string grammar = 10;
 }
 
 message StoppingCriteriaParameters {

@@ -163,6 +163,8 @@ impl Validation {
             truncate,
             seed,
             watermark,
+            use_grammar_constraint,
+            grammar,
             decoder_input_details,
             top_n_tokens,
             ..
@@ -279,6 +281,8 @@ impl Validation {
             do_sample,
             seed,
             watermark,
+            use_grammar_constraint,
+            grammar,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,

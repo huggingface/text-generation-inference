@@ -39,6 +39,7 @@ setuptools==69.0.2 ; python_version >= "3.9" and python_version < "3.13"
 tokenizers==0.13.3 ; python_version >= "3.9" and python_version < "3.13"
 tqdm==4.66.1 ; python_version >= "3.9" and python_version < "3.13"
 transformers==4.33.3 ; python_version >= "3.9" and python_version < "3.13"
+git+https://github.com/epfl-dlab/transformers_cfg.git@4d764337d4d0c167a32560e601fc7a5fb9f33e85
 typer==0.6.1 ; python_version >= "3.9" and python_version < "3.13"
 typing-extensions==4.8.0 ; python_version >= "3.9" and python_version < "3.13"
 urllib3==2.1.0 ; python_version >= "3.9" and python_version < "3.13"

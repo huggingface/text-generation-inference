@@ -143,7 +143,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         if len(batches) > 1:
             start_concat = time.time_ns()
-            batch = self.model.batch_type.concatenate(batches)
+            batch = self.model.batch_type.concatenate(batches, tokenizer=self.model.tokenizer)
             concat_ns = time.time_ns() - start_concat
         else:
             batch = batches[0]

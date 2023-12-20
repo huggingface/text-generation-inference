@@ -15,6 +15,8 @@ from text_generation_server.utils.logits_process import (
 )
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcessor
+from transformers_cfg.grammar_utils import IncrementalGrammarConstraint
+from transformers_cfg.generation.logits_process import GrammarConstrainedLogitsProcessor
 
 
 class NextTokenChooser:
@@ -29,6 +31,9 @@ class NextTokenChooser:
         do_sample=False,
         seed=0,
         device="cpu",
+        tokenizer=None,
+        use_grammar_constraint=False,
+        grammar="",
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -38,6 +43,12 @@ class NextTokenChooser:
             if repetition_penalty
             else None
         )
+
+        if use_grammar_constraint:
+            grammar = IncrementalGrammarConstraint(grammar, "root", tokenizer)
+            self.grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
+        else:
+            self.grammar_processor = None
 
         has_warpers = (
             (temperature is not None and temperature != 1.0)
@@ -60,6 +71,8 @@ class NextTokenChooser:
             scores = self.watermark_processor(input_ids, scores)
         if self.repetition_processor is not None:
             scores = self.repetition_processor(input_ids, scores)
+        if self.grammar_processor is not None:
+            scores = self.grammar_processor(input_ids, scores)
 
         if self.static_warper is None:
             next_logprob = torch.log_softmax(scores, -1)
@@ -75,6 +88,7 @@ class NextTokenChooser:
         cls,
         pb: generate_pb2.NextTokenChooserParameters,
         device: torch.device,
+        tokenizer: PreTrainedTokenizerBase,
     ) -> "NextTokenChooser":
         return NextTokenChooser(
             watermark=pb.watermark,
@@ -86,6 +100,9 @@ class NextTokenChooser:
             do_sample=pb.do_sample,
             seed=pb.seed,
             device=device,
+            use_grammar_constraint=pb.use_grammar_constraint,
+            grammar=pb.grammar,
+            tokenizer=tokenizer,
         )
 
 
@@ -181,7 +198,10 @@ class HeterogeneousNextTokenChooser:
         self,
         dtype: torch.dtype,
         device: torch.device,
+        tokenizer: PreTrainedTokenizerBase,
         watermark: List[bool],
+        use_grammar_constraint: List[bool],
+        grammar: List[str],
         temperature: List[float],
         repetition_penalty: List[float],
         top_k: List[int],
@@ -211,6 +231,11 @@ class HeterogeneousNextTokenChooser:
             if any([x != 1.0 for x in repetition_penalty])
             else None
         )
+
+        if use_grammar_constraint:
+            grammar = IncrementalGrammarConstraint(grammar, "root", tokenizer)
+            grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
+            warpers.append(grammar_processor)
 
         if any([x != 1.0 for x in temperature]):
             do_sample = [
@@ -359,6 +384,7 @@ class HeterogeneousNextTokenChooser:
         pb: List[generate_pb2.NextTokenChooserParameters],
         dtype: torch.dtype,
         device: torch.device,
+        tokenizer: PreTrainedTokenizerBase,
     ) -> "HeterogeneousNextTokenChooser":
         return HeterogeneousNextTokenChooser(
             watermark=[pb_.watermark for pb_ in pb],
@@ -371,6 +397,9 @@ class HeterogeneousNextTokenChooser:
             seeds=[pb_.seed for pb_ in pb],
             device=device,
             dtype=dtype,
+            tokenizer=tokenizer,
+            use_grammar_constraint=use_grammar_constraint,
+            grammar=grammar,
         )
 
 
