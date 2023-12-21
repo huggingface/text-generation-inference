@@ -49,7 +49,7 @@ def _weight_files_from_dir(d: Path, extension: str) -> List[str]:
     # done there with the len(s.rfilename.split("/")) == 1 condition
     root, _, files = next(os.walk(str(d)))
     filenames = [
-        f
+        os.path.join(root, f)
         for f in files
         if f.endswith(extension)
         and "arguments" not in f
