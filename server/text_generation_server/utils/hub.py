@@ -18,7 +18,9 @@ WEIGHTS_CACHE_OVERRIDE = os.getenv("WEIGHTS_CACHE_OVERRIDE", None)
 HF_HUB_OFFLINE = os.environ.get("HF_HUB_OFFLINE", "0").lower() in ["true", "1", "yes"]
 
 
-def _cached_weight_files(model_id: str, revision: Optional[str], extension: str) -> List[str]:
+def _cached_weight_files(
+    model_id: str, revision: Optional[str], extension: str
+) -> List[str]:
     """Guess weight files from the cached revision snapshot directory"""
     d = _get_cached_revision_directory(model_id, revision)
     if not d:
@@ -27,7 +29,9 @@ def _cached_weight_files(model_id: str, revision: Optional[str], extension: str)
     return filenames
 
 
-def _weight_hub_files_from_model_info(info: hf_api.ModelInfo, extension: str) -> List[str]:
+def _weight_hub_files_from_model_info(
+    info: hf_api.ModelInfo, extension: str
+) -> List[str]:
     return [
         s.rfilename
         for s in info.siblings
@@ -44,21 +48,27 @@ def _weight_files_from_dir(d: Path, extension: str) -> List[str]:
     # see _weight_hub_files_from_model_info, that's also what is
     # done there with the len(s.rfilename.split("/")) == 1 condition
     root, _, files = next(os.walk(str(d)))
-    filenames = [f for f in files
-                 if f.endswith(extension)
-                 and "arguments" not in f
-                 and "args" not in f
-                 and "adapter" not in f
-                 and "training" not in f]
+    filenames = [
+        f
+        for f in files
+        if f.endswith(extension)
+        and "arguments" not in f
+        and "args" not in f
+        and "adapter" not in f
+        and "training" not in f
+    ]
     return filenames
 
 
-def _get_cached_revision_directory(model_id: str, revision: Optional[str]) -> Optional[Path]:
+def _get_cached_revision_directory(
+    model_id: str, revision: Optional[str]
+) -> Optional[Path]:
     if revision is None:
         revision = "main"
 
     repo_cache = Path(HUGGINGFACE_HUB_CACHE) / Path(
-        file_download.repo_folder_name(repo_id=model_id, repo_type="model"))
+        file_download.repo_folder_name(repo_id=model_id, repo_type="model")
+    )
 
     if not repo_cache.is_dir():
         # No cache for this model
@@ -86,7 +96,7 @@ def _get_cached_revision_directory(model_id: str, revision: Optional[str]) -> Op
 
 
 def weight_hub_files(
-        model_id: str, revision: Optional[str] = None, extension: str = ".safetensors"
+    model_id: str, revision: Optional[str] = None, extension: str = ".safetensors"
 ) -> List[str]:
     """Get the weights filenames on the hub"""
     api = HfApi()

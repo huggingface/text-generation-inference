@@ -7,6 +7,7 @@ union half2_uint32
     half2 as_half2;
     __device__ half2_uint32(uint32_t val) : as_uint32(val) {}
     __device__ half2_uint32(half2 val) : as_half2(val) {}
+    __device__ half2_uint32() : as_uint32(0) {}
 };
 
 union half_uint16
@@ -15,6 +16,7 @@ union half_uint16
     half as_half;
     __device__ half_uint16(uint16_t val) : as_uint16(val) {}
     __device__ half_uint16(half val) : as_half(val) {}
+    __device__ half_uint16() : as_uint16(0) {}
 };
 
 // Max_scale premultiplied by 1/256

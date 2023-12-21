@@ -20,7 +20,10 @@ void gemm_half_q_half_cuda
     int size_k,
     bool clear = false,
     half* reconstruct = NULL,
-    bool force_cuda = false
+    bool force_cuda = false,
+    const half* r_weights = NULL,
+    const int r_weights_stride = 0,
+    bool mul_r_weights = false
 );
 
 void clear_tensor_cuda
