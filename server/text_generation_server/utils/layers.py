@@ -33,7 +33,7 @@ except Exception:
 
 HAS_EXLLAMA = False
 CAN_EXLLAMA = major >= 8
-V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
+V2 = os.getenv("EXLLAMA_VERSION", "1") == "2"
 if V2 and int(os.getenv("WORLD_SIZE", "1")) > 1:
     logger.warning(
         "Disabling exllama v2 and using v1 instead because there are issues when sharding"
