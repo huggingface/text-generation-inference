@@ -48,12 +48,15 @@ def _weight_files_from_dir(d: Path, extension: str) -> List[str]:
     # see _weight_hub_files_from_model_info, that's also what is
     # done there with the len(s.rfilename.split("/")) == 1 condition
     root, _, files = next(os.walk(str(d)))
-    filenames = [f for f in files
-                 if f.endswith(extension)
-                 and "arguments" not in f
-                 and "args" not in f
-                 and "adapter" not in f
-                 and "training" not in f]
+    filenames = [
+        f
+        for f in files
+        if f.endswith(extension)
+        and "arguments" not in f
+        and "args" not in f
+        and "adapter" not in f
+        and "training" not in f
+    ]
     return filenames
 
 
