@@ -31,6 +31,7 @@ uintptr_t make_q_matrix
     torch::Tensor q_scale,
     torch::Tensor q_scale_max,
     torch::Tensor q_groups,
+    torch::Tensor q_group_map,
     torch::Tensor gptq_qzeros,
     torch::Tensor gptq_scales,
     torch::Tensor gptq_g_idx,
@@ -43,6 +44,7 @@ uintptr_t make_q_matrix
     TORCH_CHECK_DTYPE_OPT(q_scale, kInt);
     TORCH_CHECK_DTYPE_OPT(q_scale_max, kHalf);
     TORCH_CHECK_DTYPE_OPT(q_groups, kShort);
+    TORCH_CHECK_DTYPE_OPT(q_group_map, kShort);
     TORCH_CHECK_DTYPE_OPT(gptq_qzeros, kInt);
     TORCH_CHECK_DTYPE_OPT(gptq_scales, kHalf);
     TORCH_CHECK_DTYPE_OPT(gptq_g_idx, kInt);
@@ -83,11 +85,14 @@ uintptr_t make_q_matrix
         q_scale.device().is_meta() ? NULL : (uint32_t*) q_scale.data_ptr(),
         q_scale_max.device().is_meta() ? NULL : (half*) q_scale_max.data_ptr(),
         q_groups.device().is_meta() ? NULL : (uint16_t*) q_groups.data_ptr(),
+        q_group_map.device().is_meta() ? NULL : (uint16_t*) q_group_map.data_ptr(),
         gptq_qzeros.device().is_meta() ? NULL : (uint32_t*) gptq_qzeros.data_ptr(),
         gptq_scales.device().is_meta() ? NULL : (half*) gptq_scales.data_ptr(),
         gptq_g_idx.device().is_meta() ? NULL : (uint32_t*) gptq_g_idx.data_ptr(),
         (half*) temp_dq.data_ptr()
     );
+
+    if (m->failed) throw std::runtime_error("CUDA out of memory");
 
     return reinterpret_cast<uintptr_t> (m);
 }
