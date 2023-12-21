@@ -281,14 +281,14 @@ class Weights:
                 else:
                     logger.info(f"Using exllama kernels v{HAS_EXLLAMA}")
 
+            g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
+
             if use_exllama and groupsize != -1:
                 qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
                 scales = self.get_sharded(f"{prefix}.scales", dim=0)
             else:
                 qzeros = self.get_tensor(f"{prefix}.qzeros")
                 scales = self.get_tensor(f"{prefix}.scales")
-
-            g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
 
             if use_exllama:
                 g_idx = g_idx - g_idx[0]
