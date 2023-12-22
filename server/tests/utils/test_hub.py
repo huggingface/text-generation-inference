@@ -32,10 +32,10 @@ def fresh_cache():
         current_value = huggingface_hub.constants.HUGGINGFACE_HUB_CACHE
         huggingface_hub.constants.HUGGINGFACE_HUB_CACHE = d
         text_generation_server.utils.hub.HUGGINGFACE_HUB_CACHE = d
-        os.environ['HUGGINGFACE_HUB_CACHE'] = d
+        os.environ["HUGGINGFACE_HUB_CACHE"] = d
         yield
         huggingface_hub.constants.HUGGINGFACE_HUB_CACHE = current_value
-        os.environ['HUGGINGFACE_HUB_CACHE'] = current_value
+        os.environ["HUGGINGFACE_HUB_CACHE"] = current_value
         text_generation_server.utils.hub.HUGGINGFACE_HUB_CACHE = current_value
 
 
@@ -47,7 +47,7 @@ def prefetched():
         revision="main",
         local_files_only=False,
         repo_type="model",
-        allow_patterns=["*.safetensors"]
+        allow_patterns=["*.safetensors"],
     )
     yield model_id
 
@@ -61,7 +61,15 @@ def test_weight_hub_files_offline_error(offline, fresh_cache):
 def test_weight_hub_files_offline_ok(prefetched, offline):
     # If the model is prefetched then we should be able to get the weight files from local cache
     filenames = weight_hub_files(prefetched)
-    assert filenames == ['model.safetensors']
+    root = None
+    assert len(filenames) == 1
+    for f in filenames:
+        curroot, filename = os.path.split(f)
+        if root is None:
+            root = curroot
+        else:
+            assert root == curroot
+        assert filename == "model.safetensors"
 
 
 def test_weight_hub_files():

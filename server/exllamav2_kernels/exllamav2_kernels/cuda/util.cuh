@@ -1,3 +1,11 @@
+#ifndef _util_cuh
+#define _util_cuh
+
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
+#include <cstdint>
+#include <cstdio>
+#include <ATen/cuda/CUDAContext.h>
 
 #define DIVIDE(x, size) (((x) + (size) - 1) / (size))
 
@@ -40,3 +48,7 @@ inline void gpu_assert(cudaError_t code, const char *file, int line, bool abort=
       if (abort) exit(code);
    }
 }
+
+void print_global_mem(const half* ptr, int rows, int columns, int stride);
+
+#endif

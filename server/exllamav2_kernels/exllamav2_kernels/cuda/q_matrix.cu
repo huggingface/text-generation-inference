@@ -57,6 +57,7 @@ QMatrix::QMatrix
     uint32_t* _q_scale,
     half* _q_scale_max,
     uint16_t* _q_groups,
+    uint16_t* _q_group_map,
 
     uint32_t* _gptq_qzeros,
     half* _gptq_scales,
@@ -80,13 +81,17 @@ QMatrix::QMatrix
     cuda_q_scale = _q_scale;
     cuda_q_scale_max = _q_scale_max;
     cuda_q_groups = _q_groups;
+    cuda_q_group_map = _q_group_map;
     cuda_gptq_qzeros = _gptq_qzeros;
     cuda_gptq_scales = _gptq_scales;
 
     is_gptq = (_gptq_qzeros != NULL);
 
-    groupsize = 1;
-    while (groupsize * groups < height) groupsize *= 2;
+    if (is_gptq)
+    {
+        gptq_groupsize = 1;
+        while (gptq_groupsize * groups < height) gptq_groupsize *= 2;
+    }
 
     // Create group map
 
@@ -102,15 +107,26 @@ QMatrix::QMatrix
         uint16_t* cpu_q_groups = (uint16_t*)calloc(groups * 2, sizeof(uint16_t));
         cudaMemcpy(cpu_q_groups, cuda_q_groups, groups * 2 * sizeof(uint16_t), cudaMemcpyDeviceToHost);
 
+        int row = 0;
         for (int i = 0; i < groups; i++)
         {
             int bits = cpu_q_groups[i * 2];
-            if (bits == 8) rows_8 += groupsize;
-            if (bits == 6) rows_6 += groupsize;
-            if (bits == 5) rows_5 += groupsize;
-            if (bits == 4) rows_4 += groupsize;
-            if (bits == 3) rows_3 += groupsize;
-            if (bits == 2) rows_2 += groupsize;
+
+            int rows;
+            if (i < groups - 1)
+            {
+                int qrows = cpu_q_groups[i * 2 + 3] - cpu_q_groups[i * 2 + 1];
+                rows = qrows * 32 / bits;
+            }
+            else rows = height - row;
+
+            if (bits == 8) rows_8 += rows;
+            if (bits == 6) rows_6 += rows;
+            if (bits == 5) rows_5 += rows;
+            if (bits == 4) rows_4 += rows;
+            if (bits == 3) rows_3 += rows;
+            if (bits == 2) rows_2 += rows;
+            row += rows;
         }
 
         free(cpu_q_groups);
@@ -137,6 +153,13 @@ QMatrix::QMatrix
             }
         }
     }
+
+//     DBGI(rows_8);
+//     DBGI(rows_6);
+//     DBGI(rows_5);
+//     DBGI(rows_4);
+//     DBGI(rows_3);
+//     DBGI(rows_2);
 
     // Shuffle quantized data
 
@@ -283,10 +306,10 @@ __global__ void reconstruct_kernel
     const uint16_t* __restrict__ b_q_perm,
     const uint32_t* __restrict__ b_q_scale,
     const half* __restrict__ b_q_scale_max,
-    //const uint16_t* __restrict__ b_q_groups,
+    const uint16_t* __restrict__ b_q_group_map,
     const int size_k,
     const int size_n,
-    const int groupsize,
+    //const int groupsize,
     const int groups,
     half* __restrict__ b,
     const int rows_8,
@@ -317,7 +340,8 @@ __global__ void reconstruct_kernel
 
     // Find initial group
 
-    int group = offset_k / groupsize;
+    // int group = offset_k / groupsize;
+    int group = b_q_group_map[offset_k * 2];
 
     int pre_rows_8 = min(rows_8, offset_k);
     int pre_rows_6 = offset_k > rows_8 ? min(rows_6, offset_k) - rows_8 : 0;
@@ -337,7 +361,7 @@ __global__ void reconstruct_kernel
 
     half qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]);
     half2 qs_h2 = __halves2half2(qs_h, qs_h);
-    int nextgroup = offset_k + groupsize;
+    int nextgroup = offset_k + b_q_group_map[offset_k * 2 + 1];
 
     int end_k = min(offset_k + BLOCK_KN_SIZE, size_k);
     int k = offset_k;
@@ -347,7 +371,7 @@ __global__ void reconstruct_kernel
 
     while (k < rows_8 && k < end_k)
     {
-        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += groupsize; qs_h2 = __halves2half2(qs_h, qs_h); }
+        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += b_q_group_map[k * 2 + 1]; qs_h2 = __halves2half2(qs_h, qs_h); }
         for (int p = 0; p < 4; p++)
         {
             half2 dq[4];
@@ -363,7 +387,7 @@ __global__ void reconstruct_kernel
 
     while (k < rows_6 && k < end_k)
     {
-        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += groupsize; qs_h2 = __halves2half2(qs_h, qs_h); }
+        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += b_q_group_map[k * 2 + 1]; qs_h2 = __halves2half2(qs_h, qs_h); }
         for (int p = 0; p < 2; p++)
         {
             half2 dq[8];
@@ -380,7 +404,7 @@ __global__ void reconstruct_kernel
 
     while (k < rows_5 && k < end_k)
     {
-        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += groupsize; qs_h2 = __halves2half2(qs_h, qs_h); }
+        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += b_q_group_map[k * 2 + 1]; qs_h2 = __halves2half2(qs_h, qs_h); }
         for (int p = 0; p < 1; p++)
         {
             half2 dq[16];
@@ -399,7 +423,7 @@ __global__ void reconstruct_kernel
 
     while (k < rows_4 && k < end_k)
     {
-        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += groupsize; qs_h2 = __halves2half2(qs_h, qs_h); }
+        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += b_q_group_map[k * 2 + 1]; qs_h2 = __halves2half2(qs_h, qs_h); }
         for (int p = 0; p < 4; p++)
         {
             half2 dq[4];
@@ -414,7 +438,7 @@ __global__ void reconstruct_kernel
 
     while (k < rows_3 && k < end_k)
     {
-        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += groupsize; qs_h2 = __halves2half2(qs_h, qs_h); }
+        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += b_q_group_map[k * 2 + 1]; qs_h2 = __halves2half2(qs_h, qs_h); }
         for (int p = 0; p < 1; p++)
         {
             half2 dq[16];
@@ -431,8 +455,8 @@ __global__ void reconstruct_kernel
 
     while (k < rows_2 && k < end_k)
     {
-        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += groupsize; qs_h2 = __halves2half2(qs_h, qs_h); }
-        for (int p = 0; p < 2; p++)
+        if (k == nextgroup) { group++; qs_h = dq_scale(b_q_scale_.item(group, n), b_q_scale_max[group]); nextgroup += b_q_group_map[k * 2 + 1]; qs_h2 = __halves2half2(qs_h, qs_h); }
+        for (int p = 0; p < 1; p++)
         {
             half2 dq[8];
             uint32_t q_0 = *b_ptr; b_ptr += size_n;
@@ -441,7 +465,7 @@ __global__ void reconstruct_kernel
             half* dqh = (half*) dq;
             for (int j = 0; j < 16; j++) b_.set(perm[lk++], n, dqh[j]);
         }
-        k += 32;
+        k += 16;
     }
 }
 
@@ -461,10 +485,10 @@ void QMatrix::reconstruct(half* out)
             cuda_q_perm,
             cuda_q_scale,
             cuda_q_scale_max,
-            //cuda_q_groups,
+            cuda_q_group_map,
             height,
             width,
-            groupsize,
+            //groupsize,
             groups,
             out,
             rows_8,
@@ -487,7 +511,7 @@ void QMatrix::reconstruct(half* out)
             //const uint16_t* __restrict__ b_q_groups,
             height,
             width,
-            groupsize,
+            gptq_groupsize,
             groups,
             out,
             rows_4
