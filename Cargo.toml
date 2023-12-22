@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.3.3"
+version = "1.3.4"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 homepage = "https://github.com/huggingface/text-generation-inference"

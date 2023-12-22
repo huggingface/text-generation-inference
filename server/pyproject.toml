@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "text-generation-server"
-version = "1.3.3"
+version = "1.3.4"
 description = "Text Generation Inference Python gRPC Server"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
 
