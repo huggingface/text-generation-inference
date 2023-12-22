@@ -6,7 +6,7 @@ import numpy as np
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, PreTrainedModel
 from transformers.models.llama import LlamaTokenizerFast
 from typing import Optional, Tuple, Type, List
 
@@ -48,6 +48,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "FlashCausalLMBatch":
@@ -124,7 +125,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
             next_token_chooser_parameters.append(r.parameters)
 
             stopping_criteria = StoppingCriteria.from_pb(
-                r.stopping_parameters, tokenizer
+                r.stopping_parameters, tokenizer, model
             )
             max_new_tokens = stopping_criteria.max_new_tokens
             stopping_criterias.append(stopping_criteria)
@@ -190,7 +191,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
             )
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
-            next_token_chooser_parameters, dtype, device, tokenizer
+            next_token_chooser_parameters, dtype, device, tokenizer, model
         )
         start_slots = torch.tensor(start_slots, dtype=torch.int64)
 

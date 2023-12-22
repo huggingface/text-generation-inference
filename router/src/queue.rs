@@ -356,6 +356,11 @@ mod tests {
                     seed: 0,
                     repetition_penalty: 0.0,
                     watermark: false,
+                    use_grammar_constraint: false,
+                    grammar: "".to_string(),
+                    logit_bias: Vec::new(),
+                    guidance_scale: 1.0,
+                    negative_inputs: "".to_string(),
                 },
                 stopping_parameters: StoppingCriteriaParameters {
                     ignore_eos_token: false,

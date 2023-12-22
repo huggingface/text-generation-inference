@@ -128,6 +128,10 @@ impl Client {
                     watermark: true,
                     use_grammar_constraint: false,
                     grammar: "".to_string(),
+                    logit_bias:  Vec::new(),
+                    guidance_scale: 1.0,
+                    negative_inputs: "".to_string(),
+
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens: max_total_tokens - truncate,

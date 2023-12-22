@@ -14,7 +14,7 @@ from text_generation_server.utils.logits_process import (
     static_warper,
 )
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
-from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcessor
+from transformers import PreTrainedTokenizerBase,RepetitionPenaltyLogitsProcessor,UnbatchedClassifierFreeGuidanceLogitsProcessor,PreTrainedModel
 from transformers_cfg.grammar_utils import IncrementalGrammarConstraint
 from transformers_cfg.generation.logits_process import GrammarConstrainedLogitsProcessor
 
@@ -32,8 +32,11 @@ class NextTokenChooser:
         seed=0,
         device="cpu",
         tokenizer=None,
+        model=None,
         use_grammar_constraint=False,
         grammar="",
+        guidance_scale=1.0,
+        negative_inputs="",
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -49,6 +52,19 @@ class NextTokenChooser:
             self.grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
         else:
             self.grammar_processor = None
+
+        if guidance_scale != 1.0 and model is not None and negative_inputs:
+            negative_inputs_t = tokenizer([negative_inputs], return_tensors="pt")
+            device = next(model.model.parameters()).device
+            self.guidance_scale_processor = UnbatchedClassifierFreeGuidanceLogitsProcessor(
+                                                guidance_scale,
+                                                model.model,
+                                                unconditional_ids=negative_inputs_t["input_ids"].to(device),
+                                                unconditional_attention_mask=negative_inputs_t["attention_mask"].to(device),
+                                                use_cache=True, # use cache permanently on for now.
+                                            )
+        else:
+            self.guidance_scale_processor = None
 
         has_warpers = (
             (temperature is not None and temperature != 1.0)
@@ -67,12 +83,15 @@ class NextTokenChooser:
         self.choice = Sampling(seed, device) if sampling else Greedy()
 
     def __call__(self, input_ids, scores):
+        if self.guidance_scale_processor is not None:
+            scores = self.guidance_scale_processor(input_ids, scores)
+        if self.grammar_processor is not None:
+            scores = self.grammar_processor(input_ids, scores)
         if self.watermark_processor is not None:
             scores = self.watermark_processor(input_ids, scores)
         if self.repetition_processor is not None:
             scores = self.repetition_processor(input_ids, scores)
-        if self.grammar_processor is not None:
-            scores = self.grammar_processor(input_ids, scores)
+        
 
         if self.static_warper is None:
             next_logprob = torch.log_softmax(scores, -1)
@@ -89,6 +108,7 @@ class NextTokenChooser:
         pb: generate_pb2.NextTokenChooserParameters,
         device: torch.device,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
     ) -> "NextTokenChooser":
         return NextTokenChooser(
             watermark=pb.watermark,
@@ -103,6 +123,9 @@ class NextTokenChooser:
             use_grammar_constraint=pb.use_grammar_constraint,
             grammar=pb.grammar,
             tokenizer=tokenizer,
+            model=model,
+            guidance_scale=pb.guidance_scale,
+            negative_inputs=pb.negative_inputs,
         )
 
 
@@ -157,6 +180,7 @@ class StoppingCriteria:
         cls,
         pb: generate_pb2.StoppingCriteriaParameters,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
     ) -> "StoppingCriteria":
         stop_sequence_criterias = [
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
@@ -199,9 +223,12 @@ class HeterogeneousNextTokenChooser:
         dtype: torch.dtype,
         device: torch.device,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         watermark: List[bool],
         use_grammar_constraint: List[bool],
         grammar: List[str],
+        guidance_scale: List[float],
+        negative_inputs: List[str],
         temperature: List[float],
         repetition_penalty: List[float],
         top_k: List[int],
@@ -232,10 +259,14 @@ class HeterogeneousNextTokenChooser:
             else None
         )
 
-        if use_grammar_constraint:
-            grammar = IncrementalGrammarConstraint(grammar, "root", tokenizer)
-            grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
-            warpers.append(grammar_processor)
+        if any(use_grammar_constraint):
+            grammar_processors = {
+                i: GrammarConstrainedLogitsProcessor(IncrementalGrammarConstraint(grammar[i], "root", tokenizer))
+                for i, use_gc in enumerate(use_grammar_constraint) if use_gc
+            }
+            self.grammar_processor = HeterogeneousProcessorWrapper(grammar_processors)
+        else:
+            self.grammar_processor = None
 
         if any([x != 1.0 for x in temperature]):
             do_sample = [
@@ -294,6 +325,8 @@ class HeterogeneousNextTokenChooser:
                 _scores = self.watermark_processor(input_ids, _scores)
             if self.repetition_processor is not None:
                 _scores = self.repetition_processor(input_ids, _scores)
+            if self.grammar_processor is not None:
+                _scores = self.grammar_processor(input_ids, _scores)
 
             for warper in self.warpers:
                 _scores = warper(input_ids, _scores)
@@ -385,6 +418,7 @@ class HeterogeneousNextTokenChooser:
         dtype: torch.dtype,
         device: torch.device,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
     ) -> "HeterogeneousNextTokenChooser":
         return HeterogeneousNextTokenChooser(
             watermark=[pb_.watermark for pb_ in pb],
@@ -398,8 +432,11 @@ class HeterogeneousNextTokenChooser:
             device=device,
             dtype=dtype,
             tokenizer=tokenizer,
-            use_grammar_constraint=use_grammar_constraint,
-            grammar=grammar,
+            model=model,
+            use_grammar_constraint=[pb_.use_grammar_constraint for pb_ in pb],
+            grammar=[pb_.grammar for pb_ in pb],
+            guidance_scale=[pb_.guidance_scale for pb_ in pb],
+            negative_inputs=[pb_.negative_inputs for pb_ in pb],
         )
 
 

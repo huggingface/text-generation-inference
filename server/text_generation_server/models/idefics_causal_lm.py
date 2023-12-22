@@ -7,6 +7,7 @@ from transformers import (
     AutoProcessor,
     AutoTokenizer,
     PreTrainedTokenizerBase,
+    PreTrainedModel,
     ProcessorMixin,
 )
 from typing import Optional, Tuple, List, Type, Dict
@@ -96,6 +97,7 @@ class IdeficsCausalLMBatch(Batch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         processor: ProcessorMixin,  # Hack
         dtype: torch.dtype,
         device: torch.device,
@@ -114,9 +116,9 @@ class IdeficsCausalLMBatch(Batch):
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             inputs.append(r.inputs)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer))
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer, model))
             stopping_criteria = StoppingCriteria.from_pb(
-                r.stopping_parameters, tokenizer
+                r.stopping_parameters, tokenizer, model
             )
             stopping_criterias.append(stopping_criteria)
             max_truncation = max(max_truncation, r.truncate)
@@ -642,7 +644,7 @@ class IdeficsCausalLM(Model):
         pixel_values,
         image_hidden_states,
         image_attention_mask,
-        past_key_values: Optional = None,
+        past_key_values: Optional = None, #type: ignore
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
         kwargs = {

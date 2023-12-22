@@ -7,6 +7,7 @@ from transformers import (
     AutoTokenizer,
     AutoConfig,
     PreTrainedTokenizerBase,
+    PreTrainedModel,
 )
 
 from text_generation_server.models.custom_modeling.bloom_modeling import (
@@ -28,10 +29,11 @@ class BloomCausalLMBatch(CausalLMBatch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "CausalLMBatch":
-        batch = super().from_pb(pb=pb, tokenizer=tokenizer, dtype=dtype, device=device)
+        batch = super().from_pb(pb=pb, tokenizer=tokenizer, model=model, dtype=dtype, device=device)
         batch.keys_head_dim_last = False
         return batch
 
@@ -101,7 +103,7 @@ class BLOOMSharded(CausalLM):
         return BloomCausalLMBatch
 
     def forward(
-        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None #type: ignore
     ):
         outputs = self.model.forward(
             input_ids=input_ids,

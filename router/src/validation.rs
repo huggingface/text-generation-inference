@@ -2,7 +2,7 @@
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{GenerateParameters, GenerateRequest};
 use rand::{thread_rng, Rng};
-use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
+use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters, LogitBias};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::TruncationDirection;
@@ -165,6 +165,9 @@ impl Validation {
             watermark,
             use_grammar_constraint,
             grammar,
+            guidance_scale,
+            negative_inputs,
+            logit_bias,
             decoder_input_details,
             top_n_tokens,
             ..
@@ -268,9 +271,18 @@ impl Validation {
             .unwrap_or(Ok(None))?;
 
         // Validate inputs
-        let (inputs, input_length, max_new_tokens) = self
+        let (inputs, _input_length, max_new_tokens) = self
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
+
+        let (negative_inputs, input_length, max_new_tokens) = self
+            .validate_input(negative_inputs, truncate, Some(max_new_tokens))
+            .await?;
+
+        let logit_biases: Vec<LogitBias> = logit_bias
+            .into_iter()
+            .map(|(word, bias)| LogitBias { word, bias })
+            .collect();
 
         let parameters = NextTokenChooserParameters {
             temperature,
@@ -283,6 +295,9 @@ impl Validation {
             watermark,
             use_grammar_constraint,
             grammar,
+            logit_bias: logit_biases,
+            guidance_scale,
+            negative_inputs,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,

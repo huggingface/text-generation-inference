@@ -3,7 +3,7 @@ import time
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PreTrainedTokenizerBase, PreTrainedModel
 from typing import Optional, Tuple, List, Type, Dict
 
 from text_generation_server.utils.tokens import batch_top_tokens
@@ -75,6 +75,7 @@ class Seq2SeqLMBatch(Batch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "Seq2SeqLMBatch":
@@ -96,9 +97,9 @@ class Seq2SeqLMBatch(Batch):
             inputs.append(r.inputs)
             requests_idx_mapping[r.id] = i
             decoder_input_lengths.append(1)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer))
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer, model))
             stopping_criteria = StoppingCriteria.from_pb(
-                r.stopping_parameters, tokenizer
+                r.stopping_parameters, tokenizer, model
             )
             stopping_criterias.append(stopping_criteria)
             top_n_tokens.append(r.top_n_tokens)
@@ -278,7 +279,7 @@ class Seq2SeqLMBatch(Batch):
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
-    def concatenate(cls, batches: List["Seq2SeqLMBatch"]) -> "Seq2SeqLMBatch":
+    def concatenate(cls, batches: List["Seq2SeqLMBatch"], tokenizer: Optional[PreTrainedTokenizerBase] = None, model: Optional[PreTrainedModel] = None) -> "Seq2SeqLMBatch":
         """Concatenate multiple batches together by padding internal torch tensors"""
 
         # Used for padding
@@ -587,9 +588,9 @@ class Seq2SeqLM(Model):
         input_ids,
         attention_mask,
         decoder_input_ids,
-        decoder_attention_mask: Optional,
-        encoder_last_hidden_state: Optional,
-        past_key_values: Optional = None,
+        decoder_attention_mask: Optional, #type: ignore
+        encoder_last_hidden_state: Optional, #type: ignore
+        past_key_values: Optional = None, #type: ignore
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,

@@ -51,6 +51,11 @@ message ClearCacheRequest {
 /// Empty response
 message ClearCacheResponse {}
 
+message LogitBias {
+    string word = 1;
+    float bias = 2;
+}
+
 message NextTokenChooserParameters {
     /// exponential scaling output probability distribution
     float temperature = 1;
@@ -70,6 +75,9 @@ message NextTokenChooserParameters {
     bool watermark = 8;
     bool use_grammar_constraint = 9;
     string grammar = 10;
+    repeated LogitBias logit_bias = 11;
+    float guidance_scale = 12;
+    string negative_inputs = 13;
 }
 
 message StoppingCriteriaParameters {

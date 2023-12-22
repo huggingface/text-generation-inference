@@ -8,6 +8,7 @@ from transformers import (
     AutoTokenizer,
     AutoConfig,
     PreTrainedTokenizerBase,
+    PreTrainedModel,
 )
 from text_generation_server.models import CausalLM
 from text_generation_server.models.causal_lm import CausalLMBatch
@@ -73,6 +74,7 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "GalacticaCausalLMBatch":
@@ -92,9 +94,9 @@ class GalacticaCausalLMBatch(CausalLMBatch):
             requests_idx_mapping[r.id] = i
             # Add escape_custom_split_sequence to the CausalLMBatch logic
             inputs.append(escape_custom_split_sequence(r.inputs))
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer))
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer, model))
             stopping_criteria = StoppingCriteria.from_pb(
-                r.stopping_parameters, tokenizer
+                r.stopping_parameters, tokenizer, model
             )
             stopping_criterias.append(stopping_criteria)
             top_n_tokens.append(r.top_n_tokens)
@@ -225,7 +227,7 @@ class GalacticaSharded(CausalLM):
         )
 
     def forward(
-        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
+        self, input_ids, attention_mask, position_ids, past_key_values: Optional = None #type: ignore
     ):
         outputs = self.model.forward(
             input_ids=input_ids,

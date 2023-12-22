@@ -122,11 +122,20 @@ pub(crate) struct GenerateParameters {
     #[schema(default = "false", example = true)]
     pub watermark: bool,
     #[serde(default)]
-    #[schema(default = "true")]
+    #[schema(default = "false")]
     pub use_grammar_constraint: bool,
     #[serde(default)]
-    #[schema(default = "false")]
+    #[schema(default = "")]
     pub grammar: String,
+    #[serde(default)]
+    #[schema(default = "null", nullable = true)]
+    pub logit_bias: Vec<(String, f32)>,
+    #[serde(default)]
+    #[schema(default = "1.0")]
+    pub guidance_scale: f32,
+    #[serde(default)]
+    #[schema(default = "")]
+    pub negative_inputs: String,
     #[serde(default)]
     #[schema(default = "")]
     pub details: bool,
@@ -166,6 +175,9 @@ fn default_parameters() -> GenerateParameters {
         watermark: false,
         use_grammar_constraint: false,
         grammar: "".to_string(),
+        logit_bias: Vec::new(),
+        guidance_scale: 1.0,
+        negative_inputs: "".to_string(),
         details: false,
         decoder_input_details: false,
         seed: None,

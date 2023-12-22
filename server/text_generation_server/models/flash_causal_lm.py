@@ -8,7 +8,7 @@ import numpy as np
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, PreTrainedModel
 from typing import Optional, Tuple, List, Type, Dict
 
 from text_generation_server.models import Model
@@ -108,6 +108,7 @@ class FlashCausalLMBatch(Batch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "FlashCausalLMBatch":
@@ -181,7 +182,7 @@ class FlashCausalLMBatch(Batch):
             next_token_chooser_parameters.append(r.parameters)
 
             stopping_criteria = StoppingCriteria.from_pb(
-                r.stopping_parameters, tokenizer
+                r.stopping_parameters, tokenizer, model
             )
             max_new_tokens = stopping_criteria.max_new_tokens
             stopping_criterias.append(stopping_criteria)
@@ -233,7 +234,7 @@ class FlashCausalLMBatch(Batch):
             )
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
-            next_token_chooser_parameters, dtype, device, tokenizer
+            next_token_chooser_parameters, dtype, device, tokenizer, model
         )
         start_slots = torch.tensor(start_slots, dtype=torch.int64)
 
@@ -468,7 +469,7 @@ class FlashCausalLMBatch(Batch):
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
-    def concatenate(cls, batches: List["FlashCausalLMBatch"], tokenizer: Optional[PreTrainedTokenizerBase] = None) -> "FlashCausalLMBatch":
+    def concatenate(cls, batches: List["FlashCausalLMBatch"], tokenizer: Optional[PreTrainedTokenizerBase] = None, model: Optional[PreTrainedModel] = None) -> "FlashCausalLMBatch":
         # Batch attributes
         requests = []
         requests_idx_mapping = {}
@@ -590,6 +591,7 @@ class FlashCausalLMBatch(Batch):
             dtype=batches[0].next_token_chooser.dtype,
             device=batches[0].next_token_chooser.device,
             tokenizer=tokenizer,
+            model=model,
         )
 
         speculative_ids = (

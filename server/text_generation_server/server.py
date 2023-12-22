@@ -85,12 +85,13 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch,
                 self.model.tokenizer,
                 self.model.processor,
+                self.model,
                 self.model.dtype,
                 self.model.device,
             )
         else:
             batch = self.model.batch_type.from_pb(
-                request.batch, self.model.tokenizer, self.model.dtype, self.model.device
+                request.batch, self.model.tokenizer, self.model, self.model.dtype, self.model.device
             )
         max_supported_total_tokens = self.model.warmup(batch)
 
@@ -107,12 +108,13 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch,
                 self.model.tokenizer,
                 self.model.processor,
+                self.model,
                 self.model.dtype,
                 self.model.device,
             )
         else:
             batch = self.model.batch_type.from_pb(
-                request.batch, self.model.tokenizer, self.model.dtype, self.model.device
+                request.batch, self.model.tokenizer, self.model, self.model.dtype, self.model.device
             )
 
         generations, next_batch, timings = self.model.generate_token(batch)
@@ -143,7 +145,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         if len(batches) > 1:
             start_concat = time.time_ns()
-            batch = self.model.batch_type.concatenate(batches, tokenizer=self.model.tokenizer)
+            batch = self.model.batch_type.concatenate(batches, tokenizer=self.model.tokenizer, model=self.model)
             concat_ns = time.time_ns() - start_concat
         else:
             batch = batches[0]

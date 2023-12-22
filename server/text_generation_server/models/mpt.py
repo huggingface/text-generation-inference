@@ -4,7 +4,7 @@ import torch.distributed
 from pathlib import Path
 from typing import Optional, Type
 from opentelemetry import trace
-from transformers import AutoTokenizer, PretrainedConfig, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, PretrainedConfig, PreTrainedTokenizerBase, PreTrainedModel
 from huggingface_hub import hf_hub_download
 import json
 
@@ -29,10 +29,11 @@ class MPTCausalLMBatch(CausalLMBatch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "CausalLMBatch":
-        batch = super().from_pb(pb=pb, tokenizer=tokenizer, dtype=dtype, device=device)
+        batch = super().from_pb(pb=pb, tokenizer=tokenizer, dtype=dtype, device=device, model=model)
         batch.keys_head_dim_last = False
         return batch
 

@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional
 
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, PreTrainedModel
 
 from text_generation_server.pb import generate_pb2
 from text_generation_server.pb.generate_pb2 import FinishReason
@@ -22,6 +22,7 @@ class Batch(ABC):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "Batch":
@@ -33,7 +34,7 @@ class Batch(ABC):
 
     @classmethod
     @abstractmethod
-    def concatenate(cls, batches: List["Batch"]) -> "Batch":
+    def concatenate(cls, batches: List["Batch"], tokenizer: Optional[PreTrainedTokenizerBase] = None, model: Optional[PreTrainedModel] = None) -> "Batch":
         raise NotImplementedError
 
     @abstractmethod
