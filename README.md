@@ -74,6 +74,7 @@ Environment Variables Added:
 |  PROF_STEP            | interger       | 5           | Control profile step                                                         |  add -e in docker run command  |
 |  PROF_PATH            | string         | /root/text-generation-inference                                   | Define profile folder  | add -e in docker run command  |
 | LIMIT_HPU_GRAPH       | True/False     | False       | Skip HPU graph usage for prefill to save memory | add -e in docker run command |
+| BATCH_BUCKET_SIZE     | integer        | 8           | Batch size will be rounded to the nearest multiple of this number. This limits the number of cached graphs | add -e in docker run command |
 
 </div>
 
