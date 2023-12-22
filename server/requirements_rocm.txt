@@ -39,6 +39,7 @@ setuptools==69.0.2 ; python_version >= "3.9" and python_version < "3.13"
 tokenizers==0.15.0 ; python_version >= "3.9" and python_version < "3.13"
 tqdm==4.66.1 ; python_version >= "3.9" and python_version < "3.13"
 transformers==4.36.1 ; python_version >= "3.9" and python_version < "3.13"
+git+https://github.com/Saibo-creator/transformers-CFG.git@4d76433
 typer==0.6.1 ; python_version >= "3.9" and python_version < "3.13"
 typing-extensions==4.9.0 ; python_version >= "3.9" and python_version < "3.13"
 urllib3==2.1.0 ; python_version >= "3.9" and python_version < "3.13"
