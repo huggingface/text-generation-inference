@@ -39,7 +39,7 @@ if V2 and int(os.getenv("WORLD_SIZE", "1")) > 1:
     V2 = False
     log_once(
         logger.warning,
-        "Disabling exllama v2 and using v1 instead because there are issues when sharding"
+        "Disabling exllama v2 and using v1 instead because there are issues when sharding",
     )
 
 if os.getenv("DISABLE_EXLLAMA") == "True":

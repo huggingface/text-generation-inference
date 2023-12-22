@@ -215,7 +215,9 @@ class Weights:
             bits, groupsize, desc_act = self._get_gptq_params()
             from text_generation_server.utils.layers import HAS_EXLLAMA
 
-            use_exllama = bits == 4 and HAS_EXLLAMA and quantize == "gptq" and not desc_act
+            use_exllama = (
+                bits == 4 and HAS_EXLLAMA and quantize == "gptq" and not desc_act
+            )
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
@@ -281,14 +283,11 @@ class Weights:
                     if CAN_EXLLAMA:
                         log_once(
                             logger.warning,
-                            "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True"
+                            "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True",
                         )
                     use_exllama = False
                 else:
-                    log_once(
-                        logger.info,
-                        f"Using exllama kernels v{HAS_EXLLAMA}"
-                    )
+                    log_once(logger.info, f"Using exllama kernels v{HAS_EXLLAMA}")
 
             g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
 
