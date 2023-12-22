@@ -1,5 +1,5 @@
 import re
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, Dict
 
 import torch
 from text_generation_server.pb import generate_pb2
@@ -14,7 +14,7 @@ from text_generation_server.utils.logits_process import (
     static_warper,
 )
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
-from transformers import PreTrainedTokenizerBase,RepetitionPenaltyLogitsProcessor,UnbatchedClassifierFreeGuidanceLogitsProcessor,PreTrainedModel
+from transformers import PreTrainedTokenizerBase,RepetitionPenaltyLogitsProcessor,UnbatchedClassifierFreeGuidanceLogitsProcessor,PreTrainedModel, SequenceBiasLogitsProcessor
 from transformers_cfg.grammar_utils import IncrementalGrammarConstraint
 from transformers_cfg.generation.logits_process import GrammarConstrainedLogitsProcessor
 
@@ -37,6 +37,7 @@ class NextTokenChooser:
         grammar="",
         guidance_scale=1.0,
         negative_inputs="",
+        logit_bias=None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -46,6 +47,16 @@ class NextTokenChooser:
             if repetition_penalty
             else None
         )
+
+        self.sequence_bias_processors = None
+        if logit_bias is not None and len(logit_bias) > 0 and tokenizer is not None:
+            bias_sequence = []
+            for lb in logit_bias:
+                bias_sequence.append({tuple(tokenizer([lb.word], add_special_tokens=False).input_ids[0]): float(lb.bias)})
+            if len(bias_sequence) > 0:
+                self.sequence_bias_processors = []
+                for bs in bias_sequence:
+                    self.sequence_bias_processors.append(SequenceBiasLogitsProcessor(sequence_bias=bs))
 
         if use_grammar_constraint:
             grammar = IncrementalGrammarConstraint(grammar, "root", tokenizer)
@@ -85,6 +96,11 @@ class NextTokenChooser:
     def __call__(self, input_ids, scores):
         if self.guidance_scale_processor is not None:
             scores = self.guidance_scale_processor(input_ids, scores)
+        if self.sequence_bias_processors is not None and len(self.sequence_bias_processors) > 0:
+            with open('/tmp/output.txt', 'a') as file:
+                print("We have:"+str(len(self.sequence_bias_processors))+" sequence bias processors", file=file)
+            for sbp in self.sequence_bias_processors:
+                scores = sbp(input_ids, scores)
         if self.grammar_processor is not None:
             scores = self.grammar_processor(input_ids, scores)
         if self.watermark_processor is not None:
@@ -126,6 +142,7 @@ class NextTokenChooser:
             model=model,
             guidance_scale=pb.guidance_scale,
             negative_inputs=pb.negative_inputs,
+            logit_bias=pb.logit_bias,
         )
 
 
@@ -229,6 +246,7 @@ class HeterogeneousNextTokenChooser:
         grammar: List[str],
         guidance_scale: List[float],
         negative_inputs: List[str],
+        logit_bias: List[List[Dict]],
         temperature: List[float],
         repetition_penalty: List[float],
         top_k: List[int],
@@ -258,6 +276,22 @@ class HeterogeneousNextTokenChooser:
             if any([x != 1.0 for x in repetition_penalty])
             else None
         )
+
+        self.sequence_bias_processors = None
+        if any(lst for lst in logit_bias) and tokenizer is not None:
+            self.sequence_bias_processors = []
+            for logit_bias_stage in logit_bias:
+                sequence_bias_ps = None
+                if logit_bias_stage is not None and len(logit_bias_stage) > 0:
+                    bias_sequence = []
+                    for lb in logit_bias:
+                        bias_sequence.append({tuple(tokenizer([lb.word], add_special_tokens=False).input_ids[0]): float(lb.bias)})
+                    if len(bias_sequence) > 0:
+                        sequence_bias_ps = []
+                        for bs in bias_sequence:
+                            sequence_bias_ps.append(SequenceBiasLogitsProcessor(sequence_bias=bs))
+                if sequence_bias_ps is not None:
+                    self.sequence_bias_processors.append(HeterogeneousProcessorWrapper(sequence_bias_ps))
 
         if any(use_grammar_constraint):
             grammar_processors = {
@@ -323,6 +357,9 @@ class HeterogeneousNextTokenChooser:
             _scores = scores[:, j]
             if self.watermark_processor is not None:
                 _scores = self.watermark_processor(input_ids, _scores)
+            if self.sequence_bias_processors is not None and len(self.sequence_bias_processors) > 0:
+                for sbp in self.sequence_bias_processors:
+                    _scores = sbp(input_ids, _scores)
             if self.repetition_processor is not None:
                 _scores = self.repetition_processor(input_ids, _scores)
             if self.grammar_processor is not None:
@@ -437,6 +474,7 @@ class HeterogeneousNextTokenChooser:
             grammar=[pb_.grammar for pb_ in pb],
             guidance_scale=[pb_.guidance_scale for pb_ in pb],
             negative_inputs=[pb_.negative_inputs for pb_ in pb],
+            logit_bias=[pb_.logit_bias for pb_ in pb]
         )
 
 
