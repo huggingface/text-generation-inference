@@ -43,6 +43,11 @@ pub async fn run(
         seed: 0,
         repetition_penalty: repetition_penalty.unwrap_or(1.0),
         watermark,
+        use_grammar_constraint: false,
+        grammar: "".to_string(),
+        negative_inputs: "".to_string(),
+        guidance_scale: 1.0,
+        logit_bias: Vec::new(),
     };
 
     // Initialize terminal properties
