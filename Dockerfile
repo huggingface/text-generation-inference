@@ -106,6 +106,7 @@ WORKDIR /usr/src
 COPY server/Makefile-flash-att-v2 Makefile
 
 # Build specific version of flash attention v2
+ENV MAX_JOBS=8
 RUN make build-flash-attention-v2-cuda
 
 # Build Transformers exllama kernels
@@ -180,6 +181,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         curl \
         && rm -rf /var/lib/apt/lists/*
 
+ENV MAX_JOBS=14
+
 # Copy conda with PyTorch and Megablocks installed
 COPY --from=megablocks-builder /opt/conda /opt/conda
 
@@ -207,6 +210,11 @@ COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/c
 
 # Install flash-attention dependencies
 RUN pip install einops --no-cache-dir
+
+RUN apt-get update && \
+    apt-get install -y git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install server
 COPY proto proto
