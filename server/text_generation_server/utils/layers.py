@@ -335,7 +335,7 @@ def get_linear(weight, bias, quantize):
             qweight=qweight,
             qzeros=qzeros,
             scales=scales,
-            bias=bias is not None,
+            bias=bias,
         )
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")

@@ -35,10 +35,7 @@ class WQLinear(nn.Module):
         self.qweight = qweight
         self.qzeros = qzeros
         self.scales = scales
-        if bias:
-            self.bias = bias
-        else:
-            self.bias = None
+        self.bias = bias
 
     @torch.no_grad()
     def forward(self, x):
