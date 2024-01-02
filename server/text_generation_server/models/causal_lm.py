@@ -36,6 +36,7 @@ from loguru import logger
 tracer = trace.get_tracer(__name__)
 
 BATCH_BUCKET_SIZE = int(os.environ.get('BATCH_BUCKET_SIZE', 8))
+PREFILL_BATCH_BUCKET_SIZE = int(os.environ.get('PREFILL_BATCH_BUCKET_SIZE', 4))
 TRACE_FILENAME = os.environ.get('TRACE_FILENAME')
 
 def trace(txt):
@@ -234,7 +235,11 @@ class CausalLMBatch(Batch):
 
         top_n_tokens = [r.data.top_n_tokens for r in requests]
         top_n_tokens_tensor = torch.tensor(top_n_tokens, device=device, dtype=torch.int64)
-        next_token_chooser = HeterogeneousNextTokenChooser.from_pb([r.data.parameters for r in requests], batches[0].next_token_chooser.device, batches[0].next_token_chooser.dtype)
+        next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
+            [r.data.parameters for r in requests],
+            batches[0].next_token_chooser.device,
+            batches[0].next_token_chooser.dtype
+        )
 
         htorch.core.mark_step()
 
@@ -286,7 +291,7 @@ class CausalLMBatch(Batch):
         # TODO: by tokenizing all inputs at once we loose information on actual input lengths
         # this means that we cannot shift inputs to the left after a long input sequence
         # was filtered out
-        new_bs = round_up(len(requests), BATCH_BUCKET_SIZE)
+        new_bs = round_up(len(requests), PREFILL_BATCH_BUCKET_SIZE)
         dummy_inputs = ["?"] * (new_bs - len(requests))
         tokenized_inputs = tokenizer(
             [r.data.inputs for r in requests] + dummy_inputs,

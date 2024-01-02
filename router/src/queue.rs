@@ -37,6 +37,7 @@ impl Queue {
     pub(crate) fn new(
         requires_padding: bool,
         max_input_length: u32,
+        max_total_tokens: u32,
         block_size: u32,
         window_size: Option<u32>
     ) -> Self {
@@ -47,6 +48,7 @@ impl Queue {
         tokio::spawn(queue_task(
             requires_padding,
             max_input_length,
+            max_total_tokens,
             block_size,
             window_size,
             queue_receiver,
@@ -96,11 +98,18 @@ impl Queue {
 async fn queue_task(
     requires_padding: bool,
     max_input_length: u32,
+    max_total_tokens: u32,
     block_size: u32,
     window_size: Option<u32>,
     mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
 ) {
-    let mut state = State::new(requires_padding, max_input_length, block_size, window_size);
+    let mut state = State::new(
+        requires_padding,
+        max_input_length,
+        max_total_tokens,
+        block_size,
+        window_size
+    );
 
     while let Some(cmd) = receiver.recv().await {
         match cmd {
@@ -138,8 +147,11 @@ struct State {
     /// Whether the model is using padding
     requires_padding: bool,
 
-    /// Maximum inpult length, required for padding scenario
+    /// Maximum input length, required for padding scenario
     max_input_length: u32,
+
+    /// Maximum input and output length, required for padding scenario
+    max_total_tokens: u32,
 
     /// Paged Attention block size
     block_size: u32,
@@ -152,6 +164,7 @@ impl State {
     fn new(
         requires_padding: bool,
         max_input_length: u32,
+        max_total_tokens: u32,
         block_size: u32,
         window_size: Option<u32>
     ) -> Self {
@@ -161,6 +174,7 @@ impl State {
             next_batch_id: 0,
             requires_padding,
             max_input_length,
+            max_total_tokens,
             block_size,
             window_size,
         }
@@ -218,7 +232,7 @@ impl State {
             if self.requires_padding {
                 // We pad to max input length in the Python shards
                 // We need to take these padding tokens into the equation
-                prefill_tokens = (batch_requests.len() + 1) as u32 * self.max_input_length
+                prefill_tokens = (batch_requests.len() + 1) as u32 * self.max_input_length;
             } else {
                 // pad to block size
                 prefill_tokens += ((entry.request.input_length + self.block_size - 1)
@@ -227,7 +241,9 @@ impl State {
             }
 
             if self.requires_padding {
-                decode_tokens += entry.request.stopping_parameters.max_new_tokens;
+                // We pad to max total tokens in the Python shards
+                // We need to take these padding tokens into the equation
+                decode_tokens = (batch_requests.len() + 1) as u32 * (self.max_total_tokens - self.max_input_length);
             } else {
                 let max_new_tokens = match self.window_size {
                     None => entry.request.stopping_parameters.max_new_tokens,

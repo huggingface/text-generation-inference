@@ -596,6 +596,7 @@ pub async fn run(
         max_concurrent_requests,
         shard_info.requires_padding,
         max_input_length as u32,
+        max_total_tokens as u32,
         shard_info.window_size,
         generation_health,
     );
