@@ -17,6 +17,11 @@ impl ShardedClient {
         Self { clients }
     }
 
+    /// Create a new ShardedClient with no shards. Used for testing
+    pub fn empty() -> Self {
+        Self { clients: vec![] }
+    }
+
     /// Create a new ShardedClient from a master client. The master client will communicate with
     /// the other shards and returns all uris/unix sockets with the `service_discovery` gRPC method.
     async fn from_master_client(mut master_client: Client) -> Result<Self> {
