@@ -11,7 +11,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::time::Duration;
 use text_generation_client::{ClientError, ShardedClient};
-use text_generation_router::{server, HubModelInfo};
+use text_generation_router::{server, HubModelInfo, HubTokenizerConfig};
 use thiserror::Error;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tower_http::cors::AllowOrigin;
@@ -176,7 +176,7 @@ fn main() -> Result<(), RouterError> {
                     sha: None,
                     pipeline_tag: None,
                 },
-                false => get_model_info(&tokenizer_name, revision, authorization_token)
+                false => get_model_info(&tokenizer_name, revision.as_deref(), authorization_token.as_deref())
                     .await
                     .unwrap_or_else(|| {
                         tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
@@ -187,6 +187,20 @@ fn main() -> Result<(), RouterError> {
                         }
                     }),
             };
+
+            let tokenizer_config: HubTokenizerConfig = match local_model {
+                true => HubTokenizerConfig{
+                    chat_template: None,
+                },
+                false => get_tokenizer_config(&tokenizer_name, revision.as_deref(), authorization_token.as_deref())
+                    .await.unwrap_or_else(|| {
+                        tracing::warn!("Could not retrieve tokenizer config from the Hugging Face hub.");
+                        HubTokenizerConfig{
+                            chat_template: None,
+                        }
+                    }),
+            };
+
 
             // if pipeline-tag == text-generation we default to return_full_text = true
             let compat_return_full_text = match &model_info.pipeline_tag {
@@ -277,6 +291,7 @@ fn main() -> Result<(), RouterError> {
                 ngrok,
                 ngrok_authtoken,
                 ngrok_edge,
+                tokenizer_config,
             )
                 .await?;
             Ok(())
@@ -341,8 +356,8 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
 /// get model info from the Huggingface Hub
 pub async fn get_model_info(
     model_id: &str,
-    revision: Option<String>,
-    token: Option<String>,
+    revision: Option<&str>,
+    token: Option<&str>,
 ) -> Option<HubModelInfo> {
     let revision = match revision {
         None => {
@@ -350,7 +365,7 @@ pub async fn get_model_info(
             tracing::warn!("We strongly advise to set it to a known supported commit.");
             "main".to_string()
         }
-        Some(revision) => revision,
+        Some(revision) => revision.to_string(),
     };
 
     let client = reqwest::Client::new();
@@ -374,6 +389,41 @@ pub async fn get_model_info(
             );
         }
         Some(hub_model_info)
+    } else {
+        None
+    }
+}
+
+/// get tokenizer_config from the Huggingface Hub
+pub async fn get_tokenizer_config(
+    model_id: &str,
+    revision: Option<&str>,
+    token: Option<&str>,
+) -> Option<HubTokenizerConfig> {
+    let revision = match revision {
+        None => {
+            tracing::warn!("`--revision` is not set");
+            tracing::warn!("We strongly advise to set it to a known supported commit.");
+            "main".to_string()
+        }
+        Some(revision) => revision.to_string(),
+    };
+    let client = reqwest::Client::new();
+    // Poor man's urlencode
+    let revision = revision.replace('/', "%2F");
+    let url = format!(
+        "https://huggingface.co/{}/raw/{}/tokenizer_config.json",
+        model_id, revision
+    );
+    let mut builder = client.get(url).timeout(Duration::from_secs(5));
+    if let Some(token) = token {
+        builder = builder.bearer_auth(token);
+    }
+    let response = builder.send().await.ok()?;
+    if response.status().is_success() {
+        let text = response.text().await.ok()?;
+        let hub_tokenizer_config: HubTokenizerConfig = serde_json::from_str(&text).ok()?;
+        Some(hub_tokenizer_config)
     } else {
         None
     }

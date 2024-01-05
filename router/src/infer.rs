@@ -1,7 +1,8 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
+use crate::HubTokenizerConfig;
+use crate::{ChatRequest, GenerateRequest, PrefillToken};
 use crate::{Entry, Queue, Token};
-use crate::{GenerateRequest, PrefillToken};
 use futures::future::try_join_all;
 use nohash_hasher::IntMap;
 use std::sync::{
@@ -26,6 +27,8 @@ pub struct Infer {
     validation: Validation,
     /// Request queue
     queue: Queue,
+    /// Chat formatter
+    tokenizer_config: HubTokenizerConfig,
     /// Shared state
     shared: Arc<Shared>,
     /// Inference limit
@@ -52,6 +55,7 @@ impl Infer {
         window_size: Option<u32>,
         speculate: u32,
         generation_health: Arc<AtomicBool>,
+        tokenizer_config: HubTokenizerConfig,
     ) -> Self {
         // Infer shared state
         let queue = Queue::new(requires_padding, 16, window_size, speculate);
@@ -79,6 +83,7 @@ impl Infer {
             queue,
             shared,
             limit_concurrent_requests: semaphore,
+            tokenizer_config,
         }
     }
 
@@ -131,6 +136,28 @@ impl Infer {
 
         // Return stream
         Ok((permit, UnboundedReceiverStream::new(response_rx)))
+    }
+
+    /// Apply the chat template to the chat request
+    #[instrument(skip_all)]
+    pub(crate) fn apply_chat_template(
+        &self,
+        chat: ChatRequest,
+    ) -> Result<String, ChatTemplateError> {
+        let mut env = minijinja::Environment::new();
+        let chat_template = self
+            .tokenizer_config
+            .chat_template
+            .as_ref()
+            .ok_or(ChatTemplateError::TemplateNotFound)?;
+        env.add_template("_", chat_template)
+            .map_err(|e| ChatTemplateError::TemplateError(e))?;
+        let jinja_tmpl = env
+            .get_template("_")
+            .map_err(|e| ChatTemplateError::TemplateError(e))?;
+        jinja_tmpl
+            .render(chat)
+            .map_err(|e| ChatTemplateError::TemplateError(e))
     }
 
     /// Add a new request to the queue and return a InferResponse
@@ -663,6 +690,23 @@ impl InferError {
             InferError::Overloaded(_) => "overloaded",
             InferError::ValidationError(_) => "validation",
             InferError::IncompleteGeneration => "incomplete_generation",
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ChatTemplateError {
+    #[error("Template error: {0}")]
+    TemplateError(#[from] minijinja::Error),
+    #[error("Template not found")]
+    TemplateNotFound,
+}
+
+impl ChatTemplateError {
+    pub(crate) fn error_type(&self) -> &str {
+        match self {
+            ChatTemplateError::TemplateError(_) => "template_error",
+            ChatTemplateError::TemplateNotFound => "template_not_found",
         }
     }
 }
