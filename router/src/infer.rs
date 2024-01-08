@@ -140,24 +140,20 @@ impl Infer {
 
     /// Apply the chat template to the chat request
     #[instrument(skip_all)]
-    pub(crate) fn apply_chat_template(
-        &self,
-        chat: ChatRequest,
-    ) -> Result<String, ChatTemplateError> {
+
+    pub(crate) fn apply_chat_template(&self, chat: ChatRequest) -> Result<String, InferError> {
         let mut env = minijinja::Environment::new();
         let chat_template = self
             .tokenizer_config
             .chat_template
             .as_ref()
-            .ok_or(ChatTemplateError::TemplateNotFound)?;
-        env.add_template("_", chat_template)
-            .map_err(|e| ChatTemplateError::TemplateError(e))?;
-        let jinja_tmpl = env
-            .get_template("_")
-            .map_err(|e| ChatTemplateError::TemplateError(e))?;
-        jinja_tmpl
+            .ok_or_else(|| {
+                InferError::TemplateError(minijinja::ErrorKind::TemplateNotFound.into())
+            })?;
+        env.add_template("_", chat_template)?;
+        env.get_template("_")?
             .render(chat)
-            .map_err(|e| ChatTemplateError::TemplateError(e))
+            .map_err(InferError::TemplateError)
     }
 
     /// Add a new request to the queue and return a InferResponse
@@ -570,9 +566,9 @@ fn send_responses(
     let mut iterator = tokens_
         .ids
         .into_iter()
-        .zip(tokens_.logprobs.into_iter())
-        .zip(tokens_.texts.into_iter())
-        .zip(tokens_.is_special.into_iter())
+        .zip(tokens_.logprobs)
+        .zip(tokens_.texts)
+        .zip(tokens_.is_special)
         .enumerate()
         .peekable();
     while let Some((i, (((id, logprob), text), special))) = iterator.next() {
@@ -681,6 +677,8 @@ pub enum InferError {
     ValidationError(#[from] ValidationError),
     #[error("Incomplete generation")]
     IncompleteGeneration,
+    #[error("Template error: {0}")]
+    TemplateError(#[from] minijinja::Error),
 }
 
 impl InferError {
@@ -690,23 +688,7 @@ impl InferError {
             InferError::Overloaded(_) => "overloaded",
             InferError::ValidationError(_) => "validation",
             InferError::IncompleteGeneration => "incomplete_generation",
-        }
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum ChatTemplateError {
-    #[error("Template error: {0}")]
-    TemplateError(#[from] minijinja::Error),
-    #[error("Template not found")]
-    TemplateNotFound,
-}
-
-impl ChatTemplateError {
-    pub(crate) fn error_type(&self) -> &str {
-        match self {
-            ChatTemplateError::TemplateError(_) => "template_error",
-            ChatTemplateError::TemplateNotFound => "template_not_found",
+            InferError::TemplateError(_) => "template_error",
         }
     }
 }
