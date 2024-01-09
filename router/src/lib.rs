@@ -158,7 +158,7 @@ fn default_parameters() -> GenerateParameters {
         top_k: None,
         top_p: None,
         typical_p: None,
-        do_sample: false,
+        do_sample: true,
         max_new_tokens: default_max_new_tokens(),
         return_full_text: None,
         stop: Vec::new(),
@@ -253,21 +253,29 @@ pub(crate) struct ChatCompletionDelta {
 }
 
 impl ChatCompletionChunk {
-    pub(crate) fn new(delta: String, created: u64, index: u32) -> Self {
+    pub(crate) fn new(
+        model: String,
+        system_fingerprint: String,
+        delta: String,
+        created: u64,
+        index: u32,
+        logprobs: Option<Vec<f32>>,
+        finish_reason: Option<String>,
+    ) -> Self {
         Self {
             id: "".to_string(),
             object: "text_completion".to_string(),
             created,
-            model: "".to_string(),
-            system_fingerprint: "".to_string(),
+            model,
+            system_fingerprint,
             choices: vec![ChatCompletionChoice {
                 index,
                 delta: ChatCompletionDelta {
                     role: "assistant".to_string(),
                     content: delta,
                 },
-                logprobs: None,
-                finish_reason: None,
+                logprobs,
+                finish_reason,
             }],
         }
     }
