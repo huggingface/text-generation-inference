@@ -387,8 +387,6 @@ pub async fn get_base_tokenizer(api: &Api, api_repo: &ApiRepo) -> Option<Tokeniz
     // Read the JSON contents of the file as an instance of `User`.
     let config: serde_json::Value = serde_json::from_reader(reader).ok()?;
 
-    tracing::info!("{config}");
-
     if let Some(serde_json::Value::String(base_model_id)) = config.get("base_model_name_or_path") {
         let api_base_repo = api.repo(Repo::with_revision(
             base_model_id.to_string(),
