@@ -198,7 +198,7 @@ def download_weights(
             if not extension == ".safetensors" or not auto_convert:
                 raise e
 
-    else:
+    elif (Path(model_id) / "adapter_config.json").exists():
         # Try to load as a local PEFT model
         try:
             utils.download_and_unload_peft(
