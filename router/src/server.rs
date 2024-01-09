@@ -627,10 +627,10 @@ async fn chat_completions(
                     current_time,
                     stream_token.index,
                     None,
-                    None,
+                    stream_token.details.map(|d| d.finish_reason.to_string()),
                 ))
-                .unwrap_or_else(|_| {
-                    println!("Failed to serialize ChatCompletionChunk");
+                .unwrap_or_else(|e| {
+                    println!("Failed to serialize ChatCompletionChunk: {:?}", e);
                     Event::default()
                 })
         };

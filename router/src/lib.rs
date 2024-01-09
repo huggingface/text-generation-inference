@@ -244,7 +244,7 @@ impl ChatCompletion {
                     content: ouput,
                 },
                 logprobs: None,
-                finish_reason: None,
+                finish_reason: details.finish_reason.to_string().into(),
             }],
             usage: Usage {
                 prompt_tokens: details.prompt_token_count,
@@ -326,7 +326,6 @@ pub(crate) struct ChatRequest {
     #[serde(default = "default_request_messages")]
     pub messages: Vec<Message>,
 
-    /// UNUSED
     /// Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far,
     /// decreasing the model's likelihood to repeat the same line verbatim.
     #[serde(default)]
@@ -442,6 +441,16 @@ pub(crate) enum FinishReason {
     EndOfSequenceToken,
     #[schema(rename = "stop_sequence")]
     StopSequence,
+}
+
+impl std::fmt::Display for FinishReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FinishReason::Length => write!(f, "length"),
+            FinishReason::EndOfSequenceToken => write!(f, "eos_token"),
+            FinishReason::StopSequence => write!(f, "stop_sequence"),
+        }
+    }
 }
 
 #[derive(Serialize, ToSchema)]
