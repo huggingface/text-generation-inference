@@ -213,7 +213,7 @@ pub(crate) struct ChatCompletionComplete {
     pub index: u32,
     pub message: Message,
     pub logprobs: Option<Vec<f32>>,
-    pub finish_reason: Option<String>,
+    pub finish_reason: String,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -227,24 +227,26 @@ impl ChatCompletion {
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
-        ouput: String,
+        output: String,
         created: u64,
         details: Details,
+        return_logprobs: bool,
     ) -> Self {
         Self {
-            id: "".to_string(),
-            object: "text_completion".to_string(),
+            id: String::new(),
+            object: "text_completion".into(),
             created,
             model,
             system_fingerprint,
             choices: vec![ChatCompletionComplete {
                 index: 0,
                 message: Message {
-                    role: "assistant".to_string(),
-                    content: ouput,
+                    role: "assistant".into(),
+                    content: output,
                 },
-                logprobs: None,
-                finish_reason: details.finish_reason.to_string().into(),
+                logprobs: return_logprobs
+                    .then(|| details.tokens.iter().map(|t| t.logprob).collect()),
+                finish_reason: details.finish_reason.to_string(),
             }],
             usage: Usage {
                 prompt_tokens: details.prompt_token_count,
@@ -269,7 +271,7 @@ pub(crate) struct ChatCompletionChunk {
 pub(crate) struct ChatCompletionChoice {
     pub index: u32,
     pub delta: ChatCompletionDelta,
-    pub logprobs: Option<Vec<f32>>,
+    pub logprobs: Option<f32>,
     pub finish_reason: Option<String>,
 }
 
@@ -286,7 +288,7 @@ impl ChatCompletionChunk {
         delta: String,
         created: u64,
         index: u32,
-        logprobs: Option<Vec<f32>>,
+        logprobs: Option<f32>,
         finish_reason: Option<String>,
     ) -> Self {
         Self {
@@ -340,12 +342,10 @@ pub(crate) struct ChatRequest {
     #[serde(default)]
     pub logit_bias: Option<Vec<f32>>,
 
-    /// UNUSED
     /// Whether to return log probabilities of the output tokens or not. If true, returns the log probabilities of each
-    /// output token returned in the content of message. This option is currently not available on the gpt-4-vision-preview
-    /// model.
+    /// output token returned in the content of message. 
     #[serde(default)]
-    pub logprobs: Option<u32>,
+    pub logprobs: Option<bool>,
 
     /// UNUSED
     /// An integer between 0 and 5 specifying the number of most likely tokens to return at each token position, each with

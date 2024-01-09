@@ -564,6 +564,7 @@ async fn chat_completions(
         .frequency_penalty
         // rescale frequency_penalty from (-2.0, 2.0) to (0.0, 4.0)
         .map(|x| x + 2.0);
+    let logprobs = req.logprobs.unwrap_or(false);
 
     // apply chat template to flatten the request into a single input
     let inputs = match infer.apply_chat_template(req) {
@@ -626,13 +627,16 @@ async fn chat_completions(
                     stream_token.token.text,
                     current_time,
                     stream_token.index,
-                    None,
+                    logprobs.then(|| stream_token.token.logprob),
                     stream_token.details.map(|d| d.finish_reason.to_string()),
                 ))
-                .unwrap_or_else(|e| {
-                    println!("Failed to serialize ChatCompletionChunk: {:?}", e);
-                    Event::default()
-                })
+                .map_or_else(
+                    |e| {
+                        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
+                        Event::default()
+                    },
+                    |data| data,
+                )
         };
 
         let (headers, response_stream) =
@@ -655,6 +659,7 @@ async fn chat_completions(
             system_fingerprint,
             current_time,
             generation.details.unwrap(),
+            logprobs,
         );
 
         // wrap generation inside a Vec to match api-inference
