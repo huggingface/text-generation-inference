@@ -26,6 +26,22 @@ pub struct HubTokenizerConfig {
     pub chat_template: Option<String>,
 }
 
+impl HubTokenizerConfig {
+    /// Apply the chat template to the chat request
+    pub(crate) fn apply_chat_template(
+        &self,
+        chat: ChatRequest,
+    ) -> Result<String, minijinja::Error> {
+        let mut env = minijinja::Environment::new();
+        let chat_template = self
+            .chat_template
+            .as_ref()
+            .ok_or(minijinja::ErrorKind::TemplateNotFound)?;
+        env.add_template("_", chat_template)?;
+        env.get_template("_")?.render(chat)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct Info {
     /// Model info

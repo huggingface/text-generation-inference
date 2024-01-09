@@ -140,19 +140,9 @@ impl Infer {
 
     /// Apply the chat template to the chat request
     #[instrument(skip_all)]
-
     pub(crate) fn apply_chat_template(&self, chat: ChatRequest) -> Result<String, InferError> {
-        let mut env = minijinja::Environment::new();
-        let chat_template = self
-            .tokenizer_config
-            .chat_template
-            .as_ref()
-            .ok_or_else(|| {
-                InferError::TemplateError(minijinja::ErrorKind::TemplateNotFound.into())
-            })?;
-        env.add_template("_", chat_template)?;
-        env.get_template("_")?
-            .render(chat)
+        self.tokenizer_config
+            .apply_chat_template(chat)
             .map_err(InferError::TemplateError)
     }
 
