@@ -469,6 +469,7 @@ pub(crate) struct StreamDetails {
 
 #[derive(Serialize, ToSchema)]
 pub(crate) struct StreamResponse {
+    pub index: u32,
     pub token: Token,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub top_tokens: Vec<Token>,
