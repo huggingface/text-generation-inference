@@ -1,7 +1,7 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::HubTokenizerConfig;
-use crate::{ChatRequest, GenerateRequest, PrefillToken};
+use crate::{ChatRequest, GenerateRequest, GenerateStreamResponse, PrefillToken};
 use crate::{Entry, Queue, Token};
 use futures::future::try_join_all;
 use nohash_hasher::IntMap;
@@ -14,7 +14,7 @@ use text_generation_client::{
 };
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
+use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
@@ -92,13 +92,7 @@ impl Infer {
     pub(crate) async fn generate_stream(
         &self,
         request: GenerateRequest,
-    ) -> Result<
-        (
-            OwnedSemaphorePermit,
-            UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
-        ),
-        InferError,
-    > {
+    ) -> Result<GenerateStreamResponse, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
         let permit = self
             .clone()
@@ -122,7 +116,7 @@ impl Infer {
 
         // Append the request to the queue
         self.queue.append(Entry {
-            request: valid_request,
+            request: valid_request.clone(),
             response_tx,
             span: Span::current(),
             temp_span: None,
@@ -135,7 +129,11 @@ impl Infer {
         self.shared.batching_task.notify_one();
 
         // Return stream
-        Ok((permit, UnboundedReceiverStream::new(response_rx)))
+        Ok((
+            permit,
+            valid_request,
+            UnboundedReceiverStream::new(response_rx),
+        ))
     }
 
     /// Apply the chat template to the chat request
@@ -155,7 +153,7 @@ impl Infer {
         let use_top_tokens = request.parameters.top_n_tokens.is_some_and(|x| x > 0);
 
         // Create stream and keep semaphore permit as long as generate lives
-        let (_permit, mut stream) = self.generate_stream(request).await?;
+        let (_permit, valid_request, mut stream) = self.generate_stream(request).await?;
 
         // Return values
         let mut result_prefill = Vec::new();
@@ -208,6 +206,7 @@ impl Infer {
             (result_generated_text, result_queued, result_start)
         {
             Ok(InferResponse {
+                prompt_token_count: valid_request.input_length,
                 prefill: result_prefill,
                 tokens: result_tokens,
                 generated_text,
@@ -649,6 +648,7 @@ pub(crate) enum InferStreamResponse {
 
 #[derive(Debug)]
 pub(crate) struct InferResponse {
+    pub(crate) prompt_token_count: u32,
     pub(crate) prefill: Vec<PrefillToken>,
     pub(crate) tokens: Vec<Token>,
     pub(crate) generated_text: GeneratedText,

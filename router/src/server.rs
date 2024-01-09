@@ -207,6 +207,7 @@ async fn generate(
                 seed: response.generated_text.seed,
                 best_of_sequences,
                 top_tokens: response.top_tokens,
+                prompt_token_count: response.prompt_token_count,
             })
         }
         false => None,
@@ -395,7 +396,7 @@ async fn generate_stream_internal(
         } else {
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
-                Ok((_permit, mut response_stream)) => {
+                Ok((_permit, _valid_request, mut response_stream)) => {
                     let mut index = 0;
                     // Server-Sent Event stream
                     while let Some(response) = response_stream.next().await {
@@ -580,9 +581,6 @@ async fn chat_completions(
         }
     };
 
-    // poor man's token count (assumes that each character is a token)
-    let prompt_character_count: u32 = inputs.chars().count().try_into().unwrap_or_default();
-
     // build the request passing some parameters
     let generate_request = GenerateRequest {
         inputs: inputs.to_string(),
@@ -654,7 +652,6 @@ async fn chat_completions(
             generation.generated_text,
             current_time,
             generation.details.unwrap(),
-            prompt_character_count,
         );
 
         // wrap generation inside a Vec to match api-inference
