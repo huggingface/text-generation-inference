@@ -489,6 +489,7 @@ fn shard_manager(
     envs.push(("MASTER_ADDR".into(), master_addr.into()));
     envs.push(("MASTER_PORT".into(), master_port.to_string().into()));
     envs.push(("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()));
+    envs.push(("TORCH_NCCL_AVOID_RECORD_STREAMS".into(), "1".into()))
 
     // CUDA memory fraction
     envs.push((
