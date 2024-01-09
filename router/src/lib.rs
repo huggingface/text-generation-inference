@@ -224,13 +224,19 @@ pub(crate) struct Usage {
 }
 
 impl ChatCompletion {
-    pub(crate) fn new(ouput: String, created: u64, details: Details) -> Self {
+    pub(crate) fn new(
+        model: String,
+        system_fingerprint: String,
+        ouput: String,
+        created: u64,
+        details: Details,
+    ) -> Self {
         Self {
             id: "".to_string(),
             object: "text_completion".to_string(),
             created,
-            model: "".to_string(),
-            system_fingerprint: "".to_string(),
+            model,
+            system_fingerprint,
             choices: vec![ChatCompletionComplete {
                 index: 0,
                 message: Message {
