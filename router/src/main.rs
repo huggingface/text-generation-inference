@@ -1,4 +1,3 @@
-/// Text Generation Inference webserver entrypoint
 use axum::http::HeaderValue;
 use clap::Parser;
 use hf_hub::api::tokio::{Api, ApiBuilder, ApiRepo};
@@ -185,7 +184,7 @@ async fn main() -> Result<(), RouterError> {
             .with_progress(false)
             .with_token(authorization_token);
 
-        if let Some(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE").ok() {
+        if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
             builder = builder.with_cache_dir(cache_dir.into());
         }
 
