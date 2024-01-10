@@ -446,13 +446,13 @@ class BaseFlashMistral(FlashCausalLM):
         if self.model.max_past is not None:
             max_s = min(self.model.max_past, max_s)
 
-        bs = batch.input_ids.shape[0]
+        bs = input_ids.shape[0]
         # Ceil next power of two for batch size
         bs_next_power_of_two = 2 ** math.ceil(math.log2(bs))
         # Try to find an associated cuda graph
         cuda_graph = self.cuda_graphs.get(bs_next_power_of_two, None)
 
-        if batch.cu_seqlen_prefill is not None or cuda_graph is None:
+        if cu_seqlen_prefill is not None or cuda_graph is None:
             logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
