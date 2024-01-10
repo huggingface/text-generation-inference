@@ -777,7 +777,7 @@ class FlashCausalLM(Model):
             self.device,
         )
 
-        if os.getenv("ENABLE_CUDA_GRAPHS", "false") == "true":
+        if os.getenv("ENABLE_CUDA_GRAPHS", "False") == "True":
             try:
                 # Warmup cuda graphs for all power of twos until 64
                 for i in range(6):
