@@ -198,6 +198,35 @@ def download_weights(
             if not extension == ".safetensors" or not auto_convert:
                 raise e
 
+    elif (Path(model_id) / "medusa_lm_head.pt").exists():
+        # Try to load as a local Medusa model
+        try:
+            import json
+
+            medusa_head = Path(model_id) / "medusa_lm_head.pt"
+            if auto_convert:
+                medusa_sf = Path(model_id) / "medusa_lm_head.safetensors"
+                if not medusa_sf.exists():
+                    utils.convert_files([Path(medusa_head)], [medusa_sf], [])
+            medusa_config = Path(model_id) / "config.json"
+            with open(medusa_config, "r") as f:
+                config = json.load(f)
+
+            model_id = config["base_model_name_or_path"]
+            revision = "main"
+            try:
+                utils.weight_files(model_id, revision, extension)
+                logger.info(
+                    f"Files for parent {model_id} are already present on the host. "
+                    "Skipping download."
+                )
+                return
+            # Local files not found
+            except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+                pass
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+            pass
+            
     elif (Path(model_id) / "adapter_config.json").exists():
         # Try to load as a local PEFT model
         try:
