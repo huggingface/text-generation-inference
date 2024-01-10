@@ -18,6 +18,7 @@ from text_generation_server.models.galactica import GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
+from text_generation_server.models.phi2 import Phi2
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -40,6 +41,7 @@ __all__ = [
     "OPTSharded",
     "T5Sharded",
     "get_model",
+    "Phi2",
 ]
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
@@ -195,6 +197,14 @@ def get_model(
         )
     elif model_type == "mpt":
         return MPTSharded(
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
+    elif model_type == "phi-msft":
+        return Phi2(
             model_id,
             revision,
             quantize=quantize,
