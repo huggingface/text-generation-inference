@@ -343,7 +343,7 @@ pub(crate) struct ChatRequest {
     pub logit_bias: Option<Vec<f32>>,
 
     /// Whether to return log probabilities of the output tokens or not. If true, returns the log probabilities of each
-    /// output token returned in the content of message. 
+    /// output token returned in the content of message.
     #[serde(default)]
     pub logprobs: Option<bool>,
 
