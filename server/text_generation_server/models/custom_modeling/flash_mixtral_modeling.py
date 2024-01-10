@@ -816,6 +816,11 @@ class FlashMixtralForCausalLM(torch.nn.Module):
             weights=weights,
         )
         self.max_past = config.sliding_window
+        self.max_past_tensor = (
+            torch.tensor(config.sliding_window, device=weights.device)
+            if self.max_past is not None
+            else None
+        )
 
     def forward(
         self,
@@ -837,8 +842,7 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         elif self.max_past is not None:
             # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
             # kernel requires the true values
-            max_s = min(self.max_past, max_s)
-            input_lengths = torch.clamp(input_lengths, max=self.max_past)
+            input_lengths = torch.clamp(input_lengths, max=self.max_past_tensor)
 
         hidden_states = self.model(
             input_ids,

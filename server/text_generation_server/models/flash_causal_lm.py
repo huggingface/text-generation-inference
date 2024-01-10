@@ -1,4 +1,5 @@
 import math
+import os
 import time
 import itertools
 import torch
@@ -6,6 +7,7 @@ import torch.distributed
 
 import numpy as np
 
+from loguru import logger
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
@@ -30,6 +32,8 @@ from text_generation_server.utils import StoppingCriteria, HeterogeneousNextToke
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
 tracer = trace.get_tracer(__name__)
+
+MEM_POOL = torch.cuda.graph_pool_handle()
 
 
 @dataclass
@@ -663,6 +667,8 @@ class FlashCausalLM(Model):
         self.num_kv_heads = num_kv_heads
         self.head_size = head_size
 
+        self.cuda_graphs = {}
+
         super(FlashCausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
@@ -678,7 +684,44 @@ class FlashCausalLM(Model):
     def batch_type(self) -> Type[FlashCausalLMBatch]:
         return FlashCausalLMBatch
 
+    def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
+        input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
+        position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
+        slots = torch.arange(bs, dtype=torch.int32, device=self.device)
+        input_lengths = torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
+        block_tables = (
+            torch.arange(max_bt, dtype=torch.int32, device=self.device)
+            .repeat(bs)
+            .reshape((bs, max_bt))
+        )
+        kv_cache = get_cache_manager().kv_cache
+
+        self.cuda_graphs[bs] = {
+            "input_ids": input_ids,
+            "position_ids": position_ids,
+            "kv_cache": kv_cache,
+            "block_tables": block_tables,
+            "slots": slots,
+            "input_lengths": input_lengths,
+        }
+        graph = torch.cuda.CUDAGraph()
+        self.cuda_graphs[bs]["graph"] = graph
+
+        with torch.cuda.graph(graph, pool=MEM_POOL):
+            self.cuda_graphs[bs]["logits"] = self.model.forward(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                cu_seqlen_prefill=None,
+                kv_cache=kv_cache,
+                block_tables=block_tables,
+                slots=slots,
+                input_lengths=input_lengths,
+                max_s=max_s,
+                lm_head_indices=None,
+            )
+
     def warmup(self, batch: FlashCausalLMBatch):
+        # The warmup batch is the biggest batch we could ever receive
         torch.cuda.empty_cache()
         try:
             cache_manager = set_cache_manager(
@@ -690,6 +733,8 @@ class FlashCausalLM(Model):
                 self.dtype,
                 self.device,
             )
+            max_s = batch.max_seqlen
+            max_bt = batch.max_blocks
             _, batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
@@ -713,7 +758,8 @@ class FlashCausalLM(Model):
         )
 
         num_blocks = (
-            int(free_memory // total_cache_size)
+            # Leave 1% for some wiggle room
+            int((free_memory * 0.99) // total_cache_size)
             # Add batch.blocks as we allocated it above, so it is included in the peak memory.
             + cache_manager.num_blocks
         )
@@ -730,6 +776,14 @@ class FlashCausalLM(Model):
             self.dtype,
             self.device,
         )
+
+        if os.getenv("ENABLE_CUDA_GRAPHS", "False") == "True":
+            try:
+                # Warmup cuda graphs for all power of twos until 64
+                for i in range(6):
+                    self.cuda_graph_warmup(2**i, max_s, max_bt)
+            except Exception:
+                logger.exception(f"Decode cuda graph warmup failed")
 
         return int(num_blocks * BLOCK_SIZE)
 
@@ -785,17 +839,40 @@ class FlashCausalLM(Model):
             max_s = batch.max_seqlen
             lm_head_indices = batch.prefill_head_indices
 
-        return self.model.forward(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            cu_seqlen_prefill=cu_seqlen_prefill,
-            kv_cache=kv_cache,
-            block_tables=block_tables,
-            slots=slots,
-            input_lengths=input_lengths,
-            max_s=max_s,
-            lm_head_indices=lm_head_indices,
-        )
+        bs = batch.input_ids.shape[0]
+        # Ceil next power of two for batch size
+        bs_next_power_of_two = 2 ** math.ceil(math.log2(bs))
+        # Try to find an associated cuda graph
+        cuda_graph = self.cuda_graphs.get(bs_next_power_of_two, None)
+
+        if batch.cu_seqlen_prefill is not None or cuda_graph is None:
+            return self.model.forward(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                cu_seqlen_prefill=cu_seqlen_prefill,
+                kv_cache=kv_cache,
+                block_tables=block_tables,
+                slots=slots,
+                input_lengths=input_lengths,
+                max_s=max_s,
+                lm_head_indices=lm_head_indices,
+            )
+
+        # Copy inputs to the static inputs of the cuda graph
+        # Static inputs are potentially padded
+        cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
+        cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
+        cuda_graph["block_tables"][
+            : block_tables.shape[0], : block_tables.shape[1]
+        ] = block_tables
+        cuda_graph["slots"][: slots.shape[0]] = slots
+        cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
+
+        # Replay the graph
+        cuda_graph["graph"].replay()
+
+        # Slice output to the correct shape
+        return cuda_graph["logits"][:bs]
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
