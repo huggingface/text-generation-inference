@@ -4,6 +4,7 @@ use crate::HubTokenizerConfig;
 use crate::{ChatRequest, GenerateRequest, GenerateStreamResponse, PrefillToken};
 use crate::{Entry, Queue, Token};
 use futures::future::try_join_all;
+use minijinja::{Environment, ErrorKind, Template};
 use nohash_hasher::IntMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -27,12 +28,12 @@ pub struct Infer {
     validation: Validation,
     /// Request queue
     queue: Queue,
-    /// Chat formatter
-    tokenizer_config: HubTokenizerConfig,
     /// Shared state
     shared: Arc<Shared>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
+    /// Chat template
+    template: Option<Template<'static, 'static>>,
 }
 
 /// Infer shared state
@@ -78,12 +79,21 @@ impl Infer {
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
 
+        let template = tokenizer_config.chat_template.map(|t| {
+            let env = Box::new(Environment::new());
+            let template_str = t.into_boxed_str();
+            // leaking env and template_str as read-only, static resources for performance.
+            Box::leak(env)
+                .template_from_str(Box::leak(template_str))
+                .unwrap()
+        });
+
         Self {
             validation,
             queue,
             shared,
             limit_concurrent_requests: semaphore,
-            tokenizer_config,
+            template,
         }
     }
 
@@ -140,9 +150,15 @@ impl Infer {
     /// Apply the chat template to the chat request
     #[instrument(skip_all)]
     pub(crate) fn apply_chat_template(&self, chat: ChatRequest) -> Result<String, InferError> {
-        self.tokenizer_config
-            .apply_chat_template(chat)
-            .map_err(InferError::TemplateError)
+        self.template
+            .as_ref()
+            .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
+            .render(chat)
+            .map_err(|e| {
+                metrics::increment_counter!("tgi_request_failure", "err" => "template");
+                tracing::error!("{e}");
+                InferError::TemplateError(e)
+            })
     }
 
     /// Add a new request to the queue and return a InferResponse

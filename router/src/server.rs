@@ -569,6 +569,7 @@ async fn chat_completions(
         // rescale frequency_penalty from (-2.0, 2.0) to (0.0, 4.0)
         .map(|x| x + 2.0);
     let logprobs = req.logprobs.unwrap_or(false);
+    let seed = req.seed;
 
     // apply chat template to flatten the request into a single input
     let inputs = match infer.apply_chat_template(req) {
@@ -604,7 +605,7 @@ async fn chat_completions(
             watermark: false,
             details: true,
             decoder_input_details: false,
-            seed: None,
+            seed,
             top_n_tokens: None,
         },
     };

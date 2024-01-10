@@ -36,22 +36,6 @@ pub struct HubTokenizerConfig {
     pub chat_template: Option<String>,
 }
 
-impl HubTokenizerConfig {
-    /// Apply the chat template to the chat request
-    pub(crate) fn apply_chat_template(
-        &self,
-        chat: ChatRequest,
-    ) -> Result<String, minijinja::Error> {
-        let mut env = minijinja::Environment::new();
-        let chat_template = self
-            .chat_template
-            .as_ref()
-            .ok_or(minijinja::ErrorKind::TemplateNotFound)?;
-        env.add_template("_", chat_template)?;
-        env.get_template("_")?.render(chat)
-    }
-}
-
 #[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct Info {
     /// Model info
@@ -292,7 +276,7 @@ impl ChatCompletionChunk {
         finish_reason: Option<String>,
     ) -> Self {
         Self {
-            id: "".to_string(),
+            id: String::new(),
             object: "text_completion".to_string(),
             created,
             model,
@@ -312,7 +296,7 @@ impl ChatCompletionChunk {
 
 fn default_request_messages() -> Vec<Message> {
     vec![Message {
-        role: "system".to_string(),
+        role: "user".to_string(),
         content: "My name is David and I".to_string(),
     }]
 }
@@ -371,11 +355,14 @@ pub(crate) struct ChatRequest {
 
     #[serde(default = "bool::default")]
     pub stream: bool,
+
+    #[schema(nullable = true, example = 42)]
+    pub seed: Option<u64>,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
 pub(crate) struct Message {
-    #[schema(example = "system")]
+    #[schema(example = "user")]
     pub role: String,
     #[schema(example = "My name is David and I")]
     pub content: String,
