@@ -198,17 +198,17 @@ def download_weights(
             if not extension == ".safetensors" or not auto_convert:
                 raise e
 
-    elif Path(model_id).joinpath("medusa_lm_head.pt").exists():
+    elif (Path(model_id) / "medusa_lm_head.pt").exists():
         # Try to load as a local Medusa model
         try:
             import json
 
-            medusa_head = Path(model_id).joinpath("medusa_lm_head.pt")
+            medusa_head = Path(model_id) / "medusa_lm_head.pt"
             if auto_convert:
-                medusa_sf = Path(model_id).joinpath("medusa_lm_head.safetensors")
+                medusa_sf = Path(model_id) / "medusa_lm_head.safetensors"
                 if not medusa_sf.exists():
                     utils.convert_files([Path(medusa_head)], [medusa_sf], [])
-            medusa_config = Path(model_id).joinpath("config.json")
+            medusa_config = Path(model_id) / "config.json"
             with open(medusa_config, "r") as f:
                 config = json.load(f)
 

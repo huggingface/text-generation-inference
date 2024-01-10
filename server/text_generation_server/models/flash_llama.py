@@ -86,8 +86,8 @@ class FlashLlama(FlashCausalLM):
                     use_medusa, revision=revision, filename="medusa_lm_head.pt"
                 )
             else:
-                medusa_config = str(Path(use_medusa).joinpath("config.json"))
-                medusa_head = str(Path(use_medusa).joinpath("medusa_lm_head.pt"))
+                medusa_config = str(Path(use_medusa) / "config.json")
+                medusa_head = str(Path(use_medusa) / "medusa_lm_head.pt")
                 
             with open(medusa_config, "r") as f:
                 config = json.load(f)
