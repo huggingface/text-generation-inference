@@ -1,7 +1,8 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
+use crate::HubTokenizerConfig;
+use crate::{ChatRequest, GenerateRequest, GenerateStreamResponse, PrefillToken};
 use crate::{Entry, Queue, Token};
-use crate::{GenerateRequest, PrefillToken};
 use futures::future::try_join_all;
 use nohash_hasher::IntMap;
 use std::sync::{
@@ -13,7 +14,7 @@ use text_generation_client::{
 };
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
+use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
@@ -26,6 +27,8 @@ pub struct Infer {
     validation: Validation,
     /// Request queue
     queue: Queue,
+    /// Chat formatter
+    tokenizer_config: HubTokenizerConfig,
     /// Shared state
     shared: Arc<Shared>,
     /// Inference limit
@@ -52,6 +55,7 @@ impl Infer {
         window_size: Option<u32>,
         speculate: u32,
         generation_health: Arc<AtomicBool>,
+        tokenizer_config: HubTokenizerConfig,
     ) -> Self {
         // Infer shared state
         let queue = Queue::new(requires_padding, 16, window_size, speculate);
@@ -79,6 +83,7 @@ impl Infer {
             queue,
             shared,
             limit_concurrent_requests: semaphore,
+            tokenizer_config,
         }
     }
 
@@ -87,14 +92,7 @@ impl Infer {
     pub(crate) async fn generate_stream(
         &self,
         request: GenerateRequest,
-    ) -> Result<
-        (
-            OwnedSemaphorePermit,
-            u32,
-            UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
-        ),
-        InferError,
-    > {
+    ) -> Result<GenerateStreamResponse, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
         let permit = self
             .clone()
@@ -119,7 +117,7 @@ impl Infer {
 
         // Append the request to the queue
         self.queue.append(Entry {
-            request: valid_request,
+            request: valid_request.clone(),
             response_tx,
             span: Span::current(),
             temp_span: None,
@@ -137,6 +135,14 @@ impl Infer {
             input_length,
             UnboundedReceiverStream::new(response_rx),
         ))
+    }
+
+    /// Apply the chat template to the chat request
+    #[instrument(skip_all)]
+    pub(crate) fn apply_chat_template(&self, chat: ChatRequest) -> Result<String, InferError> {
+        self.tokenizer_config
+            .apply_chat_template(chat)
+            .map_err(InferError::TemplateError)
     }
 
     /// Add a new request to the queue and return a InferResponse
@@ -201,6 +207,7 @@ impl Infer {
             (result_generated_text, result_queued, result_start)
         {
             Ok(InferResponse {
+                prompt_token_count: valid_request.input_length,
                 prefill: result_prefill,
                 _input_length,
                 tokens: result_tokens,
@@ -550,9 +557,9 @@ fn send_responses(
     let mut iterator = tokens_
         .ids
         .into_iter()
-        .zip(tokens_.logprobs.into_iter())
-        .zip(tokens_.texts.into_iter())
-        .zip(tokens_.is_special.into_iter())
+        .zip(tokens_.logprobs)
+        .zip(tokens_.texts)
+        .zip(tokens_.is_special)
         .enumerate()
         .peekable();
     while let Some((i, (((id, logprob), text), special))) = iterator.next() {
@@ -665,6 +672,8 @@ pub enum InferError {
     ValidationError(#[from] ValidationError),
     #[error("Incomplete generation")]
     IncompleteGeneration,
+    #[error("Template error: {0}")]
+    TemplateError(#[from] minijinja::Error),
 }
 
 impl InferError {
@@ -674,6 +683,7 @@ impl InferError {
             InferError::Overloaded(_) => "overloaded",
             InferError::ValidationError(_) => "validation",
             InferError::IncompleteGeneration => "incomplete_generation",
+            InferError::TemplateError(_) => "template_error",
         }
     }
 }
