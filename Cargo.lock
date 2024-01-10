@@ -950,13 +950,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b780635574b3d92f036890d8373433d6f9fc7abb320ee42a5c25897fc8ed732"
 dependencies = [
  "dirs 5.0.1",
+ "futures",
  "indicatif",
  "log",
  "native-tls",
+ "num_cpus",
  "rand",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
  "ureq",
 ]
 

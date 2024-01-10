@@ -21,6 +21,7 @@ axum-tracing-opentelemetry = "0.14.1"
 text-generation-client = { path = "client" }
 clap = { version = "4.4.5", features = ["derive", "env"] }
 futures = "0.3.28"
+hf-hub = { version = "0.3.0", features = ["tokio"] }
 metrics = "0.21.1"
 metrics-exporter-prometheus = { version = "0.12.1", features = [] }
 nohash-hasher = "0.2.0"
@@ -41,7 +42,6 @@ tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 utoipa = { version = "3.5.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "3.1.5", features = ["axum"] }
 ngrok = { version = "0.13.1", features = ["axum"], optional = true }
-hf-hub = "0.3.1"
 init-tracing-opentelemetry = { version = "0.14.1", features = ["opentelemetry-otlp"] }
 
 [build-dependencies]
