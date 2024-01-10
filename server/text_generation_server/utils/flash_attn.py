@@ -23,10 +23,15 @@ try:
     try:
         import flash_attn_2_cuda
     except ImportError:
+        architecture_suffix = ""
+        if IS_CUDA_SYSTEM:
+            architecture_suffix = "-cuda"
+        elif IS_ROCM_SYSTEM:
+            architecture_suffix = "-rocm"
         raise ImportError(
             "Flash Attention V2 is not installed.\n"
             "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
-            "or install flash attention v2 with `cd server && make install install-flash-attention-v2`"
+            f"or install flash attention v2 with `cd server && make install install-flash-attention-v2{architecture_suffix}`"
         )
     if not (is_sm8x or is_sm90):
         raise ImportError(
