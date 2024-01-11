@@ -115,7 +115,7 @@ impl Infer {
 
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
-        let input_length = valid_request.input_length;
+        let _input_length = valid_request.input_length;
 
         // Append the request to the queue
         self.queue.append(Entry {
@@ -202,7 +202,7 @@ impl Infer {
         {
             Ok(InferResponse {
                 prefill: result_prefill,
-                input_length,
+                _input_length,
                 tokens: result_tokens,
                 generated_text,
                 queued,
@@ -643,7 +643,10 @@ pub(crate) enum InferStreamResponse {
 
 #[derive(Debug)]
 pub(crate) struct InferResponse {
-    pub(crate) input_length: u32,
+        /// input_length is the input as perceived by the rust tokenizer in the
+        /// validation pathway. It is redundant with prefill.len() but prefill
+        /// has data only if the user asked for it. This will always be filled.
+    pub(crate) _input_length: u32,
     pub(crate) prefill: Vec<PrefillToken>,
     pub(crate) tokens: Vec<Token>,
     pub(crate) generated_text: GeneratedText,
