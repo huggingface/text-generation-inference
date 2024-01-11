@@ -170,7 +170,7 @@ async fn generate(
     };
 
     // Token details
-    let input_length = response.input_length;
+    let input_length = response._input_length;
     let details = match details {
         true => {
             // convert best_of_responses
