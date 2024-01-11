@@ -643,9 +643,9 @@ pub(crate) enum InferStreamResponse {
 
 #[derive(Debug)]
 pub(crate) struct InferResponse {
-        /// input_length is the input as perceived by the rust tokenizer in the
-        /// validation pathway. It is redundant with prefill.len() but prefill
-        /// has data only if the user asked for it. This will always be filled.
+    /// input_length is the input as perceived by the rust tokenizer in the
+    /// validation pathway. It is redundant with prefill.len() but prefill
+    /// has data only if the user asked for it. This will always be filled.
     pub(crate) _input_length: u32,
     pub(crate) prefill: Vec<PrefillToken>,
     pub(crate) tokens: Vec<Token>,
