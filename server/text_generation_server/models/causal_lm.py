@@ -397,7 +397,7 @@ class CausalLM(Model):
         world_size = int(os.getenv("WORLD_SIZE", "1"))
         rank = int(os.getenv("RANK"), 0)
         self.enable_hpu_graph = os.getenv("ENABLE_HPU_GRAPH", "true").lower() == "true"
-        self.limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "false").lower() == "true"
+        self.limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "true").lower() == "true"
 
         if world_size > 1:
             import habana_frameworks.torch.hpu as torch_hpu

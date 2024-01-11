@@ -61,6 +61,8 @@ Not all features of TGI are currently supported as this is still a work in progr
 New changes are added for the current release:
 - Sharded feature with support for DeepSpeed-inference auto tensor parallelism. Also, use HPU graphs for performance improvement.
 - Torch profile.
+- Batch size bucketing for decode and prefill.
+
 
 
 Environment Variables Added:
@@ -74,12 +76,21 @@ Environment Variables Added:
 |  PROF_WARMUPSTEP      | integer        | 0           | Enable/disable profile, control profile warmup step, 0 means disable profile |  add -e in docker run command  |
 |  PROF_STEP            | interger       | 5           | Control profile step                                                         |  add -e in docker run command  |
 |  PROF_PATH            | string         | /root/text-generation-inference                                   | Define profile folder  | add -e in docker run command  |
-| LIMIT_HPU_GRAPH       | True/False     | False       | Skip HPU graph usage for prefill to save memory, set to `True` for large sequence/decoding lengths(e.g. 300/212) | add -e in docker run command |
+| LIMIT_HPU_GRAPH       | True/False     | True       | Skip HPU graph usage for prefill to save memory, set to `True` for large sequence/decoding lengths(e.g. 300/212) | add -e in docker run command |
 | BATCH_BUCKET_SIZE     | integer        | 8           | Batch size for decode operation will be rounded to the nearest multiple of this number. This limits the number of cached graphs | add -e in docker run command |
 | PREFILL_BATCH_BUCKET_SIZE     | integer        | 4           | Batch size for prefill operation will be rounded to the nearest multiple of this number. This limits the number of cached graphs | add -e in docker run command |
 
 </div>
 
+
+Maximum batch size is controlled by two arguments:
+- For prefill operation, please set `--max-prefill-total-tokens` as `bs * max-input-length`, where `bs` is your expected maximum prefill batch size.
+- For decode operation, please set `--max-batch-total-tokens` as `bs * max-total-tokens`, where `bs` is your expected maximum decode batch size.
+- Please note that batch size will be always padded to the nearest multiplication of `BATCH_BUCKET_SIZE` and `PREFILL_BATCH_BUCKET_SIZE`.
+
+Current limitations:
+- `LIMIT_HPU_GRAPH=False` causes accuracy issues and it should be avoided.
+- Memory usage is higher than expected. Please consider using smaller batch sizes.
 
 > The license to use TGI on Habana Gaudi is the one of TGI: https://github.com/huggingface/text-generation-inference/blob/main/LICENSE
 >
