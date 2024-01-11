@@ -127,7 +127,7 @@ impl Infer {
 
         // Append the request to the queue
         self.queue.append(Entry {
-            request: valid_request.clone(),
+            request: valid_request,
             response_tx,
             span: Span::current(),
             temp_span: None,

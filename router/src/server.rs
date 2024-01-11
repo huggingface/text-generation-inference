@@ -401,6 +401,7 @@ async fn generate_stream_internal(
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, _input_length, mut response_stream)) => {
+                    let mut index = 0;
                     // Server-Sent Event stream
                     while let Some(response) = response_stream.next().await {
                         index += 1;
