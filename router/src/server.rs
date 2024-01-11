@@ -208,7 +208,6 @@ async fn generate(
                 seed: response.generated_text.seed,
                 best_of_sequences,
                 top_tokens: response.top_tokens,
-                input_length: response.input_length,
             })
         }
         false => None,
@@ -604,7 +603,7 @@ async fn chat_completions(
             truncate: None,
             watermark: false,
             details: true,
-            decoder_input_details: false,
+            decoder_input_details: true,
             seed,
             top_n_tokens: None,
         },

@@ -232,9 +232,9 @@ impl ChatCompletion {
                 finish_reason: details.finish_reason.to_string(),
             }],
             usage: Usage {
-                prompt_tokens: details.input_length,
+                prompt_tokens: details.prefill.len() as u32,
                 completion_tokens: details.generated_tokens,
-                total_tokens: details.input_length + details.generated_tokens,
+                total_tokens: details.prefill.len() as u32 + details.generated_tokens,
             },
         }
     }
@@ -469,8 +469,6 @@ pub(crate) struct Details {
     pub best_of_sequences: Option<Vec<BestOfSequence>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub top_tokens: Vec<Vec<Token>>,
-    #[schema(example = 1)]
-    pub input_length: u32,
 }
 
 #[derive(Serialize, ToSchema)]
