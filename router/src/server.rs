@@ -170,6 +170,7 @@ async fn generate(
     };
 
     // Token details
+    let input_length = response._input_length;
     let details = match details {
         true => {
             // convert best_of_responses
@@ -256,6 +257,11 @@ async fn generate(
     headers.insert(
         "x-time-per-token",
         time_per_token.as_millis().to_string().parse().unwrap(),
+    );
+    headers.insert("x-prompt-tokens", input_length.into());
+    headers.insert(
+        "x-generated-tokens",
+        response.generated_text.generated_tokens.into(),
     );
 
     // Metrics
@@ -378,7 +384,7 @@ async fn generate_stream(
         } else {
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
-                Ok((_permit, mut response_stream)) => {
+                Ok((_permit, _input_length, mut response_stream)) => {
                     // Server-Sent Event stream
                     while let Some(response) = response_stream.next().await {
                         match response {
