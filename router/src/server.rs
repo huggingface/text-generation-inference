@@ -170,6 +170,7 @@ async fn generate(
     };
 
     // Token details
+    let prompt_tokens = response.prefill.len();
     let details = match details {
         true => {
             // convert best_of_responses
@@ -256,6 +257,11 @@ async fn generate(
     headers.insert(
         "x-time-per-token",
         time_per_token.as_millis().to_string().parse().unwrap(),
+    );
+    headers.insert("x-prompt-tokens", prompt_tokens.into());
+    headers.insert(
+        "x-generated-tokens",
+        response.generated_text.generated_tokens.into(),
     );
 
     // Metrics
