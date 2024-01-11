@@ -223,7 +223,6 @@ impl Infer {
             (result_generated_text, result_queued, result_start)
         {
             Ok(InferResponse {
-                prompt_token_count: valid_request.input_length,
                 prefill: result_prefill,
                 _input_length,
                 tokens: result_tokens,

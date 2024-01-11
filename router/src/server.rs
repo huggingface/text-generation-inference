@@ -208,7 +208,7 @@ async fn generate(
                 seed: response.generated_text.seed,
                 best_of_sequences,
                 top_tokens: response.top_tokens,
-                prompt_token_count: response.prompt_token_count,
+                input_length: response.input_length,
             })
         }
         false => None,

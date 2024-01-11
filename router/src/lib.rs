@@ -5,7 +5,6 @@ mod queue;
 pub mod server;
 mod validation;
 
-use crate::validation::ValidGenerateRequest;
 use infer::{Infer, InferError, InferStreamResponse};
 use queue::{Entry, Queue};
 use serde::{Deserialize, Serialize};
@@ -17,7 +16,7 @@ use validation::Validation;
 /// Type alias for generation responses
 pub(crate) type GenerateStreamResponse = (
     OwnedSemaphorePermit,
-    ValidGenerateRequest,
+    u32, // input_length
     UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
 );
 
@@ -233,9 +232,9 @@ impl ChatCompletion {
                 finish_reason: details.finish_reason.to_string(),
             }],
             usage: Usage {
-                prompt_tokens: details.prompt_token_count,
+                prompt_tokens: details.input_length,
                 completion_tokens: details.generated_tokens,
-                total_tokens: details.prompt_token_count + details.generated_tokens,
+                total_tokens: details.input_length + details.generated_tokens,
             },
         }
     }
@@ -471,7 +470,7 @@ pub(crate) struct Details {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub top_tokens: Vec<Vec<Token>>,
     #[schema(example = 1)]
-    pub prompt_token_count: u32,
+    pub input_length: u32,
 }
 
 #[derive(Serialize, ToSchema)]
