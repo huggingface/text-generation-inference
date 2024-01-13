@@ -18,6 +18,7 @@ from text_generation_server.models.galactica import GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
+from text_generation_server.models.phi import Phi
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -221,6 +222,20 @@ def get_model(
             )
         else:
             return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        
+    elif model_type == "phi-msft":
+        if FLASH_ATTENTION:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Flash Phi"))
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Phi"))
+        else:
+            return Phi(
                 model_id,
                 revision,
                 quantize=quantize,
