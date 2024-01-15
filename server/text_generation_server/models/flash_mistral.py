@@ -377,6 +377,22 @@ class BaseFlashMistral(FlashCausalLM):
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs]["graph"] = graph
 
+        torch.cuda.synchronize()
+        # Run once outside to warmup
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=None,
+            kv_cache=kv_cache,
+            block_tables=block_tables,
+            slots=slots,
+            input_lengths=input_lengths,
+            max_s=max_s,
+            prefill_cache_indices=None,
+            lm_head_indices=None,
+        )
+        torch.cuda.synchronize()
+
         with torch.cuda.graph(graph, pool=MEM_POOL):
             self.cuda_graphs[bs]["logits"] = self.model.forward(
                 input_ids=input_ids,
@@ -390,6 +406,7 @@ class BaseFlashMistral(FlashCausalLM):
                 prefill_cache_indices=None,
                 lm_head_indices=None,
             )
+        torch.cuda.synchronize()
 
     def forward(self, batch: FlashMistralBatch) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
@@ -447,10 +464,16 @@ class BaseFlashMistral(FlashCausalLM):
             max_s = min(self.model.max_past, max_s)
 
         bs = input_ids.shape[0]
-        # Ceil next power of two for batch size
-        bs_next_power_of_two = 2 ** math.ceil(math.log2(bs))
+        padded_bs = bs
+        if bs == 3:
+            padded_bs = 4
+        elif 3 < bs <= 8:
+            padded_bs = 8
+        elif bs > 8:
+            padded_bs = (bs + 7) // 8 * 8
+
         # Try to find an associated cuda graph
-        cuda_graph = self.cuda_graphs.get(bs_next_power_of_two, None)
+        cuda_graph = self.cuda_graphs.get(padded_bs, None)
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
             logits = self.model.forward(
@@ -476,7 +499,9 @@ class BaseFlashMistral(FlashCausalLM):
         cuda_graph["block_tables"][
             : block_tables.shape[0], : block_tables.shape[1]
         ] = block_tables
+        cuda_graph["slots"].fill_(-1)
         cuda_graph["slots"][: slots.shape[0]] = slots
+        cuda_graph["input_lengths"].zero_()
         cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
 
         # Replay the graph
