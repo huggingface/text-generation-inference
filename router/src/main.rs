@@ -176,7 +176,13 @@ async fn main() -> Result<(), RouterError> {
     // Initialize API if needed
     let api = if use_api {
         tracing::info!("Using the Hugging Face API");
-        Some(api_builder().build().unwrap())
+        match api_builder().build() {
+            Ok(api) => Some(api),
+            Err(_) => {
+                tracing::warn!("Unable to build the Hugging Face API");
+                None
+            }
+        }
     } else {
         None
     };
@@ -232,7 +238,10 @@ async fn main() -> Result<(), RouterError> {
             revision.unwrap_or_else(|| "main".to_string()),
         )))
         .await
-        .unwrap()
+        .unwrap_or_else(|| {
+            tracing::warn!("Could not retrieve tokenizer config from the Hugging Face hub.");
+            HubTokenizerConfig::default()
+        })
     } else {
         tracing::warn!("Could not find tokenizer config locally and no revision specified");
         HubTokenizerConfig::default()
