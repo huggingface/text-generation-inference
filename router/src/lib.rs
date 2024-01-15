@@ -29,10 +29,17 @@ pub struct HubModelInfo {
     pub pipeline_tag: Option<String>,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Default)]
 pub struct HubTokenizerConfig {
     #[serde(default)]
     pub chat_template: Option<String>,
+}
+
+impl HubTokenizerConfig {
+    pub fn from_file(filename: &str) -> Self {
+        let content = std::fs::read_to_string(filename).unwrap();
+        serde_json::from_str(&content).unwrap_or_default()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
