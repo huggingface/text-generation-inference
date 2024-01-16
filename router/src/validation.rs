@@ -376,7 +376,7 @@ type TokenizerRequest = (
     Span,
 );
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ValidGenerateRequest {
     pub inputs: String,
     pub input_length: u32,
