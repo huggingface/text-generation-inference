@@ -20,6 +20,24 @@ pub(crate) type GenerateStreamResponse = (
     UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
 );
 
+#[derive(Clone, Deserialize, ToSchema)]
+pub(crate) struct Instance {
+    pub inputs: String,
+    pub parameters: Option<GenerateParameters>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(crate) struct VertexRequest {
+    pub instances: Vec<Instance>,
+    #[allow(dead_code)]
+    pub parameters: Option<GenerateParameters>,
+}
+
+#[derive(Clone, Deserialize, ToSchema, Serialize)]
+pub(crate) struct VertexResponse {
+    pub predictions: Vec<String>,
+}
+
 /// Hub type
 #[derive(Clone, Debug, Deserialize)]
 pub struct HubModelInfo {
@@ -153,7 +171,7 @@ pub struct Info {
     pub docker_label: Option<&'static str>,
 }
 
-#[derive(Clone, Debug, Deserialize, ToSchema)]
+#[derive(Clone, Debug, Deserialize, ToSchema, Default)]
 pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 1)]
