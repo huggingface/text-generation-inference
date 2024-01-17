@@ -58,6 +58,7 @@ try:
     from text_generation_server.models.idefics import IDEFICSSharded
     from text_generation_server.models.flash_mistral import FlashMistral
     from text_generation_server.models.flash_mixtral import FlashMixtral
+    from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
 
 except ImportError as e:
@@ -73,6 +74,7 @@ if FLASH_ATTENTION:
     __all__.append(IDEFICSSharded)
     __all__.append(FlashMistral)
     __all__.append(FlashMixtral)
+    __all__.append(FlashPhi)
 
 
 def get_model(
@@ -229,11 +231,22 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
         
+    elif model_type == "phi":
+        if FLASH_ATTENTION:
+            return FlashPhi(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                use_medusa=use_medusa,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Phi"))
+
     elif model_type == "phi-msft":
         if FLASH_ATTENTION:
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Flash Phi"))
-        elif sharded:
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Phi"))
+            raise NotImplementedError("Legacy phi-msft is not supported with Flash Attention")
         else:
             return Phi(
                 model_id,
