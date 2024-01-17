@@ -1,8 +1,9 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
-use crate::HubTokenizerConfig;
-use crate::{ChatRequest, GenerateRequest, GenerateStreamResponse, PrefillToken};
-use crate::{Entry, Queue, Token};
+use crate::{
+    ChatTemplateInputs, Entry, GenerateRequest, GenerateStreamResponse, HubTokenizerConfig,
+    Message, PrefillToken, Queue, Token,
+};
 use futures::future::try_join_all;
 use minijinja::{Environment, ErrorKind, Template};
 use nohash_hasher::IntMap;
@@ -32,8 +33,8 @@ pub struct Infer {
     shared: Arc<Shared>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
-    /// Chat template
-    template: Option<Template<'static, 'static>>,
+    /// Chat template (template, bos_token, eos_token)
+    template: (Option<Template<'static, 'static>>, String, String),
 }
 
 /// Infer shared state
@@ -80,8 +81,12 @@ impl Infer {
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
 
         let template = tokenizer_config.chat_template.map(|t| {
-            let env = Box::new(Environment::new());
+            let mut env = Box::new(Environment::new());
             let template_str = t.into_boxed_str();
+            fn raise_exception(err_text: String) -> Result<String, minijinja::Error> {
+                Err(minijinja::Error::new(ErrorKind::SyntaxError, err_text))
+            }
+            env.add_function("raise_exception", raise_exception);
             // leaking env and template_str as read-only, static resources for performance.
             Box::leak(env)
                 .template_from_str(Box::leak(template_str))
@@ -93,7 +98,12 @@ impl Infer {
             queue,
             shared,
             limit_concurrent_requests: semaphore,
-            template,
+            template: (
+                template,
+                // initialize bos_token and eos_token to empty strings if not provided
+                tokenizer_config.bos_token.unwrap_or_default(),
+                tokenizer_config.eos_token.unwrap_or_default(),
+            ),
         }
     }
 
@@ -149,11 +159,16 @@ impl Infer {
 
     /// Apply the chat template to the chat request
     #[instrument(skip_all)]
-    pub(crate) fn apply_chat_template(&self, chat: ChatRequest) -> Result<String, InferError> {
-        self.template
+    pub(crate) fn apply_chat_template(&self, messages: Vec<Message>) -> Result<String, InferError> {
+        let (template, bos_token, eos_token) = self.template.clone();
+        template
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
-            .render(chat)
+            .render(ChatTemplateInputs {
+                messages,
+                eos_token,
+                bos_token,
+            })
             .map_err(|e| {
                 metrics::increment_counter!("tgi_request_failure", "err" => "template");
                 tracing::error!("{e}");
@@ -700,5 +715,220 @@ impl InferError {
             InferError::IncompleteGeneration => "incomplete_generation",
             InferError::TemplateError(_) => "template_error",
         }
+    }
+}
+
+// tests
+#[cfg(test)]
+mod tests {
+    use crate::ChatTemplateInputs;
+    use crate::Message;
+    use minijinja::Environment;
+
+    #[test]
+    fn test_chat_template() {
+        let env = Environment::new();
+
+        let source = r#"
+        {% for message in messages %}
+            {% if message['role'] == 'system' %}
+                {% if message['content']%}
+                    {{'### System:\n' + message['content']+'\n\n'}}
+                {% endif %}
+            {% elif message['role'] == 'user' %}
+                {{'### User:\n' + message['content']+'\n\n'}}
+            {% elif message['role'] == 'assistant' %}
+                {{'### Assistant:\n'  + message['content']}}
+            {% endif %}
+            {% if loop.last and add_generation_prompt %}
+                {{ '### Assistant:\n' }}
+            {% endif %}
+        {% endfor %}"#;
+
+        // trim all the whitespace
+        let source = source
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<&str>>()
+            .join("");
+
+        let tmpl = env.template_from_str(&source);
+
+        let chat_template_inputs = ChatTemplateInputs {
+            messages: vec![
+                Message {
+                    role: "user".to_string(),
+                    content: "Hi!".to_string(),
+                },
+                Message {
+                    role: "assistant".to_string(),
+                    content: "Hello how can I help?".to_string(),
+                },
+                Message {
+                    role: "user".to_string(),
+                    content: "What is Deep Learning?".to_string(),
+                },
+                Message {
+                    role: "assistant".to_string(),
+                    content: "magic!".to_string(),
+                },
+            ],
+            bos_token: "[BOS]".to_string(),
+            eos_token: "[EOS]".to_string(),
+        };
+
+        let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
+
+        assert_eq!(
+            result,
+            r#"### User:
+Hi!
+
+### Assistant:
+Hello how can I help?### User:
+What is Deep Learning?
+
+### Assistant:
+magic!"#
+        );
+    }
+
+    #[test]
+    fn test_chat_template_invalid_with_raise() {
+        let mut env = Environment::new();
+
+        fn raise_exception(name: String) -> Result<String, minijinja::Error> {
+            Err(minijinja::Error::new(
+                minijinja::ErrorKind::TemplateNotFound,
+                format!("Template not found: {}", name),
+            ))
+        }
+        env.add_function("raise_exception", raise_exception);
+
+        let source = r#"
+        {{ bos_token }}
+        {% for message in messages %}
+        {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
+        {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+        {% endif %}
+        {% if message['role'] == 'user' %}
+        {{ '[INST] ' + message['content'] + ' [/INST]' }}
+        {% elif message['role'] == 'assistant' %}
+        {{ message['content'] + eos_token}}
+        {% else %}
+        {{ raise_exception('Only user and assistant roles are supported!') }}
+        {% endif %}
+        {% endfor %}"#;
+
+        // trim all the whitespace
+        let source = source
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<&str>>()
+            .join("");
+
+        let tmpl = env.template_from_str(&source);
+
+        let chat_template_inputs = ChatTemplateInputs {
+            messages: vec![
+                Message {
+                    role: "user".to_string(),
+                    content: "Hi!".to_string(),
+                },
+                Message {
+                    role: "user".to_string(),
+                    content: "Hi again!".to_string(),
+                },
+                Message {
+                    role: "assistant".to_string(),
+                    content: "Hello how can I help?".to_string(),
+                },
+                Message {
+                    role: "user".to_string(),
+                    content: "What is Deep Learning?".to_string(),
+                },
+                Message {
+                    role: "assistant".to_string(),
+                    content: "magic!".to_string(),
+                },
+            ],
+            bos_token: "[BOS]".to_string(),
+            eos_token: "[EOS]".to_string(),
+        };
+
+        let result = tmpl.unwrap().render(chat_template_inputs); //.err().unwrap();
+
+        match result {
+            Ok(_) => panic!("Should have failed"),
+            Err(e) => {
+                assert_eq!(
+                    e.to_string(),
+                    "template not found: Template not found: Conversation roles must alternate user/assistant/user/assistant/... (in <string>:1)"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_chat_template_valid_with_raise() {
+        let mut env = Environment::new();
+
+        fn raise_exception(name: String) -> Result<String, minijinja::Error> {
+            Err(minijinja::Error::new(
+                minijinja::ErrorKind::TemplateNotFound,
+                format!("Template not found: {}", name),
+            ))
+        }
+        env.add_function("raise_exception", raise_exception);
+
+        let source = r#"
+        {{ bos_token }}
+        {% for message in messages %}
+        {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}
+        {{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}
+        {% endif %}
+        {% if message['role'] == 'user' %}
+        {{ '[INST] ' + message['content'] + ' [/INST]' }}
+        {% elif message['role'] == 'assistant' %}
+        {{ message['content'] + eos_token}}
+        {% else %}
+        {{ raise_exception('Only user and assistant roles are supported!') }}
+        {% endif %}
+        {% endfor %}"#;
+
+        // trim all the whitespace
+        let source = source
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<&str>>()
+            .join("");
+
+        let tmpl = env.template_from_str(&source);
+
+        let chat_template_inputs = ChatTemplateInputs {
+            messages: vec![
+                Message {
+                    role: "user".to_string(),
+                    content: "Hi!".to_string(),
+                },
+                Message {
+                    role: "assistant".to_string(),
+                    content: "Hello how can I help?".to_string(),
+                },
+                Message {
+                    role: "user".to_string(),
+                    content: "What is Deep Learning?".to_string(),
+                },
+                Message {
+                    role: "assistant".to_string(),
+                    content: "magic!".to_string(),
+                },
+            ],
+            bos_token: "[BOS]".to_string(),
+            eos_token: "[EOS]".to_string(),
+        };
+
+        let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
+        assert_eq!(result, "[BOS][INST] Hi! [/INST]Hello how can I help?[EOS][INST] What is Deep Learning? [/INST]magic![EOS]");
     }
 }
