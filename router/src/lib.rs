@@ -368,10 +368,10 @@ pub(crate) struct ChatRequest {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct ChatTemplateInputs {
+pub(crate) struct ChatTemplateInputs<'a> {
     messages: Vec<Message>,
-    bos_token: String,
-    eos_token: String,
+    bos_token: Option<&'a str>,
+    eos_token: Option<&'a str>,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]

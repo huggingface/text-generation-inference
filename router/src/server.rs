@@ -659,9 +659,9 @@ async fn chat_completions(
 
         // build the complete response object with the full text
         let response = ChatCompletion::new(
-            generation.generated_text,
             model_id,
             system_fingerprint,
+            generation.generated_text,
             current_time,
             generation.details.unwrap(),
             logprobs,
