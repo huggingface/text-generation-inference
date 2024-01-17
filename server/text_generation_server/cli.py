@@ -1,4 +1,6 @@
 import os
+import psutil
+import signal
 import sys
 import typer
 
@@ -76,7 +78,39 @@ def serve(
         sys.stdout.flush()
         sys.stderr.flush()
         with subprocess.Popen(cmd, shell=True, executable="/bin/bash") as proc:
-            proc.wait()
+            do_terminate = False
+            current_handler = signal.getsignal(signal.SIGTERM)
+            def terminate_handler(sig, frame):
+                nonlocal do_terminate
+                do_terminate = True
+                if callable(current_handler):
+                    current_handler(sig, frame)
+
+            signal.signal(signal.SIGTERM, terminate_handler)
+
+            finished = False
+            while not finished:
+                try:
+                    if do_terminate:
+                        parent = psutil.Process(proc.pid)
+                        all_procs = parent.children(recursive=True) + [parent]
+                        for p in all_procs:
+                            try:
+                                p.terminate()
+                            except psutil.NoSuchProcess:
+                                pass
+                        _, alive = psutil.wait_procs(all_procs, timeout=30)
+                        for p in alive:
+                            p.kill()
+
+                        do_terminate = False
+
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    pass
+                else:
+                    finished = True
+
             sys.stdout.flush()
             sys.stderr.flush()
             if proc.returncode != 0:
