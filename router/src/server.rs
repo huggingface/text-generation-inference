@@ -4,11 +4,11 @@
 use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
-use crate::HubTokenizerConfig;
 use crate::{
     BestOfSequence, ChatCompletion, ChatCompletionChunk, ChatRequest, CompatGenerateRequest,
     Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
-    HubModelInfo, Infer, Info, PrefillToken, StreamDetails, StreamResponse, Token, Validation,
+    HubModelInfo, HubTokenizerConfig, Infer, Info, PrefillToken, StreamDetails, StreamResponse,
+    Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -574,7 +574,7 @@ async fn chat_completions(
     let seed = req.seed;
 
     // apply chat template to flatten the request into a single input
-    let inputs = match infer.apply_chat_template(req) {
+    let inputs = match infer.apply_chat_template(req.messages) {
         Ok(inputs) => inputs,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
@@ -661,9 +661,9 @@ async fn chat_completions(
 
         // build the complete response object with the full text
         let response = ChatCompletion::new(
-            generation.generated_text,
             model_id,
             system_fingerprint,
+            generation.generated_text,
             current_time,
             generation.details.unwrap(),
             logprobs,

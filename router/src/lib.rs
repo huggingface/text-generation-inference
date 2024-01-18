@@ -31,8 +31,9 @@ pub struct HubModelInfo {
 
 #[derive(Clone, Deserialize, Default)]
 pub struct HubTokenizerConfig {
-    #[serde(default)]
     pub chat_template: Option<String>,
+    pub bos_token: Option<String>,
+    pub eos_token: Option<String>,
 }
 
 impl HubTokenizerConfig {
@@ -364,6 +365,13 @@ pub(crate) struct ChatRequest {
 
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct ChatTemplateInputs<'a> {
+    messages: Vec<Message>,
+    bos_token: Option<&'a str>,
+    eos_token: Option<&'a str>,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
