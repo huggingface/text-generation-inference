@@ -71,6 +71,8 @@ struct Args {
     ngrok_authtoken: Option<String>,
     #[clap(long, env)]
     ngrok_edge: Option<String>,
+    #[clap(long, env, default_value_t = false)]
+    chat_enabled_api: bool,
 }
 
 #[tokio::main]
@@ -102,6 +104,7 @@ async fn main() -> Result<(), RouterError> {
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
+        chat_enabled_api,
     } = args;
 
     // Launch Tokio runtime
@@ -345,6 +348,7 @@ async fn main() -> Result<(), RouterError> {
         ngrok_authtoken,
         ngrok_edge,
         tokenizer_config,
+        chat_enabled_api,
     )
     .await?;
     Ok(())

@@ -708,6 +708,7 @@ pub async fn run(
     ngrok_authtoken: Option<String>,
     ngrok_edge: Option<String>,
     tokenizer_config: HubTokenizerConfig,
+    chat_enabled_api: bool,
 ) -> Result<(), axum::BoxError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -871,7 +872,7 @@ pub async fn run(
         .route("/metrics", get(metrics));
 
     // Conditional AWS Sagemaker route
-    let aws_sagemaker_route = if std::env::var("OAI_ENABLED").map_or(false, |val| val == "true") {
+    let aws_sagemaker_route = if chat_enabled_api {
         Router::new().route("/invocations", post(chat_completions)) // Use 'chat_completions' for OAI_ENABLED
     } else {
         Router::new().route("/invocations", post(compat_generate)) // Use 'compat_generate' otherwise
