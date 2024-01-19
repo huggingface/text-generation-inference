@@ -15,6 +15,7 @@ from text_generation_server.utils.logits_process import (
 )
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcessor
+from transformers.utils import to_py_obj
 
 
 class NextTokenChooser:
@@ -359,3 +360,48 @@ def batch_top_tokens(
         [idxs[:n] if req_n > 0 else [] for idxs, n, req_n in zip(top_indices, top_n_ishes, top_n_tokens)],
         [vals[:n] if req_n > 0 else [] for vals, n, req_n in zip(top_values, top_n_ishes, top_n_tokens)],
     )
+
+
+def make_tokenizer_optional(tokenizer):
+    class _(type(tokenizer)):
+        def __call__(
+            self,
+            text,
+            return_tensors,
+            padding,
+            return_token_type_ids,
+            truncation,
+            max_length
+        ):
+            assert return_tensors == "pt", "inccorrect input arguments when calling TransparentTokenizer"
+            assert padding == "max_length", "inccorrect input arguments when calling TransparentTokenizer"
+            assert return_token_type_ids == False, "inccorrect input arguments when calling TransparentTokenizer"
+            assert truncation == True, "inccorrect input arguments when calling TransparentTokenizer"
+
+            def str_token_to_int(i):
+                if i == '?':
+                    return tokenizer.pad_token_id
+                else:
+                    return int(i)
+            all_tokens = [[str_token_to_int(i.strip()) for i in inner_text.split(',')]
+                          for inner_text in text]
+            return {"input_ids": torch.tensor([[tokenizer.pad_token_id] * (max_length-len(tokens)) + tokens for tokens in all_tokens]),
+                    "attention_mask": torch.tensor([[0] * (max_length-len(tokens)) + [1]*len(tokens) for tokens in all_tokens])}
+
+        def decode(
+            self,
+            token_ids,
+            skip_special_tokens: bool = False,
+            clean_up_tokenization_spaces: bool = None,
+            **kwargs,
+        ) -> str:
+            return ','.join(str(i) for i in to_py_obj(token_ids))
+
+    import os
+    if os.getenv("SKIP_TOKENIZER_IN_TGI", "false").lower() == "true":
+        tokenizer.__class__ = _
+        tokenizer.is_transparent = True
+
+
+def is_tokenizer_transparent(tokenizer):
+    return hasattr(tokenizer, "is_transparent") and tokenizer.is_transparent is True

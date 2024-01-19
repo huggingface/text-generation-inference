@@ -32,7 +32,7 @@ from text_generation_server.models.types import (
     TopTokens,
 )
 from text_generation_server.pb import generate_pb2
-from text_generation_server.utils import HeterogeneousNextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.utils import HeterogeneousNextTokenChooser, StoppingCriteria, Sampling, make_tokenizer_optional, is_tokenizer_transparent
 from loguru import logger
 
 tracer = trace.get_tracer(__name__)
@@ -140,6 +140,7 @@ class CausalLMRequest:
         prev = self.idx
         self.idx = new_idx
         return (new_idx, prev)
+
 
 @dataclass
 class CausalLMBatch(Batch):
@@ -446,6 +447,7 @@ class CausalLM(Model):
             padding_side="left",
             truncation_side="left",
         )
+        make_tokenizer_optional(tokenizer)
 
         model_kwargs = {
             "revision": revision,
@@ -561,6 +563,19 @@ class CausalLM(Model):
 
     def decode(self, generated_ids: List[int]) -> str:
         return self.tokenizer.decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+
+    def decode_token(
+        self,
+        all_input_ids: List[int],
+        prefix_offset: int = 0,
+        read_offset: int = 0,
+    ) -> Tuple[str, int, int]:
+        if is_tokenizer_transparent(self.tokenizer):
+            new_text = self.tokenizer.decode(all_input_ids[read_offset:], skip_special_tokens=False)
+            return new_text, read_offset, len(all_input_ids)
+        else:
+            return super().decode_token(all_input_ids, prefix_offset, read_offset)
+
 
     def forward(
         self,

@@ -7,6 +7,7 @@ use opentelemetry::sdk::trace::Sampler;
 use opentelemetry::sdk::Resource;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
+use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::time::Duration;
@@ -141,7 +142,10 @@ fn main() -> Result<(), RouterError> {
     // This will only be used to validate payloads
     let local_path = Path::new(&tokenizer_name);
     let local_model = local_path.exists() && local_path.is_dir();
-    let tokenizer = if local_model {
+    let skip_tokenizer_in_tgi = env::var("SKIP_TOKENIZER_IN_TGI").ok().map_or(false, |value| value.to_lowercase() == "true");
+    let tokenizer = if skip_tokenizer_in_tgi {
+        None
+    } else if local_model {
         // Load local tokenizer
         Tokenizer::from_file(local_path.join("tokenizer.json")).ok()
     } else {
@@ -162,7 +166,9 @@ fn main() -> Result<(), RouterError> {
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
 
-            if tokenizer.is_none() {
+            if skip_tokenizer_in_tgi {
+                tracing::warn!("Rust input length validation disabled by environment variable");
+            } else if tokenizer.is_none() {
                 tracing::warn!(
                     "Could not find a fast tokenizer implementation for {tokenizer_name}"
                 );
