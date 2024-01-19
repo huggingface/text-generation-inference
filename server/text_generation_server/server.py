@@ -59,7 +59,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                                         {"util": len(batch.requests)}):
             if batch is None:
                 raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
-            filtered_batch = batch.filter(request.request_ids, self.model.is_optimized_for_gaudi)
+            filtered_batch = batch.filter(request.request_ids, self.model.tokenizer.pad_token_id)
             self.cache.set(filtered_batch)
 
             return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
@@ -113,7 +113,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
             if len(batches) > 1:
                 with self.profiler.record_event("internal", "concatenate"):
-                    batch = self.model.batch_type.concatenate(batches, self.model.is_optimized_for_gaudi)
+                    batch = self.model.batch_type.concatenate(batches, self.model.tokenizer.pad_token_id)
             else:
                 batch = batches[0]
 
