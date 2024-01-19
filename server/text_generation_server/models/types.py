@@ -95,5 +95,7 @@ class Generation:
             generated_text=self.generated_text.to_pb()
             if self.generated_text is not None
             else None,
-            top_tokens=self.top_tokens.to_pb() if self.top_tokens is not None else None,
+            top_tokens=([top_token.to_pb() for top_token in self.top_tokens] 
+            		if self.top_tokens is not None 
+            		else None),
         )

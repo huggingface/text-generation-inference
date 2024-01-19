@@ -1089,7 +1089,7 @@ class FlashCausalLM(Model):
                         [nid in self.all_special_ids for nid in _next_token_ids],
                     ),
                     generated_text,
-                    top_tokens,
+                    [top_tokens],
                 )
 
                 generations.append(generation)
