@@ -499,13 +499,16 @@ class TensorParallelRowLinear(SuperLayer):
 class TensorParallelEmbedding(nn.Module):
     def __init__(self, prefix: str, weights, reduce=True):
         super().__init__()
-        weight = weights.get_partial_sharded(f"{prefix}.weight", dim=0)
-        num_embeddings = weights.get_shape(f"{prefix}.weight")[0]
-
         process_group = weights.process_group
 
         world_size = process_group.size()
         rank = process_group.rank()
+
+        weight, margin = weights.get_padded_sharded(
+            f"{prefix}.weight", dim=0, pad_multiple=world_size
+        )
+
+        num_embeddings = weights.get_shape(f"{prefix}.weight")[0] + margin
 
         block_size = num_embeddings // world_size
         self.min_id = rank * block_size
