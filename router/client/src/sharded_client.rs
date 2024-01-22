@@ -130,6 +130,7 @@ impl ShardedClient {
             .iter_mut()
             .map(|client| Box::pin(client.prefill(batch.clone())))
             .collect();
+        #[allow(clippy::type_complexity)]
         let results: Result<Vec<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)>> =
             join_all(futures).await.into_iter().collect();
         let mut results = results?;
@@ -162,6 +163,7 @@ impl ShardedClient {
             .iter_mut()
             .map(|client| Box::pin(client.decode(batches.clone())))
             .collect();
+        #[allow(clippy::type_complexity)]
         let results: Result<Vec<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)>> =
             join_all(futures).await.into_iter().collect();
         let mut results = results?;

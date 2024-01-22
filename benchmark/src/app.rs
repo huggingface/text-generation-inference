@@ -466,7 +466,7 @@ fn latency_paragraph<'a>(latency: &mut Vec<f64>, name: &'static str) -> Paragrap
     let latency_percentiles = crate::utils::percentiles(latency, &[50, 90, 99]);
 
     // Latency p50/p90/p99 texts
-    let colors = vec![Color::LightGreen, Color::LightYellow, Color::LightRed];
+    let colors = [Color::LightGreen, Color::LightYellow, Color::LightRed];
     for (i, (name, value)) in latency_percentiles.iter().enumerate() {
         let span = Line::from(vec![Span::styled(
             format!("{name}:     {value:.2} ms"),
