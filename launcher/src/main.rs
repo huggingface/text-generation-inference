@@ -53,6 +53,8 @@ impl std::fmt::Display for Quantization {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // To keep in track with `server`.
         match self {
+            #[allow(deprecated)]
+            // Use `eetq` instead, which provides better latencies overall and is drop-in in most cases
             Quantization::Bitsandbytes => {
                 write!(f, "bitsandbytes")
             }
