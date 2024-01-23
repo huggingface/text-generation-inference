@@ -528,11 +528,11 @@ async fn generate_stream_internal(
 /// Generate tokens
 #[utoipa::path(
     post,
-    tag = "Chat completions",
+    tag = "Text Generation Inference",
     path = "/v1/chat/completions",
     request_body = ChatRequest,
     responses(
-    (status = 200, description = "Generated Text", body = GenerateResponse),
+    (status = 200, description = "Generated Text", body = ChatCompletionChunk),
     (status = 424, description = "Generation Error", body = ErrorResponse,
     example = json ! ({"error": "Request failed during generation"})),
     (status = 429, description = "Model is overloaded", body = ErrorResponse,
@@ -675,7 +675,7 @@ async fn chat_completions(
 /// Tokenize inputs
 #[utoipa::path(
     post,
-    tag = "Tokenize",
+    tag = "Text Generation Inference",
     path = "/tokenize",
     request_body = TokenizeRequest,
     responses(
@@ -765,6 +765,8 @@ pub async fn run(
     compat_generate,
     generate,
     generate_stream,
+    chat_completions,
+    tokenize,
     metrics,
     ),
     components(
