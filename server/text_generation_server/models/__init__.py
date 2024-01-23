@@ -18,6 +18,7 @@ from text_generation_server.models.galactica import GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
+from text_generation_server.models.mamba import Mamba
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -161,7 +162,25 @@ def get_model(
     if speculate > 0:
         logger.info(f"Using speculation {method} with {speculate} input ids.")
 
-    model_type = config_dict["model_type"]
+    model_type = config_dict.get("model_type", None)
+    if model_type is None:
+        # TODO: fix how we determine model type for Mamba
+        if "ssm_cfg" in config_dict:
+            # *only happens in Mamba case
+            model_type = "ssm"
+        else:
+            raise RuntimeError(
+                f"Could not determine model type for {model_id} revision {revision}"
+            )
+
+    if model_type == "ssm":
+        return Mamba(
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
     if model_type == "gpt_bigcode":
         if FLASH_ATTENTION:
