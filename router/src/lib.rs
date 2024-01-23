@@ -365,6 +365,18 @@ pub(crate) struct ChatRequest {
 
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
+
+    /// What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while
+    /// lower values like 0.2 will make it more focused and deterministic.
+    ///
+    /// We generally recommend altering this or `top_p` but not both.
+    #[serde(default)]
+    pub temperature: Option<f32>,
+
+    /// An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the
+    /// tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
+    #[serde(default)]
+    pub top_p: Option<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
