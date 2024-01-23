@@ -224,7 +224,7 @@ pub struct DecodeTimings {
 impl DecodeTimings {
     fn new(concat_ns: Option<u64>, forward_ns: u64, decode_ns: u64, total_ns: u64) -> Self {
         Self {
-            concat: concat_ns.map(|v| Duration::from_nanos(v)),
+            concat: concat_ns.map(Duration::from_nanos),
             forward: Duration::from_nanos(forward_ns),
             decode: Duration::from_nanos(decode_ns),
             total: Duration::from_nanos(total_ns),

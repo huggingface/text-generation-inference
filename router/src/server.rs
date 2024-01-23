@@ -708,6 +708,7 @@ pub async fn run(
     ngrok_authtoken: Option<String>,
     ngrok_edge: Option<String>,
     tokenizer_config: HubTokenizerConfig,
+    chat_enabled_api: bool,
 ) -> Result<(), axum::BoxError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -856,25 +857,32 @@ pub async fn run(
         docker_label: option_env!("DOCKER_LABEL"),
     };
 
-    // Create router
-    let app = Router::new()
-        .merge(SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi()))
-        // Base routes
+    // Configure Swagger UI
+    let swagger_ui = SwaggerUi::new("/docs").url("/api-doc/openapi.json", ApiDoc::openapi());
+
+    // Define base and health routes
+    let base_routes = Router::new()
         .route("/", post(compat_generate))
         .route("/info", get(get_model_info))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
-        // AWS Sagemaker route
-        .route("/invocations", post(compat_generate))
-        // Base Health route
         .route("/health", get(health))
-        // Inference API health route
-        .route("/", get(health))
-        // AWS Sagemaker health route
         .route("/ping", get(health))
-        // Prometheus metrics route
-        .route("/metrics", get(metrics))
+        .route("/metrics", get(metrics));
+
+    // Conditional AWS Sagemaker route
+    let aws_sagemaker_route = if chat_enabled_api {
+        Router::new().route("/invocations", post(chat_completions)) // Use 'chat_completions' for OAI_ENABLED
+    } else {
+        Router::new().route("/invocations", post(compat_generate)) // Use 'compat_generate' otherwise
+    };
+
+    // Combine routes and layers
+    let app = Router::new()
+        .merge(swagger_ui)
+        .merge(base_routes)
+        .merge(aws_sagemaker_route)
         .layer(Extension(info))
         .layer(Extension(health_ext.clone()))
         .layer(Extension(compat_return_full_text))
