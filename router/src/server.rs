@@ -696,13 +696,13 @@ async fn tokenize(
             .get_ids()
             .iter()
             .zip(encoding.get_offsets())
-            .map(|(&id, (start, stop))| {
-                let text: String = input.chars().skip(*start).take(stop - start).collect();
+            .map(|(&id, &(start, stop))| {
+                let text: String = input.chars().skip(start).take(stop - start).collect();
                 SimpleToken {
                     id,
                     text,
-                    start: *start,
-                    stop: *stop,
+                    start,
+                    stop,
                 }
             })
             .collect();
