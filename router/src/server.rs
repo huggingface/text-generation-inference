@@ -604,7 +604,7 @@ async fn chat_completions(
             truncate: None,
             watermark: false,
             details: true,
-            decoder_input_details: true,
+            decoder_input_details: !stream,
             seed,
             top_n_tokens: None,
         },
