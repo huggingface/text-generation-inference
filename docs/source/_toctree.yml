@@ -7,6 +7,8 @@
     title: Installation
   - local: supported_models
     title: Supported Models and Hardware
+  - local: messages_api
+    title: Messages API
   title: Getting started
 - sections:
   - local: basic_tutorials/consuming_tgi
