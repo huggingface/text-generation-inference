@@ -242,7 +242,13 @@ def get_model(
                 use_medusa=use_medusa,
             )
         else:
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Phi"))
+            return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
 
     elif model_type == "phi-msft":
         if FLASH_ATTENTION:
