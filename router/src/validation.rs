@@ -365,7 +365,7 @@ fn prepare_input(
 ) -> Result<(tokenizers::Encoding, String), ValidationError> {
     // Get the number of tokens in the input
     let mut encoding = tokenizer
-        .encode(inputs.clone(), false)
+        .encode(inputs.clone(), true)
         .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
 
     // Optionally truncate
