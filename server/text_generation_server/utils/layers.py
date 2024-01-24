@@ -507,10 +507,10 @@ class TensorParallelEmbedding(nn.Module):
         world_size = process_group.size()
         rank = process_group.rank()
 
-        block_size = num_embeddings // world_size
+        block_size = (num_embeddings + world_size - 1) // world_size
         self.min_id = rank * block_size
         self.max_id = min(num_embeddings, (rank + 1) * block_size)
-        self.null_idx = block_size
+        self.null_idx = weight.shape[0]  # Usually block_size, might be less in non even vocab_size.
         self.process_group = weights.process_group
         self.reduce = reduce
 

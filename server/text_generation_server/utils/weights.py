@@ -92,7 +92,7 @@ class Weights:
         rank = self.process_group.rank()
 
         size = slice_.get_shape()[dim]
-        block_size = size // world_size
+        block_size = (size + world_size - 1) // world_size
         start = rank * block_size
         stop = (rank + 1) * block_size
 
