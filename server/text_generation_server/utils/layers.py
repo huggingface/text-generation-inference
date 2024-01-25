@@ -181,6 +181,40 @@ class EETQLinear(nn.Module):
         output = output + self.bias if self.bias is not None else output
         return output
 
+class Fp8Linear(nn.Module):
+    def __init__(
+        self,
+        weight,
+        bias,
+    ) -> None:
+        super().__init__()
+        device = weight.device
+        # weight, scale = quant_weights(weight, torch.int8, False)
+        finfo = torch.finfo(weight.dtype)
+        qdtype = torch.float8_e4m3fn
+        # Calculate the scale as dtype max divided by absmax
+        scale = finfo.max / weight.abs().max().clamp(min=1e-12)
+        # scale and clamp the tensor to bring it to
+        # the representative range of float8 data type
+        # (as default cast is unsaturated)
+        x_scl_sat = (weight * scale).clamp(min=finfo.min, max=finfo.max)
+        # Return both float8 data and the inverse scale (as float),
+        # as both required as inputs to torch._scaled_mm
+        self.dtype = weight.dtype
+        self.qweight = x_scl_sat.to(qdtype).to(device=device)
+        self.scale = scale.float().reciprocal().to(device=device)
+        self.bias = bias.cuda(device) if bias is not None else None
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        finfo = torch.finfo(input.dtype)
+        scale = finfo.max / input.abs().max().clamp(min=1e-12)
+        qinput = (input * scale).clamp(min=finfo.min, max=finfo.max)
+
+        output, _ = torch._scaled_mm(qinput, self.qweight, out_dtype=torch.float16,
+                             scale_a=scale , scale_b=self.scale)
+        output = output + self.bias if self.bias is not None else output
+        return output
+
 
 class Linear8bitLt(nn.Module):
     def __init__(
@@ -289,6 +323,12 @@ def get_linear(weight, bias, quantize):
     elif quantize == "eetq":
         if HAS_EETQ:
             linear = EETQLinear(weight, bias)
+        else:
+            raise ImportError(
+                "Please install EETQ from https://github.com/NetEase-FuXi/EETQ"
+            )
+    elif quantize == "fp8":
+        linear = Fp8Linear(weight, bias)
         else:
             raise ImportError(
                 "Please install EETQ from https://github.com/NetEase-FuXi/EETQ"
