@@ -372,11 +372,12 @@ fn prepare_input(
     if let Some(truncate) = truncate {
         if truncate < encoding.len() {
             encoding.truncate(truncate, 0, TruncationDirection::Left);
+            // inputs = tokenizer
+            //         .decode(encoding.get_ids(), false)
+            // .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
         }
     }
-    let inputs = tokenizer
-        .decode(encoding.get_ids(), false)
-        .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
+
     Ok((encoding, inputs))
 }
 
