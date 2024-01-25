@@ -18,6 +18,7 @@ from text_generation_server.models.galactica import GalacticaSharded
 from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
+from text_generation_server.models.phi import Phi
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -57,6 +58,7 @@ try:
     from text_generation_server.models.idefics import IDEFICSSharded
     from text_generation_server.models.flash_mistral import FlashMistral
     from text_generation_server.models.flash_mixtral import FlashMixtral
+    from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
 
 except ImportError as e:
@@ -72,6 +74,7 @@ if FLASH_ATTENTION:
     __all__.append(IDEFICSSharded)
     __all__.append(FlashMistral)
     __all__.append(FlashMixtral)
+    __all__.append(FlashPhi)
 
 
 def get_model(
@@ -221,6 +224,37 @@ def get_model(
             )
         else:
             return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        
+    elif model_type == "phi":
+        if FLASH_ATTENTION:
+            return FlashPhi(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                use_medusa=use_medusa,
+            )
+        else:
+            return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+
+    elif model_type == "phi-msft":
+        if FLASH_ATTENTION:
+            raise NotImplementedError("Legacy phi-msft is not supported with Flash Attention")
+        else:
+            return Phi(
                 model_id,
                 revision,
                 quantize=quantize,
