@@ -332,10 +332,6 @@ def get_linear(weight, bias, quantize):
             )
     elif quantize == "fp8":
         linear = Fp8Linear(weight, bias)
-        else:
-            raise ImportError(
-                "Please install EETQ from https://github.com/NetEase-FuXi/EETQ"
-            )
     elif quantize == "bitsandbytes":
         warn_deprecate_bnb()
         linear = Linear8bitLt(
