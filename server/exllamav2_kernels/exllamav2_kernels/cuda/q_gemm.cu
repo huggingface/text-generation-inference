@@ -133,51 +133,13 @@ void gemm_half_q_half_cuda
     {
         // Reconstruct FP16 matrix, then cuBLAS
 
-        // if (!temp_dq) {
-            // half* temp_dq_cpu = (half*)malloc(size_n * size_k * sizeof(half));
-
-            // cudaMalloc(&temp_dq, size_n * size_k * sizeof(half)); 
-            // cudaError_t error = cudaGetLastError();
-            // if (error != cudaSuccess) 
-            //     printf("Error in cudaMalloc: %s\n", cudaGetErrorString(error));
-
-            // for (int i = 0; i < size_n * size_k; i++) {
-            //     temp_dq_cpu[i] = 0.0f;
-            // }
-
-        //     cudaMemcpy(temp_dq, temp_dq_cpu, size_n * size_k * sizeof(half), cudaMemcpyHostToDevice);
-        //     error = cudaGetLastError();
-        //     if (error != cudaSuccess) 
-        //         printf("Error in cudaMemcpy: %s\n", cudaGetErrorString(error));
-        // }
-
-        if (!temp_dq) {
-            temp_dq = b->temp_dq;
-            b->reconstruct(temp_dq);
-
-            // half* temp_dq_cpu = (half*)malloc(size_n * size_k * sizeof(half));
-
-            // cudaMalloc(&temp_dq, size_n * size_k * sizeof(half)); 
-            // cudaError_t error = cudaGetLastError();
-            // if (error != cudaSuccess) 
-            //     printf("Error in cudaMalloc: %s\n", cudaGetErrorString(error));
-
-            // for (int i = 0; i < size_n * size_k; i++) {
-            //     temp_dq_cpu[i] = __float2half(0.0f);
-            // }
-
-            // cudaMemcpy(temp_dq, temp_dq_cpu, size_n * size_k * sizeof(half), cudaMemcpyHostToDevice);
-            // b->reconstruct(temp_dq);
-        }
+        if (!temp_dq) temp_dq = b->temp_dq;
+        b->reconstruct(temp_dq);
         
-        //temp_dq = b->temp_dq;
-        //b->reconstruct(temp_dq);
-
         //cublasSetMathMode(cublas_handle, CUBLAS_TENSOR_OP_MATH);
 
         const half alpha = __float2half(1.0f);
         const half beta = clear ? __float2half(0.0f) : __float2half(1.0f);
-
         cublasHgemm(cublas_handle,
                     CUBLAS_OP_N,
                     CUBLAS_OP_N,

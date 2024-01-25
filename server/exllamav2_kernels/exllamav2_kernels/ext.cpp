@@ -13,10 +13,6 @@
 
 #include "cpp/util.h"
 
-#include <iostream>
-#include <fstream>
-using namespace std;
-#include <stdio.h>
 // Some decluttering macros
 
 #define TORCH_CHECK_DTYPE(__x, __dtype) TORCH_CHECK((__x).dtype() == torch::__dtype, #__x " is incorrect datatype, must be " #__dtype)
@@ -118,7 +114,7 @@ void gemm_half_q_half
     TORCH_CHECK(qm->width == c.size(1), "b and c have incompatible shapes")
 
     const at::cuda::OptionalCUDAGuard device_guard(device_of(a));
-    
+
     gemm_half_q_half_cuda
     (
         at::cuda::getCurrentCUDABlasHandle(),

@@ -71,7 +71,6 @@ class Model(ABC):
         raise NotImplementedError
 
     def warmup(self, batch: B) -> Optional[int]:
-        logger.info("in this warmup model.py")
         self.generate_token(batch)
         return None
 
