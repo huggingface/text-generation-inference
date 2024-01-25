@@ -63,6 +63,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
+        logger.info("IN WARMUP")
         if self.quantize == "gptq":
             try:
                 # When using GPTQ, Exllama kernels need some global kernels
@@ -78,6 +79,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             except ImportError:
                 pass
 
+        logger.info("after quantize == gptq")
         if (
             self.model.batch_type == IdeficsCausalLMBatch
         ):  # Hack, i would rather use kwargs in the `from_pb` call
@@ -92,8 +94,10 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch = self.model.batch_type.from_pb(
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
+        logger.info("calling model.warmup")
         max_supported_total_tokens = self.model.warmup(batch)
 
+        logger.info("end warmup")
         return generate_pb2.WarmupResponse(
             max_supported_total_tokens=max_supported_total_tokens
         )

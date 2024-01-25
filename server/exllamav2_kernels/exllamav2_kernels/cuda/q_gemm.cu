@@ -22,6 +22,11 @@
 
 #include "q_gemm_kernel.cuh"
 #include "q_gemm_kernel_gptq.cuh"
+#include "compat_gemm.cuh"
+
+#include <iostream>
+#include <fstream>
+using namespace std;
 
 void gemm_half_q_half_cuda_part
 (
@@ -38,8 +43,11 @@ void gemm_half_q_half_cuda_part
     bool mul_r_weights
 )
 {
+    ofstream myfile;
+    myfile.open ("/tgi/server/exllamav2_kernels/log.txt");
     if (!b->is_gptq)
     {
+        myfile << "go in is_gptq path" << "\n";
         dim3 blockDim, gridDim;
         blockDim.x = EXL2_BLOCK_KN_SIZE;
         blockDim.y = 1;
@@ -50,6 +58,7 @@ void gemm_half_q_half_cuda_part
 
         fp_gemm_half_q_half_kernel kernel = pick_gemm_half_q_half_kernel(m_count, r_weights != NULL, mul_r_weights);
 
+        myfile << "launch kernel" << "\n";
         kernel<<<gridDim, blockDim>>>
         (
             a,
@@ -110,6 +119,7 @@ void gemm_half_q_half_cuda_part
             r_weights_stride
         );
     }
+    myfile.close();
 }
 
 void gemm_half_q_half_cuda
@@ -129,8 +139,11 @@ void gemm_half_q_half_cuda
     bool mul_r_weights
 )
 {
+    ofstream myfile;
+    myfile.open ("/tgi/server/exllamav2_kernels/log.txt");
     if (size_m > MAX_Q_GEMM_ROWS && !force_cuda)
     {
+        myfile << "going in cublas path" << "\n";
         // Reconstruct FP16 matrix, then cuBLAS
 
         if (!temp_dq) temp_dq = b->temp_dq;
@@ -172,6 +185,9 @@ void gemm_half_q_half_cuda
     {
         // Quantized matmul
 
+        myfile << "going in gemm_half_q_half_cuda_part path" << "\n";
+
+
         int block_m_size_max = b->is_gptq ? GPTQ_BLOCK_M_SIZE_MAX : EXL2_BLOCK_M_SIZE_MAX;
         int max_chunks = size_m / block_m_size_max;
         int last_chunk = max_chunks * block_m_size_max;
@@ -179,14 +195,17 @@ void gemm_half_q_half_cuda
 
         if (max_chunks)
         {
+            myfile << "call gemm_half_q_half_cuda_part max_chunks" << "\n";
             gemm_half_q_half_cuda_part(a, b, c, last_chunk, size_n, size_k, block_m_size_max, clear, r_weights, r_weights_stride, mul_r_weights);
         }
 
         if (last_chunk_size)
         {
+            myfile << "call gemm_half_q_half_cuda_part last_chunk_size" << "\n";
             gemm_half_q_half_cuda_part(a + last_chunk * size_k, b, c + last_chunk * size_n, last_chunk_size, size_n, size_k, last_chunk_size, clear, r_weights, r_weights_stride, mul_r_weights);
         }
     }
+    myfile.close();
 }
 
 __global__ void clear_kernel

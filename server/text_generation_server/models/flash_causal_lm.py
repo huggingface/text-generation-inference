@@ -31,6 +31,7 @@ from text_generation_server.utils.dist import MEMORY_FRACTION
 
 tracer = trace.get_tracer(__name__)
 
+from loguru import logger
 
 @dataclass
 class FlashCausalLMBatch(Batch):
@@ -679,25 +680,34 @@ class FlashCausalLM(Model):
         return FlashCausalLMBatch
 
     def warmup(self, batch: FlashCausalLMBatch):
+        logger.info("in this warmup start")
+
         torch.cuda.empty_cache()
-        try:
-            cache_manager = set_cache_manager(
-                batch.blocks,
-                self.num_layers,
-                self.num_kv_heads,
-                self.head_size,
-                self.sliding_window is not None,
-                self.dtype,
-                self.device,
-            )
-            _, batch, _ = self.generate_token(batch)
-        except torch.cuda.OutOfMemoryError as e:
-            raise RuntimeError(
-                f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
-                f"You need to decrease `--max-batch-prefill-tokens`"
-            ) from e
+        logger.info("in this warmup after empty cache")
+
+        #try:
+        cache_manager = set_cache_manager(
+            batch.blocks,
+            self.num_layers,
+            self.num_kv_heads,
+            self.head_size,
+            self.sliding_window is not None,
+            self.dtype,
+            self.device,
+        )
+        logger.info("in this warmup after set_cache_manager")
+        _, batch, _ = self.generate_token(batch)
+        logger.info("in this warmup after generate_token")
+        # except torch.cuda.OutOfMemoryError as e:
+        #     raise RuntimeError(
+        #         f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
+        #         f"You need to decrease `--max-batch-prefill-tokens`"
+        #     ) from e
+
 
         torch.cuda.synchronize(self.device)
+
+        logger.info("in this warmup after sync")
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
@@ -818,11 +828,14 @@ class FlashCausalLM(Model):
             batch.block_tables_tensor = block_tables_tensor
             batch.slots = slots
 
-        try:
-            out = self.forward(batch)
-        except Exception as e:
-            del batch
-            raise e
+        logger.info("callign forward in generate_token")
+        out = self.forward(batch)
+        # try:
+        #     out = self.forward(batch)
+        # except Exception as e:
+        #     del batch
+        #     raise e
+        logger.info("finished forward in generate_token")
 
         if isinstance(out, tuple):
             out, speculative_logits = out

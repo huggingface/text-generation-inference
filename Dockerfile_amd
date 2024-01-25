@@ -104,6 +104,20 @@ WORKDIR /usr/src
 COPY server/custom_kernels/ .
 RUN PYTORCH_ROCM_ARCH=gfx90a python setup.py build
 
+# Build exllama kernels
+FROM kernel-builder as exllama-kernels-builder
+WORKDIR /usr/src
+COPY server/exllama_kernels/ .
+
+RUN PYTORCH_ROCM_ARCH="gfx90a" python setup.py build
+
+# Build exllama v2 kernels
+FROM kernel-builder as exllamav2-kernels-builder
+WORKDIR /usr/src
+COPY server/exllamav2_kernels/ .
+
+RUN PYTORCH_ROCM_ARCH="gfx90a" python setup.py build
+
 FROM base as base-copy
 
 # Text Generation Inference base env
@@ -119,6 +133,12 @@ COPY --from=flash-att-v2-builder /usr/src/flash-attention-v2/build/lib.linux-x86
 
 # Copy build artifacts from custom kernels builder
 COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+
+# Copy build artifacts from exllama kernels builder
+COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+
+# Copy build artifacts from exllamav2 kernels builder
+COPY --from=exllamav2-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 
 # Install flash-attention dependencies
 RUN pip install einops --no-cache-dir
@@ -149,5 +169,5 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base-copy
 
-ENTRYPOINT ["text-generation-launcher"]
-CMD ["--json-output"]
+#ENTRYPOINT ["text-generation-launcher"]
+#CMD ["--json-output"]
