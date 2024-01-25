@@ -61,6 +61,11 @@ uintptr_t make_q_matrix
     int groups;
     int height;
 
+    ofstream myfile("/tgi/server/exllamav2_kernels/log.txt", ios::app);
+    myfile << "in make_q_matrix" << "\n";
+    myfile.flush();
+    myfile.close();
+
     if (!q_scale.device().is_meta())
     {
         TORCH_CHECK_SHAPES(q_weight, 1, q_scale, 1, 8);
@@ -77,6 +82,11 @@ uintptr_t make_q_matrix
     }
 
     TORCH_CHECK(temp_dq.size(0) >= width * height, "Insufficient size of temp_dq buffer")
+
+    ofstream myfile2("/tgi/server/exllamav2_kernels/log.txt", ios::app);
+    myfile2 << "q_scale is meta" << q_scale.device().is_meta() << "\n";
+    myfile2.flush();
+    myfile2.close();
 
     QMatrix* m = new QMatrix
     (
@@ -110,9 +120,13 @@ void gemm_half_q_half
     bool force_cuda
 )
 {
-    ofstream myfile;
-    myfile.open ("/tgi/server/exllamav2_kernels/log.txt");
+
+    //throw std::invalid_argument("a or b negative");
+
+    ofstream myfile("/tgi/server/exllamav2_kernels/log.txt", ios::app);
     myfile << "start gemm_half_q_half" << "\n";
+    myfile.flush();
+    myfile.close();
 
     QMatrix* qm = reinterpret_cast<QMatrix*> (b);
 
@@ -124,7 +138,8 @@ void gemm_half_q_half
 
     const at::hip::OptionalHIPGuardMasqueradingAsCUDA device_guard(device_of(a));
     
-    myfile << "call gemm_half_q_half_cuda" << "\n";
+    //myfile << "call gemm_half_q_half_cuda" << "\n";
+    //myfile.flush();
     gemm_half_q_half_cuda
     (
         at::cuda::getCurrentCUDABlasHandle(),
@@ -138,7 +153,6 @@ void gemm_half_q_half
         NULL,
         force_cuda
     );
-    myfile.close();
 }
 
 // Bindings

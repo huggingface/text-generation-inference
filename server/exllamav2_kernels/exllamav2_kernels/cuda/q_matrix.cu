@@ -14,6 +14,11 @@
 #define THREADS_X 32
 #define THREADS_Y 32
 
+#include <iostream>
+#include <fstream>
+using namespace std;
+
+
 // Shuffle quantized data on load
 
 __global__ void shuffle_kernel
@@ -87,6 +92,7 @@ QMatrix::QMatrix
 
     is_gptq = (_gptq_qzeros != NULL);
 
+    std::cout << "is_gptq in QMatrix init " << is_gptq << "\n";
     if (is_gptq)
     {
         gptq_groupsize = 1;
@@ -501,6 +507,8 @@ void QMatrix::reconstruct(half* out)
     }
     else
     {
+        std::cout << "reconstructing with reconstruct_gptq_kernel" << "\n";
+
         gridDim.x = DIVIDE(width, BLOCK_KN_SIZE * 4);
         reconstruct_gptq_kernel<<<gridDim, blockDim>>>
         (
