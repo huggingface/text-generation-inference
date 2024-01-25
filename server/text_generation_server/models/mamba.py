@@ -1,16 +1,36 @@
 import torch
 import torch.distributed
 
-from transformers import AutoConfig, AutoTokenizer
-from typing import Optional, List, Tuple
+from transformers import AutoTokenizer, PreTrainedTokenizerBase
+from typing import Optional
 
 from text_generation_server.models import CausalLM
-from text_generation_server.models.custom_modeling.mamba_modeling import MambaConfig, MambaForCausalLM
+from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.models.custom_modeling.mamba_modeling import (
+    MambaConfig,
+    MambaForCausalLM,
+)
+from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
     Weights,
 )
+
+
+class MambaCausalLMBatch(CausalLMBatch):
+    @classmethod
+    def from_pb(
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "CausalLMBatch":
+        batch = super().from_pb(pb=pb, tokenizer=tokenizer, dtype=dtype, device=device)
+        batch.keys_head_dim_last = False
+        return batch
+
 
 class Mamba(CausalLM):
     def __init__(
