@@ -1,9 +1,11 @@
 import math
 import torch
+import os
 
 from typing import Optional, List, Tuple
 
-BLOCK_SIZE: int = 16
+USE_VLLM = os.getenv("USE_VLLM", "False") == "True"
+BLOCK_SIZE: int = 256 if not USE_VLLM else 16
 # Will be set in warmup
 CACHE_MANAGER: Optional["CacheManager"] = None
 
@@ -26,15 +28,22 @@ class CacheManager:
         element_size = torch.tensor([], dtype=dtype).element_size()
         x = self.block_size // element_size
 
+        if USE_VLLM:
+            k_shape = (num_blocks, num_heads, head_size // x, self.block_size, x)
+            v_shape = (num_blocks, num_heads, head_size, self.block_size)
+        else:
+            k_shape = (num_blocks, BLOCK_SIZE, num_heads, head_size)
+            v_shape = (num_blocks, BLOCK_SIZE, num_heads, head_size)
+
         self.kv_cache = [
             (
                 torch.empty(
-                    (num_blocks, num_heads, head_size // x, self.block_size, x),
+                    k_shape,
                     dtype=dtype,
                     device=device,
                 ),
                 torch.empty(
-                    (num_blocks, num_heads, head_size, self.block_size),
+                    v_shape,
                     dtype=dtype,
                     device=device,
                 ),

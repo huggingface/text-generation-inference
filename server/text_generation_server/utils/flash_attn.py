@@ -57,7 +57,7 @@ except ImportError as e:
     elif IS_ROCM_SYSTEM:
         for idx in range(torch.cuda.device_count()):
             if "MI210" not in torch.cuda.get_device_name(
-                idx
+                    idx
             ) and "MI250" not in torch.cuda.get_device_name(idx):
                 raise ImportError(
                     f"AMD GPU {torch.cuda.get_device_name(idx)} does not support flash-attention"
@@ -68,27 +68,29 @@ except ImportError as e:
 
 
 def attention(
-    q,
-    k,
-    v,
-    out,
-    cu_seqlens,
-    max_s,
-    softmax_scale,
-    window_size_left=-1,
+        q,
+        k,
+        v,
+        out,
+        cu_seqlens,
+        max_s,
+        softmax_scale,
+        window_size_left=-1,
 ):
     if window_size_left <= 0 and window_size_left != -1:
         raise ValueError("`window_size_left` must be > 0 or -1")
 
     if HAS_FLASH_ATTN_V2_CUDA:
         return flash_attn_2_cuda.varlen_fwd(
-            q,
-            k,
-            v,
-            out,
-            cu_seqlens,
-            cu_seqlens,
-            max_s,
+            q,  # q
+            k,  # k
+            v,  # v
+            out,  # out
+            cu_seqlens,  # cu_seqlens_q
+            cu_seqlens,  # cu_seqlens_k
+            None,
+            None,
+            max_s,  #
             max_s,
             0.0,
             softmax_scale,

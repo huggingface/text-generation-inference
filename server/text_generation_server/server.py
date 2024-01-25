@@ -127,6 +127,8 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         )
 
     async def Decode(self, request, context):
+        from torch.profiler import profile, ProfilerActivity
+
         start = time.time_ns()
         if len(request.batches) == 0:
             raise ValueError("Must provide at least one batch")
@@ -149,7 +151,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch = batches[0]
             concat_ns = None
 
-        generations, next_batch, timings = self.model.generate_token(batch)
+        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prefill_prof:
+            generations, next_batch, timings = self.model.generate_token(batch)
+        prefill_prof.export_chrome_trace("new_decode.json")
         self.cache.set(next_batch)
 
         return generate_pb2.DecodeResponse(
