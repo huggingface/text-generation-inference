@@ -832,12 +832,17 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
         }
     };
 
-    // Redirect STDOUT to the console
     let download_stdout = download_process.stdout.take().unwrap();
     let stdout = BufReader::new(download_stdout);
+    let download_stderr = download_process.stderr.take().unwrap();
+    let stderr = BufReader::new(download_stderr);
 
     thread::spawn(move || {
         log_lines(stdout.lines());
+    });
+
+    thread::spawn(move || {
+        log_lines(stderr.lines());
     });
 
     loop {
