@@ -444,6 +444,18 @@ pub struct Token {
     special: bool,
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SimpleToken {
+    #[schema(example = 0)]
+    id: u32,
+    #[schema(example = "test")]
+    text: String,
+    #[schema(example = 0)]
+    start: usize,
+    #[schema(example = 2)]
+    stop: usize,
+}
+
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
 pub(crate) enum FinishReason {

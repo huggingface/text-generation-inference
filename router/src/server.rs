@@ -5,8 +5,8 @@ use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, ChatCompletion, ChatCompletionChunk, ChatRequest, CompatGenerateRequest,
     Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
-    HubModelInfo, HubTokenizerConfig, Infer, Info, PrefillToken, StreamDetails, StreamResponse,
-    Token, Validation,
+    HubModelInfo, HubTokenizerConfig, Infer, Info, PrefillToken, SimpleToken, StreamDetails,
+    StreamResponse, Token, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -532,7 +532,7 @@ async fn generate_stream_internal(
     path = "/v1/chat/completions",
     request_body = ChatRequest,
     responses(
-    (status = 200, description = "Generated Text", body = GenerateResponse),
+    (status = 200, description = "Generated Text", body = ChatCompletionChunk),
     (status = 424, description = "Generation Error", body = ErrorResponse,
     example = json ! ({"error": "Request failed during generation"})),
     (status = 429, description = "Model is overloaded", body = ErrorResponse,
@@ -672,6 +672,52 @@ async fn chat_completions(
     }
 }
 
+/// Tokenize inputs
+#[utoipa::path(
+    post,
+    tag = "Text Generation Inference",
+    path = "/tokenize",
+    request_body = TokenizeRequest,
+    responses(
+    (status = 200, description = "Tokenized ids", body = TokenizeResponse),
+    (status = 404, description = "No tokenizer found", body = ErrorResponse,
+    example = json ! ({"error": "No fast tokenizer available"})),
+    )
+    )]
+#[instrument(skip_all)]
+async fn tokenize(
+    Extension(infer): Extension<Infer>,
+    Json(req): Json<GenerateRequest>,
+) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    let input = req.inputs.clone();
+    let encoding = infer.tokenize(req).await?;
+    if let Some(encoding) = encoding {
+        let tokens: Vec<SimpleToken> = encoding
+            .get_ids()
+            .iter()
+            .zip(encoding.get_offsets())
+            .map(|(&id, &(start, stop))| {
+                let text: String = input.chars().skip(start).take(stop - start).collect();
+                SimpleToken {
+                    id,
+                    text,
+                    start,
+                    stop,
+                }
+            })
+            .collect();
+        Ok(Json(tokens).into_response())
+    } else {
+        Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "No fast tokenizer or tokenizer.json for this model".to_string(),
+                error_type: "no fast tokenizer".to_string(),
+            }),
+        ))
+    }
+}
+
 /// Prometheus metrics scrape endpoint
 #[utoipa::path(
 get,
@@ -719,6 +765,8 @@ pub async fn run(
     compat_generate,
     generate,
     generate_stream,
+    chat_completions,
+    tokenize,
     metrics,
     ),
     components(
@@ -867,6 +915,7 @@ pub async fn run(
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
+        .route("/tokenize", post(tokenize))
         .route("/health", get(health))
         .route("/ping", get(health))
         .route("/metrics", get(metrics));

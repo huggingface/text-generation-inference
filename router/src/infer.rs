@@ -165,6 +165,28 @@ impl Infer {
         ))
     }
 
+    /// Tokenizer the input
+    #[instrument(skip_all)]
+    pub(crate) async fn tokenize(
+        &self,
+        request: GenerateRequest,
+    ) -> Result<Option<tokenizers::Encoding>, InferError> {
+        // Tokenize request
+        let inputs = request.inputs;
+        let truncate = request.parameters.truncate;
+        let encoding = self
+            .validation
+            .tokenize(inputs, truncate)
+            .await
+            .map_err(|err| {
+                tracing::error!("Tokenization {err}");
+                err
+            })?;
+
+        // Return Encoding
+        Ok(encoding.map(|(encoding, _)| encoding))
+    }
+
     /// Apply the chat template to the chat request
     #[instrument(skip_all)]
     pub(crate) fn apply_chat_template(&self, messages: Vec<Message>) -> Result<String, InferError> {
