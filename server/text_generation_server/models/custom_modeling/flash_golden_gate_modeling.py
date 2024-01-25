@@ -47,6 +47,7 @@ class GoldenGateConfig(PretrainedConfig):
         num_hidden_layers=28,
         num_attention_heads=16,
         num_key_value_heads=16,
+        head_dim=256,
         hidden_act="gelu",
         max_position_embeddings=8192,
         initializer_range=0.02,
@@ -65,6 +66,7 @@ class GoldenGateConfig(PretrainedConfig):
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings
         self.hidden_size = hidden_size
+        self.head_dim = head_dim
         self.intermediate_size = intermediate_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
@@ -91,6 +93,12 @@ class GoldenGateConfig(PretrainedConfig):
             **kwargs,
         )
 
+class GoldenGateFastRMSNorm(FastRMSNorm):
+    @classmethod
+    def load(cls, prefix, weights, eps=1e-6):
+        weight = weights.get_tensor(f"{prefix}.weight") + 1
+        return cls(weight, eps)
+
 
 def load_attention(config, prefix, weights):
     if config.num_attention_heads != config.num_key_value_heads:
@@ -106,7 +114,6 @@ def load_attention(config, prefix, weights):
 
 
 def _load_gqa(config, prefix: str, weights):
-    assert config.hidden_size % config.num_attention_heads == 0
     assert config.num_attention_heads % weights.process_group.size() == 0
 
     weight = weights.get_multi_weights_col(
@@ -118,7 +125,7 @@ def _load_gqa(config, prefix: str, weights):
     if config.quantize not in ["gptq", "awq"]:
         weight = weight.to(dtype=weights.dtype).to(device=weights.device)
 
-        head_size = config.hidden_size // config.num_attention_heads
+        head_size = config.head_dim
         num_heads = config.num_attention_heads // weights.process_group.size()
         num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
         assert list(weight.shape) == [
@@ -140,8 +147,7 @@ class FlashGoldenGateAttention(torch.nn.Module):
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
-        self.hidden_size = config.hidden_size
-        self.head_size = self.hidden_size // self.num_heads
+        self.head_size = config.head_dim
 
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
@@ -283,10 +289,10 @@ class FlashGoldenGateLayer(nn.Module):
         )
         self.mlp = GoldenGateMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
-        self.input_layernorm = FastRMSNorm.load(
+        self.input_layernorm = GoldenGateFastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
         )
-        self.post_attention_layernorm = FastRMSNorm.load(
+        self.post_attention_layernorm = GoldenGateFastRMSNorm.load(
             prefix=f"{prefix}.post_attention_layernorm",
             weights=weights,
             eps=config.rms_norm_eps,
@@ -353,7 +359,7 @@ class FlashGoldenGateModel(torch.nn.Module):
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
-        self.norm = FastRMSNorm.load(
+        self.norm = GoldenGateFastRMSNorm.load(
             prefix="model.norm", weights=weights, eps=config.rms_norm_eps
         )
 

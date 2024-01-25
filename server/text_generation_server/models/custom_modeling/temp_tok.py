@@ -45,7 +45,6 @@ B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
 DEFAULT_SYSTEM_PROMPT = """You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your \
 answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure\
  that your responses are socially unbiased and positive in nature.
-
 If a question does not make any sense, or is not factually coherent, explain why instead of answering something not \
 correct. If you don't know the answer to a question, please don't share false information."""
 # fmt: on
@@ -54,26 +53,19 @@ correct. If you don't know the answer to a question, please don't share false in
 class GoldenGateTokenizerFast(PreTrainedTokenizerFast):
     """
     Construct a GoldenGate tokenizer. Based on byte-level Byte-Pair-Encoding.
-
     This uses notably ByteFallback and no normalization.
-
     ```python
     >>> from transformers import GoldenGateTokenizerFast
-
     >>> tokenizer = GoldenGateTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
     >>> tokenizer.encode("Hello this is a test")
     [1, 15043, 445, 338, 263, 1243]
     ```
-
     If you want to change the `bos_token` or the `eos_token`, make sure to specify them when initializing the model, or
     call `tokenizer.update_post_processor()` to make sure that the post-processing is correctly done (otherwise the
     values of the first token and final token of an encoded sequence will not be correct). For more details, checkout
     [post-processors] (https://huggingface.co/docs/tokenizers/api/post-processors) documentation.
-
-
     This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main methods. Users should
     refer to this superclass for more information regarding those methods.
-
     Args:
         vocab_file (`str`, *optional*):
             [SentencePiece](https://github.com/google/sentencepiece) file (generally has a .model extension) that
