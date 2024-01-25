@@ -373,8 +373,8 @@ fn prepare_input(
         if truncate < encoding.len() {
             encoding.truncate(truncate, 0, TruncationDirection::Left);
             inputs = tokenizer
-                    .decode(encoding.get_ids(), false)
-            .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
+                .decode(encoding.get_ids(), false)
+                .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
         }
     }
 
