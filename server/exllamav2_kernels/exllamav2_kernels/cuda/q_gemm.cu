@@ -166,7 +166,7 @@ void gemm_half_q_half_cuda
         //half* val = temp_dq + (size_n * size_k - 1) * sizeof(half);
         //half* val = temp_dq + 1;
         
-        // half* my_val_host;
+        half* my_val_host;
 
         cudaError_t error = cudaGetLastError();
         if (error != cudaSuccess) 
