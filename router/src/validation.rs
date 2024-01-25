@@ -79,12 +79,11 @@ impl Validation {
     }
 
     #[instrument(skip(self, inputs))]
-    async fn validate_input(
+    pub async fn tokenize(
         &self,
         inputs: String,
         truncate: Option<usize>,
-        max_new_tokens: Option<u32>,
-    ) -> Result<(String, usize, u32), ValidationError> {
+    ) -> Result<Option<(tokenizers::Encoding, String)>, ValidationError> {
         // If we have a fast tokenizer
         if let Some(sender) = &self.sender {
             // Create response channel
@@ -97,8 +96,23 @@ impl Validation {
 
             // Await on response channel
             // Unwrap is safe here
-            let (inputs, _) = response_receiver.await.unwrap()?;
+            let encoding = response_receiver.await.unwrap()?;
+            Ok(Some(encoding))
+        } else {
+            Ok(None)
+        }
+    }
 
+    #[instrument(skip(self, inputs))]
+    async fn validate_input(
+        &self,
+        inputs: String,
+        truncate: Option<usize>,
+        max_new_tokens: Option<u32>,
+    ) -> Result<(String, usize, u32), ValidationError> {
+        // If we have a fast tokenizer
+        if let Some((encoding, inputs)) = self.tokenize(inputs.clone(), truncate).await? {
+            // Create response channel
             let input_length = if self.skip_tokenizer_in_tgi {
                 inputs.chars().filter(|&c| c == ',').count() + 1
             } else {
@@ -370,36 +384,31 @@ fn tokenizer_worker(tokenizer: Tokenizer, mut receiver: mpsc::UnboundedReceiver<
 
 /// Get input length and optionally truncate it
 fn prepare_input(
-    inputs: String,
+    mut inputs: String,
     truncate: Option<usize>,
     tokenizer: &Tokenizer,
-) -> Result<(String, usize), ValidationError> {
+) -> Result<(tokenizers::Encoding, String), ValidationError> {
     // Get the number of tokens in the input
     let mut encoding = tokenizer
         .encode(inputs.clone(), true)
         .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
 
     // Optionally truncate
-    let (inputs, input_length) = match truncate {
-        // Truncate is some and < encoding length
-        Some(truncate) if truncate < encoding.len() => {
-            // truncate encoding and decode new inputs
+    if let Some(truncate) = truncate {
+        if truncate < encoding.len() {
             encoding.truncate(truncate, 0, TruncationDirection::Left);
-            let inputs = tokenizer
+            inputs = tokenizer
                 .decode(encoding.get_ids(), false)
                 .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
-            (inputs, encoding.len())
         }
-        // Nothing to do
-        _ => (inputs, encoding.len()),
-    };
+    }
 
-    Ok((inputs, input_length))
+    Ok((encoding, inputs))
 }
 
 type TokenizerRequest = (
     (String, Option<usize>),
-    oneshot::Sender<Result<(String, usize), ValidationError>>,
+    oneshot::Sender<Result<(tokenizers::Encoding, String), ValidationError>>,
     Span,
 );
 
