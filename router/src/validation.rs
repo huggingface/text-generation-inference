@@ -359,7 +359,7 @@ fn tokenizer_worker(tokenizer: Tokenizer, mut receiver: mpsc::UnboundedReceiver<
 
 /// Get input length and optionally truncate it
 fn prepare_input(
-    inputs: String,
+    mut inputs: String,
     truncate: Option<usize>,
     tokenizer: &Tokenizer,
 ) -> Result<(tokenizers::Encoding, String), ValidationError> {
@@ -372,9 +372,9 @@ fn prepare_input(
     if let Some(truncate) = truncate {
         if truncate < encoding.len() {
             encoding.truncate(truncate, 0, TruncationDirection::Left);
-            // inputs = tokenizer
-            //         .decode(encoding.get_ids(), false)
-            // .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
+            inputs = tokenizer
+                    .decode(encoding.get_ids(), false)
+            .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
         }
     }
 
