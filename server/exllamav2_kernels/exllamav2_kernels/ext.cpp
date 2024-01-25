@@ -109,9 +109,9 @@ void gemm_half_q_half
     bool force_cuda
 )
 {
-    ofstream myfile;
-    myfile.open ("/tgi/server/exllamav2_kernels/log.txt");
+    ofstream myfile("/tgi/server/exllamav2_kernels/log.txt");
     myfile << "start gemm_half_q_half" << "\n";
+    myfile.flush();
 
     QMatrix* qm = reinterpret_cast<QMatrix*> (b);
 
@@ -124,6 +124,7 @@ void gemm_half_q_half
     const at::cuda::OptionalCUDAGuard device_guard(device_of(a));
     
     myfile << "call gemm_half_q_half_cuda" << "\n";
+    myfile.flush();
     gemm_half_q_half_cuda
     (
         at::cuda::getCurrentCUDABlasHandle(),

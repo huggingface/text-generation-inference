@@ -43,11 +43,11 @@ void gemm_half_q_half_cuda_part
     bool mul_r_weights
 )
 {
-    ofstream myfile;
-    myfile.open ("/tgi/server/exllamav2_kernels/log.txt");
+    ofstream myfile("/tgi/server/exllamav2_kernels/log.txt");
     if (!b->is_gptq)
     {
         myfile << "go in is_gptq path" << "\n";
+        myfile.flush();
         dim3 blockDim, gridDim;
         blockDim.x = EXL2_BLOCK_KN_SIZE;
         blockDim.y = 1;
@@ -59,6 +59,7 @@ void gemm_half_q_half_cuda_part
         fp_gemm_half_q_half_kernel kernel = pick_gemm_half_q_half_kernel(m_count, r_weights != NULL, mul_r_weights);
 
         myfile << "launch kernel" << "\n";
+        myfile.flush();
         kernel<<<gridDim, blockDim>>>
         (
             a,
@@ -119,6 +120,7 @@ void gemm_half_q_half_cuda_part
             r_weights_stride
         );
     }
+    myfile.flush();
     myfile.close();
 }
 
