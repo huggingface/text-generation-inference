@@ -16,7 +16,7 @@
 #include <iostream>
 #include <fstream>
 using namespace std;
-
+#include <stdio.h>
 // Some decluttering macros
 
 #define TORCH_CHECK_DTYPE(__x, __dtype) TORCH_CHECK((__x).dtype() == torch::__dtype, #__x " is incorrect datatype, must be " #__dtype)
@@ -60,11 +60,6 @@ uintptr_t make_q_matrix
     int groups;
     int height;
 
-    ofstream myfile("/tgi/server/exllamav2_kernels/log.txt", ios::app);
-    myfile << "in make_q_matrix" << "\n";
-    myfile.flush();
-    myfile.close();
-
     if (!q_scale.device().is_meta())
     {
         TORCH_CHECK_SHAPES(q_weight, 1, q_scale, 1, 8);
@@ -81,11 +76,6 @@ uintptr_t make_q_matrix
     }
 
     TORCH_CHECK(temp_dq.size(0) >= width * height, "Insufficient size of temp_dq buffer")
-
-    ofstream myfile2("/tgi/server/exllamav2_kernels/log.txt", ios::app);
-    myfile2 << "q_scale is meta" << q_scale.device().is_meta() << "\n";
-    myfile2.flush();
-    myfile2.close();
 
     QMatrix* m = new QMatrix
     (
@@ -119,14 +109,6 @@ void gemm_half_q_half
     bool force_cuda
 )
 {
-
-    //throw std::invalid_argument("a or b negative");
-
-    ofstream myfile("/tgi/server/exllamav2_kernels/log.txt", ios::app);
-    myfile << "start gemm_half_q_half" << "\n";
-    myfile.flush();
-    myfile.close();
-
     QMatrix* qm = reinterpret_cast<QMatrix*> (b);
 
     TORCH_CHECK_DTYPE(a, kHalf);
@@ -137,8 +119,6 @@ void gemm_half_q_half
 
     const at::cuda::OptionalCUDAGuard device_guard(device_of(a));
     
-    //myfile << "call gemm_half_q_half_cuda" << "\n";
-    //myfile.flush();
     gemm_half_q_half_cuda
     (
         at::cuda::getCurrentCUDABlasHandle(),

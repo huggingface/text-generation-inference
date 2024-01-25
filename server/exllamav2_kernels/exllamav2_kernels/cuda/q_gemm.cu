@@ -23,10 +23,6 @@
 #include "q_gemm_kernel.cuh"
 #include "q_gemm_kernel_gptq.cuh"
 
-#include <iostream>
-#include <fstream>
-using namespace std;
-#include <stdio.h>
 void gemm_half_q_half_cuda_part
 (
     const half* a,
@@ -42,11 +38,8 @@ void gemm_half_q_half_cuda_part
     bool mul_r_weights
 )
 {
-    ofstream myfile("/tgi/server/exllamav2_kernels/log.txt", ios::app);
     if (!b->is_gptq)
     {
-        myfile << "go in is_gptq path" << "\n";
-        myfile.flush();
         dim3 blockDim, gridDim;
         blockDim.x = EXL2_BLOCK_KN_SIZE;
         blockDim.y = 1;
@@ -57,8 +50,6 @@ void gemm_half_q_half_cuda_part
 
         fp_gemm_half_q_half_kernel kernel = pick_gemm_half_q_half_kernel(m_count, r_weights != NULL, mul_r_weights);
 
-        myfile << "launch kernel" << "\n";
-        myfile.flush();
         kernel<<<gridDim, blockDim>>>
         (
             a,
@@ -119,8 +110,6 @@ void gemm_half_q_half_cuda_part
             r_weights_stride
         );
     }
-    myfile.flush();
-    myfile.close();
 }
 
 void gemm_half_q_half_cuda
@@ -140,51 +129,55 @@ void gemm_half_q_half_cuda
     bool mul_r_weights
 )
 {
-    ofstream myfile("/tgi/server/exllamav2_kernels/log.txt", ios::app);
     if (size_m > MAX_Q_GEMM_ROWS && !force_cuda)
     {
-        freopen("/dev/tty", "w", stdout);
-        freopen("/dev/tty", "w", stderr);
-
-        std::cout << "going in cublas path" << "\n";
-
         // Reconstruct FP16 matrix, then cuBLAS
 
-        if (!temp_dq) temp_dq = b->temp_dq;
-        b->reconstruct(temp_dq);
+        // if (!temp_dq) {
+            // half* temp_dq_cpu = (half*)malloc(size_n * size_k * sizeof(half));
+
+            // cudaMalloc(&temp_dq, size_n * size_k * sizeof(half)); 
+            // cudaError_t error = cudaGetLastError();
+            // if (error != cudaSuccess) 
+            //     printf("Error in cudaMalloc: %s\n", cudaGetErrorString(error));
+
+            // for (int i = 0; i < size_n * size_k; i++) {
+            //     temp_dq_cpu[i] = 0.0f;
+            // }
+
+        //     cudaMemcpy(temp_dq, temp_dq_cpu, size_n * size_k * sizeof(half), cudaMemcpyHostToDevice);
+        //     error = cudaGetLastError();
+        //     if (error != cudaSuccess) 
+        //         printf("Error in cudaMemcpy: %s\n", cudaGetErrorString(error));
+        // }
+
+        if (!temp_dq) {
+            temp_dq = b->temp_dq;
+            b->reconstruct(temp_dq);
+
+            // half* temp_dq_cpu = (half*)malloc(size_n * size_k * sizeof(half));
+
+            // cudaMalloc(&temp_dq, size_n * size_k * sizeof(half)); 
+            // cudaError_t error = cudaGetLastError();
+            // if (error != cudaSuccess) 
+            //     printf("Error in cudaMalloc: %s\n", cudaGetErrorString(error));
+
+            // for (int i = 0; i < size_n * size_k; i++) {
+            //     temp_dq_cpu[i] = __float2half(0.0f);
+            // }
+
+            // cudaMemcpy(temp_dq, temp_dq_cpu, size_n * size_k * sizeof(half), cudaMemcpyHostToDevice);
+            // b->reconstruct(temp_dq);
+        }
+        
+        //temp_dq = b->temp_dq;
+        //b->reconstruct(temp_dq);
 
         //cublasSetMathMode(cublas_handle, CUBLAS_TENSOR_OP_MATH);
 
         const half alpha = __float2half(1.0f);
         const half beta = clear ? __float2half(0.0f) : __float2half(1.0f);
 
-        freopen("/dev/tty", "w", stdout);
-        freopen("/dev/tty", "w", stderr);
-
-        std:cout << "hey it's me\n" << std::flush;
-
-        //half* val = temp_dq + (size_n * size_k - 1) * sizeof(half);
-        //half* val = temp_dq + 1;
-        
-        half* my_val_host;
-
-        cudaError_t error = cudaGetLastError();
-        if (error != cudaSuccess) 
-            printf("Error before: %s\n", cudaGetErrorString(error));
-
-        cudaError_t err = cudaMemcpy(my_val_host, temp_dq, sizeof(half), cudaMemcpyDeviceToHost);
-        if (err != cudaSuccess) 
-            printf("Error in cudaMemcpy: %s\n", cudaGetErrorString(err));
-
-        // float my_val_float = __half2float(*temp_dq);
-        //std::cout << "temp_dq: " << my_val_float << "\n" << std::flush;
-
-        std::cout << "call cublasHgemm" << "\n";
-        std::cout << "call cublasHgemm size_n" << size_n << "\n";
-        std::cout << "call cublasHgemm size_m" << size_m << "\n";
-        std::cout << "call cublasHgemm size_k" << size_k << "\n";
-        std::cout << "call cublasHgemm b width" << b->width << "\n";
-        std::cout << "call cublasHgemm b height" << b->height << "\n" << std::flush;
         cublasHgemm(cublas_handle,
                     CUBLAS_OP_N,
                     CUBLAS_OP_N,
@@ -217,9 +210,6 @@ void gemm_half_q_half_cuda
     {
         // Quantized matmul
 
-
-        std::cout << "going in gemm_half_q_half_cuda_part path" << "\n";
-
         int block_m_size_max = b->is_gptq ? GPTQ_BLOCK_M_SIZE_MAX : EXL2_BLOCK_M_SIZE_MAX;
         int max_chunks = size_m / block_m_size_max;
         int last_chunk = max_chunks * block_m_size_max;
@@ -227,14 +217,11 @@ void gemm_half_q_half_cuda
 
         if (max_chunks)
         {
-            std::cout << "call gemm_half_q_half_cuda_part max_chunks" << "\n";
-
             gemm_half_q_half_cuda_part(a, b, c, last_chunk, size_n, size_k, block_m_size_max, clear, r_weights, r_weights_stride, mul_r_weights);
         }
 
         if (last_chunk_size)
         {
-            std::cout << "call gemm_half_q_half_cuda_part last_chunk_size" << "\n";
             gemm_half_q_half_cuda_part(a + last_chunk * size_k, b, c + last_chunk * size_n, last_chunk_size, size_n, size_k, last_chunk_size, clear, r_weights, r_weights_stride, mul_r_weights);
         }
     }
