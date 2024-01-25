@@ -17,6 +17,7 @@ class MambaConfig(PretrainedConfig):
     def __init__(
         self,
         vocab_size=50280,
+        d_model=768,
         n_layer=32,
         layer_norm_epsilon=1e-5,
         tie_word_embeddings=False,
@@ -28,6 +29,9 @@ class MambaConfig(PretrainedConfig):
         self.vocab_size = vocab_size
         self.n_layer = n_layer
         self.layer_norm_epsilon = layer_norm_epsilon
+        self.d_model = d_model
+        self.d_inner = d_model * 2
+        self.d_conv = 4
 
         super().__init__(
             pad_token_id=pad_token_id,
@@ -43,19 +47,17 @@ class MambaBlock(nn.Module):
         super().__init__()
 
         # TODO: use model config to set the dt_rank instead of hardcoding it
-        d_inner = 768 * 2
-        d_conv = 4
-        self.dt_rank = (768 + 15) // 16
+        self.dt_rank = (config.d_model + 15) // 16
 
         # TODO: improve how we load the conv1d weights
         # explore a transposed conv1d that avoids the need for
         # a transpose during inference
         self.conv1 = nn.Conv1d(
-            d_inner,
-            d_inner,
-            kernel_size=d_conv,
-            groups=d_inner,
-            padding=d_conv - 1,
+            config.d_inner,
+            config.d_inner,
+            kernel_size=config.d_conv,
+            groups=config.d_inner,
+            padding=config.d_conv - 1,
         )
         self.conv1.weight = nn.Parameter(weights.get_tensor(f"{prefix}.conv1d.weight"))
         self.conv1.bias = nn.Parameter(weights.get_tensor(f"{prefix}.conv1d.bias"))
@@ -148,11 +150,32 @@ class MambaBlock(nn.Module):
         )
         return selective_scan_output
 
-    def forward(self, hidden_states):
+    def forward(self, index, hidden_states, past_transformed_state):
         sequence_length = hidden_states.shape[1]
-        projected_states = self.in_proj(hidden_states)
-        split_states = torch.chunk(projected_states, 2, dim=-1)
-        transformed_states, residual_states = split_states
+
+        # minimal amount of new work on single hidden state (previous hidden state are cached)
+        only_last = hidden_states[:, -1, :]
+        projected_only_last = self.in_proj(only_last)
+        transformed_only_last, residual_only_last = torch.chunk(
+            projected_only_last, 2, dim=-1
+        )
+
+        if past_transformed_state is not None:
+            # build a new transformed_states tensor with past_transformed_state and transformed_only_last
+            new_transformed_states = torch.cat(
+                [past_transformed_state, transformed_only_last.unsqueeze(1)], dim=1
+            )
+            transformed_states = new_transformed_states
+            residual_states = residual_only_last
+        else:
+            # prefilling the cache with the last transformed state
+            projected_states = self.in_proj(hidden_states)
+            split_states = torch.chunk(projected_states, 2, dim=-1)
+            transformed_states, residual_states = split_states
+
+        # NOTE: we need the past hidden states to produce the correct output
+        # therefore we cannot simply compute the most recent and append it as we
+        # did for the transformed states
 
         # TODO: avoid the transpose by using a transposed conv1d
         # apply convolution and narrowing operation
@@ -170,7 +193,8 @@ class MambaBlock(nn.Module):
         output = self.ssm(activated_transformed)
         combined_output = output * activated_residual
 
-        return self.out_proj(combined_output)
+        return self.out_proj(combined_output), transformed_states
+
 
 # TODO: prefer a more optimized implementation of RMSNorm if possible
 class RMSNorm(nn.Module):
@@ -193,20 +217,24 @@ class ResidualBlock(nn.Module):
         self.mamba_block = MambaBlock(
             prefix=f"{layer_id}.mixer", config=config, weights=weights
         )
-        self.layer_norm = RMSNorm(768, eps=config.layer_norm_epsilon)
+        self.layer_norm = RMSNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.layer_norm.scale = nn.Parameter(
             weights.get_tensor(f"{layer_id}.norm.weight")
         )
 
     def forward(
         self,
+        index,
         hidden_states,
+        past_transformed_state,
     ):
         residual = hidden_states
         hidden_states = self.layer_norm(hidden_states)
-        attn_outputs = self.mamba_block(hidden_states)
+        attn_outputs, transformed_states = self.mamba_block(
+            index, hidden_states, past_transformed_state
+        )
         hidden_states = residual + attn_outputs
-        return hidden_states
+        return hidden_states, transformed_states
 
 
 class MambaModel(nn.Module):
@@ -225,10 +253,10 @@ class MambaModel(nn.Module):
         )
 
         # TODO: avoid hardcoded sizes and improve how we load the weights
-        self.norm_f = RMSNorm(768, eps=config.layer_norm_epsilon)
+        self.norm_f = RMSNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.norm_f.scale = nn.Parameter(weights.get_tensor(f"backbone.norm_f.weight"))
         # use the same weights for the embedding and the final layer norm
-        self.lm_head = nn.Linear(768, config.vocab_size, bias=False)
+        self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
         self.lm_head.weight = nn.Parameter(
             self.embed_tokens.weight[: config.vocab_size, :]
         )
@@ -237,50 +265,26 @@ class MambaModel(nn.Module):
         self,
         input_ids: torch.LongTensor,
         past_input_ids: Optional[List[Tuple[torch.FloatTensor]]] = None,
+        past_transformed_states: Optional[List[Tuple[torch.FloatTensor]]] = None,
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
-        # TODO: dont use past_input_ids for the input_ids
-        # find a way to cache previous states/work
+        # NOTE: we need all input_ids to compute the correct embeddings
         if past_input_ids is not None:
-            # append the contents to the input_ids
-            input_ids = torch.cat((past_input_ids, input_ids), dim=1)
+            input_ids = past_input_ids
 
         hidden_states = self.embed_tokens(input_ids)
 
-        for _, block in enumerate(self.blocks):
-            hidden_states = block(hidden_states)
+        past_transformed_states = (
+            [None] * len(self.blocks)
+            if past_transformed_states is None
+            else past_transformed_states
+        )
+
+        for index, block in enumerate(self.blocks):
+            hidden_states, transformed_states = block(
+                index, hidden_states, past_transformed_states[index]
+            )
+            past_transformed_states[index] = transformed_states
 
         final_hidden_states = self.norm_f(hidden_states)
         after_lm_head = self.lm_head(final_hidden_states)
-        return after_lm_head, input_ids
-
-
-# TODO: revisit if we want to use CausalLM
-class MambaForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
-        super().__init__()
-        self.model = MambaModel(config, weights)
-
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        # TODO: dont abuse past_key_values for the input_ids
-        past_key_values: Optional[List[Tuple[torch.FloatTensor]]] = None,
-        # below are unused since this model is attention free
-        attention_mask: Optional[torch.ByteTensor] = None,
-        return_dict: Optional[bool] = None,
-        use_cache: Optional[bool] = None,
-        labels: Optional[torch.LongTensor] = None,
-    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
-        model_output = self.model(
-            input_ids,
-            past_input_ids=past_key_values,
-        )
-        logits = model_output[0]
-        past_hidden_states = model_output[1]
-        return CausalLMOutputWithPast(
-            loss=None,
-            logits=logits,
-            past_key_values=past_hidden_states,
-            hidden_states=None,
-            attentions=None,
-        )
+        return after_lm_head, input_ids, past_transformed_states
