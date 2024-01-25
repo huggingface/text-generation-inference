@@ -462,7 +462,12 @@ pub async fn get_tokenizer_config(api_repo: &ApiRepo) -> Option<HubTokenizerConf
     let reader = BufReader::new(file);
 
     // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
-    let tokenizer_config: HubTokenizerConfig = serde_json::from_reader(reader).ok()?;
+    let tokenizer_config: HubTokenizerConfig = serde_json::from_reader(reader)
+        .map_err(|e| {
+            tracing::warn!("Unable to parse tokenizer config: {}", e);
+            e
+        })
+        .ok()?;
 
     Some(tokenizer_config)
 }
