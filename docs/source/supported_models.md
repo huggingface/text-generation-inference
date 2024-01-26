@@ -21,6 +21,7 @@ The following models are optimized and can be served with TGI, which uses custom
 - [Code Llama](https://huggingface.co/codellama)
 - [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2)
 - [Mixtral](https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1)
+- [Sealion](https://huggingface.co/aisingapore/sealion7b)
 - [Phi](https://huggingface.co/microsoft/phi-2)
 
 If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models:
