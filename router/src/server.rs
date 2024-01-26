@@ -1041,7 +1041,6 @@ pub async fn run(
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
-        .route("/vertex", post(vertex_compatibility))
         .route("/tokenize", post(tokenize))
         .route("/health", get(health))
         .route("/ping", get(health))
@@ -1058,10 +1057,24 @@ pub async fn run(
         ComputeType(std::env::var("COMPUTE_TYPE").unwrap_or("gpu+optimized".to_string()));
 
     // Combine routes and layers
-    let app = Router::new()
+    let mut app = Router::new()
         .merge(swagger_ui)
         .merge(base_routes)
-        .merge(aws_sagemaker_route)
+        .merge(aws_sagemaker_route);
+
+    if cfg!(feature = "google") {
+        // in the google feature case throw and error if any of the env vars are not set
+        let env_predict_route = std::env::var("AIP_PREDICT_ROUTE")
+            .expect("AIP_PREDICT_ROUTE must be set when building with `google` feature");
+        app = app.route(&env_predict_route, post(vertex_compatibility));
+
+        let env_health_route = std::env::var("AIP_HEALTH_ROUTE")
+            .expect("AIP_HEALTH_ROUTE must be set when building with `google` feature");
+        app = app.route(&env_health_route, get(health));
+    }
+
+    // add layers after routes
+    app = app
         .layer(Extension(info))
         .layer(Extension(health_ext.clone()))
         .layer(Extension(compat_return_full_text))
