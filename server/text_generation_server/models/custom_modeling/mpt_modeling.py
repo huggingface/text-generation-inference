@@ -54,9 +54,19 @@ def load_col(config, prefix, weights, bias):
         bias_h = bias_h[0]
         bias_block_size = bias_h // bias_size
 
-        bias_q_part = bias_slice_[bias_rank * bias_block_size : (bias_rank + 1) * bias_block_size]
-        bias_k_part = bias_slice_[bias_h + bias_rank * bias_block_size : bias_h + (bias_rank + 1) * bias_block_size]
-        bias_v_part = bias_slice_[2 * bias_h + bias_rank * bias_block_size : 2 * bias_h + (bias_rank + 1) * bias_block_size]
+        bias_q_part = bias_slice_[
+            bias_rank * bias_block_size : (bias_rank + 1) * bias_block_size
+        ]
+        bias_k_part = bias_slice_[
+            bias_h
+            + bias_rank * bias_block_size : bias_h
+            + (bias_rank + 1) * bias_block_size
+        ]
+        bias_v_part = bias_slice_[
+            2 * bias_h
+            + bias_rank * bias_block_size : 2 * bias_h
+            + (bias_rank + 1) * bias_block_size
+        ]
 
         bias = torch.cat([bias_q_part, bias_k_part, bias_v_part], dim=0)
         if bias.dtype != torch.int32:
@@ -352,8 +362,12 @@ class MultiheadAttention(nn.Module):
             hidden_size = config.d_model
             head_dim = hidden_size // self.n_heads
 
-            self.q_ln = LPLayerNorm(d_model, bias=bias, prefix=f"{prefix}.q_ln", weights=weights)
-            self.k_ln = LPLayerNorm(self.n_heads * head_dim, prefix=f"{prefix}.k_ln", weights=weights)
+            self.q_ln = LPLayerNorm(
+                d_model, bias=bias, prefix=f"{prefix}.q_ln", weights=weights
+            )
+            self.k_ln = LPLayerNorm(
+                self.n_heads * head_dim, prefix=f"{prefix}.k_ln", weights=weights
+            )
         if self.attn_impl == "flash":
             self.attn_fn = flash_attn_fn
         elif self.attn_impl == "triton":
@@ -684,7 +698,6 @@ class LPLayerNorm(torch.nn.LayerNorm):
                 self.bias = nn.Parameter(weights.get_sharded(f"{prefix}.bias", dim=0))
             self.normalized_shape = self.weight.shape
 
-
     def forward(self, x):
         module_device = x.device
         downcast_x = _cast_if_autocast_enabled(x)
@@ -798,7 +811,7 @@ class MPTModel(MPTPreTrainedModel):
         self.wte = TensorParallelEmbedding("transformer.wte", weights)
 
         if not self.alibi:
-           self.wpe = TensorParallelEmbedding("transformer.wpe", weights)
+            self.wpe = TensorParallelEmbedding("transformer.wpe", weights)
         self.blocks = nn.ModuleList(
             [
                 MPTBlock(config, prefix=f"transformer.blocks.{i}", weights=weights)

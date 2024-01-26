@@ -17,6 +17,7 @@ from text_generation_server.utils.layers import (
     FastLayerNorm,
 )
 
+
 class PhiConfig(PretrainedConfig):
     def __init__(
         self,
@@ -25,15 +26,15 @@ class PhiConfig(PretrainedConfig):
         num_hidden_layers=32,
         num_attention_heads=32,
         num_key_value_heads=32,
-        hidden_act="gelu_fast",    # llama uses silu
-        layer_norm_eps=1e-05,      # rms in llama,
+        hidden_act="gelu_fast",  # llama uses silu
+        layer_norm_eps=1e-05,  # rms in llama,
         pad_token_id=0,
         bos_token_id=1,
         eos_token_id=2,
         tie_word_embeddings=False,
         rope_theta=10000.0,
-        resid_pdrop=0.1,           # llama doesn't have this
-        partial_rotary_factor=0.5, # important difference between llama and phi
+        resid_pdrop=0.1,  # llama doesn't have this
+        partial_rotary_factor=0.5,  # important difference between llama and phi
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -55,6 +56,7 @@ class PhiConfig(PretrainedConfig):
             **kwargs,
         )
 
+
 # this is the same as llama except for Phi uses bias=True
 def load_attention(config, prefix, weights):
     if config.num_attention_heads != config.num_key_value_heads:
@@ -67,6 +69,7 @@ def load_attention(config, prefix, weights):
             weights=weights,
             bias=True,
         )
+
 
 def _load_gqa(config, prefix: str, weights):
     assert config.hidden_size % config.num_attention_heads == 0
@@ -93,6 +96,7 @@ def _load_gqa(config, prefix: str, weights):
     return TensorParallelColumnLinear(
         get_linear(weight, bias=True, quantize=config.quantize)
     )
+
 
 class FlashPhiAttention(torch.nn.Module):
     def __init__(
@@ -173,8 +177,7 @@ class FlashPhiAttention(torch.nn.Module):
         #
         # Apply partial positional embeddings in place
         self.rotary_emb(
-            query[:, :, :self.rotary_dim], kv[:, 0, :, :self.rotary_dim],
-            cos, sin
+            query[:, :, : self.rotary_dim], kv[:, 0, :, : self.rotary_dim], cos, sin
         )
 
         # Reshape key and value and cache
@@ -210,7 +213,8 @@ class FlashPhiAttention(torch.nn.Module):
                 max_s,
             )
 
-        return self.dense(attn_output.view(-1, self.num_heads*self.head_size))
+        return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
+
 
 class PhiMLP(nn.Module):
     def __init__(self, prefix, config, weights):
@@ -256,7 +260,9 @@ class FlashPhiLayer(nn.Module):
         )
         self.mlp = PhiMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
         self.input_layernorm = FastLayerNorm.load(
-            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.layer_norm_eps
+            prefix=f"{prefix}.input_layernorm",
+            weights=weights,
+            eps=config.layer_norm_eps,
         )
         self.resid_dropout = torch.nn.Dropout(config.resid_pdrop)
 
@@ -287,9 +293,12 @@ class FlashPhiLayer(nn.Module):
             max_s,
         )
 
-        hidden_states = self.resid_dropout(attn_output).add(self.resid_dropout(self.mlp(hidden_states)))
+        hidden_states = self.resid_dropout(attn_output).add(
+            self.resid_dropout(self.mlp(hidden_states))
+        )
 
         return hidden_states, res
+
 
 class FlashPhiModel(torch.nn.Module):
     def __init__(self, config, weights):
@@ -361,6 +370,7 @@ class FlashPhiModel(torch.nn.Module):
 
         return hidden_states
 
+
 class FlashPhiForCausalLM(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
@@ -380,7 +390,7 @@ class FlashPhiForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor, 
+        input_lengths: torch.Tensor,
         max_s: int,
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
