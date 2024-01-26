@@ -62,14 +62,12 @@ class PhiConfig(PretrainedConfig):
             **kwargs,
         )
 
+
 # RotaryEmbedding is a class that implements the rotary embedding.
 class RotaryEmbedding(nn.Module):
     def __init__(self, dim, max_seq_len):
         super().__init__()
-        inv_freq = [
-            1.0 / 10000.0 ** (i / dim)
-            for i in range(0, dim, 2)
-        ]
+        inv_freq = [1.0 / 10000.0 ** (i / dim) for i in range(0, dim, 2)]
         inv_freq_len = len(inv_freq)
         inv_freq = torch.tensor(inv_freq).view(1, inv_freq_len)
         t = torch.arange(0, max_seq_len, dtype=torch.float).view(max_seq_len, 1)
@@ -131,6 +129,7 @@ class PhiCausalLMHead(nn.Module):
         hidden_states = self.linear(hidden_states)
         return hidden_states
 
+
 # PhiMHA is a multi-head attention layer. This layer uses an attention mask to prevent tokens from attending to subsequent tokens.
 class PhiMHA(nn.Module):
     def __init__(self, prefix, config, weights):
@@ -172,18 +171,26 @@ class PhiMHA(nn.Module):
             v = torch.cat([prev_v, v], dim=1)
 
         past_kv_cache = [k, v]
-        attn_weights = torch.einsum('bthd,bshd->bhts', q, k * self.softmax_scale)
+        attn_weights = torch.einsum("bthd,bshd->bhts", q, k * self.softmax_scale)
 
         if attention_mask is not None:
             seqlen_k = k.shape[1]
             seqlen_q = q.shape[1]
-            causal_mask = torch.triu(torch.full((seqlen_q, seqlen_k), -10000.0, device=attn_weights.device), 1)
+            causal_mask = torch.triu(
+                torch.full((seqlen_q, seqlen_k), -10000.0, device=attn_weights.device),
+                1,
+            )
             attn_weights = attn_weights + causal_mask.to(dtype=attn_weights.dtype)
-  
+
         attn_weights = torch.nn.functional.softmax(attn_weights, dim=-1)
         attn_output = attn_weights.matmul(v.transpose(1, 2)).squeeze(0)
-        attn_output = attn_output.view((b_size, self.num_heads, seq_len, self.head_dim)).transpose(1, 2).flatten(-2)
+        attn_output = (
+            attn_output.view((b_size, self.num_heads, seq_len, self.head_dim))
+            .transpose(1, 2)
+            .flatten(-2)
+        )
         return self.out_proj(attn_output), past_kv_cache
+
 
 # PhiMLP is a multi-layer perceptron. It contains two linear layers with a gelu activation function.
 class PhiMLP(nn.Module):
@@ -204,19 +211,22 @@ class PhiMLP(nn.Module):
             bias=False,
         )
         self.activation = torch.nn.functional.gelu
-            
+
     def forward(self, hidden_states):
         hidden_states = self.fc1(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.fc2(hidden_states)
         return hidden_states
 
+
 # PhiBlock is a single transformer block. It contains a layer norm, a multi-head attention layer and an multi-layer perceptron.
 class PhiBlock(nn.Module):
     def __init__(self, layer_id, config, weights):
         super().__init__()
         self.layer_id = layer_id
-        self.layer_norm = nn.LayerNorm.load(prefix=f"{layer_id}.ln", weights=weights, eps=config.layer_norm_epsilon)
+        self.layer_norm = nn.LayerNorm.load(
+            prefix=f"{layer_id}.ln", weights=weights, eps=config.layer_norm_epsilon
+        )
         self.mixer = PhiMHA(prefix=f"{layer_id}.mixer", config=config, weights=weights)
         self.mlp = PhiMLP(prefix=f"{layer_id}.mlp", config=config, weights=weights)
 
@@ -228,10 +238,13 @@ class PhiBlock(nn.Module):
     ):
         residual = hidden_states
         hidden_states = self.layer_norm(hidden_states)
-        attn_outputs, past_kv_cache = self.mixer(hidden_states, kv_cache, attention_mask)
+        attn_outputs, past_kv_cache = self.mixer(
+            hidden_states, kv_cache, attention_mask
+        )
         feed_forward_hidden_states = self.mlp(hidden_states)
         out = attn_outputs + feed_forward_hidden_states + residual
         return out, past_kv_cache
+
 
 # PhiModel implements the embedding layer and the transformer blocks.
 class PhiModel(nn.Module):
@@ -241,9 +254,12 @@ class PhiModel(nn.Module):
         self.tp_world_size = weights.process_group.size()
         self.embed_tokens = TensorParallelEmbedding(
             prefix="transformer.embd.wte", weights=weights
-        )        
+        )
         self.blocks = nn.ModuleList(
-            [PhiBlock(f"transformer.h.{layer_id}", config, weights) for layer_id in range(config.n_layer)]
+            [
+                PhiBlock(f"transformer.h.{layer_id}", config, weights)
+                for layer_id in range(config.n_layer)
+            ]
         )
 
     def forward(
@@ -258,13 +274,18 @@ class PhiModel(nn.Module):
         seq_len = hidden_states.shape[1]
         mask = None if seq_len <= 1 else attention_mask
 
-        past_key_values = [None] * len(self.blocks) if past_key_values is None else past_key_values
+        past_key_values = (
+            [None] * len(self.blocks) if past_key_values is None else past_key_values
+        )
 
         for index, block in enumerate(self.blocks):
-            hidden_states, new_key_values = block(hidden_states, past_key_values[index], mask)
+            hidden_states, new_key_values = block(
+                hidden_states, past_key_values[index], mask
+            )
             past_key_values[index] = new_key_values
 
         return hidden_states, past_key_values
+
 
 # PhiForCausalLM wraps the PhiModel and PhiCausalLMHead together and returns a CausalLMOutputWithPast object.
 class PhiForCausalLM(torch.nn.Module):
@@ -290,12 +311,15 @@ class PhiForCausalLM(torch.nn.Module):
         loss = None
         if labels is not None:
             loss = nn.CrossEntropyLoss()(
-                logits[:, :-1].view(-1, logits.size(-1)),
-                labels[:, 1:].view(-1)
+                logits[:, :-1].view(-1, logits.size(-1)), labels[:, 1:].view(-1)
             )
 
         if not return_dict:
-            return ((loss,) + (logits,) + model_output[1:]) if loss is not None else (logits,) + model_output[1:]
+            return (
+                ((loss,) + (logits,) + model_output[1:])
+                if loss is not None
+                else (logits,) + model_output[1:]
+            )
 
         return CausalLMOutputWithPast(
             loss=loss,
@@ -304,5 +328,3 @@ class PhiForCausalLM(torch.nn.Module):
             hidden_states=None,
             attentions=None,
         )
-
-        

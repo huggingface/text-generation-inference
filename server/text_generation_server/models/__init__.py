@@ -230,7 +230,7 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-        
+
     elif model_type == "phi":
         if FLASH_ATTENTION:
             return FlashPhi(
@@ -252,7 +252,9 @@ def get_model(
 
     elif model_type == "phi-msft":
         if FLASH_ATTENTION:
-            raise NotImplementedError("Legacy phi-msft is not supported with Flash Attention")
+            raise NotImplementedError(
+                "Legacy phi-msft is not supported with Flash Attention"
+            )
         else:
             return Phi(
                 model_id,
