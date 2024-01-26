@@ -198,7 +198,7 @@ Be aware that the official Docker image has them enabled by default.
 
 ## Optimized architectures
 
-TGI works out of the box to serve optimized models in [this list](https://huggingface.co/docs/text-generation-inference/supported_models).
+TGI works out of the box to serve optimized models for all modern models. They can be found in [this list](https://huggingface.co/docs/text-generation-inference/supported_models).
 
 Other architectures are supported on a best-effort basis using:
 
