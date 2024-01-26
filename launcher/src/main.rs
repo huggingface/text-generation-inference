@@ -372,7 +372,7 @@ struct Args {
     #[clap(long, env)]
     tokenizer_config_path: Option<String>,
 
-    /// The path to the tokenizer config file. This path is used to load the tokenizer configuration which may 
+    /// The path to the tokenizer config file. This path is used to load the tokenizer configuration which may
     /// include a `chat_template`. If not provided, the default config will be used from the model hub.
     #[clap(long, short, action)]
     env: bool,
