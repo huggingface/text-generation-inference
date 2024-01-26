@@ -21,16 +21,16 @@ mod env_runtime;
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum Quantization {
-    /// 4 bit quantization. Requires a specific GTPQ quantized model:
+    /// 4 bit quantization. Requires a specific AWQ quantized model:
     ///   https://hf.co/models?search=awq.
-    /// Should replace GPTQ models whereever possible because of the better latency
+    /// Should replace GPTQ models wherever possible because of the better latency
     Awq,
     /// 8 bit quantization, doesn't require specific model.
     /// Should be a drop-in replacement to bitsandbytes with much better performance.
     /// Kernels are from https://github.com/NetEase-FuXi/EETQ.git
     Eetq,
     /// 4 bit quantization. Requires a specific GTPQ quantized model: https://hf.co/models?search=gptq.
-    /// text-generation-inference will use exllama (faster) kernels whereever possible, and use
+    /// text-generation-inference will use exllama (faster) kernels wherever possible, and use
     /// triton kernel (wider support) when it's not.
     /// AWQ has faster kernels.
     Gptq,
