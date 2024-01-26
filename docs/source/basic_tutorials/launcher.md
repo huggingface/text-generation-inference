@@ -355,6 +355,14 @@ Options:
           [env: NGROK_EDGE=]
 
 ```
+## TOKENIZER_CONFIG_PATH
+```shell
+      --tokenizer-config-path <TOKENIZER_CONFIG_PATH>
+          The path to the tokenizer config file. This path is used to load the tokenizer configuration which may include a `chat_template`. If not provided, the default config will be used from the model hub
+          
+          [env: TOKENIZER_CONFIG_PATH=]
+
+```
 ## ENV
 ```shell
   -e, --env
