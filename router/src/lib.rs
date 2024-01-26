@@ -362,7 +362,7 @@ pub(crate) struct ChatRequest {
     /// How many chat completion choices to generate for each input message. Note that you will be charged based on the
     /// number of generated tokens across all of the choices. Keep n as 1 to minimize costs.
     #[serde(default)]
-    #[schema(nullable=true, example = "2")]
+    #[schema(nullable = true, example = "2")]
     pub n: Option<u32>,
 
     /// UNUSED
@@ -472,7 +472,7 @@ pub struct SimpleToken {
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
-#[schema(example="Length")]
+#[schema(example = "Length")]
 pub(crate) enum FinishReason {
     #[schema(rename = "length")]
     Length,
