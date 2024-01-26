@@ -277,7 +277,8 @@ class HeterogeneousNextTokenChooser:
             scores[:, j] = _scores
             next_ids[:, j] = _next_ids
         next_ids = next_ids.view(B * S)
-        scores = scores.view(B * S, -1)
+        allscores = scores.view(B * S, -1)
+        alllogprobs = torch.log_softmax(allscores, -1)
 
         if speculated_ids is not None:
             accepted_ids = []
@@ -305,15 +306,14 @@ class HeterogeneousNextTokenChooser:
                 accepted_ids, device=input_ids.device, dtype=input_ids.dtype
             )
             next_ids = next_ids[indices]
-            scores = scores[indices]
             indices = torch.arange(B, device=input_ids.device) * S
             if speculative_scores is not None:
                 speculative_scores = speculative_scores[indices + accepted_ids - 1]
         else:
             accepted_ids = torch.ones_like(next_ids)
 
-        logprobs = torch.log_softmax(scores, -1)
-        next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
+        next_logprobs = torch.gather(alllogprobs, 1, next_ids.view(-1, 1)).view(-1)
+
 
         if speculate > 0:
             if speculative_scores is not None:
@@ -327,7 +327,7 @@ class HeterogeneousNextTokenChooser:
         else:
             speculative_ids = None
 
-        return next_ids, next_logprobs, logprobs, accepted_ids, speculative_ids
+        return next_ids, next_logprobs, alllogprobs, accepted_ids, speculative_ids
 
     def filter(self, indices):
         if self.watermark_processor is not None:
@@ -436,7 +436,7 @@ class HeterogeneousSampling:
 
 
 def batch_top_tokens(
-    top_n_tokens: List[int], top_n_tokens_tensor: torch.Tensor, logprobs: torch.Tensor
+        top_n_tokens: List[int], top_n_tokens_tensor: torch.Tensor, logprobs: torch.Tensor, accepted_ids: torch.Tensor, speculative_length: int
 ) -> Tuple[List[List[int]], List[List[float]]]:
     """Find the top n most likely tokens for a batch of generations.
 
@@ -448,12 +448,16 @@ def batch_top_tokens(
     if max_top_n == 0:
         return [[]] * len(top_n_tokens), [[]] * len(top_n_tokens)
 
+
+    n = speculative_length + 1
+    top_n_tokens_tensor = top_n_tokens_tensor.repeat_interleave(n)
     # Ensure top_n doesn't exceed vocab size
-    top_n_tokens = [min(tok, logprobs.size(-1)) for tok in top_n_tokens]
+    top_n_tokens = [min(tok, logprobs.size(-1)) for tok in top_n_tokens for _ in range(speculative_length + 1)]
 
     # Parallel kthvalue adapted from https://discuss.pytorch.org/t/how-to-efficiently-get-the-k-th-largest-values-in-parallel/160529/2
     # Sorted topk is faster than torch.sort() since we only need a small subset
-    sorted_top_k = torch.topk(logprobs, k=max_top_n, dim=1, sorted=True).values
+    sorted_top_k = torch.topk(logprobs, k=max_top_n, dim=-1, sorted=True).values
+
     nth_highest = torch.gather(
         sorted_top_k, 1, (top_n_tokens_tensor - 1).clip(min=0).unsqueeze(1)
     )
@@ -471,13 +475,30 @@ def batch_top_tokens(
     top_indices = top_k.indices.tolist()
     top_values = top_k.values.tolist()
 
-    return (
-        [
-            idxs[:n] if req_n > 0 else []
-            for idxs, n, req_n in zip(top_indices, top_n_ishes, top_n_tokens)
-        ],
-        [
-            vals[:n] if req_n > 0 else []
-            for vals, n, req_n in zip(top_values, top_n_ishes, top_n_tokens)
-        ],
-    )
+    batch_top_token_ids = []
+    batch_top_token_logprobs = []
+    accepted_ids = accepted_ids.tolist()
+    for i, n_accepted_ids in enumerate(accepted_ids):
+        _top_indices = top_indices[n * i: n * (i + 1)]
+        _top_values = top_values[n * i: n * (i + 1)]
+        _top_n_ishes = top_n_ishes[n * i: n * (i + 1)]
+        _top_n_tokens = top_n_tokens[n * i: n * (i + 1)]
+        _top_indices = _top_indices[:n_accepted_ids]
+        _top_values = _top_values[:n_accepted_ids]
+        _top_n_ishes = _top_n_ishes[:n_accepted_ids]
+        _top_n_tokens = _top_n_tokens[:n_accepted_ids]
+
+        row_top_token_ids = []
+        row_top_token_logprobs = []
+
+        for idxs, vals, n, req_n in zip(_top_indices, _top_values, _top_n_ishes, _top_n_tokens):
+            indices = idxs[:n] if req_n > 0 else []
+            values = vals[:n] if req_n > 0 else []
+
+            row_top_token_ids.append(indices)
+            row_top_token_logprobs.append(values)
+
+        batch_top_token_ids.append(row_top_token_ids)
+        batch_top_token_logprobs.append(row_top_token_logprobs)
+
+    return batch_top_token_ids, batch_top_token_logprobs
