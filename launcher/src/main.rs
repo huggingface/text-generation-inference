@@ -368,13 +368,13 @@ struct Args {
     #[clap(long, env)]
     ngrok_edge: Option<String>,
 
-    /// Display a lot of information about your runtime environment
-    #[clap(long, short, action)]
-    env: bool,
-
     /// path to the tokenizer config file
     #[clap(long, env)]
     tokenizer_config_path: Option<String>,
+
+    /// Display a lot of information about your runtime environment
+    #[clap(long, short, action)]
+    env: bool,
 }
 
 #[derive(Debug)]
