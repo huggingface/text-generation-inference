@@ -371,6 +371,10 @@ struct Args {
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
     env: bool,
+
+    /// path to the tokenizer config file
+    #[clap(long, env)]
+    tokenizer_config_path: Option<String>,
 }
 
 #[derive(Debug)]
@@ -1015,6 +1019,12 @@ fn spawn_webserver(
         "--tokenizer-name".to_string(),
         args.model_id,
     ];
+
+    // Tokenizer config path
+    if let Some(ref tokenizer_config_path) = args.tokenizer_config_path {
+        router_args.push("--tokenizer-config-path".to_string());
+        router_args.push(tokenizer_config_path.to_string());
+    }
 
     // Model optional max batch total tokens
     if let Some(max_batch_total_tokens) = args.max_batch_total_tokens {
