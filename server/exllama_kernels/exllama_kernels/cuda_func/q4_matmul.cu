@@ -2,8 +2,11 @@
 #include "column_remap.cuh"
 #include "../util.cuh"
 #include "../matrix.cuh"
-#include "../cuda_compat.cuh"
+#include "../cu_compat.cuh"
 #include "../cuda_buffers.cuh"
+#if defined(USE_ROCM)
+#include "../hip_compat.cuh"
+#endif
 
 const int THREADS_X = 32;       // Block size and thread count along columns in w and out
 const int THREADS_Y = 1;        // Block size and thread count along rows in x and out
@@ -128,7 +131,7 @@ __global__ void q4_matmul_kernel
 
     if constexpr (use_half2)
     {
-        half result = __hadd(acc.x, acc.y);
+        half result = __hadd(__low2half(acc), __high2half(acc));
         atomicAdd(out_.item_ptr(x_row, w_column), result);
     }
     else

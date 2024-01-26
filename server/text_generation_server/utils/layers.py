@@ -33,7 +33,7 @@ except Exception:
     major = 1
 
 HAS_EXLLAMA = False
-CAN_EXLLAMA = major >= 8
+CAN_EXLLAMA = major >= 8 or IS_ROCM_SYSTEM
 V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
 # if V2 and int(os.getenv("WORLD_SIZE", "1")) > 1:
 #     V2 = False
