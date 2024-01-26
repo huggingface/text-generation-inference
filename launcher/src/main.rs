@@ -372,7 +372,7 @@ struct Args {
     /// include a `chat_template`. If not provided, the default config will be used from the model hub.
     #[clap(long, env)]
     tokenizer_config_path: Option<String>,
-    
+
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
     env: bool,
