@@ -856,10 +856,13 @@ class CausalLM(Model):
                     next_token_ids, next_token_logprobs, logprobs, _, _ = batch.next_token_chooser(
                         batch.input_ids, logits.squeeze(-2), self.speculate
                     )
+                # Speculation is not active for causal
+                accepted_ids = torch.ones_like(batch.input_ids)[:, 0]
                 batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
                     batch.top_n_tokens,
                     batch.top_n_tokens_tensor,
                     logprobs,
+                    accepted_ids,
                 )
 
                 prev_batches.append({
@@ -1036,20 +1039,24 @@ class CausalLM(Model):
                     prefill_tokens = None
 
                 if top_n_tokens > 0:
-                    toptoken_texts = self.tokenizer.batch_decode(
-                        top_token_ids,
-                        clean_up_tokenization_spaces=False,
-                        skip_special_tokens=False,
-                    )
-                    special_toptokens = [
-                        token_id in self.all_special_ids for token_id in top_token_ids
-                    ]
-                    top_tokens = Tokens(
-                        top_token_ids,
-                        top_token_logprobs,
-                        toptoken_texts,
-                        special_toptokens,
-                    )
+                    all_top_tokens = []
+                    for (top_token_ids, top_token_logprobs) in zip(top_token_ids, top_token_logprobs):
+                        toptoken_texts = self.tokenizer.batch_decode(
+                            top_token_ids,
+                            clean_up_tokenization_spaces=False,
+                            skip_special_tokens=False,
+                        )
+                        special_toptokens = [
+                            token_id in self.all_special_ids for token_id in top_token_ids
+                        ]
+                        top_tokens = Tokens(
+                            top_token_ids,
+                            top_token_logprobs,
+                            toptoken_texts,
+                            special_toptokens,
+                        )
+                        all_top_tokens.append(top_tokens)
+                    top_tokens = all_top_tokens
                 else:
                     top_tokens = None
 
