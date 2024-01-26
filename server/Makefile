@@ -30,3 +30,4 @@ run-dev:
 export-requirements:
 	poetry export -o requirements_cuda.txt --extras bnb --without-hashes
 	poetry export -o requirements_rocm.txt --without-hashes
+	poetry export -o requirements_common.txt --without-hashes
