@@ -306,13 +306,15 @@ class HeterogeneousNextTokenChooser:
                 accepted_ids, device=input_ids.device, dtype=input_ids.dtype
             )
             next_ids = next_ids[indices]
+            logprobs = alllogprobs[indices]
             indices = torch.arange(B, device=input_ids.device) * S
             if speculative_scores is not None:
                 speculative_scores = speculative_scores[indices + accepted_ids - 1]
         else:
             accepted_ids = torch.ones_like(next_ids)
+            logprobs = alllogprobs
 
-        next_logprobs = torch.gather(alllogprobs, 1, next_ids.view(-1, 1)).view(-1)
+        next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
 
 
         if speculate > 0:
@@ -436,7 +438,7 @@ class HeterogeneousSampling:
 
 
 def batch_top_tokens(
-        top_n_tokens: List[int], top_n_tokens_tensor: torch.Tensor, logprobs: torch.Tensor, accepted_ids: torch.Tensor
+    top_n_tokens: List[int], top_n_tokens_tensor: torch.Tensor, logprobs: torch.Tensor, accepted_ids: torch.Tensor
 ) -> Tuple[List[List[List[int]]], List[List[List[float]]]]:
     """Find the top n most likely tokens for a batch of generations.
 
@@ -486,6 +488,7 @@ def batch_top_tokens(
         _top_values = top_values[start: stop]
         _top_n_ishes = top_n_ishes[start: stop]
         _top_n_tokens = top_n_tokens[start: stop]
+
         _top_indices = _top_indices[:n_accepted_ids]
         _top_values = _top_values[:n_accepted_ids]
         _top_n_ishes = _top_n_ishes[:n_accepted_ids]
