@@ -641,7 +641,7 @@ class Seq2SeqLM(Model):
         )
 
         # Speculation is not active for seq2seq
-        accepted_ids = torch.ones_like(batch.input_ids) 
+        accepted_ids = torch.ones_like(batch.decoder_input_ids) 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens,
             batch.top_n_tokens_tensor,
