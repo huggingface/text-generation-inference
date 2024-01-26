@@ -2,3 +2,13 @@
 target
 router/tokenizer.json
 *__pycache__*
+
+# ROCm auto-generated files
+*.hip
+server/exllamav2_kernels/exllamav2_kernels/hip/
+server/exllama_kernels/exllama_kernels/hip/
+server/exllama_kernels/exllama_kernels/hip_func/
+*_hip.cuh
+server/exllama_kernels/exllama_kernels/hip_buffers.cuh
+server/exllama_kernels/exllama_kernels/exllama_ext_hip.cpp
+

@@ -1,12 +1,9 @@
 # Adapted from turboderp exllama: https://github.com/turboderp/exllamav2
 
-from logging import getLogger
-
 import torch
 import torch.nn as nn
-import math
 
-logger = getLogger(__name__)
+from loguru import logger
 
 try:
     from exllamav2_kernels import make_q_matrix, gemm_half_q_half
