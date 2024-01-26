@@ -1041,6 +1041,7 @@ pub async fn run(
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
+        .route("/vertex", post(vertex_compatibility))
         .route("/tokenize", post(tokenize))
         .route("/health", get(health))
         .route("/ping", get(health))
@@ -1063,14 +1064,14 @@ pub async fn run(
         .merge(aws_sagemaker_route);
 
     if cfg!(feature = "google") {
-        // in the google feature case throw and error if any of the env vars are not set
-        let env_predict_route = std::env::var("AIP_PREDICT_ROUTE")
-            .expect("AIP_PREDICT_ROUTE must be set when building with `google` feature");
-        app = app.route(&env_predict_route, post(vertex_compatibility));
-
-        let env_health_route = std::env::var("AIP_HEALTH_ROUTE")
-            .expect("AIP_HEALTH_ROUTE must be set when building with `google` feature");
-        app = app.route(&env_health_route, get(health));
+        tracing::info!("Built with `google` feature");
+        tracing::info!("Enviorment variables `AIP_PREDICT_ROUTE` and `AIP_HEALTH_ROUTE` will be respected.");
+        if let Ok(env_predict_route) = std::env::var("AIP_PREDICT_ROUTE") {
+            app = app.route(&env_predict_route, post(compat_generate));
+        }
+        if let Ok(env_health_route) = std::env::var("AIP_HEALTH_ROUTE") {
+            app = app.route(&env_health_route, get(health));
+        }
     }
 
     // add layers after routes
