@@ -2,7 +2,6 @@
 
 import torch
 import torch.nn as nn
-import math
 
 from loguru import logger
 
@@ -21,7 +20,6 @@ def ext_gemm_half_q_half(x, q_handle, q4_width, force_cuda):
     output_shape = x.shape[:-1] + (q4_width,)
     x = x.view(-1, x.shape[-1])
     output = torch.empty((x.shape[0], q4_width), dtype=torch.half, device=x.device)
-    logger.info("calling gemm_half_q_half")
     gemm_half_q_half(x, q_handle, output, force_cuda)
     return output.view(output_shape)
 
@@ -191,7 +189,6 @@ class QuantLinear(nn.Module):
         self.q_handle = ext_make_q_matrix(self.q_tensors, temp_dq)
 
     def forward(self, x, force_cuda=False):
-        logger.info("calling ext_gemm_half_q_half")
         output = ext_gemm_half_q_half(x, self.q_handle, self.outfeatures, force_cuda)
 
         if self.bias is not None:

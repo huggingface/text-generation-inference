@@ -76,7 +76,7 @@ RUN chmod +x ~/mambaforge.sh && \
     rm ~/mambaforge.sh
 
 # Install PyTorch 2.2 RC compiled against RoCm 5.7, as VLLM can not be compiled with RoCm 5.6.
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/test/rocm5.7/
+RUN pip install torch --index-url https://download.pytorch.org/whl/test/rocm5.7/
 
 FROM base AS kernel-builder
 
