@@ -21,7 +21,7 @@ async def test_flash_phi(flash_phi, response_snapshot):
     )
 
     assert response.details.generated_tokens == 10
-    assert response.generated_text == ": {request}\")\n        response = self"
+    assert response.generated_text == ': {request}")\n        response = self'
     assert response == response_snapshot
 
 
@@ -52,14 +52,12 @@ async def test_flash_phi_all_params(flash_phi, response_snapshot):
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_phi_load(flash_phi, generate_load, response_snapshot):
-    responses = await generate_load(
-        flash_phi, "Test request", max_new_tokens=10, n=4
-    )
+    responses = await generate_load(flash_phi, "Test request", max_new_tokens=10, n=4)
 
     assert len(responses) == 4
     assert all(
         [r.generated_text == responses[0].generated_text for r in responses]
     ), f"{[r.generated_text  for r in responses]}"
-    assert responses[0].generated_text == ": {request}\")\n        response = self"
+    assert responses[0].generated_text == ': {request}")\n        response = self'
 
     assert responses == response_snapshot

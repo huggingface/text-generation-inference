@@ -226,7 +226,7 @@ def download_weights(
                 pass
         except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
             pass
-            
+
     elif (Path(model_id) / "adapter_config.json").exists():
         # Try to load as a local PEFT model
         try:
