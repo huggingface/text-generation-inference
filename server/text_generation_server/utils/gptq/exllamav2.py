@@ -185,6 +185,7 @@ class QuantLinear(nn.Module):
             "g_idx": self.g_idx,
         }
         temp_dq = temp_dq.get_scratch_slice(self.temp_dq_size())
+        self.temp_dq = temp_dq
         self.q_handle = ext_make_q_matrix(self.q_tensors, temp_dq)
 
     def forward(self, x, force_cuda=False):
