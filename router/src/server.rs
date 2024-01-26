@@ -3,10 +3,10 @@ use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
-    BestOfSequence, ChatCompletion, ChatCompletionChunk, ChatRequest, CompatGenerateRequest,
-    Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest, GenerateResponse,
-    HubModelInfo, HubTokenizerConfig, Infer, Info, PrefillToken, SimpleToken, StreamDetails,
-    StreamResponse, Token, Validation,
+    BestOfSequence, ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionDelta,
+    ChatRequest, CompatGenerateRequest, Details, ErrorResponse, FinishReason, GenerateParameters,
+    GenerateRequest, GenerateResponse, HubModelInfo, HubTokenizerConfig, Infer, Info, Message,
+    PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -677,7 +677,7 @@ async fn chat_completions(
     post,
     tag = "Text Generation Inference",
     path = "/tokenize",
-    request_body = TokenizeRequest,
+    request_body = GenerateRequest,
     responses(
     (status = 200, description = "Tokenized ids", body = TokenizeResponse),
     (status = 404, description = "No tokenizer found", body = ErrorResponse,
@@ -688,7 +688,7 @@ async fn chat_completions(
 async fn tokenize(
     Extension(infer): Extension<Infer>,
     Json(req): Json<GenerateRequest>,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<TokenizeResponse>, (StatusCode, Json<ErrorResponse>)> {
     let input = req.inputs.clone();
     let encoding = infer.tokenize(req).await?;
     if let Some(encoding) = encoding {
@@ -706,7 +706,7 @@ async fn tokenize(
                 }
             })
             .collect();
-        Ok(Json(tokens).into_response())
+        Ok(Json(TokenizeResponse(tokens)))
     } else {
         Err((
             StatusCode::NOT_FOUND,
@@ -774,10 +774,18 @@ pub async fn run(
     Info,
     CompatGenerateRequest,
     GenerateRequest,
+    ChatRequest,
+    Message,
+    ChatCompletionChoice,
+    ChatCompletionDelta,
+    ChatCompletionChunk,
+    ChatCompletion,
     GenerateParameters,
     PrefillToken,
     Token,
     GenerateResponse,
+    TokenizeResponse,
+    SimpleToken,
     BestOfSequence,
     Details,
     FinishReason,
