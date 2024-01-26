@@ -640,10 +640,13 @@ class Seq2SeqLM(Model):
             batch.past_key_values,
         )
 
+        # Speculation is not active for seq2seq
+        accepted_ids = torch.ones_like(batch.input_ids) 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens,
             batch.top_n_tokens_tensor,
             torch.log_softmax(logits[:, -1], -1),
+            accepted_ids,
         )
 
         start_decode = time.time_ns()

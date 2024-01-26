@@ -436,8 +436,8 @@ class HeterogeneousSampling:
 
 
 def batch_top_tokens(
-        top_n_tokens: List[int], top_n_tokens_tensor: torch.Tensor, logprobs: torch.Tensor, accepted_ids: torch.Tensor, speculative_length: int
-) -> Tuple[List[List[int]], List[List[float]]]:
+        top_n_tokens: List[int], top_n_tokens_tensor: torch.Tensor, logprobs: torch.Tensor, accepted_ids: torch.Tensor
+) -> Tuple[List[List[List[int]]], List[List[List[float]]]]:
     """Find the top n most likely tokens for a batch of generations.
 
     When multiple tokens have equal probabilities and they don't all fit, the
@@ -446,13 +446,14 @@ def batch_top_tokens(
     max_top_n = max(top_n_tokens)
     # Early exit when top_n_tokens is not used
     if max_top_n == 0:
-        return [[]] * len(top_n_tokens), [[]] * len(top_n_tokens)
+        return [[[]]] * len(top_n_tokens), [[[]]] * len(top_n_tokens)
 
 
-    n = speculative_length + 1
-    top_n_tokens_tensor = top_n_tokens_tensor.repeat_interleave(n)
+    batch_size = accepted_ids.shape[0]
+    speculate_size = logprobs.shape[0] // batch_size
+    top_n_tokens_tensor = top_n_tokens_tensor.repeat_interleave(speculate_size)
     # Ensure top_n doesn't exceed vocab size
-    top_n_tokens = [min(tok, logprobs.size(-1)) for tok in top_n_tokens for _ in range(speculative_length + 1)]
+    top_n_tokens = [min(tok, logprobs.size(-1)) for tok in top_n_tokens for _ in range(speculate_size)]
 
     # Parallel kthvalue adapted from https://discuss.pytorch.org/t/how-to-efficiently-get-the-k-th-largest-values-in-parallel/160529/2
     # Sorted topk is faster than torch.sort() since we only need a small subset
@@ -477,12 +478,14 @@ def batch_top_tokens(
 
     batch_top_token_ids = []
     batch_top_token_logprobs = []
-    accepted_ids = accepted_ids.tolist()
-    for i, n_accepted_ids in enumerate(accepted_ids):
-        _top_indices = top_indices[n * i: n * (i + 1)]
-        _top_values = top_values[n * i: n * (i + 1)]
-        _top_n_ishes = top_n_ishes[n * i: n * (i + 1)]
-        _top_n_tokens = top_n_tokens[n * i: n * (i + 1)]
+    accepted_ids_list = accepted_ids.tolist()
+    for i, n_accepted_ids in enumerate(accepted_ids_list):
+        start = speculate_size * i
+        stop = speculate_size * (i + 1)
+        _top_indices = top_indices[start: stop]
+        _top_values = top_values[start: stop]
+        _top_n_ishes = top_n_ishes[start: stop]
+        _top_n_tokens = top_n_tokens[start: stop]
         _top_indices = _top_indices[:n_accepted_ids]
         _top_values = _top_values[:n_accepted_ids]
         _top_n_ishes = _top_n_ishes[:n_accepted_ids]
