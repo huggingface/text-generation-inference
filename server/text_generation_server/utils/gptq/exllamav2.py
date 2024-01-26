@@ -185,6 +185,10 @@ class QuantLinear(nn.Module):
             "g_idx": self.g_idx,
         }
         temp_dq = temp_dq.get_scratch_slice(self.temp_dq_size())
+
+        # We NEED to keep a pointer on Python side, otherwise the garbage collector will mess with us,
+        # and `Memory access fault by GPU node-2` will EAT you.
+        self.temp_dq = temp_dq
         self.q_handle = ext_make_q_matrix(self.q_tensors, temp_dq)
 
     def forward(self, x, force_cuda=False):
