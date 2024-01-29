@@ -987,7 +987,7 @@ fn compute_type(num_shard: usize) -> Option<String>{
     let output = String::from_utf8(output.stdout).ok()?;
     let fullname = output.split("\n").nth(1)?;
     let cardname = fullname.replace(" ", "-").to_lowercase();
-    let compute_type = format!("{num_shard}x{cardname}");
+    let compute_type = format!("{num_shard}-{cardname}");
     Some(compute_type)
 
 }
