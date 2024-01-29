@@ -256,10 +256,10 @@ class Mamba(Model):
             )
 
             generations.append(generation)
-
+            next_token_tensor = next_token_id_squeezed.view(1, 1)
             # Update values
             batch.input_ids = torch.cat(
-                [batch.input_ids, torch.tensor([[next_token_id_squeezed]])], dim=1
+                [batch.input_ids, next_token_tensor], dim=1
             )
             batch.all_input_ids[i] = all_input_ids
             batch.input_lengths[i] = new_input_length
