@@ -67,7 +67,7 @@ async fn compat_generate(
 
     // switch on stream
     if req.stream {
-        Ok(generate_stream(infer,compute_type,  Json(req.into()))
+        Ok(generate_stream(infer, compute_type, Json(req.into()))
             .await
             .into_response())
     } else {
@@ -372,7 +372,7 @@ async fn generate_stream_internal(
     let compute_characters = req.inputs.chars().count();
 
     let mut headers = HeaderMap::new();
-    headers.insert("x-compute-type",compute_type.parse().unwrap());
+    headers.insert("x-compute-type", compute_type.parse().unwrap());
     headers.insert(
         "x-compute-characters",
         compute_characters.to_string().parse().unwrap(),
@@ -649,13 +649,22 @@ async fn chat_completions(
                 )
         };
 
-        let (headers, response_stream) =
-            generate_stream_internal(infer, compute_type, Json(generate_request), on_message_callback).await;
+        let (headers, response_stream) = generate_stream_internal(
+            infer,
+            compute_type,
+            Json(generate_request),
+            on_message_callback,
+        )
+        .await;
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
-        let (headers, Json(generation)) =
-            generate(Extension(infer), Extension(compute_type), Json(generate_request)).await?;
+        let (headers, Json(generation)) = generate(
+            Extension(infer),
+            Extension(compute_type),
+            Json(generate_request),
+        )
+        .await?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -943,7 +952,8 @@ pub async fn run(
         Router::new().route("/invocations", post(compat_generate)) // Use 'compat_generate' otherwise
     };
 
-    let compute_type = ComputeType(std::env::var("COMPUTE_TYPE").unwrap_or("gpu+optimized".to_string()));
+    let compute_type =
+        ComputeType(std::env::var("COMPUTE_TYPE").unwrap_or("gpu+optimized".to_string()));
 
     // Combine routes and layers
     let app = Router::new()

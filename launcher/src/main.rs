@@ -982,14 +982,16 @@ fn spawn_shards(
     Ok(())
 }
 
-fn compute_type(num_shard: usize) -> Option<String>{
-    let output = Command::new("nvidia-smi").args(["--query-gpu=gpu_name", "--format=csv"]).output().ok()?;
+fn compute_type(num_shard: usize) -> Option<String> {
+    let output = Command::new("nvidia-smi")
+        .args(["--query-gpu=gpu_name", "--format=csv"])
+        .output()
+        .ok()?;
     let output = String::from_utf8(output.stdout).ok()?;
     let fullname = output.split("\n").nth(1)?;
     let cardname = fullname.replace(" ", "-").to_lowercase();
     let compute_type = format!("{num_shard}-{cardname}");
     Some(compute_type)
-
 }
 
 fn spawn_webserver(
@@ -1086,7 +1088,7 @@ fn spawn_webserver(
     // Parse Compute type
     if let Ok(compute_type) = env::var("COMPUTE_TYPE") {
         envs.push(("COMPUTE_TYPE".into(), compute_type.into()))
-    }else if let Some(compute_type) = compute_type(num_shard){
+    } else if let Some(compute_type) = compute_type(num_shard) {
         envs.push(("COMPUTE_TYPE".into(), compute_type.into()))
     }
 
@@ -1283,8 +1285,8 @@ fn main() -> Result<(), LauncherError> {
         return Ok(());
     }
 
-    let mut webserver =
-        spawn_webserver(num_shard, args, shutdown.clone(), &shutdown_receiver).map_err(|err| {
+    let mut webserver = spawn_webserver(num_shard, args, shutdown.clone(), &shutdown_receiver)
+        .map_err(|err| {
             shutdown_shards(shutdown.clone(), &shutdown_receiver);
             err
         })?;
