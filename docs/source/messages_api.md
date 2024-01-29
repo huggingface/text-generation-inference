@@ -1,8 +1,8 @@
 # Messages API
 
-_Messages API is compatible to OpenAI Chat Completion API_
+Text Generation Inference (TGI) now supports the Messages API, which is fully compatible with the OpenAI Chat Completion API. This feature is available starting from version 1.4.0. You can use OpenAI's client libraries or third-party libraries expecting OpenAI schema to interact with TGI's Messages API. Below are some examples of how to utilize this compatibility.
 
-Text Generation Inference (TGI) now supports the Message API which is fully compatible with the OpenAI Chat Completion API. This means you can use OpenAI's client libraries to interact with TGI's Messages API. Below are some examples of how to utilize this compatibility.
+> **Note:** The Messages API is supported from TGI version 1.4.0 and above. Ensure you are using a compatible version to access this feature.
 
 ## Making a Request
 
@@ -87,7 +87,7 @@ TGI can be deployed on various cloud providers for scalable and robust text gene
 
 ## Amazon SageMaker
 
-To enable the Messages API in Amazon SageMaker you need to set the environment variable `MESSAGES_API_ENABLED=true`. 
+To enable the Messages API in Amazon SageMaker you need to set the environment variable `MESSAGES_API_ENABLED=true`.
 
 This will modify the `/invocations` route to accept Messages dictonaries consisting out of role and content. See the example below on how to deploy Llama with the new Messages API.
 
@@ -98,30 +98,30 @@ import boto3
 from sagemaker.huggingface import HuggingFaceModel, get_huggingface_llm_image_uri
 
 try:
-	role = sagemaker.get_execution_role()
+ role = sagemaker.get_execution_role()
 except ValueError:
-	iam = boto3.client('iam')
-	role = iam.get_role(RoleName='sagemaker_execution_role')['Role']['Arn']
+ iam = boto3.client('iam')
+ role = iam.get_role(RoleName='sagemaker_execution_role')['Role']['Arn']
 
 # Hub Model configuration. https://huggingface.co/models
 hub = {
-	'HF_MODEL_ID':'HuggingFaceH4/zephyr-7b-beta',
-	'SM_NUM_GPUS': json.dumps(1),
-    'MESSAGES_API_ENABLED': True
+ 'HF_MODEL_ID':'HuggingFaceH4/zephyr-7b-beta',
+ 'SM_NUM_GPUS': json.dumps(1),
+ 'MESSAGES_API_ENABLED': True
 }
 
 # create Hugging Face Model Class
 huggingface_model = HuggingFaceModel(
-	image_uri=get_huggingface_llm_image_uri("huggingface",version="1.4.0"),
-	env=hub,
-	role=role, 
+ image_uri=get_huggingface_llm_image_uri("huggingface",version="1.4.0"),
+ env=hub,
+ role=role, 
 )
 
 # deploy model to SageMaker Inference
 predictor = huggingface_model.deploy(
-	initial_instance_count=1,
-	instance_type="ml.g5.2xlarge",
-	container_startup_health_check_timeout=300,
+ initial_instance_count=1,
+ instance_type="ml.g5.2xlarge",
+ container_startup_health_check_timeout=300,
   )
   
 # send request
