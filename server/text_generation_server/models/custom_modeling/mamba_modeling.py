@@ -13,6 +13,11 @@ from text_generation_server.utils.layers import (
 )
 
 
+# note torch must be imported before the custom cuda modules
+# since they rely on torch's libc10.so
+import causal_conv1d_cuda
+import selective_scan_cuda
+
 class MambaConfig(PretrainedConfig):
     def __init__(
         self,
