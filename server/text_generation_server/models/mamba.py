@@ -30,12 +30,11 @@ from text_generation_server.utils.tokens import batch_top_tokens, Sampling
 
 
 class MambaCausalLMBatch(CausalLMBatch):
-    past_transformed_states: Optional[List[torch.Tensor]]
+    past_input_ids: Optional[torch.Tensor]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.past_input_ids = None
-        self.past_transformed_states = None
 
     @classmethod
     def from_pb(
@@ -103,6 +102,10 @@ class Mamba(Model):
     def batch_type(self) -> Type[CausalLMBatch]:
         return MambaCausalLMBatch
 
+    def warmup(self, batch) -> Optional[int]:
+        # TODO: implement warmup for Mamba if needed
+        return None
+    
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -116,19 +119,9 @@ class Mamba(Model):
     def generate_token(self, batch) -> Tuple[List[Any], Optional[Any], Tuple[int, int]]:
         start = time.time_ns()
 
-        input_ids = batch.input_ids
-        past_input_ids = batch.past_input_ids
-        past_transformed_states = batch.past_transformed_states
+        input_ids = batch.past_input_ids if batch.past_input_ids is not None else batch.input_ids
 
-        model_output = self.model(
-            input_ids,
-            past_input_ids,
-            past_transformed_states,
-        )
-
-        logits = model_output[0]
-        past_input_ids = model_output[1]
-        past_transformed_states = model_output[2]
+        logits, past_input_ids = self.model(input_ids)[:2]
 
         # Results
         generations: List[Generation] = []
@@ -176,9 +169,6 @@ class Mamba(Model):
                 all_input_ids.view(1, -1), logits[-1:, :]
             )
 
-            # add next token to past_input_ids
-            past_input_ids = torch.cat([past_input_ids, next_token_id], dim=1)
-
             # Append next token to all tokens
             all_input_ids = torch.cat([all_input_ids, next_token_id])
             new_input_length = input_length + 1
@@ -199,73 +189,94 @@ class Mamba(Model):
             if not stop:
                 stopped = False
 
-            if stop:
-                # Decode generated tokens
-                output_text, _, _ = self.decode_token(
-                    all_input_ids[:, 0],
-                    prefix_offset=len(all_input_ids)
-                    - stopping_criteria.current_tokens
-                    - 1,
-                    read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
-                    skip_special_tokens=True,
-                )
-                # Get seed
-                if isinstance(next_token_chooser.choice, Sampling):
-                    seed = next_token_chooser.choice.seed
+            # Shard generations
+            # All generations will be appended in the rust sharded client
+            if i % self.world_size == self.rank:
+                if stop:
+                    # Decode generated tokens
+                    output_text, _, _ = self.decode_token(
+                        all_input_ids[:, 0],
+                        prefix_offset=len(all_input_ids)
+                        - stopping_criteria.current_tokens
+                        - 1,
+                        read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
+                        skip_special_tokens=True,
+                    )
+                    # Get seed
+                    if isinstance(next_token_chooser.choice, Sampling):
+                        seed = next_token_chooser.choice.seed
+                    else:
+                        seed = None
+
+                    generated_text = GeneratedText(
+                        output_text, stopping_criteria.current_tokens, reason, seed
+                    )
                 else:
-                    seed = None
+                    generated_text = None
 
-                generated_text = GeneratedText(
-                    output_text, stopping_criteria.current_tokens, reason, seed
+                if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
+                    # Remove generated token to only have prefill and add nan for first prompt token
+                    prefill_logprobs = [float("nan")] + torch.log_softmax(
+                        logits, -1
+                    ).gather(1, all_input_ids[1:]).squeeze(1)[
+                        -new_input_length:-1
+                    ].tolist()
+                    prefill_token_ids = all_input_ids[-new_input_length:-1]
+                    prefill_texts = self.tokenizer.batch_decode(
+                        prefill_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    prefill_tokens = Tokens(
+                        prefill_token_ids,
+                        prefill_logprobs,
+                        prefill_texts,
+                        is_special=[],
+                    )
+                else:
+                    prefill_tokens = None
+                    past_input_ids = torch.cat([past_input_ids, next_token_id], dim=1)
+
+
+                if top_n_tokens > 0:
+                    toptoken_texts = self.tokenizer.batch_decode(
+                        top_token_ids,
+                        clean_up_tokenization_spaces=False,
+                        skip_special_tokens=False,
+                    )
+                    special_toptokens = [
+                        token_id in self.all_special_ids for token_id in top_token_ids
+                    ]
+                    top_tokens = Tokens(
+                        top_token_ids,
+                        top_token_logprobs,
+                        toptoken_texts,
+                        special_toptokens,
+                    )
+                else:
+                    top_tokens = None
+
+                generation = Generation(
+                    batch.batch_id,
+                    prefill_tokens,
+                    Tokens(
+                        [next_token_id_squeezed],
+                        [next_token_logprob],
+                        [next_token_text],
+                        [next_token_id_squeezed.item() in self.all_special_ids],
+                    ),
+                    generated_text,
+                    top_tokens,
                 )
-            else:
-                generated_text = None
 
-            # Prefill
-            if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
-                # Remove generated token to only have prefill and add nan for first prompt token
-                prefill_logprobs = [float("nan")] + torch.log_softmax(
-                    logits, -1
-                ).gather(1, all_input_ids[1:]).squeeze(1)[-new_input_length:-1].tolist()
-                prefill_token_ids = all_input_ids[-new_input_length:-1]
-                prefill_texts = self.tokenizer.batch_decode(
-                    prefill_token_ids,
-                    clean_up_tokenization_spaces=False,
-                    skip_special_tokens=False,
-                )
-                prefill_tokens = Tokens(
-                    prefill_token_ids,
-                    prefill_logprobs,
-                    prefill_texts,
-                    is_special=[],
-                )
-            else:
-                prefill_tokens = None
+                generations.append(generation)
 
-            generation = Generation(
-                batch.batch_id,
-                None,
-                Tokens(
-                    [next_token_id_squeezed],
-                    [next_token_logprob],
-                    [next_token_text],
-                    [next_token_id_squeezed.item() in self.all_special_ids],
-                ),
-                generated_text,
-                None,
-            )
-
-            generations.append(generation)
-            next_token_tensor = next_token_id_squeezed.view(1, 1)
-            # Update values
-            batch.input_ids = torch.cat(
-                [batch.input_ids, next_token_tensor], dim=1
-            )
-            batch.all_input_ids[i] = all_input_ids
-            batch.input_lengths[i] = new_input_length
-            batch.prefix_offsets[i] = prefix_offset
-            batch.read_offsets[i] = read_offset
-            batch.max_input_length = max(batch.max_input_length, new_input_length)
+                # Update values
+                batch.all_input_ids[i] = all_input_ids
+                batch.input_lengths[i] = new_input_length
+                batch.prefix_offsets[i] = prefix_offset
+                batch.read_offsets[i] = read_offset
+                batch.max_input_length = max(batch.max_input_length, new_input_length)
 
         # We finished all generations in the batch; there is no next batch
         if stopped:
@@ -273,10 +284,7 @@ class Mamba(Model):
             decode_ns = time.time_ns() - start_decode
             return generations, None, (forward_ns, decode_ns)
 
-        # Slice unused values from prefill
-        batch.input_ids = batch.input_ids[:, :1]
         batch.past_input_ids = past_input_ids
-        batch.past_transformed_states = past_transformed_states
 
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode

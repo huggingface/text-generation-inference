@@ -1,0 +1,99 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2502,
+        "logprob": null,
+        "text": " red"
+      },
+      {
+        "id": 13,
+        "logprob": -2.5234375,
+        "text": ","
+      },
+      {
+        "id": 8862,
+        "logprob": -3.4746094,
+        "text": " yellow"
+      },
+      {
+        "id": 13,
+        "logprob": -0.43579102,
+        "text": ","
+      },
+      {
+        "id": 209,
+        "logprob": -8.2421875,
+        "text": " "
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 187,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 2764,
+        "logprob": -0.37573242,
+        "special": false,
+        "text": "umber"
+      },
+      {
+        "id": 285,
+        "logprob": 0.0,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 3168,
+        "logprob": -0.9013672,
+        "special": false,
+        "text": " white"
+      },
+      {
+        "id": 28,
+        "logprob": -1.2314453,
+        "special": false,
+        "text": ";"
+      },
+      {
+        "id": 253,
+        "logprob": 0.0,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 3295,
+        "logprob": -1.2167969,
+        "special": false,
+        "text": " color"
+      },
+      {
+        "id": 273,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 697,
+        "logprob": -2.1015625,
+        "special": false,
+        "text": " its"
+      },
+      {
+        "id": 17433,
+        "logprob": -2.4296875,
+        "special": false,
+        "text": " unders"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "blue, red, yellow, \number and white; the color of its unders"
+}
