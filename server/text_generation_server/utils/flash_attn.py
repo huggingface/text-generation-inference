@@ -86,6 +86,10 @@ def attention(
         raise ValueError("`window_size_left` must be > 0 or -1")
 
     if IS_XPU_SYSTEM:
+        if window_size_left != -1:
+            raise ValueError(
+                f"XPU version of Flash Attention does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
+            )
         return torch.xpu.varlen_fwd(
             q,
             k,

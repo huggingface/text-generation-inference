@@ -999,8 +999,8 @@ try:
                 # Inplace operation, updating query and key.
                 pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, True)
             elif IS_XPU_SYSTEM:
-                sin = sin.repeat(1, 1, 2).expand(query.shape)
-                cos = cos.repeat(1, 1, 2).expand(query.shape)
+                sin = sin.expand(query.shape)
+                cos = cos.expand(query.shape)
                 torch.ops.torch_ipex.apply_rotary_embedding_half_qk(query, key, sin, cos, query, key)
             else:
                 raise ValueError(
@@ -1122,6 +1122,9 @@ try:
 
             cos = torch.index_select(self._cos_cached, 0, position_ids)
             sin = torch.index_select(self._sin_cached, 0, position_ids)
+
+            if IS_XPU_SYSTEM:
+                return cos.unsqueeze(1).repeat(1, 1, 2), sin.unsqueeze(1).repeat(1, 1, 2)
             # Note: this unsqueeze is not necessary on RoCm + VLLM ROPE implementation, but we leave it as is to avoid yet an other controlflow.
             return cos.unsqueeze(1), sin.unsqueeze(1)
 
