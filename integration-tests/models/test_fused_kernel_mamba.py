@@ -51,12 +51,12 @@ async def test_fused_kernel_mamba_all_params(fused_kernel_mamba, response_snapsh
 # TODO: fix `Expected x0.dim() == 2 to be true, but got false.`
 # 94: `hidden_states, _ = self.layer_norm(hidden_states.squeeze(0))`
 # NOTE: the fast layer norm has strict requirements on the input shape 
-# @pytest.mark.asyncio
-# @pytest.mark.private
-# async def test_fused_kernel_mamba_load(fused_kernel_mamba, generate_load, response_snapshot):
-#     responses = await generate_load(fused_kernel_mamba, "Test request", max_new_tokens=10, n=4)
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_fused_kernel_mamba_load(fused_kernel_mamba, generate_load, response_snapshot):
+    responses = await generate_load(fused_kernel_mamba, "Test request", max_new_tokens=10, n=4)
 
-#     assert len(responses) == 4
-#     assert all([r.generated_text == responses[0].generated_text for r in responses])
+    assert len(responses) == 4
+    assert all([r.generated_text == responses[0].generated_text for r in responses])
 
-#     assert responses == response_snapshot
+    assert responses == response_snapshot

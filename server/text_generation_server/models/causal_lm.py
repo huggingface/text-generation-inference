@@ -311,8 +311,8 @@ class CausalLMBatch(Batch):
             end_index = start_index + len(batch)
 
             # We only concatenate batches that did at least one step
-            if batch.past_key_values is None:
-                raise ValueError("only concatenate prefilled batches")
+            # if batch.past_key_values is None:
+            #     raise ValueError("only concatenate prefilled batches")
 
             # Create empty tensor
             # input_ids is always of shape [batch_size, 1]

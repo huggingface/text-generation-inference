@@ -30,23 +30,9 @@ from text_generation_server.utils.tokens import batch_top_tokens, Sampling
 
 
 class MambaCausalLMBatch(CausalLMBatch):
-    past_input_ids: Optional[torch.Tensor]
+    pass
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.past_input_ids = None
 
-    @classmethod
-    def from_pb(
-        cls,
-        pb: generate_pb2.Batch,
-        tokenizer: PreTrainedTokenizerBase,
-        dtype: torch.dtype,
-        device: torch.device,
-    ) -> "CausalLMBatch":
-        batch = super().from_pb(pb=pb, tokenizer=tokenizer, dtype=dtype, device=device)
-        batch.keys_head_dim_last = False
-        return batch
 
 
 class Mamba(Model):
@@ -119,7 +105,7 @@ class Mamba(Model):
     def generate_token(self, batch) -> Tuple[List[Any], Optional[Any], Tuple[int, int]]:
         start = time.time_ns()
 
-        input_ids = batch.past_input_ids if batch.past_input_ids is not None else batch.input_ids
+        input_ids = batch.input_ids
 
         logits, past_input_ids = self.model(input_ids)[:2]
 
@@ -151,6 +137,8 @@ class Mamba(Model):
         )
 
         # For each member of the batch
+        next_token_ids = []
+        kept_batch_ids = []
         for i, (
             request,
             input_length,
@@ -235,7 +223,8 @@ class Mamba(Model):
                     )
                 else:
                     prefill_tokens = None
-                    past_input_ids = torch.cat([past_input_ids, next_token_id], dim=1)
+                    next_token_ids.append(next_token_id)
+                    kept_batch_ids.append(i)
 
 
                 if top_n_tokens > 0:
@@ -278,13 +267,18 @@ class Mamba(Model):
                 batch.read_offsets[i] = read_offset
                 batch.max_input_length = max(batch.max_input_length, new_input_length)
 
+        # Merge all new tokens
+        if next_token_ids:
+            next_token_ids = torch.cat(next_token_ids, dim=0)
+            past_input_ids = torch.cat([past_input_ids[kept_batch_ids], next_token_ids], dim=1)
+
         # We finished all generations in the batch; there is no next batch
         if stopped:
             forward_ns = start_decode - start
             decode_ns = time.time_ns() - start_decode
             return generations, None, (forward_ns, decode_ns)
 
-        batch.past_input_ids = past_input_ids
+        batch.input_ids = input_ids
 
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode

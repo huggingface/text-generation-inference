@@ -91,8 +91,9 @@ class ResidualBlock(nn.Module):
         hidden_states: torch.Tensor,
     ):
         residual = hidden_states
-        hidden_states, _ = self.layer_norm(hidden_states.squeeze(0))
-        hidden_states = residual + self.mamba_block(hidden_states.unsqueeze(0))
+        shape = hidden_states.shape
+        hidden_states, _ = self.layer_norm(hidden_states.view(-1, shape[-1]))
+        hidden_states = residual + self.mamba_block(hidden_states.view(*shape))
         return hidden_states
 
 class MambaModel(nn.Module):
@@ -114,5 +115,6 @@ class MambaModel(nn.Module):
         for block in self.blocks:
             hidden_states = block(hidden_states)
 
-        final_hidden_states, _ = self.norm_f(hidden_states.squeeze(0))
-        return self.lm_head(final_hidden_states.unsqueeze(0)), input_ids
+        shape = hidden_states.shape
+        final_hidden_states, _ = self.norm_f(hidden_states.view(-1, shape[-1]))
+        return self.lm_head(final_hidden_states.view(*shape)), input_ids
