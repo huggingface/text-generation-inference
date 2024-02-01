@@ -156,9 +156,6 @@ async fn main() -> Result<(), RouterError> {
 
     // Load tokenizer config
     // This will be used to format the chat template
-    let tokenizer_config_full_path = if tokenizer_config_path.is_none() && local_model {
-        // if no tokenizer config path is provided, we default to the local tokenizer config
-        Some(local_path.join("tokenizer_config.json"))
     if let Some(tokenizer_config_path) = tokenizer_config_path {
         Some(std::path::PathBuf::from(tokenizer_config_path))
     } else if local_model  {
