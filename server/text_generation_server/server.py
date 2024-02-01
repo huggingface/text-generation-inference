@@ -63,27 +63,20 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
-        if self.quantize in ["gptq", "awq"]:
-            has_exllama_layers = False
-            for _, module in self.model.model.named_modules():
-                if hasattr(module, "QUANT_TYPE"):
-                    has_exllama_layers = True
-                    break
+        if self.quantize == "gptq":
+            try:
+                # When using GPTQ, Exllama kernels need some global kernels
+                # For which we have the finale shapes only after the model has loaded
+                # This will allocate those buffers.
+                from text_generation_server.utils.layers import (
+                    create_exllama_buffers,
+                    set_device,
+                )
 
-            if has_exllama_layers:
-                try:
-                    # When using GPTQ or AWQ, Exllama kernels need some global kernels
-                    # For which we have the finale shapes only after the model has loaded
-                    # This will allocate those buffers.
-                    from text_generation_server.utils.layers import (
-                        create_exllama_buffers,
-                        set_device,
-                    )
-
-                    set_device(self.model.device)
-                    create_exllama_buffers(request.max_prefill_tokens)
-                except ImportError:
-                    pass
+                set_device(self.model.device)
+                create_exllama_buffers(request.max_prefill_tokens)
+            except ImportError:
+                pass
 
         if (
             self.model.batch_type == IdeficsCausalLMBatch

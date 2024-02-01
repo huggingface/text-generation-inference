@@ -25,8 +25,6 @@ HAS_AWQ = True
 try:
     from text_generation_server.utils.awq.quantize.qmodule import WQLinear
 except ImportError:
-    from text_generation_server.utils.awq.pack_utils import fast_awq_to_gptq
-
     HAS_AWQ = False
 
 try:
@@ -351,23 +349,19 @@ def get_linear(weight, bias, quantize):
             raise NotImplementedError(
                 f"The passed weight is not `awq` compatible, loader needs to be updated."
             )
-        if HAS_AWQ:
-            linear = WQLinear(
-                w_bit=bits,
-                group_size=groupsize,
-                qweight=qweight,
-                qzeros=qzeros,
-                scales=scales,
-                bias=bias is not None,
+        if IS_ROCM_SYSTEM:
+            raise NotImplementedError(
+                "AWQ GEMM kernel can't be used on ROCm systems, please use `--quantize gptq` instead "
+                "to use Exllama/GPTQ kernels for AWQ inference."
             )
-        elif HAS_EXLLAMA:
-            qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
-            linear = ExllamaQuantLinear(
-                qweight, qzeros, scales, None, bias, bits, groupsize
-            )
-        else:
-            qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
-            linear = QuantLinear(qweight, qzeros, scales, None, bias, bits, groupsize)
+        linear = WQLinear(
+            w_bit=bits,
+            group_size=groupsize,
+            qweight=qweight,
+            qzeros=qzeros,
+            scales=scales,
+            bias=bias is not None,
+        )
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
