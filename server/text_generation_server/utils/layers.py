@@ -25,6 +25,7 @@ HAS_AWQ = True
 try:
     from text_generation_server.utils.awq.quantize.qmodule import WQLinear
 except ImportError:
+    from text_generation_server.utils.awq.pack_utils import fast_awq_to_exllama
     HAS_AWQ = False
 
 try:
@@ -349,14 +350,20 @@ def get_linear(weight, bias, quantize):
             raise NotImplementedError(
                 f"The passed weight is not `awq` compatible, loader needs to be updated."
             )
-        linear = WQLinear(
-            w_bit=bits,
-            group_size=groupsize,
-            qweight=qweight,
-            qzeros=qzeros,
-            scales=scales,
-            bias=bias is not None,
-        )
+        if HAS_AWQ:
+            linear = WQLinear(
+                w_bit=bits,
+                group_size=groupsize,
+                qweight=qweight,
+                qzeros=qzeros,
+                scales=scales,
+                bias=bias is not None,
+            )
+        elif HAS_EXLLAMA:
+            qweight, qzeros = fast_awq_to_exllama(qweight, qzeros)
+            linear = ExllamaQuantLinear(
+                qweight, qzeros, scales, None, bias, bits, groupsize
+            )
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
