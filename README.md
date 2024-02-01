@@ -28,7 +28,7 @@ to power Hugging Chat, the Inference API and Inference Endpoint.
   - [Local Install](#local-install)
   - [CUDA Kernels](#cuda-kernels)
 - [Optimized architectures](#optimized-architectures)
-- [Run Falcon](#run-falcon)
+- [Run Mistral](#run-a-model)
   - [Run](#run)
   - [Quantization](#quantization)
 - [Develop](#develop)
@@ -42,7 +42,11 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
 - Token streaming using Server-Sent Events (SSE)
 - Continuous batching of incoming requests for increased total throughput
 - Optimized transformers code for inference using [Flash Attention](https://github.com/HazyResearch/flash-attention) and [Paged Attention](https://github.com/vllm-project/vllm) on the most popular architectures
-- Quantization with [bitsandbytes](https://github.com/TimDettmers/bitsandbytes) and [GPT-Q](https://arxiv.org/abs/2210.17323)
+- Quantization with :
+  - [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
+  - [GPT-Q](https://arxiv.org/abs/2210.17323)
+  - [EETQ](https://github.com/NetEase-FuXi/EETQ)
+  - [AWQ](https://github.com/casper-hansen/AutoAWQ)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 - Logits warper (temperature scaling, top-p, top-k, repetition penalty, more details see [transformers.LogitsProcessor](https://huggingface.co/docs/transformers/internal/generation_utils#transformers.LogitsProcessor))
@@ -50,6 +54,14 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
 - Log probabilities
 - Custom Prompt Generation: Easily generate text by providing custom prompts to guide the model's output
 - Fine-tuning Support: Utilize fine-tuned models for specific tasks to achieve higher accuracy and performance
+
+### Hardware support
+
+- [Nvidia](https://github.com/huggingface/text-generation-inference/pkgs/container/text-generation-inference)
+- [AMD](https://github.com/huggingface/text-generation-inference/pkgs/container/text-generation-inference) (-rocm)
+- [Inferentia](https://github.com/huggingface/optimum-neuron/tree/main/text-generation-inference)
+- [Intel GPU](https://github.com/huggingface/text-generation-inference/pull/1475)
+- [Gaudi](https://github.com/huggingface/tgi-gaudi)
 
 
 ## Get Started
@@ -154,7 +166,7 @@ Python 3.9, e.g. using `conda`:
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-conda create -n text-generation-inference python=3.9
+conda create -n text-generation-inference python=3.11
 conda activate text-generation-inference
 ```
 
@@ -180,7 +192,7 @@ Then run:
 
 ```shell
 BUILD_EXTENSIONS=True make install # Install repository and HF/transformer fork with CUDA kernels
-make run-falcon-7b-instruct
+text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2
 ```
 
 **Note:** on some machines, you may also need the OpenSSL libraries and gcc. On Linux machines, run:
@@ -188,13 +200,6 @@ make run-falcon-7b-instruct
 ```shell
 sudo apt-get install libssl-dev gcc -y
 ```
-
-### CUDA Kernels
-
-The custom CUDA kernels are only tested on NVIDIA A100, AMD MI210 and AMD MI250. If you have any installation or runtime issues, you can remove
-the kernels by using the `DISABLE_CUSTOM_KERNELS=True` environment variable.
-
-Be aware that the official Docker image has them enabled by default.
 
 ## Optimized architectures
 
@@ -210,12 +215,12 @@ or
 
 
 
-## Run Falcon
+## Run locally
 
 ### Run
 
 ```shell
-make run-falcon-7b-instruct
+text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2
 ```
 
 ### Quantization
@@ -223,7 +228,7 @@ make run-falcon-7b-instruct
 You can also quantize the weights with bitsandbytes to reduce the VRAM requirement:
 
 ```shell
-make run-falcon-7b-instruct-quantize
+text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2 --quantize 
 ```
 
 4bit quantization is available using the [NF4 and FP4 data types from bitsandbytes](https://arxiv.org/pdf/2305.14314.pdf). It can be enabled by providing `--quantize bitsandbytes-nf4` or `--quantize bitsandbytes-fp4` as a command line argument to `text-generation-launcher`.
