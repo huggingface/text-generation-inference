@@ -189,7 +189,7 @@ __global__ void reconstruct_kernel
     int group = row / groupsize;
 
     half w_scale = w_scales_.item(group, column);
-    uint32_t w_zero = w_zeros_.item(group, column) + 1;
+    uint32_t w_zero = (w_zeros_.item(group, column) + 1) & 0x0F;
 
     uint32_t w_read = w_.item_uint32_t(row, column);
     half* out_ptr = out_.item_ptr(row, column);
