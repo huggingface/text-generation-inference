@@ -1,10 +1,21 @@
 <div align="center">
   
-<a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
-  <img width=315 alt="Making TGI deployment optimal" src="https://huggingface.co/datasets/Narsil/tgi_assets/resolve/main/thumbnail.png" style="display:inline-block">
-</a>
+<div style="display:inline-block;padding: 20px">
+    <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
+      <img width=315 alt="Making TGI deployment optimal" src="https://huggingface.co/datasets/Narsil/tgi_assets/resolve/main/thumbnail.png" style="display:inline-block">
+    </a>
 
-<img width=315 alt="Production metrics" src="https://raw.githubusercontent.com/huggingface/text-generation-inference/add_readme_dashboard/dashboard.png" style="display:inline-block">
+    <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
+        Make TGI optimal
+    </a>
+</div>
+
+<div style="display:inline-block;padding: 20px">
+    <img width=315 alt="Production metrics" src="https://raw.githubusercontent.com/huggingface/text-generation-inference/add_readme_dashboard/dashboard.png" style="display:inline-block">
+    <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
+        Monitor TGI
+    </a>
+</div>
 
 # Text Generation Inference
 
