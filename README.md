@@ -3,6 +3,7 @@
 <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
   <img width=560 width=315 alt="Making TGI deployment optimal" src="https://huggingface.co/datasets/Narsil/tgi_assets/resolve/main/thumbnail.png">
 </a>
+![dashboard](./dashboard.png)
 
 # Text Generation Inference
 
