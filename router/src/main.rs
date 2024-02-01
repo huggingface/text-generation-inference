@@ -154,16 +154,6 @@ async fn main() -> Result<(), RouterError> {
     let local_path = Path::new(&tokenizer_name);
     let local_model = local_path.exists() && local_path.is_dir();
 
-    // Load tokenizer config
-    // This will be used to format the chat template
-    if let Some(tokenizer_config_path) = tokenizer_config_path {
-        Some(std::path::PathBuf::from(tokenizer_config_path))
-    } else if local_model  {
-        Some(local_path.join("tokenizer_config.json"))
-    } else {
-        None
-    };
-
     // Shared API builder initialization
     let api_builder = || {
         let mut builder = ApiBuilder::new()
@@ -234,12 +224,14 @@ async fn main() -> Result<(), RouterError> {
     };
 
     // Load tokenizer config if found locally, or check if we can get it from the API if needed
-    let tokenizer_config = match tokenizer_config_full_path {
-        Some(path) => {
-            tracing::info!("Using local tokenizer config");
-            HubTokenizerConfig::from_file(&path)
-        }
-        None => match api {
+    let tokenizer_config = if let Some(path) = tokenizer_config_path {
+        tracing::info!("Using local tokenizer config from user specified path");
+        HubTokenizerConfig::from_file(&std::path::PathBuf::from(path))
+    } else if local_model {
+        tracing::info!("Using local tokenizer config");
+        HubTokenizerConfig::from_file(&local_path.join("tokenizer_config.json"))
+    } else {
+        match api {
             Some(api) => {
                 tracing::info!("Using the Hugging Face API to retrieve tokenizer config");
                 let repo = Repo::with_revision(
@@ -260,7 +252,7 @@ async fn main() -> Result<(), RouterError> {
                 tracing::warn!("Could not find tokenizer config locally and no API specified");
                 HubTokenizerConfig::default()
             }
-        },
+        }
     };
 
     if tokenizer.is_none() {
