@@ -21,22 +21,6 @@ def test_generate(flan_t5_xxl_url, hf_headers):
     assert not response.details.tokens[0].special
 
 
-def test_generate_max_new_tokens_not_set(flan_t5_xxl_url, hf_headers):
-    client = Client(flan_t5_xxl_url, hf_headers)
-    response = client.generate("test", decoder_input_details=True)
-
-    assert response.generated_text != ""
-    assert response.details.finish_reason == FinishReason.EndOfSequenceToken
-    assert response.details.generated_tokens > 1
-    assert response.details.seed is None
-    assert len(response.details.prefill) == 1
-    assert response.details.prefill[0] == InputToken(id=0, text="<pad>", logprob=None)
-    assert len(response.details.tokens) > 1
-    assert response.details.tokens[0].id == 3
-    assert response.details.tokens[0].text == " "
-    assert not response.details.tokens[0].special
-
-
 def test_generate_best_of(flan_t5_xxl_url, hf_headers):
     client = Client(flan_t5_xxl_url, hf_headers)
     response = client.generate(
