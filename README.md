@@ -1,10 +1,9 @@
 <div align="center">
   
-<div style="display:inline-block;padding: 20px">
+<div style="display:inline-block;padding:20px">
     <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
       <img width=315 alt="Making TGI deployment optimal" src="https://huggingface.co/datasets/Narsil/tgi_assets/resolve/main/thumbnail.png" style="display:inline-block">
     </a>
-
     <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
         Make TGI optimal
     </a>
