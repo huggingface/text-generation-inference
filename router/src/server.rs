@@ -9,7 +9,7 @@ use crate::{
     PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse, Validation,
 };
 use axum::extract::Extension;
-use axum::http::{HeaderMap, Method, StatusCode};
+use axum::http::{HeaderMap, Method, Request, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -27,6 +27,9 @@ use tokenizers::Tokenizer;
 use tokio::signal;
 use tokio::time::Instant;
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::request_id::{
+    MakeRequestUuid, PropagateRequestIdLayer, RequestId, SetRequestIdLayer,
+};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -967,7 +970,35 @@ pub async fn run(
         .layer(Extension(compute_type))
         .layer(Extension(prom_handle.clone()))
         .layer(OtelAxumLayer::default())
-        .layer(cors_layer);
+        .layer(cors_layer)
+        .layer(
+            ::tower_http::trace::TraceLayer::new_for_http()
+                .make_span_with(RequestSpan::new())
+                .on_request(|req: &::axum::http::Request<_>, _span: &::tracing::Span| {
+                    tracing::info!("Request: {} {}", req.method(), req.uri(),);
+                })
+                .on_response(
+                    |res: &::axum::http::Response<_>,
+                     latency: ::std::time::Duration,
+                     _span: &::tracing::Span| {
+                        tracing::info!(
+                            took = latency.as_secs_f32(),
+                            status_code = res.status().as_u16(),
+                            "Response: {}",
+                            res.status().as_u16(),
+                        );
+                    },
+                )
+                .on_failure(
+                    |error: ::tower_http::classify::ServerErrorsFailureClass,
+                     latency: ::std::time::Duration,
+                     _span: &::tracing::Span| {
+                        ::tracing::warn!(took = latency.as_secs_f32(), "Failure: {error:?}");
+                    },
+                ),
+        )
+        .layer(PropagateRequestIdLayer::x_request_id())
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid));
 
     if ngrok {
         #[cfg(feature = "ngrok")]
@@ -1101,5 +1132,31 @@ impl From<InferError> for Event {
                 error_type: err.error_type().to_string(),
             })
             .unwrap()
+    }
+}
+
+#[derive(Clone)]
+pub struct RequestSpan {}
+
+impl RequestSpan {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<B> tower_http::trace::MakeSpan<B> for RequestSpan {
+    fn make_span(&mut self, req: &Request<B>) -> tracing::Span {
+        // SAFETY: Added by request ID middleware
+        let request_id = req
+            .extensions()
+            .get::<RequestId>()
+            .map(|s| String::from_utf8_lossy(s.header_value().as_bytes()))
+            .unwrap_or_default();
+
+        tracing::info_span!("request",
+            %request_id,
+            method = %req.method(),
+            uri = %req.uri(),
+        )
     }
 }
