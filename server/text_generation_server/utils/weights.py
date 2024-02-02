@@ -177,6 +177,8 @@ class Weights:
                     dtype=torch.int32,
                     device=qweight.device,
                 )
+            else:
+                g_idx = None
 
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
         else:
@@ -242,6 +244,8 @@ class Weights:
                     dtype=torch.int32,
                     device=qweight.device,
                 )
+            else:
+                g_idx = None
 
             from text_generation_server.utils.layers import HAS_EXLLAMA
 
