@@ -15,10 +15,9 @@ def pack(imatrix: torch.Tensor, direction: str = "column"):
     Returns:
         qmatrix (torch.Tensor): packed matrix of integers
     """
-    imatrix = imatrix.to(torch.int8)
-    imatrix = torch.bitwise_and(imatrix, 0x0F)  # eventually correct overflow
-    
-    shifts = torch.arange(0, 32, 4, device=imatrix.device)
+    shifts = torch.arange(0, 32, 4, dtype=torch.int32, device=imatrix.device)
+
+    imatrix = imatrix.to(torch.int8) & 0x0F  # eventually correct overflow
 
     if direction == "column":
         imatrix = imatrix.view(-1, imatrix.shape[1] // (32 // 4), (32 // 4))
