@@ -288,6 +288,47 @@ fn default_parameters() -> GenerateParameters {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug)]
+pub struct CompletionRequest {
+    pub model: String,
+    pub prompt: String,
+    pub max_tokens: Option<u32>,
+
+    /// What sampling temperature to use, between 0 and 2. Higher values like 0.8 will 
+    /// make the output more random, while lower values like 0.2 will make it more 
+    /// focused and deterministic.
+    ///
+    /// We generally recommend altering this or top_p but not both.
+    #[serde(default)]
+    #[schema(nullable = true, example = 1.0)]
+    pub temperature: Option<f32>,
+
+    pub top_p: Option<f32>,
+    pub stream: Option<bool>,
+    pub seed: Option<u64>,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
+pub(crate) struct Completion {
+    pub id: String,
+    pub object: String,
+    #[schema(example = "1706270835")]
+    pub created: u64,
+    #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
+    pub model: String,
+    pub system_fingerprint: String,
+    pub choices: Vec<CompletionComplete>,
+    pub usage: Usage,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
+pub(crate) struct CompletionComplete {
+    pub index: u32,
+    pub text: String,
+    pub logprobs: Option<Vec<f32>>,
+    pub finish_reason: String,
+}
+
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletion {
     pub id: String,
