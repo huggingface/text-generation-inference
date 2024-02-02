@@ -406,7 +406,7 @@ class Mamba(Model):
         dtype = input_ids.dtype
 
         # Inference params
-        seqlen_og = max_seqlen
+        seqlen_og = 0
         inf_cache = {}
         lengths_per_sample = torch.ones(batch_size, dtype=torch.int32, device=input_ids.device) * max_seqlen
         
@@ -592,7 +592,7 @@ class Mamba(Model):
                 generations.append(generation)
 
                 # Update values
-                batch.input_ids[i, 0] = 0 # next_token_id
+                batch.input_ids[i, 0] = next_token_id
                 batch.all_input_ids[i] = all_input_ids
                 batch.input_lengths[i] = new_input_length
                 batch.prefix_offsets[i] = prefix_offset
