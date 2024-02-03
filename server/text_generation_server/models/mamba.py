@@ -34,7 +34,6 @@ class MambaBatch(Batch):
 
     # Decoder values
     input_ids: torch.Tensor
-    past_input_ids: Optional[torch.Tensor]
 
     # All tokens
     all_input_ids: List[torch.Tensor]
@@ -132,7 +131,7 @@ class MambaBatch(Batch):
             requests=pb.requests,
             requests_idx_mapping=requests_idx_mapping,
             input_ids=input_ids,
-            past_input_ids=None,
+            # past_input_ids=None,
             all_input_ids=list(all_input_ids),
             input_lengths=input_lengths.tolist(),
             prefix_offsets=prefix_offsets,
@@ -198,7 +197,6 @@ class MambaBatch(Batch):
     
         # Apply indices to input_ids, attention mask, past key values and other items that need to be cached
         input_ids = self.input_ids[keep_indices]
-        position_ids = self.position_ids[keep_indices]
 
         top_n_tokens_tensor = self.top_n_tokens_tensor[keep_indices]
         max_tokens = len(request_ids) * max_input_length + total_remaining_decode_tokens
@@ -245,9 +243,6 @@ class MambaBatch(Batch):
 
         # Batch tensors
         input_ids = None
-        attention_mask = None
-        position_ids = None
-        past_key_values = []
         top_n_tokens_tensor = None
 
         # Used for slicing correctly inside the tensors
@@ -273,10 +268,6 @@ class MambaBatch(Batch):
             # Slicing end index for this batch
             end_index = start_index + len(batch)
 
-            # We only concatenate batches that did at least one step
-            if batch.past_key_values is None:
-                raise ValueError("only concatenate prefilled batches")
-
             # Create empty tensor
             # input_ids is always of shape [batch_size, 1]
             # We do not need to pad it
@@ -284,12 +275,6 @@ class MambaBatch(Batch):
                 input_ids = batch.input_ids.new_empty((total_batch_size, 1))
             # Copy to correct indices
             input_ids[start_index:end_index] = batch.input_ids
-
-            # Create padded tensor
-            if attention_mask is None:
-                attention_mask = batch.attention_mask.new_zeros(
-                    (total_batch_size, max_input_length + padding_right_offset),
-                )
 
             if top_n_tokens_tensor is None:
                 top_n_tokens_tensor = batches[0].top_n_tokens_tensor.new_zeros(
@@ -309,9 +294,6 @@ class MambaBatch(Batch):
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
             input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
             all_input_ids=all_input_ids,
             input_lengths=input_lengths,
             prefix_offsets=prefix_offsets,
@@ -555,8 +537,6 @@ class Mamba(Model):
                     )
                 else:
                     prefill_tokens = None
-                    past_input_ids = torch.cat([past_input_ids, next_token_id], dim=1)
-
 
                 if top_n_tokens > 0:
                     toptoken_texts = self.tokenizer.batch_decode(
@@ -607,9 +587,6 @@ class Mamba(Model):
 
         # Slice unused values from prefill
         batch.input_ids = batch.input_ids[:, :1]
-
-
-        batch.past_input_ids = past_input_ids
 
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode

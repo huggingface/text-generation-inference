@@ -44,17 +44,14 @@ async def test_fused_kernel_mamba_all_params(fused_kernel_mamba, response_snapsh
     )
 
     assert response.details.generated_tokens == 10
-    # TODO: fix so the input is not included in the output
-    assert response.generated_text == "blue, red, yellow, \number and white; the color of its unders"
+    assert response.generated_text == "blue, red, yellow, \nand orange (in the order they appear in"
     assert response == response_snapshot
 
-# TODO: fix `Expected x0.dim() == 2 to be true, but got false.`
-# 94: `hidden_states, _ = self.layer_norm(hidden_states.squeeze(0))`
-# NOTE: the fast layer norm has strict requirements on the input shape 
+# TODO: Fix batching
 # @pytest.mark.asyncio
 # @pytest.mark.private
 # async def test_fused_kernel_mamba_load(fused_kernel_mamba, generate_load, response_snapshot):
-#     responses = await generate_load(fused_kernel_mamba, "Test request", max_new_tokens=10, n=4)
+#     responses = await generate_load(fused_kernel_mamba, "Test request", max_new_tokens=10, n=2)
 
 #     assert len(responses) == 4
 #     assert all([r.generated_text == responses[0].generated_text for r in responses])

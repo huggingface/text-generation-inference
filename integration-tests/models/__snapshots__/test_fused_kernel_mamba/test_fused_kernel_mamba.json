@@ -11,7 +11,7 @@
       },
       {
         "id": 2748,
-        "logprob": -9.7421875,
+        "logprob": -9.7265625,
         "text": " request"
       }
     ],
@@ -19,66 +19,66 @@
     "tokens": [
       {
         "id": 187,
-        "logprob": -2.4824219,
-        "special": false,
-        "text": "\n"
-      },
-      {
-        "id": 187,
-        "logprob": -2.4824219,
+        "logprob": -2.4746094,
         "special": false,
         "text": "\n"
       },
       {
         "id": 50274,
-        "logprob": -1.7880859,
+        "logprob": -1.7861328,
         "special": false,
         "text": "    "
       },
       {
         "id": 92,
-        "logprob": -2.0703125,
+        "logprob": -2.03125,
         "special": false,
         "text": "{"
       },
       {
         "id": 187,
-        "logprob": -0.04827881,
+        "logprob": -0.048706055,
         "special": false,
         "text": "\n"
       },
       {
         "id": 50270,
-        "logprob": -0.18896484,
+        "logprob": -0.19421387,
         "special": false,
         "text": "        "
       },
       {
         "id": 3,
-        "logprob": -1.5234375,
+        "logprob": -1.5097656,
         "special": false,
         "text": "\""
       },
       {
         "id": 9629,
-        "logprob": -2.8203125,
+        "logprob": -2.7792969,
         "special": false,
         "text": "request"
       },
       {
         "id": 1381,
-        "logprob": -0.78759766,
+        "logprob": -0.78271484,
         "special": false,
         "text": "\":"
       },
       {
         "id": 551,
-        "logprob": -0.49169922,
+        "logprob": -0.49487305,
         "special": false,
         "text": " {"
+      },
+      {
+        "id": 187,
+        "logprob": -0.021087646,
+        "special": false,
+        "text": "\n"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "\n\n    {\n        \"request\": {"
+  "generated_text": "\n    {\n        \"request\": {\n"
 }

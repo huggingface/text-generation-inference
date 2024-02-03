@@ -16,17 +16,17 @@
       },
       {
         "id": 8862,
-        "logprob": -3.4746094,
+        "logprob": -3.4433594,
         "text": " yellow"
       },
       {
         "id": 13,
-        "logprob": -0.43579102,
+        "logprob": -0.43017578,
         "text": ","
       },
       {
         "id": 209,
-        "logprob": -8.2421875,
+        "logprob": -8.21875,
         "text": " "
       }
     ],
@@ -39,28 +39,28 @@
         "text": "\n"
       },
       {
-        "id": 2764,
-        "logprob": -0.37573242,
+        "id": 395,
+        "logprob": -0.46411133,
         "special": false,
-        "text": "umber"
+        "text": "and"
       },
       {
-        "id": 285,
-        "logprob": 0.0,
+        "id": 13735,
+        "logprob": -2.1132812,
         "special": false,
-        "text": " and"
+        "text": " orange"
       },
       {
-        "id": 3168,
-        "logprob": -0.9013672,
+        "id": 313,
+        "logprob": -1.2128906,
         "special": false,
-        "text": " white"
+        "text": " ("
       },
       {
-        "id": 28,
-        "logprob": -1.2314453,
+        "id": 249,
+        "logprob": -2.3671875,
         "special": false,
-        "text": ";"
+        "text": "in"
       },
       {
         "id": 253,
@@ -69,31 +69,31 @@
         "text": " the"
       },
       {
-        "id": 3295,
-        "logprob": -1.2167969,
+        "id": 1340,
+        "logprob": -1.640625,
         "special": false,
-        "text": " color"
+        "text": " order"
       },
       {
-        "id": 273,
+        "id": 597,
+        "logprob": -0.5488281,
+        "special": false,
+        "text": " they"
+      },
+      {
+        "id": 3176,
+        "logprob": -0.48608398,
+        "special": false,
+        "text": " appear"
+      },
+      {
+        "id": 275,
         "logprob": 0.0,
         "special": false,
-        "text": " of"
-      },
-      {
-        "id": 697,
-        "logprob": -2.1015625,
-        "special": false,
-        "text": " its"
-      },
-      {
-        "id": 17433,
-        "logprob": -2.4296875,
-        "special": false,
-        "text": " unders"
+        "text": " in"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "blue, red, yellow, \number and white; the color of its unders"
+  "generated_text": "blue, red, yellow, \nand orange (in the order they appear in"
 }
