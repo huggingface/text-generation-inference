@@ -34,6 +34,7 @@ pub struct HubTokenizerConfig {
     pub chat_template: Option<String>,
     pub bos_token: Option<String>,
     pub eos_token: Option<String>,
+    pub add_generation_prompt: Option<bool>,
 }
 
 impl HubTokenizerConfig {
@@ -398,6 +399,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
     messages: Vec<Message>,
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
+    add_generation_prompt: bool,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
