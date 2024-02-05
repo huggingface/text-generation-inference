@@ -368,6 +368,12 @@ struct Args {
     #[clap(long, env)]
     ngrok_edge: Option<String>,
 
+    /// Specific flag for hardware targets that do not support unpadded inference
+    /// For those we do not send the tokenizer to the router so that all the scheduling
+    /// assumes those pad tokens exist (and potentially even more).
+    #[clap(long, env)]
+    batch_dimension: bool,
+
     /// The path to the tokenizer config file. This path is used to load the tokenizer configuration which may
     /// include a `chat_template`. If not provided, the default config will be used from the model hub.
     #[clap(long, env)]
@@ -1033,6 +1039,10 @@ fn spawn_webserver(
         "--tokenizer-name".to_string(),
         args.model_id,
     ];
+
+    if args.batch_dimension{
+        router_args.push("--batch-dimension".to_string());
+    }
 
     // Tokenizer config path
     if let Some(ref tokenizer_config_path) = args.tokenizer_config_path {

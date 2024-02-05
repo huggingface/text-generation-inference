@@ -37,6 +37,8 @@ struct Args {
     max_input_length: usize,
     #[clap(default_value = "2048", long, env)]
     max_total_tokens: usize,
+    #[clap(long, env)]
+    batch_dimension: bool,
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
     #[clap(default_value = "4096", long, env)]
@@ -87,6 +89,7 @@ async fn main() -> Result<(), RouterError> {
         max_top_n_tokens,
         max_input_length,
         max_total_tokens,
+        batch_dimension,
         waiting_served_ratio,
         max_batch_prefill_tokens,
         max_batch_total_tokens,
@@ -340,6 +343,7 @@ async fn main() -> Result<(), RouterError> {
         max_top_n_tokens,
         max_input_length,
         max_total_tokens,
+        batch_dimension,
         waiting_served_ratio,
         max_batch_prefill_tokens,
         max_supported_batch_total_tokens,

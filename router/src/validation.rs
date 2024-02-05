@@ -19,6 +19,7 @@ pub struct Validation {
     max_top_n_tokens: u32,
     max_input_length: usize,
     max_total_tokens: usize,
+    batched_dimension: bool,
     /// Channel to communicate with the background tokenization task
     sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
 }
@@ -32,6 +33,7 @@ impl Validation {
         max_top_n_tokens: u32,
         max_input_length: usize,
         max_total_tokens: usize,
+        batched_dimension: bool,
     ) -> Self {
         // If we have a fast tokenizer
         let sender = if let Some(tokenizer) = tokenizer {
@@ -66,6 +68,7 @@ impl Validation {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            batched_dimension
         }
     }
 
@@ -103,61 +106,62 @@ impl Validation {
     ) -> Result<(String, usize, u32), ValidationError> {
         // If we have a fast tokenizer
         if let Some((encoding, inputs)) = self.tokenize(inputs.clone(), truncate).await? {
-            // Create response channel
-            let input_length = encoding.len();
+            if self.batched_dimension{
+                let input_length = encoding.len();
 
-            // Get total tokens
-            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
-                max_new_tokens
-            } else {
-                self.max_total_tokens.saturating_sub(input_length) as u32
-            };
-            let total_tokens = input_length + max_new_tokens as usize;
+                // Get total tokens
+                let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
+                    max_new_tokens
+                } else {
+                    self.max_total_tokens.saturating_sub(input_length) as u32
+                };
+                let total_tokens = input_length + max_new_tokens as usize;
 
-            // Validate MaxTotalTokens
-            if total_tokens > self.max_total_tokens {
-                return Err(ValidationError::MaxTotalTokens(
-                    self.max_total_tokens,
-                    input_length,
-                    max_new_tokens,
-                ));
+                // Validate MaxTotalTokens
+                if total_tokens > self.max_total_tokens {
+                    return Err(ValidationError::MaxTotalTokens(
+                        self.max_total_tokens,
+                        input_length,
+                        max_new_tokens,
+                    ));
+                }
+
+                // Validate InputLength
+                if input_length > self.max_input_length {
+                    return Err(ValidationError::InputLength(
+                        self.max_input_length,
+                        input_length,
+                    ));
+                }
+
+                // 
+                metrics::histogram!("tgi_request_input_length", input_length as f64);
+                return Ok((inputs, input_length, max_new_tokens));
             }
-
-            // Validate InputLength
-            if input_length > self.max_input_length {
-                return Err(ValidationError::InputLength(
-                    self.max_input_length,
-                    input_length,
-                ));
-            }
-
-            metrics::histogram!("tgi_request_input_length", input_length as f64);
-            Ok((inputs, input_length, max_new_tokens))
         }
-        // Return inputs without validation
-        else {
-            // In this case, we don't know the real length in tokens of the inputs
-            // However, the inputs will be truncated by the python servers
-            // We make sure that truncate + max_new_tokens <= self.max_total_tokens
-            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
-                max_new_tokens
-            } else if let Some(truncate) = truncate {
-                self.max_total_tokens.saturating_sub(truncate) as u32
-            } else {
-                return Err(ValidationError::UnsetMaxNewTokens);
-            };
-            let input_length = truncate.unwrap_or(self.max_input_length);
+        // Either we don't have a tokenizer or batched_dimension purposefully
+        // will ignore the actual length in order to schedule the job correctly.
+        // In this case, we don't know the real length in tokens of the inputs
+        // However, the inputs will be truncated by the python servers
+        // We make sure that truncate + max_new_tokens <= self.max_total_tokens
+        let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
+            max_new_tokens
+        } else if let Some(truncate) = truncate {
+            self.max_total_tokens.saturating_sub(truncate) as u32
+        } else {
+            return Err(ValidationError::UnsetMaxNewTokens);
+        };
+        let input_length = truncate.unwrap_or(self.max_input_length);
 
-            // Validate MaxNewTokens
-            if (input_length as u32 + max_new_tokens) > self.max_total_tokens as u32 {
-                return Err(ValidationError::MaxNewTokens(
-                    self.max_total_tokens - self.max_input_length,
-                    max_new_tokens,
-                ));
-            }
-
-            Ok((inputs, input_length, max_new_tokens))
+        // Validate MaxNewTokens
+        if (input_length as u32 + max_new_tokens) > self.max_total_tokens as u32 {
+            return Err(ValidationError::MaxNewTokens(
+                self.max_total_tokens - self.max_input_length,
+                max_new_tokens,
+            ));
         }
+
+        Ok((inputs, input_length, max_new_tokens))
     }
 
     /// Validate a payload and get the number of tokens in the input
