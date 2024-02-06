@@ -47,13 +47,12 @@ async def test_fused_kernel_mamba_all_params(fused_kernel_mamba, response_snapsh
     assert response.generated_text == "blue, red, yellow, \nand orange (in the order they appear in"
     assert response == response_snapshot
 
-# TODO: Fix batching
-# @pytest.mark.asyncio
-# @pytest.mark.private
-# async def test_fused_kernel_mamba_load(fused_kernel_mamba, generate_load, response_snapshot):
-#     responses = await generate_load(fused_kernel_mamba, "Test request", max_new_tokens=10, n=2)
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_fused_kernel_mamba_load(fused_kernel_mamba, generate_load, response_snapshot):
+    responses = await generate_load(fused_kernel_mamba, "Test request", max_new_tokens=10, n=4)
 
-#     assert len(responses) == 4
-#     assert all([r.generated_text == responses[0].generated_text for r in responses])
+    assert len(responses) == 4
+    assert all([r.generated_text == responses[0].generated_text for r in responses])
 
-#     assert responses == response_snapshot
+    assert responses == response_snapshot

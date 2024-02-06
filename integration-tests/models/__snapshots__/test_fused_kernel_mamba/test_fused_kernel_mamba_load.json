@@ -1,0 +1,338 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 5089,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 2748,
+          "logprob": -9.7265625,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -2.4746094,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -1.3857422,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 510,
+          "logprob": -2.703125,
+          "special": false,
+          "text": "The"
+        },
+        {
+          "id": 806,
+          "logprob": -4.1992188,
+          "special": false,
+          "text": " first"
+        },
+        {
+          "id": 2181,
+          "logprob": -2.703125,
+          "special": false,
+          "text": " thing"
+        },
+        {
+          "id": 309,
+          "logprob": -1.4160156,
+          "special": false,
+          "text": " I"
+        },
+        {
+          "id": 8344,
+          "logprob": -1.6171875,
+          "special": false,
+          "text": " noticed"
+        },
+        {
+          "id": 369,
+          "logprob": -1.0039062,
+          "special": false,
+          "text": " was"
+        },
+        {
+          "id": 326,
+          "logprob": -0.8823242,
+          "special": false,
+          "text": " that"
+        },
+        {
+          "id": 253,
+          "logprob": -1.3173828,
+          "special": false,
+          "text": " the"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nThe first thing I noticed was that the"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 5089,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 2748,
+          "logprob": -9.7265625,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -2.4941406,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -1.3857422,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 510,
+          "logprob": -2.703125,
+          "special": false,
+          "text": "The"
+        },
+        {
+          "id": 806,
+          "logprob": -4.1992188,
+          "special": false,
+          "text": " first"
+        },
+        {
+          "id": 2181,
+          "logprob": -2.703125,
+          "special": false,
+          "text": " thing"
+        },
+        {
+          "id": 309,
+          "logprob": -1.4160156,
+          "special": false,
+          "text": " I"
+        },
+        {
+          "id": 8344,
+          "logprob": -1.6171875,
+          "special": false,
+          "text": " noticed"
+        },
+        {
+          "id": 369,
+          "logprob": -1.0039062,
+          "special": false,
+          "text": " was"
+        },
+        {
+          "id": 326,
+          "logprob": -0.8823242,
+          "special": false,
+          "text": " that"
+        },
+        {
+          "id": 253,
+          "logprob": -1.3173828,
+          "special": false,
+          "text": " the"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nThe first thing I noticed was that the"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 5089,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 2748,
+          "logprob": -9.7265625,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -2.4941406,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -1.3857422,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 510,
+          "logprob": -2.703125,
+          "special": false,
+          "text": "The"
+        },
+        {
+          "id": 806,
+          "logprob": -4.1992188,
+          "special": false,
+          "text": " first"
+        },
+        {
+          "id": 2181,
+          "logprob": -2.703125,
+          "special": false,
+          "text": " thing"
+        },
+        {
+          "id": 309,
+          "logprob": -1.4160156,
+          "special": false,
+          "text": " I"
+        },
+        {
+          "id": 8344,
+          "logprob": -1.6171875,
+          "special": false,
+          "text": " noticed"
+        },
+        {
+          "id": 369,
+          "logprob": -1.0039062,
+          "special": false,
+          "text": " was"
+        },
+        {
+          "id": 326,
+          "logprob": -0.8823242,
+          "special": false,
+          "text": " that"
+        },
+        {
+          "id": 253,
+          "logprob": -1.3173828,
+          "special": false,
+          "text": " the"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nThe first thing I noticed was that the"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 5089,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 2748,
+          "logprob": -9.7265625,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -2.4941406,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -1.3857422,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 510,
+          "logprob": -2.703125,
+          "special": false,
+          "text": "The"
+        },
+        {
+          "id": 806,
+          "logprob": -4.1992188,
+          "special": false,
+          "text": " first"
+        },
+        {
+          "id": 2181,
+          "logprob": -2.703125,
+          "special": false,
+          "text": " thing"
+        },
+        {
+          "id": 309,
+          "logprob": -1.4160156,
+          "special": false,
+          "text": " I"
+        },
+        {
+          "id": 8344,
+          "logprob": -1.6171875,
+          "special": false,
+          "text": " noticed"
+        },
+        {
+          "id": 369,
+          "logprob": -1.0039062,
+          "special": false,
+          "text": " was"
+        },
+        {
+          "id": 326,
+          "logprob": -0.8823242,
+          "special": false,
+          "text": " that"
+        },
+        {
+          "id": 253,
+          "logprob": -1.3173828,
+          "special": false,
+          "text": " the"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nThe first thing I noticed was that the"
+  }
+]

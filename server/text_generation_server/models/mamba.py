@@ -557,7 +557,7 @@ class Mamba(Model):
                     top_tokens = None
 
                 generation = Generation(
-                    batch.batch_id,
+                    request.id,
                     prefill_tokens,
                     Tokens(
                         [next_token_id_squeezed],
