@@ -169,6 +169,7 @@ class MambaBatch(Batch):
         total_remaining_decode_tokens = 0
         new_padding_right_offset = 0
 
+        indices = []
         for i, request_id in enumerate(request_ids):
             idx = self.requests_idx_mapping[request_id]
             requests_idx_mapping[request_id] = i
@@ -182,6 +183,7 @@ class MambaBatch(Batch):
             request_input_length = self.input_lengths[idx]
             input_lengths.append(request_input_length)
             max_input_length = max(max_input_length, request_input_length)
+            indices.append(idx)
 
             next_token_choosers.append(self.next_token_choosers[idx])
             stopping_criteria = self.stopping_criterias[idx]
@@ -216,6 +218,13 @@ class MambaBatch(Batch):
         self.padding_right_offset = new_padding_right_offset
         self.max_tokens = max_tokens
 
+        # TODO 
+        # Kept it simple by just updating the state, maybe updating the other CPU values is necessary.
+        key_value_memory_dict = {}
+        for i, (conv_state, ssm_state) in self.inference_params.key_value_memory_dict.items():
+            key_value_memory_dict[i] = (conv_state[indices], ssm_state[indices])
+        self.inference_params.key_value_memory_dict = key_value_memory_dict
+
         return self
 
     @classmethod
@@ -240,6 +249,9 @@ class MambaBatch(Batch):
         stopping_criterias = []
         top_n_tokens = []
         max_tokens = 0
+        max_seqlen = 0
+        batch_size = 0
+        seqlen_offset = 0
 
         # Batch tensors
         input_ids = None
@@ -287,7 +299,59 @@ class MambaBatch(Batch):
                 max_input_length - batch.max_input_length
             ) * len(batch)
 
+            max_seqlen = max(max_seqlen, batch.inference_params.max_seqlen)
+            seqlen_offset = max(seqlen_offset, batch.inference_params.seqlen_offset)
+            batch_size += batch.inference_params.max_batch_size
+
             start_index = end_index
+
+
+        (_, d_model, d_conv) = batches[0].inference_params.key_value_memory_dict[0][0].shape
+        (_, _, d_state) = batches[0].inference_params.key_value_memory_dict[0][1].shape
+        n_blocks = len(batches[0].inference_params.key_value_memory_dict)
+        dtype = batches[0].inference_params.key_value_memory_dict[0][0].dtype
+        device = batches[0].inference_params.key_value_memory_dict[0][0].device
+
+        key_value_memory_dict = {}
+        for i in range(n_blocks):
+            conv_state = torch.zeros(
+                batch_size,
+                d_model,
+                d_conv,
+                device=device,
+                dtype=dtype,
+            )
+            ssm_state = torch.zeros(
+                batch_size,
+                d_model,
+                d_state,
+                device=device,
+                dtype=dtype,
+            )
+            key_value_memory_dict[i] = (conv_state, ssm_state)
+        lengths_per_sample = torch.zeros(batch_size, dtype=torch.int32, device=device)
+
+        inference_params = InferenceParams(
+            max_seqlen=max_seqlen,
+            max_batch_size=batch_size,
+            seqlen_offset=seqlen_offset,
+            key_value_memory_dict=key_value_memory_dict,
+            lengths_per_sample=lengths_per_sample,
+        )
+
+        current_batch = 0
+        for batch in batches:
+            for i in range(n_blocks):
+                conv_state, ssm_state = batch.inference_params.key_value_memory_dict[i]
+                batch_size = batch.inference_params.max_batch_size
+                try:
+                    inference_params.key_value_memory_dict[i][0][current_batch:current_batch + batch_size] = conv_state
+                    inference_params.key_value_memory_dict[i][1][current_batch:current_batch + batch_size] = ssm_state
+                except Exception:
+                    import ipdb;ipdb.set_trace()
+                    pass
+                inference_params.lengths_per_sample[current_batch: current_batch + batch_size] = batch.inference_params.lengths_per_sample
+            current_batch += batch_size
 
         return cls(
             batch_id=batches[0].batch_id,
@@ -306,6 +370,7 @@ class MambaBatch(Batch):
             padding_right_offset=padding_right_offset,
             keys_head_dim_last=batches[0].keys_head_dim_last,
             max_tokens=max_tokens,
+            inference_params=inference_params
         )
 
     def __len__(self):
@@ -380,7 +445,6 @@ class Mamba(Model):
 
     def generate_token(self, batch) -> Tuple[List[Any], Optional[Any], Tuple[int, int]]:
         start = time.time_ns()
-
         input_ids = batch.input_ids # batch.past_input_ids if batch.past_input_ids is not None else batch.input_ids
 
         batch_size = input_ids.shape[0]

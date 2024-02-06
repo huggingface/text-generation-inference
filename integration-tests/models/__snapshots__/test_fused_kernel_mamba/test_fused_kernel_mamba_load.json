@@ -6,82 +6,97 @@
       "generated_tokens": 10,
       "prefill": [
         {
-          "id": 5089,
+          "id": 1276,
           "logprob": null,
-          "text": "Test"
+          "text": "What"
         },
         {
-          "id": 2748,
-          "logprob": -9.7265625,
-          "text": " request"
+          "id": 310,
+          "logprob": -0.8125,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.828125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -3.0,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1484375,
+          "text": "?"
         }
       ],
       "seed": null,
       "tokens": [
         {
           "id": 187,
-          "logprob": -2.4746094,
+          "logprob": -0.3552246,
           "special": false,
           "text": "\n"
         },
         {
           "id": 187,
-          "logprob": -1.3857422,
+          "logprob": -0.38989258,
           "special": false,
           "text": "\n"
         },
         {
-          "id": 510,
-          "logprob": -2.703125,
+          "id": 30763,
+          "logprob": -1.1386719,
           "special": false,
-          "text": "The"
+          "text": "Deep"
         },
         {
-          "id": 806,
-          "logprob": -4.1992188,
+          "id": 4715,
+          "logprob": -0.5576172,
           "special": false,
-          "text": " first"
+          "text": " learning"
         },
         {
-          "id": 2181,
-          "logprob": -2.703125,
+          "id": 310,
+          "logprob": -0.5913086,
           "special": false,
-          "text": " thing"
+          "text": " is"
         },
         {
-          "id": 309,
-          "logprob": -1.4160156,
+          "id": 247,
+          "logprob": -0.69970703,
           "special": false,
-          "text": " I"
+          "text": " a"
         },
         {
-          "id": 8344,
-          "logprob": -1.6171875,
+          "id": 747,
+          "logprob": -2.0449219,
           "special": false,
-          "text": " noticed"
+          "text": " new"
         },
         {
-          "id": 369,
-          "logprob": -1.0039062,
+          "id": 1511,
+          "logprob": -2.3847656,
           "special": false,
-          "text": " was"
+          "text": " type"
         },
         {
-          "id": 326,
-          "logprob": -0.8823242,
+          "id": 273,
+          "logprob": -0.0026626587,
           "special": false,
-          "text": " that"
+          "text": " of"
         },
         {
-          "id": 253,
-          "logprob": -1.3173828,
+          "id": 5145,
+          "logprob": -1.2841797,
           "special": false,
-          "text": " the"
+          "text": " machine"
         }
       ],
       "top_tokens": null
     },
-    "generated_text": "\n\nThe first thing I noticed was that the"
+    "generated_text": "\n\nDeep learning is a new type of machine"
   },
   {
     "details": {
@@ -90,82 +105,97 @@
       "generated_tokens": 10,
       "prefill": [
         {
-          "id": 5089,
+          "id": 1276,
           "logprob": null,
-          "text": "Test"
+          "text": "What"
         },
         {
-          "id": 2748,
-          "logprob": -9.7265625,
-          "text": " request"
+          "id": 310,
+          "logprob": -0.78027344,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.8203125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.9902344,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1523438,
+          "text": "?"
         }
       ],
       "seed": null,
       "tokens": [
         {
           "id": 187,
-          "logprob": -2.4941406,
+          "logprob": -0.35351562,
           "special": false,
           "text": "\n"
         },
         {
           "id": 187,
-          "logprob": -1.3857422,
+          "logprob": -0.38476562,
           "special": false,
           "text": "\n"
         },
         {
-          "id": 510,
-          "logprob": -2.703125,
+          "id": 30763,
+          "logprob": -1.1308594,
           "special": false,
-          "text": "The"
+          "text": "Deep"
         },
         {
-          "id": 806,
-          "logprob": -4.1992188,
+          "id": 4715,
+          "logprob": -0.5522461,
           "special": false,
-          "text": " first"
+          "text": " learning"
         },
         {
-          "id": 2181,
-          "logprob": -2.703125,
+          "id": 310,
+          "logprob": -0.59375,
           "special": false,
-          "text": " thing"
+          "text": " is"
         },
         {
-          "id": 309,
-          "logprob": -1.4160156,
+          "id": 247,
+          "logprob": -0.7036133,
           "special": false,
-          "text": " I"
+          "text": " a"
         },
         {
-          "id": 8344,
-          "logprob": -1.6171875,
+          "id": 747,
+          "logprob": -2.0507812,
           "special": false,
-          "text": " noticed"
+          "text": " new"
         },
         {
-          "id": 369,
-          "logprob": -1.0039062,
+          "id": 1511,
+          "logprob": -2.3808594,
           "special": false,
-          "text": " was"
+          "text": " type"
         },
         {
-          "id": 326,
-          "logprob": -0.8823242,
+          "id": 273,
+          "logprob": -0.002664566,
           "special": false,
-          "text": " that"
+          "text": " of"
         },
         {
-          "id": 253,
-          "logprob": -1.3173828,
+          "id": 5145,
+          "logprob": -1.2851562,
           "special": false,
-          "text": " the"
+          "text": " machine"
         }
       ],
       "top_tokens": null
     },
-    "generated_text": "\n\nThe first thing I noticed was that the"
+    "generated_text": "\n\nDeep learning is a new type of machine"
   },
   {
     "details": {
@@ -174,82 +204,97 @@
       "generated_tokens": 10,
       "prefill": [
         {
-          "id": 5089,
+          "id": 1276,
           "logprob": null,
-          "text": "Test"
+          "text": "What"
         },
         {
-          "id": 2748,
-          "logprob": -9.7265625,
-          "text": " request"
+          "id": 310,
+          "logprob": -0.78027344,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.8203125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.9902344,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1523438,
+          "text": "?"
         }
       ],
       "seed": null,
       "tokens": [
         {
           "id": 187,
-          "logprob": -2.4941406,
+          "logprob": -0.35351562,
           "special": false,
           "text": "\n"
         },
         {
           "id": 187,
-          "logprob": -1.3857422,
+          "logprob": -0.38476562,
           "special": false,
           "text": "\n"
         },
         {
-          "id": 510,
-          "logprob": -2.703125,
+          "id": 30763,
+          "logprob": -1.1308594,
           "special": false,
-          "text": "The"
+          "text": "Deep"
         },
         {
-          "id": 806,
-          "logprob": -4.1992188,
+          "id": 4715,
+          "logprob": -0.5522461,
           "special": false,
-          "text": " first"
+          "text": " learning"
         },
         {
-          "id": 2181,
-          "logprob": -2.703125,
+          "id": 310,
+          "logprob": -0.59375,
           "special": false,
-          "text": " thing"
+          "text": " is"
         },
         {
-          "id": 309,
-          "logprob": -1.4160156,
+          "id": 247,
+          "logprob": -0.7036133,
           "special": false,
-          "text": " I"
+          "text": " a"
         },
         {
-          "id": 8344,
-          "logprob": -1.6171875,
+          "id": 747,
+          "logprob": -2.0507812,
           "special": false,
-          "text": " noticed"
+          "text": " new"
         },
         {
-          "id": 369,
-          "logprob": -1.0039062,
+          "id": 1511,
+          "logprob": -2.3808594,
           "special": false,
-          "text": " was"
+          "text": " type"
         },
         {
-          "id": 326,
-          "logprob": -0.8823242,
+          "id": 273,
+          "logprob": -0.002664566,
           "special": false,
-          "text": " that"
+          "text": " of"
         },
         {
-          "id": 253,
-          "logprob": -1.3173828,
+          "id": 5145,
+          "logprob": -1.2851562,
           "special": false,
-          "text": " the"
+          "text": " machine"
         }
       ],
       "top_tokens": null
     },
-    "generated_text": "\n\nThe first thing I noticed was that the"
+    "generated_text": "\n\nDeep learning is a new type of machine"
   },
   {
     "details": {
@@ -258,81 +303,96 @@
       "generated_tokens": 10,
       "prefill": [
         {
-          "id": 5089,
+          "id": 1276,
           "logprob": null,
-          "text": "Test"
+          "text": "What"
         },
         {
-          "id": 2748,
-          "logprob": -9.7265625,
-          "text": " request"
+          "id": 310,
+          "logprob": -0.78027344,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.8203125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.9902344,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1523438,
+          "text": "?"
         }
       ],
       "seed": null,
       "tokens": [
         {
           "id": 187,
-          "logprob": -2.4941406,
+          "logprob": -0.35351562,
           "special": false,
           "text": "\n"
         },
         {
           "id": 187,
-          "logprob": -1.3857422,
+          "logprob": -0.38476562,
           "special": false,
           "text": "\n"
         },
         {
-          "id": 510,
-          "logprob": -2.703125,
+          "id": 30763,
+          "logprob": -1.1308594,
           "special": false,
-          "text": "The"
+          "text": "Deep"
         },
         {
-          "id": 806,
-          "logprob": -4.1992188,
+          "id": 4715,
+          "logprob": -0.5522461,
           "special": false,
-          "text": " first"
+          "text": " learning"
         },
         {
-          "id": 2181,
-          "logprob": -2.703125,
+          "id": 310,
+          "logprob": -0.59375,
           "special": false,
-          "text": " thing"
+          "text": " is"
         },
         {
-          "id": 309,
-          "logprob": -1.4160156,
+          "id": 247,
+          "logprob": -0.7036133,
           "special": false,
-          "text": " I"
+          "text": " a"
         },
         {
-          "id": 8344,
-          "logprob": -1.6171875,
+          "id": 747,
+          "logprob": -2.0507812,
           "special": false,
-          "text": " noticed"
+          "text": " new"
         },
         {
-          "id": 369,
-          "logprob": -1.0039062,
+          "id": 1511,
+          "logprob": -2.3808594,
           "special": false,
-          "text": " was"
+          "text": " type"
         },
         {
-          "id": 326,
-          "logprob": -0.8823242,
+          "id": 273,
+          "logprob": -0.002664566,
           "special": false,
-          "text": " that"
+          "text": " of"
         },
         {
-          "id": 253,
-          "logprob": -1.3173828,
+          "id": 5145,
+          "logprob": -1.2851562,
           "special": false,
-          "text": " the"
+          "text": " machine"
         }
       ],
       "top_tokens": null
     },
-    "generated_text": "\n\nThe first thing I noticed was that the"
+    "generated_text": "\n\nDeep learning is a new type of machine"
   }
 ]
