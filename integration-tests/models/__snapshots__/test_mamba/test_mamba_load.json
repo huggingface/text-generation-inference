@@ -41,136 +41,37 @@
         },
         {
           "id": 187,
-          "logprob": -0.38989258,
+          "logprob": -0.38378906,
           "special": false,
           "text": "\n"
         },
         {
           "id": 30763,
-          "logprob": -1.1386719,
+          "logprob": -1.1279297,
           "special": false,
           "text": "Deep"
         },
         {
           "id": 4715,
-          "logprob": -0.5576172,
+          "logprob": -0.5595703,
           "special": false,
           "text": " learning"
         },
         {
           "id": 310,
-          "logprob": -0.5913086,
+          "logprob": -0.60253906,
           "special": false,
           "text": " is"
         },
         {
           "id": 247,
-          "logprob": -0.69970703,
+          "logprob": -0.7050781,
           "special": false,
           "text": " a"
         },
         {
           "id": 747,
-          "logprob": -2.0449219,
-          "special": false,
-          "text": " new"
-        },
-        {
-          "id": 1511,
-          "logprob": -2.3847656,
-          "special": false,
-          "text": " type"
-        },
-        {
-          "id": 273,
-          "logprob": -0.0026626587,
-          "special": false,
-          "text": " of"
-        },
-        {
-          "id": 5145,
-          "logprob": -1.2841797,
-          "special": false,
-          "text": " machine"
-        }
-      ],
-      "top_tokens": null
-    },
-    "generated_text": "\n\nDeep learning is a new type of machine"
-  },
-  {
-    "details": {
-      "best_of_sequences": null,
-      "finish_reason": "length",
-      "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1276,
-          "logprob": null,
-          "text": "What"
-        },
-        {
-          "id": 310,
-          "logprob": -0.78027344,
-          "text": " is"
-        },
-        {
-          "id": 18147,
-          "logprob": -12.8203125,
-          "text": " Deep"
-        },
-        {
-          "id": 20727,
-          "logprob": -2.9902344,
-          "text": " Learning"
-        },
-        {
-          "id": 32,
-          "logprob": -1.1523438,
-          "text": "?"
-        }
-      ],
-      "seed": null,
-      "tokens": [
-        {
-          "id": 187,
-          "logprob": -0.35351562,
-          "special": false,
-          "text": "\n"
-        },
-        {
-          "id": 187,
-          "logprob": -0.38476562,
-          "special": false,
-          "text": "\n"
-        },
-        {
-          "id": 30763,
-          "logprob": -1.1308594,
-          "special": false,
-          "text": "Deep"
-        },
-        {
-          "id": 4715,
-          "logprob": -0.5522461,
-          "special": false,
-          "text": " learning"
-        },
-        {
-          "id": 310,
-          "logprob": -0.59375,
-          "special": false,
-          "text": " is"
-        },
-        {
-          "id": 247,
-          "logprob": -0.7036133,
-          "special": false,
-          "text": " a"
-        },
-        {
-          "id": 747,
-          "logprob": -2.0507812,
+          "logprob": -2.0488281,
           "special": false,
           "text": " new"
         },
@@ -182,7 +83,7 @@
         },
         {
           "id": 273,
-          "logprob": -0.002664566,
+          "logprob": -0.0026416779,
           "special": false,
           "text": " of"
         },
@@ -239,49 +140,49 @@
         },
         {
           "id": 187,
-          "logprob": -0.38476562,
+          "logprob": -0.38256836,
           "special": false,
           "text": "\n"
         },
         {
           "id": 30763,
-          "logprob": -1.1308594,
+          "logprob": -1.1269531,
           "special": false,
           "text": "Deep"
         },
         {
           "id": 4715,
-          "logprob": -0.5522461,
+          "logprob": -0.54541016,
           "special": false,
           "text": " learning"
         },
         {
           "id": 310,
-          "logprob": -0.59375,
+          "logprob": -0.59765625,
           "special": false,
           "text": " is"
         },
         {
           "id": 247,
-          "logprob": -0.7036133,
+          "logprob": -0.7001953,
           "special": false,
           "text": " a"
         },
         {
           "id": 747,
-          "logprob": -2.0507812,
+          "logprob": -2.0585938,
           "special": false,
           "text": " new"
         },
         {
           "id": 1511,
-          "logprob": -2.3808594,
+          "logprob": -2.3789062,
           "special": false,
           "text": " type"
         },
         {
           "id": 273,
-          "logprob": -0.002664566,
+          "logprob": -0.0027446747,
           "special": false,
           "text": " of"
         },
@@ -338,49 +239,148 @@
         },
         {
           "id": 187,
-          "logprob": -0.38476562,
+          "logprob": -0.38256836,
           "special": false,
           "text": "\n"
         },
         {
           "id": 30763,
-          "logprob": -1.1308594,
+          "logprob": -1.1269531,
           "special": false,
           "text": "Deep"
         },
         {
           "id": 4715,
-          "logprob": -0.5522461,
+          "logprob": -0.54541016,
           "special": false,
           "text": " learning"
         },
         {
           "id": 310,
-          "logprob": -0.59375,
+          "logprob": -0.59765625,
           "special": false,
           "text": " is"
         },
         {
           "id": 247,
-          "logprob": -0.7036133,
+          "logprob": -0.7001953,
           "special": false,
           "text": " a"
         },
         {
           "id": 747,
-          "logprob": -2.0507812,
+          "logprob": -2.0585938,
           "special": false,
           "text": " new"
         },
         {
           "id": 1511,
-          "logprob": -2.3808594,
+          "logprob": -2.3789062,
           "special": false,
           "text": " type"
         },
         {
           "id": 273,
-          "logprob": -0.002664566,
+          "logprob": -0.0027446747,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 5145,
+          "logprob": -1.2851562,
+          "special": false,
+          "text": " machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new type of machine"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.78027344,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.8203125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.9902344,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1523438,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -0.35351562,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -0.38256836,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 30763,
+          "logprob": -1.1269531,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4715,
+          "logprob": -0.54541016,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 310,
+          "logprob": -0.59765625,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -0.7001953,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 747,
+          "logprob": -2.0585938,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 1511,
+          "logprob": -2.3789062,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 273,
+          "logprob": -0.0027446747,
           "special": false,
           "text": " of"
         },

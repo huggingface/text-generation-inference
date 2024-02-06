@@ -15,7 +15,7 @@ async def fused_kernel_mamba(fused_kernel_mamba_handle):
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_fused_kernel_mamba(fused_kernel_mamba, response_snapshot):
+async def test_mamba(fused_kernel_mamba, response_snapshot):
     response = await fused_kernel_mamba.generate(
         "What is Deep Learning?", max_new_tokens=10
     )
@@ -24,10 +24,9 @@ async def test_fused_kernel_mamba(fused_kernel_mamba, response_snapshot):
     assert response.generated_text == "\n\nDeep learning is a new type of machine"
     assert response == response_snapshot
 
-
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_fused_kernel_mamba_all_params(fused_kernel_mamba, response_snapshot):
+async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
     response = await fused_kernel_mamba.generate(
         "blue, red, yellow, ",
         max_new_tokens=10,
@@ -50,7 +49,7 @@ async def test_fused_kernel_mamba_all_params(fused_kernel_mamba, response_snapsh
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_fused_kernel_mamba_load(fused_kernel_mamba, generate_load, response_snapshot):
+async def test_mamba_load(fused_kernel_mamba, generate_load, response_snapshot):
     responses = await generate_load(fused_kernel_mamba, "What is Deep Learning?", max_new_tokens=10, n=4)
 
     assert len(responses) == 4
