@@ -344,12 +344,8 @@ class MambaBatch(Batch):
             for i in range(n_blocks):
                 conv_state, ssm_state = batch.inference_params.key_value_memory_dict[i]
                 batch_size = batch.inference_params.max_batch_size
-                try:
-                    inference_params.key_value_memory_dict[i][0][current_batch:current_batch + batch_size] = conv_state
-                    inference_params.key_value_memory_dict[i][1][current_batch:current_batch + batch_size] = ssm_state
-                except Exception:
-                    import ipdb;ipdb.set_trace()
-                    pass
+                inference_params.key_value_memory_dict[i][0][current_batch:current_batch + batch_size] = conv_state
+                inference_params.key_value_memory_dict[i][1][current_batch:current_batch + batch_size] = ssm_state
                 inference_params.lengths_per_sample[current_batch: current_batch + batch_size] = batch.inference_params.lengths_per_sample
             current_batch += batch_size
 
