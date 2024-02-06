@@ -34,7 +34,6 @@ pub struct HubTokenizerConfig {
     pub chat_template: Option<String>,
     pub bos_token: Option<String>,
     pub eos_token: Option<String>,
-    pub add_generation_prompt: Option<bool>,
 }
 
 impl HubTokenizerConfig {
