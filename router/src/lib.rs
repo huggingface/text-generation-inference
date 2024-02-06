@@ -306,6 +306,7 @@ pub struct CompletionRequest {
     pub top_p: Option<f32>,
     pub stream: Option<bool>,
     pub seed: Option<u64>,
+    pub suffix: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
