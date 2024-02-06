@@ -4,7 +4,7 @@ use nix::unistd::Pid;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Lines, Read};
+use std::io::{BufRead, BufReader, Lines};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -21,16 +21,16 @@ mod env_runtime;
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum Quantization {
-    /// 4 bit quantization. Requires a specific GTPQ quantized model:
+    /// 4 bit quantization. Requires a specific AWQ quantized model:
     ///   https://hf.co/models?search=awq.
-    /// Should replace GPTQ models whereever possible because of the better latency
+    /// Should replace GPTQ models wherever possible because of the better latency
     Awq,
     /// 8 bit quantization, doesn't require specific model.
     /// Should be a drop-in replacement to bitsandbytes with much better performance.
     /// Kernels are from https://github.com/NetEase-FuXi/EETQ.git
     Eetq,
     /// 4 bit quantization. Requires a specific GTPQ quantized model: https://hf.co/models?search=gptq.
-    /// text-generation-inference will use exllama (faster) kernels whereever possible, and use
+    /// text-generation-inference will use exllama (faster) kernels wherever possible, and use
     /// triton kernel (wider support) when it's not.
     /// AWQ has faster kernels.
     Gptq,
@@ -368,6 +368,11 @@ struct Args {
     #[clap(long, env)]
     ngrok_edge: Option<String>,
 
+    /// The path to the tokenizer config file. This path is used to load the tokenizer configuration which may
+    /// include a `chat_template`. If not provided, the default config will be used from the model hub.
+    #[clap(long, env)]
+    tokenizer_config_path: Option<String>,
+
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
     env: bool,
@@ -489,6 +494,9 @@ fn shard_manager(
     // Safetensors load fast
     envs.push(("SAFETENSORS_FAST_GPU".into(), "1".into()));
 
+    // Disable progress bar
+    envs.push(("HF_HUB_DISABLE_PROGRESS_BARS".into(), "1".into()));
+
     // Enable hf transfer for insane download speeds
     let enable_hf_transfer = env::var("HF_HUB_ENABLE_HF_TRANSFER").unwrap_or("1".to_string());
     envs.push((
@@ -573,6 +581,13 @@ fn shard_manager(
     thread::spawn(move || {
         log_lines(shard_stdout_reader.lines());
     });
+    // We read stderr in another thread as it seems that lines() can block in some cases
+    let (err_sender, err_receiver) = mpsc::channel();
+    thread::spawn(move || {
+        for line in shard_stderr_reader.lines().flatten() {
+            err_sender.send(line).unwrap_or(());
+        }
+    });
 
     let mut ready = false;
     let start_time = Instant::now();
@@ -580,13 +595,6 @@ fn shard_manager(
     loop {
         // Process exited
         if let Some(exit_status) = p.try_wait().unwrap() {
-            // We read stderr in another thread as it seems that lines() can block in some cases
-            let (err_sender, err_receiver) = mpsc::channel();
-            thread::spawn(move || {
-                for line in shard_stderr_reader.lines().flatten() {
-                    err_sender.send(line).unwrap_or(());
-                }
-            });
             let mut err = String::new();
             while let Ok(line) = err_receiver.recv_timeout(Duration::from_millis(10)) {
                 err = err + "\n" + &line;
@@ -782,6 +790,9 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
+    // Disable progress bar
+    envs.push(("HF_HUB_DISABLE_PROGRESS_BARS".into(), "1".into()));
+
     // If huggingface_hub_cache is set, pass it to the download process
     // Useful when running inside a docker container
     if let Some(ref huggingface_hub_cache) = args.huggingface_hub_cache {
@@ -832,12 +843,20 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
         }
     };
 
-    // Redirect STDOUT to the console
-    let download_stdout = download_process.stdout.take().unwrap();
-    let stdout = BufReader::new(download_stdout);
+    let download_stdout = BufReader::new(download_process.stdout.take().unwrap());
 
     thread::spawn(move || {
-        log_lines(stdout.lines());
+        log_lines(download_stdout.lines());
+    });
+
+    let download_stderr = BufReader::new(download_process.stderr.take().unwrap());
+
+    // We read stderr in another thread as it seems that lines() can block in some cases
+    let (err_sender, err_receiver) = mpsc::channel();
+    thread::spawn(move || {
+        for line in download_stderr.lines().flatten() {
+            err_sender.send(line).unwrap_or(());
+        }
     });
 
     loop {
@@ -848,12 +867,10 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
             }
 
             let mut err = String::new();
-            download_process
-                .stderr
-                .take()
-                .unwrap()
-                .read_to_string(&mut err)
-                .unwrap();
+            while let Ok(line) = err_receiver.recv_timeout(Duration::from_millis(10)) {
+                err = err + "\n" + &line;
+            }
+
             if let Some(signal) = status.signal() {
                 tracing::error!(
                     "Download process was signaled to shutdown with signal {signal}: {err}"
@@ -965,7 +982,20 @@ fn spawn_shards(
     Ok(())
 }
 
+fn compute_type(num_shard: usize) -> Option<String> {
+    let output = Command::new("nvidia-smi")
+        .args(["--query-gpu=gpu_name", "--format=csv"])
+        .output()
+        .ok()?;
+    let output = String::from_utf8(output.stdout).ok()?;
+    let fullname = output.split('\n').nth(1)?;
+    let cardname = fullname.replace(' ', "-").to_lowercase();
+    let compute_type = format!("{num_shard}-{cardname}");
+    Some(compute_type)
+}
+
 fn spawn_webserver(
+    num_shard: usize,
     args: Args,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
@@ -1003,6 +1033,12 @@ fn spawn_webserver(
         "--tokenizer-name".to_string(),
         args.model_id,
     ];
+
+    // Tokenizer config path
+    if let Some(ref tokenizer_config_path) = args.tokenizer_config_path {
+        router_args.push("--tokenizer-config-path".to_string());
+        router_args.push(tokenizer_config_path.to_string());
+    }
 
     // Model optional max batch total tokens
     if let Some(max_batch_total_tokens) = args.max_batch_total_tokens {
@@ -1048,6 +1084,13 @@ fn spawn_webserver(
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
         envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
     };
+
+    // Parse Compute type
+    if let Ok(compute_type) = env::var("COMPUTE_TYPE") {
+        envs.push(("COMPUTE_TYPE".into(), compute_type.into()))
+    } else if let Some(compute_type) = compute_type(num_shard) {
+        envs.push(("COMPUTE_TYPE".into(), compute_type.into()))
+    }
 
     let mut webserver = match Command::new("text-generation-router")
         .args(router_args)
@@ -1242,8 +1285,8 @@ fn main() -> Result<(), LauncherError> {
         return Ok(());
     }
 
-    let mut webserver =
-        spawn_webserver(args, shutdown.clone(), &shutdown_receiver).map_err(|err| {
+    let mut webserver = spawn_webserver(num_shard, args, shutdown.clone(), &shutdown_receiver)
+        .map_err(|err| {
             shutdown_shards(shutdown.clone(), &shutdown_receiver);
             err
         })?;

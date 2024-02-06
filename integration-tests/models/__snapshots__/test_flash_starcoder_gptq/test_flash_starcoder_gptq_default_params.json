@@ -16,52 +16,52 @@
       },
       {
         "id": 21017,
-        "logprob": -9.09375,
+        "logprob": -9.0859375,
         "text": "ometric"
       },
       {
         "id": 81,
-        "logprob": -0.25976562,
+        "logprob": -0.25830078,
         "text": "_"
       },
       {
         "id": 6009,
-        "logprob": -2.2148438,
+        "logprob": -2.1875,
         "text": "mean"
       },
       {
         "id": 26,
-        "logprob": -0.3010254,
+        "logprob": -0.30004883,
         "text": "("
       },
       {
         "id": 62,
-        "logprob": -5.6757812,
+        "logprob": -5.6171875,
         "text": "L"
       },
       {
         "id": 44,
-        "logprob": -3.0898438,
+        "logprob": -3.078125,
         "text": ":"
       },
       {
         "id": 1682,
-        "logprob": -0.6791992,
+        "logprob": -0.68066406,
         "text": " List"
       },
       {
         "id": 77,
-        "logprob": -0.38891602,
+        "logprob": -0.38745117,
         "text": "["
       },
       {
         "id": 1808,
-        "logprob": -0.92041016,
+        "logprob": -0.9453125,
         "text": "float"
       },
       {
         "id": 10794,
-        "logprob": -2.5390625,
+        "logprob": -2.5371094,
         "text": "]):"
       }
     ],
@@ -69,7 +69,7 @@
     "tokens": [
       {
         "id": 284,
-        "logprob": 0.0,
+        "logprob": -0.051635742,
         "special": false,
         "text": "\n   "
       },
@@ -81,7 +81,7 @@
       },
       {
         "id": 11665,
-        "logprob": -1.6005859,
+        "logprob": -1.2236328,
         "special": false,
         "text": " reduce"
       },
@@ -159,7 +159,7 @@
       },
       {
         "id": 203,
-        "logprob": -0.11968994,
+        "logprob": -0.12695312,
         "special": false,
         "text": "\n"
       },

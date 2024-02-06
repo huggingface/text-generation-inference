@@ -37,7 +37,7 @@ pub struct HubTokenizerConfig {
 }
 
 impl HubTokenizerConfig {
-    pub fn from_file(filename: &str) -> Self {
+    pub fn from_file(filename: &std::path::Path) -> Self {
         let content = std::fs::read_to_string(filename).unwrap();
         serde_json::from_str(&content).unwrap_or_default()
     }
@@ -188,18 +188,20 @@ fn default_parameters() -> GenerateParameters {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletion {
     pub id: String,
     pub object: String,
+    #[schema(example = "1706270835")]
     pub created: u64,
+    #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     pub model: String,
     pub system_fingerprint: String,
     pub choices: Vec<ChatCompletionComplete>,
     pub usage: Usage,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionComplete {
     pub index: u32,
     pub message: Message,
@@ -248,17 +250,19 @@ impl ChatCompletion {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
     pub object: String,
+    #[schema(example = "1706270978")]
     pub created: u64,
+    #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     pub model: String,
     pub system_fingerprint: String,
     pub choices: Vec<ChatCompletionChoice>,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChoice {
     pub index: u32,
     pub delta: ChatCompletionDelta,
@@ -266,9 +270,11 @@ pub(crate) struct ChatCompletionChoice {
     pub finish_reason: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionDelta {
+    #[schema(example = "user")]
     pub role: String,
+    #[schema(example = "What is Deep Learning?")]
     pub content: String,
 }
 
@@ -311,7 +317,7 @@ fn default_request_messages() -> Vec<Message> {
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
 pub(crate) struct ChatRequest {
     /// UNUSED
-    #[schema(example = "bigscience/blomm-560m")]
+    #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
     pub model: String, /* NOTE: UNUSED */
 
@@ -322,6 +328,7 @@ pub(crate) struct ChatRequest {
     /// Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far,
     /// decreasing the model's likelihood to repeat the same line verbatim.
     #[serde(default)]
+    #[schema(example = "1.0")]
     pub frequency_penalty: Option<f32>,
 
     /// UNUSED
@@ -336,28 +343,33 @@ pub(crate) struct ChatRequest {
     /// Whether to return log probabilities of the output tokens or not. If true, returns the log probabilities of each
     /// output token returned in the content of message.
     #[serde(default)]
+    #[schema(example = "false")]
     pub logprobs: Option<bool>,
 
     /// UNUSED
     /// An integer between 0 and 5 specifying the number of most likely tokens to return at each token position, each with
     /// an associated log probability. logprobs must be set to true if this parameter is used.
     #[serde(default)]
+    #[schema(example = "5")]
     pub top_logprobs: Option<u32>,
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
+    #[schema(example = "32")]
     pub max_tokens: Option<u32>,
 
     /// UNUSED
     /// How many chat completion choices to generate for each input message. Note that you will be charged based on the
     /// number of generated tokens across all of the choices. Keep n as 1 to minimize costs.
     #[serde(default)]
+    #[schema(nullable = true, example = "2")]
     pub n: Option<u32>,
 
     /// UNUSED
     /// Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far,
     /// increasing the model's likelihood to talk about new topics
     #[serde(default)]
+    #[schema(nullable = true, example = 0.1)]
     pub presence_penalty: Option<f32>,
 
     #[serde(default = "bool::default")]
@@ -365,6 +377,20 @@ pub(crate) struct ChatRequest {
 
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
+
+    /// What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while
+    /// lower values like 0.2 will make it more focused and deterministic.
+    ///
+    /// We generally recommend altering this or `top_p` but not both.
+    #[serde(default)]
+    #[schema(nullable = true, example = 1.0)]
+    pub temperature: Option<f32>,
+
+    /// An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the
+    /// tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
+    #[serde(default)]
+    #[schema(nullable = true, example = 0.95)]
+    pub top_p: Option<f32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -432,8 +458,21 @@ pub struct Token {
     special: bool,
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SimpleToken {
+    #[schema(example = 0)]
+    id: u32,
+    #[schema(example = "test")]
+    text: String,
+    #[schema(example = 0)]
+    start: usize,
+    #[schema(example = 2)]
+    stop: usize,
+}
+
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
+#[schema(example = "Length")]
 pub(crate) enum FinishReason {
     #[schema(rename = "length")]
     Length,
@@ -495,6 +534,10 @@ pub(crate) struct GenerateResponse {
 }
 
 #[derive(Serialize, ToSchema)]
+#[serde(transparent)]
+pub(crate) struct TokenizeResponse(Vec<SimpleToken>);
+
+#[derive(Serialize, ToSchema)]
 pub(crate) struct StreamDetails {
     #[schema(example = "length")]
     pub finish_reason: FinishReason,
@@ -524,26 +567,12 @@ pub(crate) struct ErrorResponse {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
     use tokenizers::Tokenizer;
 
     pub(crate) async fn get_tokenizer() -> Tokenizer {
-        let filename = std::path::Path::new("tokenizer.json");
-        if !filename.exists() {
-            let content = reqwest::get("https://huggingface.co/gpt2/raw/main/tokenizer.json")
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap();
-            let tmp_filename = "tokenizer.json.temp";
-            let mut file = std::fs::File::create(tmp_filename).unwrap();
-            file.write_all(&content).unwrap();
-            // Re-check if another process has written this file maybe.
-            if !filename.exists() {
-                std::fs::rename(tmp_filename, filename).unwrap()
-            }
-        }
-        Tokenizer::from_file("tokenizer.json").unwrap()
+        let api = hf_hub::api::sync::Api::new().unwrap();
+        let repo = api.model("gpt2".to_string());
+        let filename = repo.get("tokenizer.json").unwrap();
+        Tokenizer::from_file(filename).unwrap()
     }
 }
