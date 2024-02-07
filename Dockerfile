@@ -154,16 +154,16 @@ COPY server/Makefile-vllm Makefile
 # Build specific version of vllm
 RUN make build-vllm-cuda
 
-# Build megablocks
-FROM kernel-builder as megablocks-builder
-
-RUN pip install git+https://github.com/OlivierDehaene/megablocks@181709df192de9a941fdf3a641cdc65a0462996e
-
 # Build mamba kernels
 FROM kernel-builder as mamba-builder
 WORKDIR /usr/src
 COPY server/Makefile-selective-scan Makefile
 RUN make build-all
+
+# Build megablocks
+FROM kernel-builder as megablocks-builder
+
+RUN pip install git+https://github.com/OlivierDehaene/megablocks@181709df192de9a941fdf3a641cdc65a0462996e
 
 # Text Generation Inference base image
 FROM nvidia/cuda:12.1.0-base-ubuntu20.04 as base

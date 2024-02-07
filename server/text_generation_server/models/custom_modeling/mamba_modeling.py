@@ -137,7 +137,7 @@ class MambaBlock(nn.Module):
             z = _z[i:i+1, -1, :]
             x_db = self.x_proj(x)
             dt, B, C = torch.split(x_db, [self.dt_rank, self.d_state, self.d_state], dim=-1)
-            df = self.dt_proj_no_bias(x)
+            dt = F.linear(dt, self.dt_proj.weight)
             y = selective_state_update(
                 ssm_state[i:i+1,:,:], x, dt, self.negA, B, C, self.D, z=z, dt_bias=self.dt_proj.bias, dt_softplus=True
             )
