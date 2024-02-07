@@ -19,7 +19,9 @@ The following models are optimized and can be served with TGI, which uses custom
 - [MPT](https://huggingface.co/mosaicml/mpt-30b)
 - [Llama V2](https://huggingface.co/meta-llama)
 - [Code Llama](https://huggingface.co/codellama)
-- [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1)
+- [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2)
+- [Mixtral](https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1)
+- [Phi](https://huggingface.co/microsoft/phi-2)
 
 If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models:
 
@@ -41,8 +43,8 @@ text-generation-launcher --model-id <PATH-TO-LOCAL-BLOOM>
 
 TGI optimized models are supported on NVIDIA [A100](https://www.nvidia.com/en-us/data-center/a100/), [A10G](https://www.nvidia.com/en-us/data-center/products/a10-gpu/) and [T4](https://www.nvidia.com/en-us/data-center/tesla-t4/) GPUs with CUDA 12.2+. Note that you have to install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) to use it. For other NVIDIA GPUs, continuous batching will still apply, but some operations like flash attention and paged attention will not be executed.
 
-TGI also has support of ROCm-enabled AMD Instinct MI210 and MI250 GPUs, with paged attention and flash attention v2 support. The following features are currently not supported in the ROCm version of TGI, and the supported may be extended in the future:
-* Quantization (GPTQ, AWQ, etc.)
+TGI also has support of ROCm-enabled AMD Instinct MI210 and MI250 GPUs, with paged attention, GPTQ quantization, flash attention v2 support. The following features are currently not supported in the ROCm version of TGI, and the supported may be extended in the future:
+* Loading [AWQ](https://huggingface.co/docs/transformers/quantization#awq) checkpoints.
 * Flash [layer norm kernel](https://github.com/Dao-AILab/flash-attention/tree/main/csrc/layer_norm)
 * Kernel for slinding window attention (Mistral)
 

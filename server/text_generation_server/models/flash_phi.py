@@ -3,13 +3,12 @@ import torch.distributed
 
 from opentelemetry import trace
 from transformers import AutoConfig, AutoTokenizer
-from transformers.models.llama import LlamaTokenizer
 from typing import Optional
 
 from text_generation_server.models import FlashCausalLM
-from text_generation_server.models.custom_modeling.flash_llama_modeling import (
-    FlashLlamaForCausalLM,
-    LlamaConfig,
+from text_generation_server.models.custom_modeling.flash_phi_modeling import (
+    FlashPhiForCausalLM,
+    PhiConfig,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -20,7 +19,7 @@ from text_generation_server.utils import (
 tracer = trace.get_tracer(__name__)
 
 
-class FlashLlama(FlashCausalLM):
+class FlashPhi(FlashCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -35,26 +34,17 @@ class FlashLlama(FlashCausalLM):
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
-            raise NotImplementedError("FlashLlama is only available on GPU")
+            raise NotImplementedError("FlashPhi is only available on GPU")
 
-        try:
-            tokenizer = LlamaTokenizer.from_pretrained(
-                model_id,
-                revision=revision,
-                padding_side="left",
-                truncation_side="left",
-                trust_remote_code=trust_remote_code,
-            )
-        except Exception:
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_id,
-                revision=revision,
-                padding_side="left",
-                truncation_side="left",
-                trust_remote_code=trust_remote_code,
-            )
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
 
-        config = LlamaConfig.from_pretrained(
+        config = PhiConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
@@ -66,7 +56,7 @@ class FlashLlama(FlashCausalLM):
         if config.quantize in ["gptq", "awq"]:
             weights._set_gptq_params(model_id, revision)
 
-        model = FlashLlamaForCausalLM(config, weights)
+        model = FlashPhiForCausalLM(config, weights)
         if use_medusa:
             from text_generation_server.utils.medusa import MedusaModel
             from huggingface_hub import hf_hub_download
@@ -99,7 +89,7 @@ class FlashLlama(FlashCausalLM):
             model.lm_head = MedusaModel(config, weights, lm_head)
 
         torch.distributed.barrier(group=self.process_group)
-        super(FlashLlama, self).__init__(
+        super(FlashPhi, self).__init__(
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),

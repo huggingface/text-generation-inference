@@ -1,6 +1,6 @@
 # Using TGI CLI
 
-You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters. To install the CLI, please refer to [the installation section](./installation#install-cli).
+You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters. To install the CLI, please refer to [the installation section](../installation#install-cli).
 
 `text-generation-server` lets you download the model with `download-weights` command like below 👇 
 

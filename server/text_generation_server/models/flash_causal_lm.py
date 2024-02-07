@@ -842,6 +842,8 @@ class FlashCausalLM(Model):
         else:
             next_token_logits = out
 
+
+        speculate = get_speculate()
         (
             next_input_ids,
             next_token_logprobs,
@@ -851,16 +853,15 @@ class FlashCausalLM(Model):
         ) = batch.next_token_chooser(
             batch.all_input_ids_tensor[:, : batch.max_seqlen],
             next_token_logits,
-            get_speculate(),
+            speculate,
             batch.speculative_ids,
             speculative_logits,
         )
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
-            batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs
+            batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs, accepted_ids
         )
 
-        speculative_length = 0 if speculative_ids is None else speculative_ids.shape[1]
         if prefill:
             if len(batch) > 1 and prefill_logprobs:
                 # We create the prefill_tokens_indices tensor that will be used to gather prefill logprobs
@@ -1062,20 +1063,24 @@ class FlashCausalLM(Model):
                     prefill_tokens = None
 
                 if top_n_tokens > 0:
-                    toptoken_texts = self.tokenizer.batch_decode(
-                        top_token_ids,
-                        clean_up_tokenization_spaces=False,
-                        skip_special_tokens=False,
-                    )
-                    special_toptokens = [
-                        token_id in self.all_special_ids for token_id in top_token_ids
-                    ]
-                    top_tokens = Tokens(
-                        top_token_ids,
-                        top_token_logprobs,
-                        toptoken_texts,
-                        special_toptokens,
-                    )
+                    all_top_tokens = []
+                    for (top_token_ids, top_token_logprobs) in zip(top_token_ids, top_token_logprobs):
+                        toptoken_texts = self.tokenizer.batch_decode(
+                            top_token_ids,
+                            clean_up_tokenization_spaces=False,
+                            skip_special_tokens=False,
+                        )
+                        special_toptokens = [
+                            token_id in self.all_special_ids for token_id in top_token_ids
+                        ]
+                        top_tokens = Tokens(
+                            top_token_ids,
+                            top_token_logprobs,
+                            toptoken_texts,
+                            special_toptokens,
+                        )
+                        all_top_tokens.append(top_tokens)
+                    top_tokens = all_top_tokens
                 else:
                     top_tokens = None
 
