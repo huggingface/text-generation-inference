@@ -398,6 +398,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
     messages: Vec<Message>,
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
+    add_generation_prompt: bool,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
