@@ -86,6 +86,7 @@ except ImportError as e:
 if MAMBA_AVAILABLE:
     __all__.append(Mamba)
 
+
 def get_model(
     model_id: str,
     revision: Optional[str],

@@ -2787,7 +2787,7 @@ dependencies = [
  "tabled",
  "text-generation-client",
  "thiserror",
- "tokenizers",
+ "tokenizers 0.14.1",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2850,7 +2850,7 @@ dependencies = [
  "serde_json",
  "text-generation-client",
  "thiserror",
- "tokenizers",
+ "tokenizers 0.15.1",
  "tokio",
  "tokio-stream",
  "tower-http",
@@ -2943,6 +2943,40 @@ name = "tokenizers"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9be88c795d8b9f9c4002b3a8f26a6d0876103a6f523b32ea3bac52d8560c17c"
+dependencies = [
+ "aho-corasick",
+ "clap",
+ "derive_builder",
+ "esaxx-rs",
+ "getrandom",
+ "hf-hub",
+ "indicatif",
+ "itertools 0.11.0",
+ "lazy_static",
+ "log",
+ "macro_rules_attribute",
+ "monostate",
+ "onig",
+ "paste",
+ "rand",
+ "rayon",
+ "rayon-cond",
+ "regex",
+ "regex-syntax 0.7.5",
+ "serde",
+ "serde_json",
+ "spm_precompiled",
+ "thiserror",
+ "unicode-normalization-alignments",
+ "unicode-segmentation",
+ "unicode_categories",
+]
+
+[[package]]
+name = "tokenizers"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6db445cceba5dfeb0f9702be7d6bfd91801ddcbe8fe8722defe7f2e96da75812"
 dependencies = [
  "aho-corasick",
  "clap",

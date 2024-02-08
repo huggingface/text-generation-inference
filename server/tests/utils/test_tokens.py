@@ -70,7 +70,7 @@ def test_batch_top_tokens():
 
     # Now let's make second member of the batch be speculated
     inp_logprobs = torch.tensor([[-1.0, -3.0, -4.0, -2.0, -3.0]] * 5 * 2)
-    accepted_ids[1]  = 2
+    accepted_ids[1] = 2
     topn_tok_ids, topn_tok_logprobs = batch_top_tokens(
         top_n_tokens, top_n_tokens_tensor, inp_logprobs, accepted_ids
     )

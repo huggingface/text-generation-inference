@@ -118,6 +118,62 @@ class HeterogeneousRepetitionPenaltyLogitsProcessor(LogitsProcessor):
         return None
 
 
+class FrequencyPenaltyLogitsProcessor(LogitsProcessor):
+    r"""
+    Frequency penalty as defined by OpenAI
+
+    Args:
+        penalty (`float`):
+            The parameter for frequency penalty. 0.0 means no penalty.
+    """
+
+    def __init__(self, penalty: float):
+        self.penalty = penalty
+
+    def __call__(
+        self, input_ids: torch.LongTensor, scores: torch.FloatTensor
+    ) -> torch.FloatTensor:
+        score = torch.gather(scores, 1, input_ids)
+        # if score < 0 then penalty has to be multiplied to reduce the previous token probability
+        score = -torch.where(
+            score < 0, score * self.penalty, score / self.penalty
+        )
+
+        return scores.scatter_add_(1, input_ids, score)
+
+
+class HeterogeneousFrequencyPenaltyLogitsProcessor(LogitsProcessor):
+    r"""
+    Frequency penalty as defined by OpenAI
+
+    Args:
+        frequency_penalty (`List[float]`):
+            The parameter for frequency penalty. 0.0 means no penalty.
+    """
+
+    def __init__(self, penalty: List[float], dtype: torch.dtype, device: torch.device):
+        self.penalty = penalty
+        self.penalty_tensor = torch.tensor(
+            penalty, dtype=dtype, device=device
+        ).unsqueeze(1)
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
+        score = torch.gather(scores, 1, input_ids)
+        # if score < 0 then penalty has to be multiplied to reduce the previous token probability
+        score = -torch.where(
+            score < 0, score * self.penalty_tensor, score / self.penalty_tensor
+        )
+
+        return scores.scatter_add_(1, input_ids, score)
+
+    def filter(self, indices):
+        self.penalty = [self.penalty[i] for i in indices]
+        if any([x != 0.0 for x in self.penalty]):
+            self.penalty_tensor = self.penalty_tensor[indices]
+            return self
+        return None
+
+
 class HeterogeneousTemperatureLogitsWarper:
     r"""
     [`LogitsWarper`] for temperature (exponential scaling output probability distribution).

@@ -66,6 +66,8 @@ message NextTokenChooserParameters {
     uint64 seed = 6;
     /// repetition penalty
     float repetition_penalty = 7;
+    /// frequency penalty
+    float frequency_penalty = 9;
     /// token watermarking using "A Watermark for Large Language Models"
     bool watermark = 8;
 }

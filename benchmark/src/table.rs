@@ -15,6 +15,7 @@ pub(crate) fn parameters_table(
     top_p: Option<f32>,
     typical_p: Option<f32>,
     repetition_penalty: Option<f32>,
+    frequency_penalty: Option<f32>,
     watermark: bool,
     do_sample: bool,
 ) -> Table {
@@ -33,6 +34,7 @@ pub(crate) fn parameters_table(
     builder.push_record(["Top P", &format!("{top_p:?}")]);
     builder.push_record(["Typical P", &format!("{typical_p:?}")]);
     builder.push_record(["Repetition Penalty", &format!("{repetition_penalty:?}")]);
+    builder.push_record(["Frequency Penalty", &format!("{frequency_penalty:?}")]);
     builder.push_record(["Watermark", &watermark.to_string()]);
     builder.push_record(["Do Sample", &do_sample.to_string()]);
 
