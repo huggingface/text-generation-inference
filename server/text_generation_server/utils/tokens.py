@@ -22,6 +22,7 @@ from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcess
 
 from outlines.fsm.fsm import RegexFSM
 from outlines.fsm.json_schema import build_regex_from_object
+from functools import lru_cache 
 
 # TODO: remove when done debugging
 import time
@@ -219,6 +220,8 @@ class HeterogeneousNextTokenChooser:
         typical_p: List[float],
         do_sample: List[bool],
         seeds: List[int],
+        tokenizer=None,
+        grammar=None,
     ):
         warpers = []
 
@@ -272,11 +275,15 @@ class HeterogeneousNextTokenChooser:
 
         self.warpers = warpers
 
-        if any(do_sample):
+        first_grammar = grammar[0] if grammar else None
+        if first_grammar:
+            self.choice = Grammar(tokenizer, device, first_grammar)
+        elif any(do_sample):
             self.choice = HeterogeneousSampling(do_sample, seeds, device)
         else:
             self.choice = Greedy()
 
+        self.use_grammar = grammar is not None
         self.seeds = seeds
         self.do_sample = do_sample
         self.dtype = dtype
@@ -390,7 +397,7 @@ class HeterogeneousNextTokenChooser:
         self.seeds = [self.seeds[i] for i in indices]
         self.do_sample = [self.do_sample[i] for i in indices]
 
-        if any(self.do_sample):
+        if self.use_grammar or any(self.do_sample):
             self.choice.filter(indices)
         else:
             self.choice = Greedy()
@@ -403,6 +410,7 @@ class HeterogeneousNextTokenChooser:
         pb: List[generate_pb2.NextTokenChooserParameters],
         dtype: torch.dtype,
         device: torch.device,
+        tokenizer: PreTrainedTokenizerBase,
     ) -> "HeterogeneousNextTokenChooser":
         return HeterogeneousNextTokenChooser(
             watermark=[pb_.watermark for pb_ in pb],
@@ -416,6 +424,8 @@ class HeterogeneousNextTokenChooser:
             seeds=[pb_.seed for pb_ in pb],
             device=device,
             dtype=dtype,
+            tokenizer=tokenizer,
+            grammar=[pb_.grammar for pb_ in pb],
         )
 
 
@@ -443,22 +453,12 @@ class Grammar:
     fsm: RegexFSM
 
     def __init__(self, tokenizer, device, grammar):
-        # TODO: remove debug logs
-        start_time = time.time()
-        tokenizer = self.adapt_tokenizer(tokenizer)
-        print(f"Adapt tokenizer: {time.time() - start_time}")
-        start_time = time.time()
-        regex_string = build_regex_from_object(grammar)
-        print(f"Build regex: {time.time() - start_time}")
-        fsm = RegexFSM(regex_string, tokenizer)
-        print(f"Compile FSM: {time.time() - start_time}")
-
+        fsm = self.compile_fsm(grammar, tokenizer)
         self.fsm = fsm
         self.fsm_state = defaultdict(int)
         self.device = device
 
     def __call__(self, logits):
-        # TODO: handle seq_id properly
         seq_id = 0
 
         if self.fsm_state[seq_id] == -1:
@@ -477,6 +477,17 @@ class Grammar:
             self.fsm_state[seq_id], greedy.item()
         )
         return greedy
+    
+    @lru_cache(maxsize=32, typed=True)
+    def compile_fsm(self, schema, tokenizer):
+        start_time = time.time()
+        tokenizer = self.adapt_tokenizer(tokenizer)
+        is_json_string = schema.startswith("{") and schema.endswith("}") 
+        regex_string = build_regex_from_object(schema) if is_json_string else schema
+        fsm = RegexFSM(regex_string, tokenizer)
+        print(f"Compile FSM: {time.time() - start_time}")
+        return fsm
+
 
     def adapt_tokenizer(self, tokenizer):
         """Adapt tokenizer to work with the FSM.
