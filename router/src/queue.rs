@@ -355,6 +355,7 @@ mod tests {
                     do_sample: false,
                     seed: 0,
                     repetition_penalty: 0.0,
+                    frequency_penalty: 0.0,
                     watermark: false,
                 },
                 stopping_parameters: StoppingCriteriaParameters {
