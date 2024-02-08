@@ -279,6 +279,11 @@ struct Args {
     #[clap(default_value = "20", long, env)]
     max_waiting_tokens: usize,
 
+    /// Enforce a maximum number of requests per batch
+    /// Specific flag for hardware targets that do not support unpadded inference
+    #[clap(long, env)]
+    max_batch_size: Option<usize>,
+
     /// The IP address to listen on
     #[clap(default_value = "0.0.0.0", long, env)]
     hostname: String,
@@ -1044,6 +1049,12 @@ fn spawn_webserver(
     if let Some(max_batch_total_tokens) = args.max_batch_total_tokens {
         router_args.push("--max-batch-total-tokens".to_string());
         router_args.push(max_batch_total_tokens.to_string());
+    }
+
+    // Router optional max batch size
+    if let Some(max_batch_size) = args.max_batch_size {
+        router_args.push("--max-batch-size".to_string());
+        router_args.push(max_batch_size.to_string());
     }
 
     // Model optional revision

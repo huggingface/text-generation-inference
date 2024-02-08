@@ -61,6 +61,7 @@ impl Infer {
         max_batch_prefill_tokens: u32,
         max_batch_total_tokens: u32,
         max_waiting_tokens: usize,
+        max_batch_size: Option<usize>,
         max_concurrent_requests: usize,
         requires_padding: bool,
         window_size: Option<u32>,
@@ -69,7 +70,7 @@ impl Infer {
         tokenizer_config: HubTokenizerConfig,
     ) -> Self {
         // Infer shared state
-        let queue = Queue::new(requires_padding, 16, window_size, speculate);
+        let queue = Queue::new(requires_padding, max_batch_size, 16, window_size, speculate);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });

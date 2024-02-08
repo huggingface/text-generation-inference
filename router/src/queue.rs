@@ -36,6 +36,7 @@ pub(crate) struct Queue {
 impl Queue {
     pub(crate) fn new(
         requires_padding: bool,
+        max_batch_size: Option<usize>,
         block_size: u32,
         window_size: Option<u32>,
         speculate: u32,
@@ -46,6 +47,7 @@ impl Queue {
         // Launch background queue task
         tokio::spawn(queue_task(
             requires_padding,
+            max_batch_size,
             block_size,
             window_size,
             speculate,
@@ -95,6 +97,7 @@ impl Queue {
 // Background task responsible of the queue state
 async fn queue_task(
     requires_padding: bool,
+    max_size: Option<usize>,
     block_size: u32,
     window_size: Option<u32>,
     speculate: u32,
@@ -115,7 +118,8 @@ async fn queue_task(
                 response_sender,
                 span,
             } => span.in_scope(|| {
-                let next_batch = state.next_batch(min_size, prefill_token_budget, token_budget);
+                let next_batch =
+                    state.next_batch(min_size, max_size, prefill_token_budget, token_budget);
                 response_sender.send(next_batch).unwrap();
                 metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
             }),
@@ -181,6 +185,7 @@ impl State {
     fn next_batch(
         &mut self,
         min_size: Option<usize>,
+        max_size: Option<usize>,
         prefill_token_budget: u32,
         token_budget: u32,
     ) -> Option<NextBatch> {
@@ -274,6 +279,11 @@ impl State {
             entry.batch_time = Some(Instant::now());
             // Insert in batch_entries IntMap
             batch_entries.insert(id, entry);
+
+            // Check if max_size
+            if Some(batch_requests.len()) == max_size {
+                break;
+            }
         }
 
         // Empty batch
@@ -393,8 +403,8 @@ mod tests {
     fn test_next_batch_empty() {
         let mut state = State::new(false, 1, None, 0);
 
-        assert!(state.next_batch(None, 1, 1).is_none());
-        assert!(state.next_batch(Some(1), 1, 1).is_none());
+        assert!(state.next_batch(None, None, 1, 1).is_none());
+        assert!(state.next_batch(Some(1), None, 1, 1).is_none());
     }
 
     #[test]
@@ -405,7 +415,7 @@ mod tests {
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, 2, 2).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 2, 2).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -421,12 +431,32 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        assert!(state.next_batch(Some(2), 2, 2).is_none());
+        assert!(state.next_batch(Some(2), None, 2, 2).is_none());
 
         assert_eq!(state.next_id, 3);
         assert_eq!(state.entries.len(), 1);
         let (id, _) = state.entries.remove(0).unwrap();
         assert_eq!(id, 2);
+    }
+
+    #[test]
+    fn test_next_batch_max_size() {
+        let mut state = State::new(false, 1, None, 0);
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        state.append(entry1);
+        state.append(entry2);
+
+        let (entries, batch, _) = state.next_batch(None, Some(1), 2, 2).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries.contains_key(&0));
+        assert!(entries.get(&0).unwrap().batch_time.is_some());
+        assert_eq!(batch.id, 0);
+        assert_eq!(batch.size, 1);
+
+        assert_eq!(state.next_id, 2);
+        assert_eq!(state.entries.len(), 1);
+        assert_eq!(state.next_batch_id, 1);
     }
 
     #[test]
@@ -437,7 +467,7 @@ mod tests {
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, 1, 1).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 1, 1).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -450,7 +480,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        let (entries, batch, _) = state.next_batch(None, 3, 3).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 3, 3).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -464,14 +494,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_append() {
-        let queue = Queue::new(false, 1, None, 0);
+        let queue = Queue::new(false, None, 1, None, 0);
         let (entry, _guard) = default_entry();
         queue.append(entry);
     }
 
     #[tokio::test]
     async fn test_queue_next_batch_empty() {
-        let queue = Queue::new(false, 1, None, 0);
+        let queue = Queue::new(false, None, 1, None, 0);
 
         assert!(queue.next_batch(None, 1, 1).await.is_none());
         assert!(queue.next_batch(Some(1), 1, 1).await.is_none());
@@ -479,7 +509,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_min_size() {
-        let queue = Queue::new(false, 1, None, 0);
+        let queue = Queue::new(false, None, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -511,8 +541,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_queue_next_batch_max_size() {
+        let queue = Queue::new(false, Some(1), 1, None, 0);
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        queue.append(entry1);
+        queue.append(entry2);
+
+        let (entries, batch, _) = queue.next_batch(None, 2, 2).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries.contains_key(&0));
+        assert!(entries.get(&0).unwrap().batch_time.is_some());
+        assert_eq!(batch.id, 0);
+        assert_eq!(batch.size, 1);
+    }
+
+    #[tokio::test]
     async fn test_queue_next_batch_token_budget() {
-        let queue = Queue::new(false, 1, None, 0);
+        let queue = Queue::new(false, None, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -537,7 +583,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_speculate() {
-        let queue = Queue::new(false, 1, None, 2);
+        let queue = Queue::new(false, None, 1, None, 2);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -556,7 +602,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_dropped_receiver() {
-        let queue = Queue::new(false, 1, None, 0);
+        let queue = Queue::new(false, None, 1, None, 0);
         let (entry, _) = default_entry();
         queue.append(entry);
 

@@ -73,6 +73,8 @@ pub struct Info {
     pub max_batch_total_tokens: u32,
     #[schema(example = "20")]
     pub max_waiting_tokens: usize,
+    #[schema(nullable = true, example = "null")]
+    pub max_batch_size: Option<usize>,
     #[schema(example = "2")]
     pub validation_workers: usize,
     /// Router Info

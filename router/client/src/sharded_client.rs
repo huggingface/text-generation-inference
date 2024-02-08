@@ -97,12 +97,18 @@ impl ShardedClient {
         max_input_length: u32,
         max_prefill_tokens: u32,
         max_total_tokens: u32,
+        max_batch_size: Option<usize>,
     ) -> Result<Option<u32>> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
             .map(|client| {
-                Box::pin(client.warmup(max_input_length, max_prefill_tokens, max_total_tokens))
+                Box::pin(client.warmup(
+                    max_input_length,
+                    max_prefill_tokens,
+                    max_total_tokens,
+                    max_batch_size,
+                ))
             })
             .collect();
         // Take the minimum value
