@@ -834,7 +834,7 @@ pub async fn run(
         max_top_n_tokens,
         max_input_length,
         max_total_tokens,
-        batch_dimension
+        batch_dimension,
     );
     let generation_health = Arc::new(AtomicBool::new(false));
     let health_ext = Health::new(client.clone(), generation_health.clone());

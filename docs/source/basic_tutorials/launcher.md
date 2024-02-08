@@ -355,6 +355,14 @@ Options:
           [env: NGROK_EDGE=]
 
 ```
+## BATCH_DIMENSION
+```shell
+      --batch-dimension
+          Specific flag for hardware targets that do not support unpadded inference For those we do not send the tokenizer to the router so that all the scheduling assumes those pad tokens exist (and potentially even more)
+          
+          [env: BATCH_DIMENSION=]
+
+```
 ## TOKENIZER_CONFIG_PATH
 ```shell
       --tokenizer-config-path <TOKENIZER_CONFIG_PATH>

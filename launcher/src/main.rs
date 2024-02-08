@@ -1040,7 +1040,7 @@ fn spawn_webserver(
         args.model_id,
     ];
 
-    if args.batch_dimension{
+    if args.batch_dimension {
         router_args.push("--batch-dimension".to_string());
     }
 

@@ -69,7 +69,7 @@ impl Validation {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
-            batch_dimension
+            batch_dimension,
         }
     }
 
@@ -107,7 +107,7 @@ impl Validation {
     ) -> Result<(String, usize, u32), ValidationError> {
         // If we have a fast tokenizer
         if let Some((encoding, inputs)) = self.tokenize(inputs.clone(), truncate).await? {
-            if self.batch_dimension{
+            if self.batch_dimension {
                 let input_length = encoding.len();
 
                 // Get total tokens
@@ -135,7 +135,6 @@ impl Validation {
                     ));
                 }
 
-                // 
                 metrics::histogram!("tgi_request_input_length", input_length as f64);
                 return Ok((inputs, input_length, max_new_tokens));
             }
