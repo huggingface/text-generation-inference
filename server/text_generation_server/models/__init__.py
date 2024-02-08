@@ -76,6 +76,15 @@ if FLASH_ATTENTION:
     __all__.append(FlashMixtral)
     __all__.append(FlashPhi)
 
+MAMBA_AVAILABLE = True
+try:
+    from text_generation_server.models.mamba import Mamba
+except ImportError as e:
+    logger.warning(f"Could not import Mamba: {e}")
+    MAMBA_AVAILABLE = False
+
+if MAMBA_AVAILABLE:
+    __all__.append(Mamba)
 
 def get_model(
     model_id: str,
@@ -164,7 +173,25 @@ def get_model(
     if speculate > 0:
         logger.info(f"Using speculation {method} with {speculate} input ids.")
 
-    model_type = config_dict["model_type"]
+    model_type = config_dict.get("model_type", None)
+    if model_type is None:
+        # TODO: fix how we determine model type for Mamba
+        if "ssm_cfg" in config_dict:
+            # *only happens in Mamba case
+            model_type = "ssm"
+        else:
+            raise RuntimeError(
+                f"Could not determine model type for {model_id} revision {revision}"
+            )
+
+    if model_type == "ssm":
+        return Mamba(
+            model_id,
+            revision,
+            quantize=quantize,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
     if model_type == "gpt_bigcode":
         if FLASH_ATTENTION:
