@@ -37,7 +37,7 @@ pub struct HubTokenizerConfig {
 }
 
 impl HubTokenizerConfig {
-    pub fn from_file(filename: &str) -> Self {
+    pub fn from_file(filename: &std::path::Path) -> Self {
         let content = std::fs::read_to_string(filename).unwrap();
         serde_json::from_str(&content).unwrap_or_default()
     }
@@ -398,6 +398,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
     messages: Vec<Message>,
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
+    add_generation_prompt: bool,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]

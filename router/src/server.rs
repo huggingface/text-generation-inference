@@ -936,6 +936,7 @@ pub async fn run(
     // Define base and health routes
     let base_routes = Router::new()
         .route("/", post(compat_generate))
+        .route("/", get(health))
         .route("/info", get(get_model_info))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
