@@ -869,7 +869,7 @@ class FlashCausalLM(Model):
         # Try to find an associated cuda graph
         cuda_graph = self.cuda_graphs.get(padded_bs, None)
 
-        if cu_seqlen_prefill is not None or cuda_graph is None:
+        if cu_seqlen_prefill is not None or cuda_graph is None or batch.speculative_ids is not None:
             return self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
