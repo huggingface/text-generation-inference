@@ -201,8 +201,28 @@ pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 5)]
     pub top_n_tokens: Option<u32>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "json_object_or_string_to_string::deserialize")]
     pub grammar: String,
+}
+
+mod json_object_or_string_to_string {
+    use super::*;
+    use serde::de;
+    use serde::Deserializer;
+    use serde_json::Value;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+
+        match value {
+            Value::String(s) => Ok(s),
+            Value::Object(o) => Ok(serde_json::to_string(&o).unwrap()),
+            _ => Err(de::Error::custom("expected string or object for grammar")),
+        }
+    }
 }
 
 fn default_max_new_tokens() -> Option<u32> {
