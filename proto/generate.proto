@@ -70,6 +70,8 @@ message NextTokenChooserParameters {
     float frequency_penalty = 9;
     /// token watermarking using "A Watermark for Large Language Models"
     bool watermark = 8;
+    /// grammar (applied if not empty)
+    string grammar = 10;
 }
 
 message StoppingCriteriaParameters {

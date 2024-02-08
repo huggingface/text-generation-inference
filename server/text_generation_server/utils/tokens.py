@@ -21,6 +21,7 @@ from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcessor
 
 from outlines.fsm.fsm import RegexFSM
+import time
 
 class NextTokenChooser:
     def __init__(
@@ -36,6 +37,7 @@ class NextTokenChooser:
         seed=0,
         device="cpu",
         tokenizer=None,
+        grammar=None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -66,9 +68,12 @@ class NextTokenChooser:
             self.static_warper = None
 
         sampling = do_sample or has_warpers
-        # TODO toggle grammar
-        # self.choice = Sampling(seed, device) if sampling else Greedy()
-        self.choice = Grammar(tokenizer, device)
+
+        # TODO: is grammar a subset of sampling? If so, we should merge them
+        if grammar:    
+            self.choice = Grammar(tokenizer, device, grammar)
+        else:
+            self.choice = Sampling(seed, device) if sampling else Greedy()
 
     def __call__(self, input_ids, scores):
         if self.watermark_processor is not None:
@@ -106,6 +111,7 @@ class NextTokenChooser:
             seed=pb.seed,
             device=device,
             tokenizer=tokenizer,
+            grammar=pb.grammar,
         )
 
 
@@ -433,16 +439,24 @@ class Grammar:
     fsm_state: DefaultDict[int, int]
     fsm: RegexFSM
 
-    def __init__(self, tokenizer, device):
-        # TODO: get regex on init not hardcoded
-        regex_str = r"((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)"
-
+    def __init__(self, tokenizer, device, regex_str):
         # TODO: adapt tokenizer is expensive, we should do it only once
         # this is a temporary solution
+
+        # TODO: remove debug logs
+        # time this
+        start_time = time.time()
         tokenizer = self.adapt_tokenizer(tokenizer)
+
+        print(f"Adapt tokenizer: {time.time() - start_time}")
+        start_time = time.time()
+
+        # TODO: avoid recompiling the FSM every time?
         fsm = RegexFSM(regex_str, tokenizer)
+        print(f"Compile FSM: {time.time() - start_time}")
         self.fsm = fsm
         self.fsm_state = defaultdict(int)
+        self.device = device
 
     def __call__(self, logits):
         # TODO: handle seq_id properly
@@ -452,7 +466,7 @@ class Grammar:
             return self.fsm_state[seq_id].eos_token_id
 
         allowed_tokens = self.fsm.allowed_token_ids(self.fsm_state[seq_id])
-        mask = torch.full((logits.shape[-1],), -math.inf, device=logits.device)
+        mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
         mask[allowed_tokens] = 0
         biased_scores = logits + mask
 

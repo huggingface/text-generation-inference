@@ -182,6 +182,7 @@ impl Validation {
             watermark,
             decoder_input_details,
             top_n_tokens,
+            grammar,
             ..
         } = request.parameters;
 
@@ -302,6 +303,7 @@ impl Validation {
             do_sample,
             seed,
             watermark,
+            grammar,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,

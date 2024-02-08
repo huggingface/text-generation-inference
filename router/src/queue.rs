@@ -354,7 +354,7 @@ mod tests {
 
         let entry = Entry {
             request: ValidGenerateRequest {
-                inputs: "".to_string(),
+                inputs: String::new(),
                 input_length: 0,
                 truncate: 0,
                 decoder_input_details: false,
@@ -368,6 +368,7 @@ mod tests {
                     repetition_penalty: 0.0,
                     frequency_penalty: 0.0,
                     watermark: false,
+                    grammar: String::new(),
                 },
                 stopping_parameters: StoppingCriteriaParameters {
                     ignore_eos_token: false,
