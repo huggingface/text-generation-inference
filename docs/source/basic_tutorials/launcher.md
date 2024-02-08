@@ -198,6 +198,14 @@ Options:
           [default: 20]
 
 ```
+## MAX_BATCH_SIZE
+```shell
+      --max-batch-size <MAX_BATCH_SIZE>
+          Enforce a maximum number of requests per batch Specific flag for hardware targets that do not support unpadded inference
+          
+          [env: MAX_BATCH_SIZE=]
+
+```
 ## HOSTNAME
 ```shell
       --hostname <HOSTNAME>
