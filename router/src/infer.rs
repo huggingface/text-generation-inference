@@ -70,7 +70,7 @@ impl Infer {
         tokenizer_config: HubTokenizerConfig,
     ) -> Self {
         // Infer shared state
-        let queue = Queue::new(requires_padding, max_batch_size, 16, window_size, speculate);
+        let queue = Queue::new(requires_padding, 16, window_size, speculate);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });
@@ -82,6 +82,7 @@ impl Infer {
             max_batch_prefill_tokens,
             max_batch_total_tokens,
             max_waiting_tokens,
+            max_batch_size,
             queue.clone(),
             shared.clone(),
             generation_health,
@@ -339,6 +340,7 @@ async fn batching_task(
     max_batch_prefill_tokens: u32,
     max_batch_total_tokens: u32,
     max_waiting_tokens: usize,
+    max_batch_size: Option<usize>,
     queue: Queue,
     shared: Arc<Shared>,
     generation_health: Arc<AtomicBool>,
@@ -352,7 +354,12 @@ async fn batching_task(
         // This batch might be smaller than the maximum batch size if there are not enough requests
         // waiting in the queue
         while let Some((mut entries, batch, span)) = queue
-            .next_batch(None, max_batch_prefill_tokens, max_batch_total_tokens)
+            .next_batch(
+                None,
+                max_batch_size,
+                max_batch_prefill_tokens,
+                max_batch_total_tokens,
+            )
             .await
         {
             let mut cached_batch = prefill(&mut client, batch, &mut entries, &generation_health)
@@ -380,10 +387,11 @@ async fn batching_task(
                 };
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
+                let max_size = max_batch_size.map(|max_size| batch_size as usize - max_size);
 
                 // Try to get a new batch
                 if let Some((mut new_entries, new_batch, span)) = queue
-                    .next_batch(min_size, max_batch_prefill_tokens, token_budget)
+                    .next_batch(min_size, max_size, max_batch_prefill_tokens, token_budget)
                     .await
                 {
                     // Tracking metrics
