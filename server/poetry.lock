@@ -1699,30 +1699,32 @@ xml = ["lxml (>=4.9.2)"]
 
 [[package]]
 name = "peft"
-version = "0.4.0"
+version = "0.8.2"
 description = "Parameter-Efficient Fine-Tuning (PEFT)"
 optional = false
 python-versions = ">=3.8.0"
 files = [
-    {file = "peft-0.4.0-py3-none-any.whl", hash = "sha256:2cf992772a6d703814477e0bdcdadd68cb8ea388111ce2d793dd2ff0e438f357"},
-    {file = "peft-0.4.0.tar.gz", hash = "sha256:e768fa22d6e9f32aa7e891f0d06f355960278ca4dc0cdd96bff71f6f06269207"},
+    {file = "peft-0.8.2-py3-none-any.whl", hash = "sha256:4a9c81c38e689fd4043b2757cd0e2b526a9b8b8fd04f8442df2c4824b32c2505"},
+    {file = "peft-0.8.2.tar.gz", hash = "sha256:bbdf61db2d8ca503e894edc64016038e6f34b7b522374bad09a22af41882e7ac"},
 ]
 
 [package.dependencies]
-accelerate = "*"
+accelerate = ">=0.21.0"
+huggingface-hub = ">=0.17.0"
 numpy = ">=1.17"
 packaging = ">=20.0"
 psutil = "*"
 pyyaml = "*"
 safetensors = "*"
 torch = ">=1.13.0"
+tqdm = "*"
 transformers = "*"
 
 [package.extras]
 dev = ["black (>=22.0,<23.0)", "hf-doc-builder", "ruff (>=0.0.241)", "urllib3 (<=2.0.0)"]
 docs-specific = ["hf-doc-builder"]
 quality = ["black (>=22.0,<23.0)", "ruff (>=0.0.241)", "urllib3 (<=2.0.0)"]
-test = ["black (>=22.0,<23.0)", "datasets", "diffusers", "hf-doc-builder", "parameterized", "pytest", "pytest-cov", "pytest-xdist", "ruff (>=0.0.241)", "urllib3 (<=2.0.0)"]
+test = ["black (>=22.0,<23.0)", "datasets", "diffusers (<0.21.0)", "hf-doc-builder", "parameterized", "pytest", "pytest-cov", "pytest-xdist", "ruff (>=0.0.241)", "scipy", "urllib3 (<=2.0.0)"]
 
 [[package]]
 name = "pillow"
@@ -3100,4 +3102,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "8f84984b4381688a2f9461e968c730626f1da5bdb7a32a5d5f366febc6bdad01"
+content-hash = "5f39b7146fc36cc846070a3e12db863f2748b49a24ab55878129be3480c89685"
