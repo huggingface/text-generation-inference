@@ -750,14 +750,17 @@ class Seq2SeqLM(Model):
 
                 if top_n_tokens > 0:
                     all_top_tokens = []
-                    for (top_token_ids, top_token_logprobs) in zip(top_token_ids, top_token_logprobs):
+                    for (top_token_ids, top_token_logprobs) in zip(
+                        top_token_ids, top_token_logprobs
+                    ):
                         toptoken_texts = self.tokenizer.batch_decode(
                             top_token_ids,
                             clean_up_tokenization_spaces=False,
                             skip_special_tokens=False,
                         )
                         special_toptokens = [
-                            token_id in self.all_special_ids for token_id in top_token_ids
+                            token_id in self.all_special_ids
+                            for token_id in top_token_ids
                         ]
                         top_tokens = Tokens(
                             top_token_ids,

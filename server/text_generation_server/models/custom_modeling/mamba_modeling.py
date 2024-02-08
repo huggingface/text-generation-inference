@@ -19,6 +19,7 @@ from einops import rearrange
 from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
 import math
 
+
 class MambaConfig(PretrainedConfig):
     def __init__(
         self,
@@ -53,6 +54,7 @@ class MambaConfig(PretrainedConfig):
             **kwargs,
         )
 
+
 class MambaBlock(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
@@ -60,10 +62,14 @@ class MambaBlock(nn.Module):
         self.in_proj = FastLinear.load(config, f"{prefix}.in_proj", weights, bias=False)
         self.x_proj = FastLinear.load(config, f"{prefix}.x_proj", weights, bias=False)
         self.dt_proj = FastLinear.load(config, f"{prefix}.dt_proj", weights, bias=True)
-        self.dt_proj_no_bias = FastLinear.load(config, f"{prefix}.dt_proj", weights, bias=False)
-        self.out_proj = FastLinear.load(config, f"{prefix}.out_proj", weights, bias=False)
+        self.dt_proj_no_bias = FastLinear.load(
+            config, f"{prefix}.dt_proj", weights, bias=False
+        )
+        self.out_proj = FastLinear.load(
+            config, f"{prefix}.out_proj", weights, bias=False
+        )
         self.conv1d = FastLinear.load(config, f"{prefix}.conv1d", weights, bias=True)
-        self.negA = -torch.exp(weights.get_tensor(f"{prefix}.A_log").float()) 
+        self.negA = -torch.exp(weights.get_tensor(f"{prefix}.A_log").float())
         self.D = weights.get_tensor(f"{prefix}.D")
         self.activation = "silu"
         self.dt_rank = config.dt_rank
@@ -80,12 +86,14 @@ class MambaBlock(nn.Module):
             out, conv_state, ssm_state = self.step(hidden_states, conv_state, ssm_state)
             return out, conv_state, ssm_state
 
-        projected_states = self.in_proj(hidden_states).transpose(1,2)
+        projected_states = self.in_proj(hidden_states).transpose(1, 2)
         x, z = projected_states.chunk(2, dim=1)
         conv_state = F.pad(x, (self.d_conv - seqlen, 0))
         x = causal_conv1d_fn(
             x=x,
-            weight=self.conv1d.weight.view(self.conv1d.weight.size(0), self.conv1d.weight.size(2)),
+            weight=self.conv1d.weight.view(
+                self.conv1d.weight.size(0), self.conv1d.weight.size(2)
+            ),
             bias=self.conv1d.bias,
             activation=self.activation,
         )
@@ -94,7 +102,9 @@ class MambaBlock(nn.Module):
         # We want dt to have d as the slowest moving dimension
         # and L as the fastest moving dimension, since those are what the ssm_scan kernel expects.
         x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d"))  # (bl d)
-        dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1)
+        dt, B, C = torch.split(
+            x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1
+        )
         dt = self.dt_proj.weight @ dt.t()
         dt = rearrange(dt, "d (b l) -> b d l", l=seqlen)
         B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
@@ -118,28 +128,39 @@ class MambaBlock(nn.Module):
     def step(self, hidden_states, conv_state, ssm_state):
         _xz = self.in_proj(hidden_states)
         _x, _z = _xz.chunk(2, dim=-1)  # (B D)
-        conv_state_new = torch.cat([conv_state, _x.transpose(1,2)], dim=-1)
-        conv_out = causal_conv1d_fn( 
-            x=conv_state_new, 
-            weight=self.conv1d.weight.view(self.conv1d.weight.size(0), self.conv1d.weight.size(2)), 
-            bias=self.conv1d.bias, 
-            activation=self.activation
+        conv_state_new = torch.cat([conv_state, _x.transpose(1, 2)], dim=-1)
+        conv_out = causal_conv1d_fn(
+            x=conv_state_new,
+            weight=self.conv1d.weight.view(
+                self.conv1d.weight.size(0), self.conv1d.weight.size(2)
+            ),
+            bias=self.conv1d.bias,
+            activation=self.activation,
         )
         conv_state = conv_state_new[:, :, 1:]
         bsz, seqlen, dim = hidden_states.shape
         output_tensor = torch.zeros(
-            (bsz, seqlen, dim),
-            device=hidden_states.device, 
-            dtype=hidden_states.dtype
+            (bsz, seqlen, dim), device=hidden_states.device, dtype=hidden_states.dtype
         )
         for i in range(0, bsz):
-            x = conv_out[i:i+1,:,-1]
-            z = _z[i:i+1, -1, :]
+            x = conv_out[i : i + 1, :, -1]
+            z = _z[i : i + 1, -1, :]
             x_db = self.x_proj(x)
-            dt, B, C = torch.split(x_db, [self.dt_rank, self.d_state, self.d_state], dim=-1)
+            dt, B, C = torch.split(
+                x_db, [self.dt_rank, self.d_state, self.d_state], dim=-1
+            )
             dt = F.linear(dt, self.dt_proj.weight)
             y = selective_state_update(
-                ssm_state[i:i+1,:,:], x, dt, self.negA, B, C, self.D, z=z, dt_bias=self.dt_proj.bias, dt_softplus=True
+                ssm_state[i : i + 1, :, :],
+                x,
+                dt,
+                self.negA,
+                B,
+                C,
+                self.D,
+                z=z,
+                dt_bias=self.dt_proj.bias,
+                dt_softplus=True,
             )
             out = self.out_proj(y)
             output_tensor[i] = out
@@ -147,24 +168,30 @@ class MambaBlock(nn.Module):
         return output_tensor, conv_state, ssm_state
 
 
-
 class ResidualBlock(nn.Module):
     def __init__(self, layer_id, config, weights):
         super().__init__()
-        self.mamba_block = MambaBlock(prefix=f"{layer_id}.mixer", config=config, weights=weights)
-        self.layer_norm = FastRMSNorm.load(prefix=f"{layer_id}.norm", weights=weights, eps=config.layer_norm_epsilon)
+        self.mamba_block = MambaBlock(
+            prefix=f"{layer_id}.mixer", config=config, weights=weights
+        )
+        self.layer_norm = FastRMSNorm.load(
+            prefix=f"{layer_id}.norm", weights=weights, eps=config.layer_norm_epsilon
+        )
 
     def forward(
         self,
         hidden_states: torch.Tensor,
         residual: Optional[torch.Tensor] = None,
         inference_params: Optional[Any] = None,
-    ):  
+    ):
         residual = (hidden_states + residual) if residual is not None else hidden_states
         shape = residual.shape
         hidden_states, _ = self.layer_norm(residual.view(-1, shape[-1]))
-        hidden_states, conv_state, last_ssm_state = self.mamba_block(hidden_states.view(*shape), inference_params)
+        hidden_states, conv_state, last_ssm_state = self.mamba_block(
+            hidden_states.view(*shape), inference_params
+        )
         return hidden_states, residual, conv_state, last_ssm_state
+
 
 class MambaModel(nn.Module):
     def __init__(self, config, weights):
@@ -172,19 +199,35 @@ class MambaModel(nn.Module):
         prefix = "backbone"
         self.embed_tokens = TensorParallelEmbedding(f"{prefix}.embedding", weights)
         self.blocks = nn.ModuleList(
-            [ResidualBlock(f"{prefix}.layers.{i}", config, weights) for i in range(config.n_layer)]
+            [
+                ResidualBlock(f"{prefix}.layers.{i}", config, weights)
+                for i in range(config.n_layer)
+            ]
         )
-        self.norm_f = FastRMSNorm.load(f"{prefix}.norm_f", weights, eps=config.layer_norm_epsilon)
-        self.lm_head = FastLinear.load(config, f"{prefix}.embedding", weights, bias=False)
+        self.norm_f = FastRMSNorm.load(
+            f"{prefix}.norm_f", weights, eps=config.layer_norm_epsilon
+        )
+        self.lm_head = FastLinear.load(
+            config, f"{prefix}.embedding", weights, bias=False
+        )
         self.config = config
 
-    def forward(self, input_ids: torch.Tensor, inference_params=None, residual=None) -> Tuple[torch.Tensor, torch.Tensor, InferenceParams]:
+    def forward(
+        self, input_ids: torch.Tensor, inference_params=None, residual=None
+    ) -> Tuple[torch.Tensor, torch.Tensor, InferenceParams]:
         hidden_states = self.embed_tokens(input_ids)
         for block in self.blocks:
-            hidden_states, residual, conv_state, ssm_state = block(hidden_states, residual, inference_params)
-            inference_params.key_value_memory_dict[block.mamba_block.layer_idx] = (conv_state, ssm_state)
+            hidden_states, residual, conv_state, ssm_state = block(
+                hidden_states, residual, inference_params
+            )
+            inference_params.key_value_memory_dict[block.mamba_block.layer_idx] = (
+                conv_state,
+                ssm_state,
+            )
 
-        hidden_states = hidden_states + residual if residual is not None else hidden_states
+        hidden_states = (
+            hidden_states + residual if residual is not None else hidden_states
+        )
         hidden_states, _ = self.norm_f(hidden_states.view(-1, hidden_states.size(-1)))
         hidden_states = hidden_states.view(residual.shape)
         logits = self.lm_head(hidden_states)

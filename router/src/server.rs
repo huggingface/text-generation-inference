@@ -4,9 +4,10 @@ use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionDelta,
-    ChatRequest, CompatGenerateRequest, Details, ErrorResponse, FinishReason, GenerateParameters,
-    GenerateRequest, GenerateResponse, HubModelInfo, HubTokenizerConfig, Infer, Info, Message,
-    PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse, Validation,
+    ChatCompletionLogprobs, ChatRequest, CompatGenerateRequest, Details, ErrorResponse,
+    FinishReason, GenerateParameters, GenerateRequest, GenerateResponse, HubModelInfo,
+    HubTokenizerConfig, Infer, Info, Message, PrefillToken, SimpleToken, StreamDetails,
+    StreamResponse, Token, TokenizeResponse, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -570,8 +571,8 @@ async fn chat_completions(
     let stream = req.stream;
     let max_new_tokens = req.max_tokens.or(Some(100));
     let repetition_penalty = req
-        .frequency_penalty
-        // rescale frequency_penalty from (-2.0, 2.0) to (0.0, 4.0)
+        .presence_penalty
+        // rescale repetition_penalty from (-2.0, 2.0) to (0.0, 4.0)
         .map(|x| x + 2.0);
     let logprobs = req.logprobs.unwrap_or(false);
     let seed = req.seed;
@@ -599,6 +600,7 @@ async fn chat_completions(
             best_of: None,
             temperature: req.temperature,
             repetition_penalty,
+            frequency_penalty: req.frequency_penalty,
             top_k: None,
             top_p: req.top_p,
             typical_p: None,
@@ -630,6 +632,10 @@ async fn chat_completions(
                 .unwrap_or_else(|_| std::time::Duration::from_secs(0))
                 .as_secs();
 
+            let logprobs = logprobs.then(|| {
+                ChatCompletionLogprobs::from((stream_token.token.clone(), stream_token.top_tokens))
+            });
+
             event
                 .json_data(ChatCompletionChunk::new(
                     model_id.clone(),
@@ -637,7 +643,7 @@ async fn chat_completions(
                     stream_token.token.text,
                     current_time,
                     stream_token.index,
-                    logprobs.then_some(stream_token.token.logprob),
+                    logprobs,
                     stream_token.details.map(|d| d.finish_reason.to_string()),
                 ))
                 .map_or_else(

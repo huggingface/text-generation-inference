@@ -170,6 +170,7 @@ impl Validation {
             best_of,
             temperature,
             repetition_penalty,
+            frequency_penalty,
             top_k,
             top_p,
             typical_p,
@@ -204,6 +205,11 @@ impl Validation {
         let repetition_penalty = repetition_penalty.unwrap_or(1.0);
         if repetition_penalty <= 0.0 {
             return Err(ValidationError::RepetitionPenalty);
+        }
+
+        let frequency_penalty = frequency_penalty.unwrap_or(0.0);
+        if !(-2.0..=2.0).contains(&frequency_penalty) {
+            return Err(ValidationError::FrequencyPenalty);
         }
 
         // Different because the proto default value is not a valid value
@@ -289,6 +295,7 @@ impl Validation {
         let parameters = NextTokenChooserParameters {
             temperature,
             repetition_penalty,
+            frequency_penalty,
             top_k,
             top_p,
             typical_p,
@@ -420,6 +427,8 @@ pub enum ValidationError {
     Temperature,
     #[error("`repetition_penalty` must be strictly positive")]
     RepetitionPenalty,
+    #[error("`frequency_penalty` must be >= -2.0 and <= 2.0")]
+    FrequencyPenalty,
     #[error("`top_p` must be > 0.0 and < 1.0")]
     TopP,
     #[error("`top_k` must be strictly positive")]

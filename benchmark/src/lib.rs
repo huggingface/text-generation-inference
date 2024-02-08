@@ -30,6 +30,7 @@ pub async fn run(
     top_p: Option<f32>,
     typical_p: Option<f32>,
     repetition_penalty: Option<f32>,
+    frequency_penalty: Option<f32>,
     watermark: bool,
     do_sample: bool,
     client: ShardedClient,
@@ -42,6 +43,7 @@ pub async fn run(
         do_sample,
         seed: 0,
         repetition_penalty: repetition_penalty.unwrap_or(1.0),
+        frequency_penalty: frequency_penalty.unwrap_or(0.0),
         watermark,
     };
 
@@ -140,6 +142,7 @@ pub async fn run(
         top_p,
         typical_p,
         repetition_penalty,
+        frequency_penalty,
         watermark,
         do_sample,
     );
