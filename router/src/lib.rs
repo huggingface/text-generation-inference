@@ -106,6 +106,14 @@ pub(crate) struct GenerateParameters {
     )]
     pub repetition_penalty: Option<f32>,
     #[serde(default)]
+    #[schema(
+        exclusive_minimum = -2.0,
+        nullable = true,
+        default = "null",
+        example = 0.1
+    )]
+    pub frequency_penalty: Option<f32>,
+    #[serde(default)]
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 10)]
     pub top_k: Option<i32>,
     #[serde(default)]
@@ -172,6 +180,7 @@ fn default_parameters() -> GenerateParameters {
         best_of: None,
         temperature: None,
         repetition_penalty: None,
+        frequency_penalty: None,
         top_k: None,
         top_p: None,
         typical_p: None,
@@ -205,8 +214,69 @@ pub(crate) struct ChatCompletion {
 pub(crate) struct ChatCompletionComplete {
     pub index: u32,
     pub message: Message,
-    pub logprobs: Option<Vec<f32>>,
+    pub logprobs: Option<ChatCompletionLogprobs>,
     pub finish_reason: String,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
+pub(crate) struct ChatCompletionLogprobs {
+    content: Vec<ChatCompletionLogprob>,
+}
+
+impl From<(Token, Vec<Token>)> for ChatCompletionLogprobs {
+    fn from(value: (Token, Vec<Token>)) -> Self {
+        let (token, top_tokens) = value;
+
+        Self {
+            content: vec![ChatCompletionLogprob {
+                token: token.text,
+                logprob: token.logprob,
+                top_logprobs: top_tokens
+                    .into_iter()
+                    .map(|t| ChatCompletionTopLogprob {
+                        token: t.text,
+                        logprob: t.logprob,
+                    })
+                    .collect(),
+            }],
+        }
+    }
+}
+
+impl From<(Vec<Token>, Vec<Vec<Token>>)> for ChatCompletionLogprobs {
+    fn from(value: (Vec<Token>, Vec<Vec<Token>>)) -> Self {
+        let (tokens, top_tokens) = value;
+        Self {
+            content: tokens
+                .into_iter()
+                .zip(top_tokens)
+                .map(|(t, top_t)| ChatCompletionLogprob {
+                    token: t.text,
+                    logprob: t.logprob,
+                    top_logprobs: top_t
+                        .into_iter()
+                        .map(|t| ChatCompletionTopLogprob {
+                            token: t.text,
+                            logprob: t.logprob,
+                        })
+                        .collect(),
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
+pub(crate) struct ChatCompletionLogprob {
+    token: String,
+    logprob: f32,
+    top_logprobs: Vec<ChatCompletionTopLogprob>,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
+pub(crate) struct ChatCompletionTopLogprob {
+    token: String,
+    logprob: f32,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -238,7 +308,7 @@ impl ChatCompletion {
                     content: output,
                 },
                 logprobs: return_logprobs
-                    .then(|| details.tokens.iter().map(|t| t.logprob).collect()),
+                    .then(|| ChatCompletionLogprobs::from((details.tokens, details.top_tokens))),
                 finish_reason: details.finish_reason.to_string(),
             }],
             usage: Usage {
@@ -266,7 +336,7 @@ pub(crate) struct ChatCompletionChunk {
 pub(crate) struct ChatCompletionChoice {
     pub index: u32,
     pub delta: ChatCompletionDelta,
-    pub logprobs: Option<f32>,
+    pub logprobs: Option<ChatCompletionLogprobs>,
     pub finish_reason: Option<String>,
 }
 
@@ -285,7 +355,7 @@ impl ChatCompletionChunk {
         delta: String,
         created: u64,
         index: u32,
-        logprobs: Option<f32>,
+        logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
     ) -> Self {
         Self {
@@ -319,8 +389,8 @@ pub(crate) struct ChatRequest {
     /// UNUSED
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
-    pub model: String, /* NOTE: UNUSED */
-
+    pub model: String,
+    /* NOTE: UNUSED */
     /// A list of messages comprising the conversation so far.
     #[serde(default = "default_request_messages")]
     pub messages: Vec<Message>,
@@ -346,7 +416,6 @@ pub(crate) struct ChatRequest {
     #[schema(example = "false")]
     pub logprobs: Option<bool>,
 
-    /// UNUSED
     /// An integer between 0 and 5 specifying the number of most likely tokens to return at each token position, each with
     /// an associated log probability. logprobs must be set to true if this parameter is used.
     #[serde(default)]
@@ -365,7 +434,6 @@ pub(crate) struct ChatRequest {
     #[schema(nullable = true, example = "2")]
     pub n: Option<u32>,
 
-    /// UNUSED
     /// Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far,
     /// increasing the model's likelihood to talk about new topics
     #[serde(default)]
@@ -447,7 +515,7 @@ pub struct PrefillToken {
     logprob: f32,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema, Clone)]
 pub struct Token {
     #[schema(example = 0)]
     id: u32,

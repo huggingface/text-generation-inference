@@ -87,6 +87,11 @@ struct Args {
     /// Generation parameter in case you want to specifically test/debug particular
     /// decoding strategies, for full doc refer to the `text-generation-server`
     #[clap(long, env)]
+    frequency_penalty: Option<f32>,
+
+    /// Generation parameter in case you want to specifically test/debug particular
+    /// decoding strategies, for full doc refer to the `text-generation-server`
+    #[clap(long, env)]
     watermark: bool,
 
     /// Generation parameter in case you want to specifically test/debug particular
@@ -119,6 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         top_p,
         typical_p,
         repetition_penalty,
+        frequency_penalty,
         watermark,
         do_sample,
         master_shard_uds_path,
@@ -187,6 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 top_p,
                 typical_p,
                 repetition_penalty,
+                frequency_penalty,
                 watermark,
                 do_sample,
                 sharded_client,

@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
 from mamba_ssm.utils.generation import InferenceParams
 
+
 @dataclass
 class MambaBatch(Batch):
     batch_id: int
@@ -69,7 +70,7 @@ class MambaBatch(Batch):
             size=len(self),
             max_tokens=self.max_tokens,
         )
-    
+
     @classmethod
     def from_pb(
         cls,
@@ -196,7 +197,7 @@ class MambaBatch(Batch):
             new_padding_right_offset = max(
                 new_padding_right_offset, remaining_decode_tokens
             )
-    
+
         # Apply indices to input_ids, attention mask, past key values and other items that need to be cached
         input_ids = self.input_ids[keep_indices]
 
@@ -218,10 +219,13 @@ class MambaBatch(Batch):
         self.padding_right_offset = new_padding_right_offset
         self.max_tokens = max_tokens
 
-        # TODO 
+        # TODO
         # Kept it simple by just updating the state, maybe updating the other CPU values is necessary.
         key_value_memory_dict = {}
-        for i, (conv_state, ssm_state) in self.inference_params.key_value_memory_dict.items():
+        for i, (
+            conv_state,
+            ssm_state,
+        ) in self.inference_params.key_value_memory_dict.items():
             key_value_memory_dict[i] = (conv_state[indices], ssm_state[indices])
         self.inference_params.key_value_memory_dict = key_value_memory_dict
 
@@ -305,8 +309,9 @@ class MambaBatch(Batch):
 
             start_index = end_index
 
-
-        (_, d_model, d_conv) = batches[0].inference_params.key_value_memory_dict[0][0].shape
+        (_, d_model, d_conv) = (
+            batches[0].inference_params.key_value_memory_dict[0][0].shape
+        )
         (_, _, d_state) = batches[0].inference_params.key_value_memory_dict[0][1].shape
         n_blocks = len(batches[0].inference_params.key_value_memory_dict)
         dtype = batches[0].inference_params.key_value_memory_dict[0][0].dtype
@@ -344,9 +349,15 @@ class MambaBatch(Batch):
             for i in range(n_blocks):
                 conv_state, ssm_state = batch.inference_params.key_value_memory_dict[i]
                 batch_size = batch.inference_params.max_batch_size
-                inference_params.key_value_memory_dict[i][0][current_batch:current_batch + batch_size] = conv_state
-                inference_params.key_value_memory_dict[i][1][current_batch:current_batch + batch_size] = ssm_state
-                inference_params.lengths_per_sample[current_batch: current_batch + batch_size] = batch.inference_params.lengths_per_sample
+                inference_params.key_value_memory_dict[i][0][
+                    current_batch : current_batch + batch_size
+                ] = conv_state
+                inference_params.key_value_memory_dict[i][1][
+                    current_batch : current_batch + batch_size
+                ] = ssm_state
+                inference_params.lengths_per_sample[
+                    current_batch : current_batch + batch_size
+                ] = batch.inference_params.lengths_per_sample
             current_batch += batch_size
 
         return cls(
@@ -366,11 +377,12 @@ class MambaBatch(Batch):
             padding_right_offset=padding_right_offset,
             keys_head_dim_last=batches[0].keys_head_dim_last,
             max_tokens=max_tokens,
-            inference_params=inference_params
+            inference_params=inference_params,
         )
 
     def __len__(self):
         return len(self.requests)
+
 
 class Mamba(Model):
     def __init__(
@@ -428,7 +440,7 @@ class Mamba(Model):
     def warmup(self, batch) -> Optional[int]:
         # TODO: implement warmup for Mamba if needed
         return None
-    
+
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -441,7 +453,9 @@ class Mamba(Model):
 
     def generate_token(self, batch) -> Tuple[List[Any], Optional[Any], Tuple[int, int]]:
         start = time.time_ns()
-        input_ids = batch.input_ids # batch.past_input_ids if batch.past_input_ids is not None else batch.input_ids
+        input_ids = (
+            batch.input_ids
+        )  # batch.past_input_ids if batch.past_input_ids is not None else batch.input_ids
 
         batch_size = input_ids.shape[0]
         max_seqlen = input_ids.shape[1]
@@ -450,8 +464,11 @@ class Mamba(Model):
         # Inference params
         seqlen_og = 0
         inf_cache = {}
-        lengths_per_sample = torch.ones(batch_size, dtype=torch.int32, device=input_ids.device) * max_seqlen
-        
+        lengths_per_sample = (
+            torch.ones(batch_size, dtype=torch.int32, device=input_ids.device)
+            * max_seqlen
+        )
+
         if batch.inference_params is None:
             inference_params = InferenceParams(
                 max_seqlen=max_seqlen,
@@ -478,11 +495,16 @@ class Mamba(Model):
                     device=block.dt_proj.weight.device,
                     dtype=block.dt_proj.weight.dtype,
                 )
-                inference_params.key_value_memory_dict[block.layer_idx] = (conv_state, ssm_state)
+                inference_params.key_value_memory_dict[block.layer_idx] = (
+                    conv_state,
+                    ssm_state,
+                )
             batch.inference_params = inference_params
-        
+
         # Forward pass
-        logits, past_input_ids, new_inference_params = self.model(input_ids, batch.inference_params)
+        logits, past_input_ids, new_inference_params = self.model(
+            input_ids, batch.inference_params
+        )
 
         batch.inference_params = new_inference_params
         # Results
@@ -564,7 +586,8 @@ class Mamba(Model):
                         prefix_offset=len(all_input_ids)
                         - stopping_criteria.current_tokens
                         - 1,
-                        read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
+                        read_offset=len(all_input_ids)
+                        - stopping_criteria.current_tokens,
                         skip_special_tokens=True,
                     )
                     # Get seed
