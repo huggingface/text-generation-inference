@@ -1,0 +1,99 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2502,
+        "logprob": null,
+        "text": " red"
+      },
+      {
+        "id": 13,
+        "logprob": -2.5234375,
+        "text": ","
+      },
+      {
+        "id": 8862,
+        "logprob": -3.4433594,
+        "text": " yellow"
+      },
+      {
+        "id": 13,
+        "logprob": -0.43017578,
+        "text": ","
+      },
+      {
+        "id": 209,
+        "logprob": -8.21875,
+        "text": " "
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 187,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 395,
+        "logprob": -0.46411133,
+        "special": false,
+        "text": "and"
+      },
+      {
+        "id": 13735,
+        "logprob": -2.1132812,
+        "special": false,
+        "text": " orange"
+      },
+      {
+        "id": 313,
+        "logprob": -1.2128906,
+        "special": false,
+        "text": " ("
+      },
+      {
+        "id": 249,
+        "logprob": -2.3671875,
+        "special": false,
+        "text": "in"
+      },
+      {
+        "id": 253,
+        "logprob": 0.0,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 1340,
+        "logprob": -1.640625,
+        "special": false,
+        "text": " order"
+      },
+      {
+        "id": 597,
+        "logprob": -0.5488281,
+        "special": false,
+        "text": " they"
+      },
+      {
+        "id": 3176,
+        "logprob": -0.48608398,
+        "special": false,
+        "text": " appear"
+      },
+      {
+        "id": 275,
+        "logprob": 0.0,
+        "special": false,
+        "text": " in"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "blue, red, yellow, \nand orange (in the order they appear in"
+}

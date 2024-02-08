@@ -1,0 +1,398 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.8125,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.828125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -3.0,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1484375,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -0.3552246,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -0.38378906,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 30763,
+          "logprob": -1.1279297,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4715,
+          "logprob": -0.5595703,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 310,
+          "logprob": -0.60253906,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -0.7050781,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 747,
+          "logprob": -2.0488281,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 1511,
+          "logprob": -2.3808594,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 273,
+          "logprob": -0.0026416779,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 5145,
+          "logprob": -1.2851562,
+          "special": false,
+          "text": " machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new type of machine"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.78027344,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.8203125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.9902344,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1523438,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -0.35351562,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -0.38256836,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 30763,
+          "logprob": -1.1269531,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4715,
+          "logprob": -0.54541016,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 310,
+          "logprob": -0.59765625,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -0.7001953,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 747,
+          "logprob": -2.0585938,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 1511,
+          "logprob": -2.3789062,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 273,
+          "logprob": -0.0027446747,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 5145,
+          "logprob": -1.2851562,
+          "special": false,
+          "text": " machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new type of machine"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.78027344,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.8203125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.9902344,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1523438,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -0.35351562,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -0.38256836,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 30763,
+          "logprob": -1.1269531,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4715,
+          "logprob": -0.54541016,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 310,
+          "logprob": -0.59765625,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -0.7001953,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 747,
+          "logprob": -2.0585938,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 1511,
+          "logprob": -2.3789062,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 273,
+          "logprob": -0.0027446747,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 5145,
+          "logprob": -1.2851562,
+          "special": false,
+          "text": " machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new type of machine"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.78027344,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.8203125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.9902344,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1523438,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 187,
+          "logprob": -0.35351562,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -0.38256836,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 30763,
+          "logprob": -1.1269531,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4715,
+          "logprob": -0.54541016,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 310,
+          "logprob": -0.59765625,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 247,
+          "logprob": -0.7001953,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 747,
+          "logprob": -2.0585938,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 1511,
+          "logprob": -2.3789062,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 273,
+          "logprob": -0.0027446747,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 5145,
+          "logprob": -1.2851562,
+          "special": false,
+          "text": " machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new type of machine"
+  }
+]
