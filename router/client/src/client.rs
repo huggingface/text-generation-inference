@@ -109,7 +109,7 @@ impl Client {
         max_input_length: u32,
         max_prefill_tokens: u32,
         max_total_tokens: u32,
-        max_batch_total_tokens: Option<u32>,
+        max_batch_size: Option<usize>,
     ) -> Result<Option<u32>> {
         let warmup_enabled: bool = env::var("WARMUP_ENABLED").ok().map_or(true, |value| value.to_lowercase() == "true");
         if !warmup_enabled {
@@ -142,17 +142,9 @@ impl Client {
             }
         }
 
+        // if max_batch_size is None, create two batches
+        let num_batches = max_batch_size.unwrap_or(2).min(2);
         let mut id_counter: u64 = 0;
-        let num_batches = match max_batch_total_tokens {
-            Some(val) => {
-                if val == max_total_tokens {
-                    1
-                } else {
-                    2
-                }
-            }
-            None => 2, // If max_batch_total_tokens is None, create two batches
-        };
         for shape in shapes.iter() {
             // create two batches in order to trigger concatenate operation
             // in case decode bs=1 create one batch
