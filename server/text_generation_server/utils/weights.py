@@ -46,7 +46,6 @@ class Weights:
         return self._handles[filename]
 
     def get_filename(self, tensor_name: str) -> (str, str):
-
         names = [tensor_name]
         if self.prefix is not None:
             prefixed = f"{self.prefix}.{tensor_name}"
@@ -154,15 +153,30 @@ class Weights:
                     f"Cannot load `{quantize}` weight, make sure the model is already quantized."
                 )
 
+            bits, groupsize, _, quant_method = self._get_gptq_params()
+
             qzeros = self._get_qweight(f"{prefix}.qzeros")
             scales = self._get_qweight(f"{prefix}.scales")
             scales = scales.to(dtype=self.dtype)
-            if quantize == "gptq":
+
+            if quantize == "gptq" and quant_method == "gptq":
                 g_idx = self.get_tensor(f"{prefix}.g_idx")
+            elif quantize == "gptq" and quant_method == "awq":
+                log_once(
+                    logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
+                )
+                from text_generation_server.utils.awq.conversion_utils import (
+                    fast_awq_to_gptq,
+                )
+
+                qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
+                g_idx = (
+                    torch.arange(qweight.shape[0] * (32 // bits), device=qweight.device)
+                    // groupsize
+                ).to(dtype=torch.int32)
             else:
                 g_idx = None
 
-            bits, groupsize, _ = self._get_gptq_params()
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, False)
         else:
             slice_ = self._get_slice(f"{prefix}.weight")
@@ -204,20 +218,40 @@ class Weights:
                 [self.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1
             )
 
-            if quantize == "gptq":
-                w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
-                for w2 in w[1:]:
-                    torch.testing.assert_close(w2, w[0])
-                g_idx = w[0]
-            else:
-                g_idx = None
+            bits, groupsize, desc_act, quant_method = self._get_gptq_params()
 
-            bits, groupsize, desc_act = self._get_gptq_params()
             from text_generation_server.utils.layers import HAS_EXLLAMA
 
             use_exllama = (
                 bits == 4 and HAS_EXLLAMA and quantize == "gptq" and not desc_act
             )
+
+            if quantize == "gptq" and quant_method == "gptq":
+                w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
+                for w2 in w[1:]:
+                    torch.testing.assert_close(w2, w[0])
+                g_idx = w[0]
+            elif quantize == "gptq" and quant_method == "awq":
+                log_once(
+                    logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
+                )
+                from text_generation_server.utils.awq.conversion_utils import (
+                    fast_awq_to_gptq,
+                )
+
+                qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
+                if use_exllama:
+                    g_idx = None
+                else:
+                    g_idx = (
+                        torch.arange(
+                            qweight.shape[0] * (32 // bits), device=qweight.device
+                        )
+                        // groupsize
+                    ).to(dtype=torch.int32)
+            else:
+                g_idx = None
+
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
@@ -243,7 +277,7 @@ class Weights:
     def get_multi_weights_row(self, prefix: str, quantize: str):
         if quantize == "gptq":
             use_exllama = True
-            bits, groupsize, desc_act = self._get_gptq_params()
+            bits, groupsize, desc_act, quant_method = self._get_gptq_params()
 
             if bits != 4:
                 use_exllama = False
@@ -252,8 +286,19 @@ class Weights:
                 log_once(logger.warning, "Disabling exllama because desc_act=True")
                 use_exllama = False
 
+            try:
+                qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                )
+
+            if quant_method == "gptq":
+                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
+            elif quant_method == "awq":
+                g_idx = None
+
             if self.process_group.size() > 1:
-                g_idx = self.get_tensor(f"{prefix}.g_idx")
                 if g_idx is not None:
                     if (
                         not torch.equal(
@@ -269,13 +314,6 @@ class Weights:
                         # it would require to reorder input activations that are split unto several GPUs
                         use_exllama = False
 
-            try:
-                qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
-            except RuntimeError:
-                raise RuntimeError(
-                    "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
-                )
-
             from text_generation_server.utils.layers import HAS_EXLLAMA, CAN_EXLLAMA
 
             if use_exllama:
@@ -289,8 +327,6 @@ class Weights:
                 else:
                     log_once(logger.info, f"Using exllama kernels v{HAS_EXLLAMA}")
 
-            g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
-
             if use_exllama and groupsize != -1:
                 qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
                 scales = self.get_sharded(f"{prefix}.scales", dim=0)
@@ -298,12 +334,31 @@ class Weights:
                 qzeros = self.get_tensor(f"{prefix}.qzeros")
                 scales = self.get_tensor(f"{prefix}.scales")
 
-            if use_exllama:
+            if use_exllama and g_idx is not None:
                 g_idx = g_idx - g_idx[0]
+
+            if quant_method == "awq":
+                log_once(
+                    logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
+                )
+                from text_generation_server.utils.awq.conversion_utils import (
+                    fast_awq_to_gptq,
+                )
+
+                qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
+                if use_exllama:
+                    g_idx = None
+                else:
+                    g_idx = (
+                        torch.arange(
+                            qweight.shape[0] * (32 // bits), device=qweight.device
+                        )
+                        // groupsize
+                    ).to(dtype=torch.int32)
 
             weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
         elif quantize == "awq":
-            bits, groupsize, _ = self._get_gptq_params()
+            bits, groupsize, _, _ = self._get_gptq_params()
 
             try:
                 qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
@@ -322,20 +377,22 @@ class Weights:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight
 
-    def _get_gptq_params(self) -> Tuple[int, int, int]:
+    def _get_gptq_params(self) -> Tuple[int, int, int, str]:
         try:
             bits = self.get_tensor("gptq_bits").item()
             groupsize = self.get_tensor("gptq_groupsize").item()
             desc_act = False
+            quant_method = "gptq"
         except (SafetensorError, RuntimeError) as e:
             try:
                 bits = self.gptq_bits
                 groupsize = self.gptq_groupsize
                 desc_act = getattr(self, "gptq_desc_act", False)
+                quant_method = getattr(self, "quant_method", "gptq")
             except Exception:
                 raise e
 
-        return bits, groupsize, desc_act
+        return bits, groupsize, desc_act, quant_method
 
     def _set_gptq_params(self, model_id, revision):
         filename = "config.json"
@@ -351,6 +408,7 @@ class Weights:
             self.gptq_bits = data["quantization_config"]["bits"]
             self.gptq_groupsize = data["quantization_config"]["group_size"]
             self.gptq_desc_act = data["quantization_config"]["desc_act"]
+            self.quant_method = data["quantization_config"]["quant_method"]
         except Exception:
             filename = "quantize_config.json"
             try:
@@ -365,6 +423,8 @@ class Weights:
                 self.gptq_bits = data["bits"]
                 self.gptq_groupsize = data["group_size"]
                 self.gptq_desc_act = data["desc_act"]
+                if "version" in data and data["version"] == "GEMM":
+                    self.quant_method = "awq"
             except Exception:
                 filename = "quant_config.json"
                 try:
@@ -379,5 +439,7 @@ class Weights:
                     self.gptq_bits = data["w_bit"]
                     self.gptq_groupsize = data["q_group_size"]
                     self.gptq_desc_act = data["desc_act"]
+                    if "version" in data and data["version"] == "GEMM":
+                        self.quant_method = "awq"
                 except Exception:
                     pass
