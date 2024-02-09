@@ -407,8 +407,9 @@ class Weights:
                 data = json.load(f)
             self.gptq_bits = data["quantization_config"]["bits"]
             self.gptq_groupsize = data["quantization_config"]["group_size"]
-            self.gptq_desc_act = data["quantization_config"]["desc_act"]
+            # Order is important here, desc_act is missing on some real models
             self.quant_method = data["quantization_config"]["quant_method"]
+            self.gptq_desc_act = data["quantization_config"]["desc_act"]
         except Exception:
             filename = "quantize_config.json"
             try:
