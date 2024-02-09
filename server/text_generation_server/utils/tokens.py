@@ -22,10 +22,11 @@ from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcess
 
 from outlines.fsm.fsm import RegexFSM
 from outlines.fsm.json_schema import build_regex_from_object
-from functools import lru_cache 
+from functools import lru_cache
 
 # TODO: remove when done debugging
 import time
+
 
 class NextTokenChooser:
     def __init__(
@@ -42,6 +43,7 @@ class NextTokenChooser:
         device="cpu",
         tokenizer=None,
         grammar=None,
+        fsm_grammar_state=None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -73,6 +75,9 @@ class NextTokenChooser:
 
         sampling = do_sample or has_warpers
 
+        self.fsm_grammar_state = fsm_grammar_state
+        self.grammars = grammar
+
         # TODO: is grammar a subset of sampling? If so, we should merge them
         if grammar:
             self.choice = Grammar(tokenizer, device, grammar)
@@ -92,7 +97,9 @@ class NextTokenChooser:
         else:
             scores, next_logprob = self.static_warper(scores)
 
-        next_id = self.choice(scores[-1]).view(1, 1)
+        next_id = self.choice(scores[-1], self.fsm_grammar_state, self.grammars).view(
+            1, 1
+        )
 
         return next_id, next_logprob
 
@@ -116,6 +123,7 @@ class NextTokenChooser:
             device=device,
             tokenizer=tokenizer,
             grammar=pb.grammar,
+            fsm_grammar_state=pb.fsm_grammar_state,
         )
 
 
@@ -222,6 +230,7 @@ class HeterogeneousNextTokenChooser:
         seeds: List[int],
         tokenizer=None,
         grammar=None,
+        fsm_grammar_states=None,
     ):
         warpers = []
 
@@ -275,9 +284,8 @@ class HeterogeneousNextTokenChooser:
 
         self.warpers = warpers
 
-        first_grammar = grammar[0] if grammar else None
-        if first_grammar:
-            self.choice = Grammar(tokenizer, device, first_grammar)
+        if grammar is not None:
+            self.choice = Grammar(tokenizer, device)
         elif any(do_sample):
             self.choice = HeterogeneousSampling(do_sample, seeds, device)
         else:
@@ -288,6 +296,9 @@ class HeterogeneousNextTokenChooser:
         self.do_sample = do_sample
         self.dtype = dtype
         self.device = device
+        self.tokenizer = tokenizer
+        self.fsm_grammar_states = fsm_grammar_states
+        self.grammars = grammar
 
     def __call__(
         self,
@@ -320,7 +331,7 @@ class HeterogeneousNextTokenChooser:
             for warper in self.warpers:
                 _scores = warper(input_ids, _scores)
 
-            _next_ids = self.choice(_scores)
+            _next_ids = self.choice(_scores, self.fsm_grammar_states, self.grammars)
             scores[:, j] = _scores
             next_ids[:, j] = _next_ids
         next_ids = next_ids.view(B * S)
@@ -398,7 +409,7 @@ class HeterogeneousNextTokenChooser:
         self.do_sample = [self.do_sample[i] for i in indices]
 
         if self.use_grammar or any(self.do_sample):
-            self.choice.filter(indices)
+            self.choice.filter(indices, self.fsm_grammar_states, self.grammars)
         else:
             self.choice = Greedy()
 
@@ -426,6 +437,7 @@ class HeterogeneousNextTokenChooser:
             dtype=dtype,
             tokenizer=tokenizer,
             grammar=[pb_.grammar for pb_ in pb],
+            fsm_grammar_states=[pb_.fsm_grammar_state for pb_ in pb],
         )
 
 
@@ -444,50 +456,61 @@ class Sampling:
 
 
 class Greedy:
-    def __call__(self, logits):
+    def __call__(self, logits, *args):
         return logits.argmax(dim=-1)
 
+    def filter(self, indices, *args):
+        return self
 
 class Grammar:
     fsm_state: DefaultDict[int, int]
     fsm: RegexFSM
 
-    def __init__(self, tokenizer, device, grammar):
-        fsm = self.compile_fsm(grammar, tokenizer)
-        self.fsm = fsm
-        self.fsm_state = defaultdict(int)
+    def __init__(self, tokenizer, device):
         self.device = device
+        self.tokenizer = tokenizer
 
-    def __call__(self, logits):
-        seq_id = 0
+    def __call__(self, logits, fsm_grammar_states, grammars):
+        empty = torch.ones(logits.shape[0], dtype=torch.int64, device=logits.device)
+        try:
+            for i in range(len(fsm_grammar_states)):
+                if fsm_grammar_states[i] == -1:
+                    continue
 
-        if self.fsm_state[seq_id] == -1:
-            return self.fsm_state[seq_id].eos_token_id
+                # this is cached and should be fast after the first time
+                fsm = self.compile_fsm(grammars[i], self.tokenizer)
+                allowed_tokens = fsm.allowed_token_ids(fsm_grammar_states[i])
+                mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
+                mask[allowed_tokens] = 0
+                biased_scores = logits[i : i + 1] + mask
+                greedy = biased_scores.argmax(dim=-1)
 
-        allowed_tokens = self.fsm.allowed_token_ids(self.fsm_state[seq_id])
-        mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
-        mask[allowed_tokens] = 0
-        biased_scores = logits + mask
+                # if greedy is empty, return the eos token
+                if greedy.shape[0] == 0:
+                    continue
 
-        # greedly pick the token with the highest score
-        greedy = biased_scores.argmax(dim=-1)
+                # import ipdb; ipdb.set_trace()
+                fsm_grammar_states[i] = fsm.next_state(
+                    fsm_grammar_states[i], greedy.item()
+                )
 
-        # now update the fsm state
-        self.fsm_state[seq_id] = self.fsm.next_state(
-            self.fsm_state[seq_id], greedy.item()
-        )
-        return greedy
-    
+                empty[i] = greedy.item()
+        except Exception as e:
+            print(f"Exception: {e}")
+            import ipdb
+
+            ipdb.set_trace()
+        return empty
+
     @lru_cache(maxsize=32, typed=True)
     def compile_fsm(self, schema, tokenizer):
         start_time = time.time()
         tokenizer = self.adapt_tokenizer(tokenizer)
-        is_json_string = schema.startswith("{") and schema.endswith("}") 
+        is_json_string = schema.startswith("{") and schema.endswith("}")
         regex_string = build_regex_from_object(schema) if is_json_string else schema
         fsm = RegexFSM(regex_string, tokenizer)
         print(f"Compile FSM: {time.time() - start_time}")
         return fsm
-
 
     def adapt_tokenizer(self, tokenizer):
         """Adapt tokenizer to work with the FSM.
@@ -515,6 +538,18 @@ class Grammar:
 
         return tokenizer
 
+    def filter(self, indices, fsm_grammar_states, grammars):
+        new_fsm_grammar_states = []
+        new_grammars = []
+
+        for i in indices:
+            new_fsm_grammar_states.append(fsm_grammar_states[i])
+            new_grammars.append(grammars[i])
+
+        self.fsm_state = new_fsm_grammar_states
+        self.fsm = new_grammars
+        return self
+
 
 class HeterogeneousSampling:
     r"""
@@ -534,7 +569,7 @@ class HeterogeneousSampling:
 
         self.greedy = Greedy()
 
-    def __call__(self, logits):
+    def __call__(self, logits, fsm_grammar_states, grammars):
         out = torch.empty(logits.shape[0], dtype=torch.int64, device=logits.device)
         if self.greedy_indices:
             # Computing for all indices is faster than slicing

@@ -45,6 +45,7 @@ pub async fn run(
         repetition_penalty: repetition_penalty.unwrap_or(1.0),
         frequency_penalty: frequency_penalty.unwrap_or(0.0),
         watermark,
+        fsm_grammar_state: 0,
     };
 
     // Initialize terminal properties

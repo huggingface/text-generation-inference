@@ -304,6 +304,7 @@ impl Validation {
             seed,
             watermark,
             grammar,
+            fsm_grammar_state: 0,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,

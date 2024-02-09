@@ -71,7 +71,9 @@ message NextTokenChooserParameters {
     /// token watermarking using "A Watermark for Large Language Models"
     bool watermark = 8;
     /// grammar (applied if not empty)
-    string grammar = 10;
+    repeated string grammar = 10;
+    /// fsm_grammar_state
+    repeated uint32 fsm_grammar_state = 11;
 }
 
 message StoppingCriteriaParameters {
