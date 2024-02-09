@@ -11,12 +11,12 @@
       },
       {
         "id": 4321,
-        "logprob": -9.6015625,
+        "logprob": -9.84375,
         "text": "Test"
       },
       {
         "id": 2009,
-        "logprob": -9.6640625,
+        "logprob": -9.6015625,
         "text": "request"
       }
     ],
@@ -24,13 +24,13 @@
     "tokens": [
       {
         "id": 29899,
-        "logprob": -1.1640625,
+        "logprob": -1.5625,
         "special": false,
         "text": "-"
       },
       {
         "id": 1454,
-        "logprob": -0.07543945,
+        "logprob": -0.20410156,
         "special": false,
         "text": "for"
       },
@@ -54,19 +54,19 @@
       },
       {
         "id": 396,
-        "logprob": -0.2956543,
+        "logprob": -0.27685547,
         "special": false,
         "text": " #"
       },
       {
         "id": 29906,
-        "logprob": -0.52734375,
+        "logprob": -0.4970703,
         "special": false,
         "text": "2"
       },
       {
         "id": 29900,
-        "logprob": -0.6899414,
+        "logprob": -0.80615234,
         "special": false,
         "text": "0"
       },
@@ -77,12 +77,13 @@
         "text": "1"
       },
       {
-        "id": 29946,
-        "logprob": -1.5068359,
+        "id": 29955,
+        "logprob": -1.0751953,
         "special": false,
-        "text": "4"
+        "text": "7"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": "Test request-for-comment: #2014"
+  "generated_text": "Test request-for-comment: #2017"
 }

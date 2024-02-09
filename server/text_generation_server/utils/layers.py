@@ -349,6 +349,13 @@ def get_linear(weight, bias, quantize):
             raise NotImplementedError(
                 f"The passed weight is not `awq` compatible, loader needs to be updated."
             )
+        if IS_ROCM_SYSTEM:
+            raise NotImplementedError(
+                "AWQ GEMM kernel can't be used on ROCm systems, please use `--quantize gptq` instead "
+                "to use Exllama/GPTQ kernels for AWQ inference."
+            )
+        if not HAS_AWQ:
+            raise NotImplementedError("You do not seem to have awq installed, either install it (cd server &&  make install-awq), or try using GPTQ `---quantize gptq` a conversion AWQ->GPTQ will happen on the fly")
         linear = WQLinear(
             w_bit=bits,
             group_size=groupsize,

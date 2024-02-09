@@ -182,7 +182,7 @@ try:
             )  # (BLOCK_SIZE_K, BLOCK_SIZE_N,)
 
             zeros = (zeros >> zeros_shifter[None, :]) & maxq
-            zeros = zeros + 1
+            zeros = (zeros + 1) & maxq # eventually avoid overflow
 
             a = tl.load(a_ptrs, mask=a_mask, other=0.0)  # (BLOCK_SIZE_M, BLOCK_SIZE_K)
             b = tl.load(b_ptrs)  # (BLOCK_SIZE_K, BLOCK_SIZE_N), but repeated
