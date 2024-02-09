@@ -128,8 +128,8 @@ impl Client {
                     repetition_penalty: 1.2,
                     frequency_penalty: 0.1,
                     watermark: true,
-                    grammar: String::new(),
-                    fsm_grammar_state: 0,
+                    grammar: Vec::new(),
+                    fsm_grammar_state: Vec::new(),
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens: max_total_tokens - truncate,

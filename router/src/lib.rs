@@ -201,7 +201,10 @@ pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 5)]
     pub top_n_tokens: Option<u32>,
-    #[serde(default, deserialize_with = "json_object_or_string_to_string::deserialize")]
+    #[serde(
+        default,
+        deserialize_with = "json_object_or_string_to_string::deserialize"
+    )]
     pub grammar: String,
 }
 

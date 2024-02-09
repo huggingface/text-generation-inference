@@ -409,7 +409,9 @@ class HeterogeneousNextTokenChooser:
         self.do_sample = [self.do_sample[i] for i in indices]
 
         if self.use_grammar or any(self.do_sample):
-            self.choice.filter(indices, self.fsm_grammar_states, self.grammars)
+            _, new_fsm_grammar_states, new_grammars = self.choice.filter(indices, self.fsm_grammar_states, self.grammars)
+            self.fsm_grammar_states = new_fsm_grammar_states
+            self.grammars = new_grammars
         else:
             self.choice = Greedy()
 
@@ -475,6 +477,11 @@ class Grammar:
         try:
             for i in range(len(fsm_grammar_states)):
                 if fsm_grammar_states[i] == -1:
+                    continue
+
+                # if grammar is '' or None, return the greedy token
+                if grammars[i] == "" or grammars[i] is None:
+                    empty[i] = logits[i].argmax().item()
                     continue
 
                 # this is cached and should be fast after the first time
@@ -546,9 +553,7 @@ class Grammar:
             new_fsm_grammar_states.append(fsm_grammar_states[i])
             new_grammars.append(grammars[i])
 
-        self.fsm_state = new_fsm_grammar_states
-        self.fsm = new_grammars
-        return self
+        return self, new_fsm_grammar_states, new_grammars
 
 
 class HeterogeneousSampling:
