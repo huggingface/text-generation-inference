@@ -41,6 +41,8 @@ class Parameters(BaseModel):
     decoder_input_details: bool = False
     # Return the N most likely tokens at each step
     top_n_tokens: Optional[int] = None
+    # grammar to use for generation
+    grammar: Optional[str] = None
 
     @validator("best_of")
     def valid_best_of(cls, field_value, values):
@@ -157,7 +159,7 @@ class Token(BaseModel):
     # Token text
     text: str
     # Logprob
-    logprob: float
+    logprob: Optional[float] = None
     # Is the token a special token
     # Can be used to ignore tokens when concatenating
     special: bool

@@ -1,0 +1,109 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 806,
+        "logprob": -11.90625,
+        "text": "Wh"
+      },
+      {
+        "id": 1446,
+        "logprob": -3.6660156,
+        "text": "ats"
+      },
+      {
+        "id": 2921,
+        "logprob": -7.8203125,
+        "text": "Go"
+      },
+      {
+        "id": 468,
+        "logprob": -8.0625,
+        "text": "og"
+      },
+      {
+        "id": 793,
+        "logprob": -2.1816406,
+        "text": "les"
+      },
+      {
+        "id": 16332,
+        "logprob": -9.71875,
+        "text": "DNS"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 29946,
+        "logprob": -1.4736328,
+        "special": false,
+        "text": "4"
+      },
+      {
+        "id": 29906,
+        "logprob": -0.91845703,
+        "special": false,
+        "text": "2"
+      },
+      {
+        "id": 29889,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 29896,
+        "logprob": -1.1386719,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 29889,
+        "logprob": -1.4638672,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 29896,
+        "logprob": -0.40771484,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 29889,
+        "logprob": -0.17553711,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 29896,
+        "logprob": -0.20776367,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 29900,
+        "logprob": -1.5546875,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 29896,
+        "logprob": -1.3681641,
+        "special": false,
+        "text": "1"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "42.1.1.101"
+}

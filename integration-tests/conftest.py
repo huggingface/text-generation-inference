@@ -370,11 +370,18 @@ def launcher(event_loop):
 @pytest.fixture(scope="module")
 def generate_load():
     async def generate_load_inner(
-        client: AsyncClient, prompt: str, max_new_tokens: int, n: int
+        client: AsyncClient,
+        prompt: str,
+        max_new_tokens: int,
+        n: int,
+        **kwargs,
     ) -> List[Response]:
         futures = [
             client.generate(
-                prompt, max_new_tokens=max_new_tokens, decoder_input_details=True
+                prompt,
+                max_new_tokens=max_new_tokens,
+                decoder_input_details=True,
+                **kwargs,
             )
             for _ in range(n)
         ]

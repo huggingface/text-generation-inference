@@ -76,6 +76,7 @@ class Client:
         watermark: bool = False,
         decoder_input_details: bool = False,
         top_n_tokens: Optional[int] = None,
+        grammar: str = ""
     ) -> Response:
         """
         Given a prompt, generate the following text
@@ -138,6 +139,7 @@ class Client:
             watermark=watermark,
             decoder_input_details=decoder_input_details,
             top_n_tokens=top_n_tokens,
+            grammar=grammar
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
@@ -326,6 +328,7 @@ class AsyncClient:
         watermark: bool = False,
         decoder_input_details: bool = False,
         top_n_tokens: Optional[int] = None,
+        grammar: str = ""
     ) -> Response:
         """
         Given a prompt, generate the following text asynchronously
@@ -388,6 +391,7 @@ class AsyncClient:
             typical_p=typical_p,
             watermark=watermark,
             top_n_tokens=top_n_tokens,
+            grammar=grammar,
         )
         request = Request(inputs=prompt, stream=False, parameters=parameters)
 
