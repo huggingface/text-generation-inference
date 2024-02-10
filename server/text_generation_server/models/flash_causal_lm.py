@@ -99,9 +99,6 @@ class FlashCausalLMBatch(Batch):
     # Maximum number of blocks
     max_blocks: int
 
-    # The states for the grammar FSM
-    fsm_states: Dict[int, int] = None
-
     def to_pb(self) -> generate_pb2.CachedBatch:
         return generate_pb2.CachedBatch(
             id=self.batch_id,
@@ -140,7 +137,6 @@ class FlashCausalLMBatch(Batch):
         read_offsets = []
         all_input_ids = []
         requests_idx_mapping = {}
-        fsm_states = {}
 
         all_prefill_logprobs = True
         no_prefill_logprobs = True
@@ -323,7 +319,6 @@ class FlashCausalLMBatch(Batch):
             blocks=blocks,
             max_blocks=max_blocks,
             speculative_ids=None,
-            fsm_states=fsm_states,
         )
 
     @tracer.start_as_current_span("filter")

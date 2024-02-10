@@ -4,6 +4,12 @@ import torch
 from functools import lru_cache
 from typing import Optional, List, Dict, Union
 
+from outlines.fsm.fsm import RegexFSM
+from outlines.fsm.json_schema import build_regex_from_object
+from functools import lru_cache
+from typing import List, Optional, DefaultDict
+import time
+
 from transformers import (
     LogitsWarper,
     LogitsProcessor,
@@ -135,9 +141,7 @@ class FrequencyPenaltyLogitsProcessor(LogitsProcessor):
     ) -> torch.FloatTensor:
         score = torch.gather(scores, 1, input_ids)
         # if score < 0 then penalty has to be multiplied to reduce the previous token probability
-        score = -torch.where(
-            score < 0, score * self.penalty, score / self.penalty
-        )
+        score = -torch.where(score < 0, score * self.penalty, score / self.penalty)
 
         return scores.scatter_add_(1, input_ids, score)
 
@@ -464,3 +468,147 @@ class HeterogeneousProcessorWrapper(LogitsProcessor):
             self.processors = new_processors
             return self
         return None
+
+
+class GrammarLogitProcessor(LogitsProcessor):
+    fsm_state: DefaultDict[int, int]
+    fsm: RegexFSM
+
+    def __init__(self, tokenizer, device):
+        self.device = device
+        self.tokenizer = tokenizer
+
+    def __call__(self, input_ids: torch.Tensor, logits, fsm_grammar_state, grammar):
+        if fsm_grammar_state == -1:
+            # todo mask for only eos token
+            return logits
+
+        # if grammar is '' or None, return the greedy token
+        if grammar == "" or grammar is None:
+            return logits
+
+        fsm = self.compile_fsm(grammar, self.tokenizer)
+        allowed_tokens = fsm.allowed_token_ids(fsm_grammar_state)
+        mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
+        mask[allowed_tokens] = 0
+        biased_scores = logits + mask
+        return biased_scores
+
+    def advance(self, next_token_id, fsm_grammar_state, grammar):
+        if fsm_grammar_state == -1:
+            return fsm_grammar_state
+
+        if grammar == "" or grammar is None:
+            return fsm_grammar_state
+
+        fsm = self.compile_fsm(grammar, self.tokenizer)
+        return fsm.next_state(fsm_grammar_state, next_token_id)
+
+    @lru_cache(maxsize=32, typed=True)
+    def compile_fsm(self, schema, tokenizer):
+        start_time = time.time()
+        tokenizer = self.adapt_tokenizer(tokenizer)
+        is_json_string = schema.startswith("{") and schema.endswith("}")
+        regex_string = build_regex_from_object(schema) if is_json_string else schema
+        fsm = RegexFSM(regex_string, tokenizer)
+        print(f"Compile FSM: {time.time() - start_time}")
+        return fsm
+
+    def adapt_tokenizer(self, tokenizer):
+        """Adapt tokenizer to work with the FSM.
+
+        The API of Outlines tokenizers is slightly different to that of
+        `transformers`. In addition we need to handle the missing spaces to
+        Llama's tokenizer to be able to compile FSMs for this model.
+
+        """
+        tokenizer.vocabulary = tokenizer.get_vocab()
+        tokenizer.special_tokens = set(tokenizer.all_special_tokens)
+
+        def convert_token_to_string(token: str) -> str:
+            from transformers.file_utils import SPIECE_UNDERLINE
+
+            string = tokenizer.convert_tokens_to_string([token])
+
+            # A hack to handle missing spaces to HF's Llama tokenizers
+            if token.startswith(SPIECE_UNDERLINE) or token == "<0x20>":
+                return " " + string
+
+            return string
+
+        tokenizer.convert_token_to_string = convert_token_to_string
+
+        return tokenizer
+
+    def filter(self, indices, fsm_grammar_states, grammars):
+        return self
+
+
+class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
+    def __init__(self, tokenizer, device):
+        self.device = device
+        self.tokenizer = tokenizer
+
+    def __call__(self, input_ids: torch.Tensor, logits, fsm_grammar_states, grammars):
+        for i in range(len(logits)):
+            if fsm_grammar_states[i] == -1:
+                # todo mask for only eos token
+                continue
+
+            # if grammar is '' or None, return the greedy token
+            if grammars[i] == "" or grammars[i] is None:
+                continue
+
+            fsm = self.compile_fsm(grammars[i], self.tokenizer)
+            allowed_tokens = fsm.allowed_token_ids(fsm_grammar_states[i])
+            mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
+            mask[allowed_tokens] = 0
+            biased_scores = logits[i] + mask
+            logits[i] = biased_scores
+        return logits
+
+    def advance(self, next_token_id, fsm_grammar_state, grammar):
+        if fsm_grammar_state == -1:
+            return fsm_grammar_state
+
+        if grammar == "" or grammar is None:
+            return fsm_grammar_state
+
+        fsm = self.compile_fsm(grammar, self.tokenizer)
+        return fsm.next_state(fsm_grammar_state, next_token_id)
+
+    @lru_cache(maxsize=32, typed=True)
+    def compile_fsm(self, schema, tokenizer):
+        start_time = time.time()
+        tokenizer = self.adapt_tokenizer(tokenizer)
+        is_json_string = schema.startswith("{") and schema.endswith("}")
+        regex_string = build_regex_from_object(schema) if is_json_string else schema
+        fsm = RegexFSM(regex_string, tokenizer)
+        # print(f"Compile FSM: {time.time() - start_time}")
+        return fsm
+
+    def adapt_tokenizer(self, tokenizer):
+        """Adapt tokenizer to work with the FSM.
+
+        The API of Outlines tokenizers is slightly different to that of
+        `transformers`. In addition we need to handle the missing spaces to
+        Llama's tokenizer to be able to compile FSMs for this model.
+
+        """
+        tokenizer.vocabulary = tokenizer.get_vocab()
+        tokenizer.special_tokens = set(tokenizer.all_special_tokens)
+
+        def convert_token_to_string(token: str) -> str:
+            from transformers.file_utils import SPIECE_UNDERLINE
+
+            string = tokenizer.convert_tokens_to_string([token])
+
+            # A hack to handle missing spaces to HF's Llama tokenizers
+            if token.startswith(SPIECE_UNDERLINE) or token == "<0x20>":
+                return " " + string
+
+            return string
+
+        tokenizer.convert_token_to_string = convert_token_to_string
+
+        return tokenizer
