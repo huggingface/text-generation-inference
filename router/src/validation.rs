@@ -294,9 +294,9 @@ impl Validation {
             .await?;
 
         // initialize the grammar parameter
-        let grammar = vec![grammar];
+        let grammar = grammar;
         // init the start state of the grammar
-        let fsm_grammar_state = vec![0];
+        let fsm_grammar_state = 0;
 
         let parameters = NextTokenChooserParameters {
             temperature,

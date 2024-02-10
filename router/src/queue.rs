@@ -368,8 +368,8 @@ mod tests {
                     repetition_penalty: 0.0,
                     frequency_penalty: 0.0,
                     watermark: false,
-                    grammar: Vec::new(),
-                    fsm_grammar_state: Vec::new(),
+                    grammar: String::new(),
+                    fsm_grammar_state: 0,
                 },
                 stopping_parameters: StoppingCriteriaParameters {
                     ignore_eos_token: false,
