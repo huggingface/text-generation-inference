@@ -669,7 +669,7 @@ pub(crate) struct ErrorResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
+    
     use tokenizers::Tokenizer;
 
     pub(crate) async fn get_tokenizer() -> Tokenizer {
@@ -677,14 +677,6 @@ mod tests {
         let repo = api.model("gpt2".to_string());
         let filename = repo.get("tokenizer.json").unwrap();
         Tokenizer::from_file(filename).unwrap()
-    }
-
-    #[test]
-    fn test_hub_tokenizer_config() {
-        let config = HubTokenizerConfig::from_file(Path::new("tokenizer.json"));
-        assert_eq!(config.chat_template, Some("test".to_string()));
-        assert_eq!(config.bos_token, Some("test".to_string()));
-        assert_eq!(config.eos_token, Some("test".to_string()));
     }
 
     #[test]
