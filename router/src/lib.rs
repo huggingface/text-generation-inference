@@ -669,7 +669,7 @@ pub(crate) struct ErrorResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     use tokenizers::Tokenizer;
 
     pub(crate) async fn get_tokenizer() -> Tokenizer {
