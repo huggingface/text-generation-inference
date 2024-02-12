@@ -1,6 +1,7 @@
 import math
 import torch
 
+from loguru import logger
 from functools import lru_cache
 from typing import Optional, List, Dict, Union
 
@@ -511,7 +512,7 @@ class GrammarLogitProcessor(LogitsProcessor):
         is_json_string = schema.startswith("{") and schema.endswith("}")
         regex_string = build_regex_from_object(schema) if is_json_string else schema
         fsm = RegexFSM(regex_string, tokenizer)
-        print(f"Compile FSM: {time.time() - start_time}")
+        logger.info(f"Compiled FSM in {time.time() - start_time:.2f}s")
         return fsm
 
     def adapt_tokenizer(self, tokenizer):
@@ -550,7 +551,7 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
         self.tokenizer = tokenizer
 
     def __call__(self, input_ids: torch.Tensor, logits, fsm_grammar_states, grammars):
-        for i in range(len(logits)):
+        for i in range(logits.shape[0]):
             if fsm_grammar_states[i] == -1:
                 # todo mask for only eos token
                 continue
@@ -584,7 +585,7 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
         is_json_string = schema.startswith("{") and schema.endswith("}")
         regex_string = build_regex_from_object(schema) if is_json_string else schema
         fsm = RegexFSM(regex_string, tokenizer)
-        # print(f"Compile FSM: {time.time() - start_time}")
+        logger.info(f"Compiled FSM in {time.time() - start_time:.2f}s")
         return fsm
 
     def adapt_tokenizer(self, tokenizer):

@@ -26,19 +26,19 @@ from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcess
 class NextTokenChooser:
     def __init__(
         self,
-        watermark=False,
-        temperature=1.0,
-        repetition_penalty=1.0,
-        frequency_penalty=0.0,
-        top_k=None,
-        top_p=None,
-        typical_p=None,
-        do_sample=False,
-        seed=0,
-        device="cpu",
-        tokenizer=None,
-        grammar=None,
-        fsm_grammar_state=None,
+        watermark: bool = False,
+        temperature: float = 1.0,
+        repetition_penalty: float = 1.0,
+        frequency_penalty: float = 0.0,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        typical_p: Optional[float] = None,
+        do_sample: bool = False,
+        seed: int = 0,
+        device: str = "cpu",
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
+        grammar: str = "",
+        fsm_grammar_state: Optional[DefaultDict[int, int]] = None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -54,9 +54,7 @@ class NextTokenChooser:
             else None
         )
         self.grammar_processor = (
-            GrammarLogitProcessor(tokenizer, device)
-            if grammar and grammar != ""
-            else None
+            GrammarLogitProcessor(tokenizer, device) if grammar != "" else None
         )
         self.tokenizer = tokenizer
 
@@ -438,7 +436,10 @@ class HeterogeneousNextTokenChooser:
         self.grammars = new_grammars
         self.fsm_grammar_states = new_fsm_grammar_states
 
-        self.choice = Greedy()
+        if any(self.do_sample):
+            self.choice.filter(indices)
+        else:
+            self.choice = Greedy()
 
         return self
 
@@ -485,6 +486,7 @@ class Sampling:
 class Greedy:
     def __call__(self, logits):
         return logits.argmax(dim=-1)
+
 
 class HeterogeneousSampling:
     r"""

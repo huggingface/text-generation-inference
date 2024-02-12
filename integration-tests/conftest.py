@@ -374,14 +374,16 @@ def generate_load():
         prompt: str,
         max_new_tokens: int,
         n: int,
-        **kwargs,
+        seed: Optional[int] = None,
+        grammar: Optional[str] = None,
     ) -> List[Response]:
         futures = [
             client.generate(
                 prompt,
                 max_new_tokens=max_new_tokens,
                 decoder_input_details=True,
-                **kwargs,
+                seed=seed,
+                grammar=grammar,
             )
             for _ in range(n)
         ]
