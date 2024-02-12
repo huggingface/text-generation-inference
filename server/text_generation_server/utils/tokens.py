@@ -52,7 +52,7 @@ class NextTokenChooser:
             else None
         )
         self.grammar_processor = (
-            GrammarLogitProcessor(tokenizer, device) if grammar != "" else None
+            GrammarLogitProcessor(tokenizer, device, grammar) if grammar != "" else None
         )
         self.tokenizer = tokenizer
 
@@ -83,9 +83,7 @@ class NextTokenChooser:
         if self.frequency_processor is not None:
             scores = self.frequency_processor(input_ids, scores)
         if self.grammar_processor is not None:
-            scores = self.grammar_processor(
-                input_ids, scores, self.fsm_grammar_state, self.grammar
-            )
+            scores = self.grammar_processor(scores, self.fsm_grammar_state)
 
         if self.static_warper is None:
             next_logprob = torch.log_softmax(scores, -1)
@@ -261,8 +259,8 @@ class HeterogeneousNextTokenChooser:
         )
 
         self.grammar_processor = (
-            HeterogeneousGrammarLogitProcessor(tokenizer, device)
-            if any([grammar != "" and grammar is not None for grammar in grammars])
+            HeterogeneousGrammarLogitProcessor(tokenizer, device, grammars)
+            if any([grammar != "" for grammar in grammars])
             else None
         )
 
@@ -331,9 +329,7 @@ class HeterogeneousNextTokenChooser:
             for warper in self.warpers:
                 _scores = warper(input_ids, _scores)
             if self.grammar_processor is not None:
-                _scores = self.grammar_processor(
-                    input_ids, _scores, self.fsm_grammar_states, self.grammars
-                )
+                _scores = self.grammar_processor(_scores, self.fsm_grammar_states)
             _next_ids = self.choice(_scores)
             scores[:, j] = _scores
             next_ids[:, j] = _next_ids
@@ -407,6 +403,9 @@ class HeterogeneousNextTokenChooser:
 
         if self.frequency_processor is not None:
             self.frequency_processor = self.frequency_processor.filter(indices)
+
+        if self.grammar_processor is not None:
+            self.grammar_processor = self.grammar_processor.filter(indices)
 
         filtered_warpers = []
         for warper in self.warpers:
