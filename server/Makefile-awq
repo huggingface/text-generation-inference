@@ -1,8 +1,10 @@
-awq_commit := f084f40bd996f3cf3a0633c1ad7d9d476c318aaa
+# Fork that adds only the correct stream to this kernel in order
+# to make cuda graphs work.
+awq_commit := bd1dc2d5254345cc76ab71894651fb821275bdd4
 
 awq: 
 	rm -rf llm-awq
-	git clone https://github.com/mit-han-lab/llm-awq
+	git clone https://github.com/huggingface/llm-awq
 
 build-awq: awq
 	cd llm-awq/ && git fetch && git checkout $(awq_commit)

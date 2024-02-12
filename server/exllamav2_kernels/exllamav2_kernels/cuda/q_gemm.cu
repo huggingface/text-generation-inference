@@ -38,6 +38,7 @@ void gemm_half_q_half_cuda_part
     bool mul_r_weights
 )
 {
+    const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
     if (!b->is_gptq)
     {
         dim3 blockDim, gridDim;
@@ -50,7 +51,7 @@ void gemm_half_q_half_cuda_part
 
         fp_gemm_half_q_half_kernel kernel = pick_gemm_half_q_half_kernel(m_count, r_weights != NULL, mul_r_weights);
 
-        kernel<<<gridDim, blockDim>>>
+        kernel<<<gridDim, blockDim, 0, stream>>>
         (
             a,
             b->cuda_q_weight,
@@ -91,7 +92,7 @@ void gemm_half_q_half_cuda_part
 //             print_global_mem(r_weights, 1, 1, 1);
 //         DBGI(r_weights_stride);
 
-        kernel<<<gridDim, blockDim>>>
+        kernel<<<gridDim, blockDim, 0, stream>>>
         (
             a,
             b->cuda_q_weight,

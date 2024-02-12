@@ -1,5 +1,6 @@
 // Adapted from turboderp exllama: https://github.com/turboderp/exllama
 
+#include <ATen/cuda/CUDAContext.h>
 #include "q4_matrix.cuh"
 #include <vector>
 #include "../util.cuh"
@@ -90,7 +91,7 @@ __global__ void make_sequential_kernel
         int w2_row_shift = w2_subrow << 2;
         int wnew2_row_shift = i << 2;
 
-        uint64_t src = w2[w2_row * w2_stride + w2_column];
+    uint64_t src = w2[w2_row * w2_stride + w2_column];
         src >>= w2_row_shift;
         src &= 0x0000000f0000000f;
         src <<= wnew2_row_shift;
@@ -146,7 +147,8 @@ void Q4Matrix::make_sequential(const uint32_t* cpu_g_idx)
     dim3 threads(UNSHUF_BLOCKSIZE_X, 1, 1);
     dim3 blocks(width / UNSHUF_BLOCKSIZE_X / 2, height / 8, 1);
 
-    make_sequential_kernel<<<blocks, threads>>>(cuda_qweight, cuda_new_qweight, cuda_x_map, height / 8, width);
+    const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+    make_sequential_kernel<<<blocks, threads, 0, stream>>>(cuda_qweight, cuda_new_qweight, cuda_x_map, height / 8, width);
 
     // Replace qweights
 
@@ -213,5 +215,6 @@ void Q4Matrix::reconstruct(half* out)
         1
     );
 
-    reconstruct_kernel<<<blocks, threads>>>(cuda_qweight, out, cuda_scales, cuda_qzeros, height / 8, width, groupsize);
+    const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+    reconstruct_kernel<<<blocks, threads, 0, stream>>>(cuda_qweight, out, cuda_scales, cuda_qzeros, height / 8, width, groupsize);
 }

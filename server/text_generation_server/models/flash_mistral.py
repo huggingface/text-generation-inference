@@ -35,6 +35,8 @@ tracer = trace.get_tracer(__name__)
 SLIDING_WINDOW: Optional[int] = None
 SLIDING_WINDOW_BLOCKS: Optional[int] = None
 
+MEM_POOL = torch.cuda.graph_pool_handle()
+
 
 # Adds windowing logic to FlashCausalLMBatch
 @dataclass
@@ -332,6 +334,8 @@ class BaseFlashMistral(FlashCausalLM):
 
         model = model_cls(config, weights)
 
+        self.cuda_graphs = {}
+
         torch.distributed.barrier(group=self.process_group)
         super(BaseFlashMistral, self).__init__(
             model=model,
@@ -349,6 +353,60 @@ class BaseFlashMistral(FlashCausalLM):
     @property
     def batch_type(self) -> Type[FlashMistralBatch]:
         return FlashMistralBatch
+
+    def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
+        input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
+        position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
+        slots = torch.arange(bs, dtype=torch.int32, device=self.device)
+        input_lengths = torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
+        block_tables = (
+            torch.arange(max_bt, dtype=torch.int32, device=self.device)
+            .repeat(bs)
+            .reshape((bs, max_bt))
+        )
+        kv_cache = get_cache_manager().kv_cache
+
+        self.cuda_graphs[bs] = {
+            "input_ids": input_ids,
+            "position_ids": position_ids,
+            "kv_cache": kv_cache,
+            "block_tables": block_tables,
+            "slots": slots,
+            "input_lengths": input_lengths,
+        }
+        graph = torch.cuda.CUDAGraph()
+        self.cuda_graphs[bs]["graph"] = graph
+
+        torch.cuda.synchronize()
+        # Run once outside to warmup
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=None,
+            kv_cache=kv_cache,
+            block_tables=block_tables,
+            slots=slots,
+            input_lengths=input_lengths,
+            max_s=max_s,
+            prefill_cache_indices=None,
+            lm_head_indices=None,
+        )
+        torch.cuda.synchronize()
+
+        with torch.cuda.graph(graph, pool=MEM_POOL):
+            self.cuda_graphs[bs]["logits"] = self.model.forward(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                cu_seqlen_prefill=None,
+                kv_cache=kv_cache,
+                block_tables=block_tables,
+                slots=slots,
+                input_lengths=input_lengths,
+                max_s=max_s,
+                prefill_cache_indices=None,
+                lm_head_indices=None,
+            )
+        torch.cuda.synchronize()
 
     def forward(self, batch: FlashMistralBatch) -> Tuple[torch.Tensor, torch.Tensor]:
         # Model Forward
@@ -401,21 +459,56 @@ class BaseFlashMistral(FlashCausalLM):
             input_lengths = batch.input_lengths_tensor
             max_s = batch.max_seqlen
             lm_head_indices = batch.prefill_head_indices
-        logits = self.model.forward(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            cu_seqlen_prefill=cu_seqlen_prefill,
-            kv_cache=kv_cache,
-            block_tables=block_tables,
-            slots=slots,
-            input_lengths=input_lengths,
-            max_s=max_s,
-            prefill_cache_indices=batch.prefill_cache_indices,
-            lm_head_indices=lm_head_indices,
-        )
-        if batch.prefill_cache_indices is not None:
-            batch.prefill_cache_indices = None
-        return logits
+
+        if self.model.max_past is not None:
+            max_s = min(self.model.max_past, max_s)
+
+        bs = input_ids.shape[0]
+        padded_bs = bs
+        if bs == 3:
+            padded_bs = 4
+        elif 3 < bs <= 8:
+            padded_bs = 8
+        elif bs > 8:
+            padded_bs = (bs + 7) // 8 * 8
+
+        # Try to find an associated cuda graph
+        cuda_graph = self.cuda_graphs.get(padded_bs, None)
+
+        if cu_seqlen_prefill is not None or cuda_graph is None:
+            logits = self.model.forward(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                cu_seqlen_prefill=cu_seqlen_prefill,
+                kv_cache=kv_cache,
+                block_tables=block_tables,
+                slots=slots,
+                input_lengths=input_lengths,
+                max_s=max_s,
+                prefill_cache_indices=batch.prefill_cache_indices,
+                lm_head_indices=lm_head_indices,
+            )
+            if batch.prefill_cache_indices is not None:
+                batch.prefill_cache_indices = None
+            return logits
+
+        # Copy inputs to the static inputs of the cuda graph
+        # Static inputs are potentially padded
+        cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
+        cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
+        cuda_graph["block_tables"][
+            : block_tables.shape[0], : block_tables.shape[1]
+        ] = block_tables
+        cuda_graph["slots"].fill_(-1)
+        cuda_graph["slots"][: slots.shape[0]] = slots
+        cuda_graph["input_lengths"].zero_()
+        cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
+
+        # Replay the graph
+        cuda_graph["graph"].replay()
+
+        # Slice output to the correct shape
+        return cuda_graph["logits"][:bs]
 
 
 class FlashMistral(BaseFlashMistral):

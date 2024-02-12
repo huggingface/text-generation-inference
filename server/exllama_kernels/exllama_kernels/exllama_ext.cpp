@@ -183,6 +183,7 @@ void q4_matmul
 
     int x_height = x.size(0);
 
+    const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
     if (tuningParams.matmul_recons_thd == 0 || x_height < tuningParams.matmul_recons_thd)
     {
         q4_matmul_cuda
@@ -191,7 +192,9 @@ void q4_matmul
             (half*) x.data_ptr(),
             x_height,
             wm,
-            (half*) out.data_ptr()
+            (half*) out.data_ptr(),
+            false,
+            stream
         );
     }
     else
@@ -203,6 +206,7 @@ void q4_matmul
             x_height,
             wm,
             (half*) out.data_ptr(),
+            false,
             at::cuda::getCurrentCUDABlasHandle()
         );
     }

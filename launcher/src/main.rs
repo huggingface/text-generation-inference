@@ -284,6 +284,10 @@ struct Args {
     #[clap(long, env)]
     max_batch_size: Option<usize>,
 
+    /// Enable experimental support for cuda graphs
+    #[clap(long, env)]
+    enable_cuda_graphs: bool,
+
     /// The IP address to listen on
     #[clap(default_value = "0.0.0.0", long, env)]
     hostname: String,
@@ -407,6 +411,7 @@ fn shard_manager(
     disable_custom_kernels: bool,
     watermark_gamma: Option<f32>,
     watermark_delta: Option<f32>,
+    enable_cuda_graphs: bool,
     cuda_memory_fraction: f32,
     rope_scaling: Option<RopeScaling>,
     rope_factor: Option<f32>,
@@ -488,7 +493,7 @@ fn shard_manager(
     envs.push(("WORLD_SIZE".into(), world_size.to_string().into()));
     envs.push(("MASTER_ADDR".into(), master_addr.into()));
     envs.push(("MASTER_PORT".into(), master_port.to_string().into()));
-    envs.push(("NCCL_ASYNC_ERROR_HANDLING".into(), "1".into()));
+    envs.push(("TORCH_NCCL_AVOID_RECORD_STREAMS".into(), "1".into()));
 
     // CUDA memory fraction
     envs.push((
@@ -537,6 +542,11 @@ fn shard_manager(
             weights_cache_override.into(),
         ));
     };
+
+    // Enable experimental support for cuda graphs
+    if enable_cuda_graphs {
+        envs.push(("ENABLE_CUDA_GRAPHS".into(), "True".into()))
+    }
 
     // If disable_custom_kernels is true, pass it to the shard as an env var
     if disable_custom_kernels {
@@ -926,6 +936,7 @@ fn spawn_shards(
         let disable_custom_kernels = args.disable_custom_kernels;
         let watermark_gamma = args.watermark_gamma;
         let watermark_delta = args.watermark_delta;
+        let enable_cuda_graphs = args.enable_cuda_graphs;
         let cuda_memory_fraction = args.cuda_memory_fraction;
         let rope_scaling = args.rope_scaling;
         let rope_factor = args.rope_factor;
@@ -947,6 +958,7 @@ fn spawn_shards(
                 disable_custom_kernels,
                 watermark_gamma,
                 watermark_delta,
+                enable_cuda_graphs,
                 cuda_memory_fraction,
                 rope_scaling,
                 rope_factor,

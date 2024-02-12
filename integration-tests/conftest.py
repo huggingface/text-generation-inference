@@ -317,7 +317,10 @@ def launcher(event_loop):
 
         gpu_count = num_shard if num_shard is not None else 1
 
-        env = {"LOG_LEVEL": "info,text_generation_router=debug"}
+        env = {
+            "LOG_LEVEL": "info,text_generation_router=debug",
+            "ENABLE_CUDA_GRAPHS": "true",
+        }
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
 
