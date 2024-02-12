@@ -293,9 +293,6 @@ impl Validation {
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
-        // init the start state of the grammar
-        let fsm_grammar_state = 0;
-
         let parameters = NextTokenChooserParameters {
             temperature,
             repetition_penalty,
@@ -307,7 +304,6 @@ impl Validation {
             seed,
             watermark,
             grammar,
-            fsm_grammar_state,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,

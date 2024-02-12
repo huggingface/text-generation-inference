@@ -46,7 +46,6 @@ pub async fn run(
         frequency_penalty: frequency_penalty.unwrap_or(0.0),
         watermark,
         grammar: String::new(),
-        fsm_grammar_state: 0,
     };
 
     // Initialize terminal properties

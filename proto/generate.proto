@@ -72,8 +72,6 @@ message NextTokenChooserParameters {
     bool watermark = 8;
     /// grammar (applied if not empty)
     string grammar = 10;
-    /// fsm_grammar_state
-    uint32 fsm_grammar_state = 11;
 }
 
 message StoppingCriteriaParameters {

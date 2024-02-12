@@ -1,7 +1,5 @@
 import re
-from typing import Callable, List, Optional, Tuple, DefaultDict
-from collections import defaultdict
-import math
+from typing import List, Optional, Tuple, DefaultDict
 
 import torch
 from text_generation_server.pb import generate_pb2
@@ -38,7 +36,7 @@ class NextTokenChooser:
         device: str = "cpu",
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         grammar: str = "",
-        fsm_grammar_state: Optional[DefaultDict[int, int]] = None,
+        fsm_grammar_state: int = 0,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -124,7 +122,6 @@ class NextTokenChooser:
             device=device,
             tokenizer=tokenizer,
             grammar=pb.grammar,
-            fsm_grammar_state=pb.fsm_grammar_state,
         )
 
 
@@ -229,9 +226,9 @@ class HeterogeneousNextTokenChooser:
         typical_p: List[float],
         do_sample: List[bool],
         seeds: List[int],
-        tokenizer=None,
-        grammars=None,
-        fsm_grammar_states=None,
+        tokenizer: PreTrainedTokenizerBase,
+        grammars: List[str],
+        fsm_grammar_states=List[int],
     ):
         warpers = []
 
@@ -395,15 +392,9 @@ class HeterogeneousNextTokenChooser:
         # advance the grammar state
         if self.grammar_processor is not None:
             for i in range(len(self.fsm_grammar_states)):
-                try:
-                    self.fsm_grammar_states[i] = self.grammar_processor.advance(
-                        next_ids[i].item(), self.fsm_grammar_states[i], self.grammars[i]
-                    )
-                except:
-                    import ipdb
-
-                    ipdb.set_trace()
-                    pass
+                self.fsm_grammar_states[i] = self.grammar_processor.advance(
+                    next_ids[i].item(), self.fsm_grammar_states[i], self.grammars[i]
+                )
 
         return next_ids, next_logprobs, alllogprobs, accepted_ids, speculative_ids
 
@@ -465,7 +456,7 @@ class HeterogeneousNextTokenChooser:
             dtype=dtype,
             tokenizer=tokenizer,
             grammars=[pb_.grammar for pb_ in pb],
-            fsm_grammar_states=[pb_.fsm_grammar_state for pb_ in pb],
+            fsm_grammar_states=[0] * len(pb),
         )
 
 

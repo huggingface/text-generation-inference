@@ -376,6 +376,7 @@ def generate_load():
         n: int,
         seed: Optional[int] = None,
         grammar: Optional[str] = None,
+        stop_sequences: Optional[List[str]] = None,
     ) -> List[Response]:
         futures = [
             client.generate(
@@ -384,6 +385,7 @@ def generate_load():
                 decoder_input_details=True,
                 seed=seed,
                 grammar=grammar,
+                stop_sequences=stop_sequences,
             )
             for _ in range(n)
         ]

@@ -46,7 +46,6 @@ impl Health {
                     frequency_penalty: 0.0,
                     watermark: false,
                     grammar: String::new(),
-                    fsm_grammar_state: 0,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens: 1,

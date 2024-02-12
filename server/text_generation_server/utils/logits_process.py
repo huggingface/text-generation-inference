@@ -1,6 +1,7 @@
 import math
 import torch
 
+import json
 from loguru import logger
 from functools import lru_cache
 from typing import Optional, List, Dict, Union
@@ -477,18 +478,19 @@ class GrammarLogitProcessor(LogitsProcessor):
 
     def __init__(self, tokenizer, device):
         self.device = device
-        self.tokenizer = tokenizer
+        self.tokenizer = GrammarLogitProcessor.adapt_tokenizer(tokenizer)
 
-    def __call__(self, input_ids: torch.Tensor, logits, fsm_grammar_state, grammar):
-        if fsm_grammar_state == -1:
-            # todo mask for only eos token
+    def __call__(
+        self,
+        _input_ids: torch.Tensor,
+        logits: torch.Tensor,
+        fsm_grammar_state: int,
+        grammar: str,
+    ):
+        if fsm_grammar_state == -1 or grammar == "":
             return logits
 
-        # if grammar is '' or None, return the greedy token
-        if grammar == "" or grammar is None:
-            return logits
-
-        fsm = self.compile_fsm(grammar, self.tokenizer)
+        fsm = GrammarLogitProcessor._cached_compile_fsm(self, grammar, self.tokenizer)
         allowed_tokens = fsm.allowed_token_ids(fsm_grammar_state)
         mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
         mask[allowed_tokens] = 0
@@ -502,20 +504,24 @@ class GrammarLogitProcessor(LogitsProcessor):
         if grammar == "" or grammar is None:
             return fsm_grammar_state
 
-        fsm = self.compile_fsm(grammar, self.tokenizer)
+        fsm = GrammarLogitProcessor._cached_compile_fsm(self, grammar, self.tokenizer)
         return fsm.next_state(fsm_grammar_state, next_token_id)
 
+    @staticmethod
     @lru_cache(maxsize=32, typed=True)
-    def compile_fsm(self, schema, tokenizer):
+    def _cached_compile_fsm(self, schema, tokenizer):
         start_time = time.time()
-        tokenizer = self.adapt_tokenizer(tokenizer)
-        is_json_string = schema.startswith("{") and schema.endswith("}")
-        regex_string = build_regex_from_object(schema) if is_json_string else schema
-        fsm = RegexFSM(regex_string, tokenizer)
+        try:
+            json.loads(schema)  # check if schema is a valid json
+            schema = build_regex_from_object(schema)  # convert schema to regex
+        except json.JSONDecodeError:
+            pass
+        fsm = RegexFSM(schema, tokenizer)
         logger.info(f"Compiled FSM in {time.time() - start_time:.2f}s")
         return fsm
 
-    def adapt_tokenizer(self, tokenizer):
+    @staticmethod
+    def adapt_tokenizer(tokenizer):
         """Adapt tokenizer to work with the FSM.
 
         The API of Outlines tokenizers is slightly different to that of
@@ -548,68 +554,31 @@ class GrammarLogitProcessor(LogitsProcessor):
 class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
     def __init__(self, tokenizer, device):
         self.device = device
-        self.tokenizer = tokenizer
+        self.tokenizer = GrammarLogitProcessor.adapt_tokenizer(tokenizer)
 
-    def __call__(self, input_ids: torch.Tensor, logits, fsm_grammar_states, grammars):
+    def __call__(
+        self,
+        _input_ids: torch.Tensor,
+        logits: torch.Tensor,
+        fsm_grammar_states: List[int],
+        grammars: List[str],
+    ):
         for i in range(logits.shape[0]):
-            if fsm_grammar_states[i] == -1:
-                # todo mask for only eos token
+            if fsm_grammar_states[i] == -1 or grammars[i] == "":
                 continue
 
-            # if grammar is '' or None, return the greedy token
-            if grammars[i] == "" or grammars[i] is None:
-                continue
-
-            fsm = self.compile_fsm(grammars[i], self.tokenizer)
+            fsm = GrammarLogitProcessor._cached_compile_fsm(
+                self, grammars[i], self.tokenizer
+            )
             allowed_tokens = fsm.allowed_token_ids(fsm_grammar_states[i])
+
             mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
             mask[allowed_tokens] = 0
             biased_scores = logits[i] + mask
             logits[i] = biased_scores
         return logits
 
-    def advance(self, next_token_id, fsm_grammar_state, grammar):
-        if fsm_grammar_state == -1:
-            return fsm_grammar_state
-
-        if grammar == "" or grammar is None:
-            return fsm_grammar_state
-
-        fsm = self.compile_fsm(grammar, self.tokenizer)
-        return fsm.next_state(fsm_grammar_state, next_token_id)
-
-    @lru_cache(maxsize=32, typed=True)
-    def compile_fsm(self, schema, tokenizer):
-        start_time = time.time()
-        tokenizer = self.adapt_tokenizer(tokenizer)
-        is_json_string = schema.startswith("{") and schema.endswith("}")
-        regex_string = build_regex_from_object(schema) if is_json_string else schema
-        fsm = RegexFSM(regex_string, tokenizer)
-        logger.info(f"Compiled FSM in {time.time() - start_time:.2f}s")
-        return fsm
-
-    def adapt_tokenizer(self, tokenizer):
-        """Adapt tokenizer to work with the FSM.
-
-        The API of Outlines tokenizers is slightly different to that of
-        `transformers`. In addition we need to handle the missing spaces to
-        Llama's tokenizer to be able to compile FSMs for this model.
-
-        """
-        tokenizer.vocabulary = tokenizer.get_vocab()
-        tokenizer.special_tokens = set(tokenizer.all_special_tokens)
-
-        def convert_token_to_string(token: str) -> str:
-            from transformers.file_utils import SPIECE_UNDERLINE
-
-            string = tokenizer.convert_tokens_to_string([token])
-
-            # A hack to handle missing spaces to HF's Llama tokenizers
-            if token.startswith(SPIECE_UNDERLINE) or token == "<0x20>":
-                return " " + string
-
-            return string
-
-        tokenizer.convert_token_to_string = convert_token_to_string
-
-        return tokenizer
+    def advance(self, next_token_ids, fsm_grammar_states, grammars):
+        return GrammarLogitProcessor.advance(
+            self, next_token_ids, fsm_grammar_states, grammars
+        )
