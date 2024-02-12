@@ -1,5 +1,6 @@
 #include "q4_matmul.cuh"
 #include "column_remap.cuh"
+#include <ATen/cuda/CUDAContext.h>
 #include "../util.cuh"
 #include "../matrix.cuh"
 #include "../cu_compat.cuh"
@@ -224,8 +225,8 @@ void q4_matmul_recons_cuda
     const int x_height,
     Q4Matrix* w,
     half* out,
-    const cublasHandle_t handle,
-    bool no_zero
+    bool no_zero,
+    const cublasHandle_t handle
 )
 {
     int height = x_height;

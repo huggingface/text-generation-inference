@@ -206,6 +206,14 @@ Options:
           [env: MAX_BATCH_SIZE=]
 
 ```
+## ENABLE_CUDA_GRAPHS
+```shell
+      --enable-cuda-graphs
+          Enable experimental support for cuda graphs
+          
+          [env: ENABLE_CUDA_GRAPHS=]
+
+```
 ## HOSTNAME
 ```shell
       --hostname <HOSTNAME>
