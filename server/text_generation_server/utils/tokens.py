@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional, Tuple, DefaultDict
+from typing import List, Optional, Tuple
 
 import torch
 from text_generation_server.pb import generate_pb2
@@ -92,13 +92,14 @@ class NextTokenChooser:
 
         next_id = self.choice(scores[-1]).view(1, 1)
 
-        if self.grammar_processor is not None:
-            next_state = self.grammar_processor.advance(
-                next_id.item(), self.fsm_grammar_state, self.grammar
-            )
-            self.fsm_grammar_state = next_state
-
         return next_id, next_logprob
+
+    def advance_grammar(self, next_id):
+        if self.grammar_processor is not None:
+            self.fsm_grammar_state = self.grammar_processor.advance(
+                next_id, self.fsm_grammar_state
+            )
+        return self
 
     @classmethod
     def from_pb(
@@ -385,14 +386,15 @@ class HeterogeneousNextTokenChooser:
         else:
             speculative_ids = None
 
-        # advance the grammar state
-        if self.grammar_processor is not None:
-            for i in range(len(self.fsm_grammar_states)):
-                self.fsm_grammar_states[i] = self.grammar_processor.advance(
-                    next_ids[i].item(), self.fsm_grammar_states[i], self.grammars[i]
-                )
-
         return next_ids, next_logprobs, alllogprobs, accepted_ids, speculative_ids
+
+    def advance_grammar(self, next_ids: torch.Tensor):
+        if self.grammar_processor is not None:
+            other_new_states = self.grammar_processor.advance_batch(
+                next_ids.tolist(), self.fsm_grammar_states, self.grammars
+            )
+            self.fsm_grammar_states = other_new_states
+        return self
 
     def filter(self, indices):
         if self.watermark_processor is not None:

@@ -870,7 +870,11 @@ class FlashCausalLM(Model):
         # Try to find an associated cuda graph
         cuda_graph = self.cuda_graphs.get(padded_bs, None)
 
-        if cu_seqlen_prefill is not None or cuda_graph is None or batch.speculative_ids is not None:
+        if (
+            cu_seqlen_prefill is not None
+            or cuda_graph is None
+            or batch.speculative_ids is not None
+        ):
             return self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
@@ -1029,6 +1033,9 @@ class FlashCausalLM(Model):
 
             cumulative_length += input_length
 
+        batch.next_token_chooser = batch.next_token_chooser.advance_grammar(
+            next_input_ids
+        )
         batch.input_ids = next_input_ids[accepted_ids.cumsum(dim=-1) - 1]
         batch.speculative_ids = speculative_ids
         batch.position_ids = next_position_ids + accepted_ids

@@ -478,10 +478,8 @@ class GrammarLogitProcessor(LogitsProcessor):
 
     def __init__(self, tokenizer, device, grammar):
         self.device = device
-        self.tokenizer = GrammarLogitProcessor.adapt_tokenizer(tokenizer)
-        self.fsm = GrammarLogitProcessor._cached_compile_fsm(
-            self, grammar, self.tokenizer
-        )
+        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
+        self.fsm = GrammarLogitProcessor._cached_compile_fsm(grammar, self.tokenizer)
 
     def __call__(
         self,
@@ -490,26 +488,26 @@ class GrammarLogitProcessor(LogitsProcessor):
     ):
         if fsm_grammar_state == -1 or self.fsm is None:
             return logits
-
         allowed_tokens = self.fsm.allowed_token_ids(fsm_grammar_state)
         mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
         mask[allowed_tokens] = 0
         biased_scores = logits + mask
         return biased_scores
 
-    def advance(self, next_token_id, fsm_grammar_state, grammar):
+    def advance(self, next_token_id, fsm_grammar_state):
+        return GrammarLogitProcessor._advance(
+            next_token_id, fsm_grammar_state, self.fsm
+        )
+
+    @staticmethod
+    def _advance(next_token_id, fsm_grammar_state, fsm):
         if fsm_grammar_state == -1:
             return fsm_grammar_state
-
-        if grammar == "" or grammar is None:
-            return fsm_grammar_state
-
-        fsm = GrammarLogitProcessor._cached_compile_fsm(self, grammar, self.tokenizer)
         return fsm.next_state(fsm_grammar_state, next_token_id)
 
     @staticmethod
     @lru_cache(maxsize=32, typed=True)
-    def _cached_compile_fsm(self, schema, tokenizer):
+    def _cached_compile_fsm(schema, tokenizer):
         start_time = time.time()
         try:
             json.loads(schema)  # check if schema is a valid json
@@ -522,7 +520,7 @@ class GrammarLogitProcessor(LogitsProcessor):
 
     @staticmethod
     @lru_cache(maxsize=32, typed=True)
-    def adapt_tokenizer(tokenizer):
+    def _cached_adapt_tokenizer(tokenizer):
         """Adapt tokenizer to work with the FSM.
 
         The API of Outlines tokenizers is slightly different to that of
@@ -560,10 +558,10 @@ class GrammarLogitProcessor(LogitsProcessor):
 class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
     def __init__(self, tokenizer, device, grammars):
         self.device = device
-        self.tokenizer = GrammarLogitProcessor.adapt_tokenizer(tokenizer)
+        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
         self.fsms = [
             (
-                GrammarLogitProcessor._cached_compile_fsm(self, g, self.tokenizer)
+                GrammarLogitProcessor._cached_compile_fsm(g, self.tokenizer)
                 if g
                 else None
             )
@@ -586,10 +584,13 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
             logits[i] = biased_scores
         return logits
 
-    def advance(self, next_token_ids, fsm_grammar_states, grammars):
-        return GrammarLogitProcessor.advance(
-            self, next_token_ids, fsm_grammar_states, grammars
-        )
+    def advance_batch(self, next_token_ids, fsm_grammar_states, grammars):
+        return [
+            GrammarLogitProcessor._advance(
+                next_token_ids[i], fsm_grammar_states[i], self.fsms[i]
+            )
+            for i in range(len(next_token_ids))
+        ]
 
     def filter(self, indices):
         return GrammarLogitProcessor.filter(self, indices)
