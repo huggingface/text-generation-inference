@@ -11,22 +11,22 @@
       },
       {
         "id": 13,
-        "logprob": -2.5234375,
+        "logprob": -2.734375,
         "text": ","
       },
       {
         "id": 8862,
-        "logprob": -3.4433594,
+        "logprob": -3.6875,
         "text": " yellow"
       },
       {
         "id": 13,
-        "logprob": -0.43017578,
+        "logprob": -0.40234375,
         "text": ","
       },
       {
         "id": 209,
-        "logprob": -8.21875,
+        "logprob": -8.25,
         "text": " "
       }
     ],
@@ -40,60 +40,60 @@
       },
       {
         "id": 395,
-        "logprob": -0.46411133,
+        "logprob": -0.3125,
         "special": false,
         "text": "and"
       },
       {
-        "id": 13735,
-        "logprob": -2.1132812,
-        "special": false,
-        "text": " orange"
-      },
-      {
-        "id": 313,
-        "logprob": -1.2128906,
-        "special": false,
-        "text": " ("
-      },
-      {
-        "id": 249,
-        "logprob": -2.3671875,
-        "special": false,
-        "text": "in"
-      },
-      {
-        "id": 253,
+        "id": 4797,
         "logprob": 0.0,
         "special": false,
-        "text": " the"
+        "text": " blue"
       },
       {
-        "id": 1340,
-        "logprob": -1.640625,
+        "id": 9830,
+        "logprob": -1.65625,
         "special": false,
-        "text": " order"
+        "text": " colors"
       },
       {
-        "id": 597,
-        "logprob": -0.5488281,
-        "special": false,
-        "text": " they"
-      },
-      {
-        "id": 3176,
-        "logprob": -0.48608398,
-        "special": false,
-        "text": " appear"
-      },
-      {
-        "id": 275,
+        "id": 15,
         "logprob": 0.0,
         "special": false,
-        "text": " in"
+        "text": "."
+      },
+      {
+        "id": 329,
+        "logprob": -2.4375,
+        "special": false,
+        "text": " A"
+      },
+      {
+        "id": 1180,
+        "logprob": -1.953125,
+        "special": false,
+        "text": " number"
+      },
+      {
+        "id": 273,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 1027,
+        "logprob": -1.5546875,
+        "special": false,
+        "text": " different"
+      },
+      {
+        "id": 3295,
+        "logprob": -0.97265625,
+        "special": false,
+        "text": " color"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "blue, red, yellow, \nand orange (in the order they appear in"
+  "generated_text": "blue, red, yellow, \nand blue colors. A number of different color"
 }
