@@ -36,7 +36,7 @@ COPY launcher launcher
 RUN cargo build --release
 
 # Text Generation Inference base image for RoCm
-FROM rocm/dev-ubuntu-20.04:5.7 as base
+FROM rocm/dev-ubuntu-22.04:5.7 as base
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
