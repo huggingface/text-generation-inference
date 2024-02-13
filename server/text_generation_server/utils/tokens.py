@@ -94,7 +94,7 @@ class NextTokenChooser:
 
         return next_id, next_logprob
 
-    def advance_grammar(self, next_id):
+    def advance_grammar(self, next_id: int):
         if self.grammar_processor is not None:
             self.fsm_grammar_state = self.grammar_processor.advance(
                 next_id, self.fsm_grammar_state
@@ -388,10 +388,10 @@ class HeterogeneousNextTokenChooser:
 
         return next_ids, next_logprobs, alllogprobs, accepted_ids, speculative_ids
 
-    def advance_grammar(self, next_ids: torch.Tensor):
+    def advance_grammar(self, next_ids: List[int]):
         if self.grammar_processor is not None:
             other_new_states = self.grammar_processor.advance_batch(
-                next_ids.tolist(), self.fsm_grammar_states, self.grammars
+                next_ids, self.fsm_grammar_states, self.grammars
             )
             self.fsm_grammar_states = other_new_states
         return self

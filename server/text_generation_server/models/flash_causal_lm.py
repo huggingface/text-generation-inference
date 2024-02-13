@@ -1034,9 +1034,6 @@ class FlashCausalLM(Model):
             cumulative_length += input_length
 
         # Update values
-        batch.next_token_chooser = batch.next_token_chooser.advance_grammar(
-            next_input_ids
-        )
         batch.input_ids = next_input_ids[accepted_ids.cumsum(dim=-1) - 1]
         batch.speculative_ids = speculative_ids
         batch.position_ids = next_position_ids + accepted_ids
@@ -1053,6 +1050,9 @@ class FlashCausalLM(Model):
             prefill_logprobs = prefill_logprobs.view(-1).tolist()
 
         # GPU <-> CPU sync
+        batch.next_token_chooser = batch.next_token_chooser.advance_grammar(
+            next_input_ids.tolist(),
+        )
         next_token_logprobs = next_token_logprobs.tolist()
         next_token_ids = next_input_ids.tolist()
         accepted_ids = accepted_ids.tolist()

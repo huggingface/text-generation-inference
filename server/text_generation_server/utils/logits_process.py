@@ -505,10 +505,15 @@ class GrammarLogitProcessor(LogitsProcessor):
             return fsm_grammar_state
         return fsm.next_state(fsm_grammar_state, next_token_id)
 
+    # TODO: move grammar compilation into the router
     @staticmethod
     @lru_cache(maxsize=32, typed=True)
     def _cached_compile_fsm(schema, tokenizer):
         start_time = time.time()
+        # Detect if schema is a json object before converting it to regex.
+        # We need to check if it's a valid json object before converting it to regex
+        # and cannot simply test if it starts with '{' and ends with '}' because there
+        # are valid regexes that start and end with curly braces.
         try:
             json.loads(schema)  # check if schema is a valid json
             schema = build_regex_from_object(schema)  # convert schema to regex
