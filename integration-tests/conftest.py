@@ -16,7 +16,14 @@ from syrupy.extensions.json import JSONSnapshotExtension
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 
 from text_generation import AsyncClient
-from text_generation.types import Response, Details, InputToken, Token, BestOfSequence
+from text_generation.types import (
+    Response,
+    Details,
+    InputToken,
+    Token,
+    BestOfSequence,
+    Grammar,
+)
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
@@ -139,6 +146,7 @@ class ResponseComparator(JSONSnapshotExtension):
                 response.details, other.details
             )
 
+        # print(serialized_data)
         serialized_data = convert_data(serialized_data)
         snapshot_data = convert_data(snapshot_data)
 
@@ -381,7 +389,7 @@ def generate_load():
         max_new_tokens: int,
         n: int,
         seed: Optional[int] = None,
-        grammar: Optional[str] = "",
+        grammar: Optional[Grammar] = None,
         stop_sequences: Optional[List[str]] = None,
     ) -> List[Response]:
         futures = [

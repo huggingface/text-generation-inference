@@ -10,6 +10,7 @@ from text_generation.types import (
     Response,
     Request,
     Parameters,
+    Grammar,
 )
 from text_generation.errors import parse_error
 
@@ -76,7 +77,7 @@ class Client:
         watermark: bool = False,
         decoder_input_details: bool = False,
         top_n_tokens: Optional[int] = None,
-        grammar: str = "",
+        grammar: Optional[Grammar] = None,
     ) -> Response:
         """
         Given a prompt, generate the following text
@@ -171,7 +172,7 @@ class Client:
         typical_p: Optional[float] = None,
         watermark: bool = False,
         top_n_tokens: Optional[int] = None,
-        grammar: str = "",
+        grammar: Grammar = "",
     ) -> Iterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens
@@ -330,7 +331,7 @@ class AsyncClient:
         watermark: bool = False,
         decoder_input_details: bool = False,
         top_n_tokens: Optional[int] = None,
-        grammar: str = "",
+        grammar: Optional[Grammar] = None,
     ) -> Response:
         """
         Given a prompt, generate the following text asynchronously
@@ -424,7 +425,7 @@ class AsyncClient:
         typical_p: Optional[float] = None,
         watermark: bool = False,
         top_n_tokens: Optional[int] = None,
-        grammar: str = "",
+        grammar: Optional[Grammar] = None,
     ) -> AsyncIterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens asynchronously

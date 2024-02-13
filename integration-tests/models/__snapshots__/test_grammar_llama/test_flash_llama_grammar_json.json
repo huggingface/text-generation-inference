@@ -16,7 +16,7 @@
       },
       {
         "id": 29901,
-        "logprob": -3.2265625,
+        "logprob": -3.2324219,
         "text": ":"
       },
       {
@@ -41,7 +41,7 @@
       },
       {
         "id": 763,
-        "logprob": -10.1484375,
+        "logprob": -10.140625,
         "text": "like"
       },
       {
@@ -51,7 +51,7 @@
       },
       {
         "id": 322,
-        "logprob": -2.5683594,
+        "logprob": -2.5742188,
         "text": "and"
       },
       {
@@ -61,22 +61,22 @@
       },
       {
         "id": 1023,
-        "logprob": -5.0546875,
+        "logprob": -5.0507812,
         "text": "two"
       },
       {
         "id": 274,
-        "logprob": -5.3125,
+        "logprob": -5.3164062,
         "text": "c"
       },
       {
         "id": 1446,
-        "logprob": -0.6665039,
+        "logprob": -0.6694336,
         "text": "ats"
       },
       {
         "id": 29889,
-        "logprob": -1.0009766,
+        "logprob": -0.9995117,
         "text": "."
       },
       {
@@ -89,61 +89,61 @@
     "tokens": [
       {
         "id": 6377,
-        "logprob": -0.15002441,
+        "logprob": -0.14916992,
         "special": false,
         "text": "{\""
       },
       {
         "id": 29888,
-        "logprob": -0.13549805,
+        "logprob": -0.13598633,
         "special": false,
         "text": "f"
       },
       {
         "id": 12935,
-        "logprob": -0.017562866,
+        "logprob": -0.017669678,
         "special": false,
         "text": "irs"
       },
       {
         "id": 29873,
-        "logprob": -0.0008444786,
+        "logprob": -0.00085639954,
         "special": false,
         "text": "t"
       },
       {
         "id": 1170,
-        "logprob": -0.0053634644,
+        "logprob": -0.0054016113,
         "special": false,
         "text": "Name"
       },
       {
         "id": 4710,
-        "logprob": -0.13537598,
+        "logprob": -0.13549805,
         "special": false,
         "text": "\":\""
       },
       {
         "id": 19504,
-        "logprob": -0.8886719,
+        "logprob": -0.8852539,
         "special": false,
         "text": "David"
       },
       {
         "id": 3284,
-        "logprob": -0.16381836,
+        "logprob": -0.16394043,
         "special": false,
         "text": "\",\""
       },
       {
         "id": 4230,
-        "logprob": -0.02017212,
+        "logprob": -0.020492554,
         "special": false,
         "text": "last"
       },
       {
         "id": 1170,
-        "logprob": -0.0013923645,
+        "logprob": -0.0013818741,
         "special": false,
         "text": "Name"
       },
@@ -155,37 +155,37 @@
       },
       {
         "id": 29950,
-        "logprob": -0.11407471,
+        "logprob": -0.11578369,
         "special": false,
         "text": "H"
       },
       {
         "id": 14339,
-        "logprob": -0.0040626526,
+        "logprob": -0.004131317,
         "special": false,
         "text": "olt"
       },
       {
         "id": 29920,
-        "logprob": -0.0032863617,
+        "logprob": -0.0033359528,
         "special": false,
         "text": "z"
       },
       {
         "id": 3284,
-        "logprob": -0.20507812,
+        "logprob": -0.20471191,
         "special": false,
         "text": "\",\""
       },
       {
         "id": 29882,
-        "logprob": -0.0068740845,
+        "logprob": -0.0069274902,
         "special": false,
         "text": "h"
       },
       {
         "id": 20838,
-        "logprob": -0.19714355,
+        "logprob": -0.19580078,
         "special": false,
         "text": "obb"
       },
@@ -197,37 +197,37 @@
       },
       {
         "id": 4710,
-        "logprob": -0.31860352,
+        "logprob": -0.32080078,
         "special": false,
         "text": "\":\""
       },
       {
         "id": 29911,
-        "logprob": -2.09375,
+        "logprob": -2.1035156,
         "special": false,
         "text": "T"
       },
       {
         "id": 11003,
-        "logprob": -0.02053833,
+        "logprob": -0.020767212,
         "special": false,
         "text": "rees"
       },
       {
         "id": 3284,
-        "logprob": -0.59814453,
+        "logprob": -0.6010742,
         "special": false,
         "text": "\",\""
       },
       {
         "id": 29876,
-        "logprob": -0.5732422,
+        "logprob": -0.57666016,
         "special": false,
         "text": "n"
       },
       {
         "id": 398,
-        "logprob": -0.006198883,
+        "logprob": -0.0061073303,
         "special": false,
         "text": "um"
       },
@@ -245,19 +245,19 @@
       },
       {
         "id": 1115,
-        "logprob": -0.002117157,
+        "logprob": -0.0021018982,
         "special": false,
         "text": "\":"
       },
       {
         "id": 29906,
-        "logprob": -0.089416504,
+        "logprob": -0.08996582,
         "special": false,
         "text": "2"
       },
       {
         "id": 29913,
-        "logprob": -0.021835327,
+        "logprob": -0.021697998,
         "special": false,
         "text": "}"
       },

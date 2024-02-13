@@ -1,8 +1,22 @@
 from enum import Enum
 from pydantic import BaseModel, validator
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from text_generation.errors import ValidationError
+
+
+# enum for grammar type
+class GrammarType(str, Enum):
+    Json = "json"
+    Regex = "regex"
+
+
+# Grammar type and value
+class Grammar(BaseModel):
+    # Grammar type
+    type: GrammarType
+    # Grammar value
+    value: Union[str, dict]
 
 
 class Parameters(BaseModel):
@@ -42,7 +56,7 @@ class Parameters(BaseModel):
     # Return the N most likely tokens at each step
     top_n_tokens: Optional[int] = None
     # grammar to use for generation
-    grammar: Optional[str] = None
+    grammar: Optional[Grammar] = None
 
     @validator("best_of")
     def valid_best_of(cls, field_value, values):
@@ -111,6 +125,14 @@ class Parameters(BaseModel):
             raise ValidationError("`top_n_tokens` must be strictly positive")
         return v
 
+    @validator("grammar")
+    def valid_grammar(cls, v):
+        if v is not None:
+            if v.type == GrammarType.Regex and not v.value:
+                raise ValidationError("`value` cannot be empty for `regex` grammar")
+            if v.type == GrammarType.Json and not v.value:
+                raise ValidationError("`value` cannot be empty for `json` grammar")
+        return v
 
 class Request(BaseModel):
     # Prompt

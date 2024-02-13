@@ -1,10 +1,14 @@
 import pytest
 import json
 
+from text_generation.types import GrammarType
+
 
 @pytest.fixture(scope="module")
 def flash_llama_grammar_handle(launcher):
-    with launcher("TinyLlama/TinyLlama-1.1B-Chat-v1.0", num_shard=2, grammar_support=True) as handle:
+    with launcher(
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0", num_shard=2, grammar_support=True
+    ) as handle:
         yield handle
 
 
@@ -33,7 +37,10 @@ async def test_flash_llama_grammar_regex(flash_llama_grammar, response_snapshot)
         max_new_tokens=10,
         decoder_input_details=True,
         seed=0,
-        grammar="((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)",
+        grammar={
+            "type": GrammarType.Regex,  # "regex"
+            "value": "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)",
+        },
     )
 
     assert response.details.generated_tokens == 10
@@ -49,31 +56,37 @@ async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
         max_new_tokens=100,
         decoder_input_details=True,
         seed=0,
-        grammar=json.dumps(
-            {
-                "$id": "https://example.com/person.schema.json",
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "title": "Person",
-                "type": "object",
-                "properties": {
-                    "firstName": {
-                        "type": "string",
-                        "description": "The person'''s first name.",
+        grammar={
+            "type": GrammarType.Json,  # "json"
+            "value": json.dumps(
+                {
+                    "type": "object",
+                    "$id": "https://example.com/person.schema.json",
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "title": "Person",
+                    "properties": {
+                        "firstName": {
+                            "type": "string",
+                            "description": "The person'''s first name.",
+                        },
+                        "lastName": {
+                            "type": "string",
+                            "description": "The person'''s last name.",
+                        },
+                        "hobby": {
+                            "description": "The person'''s hobby.",
+                            "type": "string",
+                        },
+                        "numCats": {
+                            "description": "The number of cats the person has.",
+                            "type": "integer",
+                            "minimum": 0,
+                        },
                     },
-                    "lastName": {
-                        "type": "string",
-                        "description": "The person'''s last name.",
-                    },
-                    "hobby": {"description": "The person'''s hobby.", "type": "string"},
-                    "numCats": {
-                        "description": "The number of cats the person has.",
-                        "type": "integer",
-                        "minimum": 0,
-                    },
-                },
-                "required": ["firstName", "lastName", "hobby", "numCats"],
-            }
-        ),
+                    "required": ["firstName", "lastName", "hobby", "numCats"],
+                }
+            ),
+        },
     )
 
     assert response.details.generated_tokens == 30
@@ -96,7 +109,10 @@ async def test_flash_llama_grammar_load(
         n=4,
         stop_sequences=[".com"],
         seed=0,
-        grammar="[\\w-]+@([\\w-]+\\.)+[\\w-]+",  # email regex
+        grammar={
+            "type": GrammarType.Regex,  # "regex"
+            "value": "[\\w-]+@([\\w-]+\\.)+[\\w-]+",  # email regex
+        },
     )
 
     assert len(responses) == 4
@@ -123,7 +139,10 @@ async def test_flash_llama_grammar_single_load_instance(
         max_new_tokens=10,
         stop_sequences=[".com"],
         seed=0,
-        grammar="[\\w-]+@([\\w-]+\\.)+[\\w-]+",  # email regex
+        grammar={
+            "type": GrammarType.Regex,  # "regex"
+            "value": "[\\w-]+@([\\w-]+\\.)+[\\w-]+",  # email regex
+        },
     )
 
     # assert response.details.generated_tokens == 30
