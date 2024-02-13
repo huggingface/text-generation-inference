@@ -694,6 +694,9 @@ class Mamba(Model):
                 generations.append(generation)
 
                 # Update values
+                batch.next_token_choosers[i] = batch.next_token_choosers[i].advance_grammar(
+                    next_token_id_squeezed.item()
+                )
                 batch.input_ids[i, 0] = next_token_id
                 batch.all_input_ids[i] = all_input_ids
                 batch.input_lengths[i] = new_input_length

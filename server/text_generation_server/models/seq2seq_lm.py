@@ -789,6 +789,9 @@ class Seq2SeqLM(Model):
                 generations.append(generation)
 
             # Update values
+            batch.next_token_choosers[i] = batch.next_token_choosers[i].advance_grammar(
+                next_token_id_squeezed.item()
+            )
             batch.decoder_input_ids[i] = next_token_id
             batch.all_decoder_input_ids[i] = all_decoder_input_ids
             batch.input_lengths[i] = input_length

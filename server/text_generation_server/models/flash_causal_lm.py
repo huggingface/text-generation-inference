@@ -1033,6 +1033,7 @@ class FlashCausalLM(Model):
 
             cumulative_length += input_length
 
+        # Update values
         batch.next_token_chooser = batch.next_token_chooser.advance_grammar(
             next_input_ids
         )
