@@ -482,6 +482,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 6;
         let workers = 1;
+        let grammar_support = false;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -490,6 +491,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            grammar_support,
         );
 
         let max_new_tokens = 10;
@@ -510,6 +512,7 @@ mod tests {
         let max_top_n_tokens = 4;
         let max_input_length = 5;
         let max_total_tokens = 6;
+        let grammar_support = false;
         let workers = 1;
         let validation = Validation::new(
             workers,
@@ -519,6 +522,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            grammar_support,
         );
 
         let max_new_tokens = 10;
@@ -540,6 +544,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 6;
         let workers = 1;
+        let grammar_support = false;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -548,6 +553,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            grammar_support,
         );
         match validation
             .validate(GenerateRequest {
@@ -574,6 +580,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 106;
         let workers = 1;
+        let grammar_support = false;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -582,6 +589,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            grammar_support,
         );
         match validation
             .validate(GenerateRequest {
@@ -637,6 +645,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 106;
         let workers = 1;
+        let grammar_support = false;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -645,6 +654,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            grammar_support,
         );
         match validation
             .validate(GenerateRequest {
