@@ -37,7 +37,7 @@ RUN cargo build --release
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
-FROM nvidia/cuda:12.1.0-devel-ubuntu20.04 as pytorch-install
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 as pytorch-install
 
 ARG PYTORCH_VERSION=2.1.1
 ARG PYTHON_VERSION=3.10
