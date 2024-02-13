@@ -290,12 +290,15 @@ def launcher(event_loop):
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
         use_flash_attention: bool = True,
+        grammar_support: bool = False,
         dtype: Optional[str] = None,
     ):
         port = random.randint(8000, 10_000)
 
         args = ["--model-id", model_id, "--env"]
 
+        if grammar_support:
+            args.append("--grammar-support")
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
         if quantize is not None:
@@ -378,7 +381,7 @@ def generate_load():
         max_new_tokens: int,
         n: int,
         seed: Optional[int] = None,
-        grammar: Optional[str] = None,
+        grammar: Optional[str] = "",
         stop_sequences: Optional[List[str]] = None,
     ) -> List[Response]:
         futures = [
