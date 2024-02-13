@@ -63,4 +63,4 @@ async def test_mamba_load(fused_kernel_mamba, generate_load, generous_response_s
     assert all([r.generated_text == responses[0].generated_text for r in responses])
     assert responses[0].generated_text == "\n\nDeep learning is a new type of machine"
 
-    assert responses == response_snapshot
+    assert responses == generous_response_snapshot
