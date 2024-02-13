@@ -19,6 +19,7 @@ pub struct Validation {
     max_top_n_tokens: u32,
     max_input_length: usize,
     max_total_tokens: usize,
+    grammar_support: bool,
     /// Channel to communicate with the background tokenization task
     sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
 }
@@ -32,6 +33,7 @@ impl Validation {
         max_top_n_tokens: u32,
         max_input_length: usize,
         max_total_tokens: usize,
+        grammar_support: bool,
     ) -> Self {
         // If we have a fast tokenizer
         let sender = if let Some(tokenizer) = tokenizer {
@@ -66,6 +68,7 @@ impl Validation {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            grammar_support,
         }
     }
 
@@ -293,6 +296,11 @@ impl Validation {
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
+        // Ensure that grammar is not set if it's not supported
+        if !grammar.is_empty() && !self.grammar_support {
+            return Err(ValidationError::Grammar);
+        }
+
         let parameters = NextTokenChooserParameters {
             temperature,
             repetition_penalty,
@@ -455,6 +463,8 @@ pub enum ValidationError {
     StopSequence(usize, usize),
     #[error("tokenizer error {0}")]
     Tokenizer(String),
+    #[error("grammar is not supported")]
+    Grammar,
 }
 
 #[cfg(test)]
