@@ -8,7 +8,7 @@ use crate::app::App;
 use crate::event::Event;
 use crossterm::ExecutableCommand;
 use std::io;
-use text_generation_client::{NextTokenChooserParameters, ShardedClient};
+use text_generation_client::{GrammarType, NextTokenChooserParameters, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::sync::{broadcast, mpsc};
 use tui::backend::CrosstermBackend;
@@ -46,6 +46,7 @@ pub async fn run(
         frequency_penalty: frequency_penalty.unwrap_or(0.0),
         watermark,
         grammar: String::new(),
+        grammar_type: GrammarType::None as i32,
     };
 
     // Initialize terminal properties
