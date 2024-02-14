@@ -382,10 +382,10 @@ struct Args {
     #[clap(long, env)]
     tokenizer_config_path: Option<String>,
 
-    /// Enable outlines grammar constrained generation
+    /// Disable outlines grammar constrained generation.
     /// This is a feature that allows you to generate text that follows a specific grammar.
     #[clap(long, env)]
-    grammar_support: bool,
+    disable_grammar_support: bool,
 
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
@@ -1057,8 +1057,8 @@ fn spawn_webserver(
     ];
 
     // Grammar support
-    if args.grammar_support {
-        router_args.push("--grammar-support".to_string());
+    if args.disable_grammar_support {
+        router_args.push("--disable-grammar-support".to_string());
     }
 
     // Tokenizer config path

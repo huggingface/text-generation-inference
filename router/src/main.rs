@@ -76,7 +76,7 @@ struct Args {
     #[clap(long, env, default_value_t = false)]
     messages_api_enabled: bool,
     #[clap(long, env, default_value_t = false)]
-    grammar_support: bool,
+    disable_grammar_support: bool,
 }
 
 #[tokio::main]
@@ -110,7 +110,7 @@ async fn main() -> Result<(), RouterError> {
         ngrok_authtoken,
         ngrok_edge,
         messages_api_enabled,
-        grammar_support,
+        disable_grammar_support,
     } = args;
 
     // Launch Tokio runtime
@@ -362,7 +362,7 @@ async fn main() -> Result<(), RouterError> {
         ngrok_edge,
         tokenizer_config,
         messages_api_enabled,
-        grammar_support,
+        disable_grammar_support,
     )
     .await?;
     Ok(())

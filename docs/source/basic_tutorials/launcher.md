@@ -379,12 +379,12 @@ Options:
           [env: TOKENIZER_CONFIG_PATH=]
 
 ```
-## GRAMMAR_SUPPORT
+## DISABLE_GRAMMAR_SUPPORT
 ```shell
-      --grammar-support
-          Enable outlines grammar constrained generation This is a feature that allows you to generate text that follows a specific grammar
+      --disable-grammar-support
+          Disable outlines grammar constrained generation. This is a feature that allows you to generate text that follows a specific grammar
           
-          [env: GRAMMAR_SUPPORT=]
+          [env: DISABLE_GRAMMAR_SUPPORT=]
 
 ```
 ## ENV

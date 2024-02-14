@@ -7,7 +7,7 @@ from text_generation.types import GrammarType
 @pytest.fixture(scope="module")
 def flash_llama_grammar_handle(launcher):
     with launcher(
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0", num_shard=2, grammar_support=True
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0", num_shard=2, disable_grammar_support=False
     ) as handle:
         yield handle
 

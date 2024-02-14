@@ -21,7 +21,7 @@ pub struct Validation {
     max_top_n_tokens: u32,
     max_input_length: usize,
     max_total_tokens: usize,
-    grammar_support: bool,
+    disable_grammar_support: bool,
     /// Channel to communicate with the background tokenization task
     sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
 }
@@ -35,7 +35,7 @@ impl Validation {
         max_top_n_tokens: u32,
         max_input_length: usize,
         max_total_tokens: usize,
-        grammar_support: bool,
+        disable_grammar_support: bool,
     ) -> Self {
         // If we have a fast tokenizer
         let sender = if let Some(tokenizer) = tokenizer {
@@ -70,7 +70,7 @@ impl Validation {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
-            grammar_support,
+            disable_grammar_support,
         }
     }
 
@@ -308,7 +308,7 @@ impl Validation {
         let (grammar, grammar_type) = match grammar {
             Some(grammar) => {
                 // Ensure that grammar is not set if it's not supported
-                if !self.grammar_support {
+                if self.disable_grammar_support {
                     return Err(ValidationError::Grammar);
                 }
                 match grammar {
@@ -502,7 +502,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 6;
         let workers = 1;
-        let grammar_support = false;
+        let disable_grammar_support = true;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -511,7 +511,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
-            grammar_support,
+            disable_grammar_support,
         );
 
         let max_new_tokens = 10;
@@ -532,7 +532,7 @@ mod tests {
         let max_top_n_tokens = 4;
         let max_input_length = 5;
         let max_total_tokens = 6;
-        let grammar_support = false;
+        let disable_grammar_support = true;
         let workers = 1;
         let validation = Validation::new(
             workers,
@@ -542,7 +542,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
-            grammar_support,
+            disable_grammar_support,
         );
 
         let max_new_tokens = 10;
@@ -564,7 +564,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 6;
         let workers = 1;
-        let grammar_support = false;
+        let disable_grammar_support = true;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -573,7 +573,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
-            grammar_support,
+            disable_grammar_support,
         );
         match validation
             .validate(GenerateRequest {
@@ -600,7 +600,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 106;
         let workers = 1;
-        let grammar_support = false;
+        let disable_grammar_support = true;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -609,7 +609,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
-            grammar_support,
+            disable_grammar_support,
         );
         match validation
             .validate(GenerateRequest {
@@ -665,7 +665,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 106;
         let workers = 1;
-        let grammar_support = false;
+        let disable_grammar_support = true;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -674,7 +674,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
-            grammar_support,
+            disable_grammar_support,
         );
         match validation
             .validate(GenerateRequest {
