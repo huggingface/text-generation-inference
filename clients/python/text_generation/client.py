@@ -172,7 +172,7 @@ class Client:
         typical_p: Optional[float] = None,
         watermark: bool = False,
         top_n_tokens: Optional[int] = None,
-        grammar: Grammar = "",
+        grammar: Optional[Grammar] = None,
     ) -> Iterator[StreamResponse]:
         """
         Given a prompt, generate the following stream of tokens
