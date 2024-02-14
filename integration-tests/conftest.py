@@ -146,7 +146,6 @@ class ResponseComparator(JSONSnapshotExtension):
                 response.details, other.details
             )
 
-        # print(serialized_data)
         serialized_data = convert_data(serialized_data)
         snapshot_data = convert_data(snapshot_data)
 

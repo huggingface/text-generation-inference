@@ -575,16 +575,14 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
         fsm_grammar_states: List[int],
         mask: torch.Tensor,
     ):
+        mask = torch.full_like(logits, -math.inf)
         for i in range(logits.shape[0]):
             fsm = self.fsms[i]
             if fsm_grammar_states[i] == -1 or fsm is None:
                 continue
             allowed_tokens = fsm.allowed_token_ids(fsm_grammar_states[i])
-            mask[allowed_tokens] = 0
-            biased_scores = logits[i] + mask
-            mask.fill_(-math.inf)
-            logits[i] = biased_scores
-            
+            mask[i, allowed_tokens] = 0
+        logits += mask
         return logits
 
     def advance_batch(self, next_token_ids, fsm_grammar_states, grammars):

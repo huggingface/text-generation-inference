@@ -1050,13 +1050,11 @@ class FlashCausalLM(Model):
             prefill_logprobs = prefill_logprobs.view(-1).tolist()
 
         # GPU <-> CPU sync
-        batch.next_token_chooser = batch.next_token_chooser.advance_grammar(
-            next_input_ids.tolist(),
-        )
         next_token_logprobs = next_token_logprobs.tolist()
         next_token_ids = next_input_ids.tolist()
         accepted_ids = accepted_ids.tolist()
         start_decode = time.time_ns()
+        batch.next_token_chooser = batch.next_token_chooser.advance_grammar(next_token_ids)
 
         # Zipped iterator
         iterator = zip(

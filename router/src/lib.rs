@@ -44,15 +44,13 @@ impl HubTokenizerConfig {
         serde_json::from_str(&content).unwrap_or_default()
     }
 }
+
 mod json_object_or_string_to_string {
-    // This custom deserializer is used to handle the fact that the grammar field can be either a
-    // string or an object. In both cases we handle it as a string, but also provide this convience
-    // to the user to be flexible with the input.
-    use super::*;
-    use serde::de;
-    use serde::Deserializer;
+    use serde::{Deserialize, Deserializer};
     use serde_json::Value;
 
+    // A custom deserializer that treats both strings and objects as strings.
+    // This provides flexibility with input formats for the 'grammar' field.
     pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error>
     where
         D: Deserializer<'de>,
@@ -61,8 +59,13 @@ mod json_object_or_string_to_string {
 
         match value {
             Value::String(s) => Ok(s),
-            Value::Object(o) => Ok(serde_json::to_string(&o).unwrap()),
-            _ => Err(de::Error::custom("expected string or object for grammar")),
+            // Safely handle serialization and return an error if it fails
+            Value::Object(o) => {
+                serde_json::to_string(&o).map_err(|e| serde::de::Error::custom(e.to_string()))
+            }
+            _ => Err(serde::de::Error::custom(
+                "expected string or object for grammar",
+            )),
         }
     }
 }
