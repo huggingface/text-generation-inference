@@ -62,10 +62,8 @@ jobs:
       group: ${{ github.workflow }}-build-and-push-image-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
         # needs: start-runner # required to start the main job when the runner is ready
-    runs-on: [multi-gpu, nvidia-gpu, 4-a10, ci]
-    container: 
-      image: nvidia/cuda:12.3.1-devel-ubuntu22.04
-      options: --gpus all
+        # runs-on: [multi-gpu, nvidia-gpu, 4-a10, ci]
+    runs-on: [self-hosted, intel-cpu, 32-cpu, tgi-ci]
     permissions:
       contents: write
       packages: write
@@ -76,17 +74,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Install docker
-        run: |
-            apt-get update
-            apt-get install ca-certificates curl -y
-            install -m 0755 -d /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-            chmod a+r /etc/apt/keyrings/docker.asc
-            # Add the repository to Apt sources:
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-            apt-get update
-            apt-get install docker-ce docker-ce-cli containerd.io -y
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3.0.0
         with:
