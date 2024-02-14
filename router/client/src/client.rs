@@ -129,6 +129,7 @@ impl Client {
                     frequency_penalty: 0.1,
                     watermark: true,
                     grammar: String::new(),
+                    grammar_type: GrammarType::None as i32,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens: max_total_tokens - truncate,

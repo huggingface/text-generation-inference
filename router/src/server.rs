@@ -614,7 +614,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: None,
-            grammar: String::new(),
+            grammar: None,
         },
     };
 

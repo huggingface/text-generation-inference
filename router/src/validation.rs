@@ -1,8 +1,10 @@
 /// Payload validation logic
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
-use crate::{GenerateParameters, GenerateRequest};
+use crate::{GenerateParameters, GenerateRequest, GrammarType};
 use rand::{thread_rng, Rng};
-use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
+use text_generation_client::{
+    GrammarType as ProtoGrammarType, NextTokenChooserParameters, StoppingCriteriaParameters,
+};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::TruncationDirection;
@@ -296,10 +298,27 @@ impl Validation {
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
-        // Ensure that grammar is not set if it's not supported
-        if !grammar.is_empty() && !self.grammar_support {
-            return Err(ValidationError::Grammar);
-        }
+        // TODO: we should build the FSM here and pass the compiled FSM instead of the grammar
+        // NOTE: this is currently difficult because we need the tokenizer in Python to build
+        // the FSM and we'd have to load a copy of the tokenizer into our Pyo3 instance which
+        // may be slow and memory intensive. Best case is to have a Rust implementation of the FSM
+        // compiler and use that to build the FSM here.
+
+        // Validate grammar and unpack the grammar and type for the proto message
+        let (grammar, grammar_type) = match grammar {
+            Some(grammar) => {
+                // Ensure that grammar is not set if it's not supported
+                if !self.grammar_support {
+                    return Err(ValidationError::Grammar);
+                }
+                match grammar {
+                    // currently both are handled the same way since compilation is done in Python
+                    GrammarType::Json(json) => (json, ProtoGrammarType::Json.into()),
+                    GrammarType::Regex(regex) => (regex, ProtoGrammarType::Regex.into()),
+                }
+            }
+            None => (String::new(), ProtoGrammarType::None.into()),
+        };
 
         let parameters = NextTokenChooserParameters {
             temperature,
@@ -312,6 +331,7 @@ impl Validation {
             seed,
             watermark,
             grammar,
+            grammar_type,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,

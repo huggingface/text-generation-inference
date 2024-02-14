@@ -5,6 +5,7 @@ import json
 from loguru import logger
 from functools import lru_cache
 from typing import Optional, List, Dict, Union
+from text_generation_server.pb.generate_pb2 import GrammarType
 
 from outlines.fsm.fsm import RegexFSM
 from outlines.fsm.json_schema import build_regex_from_object
@@ -476,10 +477,12 @@ class GrammarLogitProcessor(LogitsProcessor):
     fsm_state: DefaultDict[int, int]
     fsm: RegexFSM
 
-    def __init__(self, tokenizer, device, grammar):
+    def __init__(self, tokenizer, device, grammar, grammar_type):
         self.device = device
         self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
-        self.fsm = GrammarLogitProcessor._cached_compile_fsm(grammar, self.tokenizer)
+        self.fsm = GrammarLogitProcessor._cached_compile_fsm(
+            grammar_type, grammar, self.tokenizer
+        )
 
     def __call__(
         self,
@@ -508,17 +511,12 @@ class GrammarLogitProcessor(LogitsProcessor):
     # TODO: move grammar compilation into the router
     @staticmethod
     @lru_cache(maxsize=32, typed=True)
-    def _cached_compile_fsm(schema, tokenizer):
+    def _cached_compile_fsm(grammar_type, schema, tokenizer):
         start_time = time.time()
-        # Detect if schema is a json object before converting it to regex.
-        # We need to check if it's a valid json object before converting it to regex
-        # and cannot simply test if it starts with '{' and ends with '}' because there
-        # are valid regexes that start and end with curly braces.
-        try:
-            json.loads(schema)  # check if schema is a valid json
-            schema = build_regex_from_object(schema)  # convert schema to regex
-        except json.JSONDecodeError:
-            pass
+        if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
+            schema = build_regex_from_object(schema)
+        elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
+            pass # schema is already a regex just here for clarity
         fsm = RegexFSM(schema, tokenizer)
         logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
         return fsm
@@ -561,32 +559,32 @@ class GrammarLogitProcessor(LogitsProcessor):
 
 
 class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
-    def __init__(self, tokenizer, device, grammars):
+    def __init__(self, tokenizer, device, grammars, grammar_type):
         self.device = device
         self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
-        self.fsms = [
-            (
-                GrammarLogitProcessor._cached_compile_fsm(g, self.tokenizer)
-                if g
-                else None
+        self.fsms = []
+        for i in range(len(grammars)):
+            fsm = GrammarLogitProcessor._cached_compile_fsm(
+                grammar_type[i], grammars[i], self.tokenizer
             )
-            for g in grammars
-        ]
+            self.fsms.append(fsm)
 
     def __call__(
         self,
         logits: torch.Tensor,
         fsm_grammar_states: List[int],
+        mask: torch.Tensor,
     ):
         for i in range(logits.shape[0]):
             fsm = self.fsms[i]
             if fsm_grammar_states[i] == -1 or fsm is None:
                 continue
             allowed_tokens = fsm.allowed_token_ids(fsm_grammar_states[i])
-            mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
             mask[allowed_tokens] = 0
             biased_scores = logits[i] + mask
+            mask.fill_(-math.inf)
             logits[i] = biased_scores
+            
         return logits
 
     def advance_batch(self, next_token_ids, fsm_grammar_states, grammars):

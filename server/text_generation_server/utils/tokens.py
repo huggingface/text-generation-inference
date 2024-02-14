@@ -1,9 +1,10 @@
 import re
 from typing import List, Optional, Tuple
 
+import math
 import torch
 from text_generation_server.pb import generate_pb2
-from text_generation_server.pb.generate_pb2 import FinishReason
+from text_generation_server.pb.generate_pb2 import FinishReason, GrammarType
 from text_generation_server.utils.logits_process import (
     FrequencyPenaltyLogitsProcessor,
     GrammarLogitProcessor,
@@ -36,6 +37,7 @@ class NextTokenChooser:
         device: str = "cpu",
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         grammar: str = "",
+        grammar_type: GrammarType = GrammarType.GRAMMAR_TYPE_NONE,
         fsm_grammar_state: int = 0,
     ):
         self.watermark_processor = (
@@ -52,7 +54,9 @@ class NextTokenChooser:
             else None
         )
         self.grammar_processor = (
-            GrammarLogitProcessor(tokenizer, device, grammar) if grammar != "" else None
+            GrammarLogitProcessor(tokenizer, device, grammar, grammar_type)
+            if grammar != ""
+            else None
         )
         self.tokenizer = tokenizer
 
@@ -121,6 +125,7 @@ class NextTokenChooser:
             device=device,
             tokenizer=tokenizer,
             grammar=pb.grammar,
+            grammar_type=pb.grammar_type,
         )
 
 
@@ -227,6 +232,7 @@ class HeterogeneousNextTokenChooser:
         seeds: List[int],
         tokenizer: PreTrainedTokenizerBase,
         grammars: List[str],
+        grammar_types: List[GrammarType],
         fsm_grammar_states=List[int],
     ):
         warpers = []
@@ -260,7 +266,9 @@ class HeterogeneousNextTokenChooser:
         )
 
         self.grammar_processor = (
-            HeterogeneousGrammarLogitProcessor(tokenizer, device, grammars)
+            HeterogeneousGrammarLogitProcessor(
+                tokenizer, device, grammars, grammar_types
+            )
             if any([grammar != "" for grammar in grammars])
             else None
         )
@@ -319,6 +327,8 @@ class HeterogeneousNextTokenChooser:
             scores = scores.view(B, S, -1)
 
         next_ids = torch.zeros((B, S), device=scores.device, dtype=torch.long)
+        mask = torch.full((scores.shape[-1],), -math.inf, device=self.device)
+
         for j in range(S):
             _scores = scores[:, j]
             if self.watermark_processor is not None:
@@ -330,7 +340,7 @@ class HeterogeneousNextTokenChooser:
             for warper in self.warpers:
                 _scores = warper(input_ids, _scores)
             if self.grammar_processor is not None:
-                _scores = self.grammar_processor(_scores, self.fsm_grammar_states)
+                _scores = self.grammar_processor(_scores, self.fsm_grammar_states, mask)
             _next_ids = self.choice(_scores)
             scores[:, j] = _scores
             next_ids[:, j] = _next_ids
@@ -421,12 +431,15 @@ class HeterogeneousNextTokenChooser:
 
         new_grammars = []
         new_fsm_grammar_states = []
+        new_grammar_types = []
         for i in indices:
             new_grammars.append(self.grammars[i])
             new_fsm_grammar_states.append(self.fsm_grammar_states[i])
+            new_grammar_types.append(self.grammar_types[i])
 
         self.grammars = new_grammars
         self.fsm_grammar_states = new_fsm_grammar_states
+        self.grammar_types = new_grammar_types
 
         if any(self.do_sample):
             self.choice.filter(indices)
@@ -457,6 +470,7 @@ class HeterogeneousNextTokenChooser:
             dtype=dtype,
             tokenizer=tokenizer,
             grammars=[pb_.grammar for pb_ in pb],
+            grammar_types=[pb_.grammar_type for pb_ in pb],
             fsm_grammar_states=[0] * len(pb),
         )
 

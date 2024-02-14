@@ -51,6 +51,12 @@ message ClearCacheRequest {
 /// Empty response
 message ClearCacheResponse {}
 
+enum GrammarType {
+    GRAMMAR_TYPE_NONE = 0;
+    GRAMMAR_TYPE_JSON = 1;
+    GRAMMAR_TYPE_REGEX = 2;
+}
+
 message NextTokenChooserParameters {
     /// exponential scaling output probability distribution
     float temperature = 1;
@@ -72,6 +78,8 @@ message NextTokenChooserParameters {
     bool watermark = 8;
     /// grammar (applied if not empty)
     string grammar = 10;
+    /// grammar type
+    GrammarType grammar_type = 11;
 }
 
 message StoppingCriteriaParameters {
