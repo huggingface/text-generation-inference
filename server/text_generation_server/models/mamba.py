@@ -2,17 +2,20 @@ import torch
 import torch.distributed
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from typing import Optional
+import os
 from text_generation_server.models.custom_modeling.mamba_modeling import (
     MambaConfig,
 )
+from loguru import logger
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
     Weights,
 )
+from text_generation_server.models.globals import MEM_POOL
 import time
-from text_generation_server.models.custom_modeling.mamba_modeling import MambaModel
+from text_generation_server.models.custom_modeling.mamba_modeling import MambaModel, InferenceParams
 from text_generation_server.models import Model
 from typing import Any, List, Optional, Tuple, Type, Dict
 from text_generation_server.models.types import (
@@ -24,7 +27,34 @@ from text_generation_server.models.types import (
 from text_generation_server.utils.tokens import batch_top_tokens, Sampling
 from dataclasses import dataclass
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
-from mamba_ssm.utils.generation import InferenceParams
+
+def new_inference_params(n_blocks: int, batch_size: int, d_inner: int, d_conv: int, d_state: int, seqlen_offset: int, dtype: torch.dtype, device: torch.device):
+    max_seqlen = 0
+    conv_states = torch.zeros(
+        (n_blocks,
+        batch_size,
+        d_inner,
+        d_conv,),
+        device=device,
+        dtype=dtype,
+    )
+    ssm_states = torch.zeros(
+        (n_blocks,
+        batch_size,
+        d_inner,
+        d_state,),
+        device=device,
+        dtype=dtype,
+    )
+    inference_params = InferenceParams(
+        max_seqlen=max_seqlen,
+        max_batch_size=batch_size,
+        seqlen_offset=seqlen_offset,
+        conv_states=conv_states,
+        ssm_states=ssm_states,
+
+    )
+    return inference_params
 
 
 @dataclass
@@ -221,14 +251,8 @@ class MambaBatch(Batch):
 
         # TODO
         # Kept it simple by just updating the state, maybe updating the other CPU values is necessary.
-        key_value_memory_dict = {}
-        for i, (
-            conv_state,
-            ssm_state,
-        ) in self.inference_params.key_value_memory_dict.items():
-            key_value_memory_dict[i] = (conv_state[indices], ssm_state[indices])
-        self.inference_params.key_value_memory_dict = key_value_memory_dict
-
+        self.inference_params.conv_states = self.inference_params.conv_states[:, indices]
+        self.inference_params.ssm_states = self.inference_params.ssm_states[:, indices]
         return self
 
     @classmethod
@@ -254,8 +278,15 @@ class MambaBatch(Batch):
         top_n_tokens = []
         max_tokens = 0
         max_seqlen = 0
-        batch_size = 0
         seqlen_offset = 0
+
+        (n_blocks, _, d_inner, d_conv) = (
+            batches[0].inference_params.conv_states.shape
+        )
+        (_, _, _, d_state) = batches[0].inference_params.ssm_states.shape
+        dtype = batches[0].inference_params.conv_states.dtype
+        device = batches[0].inference_params.conv_states.device
+        inference_params = new_inference_params(n_blocks=n_blocks, batch_size=total_batch_size, d_state=d_state, d_conv=d_conv, d_inner=d_inner, seqlen_offset=seqlen_offset, device=device, dtype=dtype)
 
         # Batch tensors
         input_ids = None
@@ -303,62 +334,15 @@ class MambaBatch(Batch):
                 max_input_length - batch.max_input_length
             ) * len(batch)
 
-            max_seqlen = max(max_seqlen, batch.inference_params.max_seqlen)
-            seqlen_offset = max(seqlen_offset, batch.inference_params.seqlen_offset)
-            batch_size += batch.inference_params.max_batch_size
+            inference_params.max_seqlen = max(inference_params.max_seqlen, batch.inference_params.max_seqlen)
+            assert batch.inference_params.seqlen_offset != 0, "Invalid seqlen offset"
+            inference_params.seqlen_offset = max(inference_params.seqlen_offset, batch.inference_params.seqlen_offset)
+
+
+            inference_params.conv_states[:, start_index:end_index] = batch.inference_params.conv_states
+            inference_params.ssm_states[:, start_index:end_index] = batch.inference_params.ssm_states
 
             start_index = end_index
-
-        (_, d_model, d_conv) = (
-            batches[0].inference_params.key_value_memory_dict[0][0].shape
-        )
-        (_, _, d_state) = batches[0].inference_params.key_value_memory_dict[0][1].shape
-        n_blocks = len(batches[0].inference_params.key_value_memory_dict)
-        dtype = batches[0].inference_params.key_value_memory_dict[0][0].dtype
-        device = batches[0].inference_params.key_value_memory_dict[0][0].device
-
-        key_value_memory_dict = {}
-        for i in range(n_blocks):
-            conv_state = torch.zeros(
-                batch_size,
-                d_model,
-                d_conv,
-                device=device,
-                dtype=dtype,
-            )
-            ssm_state = torch.zeros(
-                batch_size,
-                d_model,
-                d_state,
-                device=device,
-                dtype=dtype,
-            )
-            key_value_memory_dict[i] = (conv_state, ssm_state)
-        lengths_per_sample = torch.zeros(batch_size, dtype=torch.int32, device=device)
-
-        inference_params = InferenceParams(
-            max_seqlen=max_seqlen,
-            max_batch_size=batch_size,
-            seqlen_offset=seqlen_offset,
-            key_value_memory_dict=key_value_memory_dict,
-            lengths_per_sample=lengths_per_sample,
-        )
-
-        current_batch = 0
-        for batch in batches:
-            for i in range(n_blocks):
-                conv_state, ssm_state = batch.inference_params.key_value_memory_dict[i]
-                batch_size = batch.inference_params.max_batch_size
-                inference_params.key_value_memory_dict[i][0][
-                    current_batch : current_batch + batch_size
-                ] = conv_state
-                inference_params.key_value_memory_dict[i][1][
-                    current_batch : current_batch + batch_size
-                ] = ssm_state
-                inference_params.lengths_per_sample[
-                    current_batch : current_batch + batch_size
-                ] = batch.inference_params.lengths_per_sample
-            current_batch += batch_size
 
         return cls(
             batch_id=batches[0].batch_id,
@@ -394,9 +378,13 @@ class Mamba(Model):
         trust_remote_code: bool = False,
     ):
         self.process_group, _rank, _world_size = initialize_torch_distributed()
+        self.cuda_graphs = {}
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            dtype = torch.float16 if dtype is None else dtype
+            # Bf16 is important. In f16 accumulations in the matmul are causing
+            # differences while the server is under load.
+            # This is detectable by the integration load test
+            dtype = torch.bfloat16 if dtype is None else dtype
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")
@@ -439,17 +427,93 @@ class Mamba(Model):
 
     def warmup(self, batch) -> Optional[int]:
         # TODO: implement warmup for Mamba if needed
+        if os.getenv("ENABLE_CUDA_GRAPHS", "False") == "True":
+            if self.speculate is None or self.speculate == 0:
+                try:
+                    logger.info("Experimental support for Cuda Graphs is enabled")
+                    # Warmup cuda graphs
+                    for bs in [1, 2, 4] + [8 * i for i in range(1, 9)]:
+                        self.cuda_graph_warmup(bs)
+                except Exception:
+                    logger.exception(f"Decode cuda graph warmup failed")
+
         return None
+
+    def cuda_graph_warmup(self, batch_size: int):
+        input_ids = torch.zeros((batch_size, 1), dtype=torch.int64, device=self.device)
+        n_blocks = len(self.model.blocks)
+
+        d_state = self.model.config.d_state
+        d_conv = self.model.config.d_conv
+        # Inner takes the expand multiplication
+        d_inner = self.model.config.d_inner
+
+        # Important seqlen_offset to go through the update mecanism with the state
+        seqlen_offset = 1
+        inference_params = new_inference_params(n_blocks=n_blocks, batch_size=batch_size, d_state=d_state, d_conv=d_conv, d_inner=d_inner, seqlen_offset=seqlen_offset, device=self.device, dtype=self.dtype)
+
+        graph = torch.cuda.CUDAGraph()
+
+        torch.cuda.synchronize()
+        # Run once outside to warmup
+        self.model.forward(
+            input_ids=input_ids,
+            inference_params=inference_params
+        )
+        torch.cuda.synchronize()
+
+        with torch.cuda.graph(graph, pool=MEM_POOL):
+            logits = self.model.forward(
+                input_ids=input_ids,
+                inference_params=inference_params
+            )
+        torch.cuda.synchronize()
+        graph_dict = {
+            "input_ids": input_ids,
+            "inference_params": inference_params,
+            "graph": graph,
+            "logits": logits
+        }
+        self.cuda_graphs[batch_size] = graph_dict
 
     def forward(
         self,
         input_ids: torch.Tensor,
-        past: Optional[List[torch.Tensor]] = None,
+        inference_params: Any
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        return self.model(
-            input_ids,
-            past=past,
-        )
+        bs = input_ids.shape[0]
+        padded_bs = bs
+        if bs == 3:
+            padded_bs = 4
+        elif 3 < bs <= 8:
+            padded_bs = 8
+        elif bs > 8:
+            padded_bs = (bs + 7) // 8 * 8
+
+        # Try to find an associated cuda graph
+        cuda_graph = self.cuda_graphs.get(padded_bs, None)
+        is_prefill = inference_params is None or inference_params.seqlen_offset == 0
+
+        if is_prefill or cuda_graph is None:
+            return self.model(
+                input_ids,
+                inference_params=inference_params,
+            )
+
+        # Copy inputs to the static inputs of the cuda graph
+        # Static inputs are potentially padded
+        cuda_graph["input_ids"][: bs] = input_ids
+        cuda_graph["inference_params"].conv_states[:, : bs] = inference_params.conv_states
+        cuda_graph["inference_params"].ssm_states[:, : bs] = inference_params.ssm_states
+
+        # Replay the graph
+        cuda_graph["graph"].replay()
+
+        inference_params.conv_states.copy_(cuda_graph["inference_params"].conv_states[:, :bs])
+        inference_params.ssm_states.copy_(cuda_graph["inference_params"].ssm_states[:, :bs])
+
+        # Slice output to the correct shape
+        return cuda_graph["logits"][:bs]
 
     def generate_token(self, batch) -> Tuple[List[Any], Optional[Any], Tuple[int, int]]:
         start = time.time_ns()
@@ -457,56 +521,26 @@ class Mamba(Model):
             batch.input_ids
         )  # batch.past_input_ids if batch.past_input_ids is not None else batch.input_ids
 
-        batch_size = input_ids.shape[0]
-        max_seqlen = input_ids.shape[1]
-        dtype = input_ids.dtype
-
+        batch_size, max_seqlen = input_ids.shape
         # Inference params
-        seqlen_og = 0
-        inf_cache = {}
-        lengths_per_sample = (
-            torch.ones(batch_size, dtype=torch.int32, device=input_ids.device)
-            * max_seqlen
-        )
 
         if batch.inference_params is None:
-            inference_params = InferenceParams(
-                max_seqlen=max_seqlen,
-                max_batch_size=batch_size,
-                seqlen_offset=seqlen_og,
-                key_value_memory_dict=inf_cache,
-                lengths_per_sample=lengths_per_sample,
-            )
-
-            # Allocate inference cache
-            for res_block in self.model.blocks:
-                block = res_block.mamba_block
-                conv_state = torch.zeros(
-                    batch_size,
-                    self.model.config.d_model * self.model.config.expand,
-                    self.model.config.d_conv,
-                    device=block.conv1d.weight.device,
-                    dtype=block.conv1d.weight.dtype,
-                )
-                ssm_state = torch.zeros(
-                    batch_size,
-                    self.model.config.d_model * self.model.config.expand,
-                    self.model.config.d_state,
-                    device=block.dt_proj.weight.device,
-                    dtype=block.dt_proj.weight.dtype,
-                )
-                inference_params.key_value_memory_dict[block.layer_idx] = (
-                    conv_state,
-                    ssm_state,
-                )
+            # 0 is important here
+            seqlen_offset = 0 
+            n_blocks = len(self.model.blocks)
+            d_state = self.model.config.d_state
+            d_conv = self.model.config.d_conv
+            d_inner = self.model.config.d_inner
+            inference_params = new_inference_params(n_blocks=n_blocks, batch_size=batch_size, d_state=d_state, d_conv=d_conv, d_inner=d_inner, seqlen_offset=seqlen_offset, device=self.device, dtype=self.dtype)
             batch.inference_params = inference_params
 
         # Forward pass
-        logits, past_input_ids, new_inference_params = self.model(
-            input_ids, batch.inference_params
+        logits = self.forward(
+            input_ids, inference_params=batch.inference_params
         )
 
-        batch.inference_params = new_inference_params
+
+        # batch.inference_params = new_inference_params
         # Results
         generations: List[Generation] = []
         stopped = True
