@@ -28,12 +28,12 @@ from text_generation_server.models.cache_manager import (
     BLOCK_SIZE,
 )
 from text_generation_server.pb import generate_pb2
+from text_generation_server.models.globals import MEM_POOL
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
 tracer = trace.get_tracer(__name__)
 
-MEM_POOL = torch.cuda.graph_pool_handle()
 
 
 @dataclass

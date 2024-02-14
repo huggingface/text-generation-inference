@@ -3,7 +3,6 @@ import torch.distributed
 
 from mamba_ssm.ops.triton.selective_state_update import selective_state_update
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
-from mamba_ssm.utils.generation import InferenceParams
 from torch import nn
 from typing import Optional, Tuple, Any
 from transformers.configuration_utils import PretrainedConfig
@@ -18,6 +17,17 @@ from text_generation_server.utils.layers import (
 from einops import rearrange
 from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
 import math
+from dataclasses import dataclass
+
+@dataclass
+class InferenceParams:
+    """Inference parameters that are passed to the main model in order
+    to efficienly calculate and store the context during inference."""
+    max_seqlen: int
+    max_batch_size: int
+    conv_states: torch.Tensor
+    ssm_states: torch.Tensor
+    seqlen_offset: int
 
 
 class MambaConfig(PretrainedConfig):
@@ -56,9 +66,9 @@ class MambaConfig(PretrainedConfig):
 
 
 class MambaBlock(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix, config, weights, layer_id):
         super().__init__()
-        self.layer_idx = int(prefix.split(".")[2])
+        self.layer_id = layer_id
         self.in_proj = FastLinear.load(config, f"{prefix}.in_proj", weights, bias=False)
         self.x_proj = FastLinear.load(config, f"{prefix}.x_proj", weights, bias=False)
         self.dt_proj = FastLinear.load(config, f"{prefix}.dt_proj", weights, bias=True)
@@ -79,21 +89,20 @@ class MambaBlock(nn.Module):
 
     # inference_params
     def forward(self, hidden_states: torch.Tensor, inference_params=None):
-        _, seqlen, _ = hidden_states.shape
-        conv_state, ssm_state = inference_params.key_value_memory_dict[self.layer_idx]
-
         if inference_params.seqlen_offset > 0:
+            conv_state = inference_params.conv_states[self.layer_id]
+            ssm_state = inference_params.ssm_states[self.layer_id]
             out, conv_state, ssm_state = self.step(hidden_states, conv_state, ssm_state)
             return out, conv_state, ssm_state
 
+        _, seqlen, _ = hidden_states.shape
         projected_states = self.in_proj(hidden_states).transpose(1, 2)
+        # assert projected_states.shape == [batch_size, 2 * dstate, seqlen], f"{projected_states.shape} [{batch_size}, {dstate}, {seqlen}]"
         x, z = projected_states.chunk(2, dim=1)
         conv_state = F.pad(x, (self.d_conv - seqlen, 0))
         x = causal_conv1d_fn(
             x=x,
-            weight=self.conv1d.weight.view(
-                self.conv1d.weight.size(0), self.conv1d.weight.size(2)
-            ),
+            weight=self.conv1d.weight.squeeze(1),
             bias=self.conv1d.bias,
             activation=self.activation,
         )
@@ -126,56 +135,28 @@ class MambaBlock(nn.Module):
         return attn_outputs, conv_state, last_state
 
     def step(self, hidden_states, conv_state, ssm_state):
-        _xz = self.in_proj(hidden_states)
-        _x, _z = _xz.chunk(2, dim=-1)  # (B D)
-        conv_state_new = torch.cat([conv_state, _x.transpose(1, 2)], dim=-1)
-        conv_out = causal_conv1d_fn(
-            x=conv_state_new,
-            weight=self.conv1d.weight.view(
-                self.conv1d.weight.size(0), self.conv1d.weight.size(2)
-            ),
-            bias=self.conv1d.bias,
-            activation=self.activation,
+        xz = self.in_proj(hidden_states.squeeze(1))
+        x, z = xz.chunk(2, dim=-1)  # (B D)
+        x = causal_conv1d_update(x, conv_state, self.conv1d.weight.squeeze(1), self.conv1d.bias, self.activation)
+        x_db = self.x_proj(x)  # (B dt_rank+2*d_state)
+        dt, B, C = torch.split(x_db, [self.dt_rank, self.d_state, self.d_state], dim=-1)
+        dt = F.linear(dt, self.dt_proj.weight)
+        A = self.negA
+        y = selective_state_update(
+          ssm_state, x, dt, A, B, C, self.D, z=z, dt_bias=self.dt_proj.bias, dt_softplus=True
         )
-        conv_state = conv_state_new[:, :, 1:]
-        bsz, seqlen, dim = hidden_states.shape
-        output_tensor = torch.zeros(
-            (bsz, seqlen, dim), device=hidden_states.device, dtype=hidden_states.dtype
-        )
-        for i in range(0, bsz):
-            x = conv_out[i : i + 1, :, -1]
-            z = _z[i : i + 1, -1, :]
-            x_db = self.x_proj(x)
-            dt, B, C = torch.split(
-                x_db, [self.dt_rank, self.d_state, self.d_state], dim=-1
-            )
-            dt = F.linear(dt, self.dt_proj.weight)
-            y = selective_state_update(
-                ssm_state[i : i + 1, :, :],
-                x,
-                dt,
-                self.negA,
-                B,
-                C,
-                self.D,
-                z=z,
-                dt_bias=self.dt_proj.bias,
-                dt_softplus=True,
-            )
-            out = self.out_proj(y)
-            output_tensor[i] = out
-
-        return output_tensor, conv_state, ssm_state
+        out = self.out_proj(y)
+        return out.unsqueeze(1), conv_state.clone(), ssm_state.clone()
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix, config, weights, layer_id):
         super().__init__()
         self.mamba_block = MambaBlock(
-            prefix=f"{layer_id}.mixer", config=config, weights=weights
+            prefix=f"{prefix}.mixer", config=config, weights=weights, layer_id=layer_id
         )
         self.layer_norm = FastRMSNorm.load(
-            prefix=f"{layer_id}.norm", weights=weights, eps=config.layer_norm_epsilon
+            prefix=f"{prefix}.norm", weights=weights, eps=config.layer_norm_epsilon
         )
 
     def forward(
@@ -200,7 +181,7 @@ class MambaModel(nn.Module):
         self.embed_tokens = TensorParallelEmbedding(f"{prefix}.embedding", weights)
         self.blocks = nn.ModuleList(
             [
-                ResidualBlock(f"{prefix}.layers.{i}", config, weights)
+                ResidualBlock(f"{prefix}.layers.{i}", config, weights, layer_id=i)
                 for i in range(config.n_layer)
             ]
         )
@@ -216,14 +197,12 @@ class MambaModel(nn.Module):
         self, input_ids: torch.Tensor, inference_params=None, residual=None
     ) -> Tuple[torch.Tensor, torch.Tensor, InferenceParams]:
         hidden_states = self.embed_tokens(input_ids)
-        for block in self.blocks:
+        for i, block in enumerate(self.blocks):
             hidden_states, residual, conv_state, ssm_state = block(
                 hidden_states, residual, inference_params
             )
-            inference_params.key_value_memory_dict[block.mamba_block.layer_idx] = (
-                conv_state,
-                ssm_state,
-            )
+            inference_params.conv_states[i].copy_(conv_state)
+            inference_params.ssm_states[i].copy_(ssm_state)
 
         hidden_states = (
             hidden_states + residual if residual is not None else hidden_states
@@ -234,4 +213,4 @@ class MambaModel(nn.Module):
 
         # update the offset for the next inference using these params
         inference_params.seqlen_offset += input_ids.size(1)
-        return logits, input_ids, inference_params
+        return logits
