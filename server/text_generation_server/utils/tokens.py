@@ -232,7 +232,7 @@ class HeterogeneousNextTokenChooser:
         seeds: List[int],
         tokenizer: PreTrainedTokenizerBase,
         grammars: List[str],
-        grammar_types: List[GrammarType],
+        grammar_types: List[int],
         fsm_grammar_states=List[int],
     ):
         warpers = []
