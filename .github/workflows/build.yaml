@@ -63,6 +63,9 @@ jobs:
       cancel-in-progress: true
         # needs: start-runner # required to start the main job when the runner is ready
     runs-on: [multi-gpu, nvidia-gpu, 4-a10, ci]
+    container: 
+      image: nvidia/cuda:12.3.1-devel-ubuntu22.04
+      options: --gpus all
     permissions:
       contents: write
       packages: write
@@ -207,10 +210,10 @@ jobs:
           install: true
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
-          # - name: Tailscale
-          #   uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
-          #   with:
-          #     authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+      - name: Tailscale
+        uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
