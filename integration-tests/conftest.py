@@ -297,14 +297,14 @@ def launcher(event_loop):
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
         use_flash_attention: bool = True,
-        grammar_support: bool = False,
+        disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
     ):
         port = random.randint(8000, 10_000)
 
         args = ["--model-id", model_id, "--env"]
 
-        if grammar_support:
+        if disable_grammar_support:
             args.append("--disable-grammar-support")
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
