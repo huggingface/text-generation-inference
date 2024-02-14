@@ -1054,7 +1054,6 @@ class FlashCausalLM(Model):
         next_token_ids = next_input_ids.tolist()
         accepted_ids = accepted_ids.tolist()
         start_decode = time.time_ns()
-        batch.next_token_chooser = batch.next_token_chooser.advance_grammar(next_token_ids)
 
         # Zipped iterator
         iterator = zip(
@@ -1210,6 +1209,12 @@ class FlashCausalLM(Model):
                 )
 
                 generations.append(generation)
+
+            # accept each new token for this specific request since we may
+            # have more than one new token per request with speculative decoding
+            for next_token_id in _next_token_ids:
+                batch.next_token_chooser = batch.next_token_chooser.advance_grammar_single(i, next_token_id)
+
 
             # Update values
             batch.input_lengths[i] = input_length + n_accepted_ids

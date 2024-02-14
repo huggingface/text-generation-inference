@@ -593,5 +593,10 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
             for i in range(len(next_token_ids))
         ]
 
+    def advance_at_index(self, next_token_id, fsm_grammar_state, index):
+        return GrammarLogitProcessor._advance(
+            next_token_id, fsm_grammar_state, self.fsms[index]
+        )
+
     def filter(self, indices):
         return GrammarLogitProcessor.filter(self, indices)

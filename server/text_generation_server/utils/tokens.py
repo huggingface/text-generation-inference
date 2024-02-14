@@ -307,6 +307,7 @@ class HeterogeneousNextTokenChooser:
         self.tokenizer = tokenizer
         self.fsm_grammar_states = fsm_grammar_states
         self.grammars = grammars
+        self.grammar_types = grammar_types
 
     def __call__(
         self,
@@ -404,6 +405,13 @@ class HeterogeneousNextTokenChooser:
                 next_ids, self.fsm_grammar_states, self.grammars
             )
             self.fsm_grammar_states = other_new_states
+        return self
+
+    def advance_grammar_single(self, grammar_state_index: int, next_id: int):
+        if self.grammar_processor is not None:
+            self.fsm_grammar_states[grammar_state_index] = self.grammar_processor.advance_at_index(
+                next_id, self.fsm_grammar_states[grammar_state_index], grammar_state_index
+            )
         return self
 
     def filter(self, indices):
