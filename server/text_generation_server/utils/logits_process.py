@@ -1,8 +1,17 @@
 import math
 import torch
 
+import json
+from loguru import logger
 from functools import lru_cache
 from typing import Optional, List, Dict, Union
+from text_generation_server.pb.generate_pb2 import GrammarType
+
+from outlines.fsm.fsm import RegexFSM
+from outlines.fsm.json_schema import build_regex_from_object
+from functools import lru_cache
+from typing import List, Optional, DefaultDict
+import time
 
 from transformers import (
     LogitsWarper,
@@ -135,9 +144,7 @@ class FrequencyPenaltyLogitsProcessor(LogitsProcessor):
     ) -> torch.FloatTensor:
         score = torch.gather(scores, 1, input_ids)
         # if score < 0 then penalty has to be multiplied to reduce the previous token probability
-        score = -torch.where(
-            score < 0, score * self.penalty, score / self.penalty
-        )
+        score = -torch.where(score < 0, score * self.penalty, score / self.penalty)
 
         return scores.scatter_add_(1, input_ids, score)
 
@@ -464,3 +471,132 @@ class HeterogeneousProcessorWrapper(LogitsProcessor):
             self.processors = new_processors
             return self
         return None
+
+
+class GrammarLogitProcessor(LogitsProcessor):
+    fsm_state: DefaultDict[int, int]
+    fsm: RegexFSM
+
+    def __init__(self, tokenizer, device, grammar, grammar_type):
+        self.device = device
+        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
+        self.fsm = GrammarLogitProcessor._cached_compile_fsm(
+            grammar_type, grammar, self.tokenizer
+        )
+
+    def __call__(
+        self,
+        logits: torch.Tensor,
+        fsm_grammar_state: int,
+    ):
+        if fsm_grammar_state == -1 or self.fsm is None:
+            return logits
+        allowed_tokens = self.fsm.allowed_token_ids(fsm_grammar_state)
+        mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
+        mask[allowed_tokens] = 0
+        biased_scores = logits + mask
+        return biased_scores
+
+    def advance(self, next_token_id, fsm_grammar_state):
+        return GrammarLogitProcessor._advance(
+            next_token_id, fsm_grammar_state, self.fsm
+        )
+
+    @staticmethod
+    def _advance(next_token_id, fsm_grammar_state, fsm):
+        if fsm_grammar_state == -1:
+            return fsm_grammar_state
+        return fsm.next_state(fsm_grammar_state, next_token_id)
+
+    # TODO: move grammar compilation into the router
+    @staticmethod
+    @lru_cache(maxsize=32, typed=True)
+    def _cached_compile_fsm(grammar_type, schema, tokenizer):
+        start_time = time.time()
+        if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
+            schema = build_regex_from_object(schema)
+        elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
+            pass # schema is already a regex just here for clarity
+        fsm = RegexFSM(schema, tokenizer)
+        logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
+        return fsm
+
+    @staticmethod
+    @lru_cache(maxsize=32, typed=True)
+    def _cached_adapt_tokenizer(tokenizer):
+        """Adapt tokenizer to work with the FSM.
+
+        The API of Outlines tokenizers is slightly different to that of
+        `transformers`. In addition we need to handle the missing spaces to
+        Llama's tokenizer to be able to compile FSMs for this model.
+
+        """
+        start_time = time.time()
+        tokenizer.vocabulary = tokenizer.get_vocab()
+        tokenizer.special_tokens = set(tokenizer.all_special_tokens)
+
+        def convert_token_to_string(token: str) -> str:
+            from transformers.file_utils import SPIECE_UNDERLINE
+
+            string = tokenizer.convert_tokens_to_string([token])
+
+            # A hack to handle missing spaces to HF's Llama tokenizers
+            if token.startswith(SPIECE_UNDERLINE) or token == "<0x20>":
+                return " " + string
+
+            return string
+
+        tokenizer.convert_token_to_string = convert_token_to_string
+        logger.debug(f"Adapted tokenizer in {time.time() - start_time:.2f}s")
+        return tokenizer
+
+    def filter(self, indices):
+        new_fsms = []
+        for i in indices:
+            new_fsms.append(self.fsms[i])
+        self.fsms = new_fsms
+        return self
+
+
+class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
+    def __init__(self, tokenizer, device, grammars, grammar_type):
+        self.device = device
+        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
+        self.fsms = []
+        for i in range(len(grammars)):
+            fsm = GrammarLogitProcessor._cached_compile_fsm(
+                grammar_type[i], grammars[i], self.tokenizer
+            )
+            self.fsms.append(fsm)
+
+    def __call__(
+        self,
+        logits: torch.Tensor,
+        fsm_grammar_states: List[int],
+        mask: torch.Tensor,
+    ):
+        mask = torch.full_like(logits, -math.inf)
+        for i in range(logits.shape[0]):
+            fsm = self.fsms[i]
+            if fsm_grammar_states[i] == -1 or fsm is None:
+                continue
+            allowed_tokens = fsm.allowed_token_ids(fsm_grammar_states[i])
+            mask[i, allowed_tokens] = 0
+        logits += mask
+        return logits
+
+    def advance_batch(self, next_token_ids, fsm_grammar_states, grammars):
+        return [
+            GrammarLogitProcessor._advance(
+                next_token_ids[i], fsm_grammar_states[i], self.fsms[i]
+            )
+            for i in range(len(next_token_ids))
+        ]
+
+    def advance_at_index(self, next_token_id, fsm_grammar_state, index):
+        return GrammarLogitProcessor._advance(
+            next_token_id, fsm_grammar_state, self.fsms[index]
+        )
+
+    def filter(self, indices):
+        return GrammarLogitProcessor.filter(self, indices)

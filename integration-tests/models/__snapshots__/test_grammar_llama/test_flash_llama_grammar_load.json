@@ -1,0 +1,478 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1024,
+          "logprob": -10.578125,
+          "text": "name"
+        },
+        {
+          "id": 29901,
+          "logprob": -3.03125,
+          "text": ":"
+        },
+        {
+          "id": 13260,
+          "logprob": -9.171875,
+          "text": "dav"
+        },
+        {
+          "id": 333,
+          "logprob": -0.04244995,
+          "text": "id"
+        },
+        {
+          "id": 29889,
+          "logprob": -2.4863281,
+          "text": "."
+        },
+        {
+          "id": 4876,
+          "logprob": -10.7890625,
+          "text": "email"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.32714844,
+          "text": ":"
+        },
+        {
+          "id": 259,
+          "logprob": -9.4921875,
+          "text": " "
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 29896,
+          "logprob": -0.7685547,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 29906,
+          "logprob": -0.2376709,
+          "special": false,
+          "text": "2"
+        },
+        {
+          "id": 29941,
+          "logprob": -0.01008606,
+          "special": false,
+          "text": "3"
+        },
+        {
+          "id": 29946,
+          "logprob": -0.64160156,
+          "special": false,
+          "text": "4"
+        },
+        {
+          "id": 29945,
+          "logprob": -0.5,
+          "special": false,
+          "text": "5"
+        },
+        {
+          "id": 29953,
+          "logprob": -0.46557617,
+          "special": false,
+          "text": "6"
+        },
+        {
+          "id": 29992,
+          "logprob": -0.5341797,
+          "special": false,
+          "text": "@"
+        },
+        {
+          "id": 21980,
+          "logprob": -0.5361328,
+          "special": false,
+          "text": "gmail"
+        },
+        {
+          "id": 29889,
+          "logprob": -0.00088739395,
+          "special": false,
+          "text": "."
+        },
+        {
+          "id": 510,
+          "logprob": -0.0022907257,
+          "special": false,
+          "text": "com"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "123456@gmail.com"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1024,
+          "logprob": -10.578125,
+          "text": "name"
+        },
+        {
+          "id": 29901,
+          "logprob": -3.0332031,
+          "text": ":"
+        },
+        {
+          "id": 13260,
+          "logprob": -9.171875,
+          "text": "dav"
+        },
+        {
+          "id": 333,
+          "logprob": -0.04257202,
+          "text": "id"
+        },
+        {
+          "id": 29889,
+          "logprob": -2.4785156,
+          "text": "."
+        },
+        {
+          "id": 4876,
+          "logprob": -10.7890625,
+          "text": "email"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.32495117,
+          "text": ":"
+        },
+        {
+          "id": 259,
+          "logprob": -9.4921875,
+          "text": " "
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 29896,
+          "logprob": -0.7709961,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 29906,
+          "logprob": -0.23840332,
+          "special": false,
+          "text": "2"
+        },
+        {
+          "id": 29941,
+          "logprob": -0.00995636,
+          "special": false,
+          "text": "3"
+        },
+        {
+          "id": 29946,
+          "logprob": -0.64208984,
+          "special": false,
+          "text": "4"
+        },
+        {
+          "id": 29945,
+          "logprob": -0.4970703,
+          "special": false,
+          "text": "5"
+        },
+        {
+          "id": 29953,
+          "logprob": -0.46533203,
+          "special": false,
+          "text": "6"
+        },
+        {
+          "id": 29992,
+          "logprob": -0.5336914,
+          "special": false,
+          "text": "@"
+        },
+        {
+          "id": 21980,
+          "logprob": -0.5361328,
+          "special": false,
+          "text": "gmail"
+        },
+        {
+          "id": 29889,
+          "logprob": -0.00088739395,
+          "special": false,
+          "text": "."
+        },
+        {
+          "id": 510,
+          "logprob": -0.0022735596,
+          "special": false,
+          "text": "com"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "123456@gmail.com"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1024,
+          "logprob": -10.578125,
+          "text": "name"
+        },
+        {
+          "id": 29901,
+          "logprob": -3.0332031,
+          "text": ":"
+        },
+        {
+          "id": 13260,
+          "logprob": -9.171875,
+          "text": "dav"
+        },
+        {
+          "id": 333,
+          "logprob": -0.04257202,
+          "text": "id"
+        },
+        {
+          "id": 29889,
+          "logprob": -2.4785156,
+          "text": "."
+        },
+        {
+          "id": 4876,
+          "logprob": -10.7890625,
+          "text": "email"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.32495117,
+          "text": ":"
+        },
+        {
+          "id": 259,
+          "logprob": -9.4921875,
+          "text": " "
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 29896,
+          "logprob": -0.7709961,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 29906,
+          "logprob": -0.23840332,
+          "special": false,
+          "text": "2"
+        },
+        {
+          "id": 29941,
+          "logprob": -0.00995636,
+          "special": false,
+          "text": "3"
+        },
+        {
+          "id": 29946,
+          "logprob": -0.64208984,
+          "special": false,
+          "text": "4"
+        },
+        {
+          "id": 29945,
+          "logprob": -0.4970703,
+          "special": false,
+          "text": "5"
+        },
+        {
+          "id": 29953,
+          "logprob": -0.46533203,
+          "special": false,
+          "text": "6"
+        },
+        {
+          "id": 29992,
+          "logprob": -0.5336914,
+          "special": false,
+          "text": "@"
+        },
+        {
+          "id": 21980,
+          "logprob": -0.5361328,
+          "special": false,
+          "text": "gmail"
+        },
+        {
+          "id": 29889,
+          "logprob": -0.00088739395,
+          "special": false,
+          "text": "."
+        },
+        {
+          "id": 510,
+          "logprob": -0.0022735596,
+          "special": false,
+          "text": "com"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "123456@gmail.com"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1024,
+          "logprob": -10.578125,
+          "text": "name"
+        },
+        {
+          "id": 29901,
+          "logprob": -3.0332031,
+          "text": ":"
+        },
+        {
+          "id": 13260,
+          "logprob": -9.171875,
+          "text": "dav"
+        },
+        {
+          "id": 333,
+          "logprob": -0.04257202,
+          "text": "id"
+        },
+        {
+          "id": 29889,
+          "logprob": -2.4785156,
+          "text": "."
+        },
+        {
+          "id": 4876,
+          "logprob": -10.7890625,
+          "text": "email"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.32495117,
+          "text": ":"
+        },
+        {
+          "id": 259,
+          "logprob": -9.4921875,
+          "text": " "
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 29896,
+          "logprob": -0.7709961,
+          "special": false,
+          "text": "1"
+        },
+        {
+          "id": 29906,
+          "logprob": -0.23840332,
+          "special": false,
+          "text": "2"
+        },
+        {
+          "id": 29941,
+          "logprob": -0.00995636,
+          "special": false,
+          "text": "3"
+        },
+        {
+          "id": 29946,
+          "logprob": -0.64208984,
+          "special": false,
+          "text": "4"
+        },
+        {
+          "id": 29945,
+          "logprob": -0.4970703,
+          "special": false,
+          "text": "5"
+        },
+        {
+          "id": 29953,
+          "logprob": -0.46533203,
+          "special": false,
+          "text": "6"
+        },
+        {
+          "id": 29992,
+          "logprob": -0.5336914,
+          "special": false,
+          "text": "@"
+        },
+        {
+          "id": 21980,
+          "logprob": -0.5361328,
+          "special": false,
+          "text": "gmail"
+        },
+        {
+          "id": 29889,
+          "logprob": -0.00088739395,
+          "special": false,
+          "text": "."
+        },
+        {
+          "id": 510,
+          "logprob": -0.0022735596,
+          "special": false,
+          "text": "com"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "123456@gmail.com"
+  }
+]

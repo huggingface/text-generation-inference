@@ -45,6 +45,43 @@ impl HubTokenizerConfig {
     }
 }
 
+mod json_object_or_string_to_string {
+    use serde::{Deserialize, Deserializer};
+    use serde_json::Value;
+
+    // A custom deserializer that treats both strings and objects as strings.
+    // This provides flexibility with input formats for the 'grammar' field.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+
+        match value {
+            Value::String(s) => Ok(s),
+            // Safely handle serialization and return an error if it fails
+            Value::Object(o) => {
+                serde_json::to_string(&o).map_err(|e| serde::de::Error::custom(e.to_string()))
+            }
+            _ => Err(serde::de::Error::custom(
+                "expected string or object for grammar",
+            )),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub(crate) enum GrammarType {
+    #[serde(
+        rename = "json",
+        deserialize_with = "json_object_or_string_to_string::deserialize"
+    )]
+    Json(String),
+    #[serde(rename = "regex")]
+    Regex(String),
+}
+
 mod token_serde {
     use super::*;
     use serde::de;
@@ -201,6 +238,8 @@ pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 5)]
     pub top_n_tokens: Option<u32>,
+    #[serde(default)]
+    pub grammar: Option<GrammarType>,
 }
 
 fn default_max_new_tokens() -> Option<u32> {
@@ -226,6 +265,7 @@ fn default_parameters() -> GenerateParameters {
         decoder_input_details: false,
         seed: None,
         top_n_tokens: None,
+        grammar: None,
     }
 }
 
