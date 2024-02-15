@@ -811,18 +811,22 @@ mod tests {
                 Message {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    name: None,
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -872,22 +876,27 @@ mod tests {
                 Message {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "user".to_string(),
                     content: "Hi again!".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    name: None,
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -942,18 +951,22 @@ mod tests {
                 Message {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    name: None,
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -992,18 +1005,22 @@ mod tests {
                 Message {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    name: None,
                 },
                 Message {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    name: None,
                 },
             ],
             bos_token: Some("[BOS]"),
