@@ -616,6 +616,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: None,
+            grammar: None,
         },
     };
 
@@ -781,6 +782,7 @@ pub async fn run(
     ngrok_edge: Option<String>,
     tokenizer_config: HubTokenizerConfig,
     messages_api_enabled: bool,
+    grammar_support: bool,
 ) -> Result<(), axum::BoxError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -842,6 +844,7 @@ pub async fn run(
         max_top_n_tokens,
         max_input_length,
         max_total_tokens,
+        grammar_support,
     );
     let generation_health = Arc::new(AtomicBool::new(false));
     let health_ext = Health::new(client.clone(), generation_health.clone());

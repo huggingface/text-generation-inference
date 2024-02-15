@@ -221,6 +221,8 @@ impl Client {
                     repetition_penalty: 1.0,
                     frequency_penalty: 0.0,
                     watermark: false,
+                    grammar: String::new(),
+                    grammar_type: GrammarType::None as i32,
                 })
             } else {
                 Some(NextTokenChooserParameters {
@@ -233,6 +235,8 @@ impl Client {
                     repetition_penalty: 1.2,
                     frequency_penalty: 0.1,
                     watermark: false,
+                    grammar: String::new(),
+                    grammar_type: GrammarType::None as i32,
                 })
             };
             requests.push(Request {

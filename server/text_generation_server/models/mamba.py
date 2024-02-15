@@ -124,7 +124,7 @@ class MambaBatch(Batch):
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             inputs.append(r.inputs)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
+            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer))
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
@@ -694,6 +694,9 @@ class Mamba(Model):
                 generations.append(generation)
 
                 # Update values
+                batch.next_token_choosers[i] = batch.next_token_choosers[i].advance_grammar(
+                    next_token_id_squeezed.item()
+                )
                 batch.input_ids[i, 0] = next_token_id
                 batch.all_input_ids[i] = all_input_ids
                 batch.input_lengths[i] = new_input_length

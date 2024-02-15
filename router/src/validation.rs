@@ -2,10 +2,12 @@
 
 /// Payload validation logic
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
-use crate::{GenerateParameters, GenerateRequest};
+use crate::{GenerateParameters, GenerateRequest, GrammarType};
 use rand::{thread_rng, Rng};
 use std::env;
-use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
+use text_generation_client::{
+    GrammarType as ProtoGrammarType, NextTokenChooserParameters, StoppingCriteriaParameters,
+};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokenizers::TruncationDirection;
@@ -22,6 +24,7 @@ pub struct Validation {
     max_top_n_tokens: u32,
     max_input_length: usize,
     max_total_tokens: usize,
+    disable_grammar_support: bool,
     /// Channel to communicate with the background tokenization task
     sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
     skip_tokenizer_in_tgi: bool,
@@ -36,6 +39,7 @@ impl Validation {
         max_top_n_tokens: u32,
         max_input_length: usize,
         max_total_tokens: usize,
+        disable_grammar_support: bool,
     ) -> Self {
         // If we have a fast tokenizer
         let sender = if let Some(tokenizer) = tokenizer {
@@ -74,6 +78,7 @@ impl Validation {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            disable_grammar_support,
             skip_tokenizer_in_tgi,
         }
     }
@@ -199,6 +204,7 @@ impl Validation {
             watermark,
             decoder_input_details,
             top_n_tokens,
+            grammar,
             ..
         } = request.parameters;
 
@@ -317,6 +323,28 @@ impl Validation {
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
+        // TODO: we should build the FSM here and pass the compiled FSM instead of the grammar
+        // NOTE: this is currently difficult because we need the tokenizer in Python to build
+        // the FSM and we'd have to load a copy of the tokenizer into our Pyo3 instance which
+        // may be slow and memory intensive. Best case is to have a Rust implementation of the FSM
+        // compiler and use that to build the FSM here.
+
+        // Validate grammar and unpack the grammar and type for the proto message
+        let (grammar, grammar_type) = match grammar {
+            Some(grammar) => {
+                // Ensure that grammar is not set if it's not supported
+                if self.disable_grammar_support {
+                    return Err(ValidationError::Grammar);
+                }
+                match grammar {
+                    // currently both are handled the same way since compilation is done in Python
+                    GrammarType::Json(json) => (json, ProtoGrammarType::Json.into()),
+                    GrammarType::Regex(regex) => (regex, ProtoGrammarType::Regex.into()),
+                }
+            }
+            None => (String::new(), ProtoGrammarType::None.into()),
+        };
+
         let parameters = NextTokenChooserParameters {
             temperature,
             repetition_penalty,
@@ -327,6 +355,8 @@ impl Validation {
             do_sample,
             seed,
             watermark,
+            grammar,
+            grammar_type,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,
@@ -478,6 +508,8 @@ pub enum ValidationError {
     StopSequence(usize, usize),
     #[error("tokenizer error {0}")]
     Tokenizer(String),
+    #[error("grammar is not supported")]
+    Grammar,
     #[error("`watermark` = true is not allowed with FP8 quantization.")]
     WatermarkWithQuantization,
 }
@@ -497,6 +529,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 6;
         let workers = 1;
+        let disable_grammar_support = true;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -505,6 +538,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            disable_grammar_support,
         );
 
         let max_new_tokens = 10;
@@ -525,6 +559,7 @@ mod tests {
         let max_top_n_tokens = 4;
         let max_input_length = 5;
         let max_total_tokens = 6;
+        let disable_grammar_support = true;
         let workers = 1;
         let validation = Validation::new(
             workers,
@@ -534,6 +569,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            disable_grammar_support,
         );
 
         let max_new_tokens = 10;
@@ -555,6 +591,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 6;
         let workers = 1;
+        let disable_grammar_support = true;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -563,6 +600,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            disable_grammar_support,
         );
         match validation
             .validate(GenerateRequest {
@@ -589,6 +627,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 106;
         let workers = 1;
+        let disable_grammar_support = true;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -597,6 +636,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            disable_grammar_support,
         );
         match validation
             .validate(GenerateRequest {
@@ -652,6 +692,7 @@ mod tests {
         let max_input_length = 5;
         let max_total_tokens = 106;
         let workers = 1;
+        let disable_grammar_support = true;
         let validation = Validation::new(
             workers,
             tokenizer,
@@ -660,6 +701,7 @@ mod tests {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            disable_grammar_support,
         );
         match validation
             .validate(GenerateRequest {

@@ -1,0 +1,73 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 29896,
+        "logprob": -0.7685547,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 29906,
+        "logprob": -0.33666992,
+        "special": false,
+        "text": "2"
+      },
+      {
+        "id": 29941,
+        "logprob": -0.009979248,
+        "special": false,
+        "text": "3"
+      },
+      {
+        "id": 29946,
+        "logprob": -0.64208984,
+        "special": false,
+        "text": "4"
+      },
+      {
+        "id": 29945,
+        "logprob": -0.4970703,
+        "special": false,
+        "text": "5"
+      },
+      {
+        "id": 29953,
+        "logprob": -0.46533203,
+        "special": false,
+        "text": "6"
+      },
+      {
+        "id": 29992,
+        "logprob": -0.5336914,
+        "special": false,
+        "text": "@"
+      },
+      {
+        "id": 21980,
+        "logprob": -0.53759766,
+        "special": false,
+        "text": "gmail"
+      },
+      {
+        "id": 29889,
+        "logprob": -0.0008878708,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 510,
+        "logprob": -0.002275467,
+        "special": false,
+        "text": "com"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "123456@gmail.com"
+}

@@ -407,6 +407,7 @@ class CausalLMBatch(Batch):
             parameters,
             batches[dst_batch_idx].next_token_chooser.dtype,
             batches[dst_batch_idx].next_token_chooser.device,
+            batches[dst_batch_idx].next_token_chooser.tokenizer,
             hq_env.is_quantization_enabled
         )
 
@@ -462,7 +463,7 @@ class CausalLMBatch(Batch):
                 parameters.append(parameters[0])
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
-            parameters, dtype, device, hq_env.is_quantization_enabled
+            parameters, dtype, device, tokenizer, hq_env.is_quantization_enabled
         )
         tokenized_inputs = tokenizer(
             [r.data.inputs for r in requests] + dummy_inputs,
@@ -1040,7 +1041,7 @@ class CausalLM(Model):
 
                 if top_n_tokens > 0:
                     all_top_tokens = []
-                    for (top_token_ids, top_token_logprobs) in zip(
+                    for top_token_ids, top_token_logprobs in zip(
                         top_token_ids, top_token_logprobs
                     ):
                         toptoken_texts = self.tokenizer.batch_decode(

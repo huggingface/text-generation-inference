@@ -237,7 +237,7 @@ class FlashCausalLMBatch(Batch):
             )
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
-            next_token_chooser_parameters, dtype, device
+            next_token_chooser_parameters, dtype, device, tokenizer
         )
         start_slots = torch.tensor(start_slots, dtype=torch.int64)
 
@@ -593,6 +593,7 @@ class FlashCausalLMBatch(Batch):
             next_token_chooser_parameters,
             dtype=batches[0].next_token_chooser.dtype,
             device=batches[0].next_token_chooser.device,
+            tokenizer=batches[0].next_token_chooser.tokenizer,
         )
 
         speculative_ids = (
@@ -869,7 +870,11 @@ class FlashCausalLM(Model):
         # Try to find an associated cuda graph
         cuda_graph = self.cuda_graphs.get(padded_bs, None)
 
-        if cu_seqlen_prefill is not None or cuda_graph is None or batch.speculative_ids is not None:
+        if (
+            cu_seqlen_prefill is not None
+            or cuda_graph is None
+            or batch.speculative_ids is not None
+        ):
             return self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
@@ -1013,9 +1018,9 @@ class FlashCausalLM(Model):
                 # Copy batch.input_ids to prefill_token_indices
                 if prefill_logprobs:
                     if len(batch) > 1:
-                        prefill_tokens_indices[
-                            out_start_index : out_end_index - 1
-                        ] = batch.input_ids[start_index + 1 : start_index + out_length]
+                        prefill_tokens_indices[out_start_index : out_end_index - 1] = (
+                            batch.input_ids[start_index + 1 : start_index + out_length]
+                        )
                     else:
                         # Set prefill_tokens_indices to the correct slice
                         prefill_tokens_indices = batch.input_ids[
@@ -1028,6 +1033,7 @@ class FlashCausalLM(Model):
 
             cumulative_length += input_length
 
+        # Update values
         batch.input_ids = next_input_ids[accepted_ids.cumsum(dim=-1) - 1]
         batch.speculative_ids = speculative_ids
         batch.position_ids = next_position_ids + accepted_ids
@@ -1166,7 +1172,7 @@ class FlashCausalLM(Model):
 
                 if top_n_tokens > 0:
                     all_top_tokens = []
-                    for (top_token_ids, top_token_logprobs) in zip(
+                    for top_token_ids, top_token_logprobs in zip(
                         top_token_ids, top_token_logprobs
                     ):
                         toptoken_texts = self.tokenizer.batch_decode(
@@ -1203,6 +1209,12 @@ class FlashCausalLM(Model):
                 )
 
                 generations.append(generation)
+
+            # accept each new token for this specific request since we may
+            # have more than one new token per request with speculative decoding
+            for next_token_id in _next_token_ids:
+                batch.next_token_chooser = batch.next_token_chooser.advance_grammar_single(i, next_token_id)
+
 
             # Update values
             batch.input_lengths[i] = input_length + n_accepted_ids
