@@ -378,6 +378,7 @@ impl ChatCompletion {
                 message: Message {
                     role: "assistant".into(),
                     content: output,
+                    name: None,
                 },
                 logprobs: return_logprobs
                     .then(|| ChatCompletionLogprobs::from((details.tokens, details.top_tokens))),
@@ -453,6 +454,7 @@ fn default_request_messages() -> Vec<Message> {
     vec![Message {
         role: "user".to_string(),
         content: "My name is David and I".to_string(),
+        name: None,
     }]
 }
 
@@ -547,6 +549,8 @@ pub(crate) struct Message {
     pub role: String,
     #[schema(example = "My name is David and I")]
     pub content: String,
+    #[schema(example = "\"David\"")]
+    pub name: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
