@@ -150,7 +150,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements_rocm.txt && \
-    pip install ".[accelerate, peft]" --no-cache-dir
+    pip install ".[accelerate, peft, outlines]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
