@@ -520,6 +520,46 @@ pub(crate) struct ChatRequest {
     #[serde(default)]
     #[schema(nullable = true, example = 0.95)]
     pub top_p: Option<f32>,
+
+    /// A list of tools the model may call. Currently, only functions are supported as a tool. Use this to provide a list of
+    /// functions the model may generate JSON inputs for.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub tools: Option<Vec<Tool>>,
+}
+
+// TODO: define and use better types for tools
+
+// #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+// enum ToolType {
+//     #[serde(rename = "function")]
+//     Function,
+// }
+
+// impl Default for ToolType {
+//     fn default() -> Self {
+//         ToolType::Function
+//     }
+// }
+
+// #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+// pub(crate) struct Function {
+//     pub description: String,
+//     pub name: String,
+//     #[serde(
+//         rename = "json",
+//         deserialize_with = "json_object_or_string_to_string::deserialize"
+//     )]
+//     pub parameters: String,
+// }
+
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+pub(crate) struct Tool {
+    // The type of the tool. Currently, only 'function' is supported.
+    #[schema(example = "function")]
+    pub r#type: String,
+    // Grab the tool as generic JSON for debugging purposes.
+    pub function: serde_json::Value,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

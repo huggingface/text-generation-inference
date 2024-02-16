@@ -580,8 +580,47 @@ async fn chat_completions(
     let logprobs = req.logprobs.unwrap_or(false);
     let seed = req.seed;
 
+    // Build a new JSON schema that defines the "$functions" object
+    // and requires the grammar to choose anyOf the functions defined.
+    let mut tools = serde_json::json!({});
+
+    // First decompose the tools and use the function name as the key
+    // and the parameters as the value in the "$functions" object.
+    if let Some(req_tools) = &req.tools {
+        for tool in req_tools {
+            let func = tool.function.clone();
+            let name = func.get("name").unwrap().as_str().unwrap();
+            let parameters = func.get("parameters").unwrap().as_object().unwrap().clone();
+            // add a entry to the "$functions" object
+            tools["$functions"][name] = serde_json::Value::Object(parameters);
+        }
+
+        // now add the properties to the root object
+        tools["properties"]["function"]["anyOf"] = serde_json::Value::Array(
+            req.tools
+                .as_ref()
+                .unwrap()
+                .iter()
+                // map each tool to a $ref to the function
+                .map(|tool| {
+                    let func = tool.function.clone();
+                    let name = func.get("name").unwrap().as_str().unwrap();
+                    serde_json::json!({
+                        "$ref": format!("#/$functions/{}", name)
+                    })
+                })
+                .collect(),
+        );
+    }
+
+    // only add grammar if tools are present
+    let grammar = match req.tools {
+        Some(_grammar) => Some(crate::GrammarType::Json(tools.to_string())),
+        None => None,
+    };
+
     // apply chat template to flatten the request into a single input
-    let inputs = match infer.apply_chat_template(req.messages) {
+    let mut inputs = match infer.apply_chat_template(req.messages) {
         Ok(inputs) => inputs,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
@@ -595,6 +634,11 @@ async fn chat_completions(
             ));
         }
     };
+
+    // append the tools to the inputs with TOOL prompt
+    let tool_prompt =
+        "Based on the conversation, please choose the most appropriate tool to use:".to_string();
+    inputs = format!("{inputs}\n\n{tool_prompt}\n\n{tools}\n\n");
 
     // build the request passing some parameters
     let generate_request = GenerateRequest {
@@ -617,7 +661,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: None,
-            grammar: None,
+            grammar,
         },
     };
 
