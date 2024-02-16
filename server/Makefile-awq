@@ -2,7 +2,7 @@
 # to make cuda graphs work.
 awq_commit := bd1dc2d5254345cc76ab71894651fb821275bdd4
 
-awq: 
+awq:
 	rm -rf llm-awq
 	git clone https://github.com/huggingface/llm-awq
 

@@ -63,6 +63,11 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+      - name: Pre-commit checks
+        run: |
+          pip install pre-commit
+          pre-commit install
+          pre-commit run --all-files
       - name: Install
         run: |
           make install

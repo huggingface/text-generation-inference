@@ -516,7 +516,7 @@ class GrammarLogitProcessor(LogitsProcessor):
         if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
             schema = build_regex_from_object(schema)
         elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
-            pass # schema is already a regex just here for clarity
+            pass  # schema is already a regex just here for clarity
         fsm = RegexFSM(schema, tokenizer)
         logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
         return fsm

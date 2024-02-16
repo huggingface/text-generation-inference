@@ -35,7 +35,6 @@ from text_generation_server.utils.dist import MEMORY_FRACTION
 tracer = trace.get_tracer(__name__)
 
 
-
 @dataclass
 class FlashCausalLMBatch(Batch):
     batch_id: int
@@ -1213,8 +1212,9 @@ class FlashCausalLM(Model):
             # accept each new token for this specific request since we may
             # have more than one new token per request with speculative decoding
             for next_token_id in _next_token_ids:
-                batch.next_token_chooser = batch.next_token_chooser.advance_grammar_single(i, next_token_id)
-
+                batch.next_token_chooser = (
+                    batch.next_token_chooser.advance_grammar_single(i, next_token_id)
+                )
 
             # Update values
             batch.input_lengths[i] = input_length + n_accepted_ids

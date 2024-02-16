@@ -92,7 +92,7 @@ print(chat_completion)
 
 ## Hugging Face Inference Endpoints
 
-The Messages API is integrated with [Inference Endpoints](https://huggingface.co/inference-endpoints/dedicated).  
+The Messages API is integrated with [Inference Endpoints](https://huggingface.co/inference-endpoints/dedicated).
 Every endpoint that uses "Text Generation Inference" with an LLM, which has a chat template can now be used. Below is an example of how to use IE with TGI using OpenAI's Python client library:
 
 > **Note:** Make sure to replace `base_url` with your endpoint URL and to include `v1/` at the end of the URL. The `api_key` should be replaced with your Hugging Face API key.

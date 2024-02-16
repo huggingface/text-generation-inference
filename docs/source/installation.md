@@ -4,7 +4,7 @@ This section explains how to install the CLI tool as well as installing TGI from
 
 ## Install CLI
 
-You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters. 
+You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters.
 
 To install the CLI, you need to first clone the TGI repository and then run `make`.
 
@@ -23,7 +23,7 @@ BUILD_EXTENSIONS=True make install
 
 Before you start, you will need to setup your environment, and install Text Generation Inference. Text Generation Inference is tested on **Python 3.9+**.
 
-Text Generation Inference is available on pypi, conda and GitHub. 
+Text Generation Inference is available on pypi, conda and GitHub.
 
 To install and launch locally, first [install Rust](https://rustup.rs/) and create a Python virtual environment with at least
 Python 3.9, e.g. using conda:

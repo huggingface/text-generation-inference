@@ -54,7 +54,9 @@ async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_mamba_load(fused_kernel_mamba, generate_load, generous_response_snapshot):
+async def test_mamba_load(
+    fused_kernel_mamba, generate_load, generous_response_snapshot
+):
     responses = await generate_load(
         fused_kernel_mamba, "What is Deep Learning?", max_new_tokens=10, n=4
     )

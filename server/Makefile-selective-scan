@@ -13,7 +13,7 @@ install-causal-conv1d: build-causal-conv1d
 	cd causal-conv1d/ && pip install .
 
 # selective-scan dependends on causal-conv1d
-selective-scan: 
+selective-scan:
 	rm -rf mamba
 	git clone https://github.com/state-spaces/mamba.git mamba
 
@@ -21,7 +21,7 @@ build-selective-scan: selective-scan
 	cd mamba/ && git fetch && git checkout $(selective_scan_commit)
 	cd mamba && python setup.py build
 
-install-selective-scan: install-causal-conv1d build-selective-scan 
+install-selective-scan: install-causal-conv1d build-selective-scan
 	pip uninstall selective-scan-cuda -y || true
 	cd mamba && pip install .
 

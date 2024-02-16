@@ -1,5 +1,5 @@
 <div align="center">
-  
+
 <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
   <img width=560 width=315 alt="Making TGI deployment optimal" src="https://huggingface.co/datasets/Narsil/tgi_assets/resolve/main/thumbnail.png">
 </a>
@@ -228,7 +228,7 @@ text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2
 You can also quantize the weights with bitsandbytes to reduce the VRAM requirement:
 
 ```shell
-text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2 --quantize 
+text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2 --quantize
 ```
 
 4bit quantization is available using the [NF4 and FP4 data types from bitsandbytes](https://arxiv.org/pdf/2305.14314.pdf). It can be enabled by providing `--quantize bitsandbytes-nf4` or `--quantize bitsandbytes-fp4` as a command line argument to `text-generation-launcher`.
