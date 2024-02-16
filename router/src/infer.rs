@@ -113,7 +113,7 @@ impl Infer {
             queue,
             shared,
             limit_concurrent_requests: semaphore,
-            template: (template, eos_token, bos_token),
+            template: (template, bos_token, eos_token),
         }
     }
 
