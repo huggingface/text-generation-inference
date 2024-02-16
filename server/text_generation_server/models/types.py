@@ -88,14 +88,16 @@ class Generation:
     def to_pb(self) -> generate_pb2.Generation:
         return generate_pb2.Generation(
             request_id=self.request_id,
-            prefill_tokens=self.prefill_tokens.to_pb()
-            if self.prefill_tokens is not None
-            else None,
+            prefill_tokens=(
+                self.prefill_tokens.to_pb() if self.prefill_tokens is not None else None
+            ),
             tokens=self.tokens.to_pb(),
-            generated_text=self.generated_text.to_pb()
-            if self.generated_text is not None
-            else None,
-            top_tokens=[top_tokens.to_pb() for top_tokens in self.top_tokens]
-            if self.top_tokens is not None
-            else None,
+            generated_text=(
+                self.generated_text.to_pb() if self.generated_text is not None else None
+            ),
+            top_tokens=(
+                [top_tokens.to_pb() for top_tokens in self.top_tokens]
+                if self.top_tokens is not None
+                else None
+            ),
         )

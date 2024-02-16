@@ -19,10 +19,12 @@ from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
 import math
 from dataclasses import dataclass
 
+
 @dataclass
 class InferenceParams:
     """Inference parameters that are passed to the main model in order
     to efficienly calculate and store the context during inference."""
+
     max_seqlen: int
     max_batch_size: int
     conv_states: torch.Tensor
@@ -137,13 +139,28 @@ class MambaBlock(nn.Module):
     def step(self, hidden_states, conv_state, ssm_state):
         xz = self.in_proj(hidden_states.squeeze(1))
         x, z = xz.chunk(2, dim=-1)  # (B D)
-        x = causal_conv1d_update(x, conv_state, self.conv1d.weight.squeeze(1), self.conv1d.bias, self.activation)
+        x = causal_conv1d_update(
+            x,
+            conv_state,
+            self.conv1d.weight.squeeze(1),
+            self.conv1d.bias,
+            self.activation,
+        )
         x_db = self.x_proj(x)  # (B dt_rank+2*d_state)
         dt, B, C = torch.split(x_db, [self.dt_rank, self.d_state, self.d_state], dim=-1)
         dt = F.linear(dt, self.dt_proj.weight)
         A = self.negA
         y = selective_state_update(
-          ssm_state, x, dt, A, B, C, self.D, z=z, dt_bias=self.dt_proj.bias, dt_softplus=True
+            ssm_state,
+            x,
+            dt,
+            A,
+            B,
+            C,
+            self.D,
+            z=z,
+            dt_bias=self.dt_proj.bias,
+            dt_softplus=True,
         )
         out = self.out_proj(y)
         return out.unsqueeze(1), conv_state.clone(), ssm_state.clone()

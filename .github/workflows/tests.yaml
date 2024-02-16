@@ -71,12 +71,11 @@ jobs:
           pip install pytest
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
           pytest -s -vv server/tests
-      - name: Run Rust fmt
+      - name: Pre-commit checks
         run: |
-          cargo fmt --check
-      - name: Run Rust clippy
-        run: |
-          cargo clippy
+          pip install pre-commit
+          pre-commit install
+          pre-commit run --all-files
       - name: Run Rust tests
         run: |
           cargo test

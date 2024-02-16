@@ -15,7 +15,10 @@ from text_generation_server.utils import (
 )
 from text_generation_server.models.globals import ENABLE_CUDA_GRAPHS, MEM_POOL
 import time
-from text_generation_server.models.custom_modeling.mamba_modeling import MambaModel, InferenceParams
+from text_generation_server.models.custom_modeling.mamba_modeling import (
+    MambaModel,
+    InferenceParams,
+)
 from text_generation_server.models import Model
 from typing import Any, List, Optional, Tuple, Type, Dict
 from text_generation_server.models.types import (
@@ -28,21 +31,35 @@ from text_generation_server.utils.tokens import batch_top_tokens, Sampling
 from dataclasses import dataclass
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
 
-def new_inference_params(n_blocks: int, batch_size: int, d_inner: int, d_conv: int, d_state: int, seqlen_offset: int, dtype: torch.dtype, device: torch.device):
+
+def new_inference_params(
+    n_blocks: int,
+    batch_size: int,
+    d_inner: int,
+    d_conv: int,
+    d_state: int,
+    seqlen_offset: int,
+    dtype: torch.dtype,
+    device: torch.device,
+):
     max_seqlen = 0
     conv_states = torch.zeros(
-        (n_blocks,
-        batch_size,
-        d_inner,
-        d_conv,),
+        (
+            n_blocks,
+            batch_size,
+            d_inner,
+            d_conv,
+        ),
         device=device,
         dtype=dtype,
     )
     ssm_states = torch.zeros(
-        (n_blocks,
-        batch_size,
-        d_inner,
-        d_state,),
+        (
+            n_blocks,
+            batch_size,
+            d_inner,
+            d_state,
+        ),
         device=device,
         dtype=dtype,
     )
@@ -52,7 +69,6 @@ def new_inference_params(n_blocks: int, batch_size: int, d_inner: int, d_conv: i
         seqlen_offset=seqlen_offset,
         conv_states=conv_states,
         ssm_states=ssm_states,
-
     )
     return inference_params
 
@@ -124,7 +140,9 @@ class MambaBatch(Batch):
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             inputs.append(r.inputs)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer))
+            next_token_choosers.append(
+                NextTokenChooser.from_pb(r.parameters, device, tokenizer)
+            )
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
@@ -251,7 +269,9 @@ class MambaBatch(Batch):
 
         # TODO
         # Kept it simple by just updating the state, maybe updating the other CPU values is necessary.
-        self.inference_params.conv_states = self.inference_params.conv_states[:, indices]
+        self.inference_params.conv_states = self.inference_params.conv_states[
+            :, indices
+        ]
         self.inference_params.ssm_states = self.inference_params.ssm_states[:, indices]
         return self
 
@@ -280,13 +300,20 @@ class MambaBatch(Batch):
         max_seqlen = 0
         seqlen_offset = 0
 
-        (n_blocks, _, d_inner, d_conv) = (
-            batches[0].inference_params.conv_states.shape
-        )
+        (n_blocks, _, d_inner, d_conv) = batches[0].inference_params.conv_states.shape
         (_, _, _, d_state) = batches[0].inference_params.ssm_states.shape
         dtype = batches[0].inference_params.conv_states.dtype
         device = batches[0].inference_params.conv_states.device
-        inference_params = new_inference_params(n_blocks=n_blocks, batch_size=total_batch_size, d_state=d_state, d_conv=d_conv, d_inner=d_inner, seqlen_offset=seqlen_offset, device=device, dtype=dtype)
+        inference_params = new_inference_params(
+            n_blocks=n_blocks,
+            batch_size=total_batch_size,
+            d_state=d_state,
+            d_conv=d_conv,
+            d_inner=d_inner,
+            seqlen_offset=seqlen_offset,
+            device=device,
+            dtype=dtype,
+        )
 
         # Batch tensors
         input_ids = None
@@ -334,13 +361,20 @@ class MambaBatch(Batch):
                 max_input_length - batch.max_input_length
             ) * len(batch)
 
-            inference_params.max_seqlen = max(inference_params.max_seqlen, batch.inference_params.max_seqlen)
+            inference_params.max_seqlen = max(
+                inference_params.max_seqlen, batch.inference_params.max_seqlen
+            )
             assert batch.inference_params.seqlen_offset != 0, "Invalid seqlen offset"
-            inference_params.seqlen_offset = max(inference_params.seqlen_offset, batch.inference_params.seqlen_offset)
+            inference_params.seqlen_offset = max(
+                inference_params.seqlen_offset, batch.inference_params.seqlen_offset
+            )
 
-
-            inference_params.conv_states[:, start_index:end_index] = batch.inference_params.conv_states
-            inference_params.ssm_states[:, start_index:end_index] = batch.inference_params.ssm_states
+            inference_params.conv_states[:, start_index:end_index] = (
+                batch.inference_params.conv_states
+            )
+            inference_params.ssm_states[:, start_index:end_index] = (
+                batch.inference_params.ssm_states
+            )
 
             start_index = end_index
 
@@ -452,36 +486,39 @@ class Mamba(Model):
 
         # Important seqlen_offset to go through the update mecanism with the state
         seqlen_offset = 1
-        inference_params = new_inference_params(n_blocks=n_blocks, batch_size=batch_size, d_state=d_state, d_conv=d_conv, d_inner=d_inner, seqlen_offset=seqlen_offset, device=self.device, dtype=self.dtype)
+        inference_params = new_inference_params(
+            n_blocks=n_blocks,
+            batch_size=batch_size,
+            d_state=d_state,
+            d_conv=d_conv,
+            d_inner=d_inner,
+            seqlen_offset=seqlen_offset,
+            device=self.device,
+            dtype=self.dtype,
+        )
 
         graph = torch.cuda.CUDAGraph()
 
         torch.cuda.synchronize()
         # Run once outside to warmup
-        self.model.forward(
-            input_ids=input_ids,
-            inference_params=inference_params
-        )
+        self.model.forward(input_ids=input_ids, inference_params=inference_params)
         torch.cuda.synchronize()
 
         with torch.cuda.graph(graph, pool=MEM_POOL):
             logits = self.model.forward(
-                input_ids=input_ids,
-                inference_params=inference_params
+                input_ids=input_ids, inference_params=inference_params
             )
         torch.cuda.synchronize()
         graph_dict = {
             "input_ids": input_ids,
             "inference_params": inference_params,
             "graph": graph,
-            "logits": logits
+            "logits": logits,
         }
         self.cuda_graphs[batch_size] = graph_dict
 
     def forward(
-        self,
-        input_ids: torch.Tensor,
-        inference_params: Any
+        self, input_ids: torch.Tensor, inference_params: Any
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         bs = input_ids.shape[0]
         padded_bs = bs
@@ -504,15 +541,21 @@ class Mamba(Model):
 
         # Copy inputs to the static inputs of the cuda graph
         # Static inputs are potentially padded
-        cuda_graph["input_ids"][: bs] = input_ids
-        cuda_graph["inference_params"].conv_states[:, : bs] = inference_params.conv_states
-        cuda_graph["inference_params"].ssm_states[:, : bs] = inference_params.ssm_states
+        cuda_graph["input_ids"][:bs] = input_ids
+        cuda_graph["inference_params"].conv_states[
+            :, :bs
+        ] = inference_params.conv_states
+        cuda_graph["inference_params"].ssm_states[:, :bs] = inference_params.ssm_states
 
         # Replay the graph
         cuda_graph["graph"].replay()
 
-        inference_params.conv_states.copy_(cuda_graph["inference_params"].conv_states[:, :bs])
-        inference_params.ssm_states.copy_(cuda_graph["inference_params"].ssm_states[:, :bs])
+        inference_params.conv_states.copy_(
+            cuda_graph["inference_params"].conv_states[:, :bs]
+        )
+        inference_params.ssm_states.copy_(
+            cuda_graph["inference_params"].ssm_states[:, :bs]
+        )
 
         # Slice output to the correct shape
         return cuda_graph["logits"][:bs]
@@ -528,19 +571,25 @@ class Mamba(Model):
 
         if batch.inference_params is None:
             # 0 is important here
-            seqlen_offset = 0 
+            seqlen_offset = 0
             n_blocks = len(self.model.blocks)
             d_state = self.model.config.d_state
             d_conv = self.model.config.d_conv
             d_inner = self.model.config.d_inner
-            inference_params = new_inference_params(n_blocks=n_blocks, batch_size=batch_size, d_state=d_state, d_conv=d_conv, d_inner=d_inner, seqlen_offset=seqlen_offset, device=self.device, dtype=self.dtype)
+            inference_params = new_inference_params(
+                n_blocks=n_blocks,
+                batch_size=batch_size,
+                d_state=d_state,
+                d_conv=d_conv,
+                d_inner=d_inner,
+                seqlen_offset=seqlen_offset,
+                device=self.device,
+                dtype=self.dtype,
+            )
             batch.inference_params = inference_params
 
         # Forward pass
-        logits = self.forward(
-            input_ids, inference_params=batch.inference_params
-        )
-
+        logits = self.forward(input_ids, inference_params=batch.inference_params)
 
         # batch.inference_params = new_inference_params
         # Results
@@ -694,9 +743,9 @@ class Mamba(Model):
                 generations.append(generation)
 
                 # Update values
-                batch.next_token_choosers[i] = batch.next_token_choosers[i].advance_grammar(
-                    next_token_id_squeezed.item()
-                )
+                batch.next_token_choosers[i] = batch.next_token_choosers[
+                    i
+                ].advance_grammar(next_token_id_squeezed.item())
                 batch.input_ids[i, 0] = next_token_id
                 batch.all_input_ids[i] = all_input_ids
                 batch.input_lengths[i] = new_input_length

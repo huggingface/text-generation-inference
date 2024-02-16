@@ -96,7 +96,9 @@ class Seq2SeqLMBatch(Batch):
             inputs.append(r.inputs)
             requests_idx_mapping[r.id] = i
             decoder_input_lengths.append(1)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device, tokenizer))
+            next_token_choosers.append(
+                NextTokenChooser.from_pb(r.parameters, device, tokenizer)
+            )
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
@@ -351,9 +353,9 @@ class Seq2SeqLMBatch(Batch):
                     (total_batch_size, max_input_length),
                 )
             # Copy to correct indices
-            attention_mask[
-                start_index:end_index, -batch.max_input_length :
-            ] = batch.attention_mask[:, -batch.max_input_length :]
+            attention_mask[start_index:end_index, -batch.max_input_length :] = (
+                batch.attention_mask[:, -batch.max_input_length :]
+            )
 
             # Create padded tensor
             if decoder_input_ids is None:
@@ -547,9 +549,11 @@ class Seq2SeqLM(Model):
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map="auto"
-            if torch.cuda.is_available() and torch.cuda.device_count() > 1
-            else None,
+            device_map=(
+                "auto"
+                if torch.cuda.is_available() and torch.cuda.device_count() > 1
+                else None
+            ),
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
@@ -750,7 +754,7 @@ class Seq2SeqLM(Model):
 
                 if top_n_tokens > 0:
                     all_top_tokens = []
-                    for (top_token_ids, top_token_logprobs) in zip(
+                    for top_token_ids, top_token_logprobs in zip(
                         top_token_ids, top_token_logprobs
                     ):
                         toptoken_texts = self.tokenizer.batch_decode(

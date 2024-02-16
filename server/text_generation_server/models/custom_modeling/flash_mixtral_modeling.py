@@ -344,9 +344,9 @@ class BlockSparseMoE(nn.Module):
         if "gelu" in act:
             self.act = lambda x: torch.nn.functional.gelu(
                 x,
-                approximate="tanh"
-                if act in ["gelu_fast", "gelu_pytorch_tanh"]
-                else "none",
+                approximate=(
+                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                ),
             )
         elif "silu" in act:
             self.act = torch.nn.functional.silu
@@ -600,9 +600,9 @@ class DenseMoE(nn.Module):
         if "gelu" in act:
             self.act = lambda x: torch.nn.functional.gelu(
                 x,
-                approximate="tanh"
-                if act in ["gelu_fast", "gelu_pytorch_tanh"]
-                else "none",
+                approximate=(
+                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                ),
             )
         elif "silu" in act:
             self.act = torch.nn.functional.silu

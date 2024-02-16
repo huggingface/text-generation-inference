@@ -134,6 +134,7 @@ class Parameters(BaseModel):
                 raise ValidationError("`value` cannot be empty for `json` grammar")
         return v
 
+
 class Request(BaseModel):
     # Prompt
     inputs: str
