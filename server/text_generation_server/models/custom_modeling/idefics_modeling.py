@@ -123,10 +123,10 @@ def expand_inputs_for_generation(
             raise ValueError(
                 "If `is_encoder_decoder` is True, make sure that `encoder_outputs` is defined."
             )
-        encoder_outputs[
-            "last_hidden_state"
-        ] = encoder_outputs.last_hidden_state.index_select(
-            0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
+        encoder_outputs["last_hidden_state"] = (
+            encoder_outputs.last_hidden_state.index_select(
+                0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
+            )
         )
         model_kwargs["encoder_outputs"] = encoder_outputs
     return input_ids, model_kwargs

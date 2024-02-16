@@ -57,7 +57,7 @@ export function run(host, generate_payload, max_new_tokens) {
     const duration = res.timings.duration;
 
     if (res.status === 200) {
-        const body = res.json(); 
+        const body = res.json();
         const n_tokens = body.details.tokens.length;
         const latency_ms_per_token = duration / n_tokens;
         timePerToken.add(latency_ms_per_token);

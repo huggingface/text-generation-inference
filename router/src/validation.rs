@@ -31,6 +31,7 @@ pub struct Validation {
 }
 
 impl Validation {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         workers: usize,
         tokenizer: Option<Tokenizer>,

@@ -355,7 +355,9 @@ def get_linear(weight, bias, quantize):
                 "to use Exllama/GPTQ kernels for AWQ inference."
             )
         if not HAS_AWQ:
-            raise NotImplementedError("You do not seem to have awq installed, either install it (cd server &&  make install-awq), or try using GPTQ `---quantize gptq` a conversion AWQ->GPTQ will happen on the fly")
+            raise NotImplementedError(
+                "You do not seem to have awq installed, either install it (cd server &&  make install-awq), or try using GPTQ `---quantize gptq` a conversion AWQ->GPTQ will happen on the fly"
+            )
         linear = WQLinear(
             w_bit=bits,
             group_size=groupsize,
