@@ -513,7 +513,7 @@ class GrammarLogitProcessor(LogitsProcessor):
         start_time = time.time()
         if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
             schema = build_regex_from_object(schema)
-        elif grammar_type == GrammarType.OPTIONAL_GRAMMAR_TYPE_REGEX:
+        elif grammar_type == GrammarType.GRAMMAR_TYPE_OPTIONAL_JSON:
             # TODO: use a better method to handle optional grammars
             schema = f"({build_regex_from_object(schema)})|.*"
         elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:

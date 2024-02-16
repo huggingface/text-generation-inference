@@ -1,0 +1,24 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "As for the weather in Brooklyn, New York, it can vary depending on the location within the borough. According to climatereporter.com, the average temperature in August is 73 degrees Fahrenheit (23 degrees Celsius), while the humidity is 62%. In the winter (December to February), the temperature averages between 20 and 45 degrees Fahrenheit (6 to 8 degrees Celsius), with significant",
+        "name": null,
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1708103426,
+  "id": "",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "object": "text_completion",
+  "system_fingerprint": "1.4.0-native",
+  "usage": {
+    "completion_tokens": 100,
+    "prompt_tokens": 82,
+    "total_tokens": 182
+  }
+}

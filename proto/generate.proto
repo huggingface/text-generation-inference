@@ -55,6 +55,7 @@ enum GrammarType {
     GRAMMAR_TYPE_NONE = 0;
     GRAMMAR_TYPE_JSON = 1;
     GRAMMAR_TYPE_REGEX = 2;
+    GRAMMAR_TYPE_OPTIONAL_JSON = 3;
 }
 
 message NextTokenChooserParameters {

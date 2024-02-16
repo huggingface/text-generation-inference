@@ -11,6 +11,10 @@ from text_generation.types import (
     Request,
     Parameters,
     Grammar,
+    ChatRequest,
+    ChatComplete,
+    Message,
+    Tool,
 )
 from text_generation.errors import parse_error
 
@@ -58,6 +62,52 @@ class Client:
         self.headers = headers
         self.cookies = cookies
         self.timeout = timeout
+
+    def chat(
+        self,
+        messages: List[Message],
+        frequency_penalty: Optional[float] = None,
+        logit_bias: Optional[List[float]] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        max_tokens: Optional[int] = None,
+        n: Optional[int] = None,
+        presence_penalty: Optional[float] = None,
+        stream: bool = False,
+        seed: Optional[int] = None,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        tools: Optional[List[Tool]] = None,
+    ):
+        """ """
+        request = ChatRequest(
+            model="tgi",
+            messages=messages,
+            frequency_penalty=frequency_penalty,
+            logit_bias=logit_bias,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            max_tokens=max_tokens,
+            n=n,
+            presence_penalty=presence_penalty,
+            stream=stream,
+            seed=seed,
+            temperature=temperature,
+            top_p=top_p,
+            tools=tools,
+        )
+
+        resp = requests.post(
+            f"{self.base_url}/v1/chat/completions",
+            json=request.dict(),
+            headers=self.headers,
+            cookies=self.cookies,
+            timeout=self.timeout,
+        )
+        payload = resp.json()
+        if resp.status_code != 200:
+            raise parse_error(resp.status_code, payload)
+        return ChatComplete(**payload)
 
     def generate(
         self,
@@ -312,6 +362,52 @@ class AsyncClient:
         self.headers = headers
         self.cookies = cookies
         self.timeout = ClientTimeout(timeout * 60)
+
+    async def chat(
+        self,
+        messages: List[Message],
+        frequency_penalty: Optional[float] = None,
+        logit_bias: Optional[List[float]] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        max_tokens: Optional[int] = None,
+        n: Optional[int] = None,
+        presence_penalty: Optional[float] = None,
+        stream: bool = False,
+        seed: Optional[int] = None,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        tools: Optional[List[Tool]] = None,
+    ):
+        """ """
+        print("chat")
+        request = ChatRequest(
+            model="tgi",
+            messages=messages,
+            frequency_penalty=frequency_penalty,
+            logit_bias=logit_bias,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            max_tokens=max_tokens,
+            n=n,
+            presence_penalty=presence_penalty,
+            stream=stream,
+            seed=seed,
+            temperature=temperature,
+            top_p=top_p,
+            tools=tools,
+        )
+        print(self.base_url)
+        async with ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        ) as session:
+            async with session.post(
+                f"{self.base_url}/v1/chat/completions", json=request.dict()
+            ) as resp:
+                payload = await resp.json()
+                if resp.status != 200:
+                    raise parse_error(resp.status, payload)
+                return ChatComplete(**payload)
 
     async def generate(
         self,

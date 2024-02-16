@@ -23,6 +23,7 @@ from text_generation.types import (
     Token,
     BestOfSequence,
     Grammar,
+    ChatComplete,
 )
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
@@ -59,7 +60,8 @@ class ResponseComparator(JSONSnapshotExtension):
     ) -> bool:
         def convert_data(data):
             data = json.loads(data)
-
+            if isinstance(data, Dict) and "choices" in data:
+                return ChatComplete(**data)
             if isinstance(data, Dict):
                 return Response(**data)
             if isinstance(data, List):
@@ -144,6 +146,11 @@ class ResponseComparator(JSONSnapshotExtension):
                 )
             )
 
+        def eq_chat_complete(response: ChatComplete, other: ChatComplete) -> bool:
+            return (
+                response.choices[0].message.content == other.choices[0].message.content
+            )
+
         def eq_response(response: Response, other: Response) -> bool:
             return response.generated_text == other.generated_text and eq_details(
                 response.details, other.details
@@ -156,6 +163,11 @@ class ResponseComparator(JSONSnapshotExtension):
             serialized_data = [serialized_data]
         if not isinstance(snapshot_data, List):
             snapshot_data = [snapshot_data]
+
+        if isinstance(serialized_data[0], ChatComplete):
+            return len(snapshot_data) == len(serialized_data) and all(
+                [eq_chat_complete(r, o) for r, o in zip(serialized_data, snapshot_data)]
+            )
 
         return len(snapshot_data) == len(serialized_data) and all(
             [eq_response(r, o) for r, o in zip(serialized_data, snapshot_data)]

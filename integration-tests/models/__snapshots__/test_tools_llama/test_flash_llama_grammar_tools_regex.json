@@ -1,0 +1,24 @@
+{
+  "choices": [
+    {
+      "finish_reason": "eos_token",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\"function\":{\"format\": \"celsius\", \"location\": \"Brooklyn, NYC\", \"num_days\": 1255}}",
+        "name": null,
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1708103426,
+  "id": "",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "object": "text_completion",
+  "system_fingerprint": "1.4.0-native",
+  "usage": {
+    "completion_tokens": 33,
+    "prompt_tokens": 321,
+    "total_tokens": 354
+  }
+}
