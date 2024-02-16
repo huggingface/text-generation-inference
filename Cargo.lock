@@ -1398,9 +1398,9 @@ dependencies = [
 
 [[package]]
 name = "minijinja"
-version = "1.0.20"
+version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb5c5e3d2b4c0a6832bd3d571f7c19a7c1c1f05f11a6e85ae1a29f76be5f9455"
+checksum = "55e877d961d4f96ce13615862322df7c0b6d169d40cab71a7ef3f9b9e594451e"
 dependencies = [
  "serde",
 ]
@@ -2353,9 +2353,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.33"
+version = "0.38.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3cc72858054fcff6d7dea32df2aeaee6a7c24227366d7ea429aada2f26b16ad"
+checksum = "70dc5ec042f7a43c4a73241207cecc9873a06d45debb38b329f8541d85c2730f"
 dependencies = [
  "bitflags 2.5.0",
  "errno",
@@ -2401,15 +2401,15 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.4.1"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecd36cc4259e3e4514335c4a138c6b43171a8d61d8f5c9348f9fc7529416f247"
+checksum = "beb461507cee2c2ff151784c52762cf4d9ff6a61f3e80968600ed24fa837fa54"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.102.2"
+version = "0.102.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "faaa0a62740bedb9b2ef5afa303da42764c012f743917351dc9a237ea1663610"
+checksum = "f3bce581c0dd41bce533ce695a1437fa16a7ab5ac3ccfa99fe1a620a7885eabf"
 dependencies = [
  "ring 0.17.8",
  "rustls-pki-types",
@@ -2811,7 +2811,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "average",
  "clap",
@@ -2832,7 +2832,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "futures",
  "grpc-metadata",
@@ -2849,7 +2849,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "clap",
  "ctrlc",
@@ -2865,7 +2865,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "async-stream",
  "axum",
@@ -2888,7 +2888,7 @@ dependencies = [
  "serde_json",
  "text-generation-client",
  "thiserror",
- "tokenizers 0.15.1",
+ "tokenizers 0.15.2",
  "tokio",
  "tokio-stream",
  "tower-http",
@@ -3014,9 +3014,9 @@ dependencies = [
 
 [[package]]
 name = "tokenizers"
-version = "0.15.1"
+version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db445cceba5dfeb0f9702be7d6bfd91801ddcbe8fe8722defe7f2e96da75812"
+checksum = "3dd47962b0ba36e7fd33518fbf1754d136fd1474000162bbf2a8b5fcb2d3654d"
 dependencies = [
  "aho-corasick",
  "clap",
@@ -3025,7 +3025,7 @@ dependencies = [
  "getrandom",
  "hf-hub",
  "indicatif",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "lazy_static",
  "log",
  "macro_rules_attribute",
@@ -3036,7 +3036,7 @@ dependencies = [
  "rayon",
  "rayon-cond",
  "regex",
- "regex-syntax 0.7.5",
+ "regex-syntax 0.8.3",
  "serde",
  "serde_json",
  "spm_precompiled",
@@ -3703,11 +3703,11 @@ checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
 
 [[package]]
 name = "winapi-util"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f29e6f9198ba0d26b4c9f07dbe6f9ed633e1f3d5b8b414090084349e46a52596"
+checksum = "134306a13c5647ad6453e8deaec55d3a44d6021970129e6188735e74bf546697"
 dependencies = [
- "winapi",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

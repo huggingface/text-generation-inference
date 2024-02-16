@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "1.4.0"
+    "version": "1.4.1"
   },
   "paths": {
     "/": {
@@ -590,8 +590,11 @@
             "minimum": 0
           },
           "logprobs": {
-            "type": "number",
-            "format": "float",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatCompletionLogprobs"
+              }
+            ],
             "nullable": true
           }
         }
@@ -710,7 +713,7 @@
           "presence_penalty": {
             "type": "number",
             "format": "float",
-            "description": "UNUSED\nNumber between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far,\nincreasing the model's likelihood to talk about new topics",
+            "description": "Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far,\nincreasing the model's likelihood to talk about new topics",
             "example": 0.1,
             "nullable": true
           },
@@ -734,7 +737,7 @@
           "top_logprobs": {
             "type": "integer",
             "format": "int32",
-            "description": "UNUSED\nAn integer between 0 and 5 specifying the number of most likely tokens to return at each token position, each with\nan associated log probability. logprobs must be set to true if this parameter is used.",
+            "description": "An integer between 0 and 5 specifying the number of most likely tokens to return at each token position, each with\nan associated log probability. logprobs must be set to true if this parameter is used.",
             "example": "5",
             "nullable": true,
             "minimum": 0
@@ -869,6 +872,22 @@
             "type": "boolean",
             "default": "false",
             "example": true
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "format": "float",
+            "default": "null",
+            "example": 0.1,
+            "nullable": true,
+            "exclusiveMinimum": -2
+          },
+          "grammar": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GrammarType"
+              }
+            ],
+            "nullable": true
           },
           "max_new_tokens": {
             "type": "integer",
@@ -1026,6 +1045,12 @@
             "example": "null",
             "nullable": true
           },
+          "max_batch_size": {
+            "type": "integer",
+            "example": "null",
+            "nullable": true,
+            "minimum": 0
+          },
           "max_batch_total_tokens": {
             "type": "integer",
             "format": "int32",
@@ -1118,6 +1143,11 @@
           "content": {
             "type": "string",
             "example": "My name is David and I"
+          },
+          "name": {
+            "type": "string",
+            "example": "\"David\"",
+            "nullable": true
           },
           "role": {
             "type": "string",
