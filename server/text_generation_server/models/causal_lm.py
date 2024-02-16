@@ -415,14 +415,14 @@ class CausalLMBatch(Batch):
                 # We slice the keys to remove the padding from previous batches
                 past_seq_len = batch.max_input_length - 1
                 if batch.keys_head_dim_last:
-                    padded_past_keys[start_index:end_index, :, -past_seq_len:, :] = (
-                        past_keys[:, :, -past_seq_len:, :]
-                    )
+                    padded_past_keys[
+                        start_index:end_index, :, -past_seq_len:, :
+                    ] = past_keys[:, :, -past_seq_len:, :]
                 else:
                     # BLOOM case
-                    padded_past_keys[start_index:end_index, :, :, -past_seq_len:] = (
-                        past_keys[:, :, :, -past_seq_len:]
-                    )
+                    padded_past_keys[
+                        start_index:end_index, :, :, -past_seq_len:
+                    ] = past_keys[:, :, :, -past_seq_len:]
                 del past_keys
 
                 start_index = end_index
@@ -440,9 +440,9 @@ class CausalLMBatch(Batch):
                 end_index = start_index + len(batch)
                 # We slice the past values to remove the padding from previous batches
                 past_seq_len = batch.max_input_length - 1
-                padded_past_values[start_index:end_index, :, -past_seq_len:, :] = (
-                    past_values[:, :, -past_seq_len:, :]
-                )
+                padded_past_values[
+                    start_index:end_index, :, -past_seq_len:, :
+                ] = past_values[:, :, -past_seq_len:, :]
                 del past_values
 
                 # Update values

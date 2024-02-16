@@ -1,10 +1,8 @@
 import math
 import torch
 
-import json
 from loguru import logger
-from functools import lru_cache
-from typing import Optional, List, Dict, Union
+from typing import Dict, Union
 from text_generation_server.pb.generate_pb2 import GrammarType
 
 from outlines.fsm.fsm import RegexFSM
@@ -492,7 +490,7 @@ class GrammarLogitProcessor(LogitsProcessor):
         if fsm_grammar_state == -1 or self.fsm is None:
             return logits
         allowed_tokens = self.fsm.allowed_token_ids(fsm_grammar_state)
-        mask = torch.full((logits.shape[-1],), -math.inf, device=self.device)
+        mask = torch.full_like(logits, -math.inf)
         mask[allowed_tokens] = 0
         biased_scores = logits + mask
         return biased_scores
@@ -550,22 +548,15 @@ class GrammarLogitProcessor(LogitsProcessor):
         logger.debug(f"Adapted tokenizer in {time.time() - start_time:.2f}s")
         return tokenizer
 
-    def filter(self, indices):
-        new_fsms = []
-        for i in indices:
-            new_fsms.append(self.fsms[i])
-        self.fsms = new_fsms
-        return self
-
 
 class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
-    def __init__(self, tokenizer, device, grammars, grammar_type):
+    def __init__(self, tokenizer, device, grammars, grammar_types):
         self.device = device
         self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
         self.fsms = []
-        for i in range(len(grammars)):
+        for grammar, grammar_type in zip(grammars, grammar_types):
             fsm = GrammarLogitProcessor._cached_compile_fsm(
-                grammar_type[i], grammars[i], self.tokenizer
+                grammar_type, grammar, self.tokenizer
             )
             self.fsms.append(fsm)
 
@@ -573,7 +564,6 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
         self,
         logits: torch.Tensor,
         fsm_grammar_states: List[int],
-        mask: torch.Tensor,
     ):
         mask = torch.full_like(logits, -math.inf)
         for i in range(logits.shape[0]):
@@ -585,7 +575,7 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
         logits += mask
         return logits
 
-    def advance_batch(self, next_token_ids, fsm_grammar_states, grammars):
+    def advance_batch(self, next_token_ids, fsm_grammar_states):
         return [
             GrammarLogitProcessor._advance(
                 next_token_ids[i], fsm_grammar_states[i], self.fsms[i]
@@ -599,4 +589,8 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
         )
 
     def filter(self, indices):
-        return GrammarLogitProcessor.filter(self, indices)
+        new_fsms = []
+        for i in indices:
+            new_fsms.append(self.fsms[i])
+        self.fsms = new_fsms
+        return self
