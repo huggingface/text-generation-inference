@@ -460,8 +460,8 @@ class BaseFlashMistral(FlashCausalLM):
             max_s = batch.max_seqlen
             lm_head_indices = batch.prefill_head_indices
 
-        if self.model.max_past is not None:
-            max_s = min(self.model.max_past, max_s)
+        # if self.model.max_past is not None:
+        #     max_s = min(self.model.max_past, max_s)
 
         bs = input_ids.shape[0]
         padded_bs = bs
