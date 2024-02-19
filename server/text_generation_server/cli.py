@@ -128,6 +128,7 @@ def download_weights(
     auto_convert: bool = True,
     logger_level: str = "INFO",
     json_output: bool = False,
+    trust_remote_code: bool = False,
 ):
     # Remove default handler
     logger.remove()
