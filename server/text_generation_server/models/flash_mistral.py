@@ -460,7 +460,10 @@ class BaseFlashMistral(FlashCausalLM):
             max_s = batch.max_seqlen
             lm_head_indices = batch.prefill_head_indices
 
-        if self.model.max_past is not None:
+        if cu_seqlen_prefill is None and self.model.max_past is not None:
+            # In decode, not prefill, we're actually overwriting the KV-cache
+            # in a circular buffer mode.
+            # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.model.max_past, max_s)
 
         bs = input_ids.shape[0]
