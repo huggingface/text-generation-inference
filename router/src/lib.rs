@@ -46,7 +46,7 @@ impl HubTokenizerConfig {
 }
 
 mod json_object_or_string_to_string {
-    use jsonschema::JSONSchema;
+    use jsonschema::{Draft, JSONSchema};
     use serde::{Deserialize, Deserializer};
     use serde_json::Value;
 
@@ -59,6 +59,7 @@ mod json_object_or_string_to_string {
         let value = Value::deserialize(deserializer)?;
 
         JSONSchema::options()
+            .with_draft(Draft::Draft202012)
             .compile(&value)
             .map_err(|e| serde::de::Error::custom(format!("invalid JSONSchema: {e}")))?;
 
