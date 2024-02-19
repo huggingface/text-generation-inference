@@ -154,7 +154,7 @@ class Client:
         payload = resp.json()
         if resp.status_code != 200:
             raise parse_error(resp.status_code, payload)
-        return Response(**payload[0])
+        return Response(**payload)
 
     def generate_stream(
         self,
