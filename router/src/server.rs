@@ -5,7 +5,7 @@ use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionDelta,
     ChatCompletionLogprobs, ChatRequest, CompatGenerateRequest, Details, ErrorResponse,
-    FinishReason, GenerateParameters, GenerateRequest, GenerateResponse, HubModelInfo,
+    FinishReason, GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
     HubTokenizerConfig, Infer, Info, Message, PrefillToken, SimpleToken, StreamDetails,
     StreamResponse, Token, TokenizeResponse, Validation,
 };
@@ -800,6 +800,7 @@ pub async fn run(
     Info,
     CompatGenerateRequest,
     GenerateRequest,
+    GrammarType,
     ChatRequest,
     Message,
     ChatCompletionChoice,
