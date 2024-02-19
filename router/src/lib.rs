@@ -21,16 +21,17 @@ pub(crate) type GenerateStreamResponse = (
 );
 
 #[derive(Clone, Deserialize, ToSchema)]
-pub(crate) struct Instance {
+pub(crate) struct VertexInstance {
+    #[schema(example = "What is Deep Learning?")]
     pub inputs: String,
+    #[schema(nullable = true, default = "null", example = "null")]
     pub parameters: Option<GenerateParameters>,
 }
 
 #[derive(Deserialize, ToSchema)]
 pub(crate) struct VertexRequest {
-    pub instances: Vec<Instance>,
-    #[allow(dead_code)]
-    pub parameters: Option<GenerateParameters>,
+    #[serde(rename = "instances")]
+    pub instances: Vec<VertexInstance>,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
@@ -88,7 +89,7 @@ mod json_object_or_string_to_string {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, ToSchema)]
 #[serde(tag = "type", content = "value")]
 pub(crate) enum GrammarType {
     #[serde(
