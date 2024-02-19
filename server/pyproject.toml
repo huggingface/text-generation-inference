@@ -25,8 +25,8 @@ sentencepiece = "^0.1.97"
 tokenizers = "^0.14.1"
 huggingface-hub = "^0.16.4"
 peft = "^0.4.0"
-deepspeed = { git = "https://github.com/HabanaAI/DeepSpeed.git", branch = "1.13.0" }
-optimum-habana =  { git = "https://github.com/huggingface/optimum-habana.git", branch = "main" }
+deepspeed = { git = "https://github.com/HabanaAI/DeepSpeed.git", branch = "1.14.0" }
+optimum-habana =  "1.10.0"
 
 [tool.poetry.group.dev.dependencies]
 grpcio-tools = "*"
