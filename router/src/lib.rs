@@ -294,8 +294,8 @@ pub struct CompletionRequest {
     pub prompt: String,
     pub max_tokens: Option<u32>,
 
-    /// What sampling temperature to use, between 0 and 2. Higher values like 0.8 will 
-    /// make the output more random, while lower values like 0.2 will make it more 
+    /// What sampling temperature to use, between 0 and 2. Higher values like 0.8 will
+    /// make the output more random, while lower values like 0.2 will make it more
     /// focused and deterministic.
     ///
     /// We generally recommend altering this or top_p but not both.
@@ -307,6 +307,9 @@ pub struct CompletionRequest {
     pub stream: Option<bool>,
     pub seed: Option<u64>,
     pub suffix: Option<String>,
+
+    pub repetition_penalty: Option<f32>,
+    pub frequency_penalty: Option<f32>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
@@ -412,7 +415,7 @@ pub(crate) struct ChatCompletionTopLogprob {
     logprob: f32,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Default)]
 pub(crate) struct Usage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
@@ -453,7 +456,15 @@ impl ChatCompletion {
         }
     }
 }
-
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
+pub(crate) struct CompletionCompleteChunk {
+    pub id: String,
+    pub object: String,
+    pub created: u64,
+    pub choices: Vec<CompletionComplete>,
+    pub model: String,
+    pub system_fingerprint: String,
+}
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,

@@ -4,10 +4,11 @@ use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionDelta,
-    ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
-    CompletionRequest, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
-    GenerateResponse, HubModelInfo, HubTokenizerConfig, Infer, Info, Message, PrefillToken,
-    SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse, Usage, Validation,
+    ChatCompletionLogprobs, ChatRequest, CompatGenerateRequest, Completion, CompletionComplete,
+    CompletionCompleteChunk, CompletionRequest, Details, ErrorResponse, FinishReason,
+    GenerateParameters, GenerateRequest, GenerateResponse, HubModelInfo, HubTokenizerConfig, Infer,
+    Info, Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token,
+    TokenizeResponse, Usage, Validation,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -570,7 +571,6 @@ async fn completions(
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     metrics::increment_counter!("tgi_request_count");
 
-    let repetition_penalty = 1.0;
     let max_new_tokens = req.max_tokens.or(Some(100));
     let stream = req.stream.unwrap_or_default();
     let seed = req.seed;
@@ -582,7 +582,8 @@ async fn completions(
         parameters: GenerateParameters {
             best_of: None,
             temperature: req.temperature,
-            repetition_penalty: Some(repetition_penalty),
+            repetition_penalty: req.repetition_penalty,
+            frequency_penalty: req.frequency_penalty,
             top_k: None,
             top_p: req.top_p,
             typical_p: None,
@@ -596,10 +597,9 @@ async fn completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: None,
+            grammar: None,
         },
     };
-
-    
 
     if stream {
         let on_message_callback = move |stream_token: StreamResponse| {
