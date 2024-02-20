@@ -1,8 +1,8 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, Entry, GenerateRequest, GenerateStreamResponse, HubTokenizerConfig,
-    Message, PrefillToken, Queue, Token,
+    ChatTemplateInputs, Entry, FillInMiddleInputs, GenerateRequest, GenerateStreamResponse,
+    HubTokenizerConfig, Message, PrefillToken, Queue, Token,
 };
 use futures::future::try_join_all;
 use minijinja::{Environment, ErrorKind, Template};
@@ -33,6 +33,8 @@ pub struct Infer {
     shared: Arc<Shared>,
     /// Chat template
     chat_template: Option<ChatTemplate>,
+    /// Fill in middle template
+    fill_in_middle_template: Option<FillInMiddleTemplate>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
 }
@@ -88,6 +90,10 @@ impl Infer {
             .chat_template
             .map(|t| ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token));
 
+        let fill_in_middle_template = tokenizer_config
+            .fill_in_middle_template
+            .map(FillInMiddleTemplate::new);
+
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
 
@@ -96,6 +102,7 @@ impl Infer {
             queue,
             shared,
             chat_template,
+            fill_in_middle_template,
             limit_concurrent_requests: semaphore,
         }
     }
@@ -179,6 +186,25 @@ impl Infer {
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
             .apply(messages)
+            .map_err(|e| {
+                metrics::increment_counter!("tgi_request_failure", "err" => "template");
+                tracing::error!("{e}");
+                e
+            })
+    }
+
+    /// Apply the fill in the middle template to the request
+    #[instrument(skip_all)]
+    pub(crate) fn apply_fill_in_middle_template(
+        &self,
+        prompt: String,
+        prefix: Option<String>,
+        suffix: Option<String>,
+    ) -> Result<String, InferError> {
+        self.fill_in_middle_template
+            .as_ref()
+            .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
+            .apply(prompt, prefix, suffix)
             .map_err(|e| {
                 metrics::increment_counter!("tgi_request_failure", "err" => "template");
                 tracing::error!("{e}");
@@ -337,6 +363,40 @@ impl ChatTemplate {
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
                 add_generation_prompt: true,
+            })
+            .map_err(InferError::TemplateError)
+    }
+}
+
+#[derive(Clone)]
+struct FillInMiddleTemplate {
+    template: Template<'static, 'static>,
+}
+
+impl FillInMiddleTemplate {
+    fn new(template: String) -> Self {
+        let mut env = Box::new(Environment::new());
+        let template_str = template.into_boxed_str();
+        env.add_function("raise_exception", raise_exception);
+        // leaking env and template_str as read-only, static resources for performance.
+        let template = Box::leak(env)
+            .template_from_str(Box::leak(template_str))
+            .unwrap();
+
+        Self { template }
+    }
+
+    fn apply(
+        &self,
+        prompt: String,
+        prefix: Option<String>,
+        suffix: Option<String>,
+    ) -> Result<String, InferError> {
+        self.template
+            .render(FillInMiddleInputs {
+                prefix: prefix.as_deref(),
+                prompt: prompt.as_str(),
+                suffix: suffix.as_deref(),
             })
             .map_err(InferError::TemplateError)
     }

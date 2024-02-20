@@ -570,15 +570,28 @@ async fn completions(
     Json(req): Json<CompletionRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     metrics::increment_counter!("tgi_request_count");
-
     let max_new_tokens = req.max_tokens.or(Some(100));
     let stream = req.stream.unwrap_or_default();
     let seed = req.seed;
-    let suffix = req.suffix.unwrap_or_default();
+
+    let inputs = match infer.apply_fill_in_middle_template(req.prompt, None, req.suffix) {
+        Ok(inputs) => inputs,
+        Err(err) => {
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            tracing::error!("{err}");
+            return Err((
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ErrorResponse {
+                    error: err.to_string(),
+                    error_type: err.error_type().to_string(),
+                }),
+            ));
+        }
+    };
 
     // build the request passing some parameters
     let generate_request = GenerateRequest {
-        inputs: req.prompt.to_string(),
+        inputs: inputs.to_string(),
         parameters: GenerateParameters {
             best_of: None,
             temperature: req.temperature,
@@ -685,7 +698,7 @@ async fn completions(
                 finish_reason: details.finish_reason.to_string(),
                 index: 0,
                 logprobs: None,
-                text: generation.generated_text + &suffix,
+                text: generation.generated_text,
             }],
             usage: Usage {
                 prompt_tokens: details.prefill.len() as u32,
