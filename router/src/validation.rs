@@ -314,7 +314,18 @@ impl Validation {
                 }
                 match grammar {
                     // currently both are handled the same way since compilation is done in Python
-                    GrammarType::Json(json) => (json, ProtoGrammarType::Json.into()),
+                    GrammarType::Json(json) => {
+                        // JSONSchema::options()
+                        //     .with_draft(Draft::Draft202012)
+                        //     .compile(&json)
+                        //     .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
+
+                        (
+                            serde_json::to_string(&json)
+                                .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?,
+                            ProtoGrammarType::Json.into(),
+                        )
+                    }
                     GrammarType::Regex(regex) => (regex, ProtoGrammarType::Regex.into()),
                 }
             }
@@ -486,6 +497,8 @@ pub enum ValidationError {
     Tokenizer(String),
     #[error("grammar is not supported")]
     Grammar,
+    #[error("grammar is not a valid JSONSchema: {0}")]
+    InvalidGrammar(String),
 }
 
 #[cfg(test)]

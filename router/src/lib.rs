@@ -45,37 +45,6 @@ impl HubTokenizerConfig {
     }
 }
 
-mod json_object_or_string_to_string {
-    use jsonschema::{Draft, JSONSchema};
-    use serde::{Deserialize, Deserializer};
-    use serde_json::Value;
-
-    // A custom deserializer that treats both strings and objects as strings.
-    // This provides flexibility with input formats for the 'grammar' field.
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
-
-        JSONSchema::options()
-            .with_draft(Draft::Draft202012)
-            .compile(&value)
-            .map_err(|e| serde::de::Error::custom(format!("invalid JSONSchema: {e}")))?;
-
-        match value {
-            Value::String(s) => Ok(s),
-            // Safely handle serialization and return an error if it fails
-            Value::Object(o) => {
-                serde_json::to_string(&o).map_err(|e| serde::de::Error::custom(e.to_string()))
-            }
-            _ => Err(serde::de::Error::custom(
-                "expected string or object for grammar",
-            )),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 #[serde(tag = "type", content = "value")]
 pub(crate) enum GrammarType {
@@ -83,12 +52,9 @@ pub(crate) enum GrammarType {
     ///
     /// JSON Schema is a declarative language that allows to annotate JSON documents
     /// with types and descriptions.
-    #[serde(
-        rename = "json",
-        deserialize_with = "json_object_or_string_to_string::deserialize"
-    )]
+    #[serde(rename = "json")]
     #[schema(example = json ! ({"properties": {"location":{"type": "string"}}}))]
-    Json(String),
+    Json(serde_json::Value),
     #[serde(rename = "regex")]
     Regex(String),
 }
