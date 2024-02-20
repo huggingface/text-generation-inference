@@ -51,7 +51,7 @@ pub struct HubModelInfo {
 #[derive(Clone, Deserialize, Default)]
 pub struct HubTokenizerConfig {
     pub chat_template: Option<String>,
-    pub fill_in_middle_template: Option<String>,
+    pub completion_template: Option<String>,
     #[serde(deserialize_with = "token_serde::deserialize")]
     pub bos_token: Option<String>,
     #[serde(deserialize_with = "token_serde::deserialize")]
@@ -617,7 +617,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct FillInMiddleInputs<'a> {
+pub(crate) struct CompletionTemplateInputs<'a> {
     prefix: Option<&'a str>,
     prompt: &'a str,
     suffix: Option<&'a str>,

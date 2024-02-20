@@ -577,7 +577,7 @@ async fn completions(
     let stream = req.stream.unwrap_or_default();
     let seed = req.seed;
 
-    let inputs = match infer.apply_fill_in_middle_template(req.prompt, None, req.suffix) {
+    let inputs = match infer.apply_completion_template(req.prompt, None, req.suffix) {
         Ok(inputs) => inputs,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
@@ -1067,6 +1067,7 @@ pub async fn run(
     generate,
     generate_stream,
     chat_completions,
+    completions,
     tokenize,
     metrics,
     ),
@@ -1081,6 +1082,9 @@ pub async fn run(
     ChatCompletionDelta,
     ChatCompletionChunk,
     ChatCompletion,
+    CompletionRequest,
+    CompletionComplete,
+    CompletionCompleteChunk,
     GenerateParameters,
     PrefillToken,
     Token,

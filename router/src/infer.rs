@@ -1,7 +1,7 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, Entry, FillInMiddleInputs, GenerateRequest, GenerateStreamResponse,
+    ChatTemplateInputs, Entry, CompletionTemplateInputs, GenerateRequest, GenerateStreamResponse,
     HubTokenizerConfig, Message, PrefillToken, Queue, Token,
 };
 use futures::future::try_join_all;
@@ -33,8 +33,8 @@ pub struct Infer {
     shared: Arc<Shared>,
     /// Chat template
     chat_template: Option<ChatTemplate>,
-    /// Fill in middle template
-    fill_in_middle_template: Option<FillInMiddleTemplate>,
+    /// Completion template
+    completion_template: Option<CompletionTemplate>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
 }
@@ -90,9 +90,9 @@ impl Infer {
             .chat_template
             .map(|t| ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token));
 
-        let fill_in_middle_template = tokenizer_config
-            .fill_in_middle_template
-            .map(FillInMiddleTemplate::new);
+        let completion_template = tokenizer_config
+            .completion_template
+            .map(CompletionTemplate::new);
 
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
@@ -102,7 +102,7 @@ impl Infer {
             queue,
             shared,
             chat_template,
-            fill_in_middle_template,
+            completion_template,
             limit_concurrent_requests: semaphore,
         }
     }
@@ -193,15 +193,15 @@ impl Infer {
             })
     }
 
-    /// Apply the fill in the middle template to the request
+    /// Apply the completion template to the request
     #[instrument(skip_all)]
-    pub(crate) fn apply_fill_in_middle_template(
+    pub(crate) fn apply_completion_template(
         &self,
         prompt: String,
         prefix: Option<String>,
         suffix: Option<String>,
     ) -> Result<String, InferError> {
-        self.fill_in_middle_template
+        self.completion_template
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
             .apply(prompt, prefix, suffix)
@@ -369,11 +369,11 @@ impl ChatTemplate {
 }
 
 #[derive(Clone)]
-struct FillInMiddleTemplate {
+struct CompletionTemplate {
     template: Template<'static, 'static>,
 }
 
-impl FillInMiddleTemplate {
+impl CompletionTemplate {
     fn new(template: String) -> Self {
         let mut env = Box::new(Environment::new());
         let template_str = template.into_boxed_str();
@@ -393,7 +393,7 @@ impl FillInMiddleTemplate {
         suffix: Option<String>,
     ) -> Result<String, InferError> {
         self.template
-            .render(FillInMiddleInputs {
+            .render(CompletionTemplateInputs {
                 prefix: prefix.as_deref(),
                 prompt: prompt.as_str(),
                 suffix: suffix.as_deref(),
