@@ -19,6 +19,7 @@ from text_generation_server.utils.tokens import (
     Sampling,
     Greedy,
 )
+from text_generation_server.utils.gcs import GCS_PREFIX, GCS_LOCAL_DIR, download_gcs_dir_to_local
 
 __all__ = [
     "convert_file",
@@ -39,4 +40,7 @@ __all__ = [
     "StopSequenceCriteria",
     "FinishReason",
     "Weights",
+    "GCS_PREFIX",
+    "GCS_LOCAL_DIR",
+    "download_gcs_dir_to_local",
 ]
