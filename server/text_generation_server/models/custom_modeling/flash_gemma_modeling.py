@@ -68,8 +68,6 @@ answers should not include any harmful, unethical, racist, sexist, toxic, danger
 
 If a question does not make any sense, or is not factually coherent, explain why instead of answering something not \
 correct. If you don't know the answer to a question, please don't share false information."""
-
-
 # fmt: on
 
 
@@ -131,8 +129,8 @@ class GemmaTokenizerFast(PreTrainedTokenizerFast):
         if eos is None and self.add_eos_token:
             raise ValueError("add_eos_token = True but eos_token = None")
 
-        single = f"{(bos + ':0 ') if self.add_bos_token else ''}$A:0{(' ' + eos + ':0') if self.add_eos_token else ''}"
-        pair = f"{single}{(' ' + bos + ':1') if self.add_bos_token else ''} $B:1{(' ' + eos + ':1') if self.add_eos_token else ''}"
+        single = f"{(bos+':0 ') if self.add_bos_token else ''}$A:0{(' '+eos+':0') if self.add_eos_token else ''}"
+        pair = f"{single}{(' '+bos+':1') if self.add_bos_token else ''} $B:1{(' '+eos+':1') if self.add_eos_token else ''}"
 
         special_tokens = []
         if self.add_bos_token:
@@ -185,12 +183,10 @@ class GemmaTokenizerFast(PreTrainedTokenizerFast):
         return (out_vocab_file,)
 
     @property
-    # Copied from transformers.models.llama.tokenization_llama.GemmaTokenizer.default_chat_template
     def default_chat_template(self):
         raise NotImplementedError
 
     # TODO ArthurZ let's rely on the template processor instead, refactor all fast tokenizers
-    # Copied from transformers.models.llama.tokenization_llama.GemmaTokenizer.build_inputs_with_special_tokens
     def build_inputs_with_special_tokens(self, token_ids_0, token_ids_1=None):
         bos_token_id = [self.bos_token_id] if self.add_bos_token else []
         eos_token_id = [self.eos_token_id] if self.add_eos_token else []
