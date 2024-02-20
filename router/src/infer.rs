@@ -1,7 +1,7 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, Entry, CompletionTemplateInputs, GenerateRequest, GenerateStreamResponse,
+    ChatTemplateInputs, CompletionTemplateInputs, Entry, GenerateRequest, GenerateStreamResponse,
     HubTokenizerConfig, Message, PrefillToken, Queue, Token,
 };
 use futures::future::try_join_all;
