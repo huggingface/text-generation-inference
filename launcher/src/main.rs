@@ -782,7 +782,7 @@ enum LauncherError {
     WebserverCannotStart,
 }
 
-fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
+fn download_convert_model(args: &mut Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
     // Enter download tracing span
     let _span = tracing::span!(tracing::Level::INFO, "download").entered();
 
@@ -906,6 +906,9 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
             return Ok(());
         }
         sleep(Duration::from_millis(100));
+    }
+    if args.model_id.starts_with("gs://") {
+        args.model_id = "/tmp/gcs_model/".to_string();
     }
     Ok(())
 }
@@ -1192,7 +1195,7 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
 
 fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
-    let args: Args = Args::parse();
+    let mut args: Args = Args::parse();
 
     // Filter events with LOG_LEVEL
     let env_filter =
@@ -1285,7 +1288,7 @@ fn main() -> Result<(), LauncherError> {
     .expect("Error setting Ctrl-C handler");
 
     // Download and convert model weights
-    download_convert_model(&args, running.clone())?;
+    download_convert_model(&mut args, running.clone())?;
 
     if !running.load(Ordering::SeqCst) {
         // Launcher was asked to stop

@@ -192,6 +192,8 @@ def serve(
             local_url = unix_socket_template.format(uds_path, 0)
             server_urls = [local_url]
 
+        if model_id.startswith("gs://"):
+            model_id = "/tmp/gcs_model"
         try:
             model = get_model(
                 model_id,
