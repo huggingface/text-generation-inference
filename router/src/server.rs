@@ -1037,20 +1037,21 @@ pub async fn run(
     };
 
     // Define VertextApiDoc conditionally only if the "google" feature is enabled
-    #[cfg(feature = "google")]
-    #[derive(OpenApi)]
-    #[openapi(
-        paths(vertex_compatibility),
-        components(schemas(VertexInstance, VertexRequest, VertexResponse))
-    )]
-    struct VertextApiDoc;
-
     let doc = {
         // avoid `mut` if possible
         #[cfg(feature = "google")]
         {
+            use crate::VertexInstance;
+
+            #[derive(OpenApi)]
+            #[openapi(
+                paths(vertex_compatibility),
+                components(schemas(VertexInstance, VertexRequest, VertexResponse))
+            )]
+            struct VertextApiDoc;
+
             // limiting mutability to the smallest scope necessary
-            let mut doc = doc;
+            let mut doc = ApiDoc::openapi();
             doc.merge(VertextApiDoc::openapi());
             doc
         }
