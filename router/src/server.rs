@@ -2,6 +2,7 @@
 use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
+// TODO: improve readability of crate imports
 use crate::{
     BestOfSequence, ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionDelta,
     ChatCompletionLogprobs, ChatRequest, CompatGenerateRequest, Completion, CompletionComplete,
@@ -10,6 +11,7 @@ use crate::{
     Info, Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token,
     TokenizeResponse, Usage, Validation,
 };
+use crate::{GrammarType, VertexRequest, VertexResponse};
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
