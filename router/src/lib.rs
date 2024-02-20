@@ -559,7 +559,7 @@ pub(crate) struct Message {
     pub role: String,
     #[schema(example = "My name is David and I")]
     pub content: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     pub name: Option<String>,
 }
