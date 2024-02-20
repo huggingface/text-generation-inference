@@ -594,6 +594,7 @@ async fn chat_completions(
             ));
         }
     };
+    tracing::debug!("Templated input: {}", inputs);
 
     // build the request passing some parameters
     let generate_request = GenerateRequest {
