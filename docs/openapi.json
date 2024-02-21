@@ -1022,6 +1022,57 @@
           }
         }
       },
+      "GrammarType": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "json"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "description": "A string that represents a [JSON Schema](https://json-schema.org/).\n\nJSON Schema is a declarative language that allows to annotate JSON documents\nwith types and descriptions.",
+                "example": {
+                  "properties": {
+                    "location": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "regex"
+                ]
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
       "Info": {
         "type": "object",
         "required": [

@@ -893,6 +893,7 @@ pub async fn run(
     Info,
     CompatGenerateRequest,
     GenerateRequest,
+    GrammarType,
     ChatRequest,
     Message,
     ChatCompletionChoice,

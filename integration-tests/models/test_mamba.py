@@ -14,7 +14,6 @@ async def fused_kernel_mamba(fused_kernel_mamba_handle):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_mamba(fused_kernel_mamba, response_snapshot):
     response = await fused_kernel_mamba.generate(
         "What is Deep Learning?", max_new_tokens=10
@@ -26,7 +25,6 @@ async def test_mamba(fused_kernel_mamba, response_snapshot):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
     response = await fused_kernel_mamba.generate(
         "blue, red, yellow, ",
@@ -53,7 +51,6 @@ async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_mamba_load(
     fused_kernel_mamba, generate_load, generous_response_snapshot
 ):

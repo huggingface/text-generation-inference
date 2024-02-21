@@ -14,7 +14,6 @@ async def flash_medusa(flash_medusa_handle):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_medusa_simple(flash_medusa, response_snapshot):
     response = await flash_medusa.generate(
         "What is Deep Learning?", max_new_tokens=10, decoder_input_details=True
@@ -25,7 +24,6 @@ async def test_flash_medusa_simple(flash_medusa, response_snapshot):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_medusa_all_params(flash_medusa, response_snapshot):
     response = await flash_medusa.generate(
         "What is Deep Learning?",
@@ -48,7 +46,6 @@ async def test_flash_medusa_all_params(flash_medusa, response_snapshot):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_medusa_load(flash_medusa, generate_load, response_snapshot):
     responses = await generate_load(
         flash_medusa, "What is Deep Learning?", max_new_tokens=10, n=4
