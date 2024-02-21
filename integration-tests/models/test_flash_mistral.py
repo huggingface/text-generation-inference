@@ -14,7 +14,6 @@ async def flash_mistral(flash_mistral_handle):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_mistral(flash_mistral, response_snapshot):
     response = await flash_mistral.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
@@ -26,7 +25,6 @@ async def test_flash_mistral(flash_mistral, response_snapshot):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_mistral_all_params(flash_mistral, response_snapshot):
     response = await flash_mistral.generate(
         "Test request",
@@ -49,7 +47,6 @@ async def test_flash_mistral_all_params(flash_mistral, response_snapshot):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_mistral_load(flash_mistral, generate_load, response_snapshot):
     responses = await generate_load(
         flash_mistral, "Test request", max_new_tokens=10, n=4

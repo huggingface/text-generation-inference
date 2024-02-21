@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2,
+        "logprob": null,
+        "text": "<bos>"
+      },
+      {
+        "id": 2015,
+        "logprob": -10.0,
+        "text": "Test"
+      },
+      {
+        "id": 3853,
+        "logprob": -10.875,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 7539,
+        "logprob": -0.73046875,
+        "special": false,
+        "text": " forms"
+      },
+      {
+        "id": 708,
+        "logprob": 0.0,
+        "special": false,
+        "text": " are"
+      },
+      {
+        "id": 671,
+        "logprob": -1.703125,
+        "special": false,
+        "text": " an"
+      },
+      {
+        "id": 8727,
+        "logprob": 0.0,
+        "special": false,
+        "text": " essential"
+      },
+      {
+        "id": 1702,
+        "logprob": 0.0,
+        "special": false,
+        "text": " part"
+      },
+      {
+        "id": 576,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 573,
+        "logprob": 0.0,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 11859,
+        "logprob": -1.6953125,
+        "special": false,
+        "text": " lab"
+      },
+      {
+        "id": 2185,
+        "logprob": -1.3125,
+        "special": false,
+        "text": " process"
+      },
+      {
+        "id": 578,
+        "logprob": -1.5,
+        "special": false,
+        "text": " and"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request forms are an essential part of the lab process and"
+}
