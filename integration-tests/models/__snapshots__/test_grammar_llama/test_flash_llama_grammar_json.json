@@ -136,128 +136,128 @@
         "text": "\",\""
       },
       {
-        "id": 4230,
-        "logprob": -0.020492554,
-        "special": false,
-        "text": "last"
-      },
-      {
-        "id": 1170,
-        "logprob": -0.0013818741,
-        "special": false,
-        "text": "Name"
-      },
-      {
-        "id": 4710,
-        "logprob": -0.0067749023,
-        "special": false,
-        "text": "\":\""
-      },
-      {
-        "id": 29950,
-        "logprob": -0.11578369,
-        "special": false,
-        "text": "H"
-      },
-      {
-        "id": 14339,
-        "logprob": -0.004131317,
-        "special": false,
-        "text": "olt"
-      },
-      {
-        "id": 29920,
-        "logprob": -0.0033359528,
-        "special": false,
-        "text": "z"
-      },
-      {
-        "id": 3284,
-        "logprob": -0.20471191,
-        "special": false,
-        "text": "\",\""
-      },
-      {
         "id": 29882,
-        "logprob": -0.0069274902,
+        "logprob": -0.08862305,
         "special": false,
         "text": "h"
       },
       {
-        "id": 20838,
-        "logprob": -0.19580078,
+        "id": 711,
+        "logprob": -0.66259766,
         "special": false,
-        "text": "obb"
+        "text": "ob"
       },
       {
-        "id": 29891,
-        "logprob": -2.2649765e-06,
+        "id": 1609,
+        "logprob": -5.51939e-05,
         "special": false,
-        "text": "y"
+        "text": "by"
       },
       {
         "id": 4710,
-        "logprob": -0.32080078,
+        "logprob": -0.23120117,
         "special": false,
         "text": "\":\""
       },
       {
         "id": 29911,
-        "logprob": -2.1035156,
+        "logprob": -2.3730469,
         "special": false,
         "text": "T"
       },
       {
         "id": 11003,
-        "logprob": -0.020767212,
+        "logprob": -0.032104492,
         "special": false,
         "text": "rees"
       },
       {
         "id": 3284,
-        "logprob": -0.6010742,
+        "logprob": -0.22021484,
+        "special": false,
+        "text": "\",\""
+      },
+      {
+        "id": 4230,
+        "logprob": -0.06726074,
+        "special": false,
+        "text": "last"
+      },
+      {
+        "id": 1170,
+        "logprob": -0.003501892,
+        "special": false,
+        "text": "Name"
+      },
+      {
+        "id": 4710,
+        "logprob": -0.0045661926,
+        "special": false,
+        "text": "\":\""
+      },
+      {
+        "id": 29950,
+        "logprob": -0.12512207,
+        "special": false,
+        "text": "H"
+      },
+      {
+        "id": 14339,
+        "logprob": -0.009552002,
+        "special": false,
+        "text": "olt"
+      },
+      {
+        "id": 29920,
+        "logprob": -0.00042438507,
+        "special": false,
+        "text": "z"
+      },
+      {
+        "id": 3284,
+        "logprob": -0.11651611,
         "special": false,
         "text": "\",\""
       },
       {
         "id": 29876,
-        "logprob": -0.57666016,
+        "logprob": -0.29736328,
         "special": false,
         "text": "n"
       },
       {
         "id": 398,
-        "logprob": -0.0061073303,
+        "logprob": -0.003030777,
         "special": false,
         "text": "um"
       },
       {
         "id": 29907,
-        "logprob": -0.45703125,
+        "logprob": -0.3774414,
         "special": false,
         "text": "C"
       },
       {
         "id": 1446,
-        "logprob": -0.0002872944,
+        "logprob": -0.0003130436,
         "special": false,
         "text": "ats"
       },
       {
         "id": 1115,
-        "logprob": -0.0021018982,
+        "logprob": -0.0021514893,
         "special": false,
         "text": "\":"
       },
       {
         "id": 29906,
-        "logprob": -0.08996582,
+        "logprob": -0.071899414,
         "special": false,
         "text": "2"
       },
       {
         "id": 29913,
-        "logprob": -0.021697998,
+        "logprob": -0.018997192,
         "special": false,
         "text": "}"
       },
@@ -270,5 +270,5 @@
     ],
     "top_tokens": null
   },
-  "generated_text": "{\"firstName\":\"David\",\"lastName\":\"Holtz\",\"hobby\":\"Trees\",\"numCats\":2}"
+  "generated_text": "{\"firstName\":\"David\",\"hobby\":\"Trees\",\"lastName\":\"Holtz\",\"numCats\":2}"
 }
