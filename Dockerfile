@@ -218,9 +218,6 @@ COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-
 # Install flash-attention dependencies
 RUN pip install einops --no-cache-dir
 
-# Install GCS library
-RUN pip install --upgrade google-cloud-storage
-
 # Install server
 COPY proto proto
 COPY server server
