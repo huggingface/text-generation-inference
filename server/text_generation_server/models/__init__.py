@@ -120,31 +120,10 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
-
-    if model_id.startswith("bigcode/"):
-        if FLASH_ATTENTION:
-            return FlashSantacoderSharded(
-                model_id,
-                revision,
-                quantize=quantize,
-                dtype=dtype,
-                trust_remote_code=trust_remote_code,
-            )
-        elif sharded:
-            raise NotImplementedError(
-                FLASH_ATT_ERROR_MESSAGE.format("Sharded Santacoder")
-            )
-        else:
-            return SantaCoder(
-                model_id,
-                revision,
-                quantize=quantize,
-                dtype=dtype,
-                trust_remote_code=trust_remote_code,
-            )
 
     config_dict, _ = PretrainedConfig.get_config_dict(
         model_id, revision=revision, trust_remote_code=trust_remote_code
@@ -193,6 +172,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -203,6 +183,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -215,6 +196,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -224,6 +206,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -232,6 +215,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -242,6 +226,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -250,6 +235,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -258,6 +244,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -268,15 +255,16 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
-                use_medusa=use_medusa,
             )
         else:
             return CausalLM(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -291,6 +279,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -301,9 +290,9 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
-                use_medusa=use_medusa,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
@@ -312,6 +301,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -347,6 +337,7 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
+                    use_medusa=use_medusa,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
@@ -357,6 +348,7 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
+                    use_medusa=use_medusa,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
@@ -365,6 +357,7 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
+                    use_medusa=use_medusa,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
@@ -378,6 +371,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -391,6 +385,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -400,6 +395,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -409,6 +405,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -418,6 +415,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -441,6 +439,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -460,6 +459,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -468,6 +468,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )

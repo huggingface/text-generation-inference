@@ -926,15 +926,10 @@ class FlashCausalLM(Model):
             batch.slots = slots
 
         try:
-            out = self.forward(batch)
+            out, speculative_logits = self.forward(batch)
         except Exception as e:
             del batch
             raise e
-
-        if isinstance(out, tuple):
-            out, speculative_logits = out
-        else:
-            speculative_logits = None
 
         if prefill:
             next_token_logits = (
@@ -963,6 +958,9 @@ class FlashCausalLM(Model):
             batch.speculative_ids,
             speculative_logits,
         )
+        
+
+        logger.info(f"Accepted ids {accepted_ids}")
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs, accepted_ids

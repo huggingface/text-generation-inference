@@ -3,12 +3,6 @@ from dataclasses import dataclass
 from text_generation_server.utils.layers import TensorParallelHead, FastLinear
 
 
-@dataclass
-class Output:
-    logits: torch.FloatTensor = None
-    speculative_logits: torch.FloatTensor = None
-
-
 class ResBlock(torch.nn.Module):
     def __init__(self, config, prefix, weights):
         super().__init__()
