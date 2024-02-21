@@ -81,7 +81,7 @@ jobs:
           driver-opts: |
               "env.http_proxy=http://localhost:1055"
               "env.https_proxy=http://localhost:1055"
-              "env.no_proxy='localhost,127.0.0.1,::1,*.github-runners.huggingface.tech,*.amazonaws.com,*.docker.io,*.docker.com,cdn.auth0.com,*.cloudfront.net'"
+              "env.no_proxy='localhost,127.0.0.1,::1,*.ubuntu.com,*.github-runners.huggingface.tech,*.amazonaws.com,*.docker.io,*.docker.com,cdn.auth0.com,*.cloudfront.net'"
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Tailscale
