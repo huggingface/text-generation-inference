@@ -198,13 +198,12 @@ impl Infer {
     pub(crate) fn apply_completion_template(
         &self,
         prompt: String,
-        prefix: Option<String>,
         suffix: Option<String>,
     ) -> Result<String, InferError> {
         self.completion_template
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
-            .apply(prompt, prefix, suffix)
+            .apply(prompt, suffix)
             .map_err(|e| {
                 metrics::increment_counter!("tgi_request_failure", "err" => "template");
                 tracing::error!("{e}");
@@ -386,15 +385,9 @@ impl CompletionTemplate {
         Self { template }
     }
 
-    fn apply(
-        &self,
-        prompt: String,
-        prefix: Option<String>,
-        suffix: Option<String>,
-    ) -> Result<String, InferError> {
+    fn apply(&self, prompt: String, suffix: Option<String>) -> Result<String, InferError> {
         self.template
             .render(CompletionTemplateInputs {
-                prefix: prefix.as_deref(),
                 prompt: prompt.as_str(),
                 suffix: suffix.as_deref(),
             })

@@ -595,7 +595,6 @@ pub(crate) struct ChatTemplateInputs<'a> {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct CompletionTemplateInputs<'a> {
-    prefix: Option<&'a str>,
     prompt: &'a str,
     suffix: Option<&'a str>,
 }

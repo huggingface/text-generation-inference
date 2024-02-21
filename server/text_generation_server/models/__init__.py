@@ -8,7 +8,6 @@ from typing import Optional
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
-from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOMSharded
 from text_generation_server.models.mpt import MPTSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
@@ -34,7 +33,6 @@ __all__ = [
     "Model",
     "BLOOMSharded",
     "CausalLM",
-    "FlashCausalLM",
     "GalacticaSharded",
     "Seq2SeqLM",
     "SantaCoder",
@@ -45,7 +43,20 @@ __all__ = [
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
-FLASH_ATTENTION = True
+# FlashCausalLM reqiures CUDA Graphs to be enabled on the system. This will throw a RuntimeError
+# if CUDA Graphs are not available when calling `torch.cuda.graph_pool_handle()` in the FlashCausalLM
+HAS_CUDA_GRAPH = False
+try:
+    from text_generation_server.models.flash_causal_lm import FlashCausalLM
+
+    HAS_CUDA_GRAPH = True
+except RuntimeError as e:
+    logger.warning(f"Could not import FlashCausalLM: {e}")
+
+if HAS_CUDA_GRAPH:
+    __all__.append(FlashCausalLM)
+
+
 try:
     from text_generation_server.models.flash_rw import FlashRWSharded
     from text_generation_server.models.flash_neox import FlashNeoXSharded
