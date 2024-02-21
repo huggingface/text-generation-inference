@@ -574,8 +574,9 @@ async fn completions(
     Json(req): Json<CompletionRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     metrics::increment_counter!("tgi_request_count");
+
+    let stream = req.stream;
     let max_new_tokens = req.max_tokens.or(Some(100));
-    let stream = req.stream.unwrap_or_default();
     let seed = req.seed;
 
     let inputs = match infer.apply_completion_template(req.prompt, req.suffix) {
