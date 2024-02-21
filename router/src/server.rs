@@ -9,9 +9,10 @@ use crate::{
     Validation,
 };
 use crate::{
-    ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionDelta,
-    ChatCompletionLogprobs, ChatRequest, CompatGenerateRequest, Completion, CompletionComplete,
-    CompletionCompleteChunk, CompletionRequest, VertexRequest, VertexResponse,
+    ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
+    ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
+    ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
+    CompletionRequest, VertexRequest, VertexResponse,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
