@@ -79,7 +79,41 @@ class Client:
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
     ):
-        """ """
+        """ 
+        Given a list of messages, generate a response asynchronously
+
+        Args:
+            messages (`List[Message]`):
+                List of messages
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 0.0 means no penalty. See [this
+                paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            logit_bias (`List[float]`):
+                Adjust the likelihood of specified tokens
+            logprobs (`bool`):
+                Include log probabilities in the response
+            top_logprobs (`int`):
+                Include the `n` most likely tokens at each step
+            max_tokens (`int`):
+                Maximum number of generated tokens
+            n (`int`):
+                Generate `n` completions
+            presence_penalty (`float`):
+                The parameter for presence penalty. 0.0 means no penalty. See [this
+                paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            stream (`bool`):
+                Stream the response
+            seed (`int`):
+                Random sampling seed
+            temperature (`float`):
+                The value used to module the logits distribution.
+            top_p (`float`):
+                If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
+                higher are kept for generation
+            tools (`List[Tool]`):
+                List of tools to use
+        
+        """
         request = ChatRequest(
             model="tgi",
             messages=messages,
@@ -379,8 +413,41 @@ class AsyncClient:
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
     ):
-        """ """
-        print("chat")
+        """ 
+        Given a list of messages, generate a response asynchronously
+
+        Args:
+            messages (`List[Message]`):
+                List of messages
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 0.0 means no penalty. See [this
+                paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            logit_bias (`List[float]`):
+                Adjust the likelihood of specified tokens
+            logprobs (`bool`):
+                Include log probabilities in the response
+            top_logprobs (`int`):
+                Include the `n` most likely tokens at each step
+            max_tokens (`int`):
+                Maximum number of generated tokens
+            n (`int`):
+                Generate `n` completions
+            presence_penalty (`float`):
+                The parameter for presence penalty. 0.0 means no penalty. See [this
+                paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            stream (`bool`):
+                Stream the response
+            seed (`int`):
+                Random sampling seed
+            temperature (`float`):
+                The value used to module the logits distribution.
+            top_p (`float`):
+                If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
+                higher are kept for generation
+            tools (`List[Tool]`):
+                List of tools to use
+
+        """
         request = ChatRequest(
             model="tgi",
             messages=messages,
