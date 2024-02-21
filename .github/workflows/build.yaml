@@ -84,6 +84,8 @@ jobs:
         uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tailscaled-args: "--tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055"
+          version: ${{ vars.TAILSCALE_CLIENT_VERSION }}
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
@@ -169,6 +171,8 @@ jobs:
         uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tailscaled-args: "--tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055"
+          version: ${{ vars.TAILSCALE_CLIENT_VERSION }}
       - name: Prepare disks
         run: |
           sudo mkfs -t ext4 /dev/nvme1n1
@@ -212,6 +216,8 @@ jobs:
         uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tailscaled-args: "--tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055"
+          version: ${{ vars.TAILSCALE_CLIENT_VERSION }}
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
