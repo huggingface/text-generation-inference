@@ -40,6 +40,9 @@ class ResponseComparator(JSONSnapshotExtension):
         exclude=None,
         matcher=None,
     ):
+        if isinstance(data, Response):
+            data = data.dict()
+
         if isinstance(data, List):
             data = [d.dict() for d in data]
 
