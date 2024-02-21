@@ -328,7 +328,6 @@ class HeterogeneousNextTokenChooser:
             scores = scores.view(B, S, -1)
 
         next_ids = torch.zeros((B, S), device=scores.device, dtype=torch.long)
-        mask = torch.full((scores.shape[-1],), -math.inf, device=self.device)
 
         for j in range(S):
             _scores = scores[:, j]
@@ -338,10 +337,10 @@ class HeterogeneousNextTokenChooser:
                 _scores = self.repetition_processor(input_ids, _scores)
             if self.frequency_processor is not None:
                 _scores = self.frequency_processor(input_ids, _scores)
-            for warper in self.warpers:
-                _scores = warper(input_ids, _scores)
             if self.grammar_processor is not None:
                 _scores = self.grammar_processor(_scores, self.fsm_grammar_states)
+            for warper in self.warpers:
+                _scores = warper(input_ids, _scores)
             _next_ids = self.choice(_scores)
             scores[:, j] = _scores
             next_ids[:, j] = _next_ids

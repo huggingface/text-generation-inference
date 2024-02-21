@@ -19,7 +19,6 @@ async def flash_llama_grammar(flash_llama_grammar_handle):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_llama_grammar(flash_llama_grammar, response_snapshot):
     response = await flash_llama_grammar.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
@@ -30,7 +29,6 @@ async def test_flash_llama_grammar(flash_llama_grammar, response_snapshot):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_llama_grammar_regex(flash_llama_grammar, response_snapshot):
     response = await flash_llama_grammar.generate(
         "Whats Googles DNS",
@@ -49,7 +47,6 @@ async def test_flash_llama_grammar_regex(flash_llama_grammar, response_snapshot)
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
     response = await flash_llama_grammar.generate(
         "info: david holtz like trees and has two cats. ",
@@ -92,13 +89,12 @@ async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
     assert response.details.generated_tokens == 30
     assert (
         response.generated_text
-        == '{"firstName":"David","lastName":"Holtz","hobby":"Trees","numCats":2}'
+        == '{"firstName":"David","hobby":"Trees","lastName":"Holtz","numCats":2}'
     )
     assert response == response_snapshot
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_llama_grammar_load(
     flash_llama_grammar, generate_load, response_snapshot
 ):
@@ -130,7 +126,6 @@ async def test_flash_llama_grammar_load(
 # this is the same as the above test, but only fires off a single request
 # this is only to ensure that the parallel and single inference produce the same result
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_llama_grammar_single_load_instance(
     flash_llama_grammar, generate_load, response_snapshot
 ):

@@ -22,6 +22,7 @@ text-generation-client = { path = "client" }
 clap = { version = "4.4.5", features = ["derive", "env"] }
 futures = "0.3.28"
 hf-hub = { version = "0.3.0", features = ["tokio"] }
+jsonschema = { version = "0.17.1", features = ["draft202012"] }
 metrics = "0.21.1"
 metrics-exporter-prometheus = { version = "0.12.1", features = [] }
 nohash-hasher = "0.2.0"

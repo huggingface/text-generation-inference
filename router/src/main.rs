@@ -270,7 +270,7 @@ async fn main() -> Result<(), RouterError> {
     let compat_return_full_text = match &model_info.pipeline_tag {
         None => {
             tracing::warn!("no pipeline tag found for model {tokenizer_name}");
-            false
+            true
         }
         Some(pipeline_tag) => pipeline_tag.as_str() == "text-generation",
     };
