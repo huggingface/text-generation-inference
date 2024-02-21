@@ -289,7 +289,7 @@ pub struct CompletionRequest {
     pub temperature: Option<f32>,
 
     /// An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the
-    /// tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.    
+    /// tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
     #[serde(default)]
     #[schema(nullable = true, example = 0.95)]
     pub top_p: Option<f32>,
