@@ -62,8 +62,8 @@ jobs:
       group: ${{ github.workflow }}-build-and-push-image-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
         # needs: start-runner # required to start the main job when the runner is ready
-        # runs-on: [multi-gpu, nvidia-gpu, 4-a10, ci]
-    runs-on: [self-hosted, intel-cpu, 32-cpu, tgi-ci]
+    runs-on: [multi-gpu, nvidia-gpu, 4-a10, ci]
+    #runs-on: [self-hosted, intel-cpu, 32-cpu, tgi-ci]
     permissions:
       contents: write
       packages: write
@@ -216,7 +216,6 @@ jobs:
         uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          tailscaled-args: "--tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055"
           version: ${{ vars.TAILSCALE_CLIENT_VERSION }}
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
