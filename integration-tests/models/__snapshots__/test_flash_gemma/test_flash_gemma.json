@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2,
+        "logprob": null,
+        "text": "<bos>"
+      },
+      {
+        "id": 2015,
+        "logprob": -10.0,
+        "text": "Test"
+      },
+      {
+        "id": 3853,
+        "logprob": -10.875,
+        "text": " request"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 1736,
+        "logprob": -2.09375,
+        "special": false,
+        "text": " form"
+      },
+      {
+        "id": 109,
+        "logprob": -1.8671875,
+        "special": false,
+        "text": "\n\n"
+      },
+      {
+        "id": 651,
+        "logprob": -2.4375,
+        "special": false,
+        "text": "The"
+      },
+      {
+        "id": 2121,
+        "logprob": -1.8203125,
+        "special": false,
+        "text": " test"
+      },
+      {
+        "id": 3853,
+        "logprob": -0.23242188,
+        "special": false,
+        "text": " request"
+      },
+      {
+        "id": 1736,
+        "logprob": -0.08544922,
+        "special": false,
+        "text": " form"
+      },
+      {
+        "id": 603,
+        "logprob": -0.9375,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 1671,
+        "logprob": -1.671875,
+        "special": false,
+        "text": " used"
+      },
+      {
+        "id": 577,
+        "logprob": -0.40429688,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 3853,
+        "logprob": -1.1875,
+        "special": false,
+        "text": " request"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " form\n\nThe test request form is used to request"
+}

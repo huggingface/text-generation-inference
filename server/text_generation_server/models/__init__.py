@@ -52,6 +52,9 @@ try:
     from text_generation_server.models.flash_llama import (
         FlashLlama,
     )
+    from text_generation_server.models.flash_gemma import (
+        FlashGemma,
+    )
     from text_generation_server.models.flash_santacoder import (
         FlashSantacoderSharded,
     )
@@ -304,6 +307,28 @@ def get_model(
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
+        else:
+            return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    if model_type == "gemma":
+        if FLASH_ATTENTION:
+            return FlashGemma(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                use_medusa=use_medusa,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Golden Gate")
+            )
         else:
             return CausalLM(
                 model_id,
