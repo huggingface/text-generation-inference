@@ -26,7 +26,7 @@ def load_attention(config, prefix, weights):
             prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
             dim=0,
             weights=weights,
-            bias=False,
+            bias=True,
         )
 
 
