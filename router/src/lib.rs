@@ -347,7 +347,7 @@ pub(crate) struct ChatCompletionTopLogprob {
     logprob: f32,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct Usage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
