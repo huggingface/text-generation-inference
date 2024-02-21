@@ -81,7 +81,7 @@ jobs:
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Tailscale
-        uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
+        uses: tailscale/github-action@7a0b30ed3517c2244d1330e39467b95f067a33bd
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           tailscaled-args: "--tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055"
@@ -168,7 +168,7 @@ jobs:
         with:
           python-version: 3.9
       - name: Tailscale
-        uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
+        uses: tailscale/github-action@7a0b30ed3517c2244d1330e39467b95f067a33bd
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           tailscaled-args: "--tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055"
@@ -213,7 +213,7 @@ jobs:
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Tailscale
-        uses: tailscale/github-action@7bd8039bf25c23c4ab1b8d6e2cc2da2280601966
+        uses: tailscale/github-action@7a0b30ed3517c2244d1330e39467b95f067a33bd
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           version: ${{ vars.TAILSCALE_CLIENT_VERSION }}
