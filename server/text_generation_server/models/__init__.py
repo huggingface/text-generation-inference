@@ -43,6 +43,8 @@ __all__ = [
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
+FLASH_ATTENTION = True
+
 # FlashCausalLM reqiures CUDA Graphs to be enabled on the system. This will throw a RuntimeError
 # if CUDA Graphs are not available when calling `torch.cuda.graph_pool_handle()` in the FlashCausalLM
 HAS_CUDA_GRAPH = False
