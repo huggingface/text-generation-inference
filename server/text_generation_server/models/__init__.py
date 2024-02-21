@@ -327,7 +327,7 @@ def get_model(
             )
         elif sharded:
             raise NotImplementedError(
-                FLASH_ATT_ERROR_MESSAGE.format("Sharded Golden Gate")
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma")
             )
         else:
             return CausalLM(
