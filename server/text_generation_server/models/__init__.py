@@ -52,6 +52,9 @@ try:
     from text_generation_server.models.flash_llama import (
         FlashLlama,
     )
+    from text_generation_server.models.flash_qwen2 import (
+        FlashQwen2,
+    )
     from text_generation_server.models.flash_santacoder import (
         FlashSantacoderSharded,
     )
@@ -75,6 +78,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashMistral)
     __all__.append(FlashMixtral)
     __all__.append(FlashPhi)
+    __all__.append(FlashQwen2)
 
 MAMBA_AVAILABLE = True
 try:
@@ -304,6 +308,25 @@ def get_model(
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
+        else:
+            return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == "qwen2":
+        if FLASH_ATTENTION:
+            return FlashQwen2(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Qwen2"))
         else:
             return CausalLM(
                 model_id,
