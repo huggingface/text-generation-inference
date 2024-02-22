@@ -11,14 +11,14 @@
       }
     }
   ],
-  "created": 1708103426,
+  "created": 1708623212,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",
-  "system_fingerprint": "1.4.0-native",
+  "system_fingerprint": "1.4.2-native",
   "usage": {
     "completion_tokens": 33,
-    "prompt_tokens": 321,
-    "total_tokens": 354
+    "prompt_tokens": 318,
+    "total_tokens": 351
   }
 }

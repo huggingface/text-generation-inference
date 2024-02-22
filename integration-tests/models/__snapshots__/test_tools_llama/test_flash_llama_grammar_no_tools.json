@@ -1,0 +1,24 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "As an up-to-date news station, our team has access to the latest information on weather conditions in Brooklyn, New York. Here is what we have learned so far:\n\n- Located in New York City, Brooklyn has a history of harsh weather patterns, especially in winter. The city's cold penchant makes it a popular winter destination, and meteorologists predict \"bomb cyclone\" conditions in the year 2021. - Due to",
+        "name": null,
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1708623190,
+  "id": "",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "object": "text_completion",
+  "system_fingerprint": "1.4.2-native",
+  "usage": {
+    "completion_tokens": 100,
+    "prompt_tokens": 60,
+    "total_tokens": 160
+  }
+}

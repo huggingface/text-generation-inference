@@ -93,7 +93,7 @@ async def test_flash_llama_grammar_no_tools_regex(
 
     assert (
         response.choices[0].message.content
-        == "As for the weather in Brooklyn, New York, it can vary depending on the location within the borough. According to climatereporter.com, the average temperature in August is 73 degrees Fahrenheit (23 degrees Celsius), while the humidity is 62%. In the winter (December to February), the temperature averages between 20 and 45 degrees Fahrenheit (6 to 8 degrees Celsius), with significant"
+        == 'As an up-to-date news station, our team has access to the latest information on weather conditions in Brooklyn, New York. Here is what we have learned so far:\n\n- Located in New York City, Brooklyn has a history of harsh weather patterns, especially in winter. The city\'s cold penchant makes it a popular winter destination, and meteorologists predict "bomb cyclone" conditions in the year 2021. - Due to'
     )
     assert response == response_snapshot
 
@@ -107,6 +107,7 @@ async def test_flash_llama_grammar_tools_regex(
         max_tokens=100,
         seed=0,
         tools=tools,
+        presence_penalty=-1.1,
         messages=[
             {
                 "role": "system",
