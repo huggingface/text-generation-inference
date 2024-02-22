@@ -1,5 +1,6 @@
 import os
 from google.cloud import storage
+from loguru import logger
 
 GCS_PREFIX = "gs://"   
 GCS_LOCAL_DIR = "/tmp/gcs_model"
