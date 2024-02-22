@@ -6,6 +6,7 @@ members = [
     "router/grpc-metadata",
     "launcher"
 ]
+resolver = "2"
 
 [workspace.package]
 version = "1.2.0"
