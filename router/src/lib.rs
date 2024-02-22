@@ -446,23 +446,14 @@ impl ChatCompletionChunk {
     }
 }
 
-fn default_request_messages() -> Vec<Message> {
-    vec![Message {
-        role: "user".to_string(),
-        content: "My name is David and I".to_string(),
-        name: None,
-    }]
-}
-
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
 pub(crate) struct ChatRequest {
-    /// UNUSED
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
-    /// ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
+    /// [UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
     pub model: String,
-    /* NOTE: UNUSED */
+
     /// A list of messages comprising the conversation so far.
-    #[serde(default = "default_request_messages")]
+    #[schema(example = "[{\"role\": \"user\", \"content\": \"What is Deep Learning?\"}]")]
     pub messages: Vec<Message>,
 
     /// Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far,
@@ -545,6 +536,7 @@ pub(crate) struct Message {
     pub role: String,
     #[schema(example = "My name is David and I")]
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     pub name: Option<String>,
 }
