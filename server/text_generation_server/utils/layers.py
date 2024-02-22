@@ -438,25 +438,10 @@ class SpeculativeHead(nn.Module):
         use_medusa = config.use_medusa
         if use_medusa:
             from pathlib import Path
-            from huggingface_hub import hf_hub_download
-            from text_generation_server.utils.weights import Weights
             from safetensors import safe_open
             import json
-            import os
-            is_local_model = (
-                Path(use_medusa).exists() and Path(use_medusa).is_dir()
-            ) or os.getenv("WEIGHTS_CACHE_OVERRIDE", None) is not None
-
-            if not is_local_model:
-                medusa_config = hf_hub_download(
-                    use_medusa, revision=revision, filename="config.json"
-                )
-                medusa_head = hf_hub_download(
-                    use_medusa, revision=revision, filename="medusa_lm_head.pt"
-                )
-            else:
-                medusa_config = str(Path(use_medusa) / "config.json")
-                medusa_head = str(Path(use_medusa) / "medusa_lm_head.pt")
+            medusa_config = str(Path(use_medusa) / "config.json")
+            medusa_head = str(Path(use_medusa) / "medusa_lm_head.pt")
 
             with open(medusa_config, "r") as f:
                 config = json.load(f)

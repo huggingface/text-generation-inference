@@ -3,7 +3,9 @@ import torch
 from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
+from huggingface_hub import hf_hub_download
 from typing import Optional
+from pathlib import Path
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
@@ -121,7 +123,7 @@ def get_model(
 
     use_medusa = None
     if "medusa_num_heads" in config_dict:
-        use_medusa = model_id
+        medusa_model_id = model_id
         model_id = config_dict["base_model_name_or_path"]
         revision = "main"
         speculate_medusa = config_dict["medusa_num_heads"]
@@ -138,6 +140,14 @@ def get_model(
         config_dict, _ = PretrainedConfig.get_config_dict(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
+        medusa_config = hf_hub_download(
+            medusa_model_id, revision=revision, filename="config.json"
+        )
+        hf_hub_download(
+            medusa_model_id, revision=revision, filename="medusa_lm_head.pt"
+        )
+        use_medusa = Path(medusa_config).parent
+
         method = "medusa"
     else:
         method = "n-gram"
