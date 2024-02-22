@@ -79,7 +79,7 @@ class Client:
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
     ):
-        """ 
+        """
         Given a list of messages, generate a response asynchronously
 
         Args:
@@ -112,7 +112,7 @@ class Client:
                 higher are kept for generation
             tools (`List[Tool]`):
                 List of tools to use
-        
+
         """
         request = ChatRequest(
             model="tgi",
@@ -413,7 +413,7 @@ class AsyncClient:
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
     ):
-        """ 
+        """
         Given a list of messages, generate a response asynchronously
 
         Args:
