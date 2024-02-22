@@ -124,7 +124,7 @@ def download_weights(
     from text_generation_server import utils
 
     if model_id.startswith(utils.GCS_PREFIX):
-        utisls.download_gcs_dir_to_local(model_id, utils.GCS_LOCAL_DIR)
+        utils.download_gcs_dir_to_local(model_id, utils.GCS_LOCAL_DIR)
         model_id = utils.GCS_LOCAL_DIR
 
     # Test if files were already download
