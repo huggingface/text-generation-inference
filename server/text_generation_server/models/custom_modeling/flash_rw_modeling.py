@@ -613,9 +613,7 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
 
         self.transformer = FlashRWModel(config, weights)
 
-        self.lm_head = SpeculativeHead.load(
-            config, prefix="lm_head", weights=weights
-        )
+        self.lm_head = SpeculativeHead.load(config, prefix="lm_head", weights=weights)
 
     def forward(
         self,

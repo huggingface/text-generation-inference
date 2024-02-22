@@ -807,7 +807,9 @@ class FlashCausalLM(Model):
 
         return int(num_blocks * BLOCK_SIZE)
 
-    def forward(self, batch: FlashCausalLMBatch) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    def forward(
+        self, batch: FlashCausalLMBatch
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Model Forward
         if batch.speculative_ids is not None:
             input_ids = batch.input_ids
@@ -903,7 +905,11 @@ class FlashCausalLM(Model):
         # Replay the graph
         cuda_graph["graph"].replay()
         # Slice output to the correct shape
-        speculative_logits = cuda_graph["speculative_logits"][:bs] if cuda_graph["speculative_logits"] is not None else None
+        speculative_logits = (
+            cuda_graph["speculative_logits"][:bs]
+            if cuda_graph["speculative_logits"] is not None
+            else None
+        )
         logits = cuda_graph["logits"][:bs]
         return logits, speculative_logits
 
@@ -961,7 +967,6 @@ class FlashCausalLM(Model):
             batch.speculative_ids,
             speculative_logits,
         )
-        
 
         logger.info(f"Accepted ids {accepted_ids}")
 

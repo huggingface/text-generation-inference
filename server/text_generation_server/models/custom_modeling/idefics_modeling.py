@@ -272,9 +272,7 @@ class IdeficsDecoupledTensorParallelLinear(nn.Module):
         weights,
     ) -> None:
         super().__init__()
-        self.fc = SpeculativeHead.load(
-            config=config, prefix="lm_head", weights=weights
-        )
+        self.fc = SpeculativeHead.load(config=config, prefix="lm_head", weights=weights)
         self.additional_fc = FastLinear.load(
             config=config,
             prefix="lm_head.additional_fc",

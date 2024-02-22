@@ -911,10 +911,13 @@ class BloomForCausalLM(BloomPreTrainedModel):
             output = (lm_logits,) + transformer_outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
-        return CausalLMOutputWithCrossAttentions(
-            loss=loss,
-            logits=logits,
-            past_key_values=transformer_outputs.past_key_values,
-            hidden_states=transformer_outputs.hidden_states,
-            attentions=transformer_outputs.attentions,
-        ), speculative_logits
+        return (
+            CausalLMOutputWithCrossAttentions(
+                loss=loss,
+                logits=logits,
+                past_key_values=transformer_outputs.past_key_values,
+                hidden_states=transformer_outputs.hidden_states,
+                attentions=transformer_outputs.attentions,
+            ),
+            speculative_logits,
+        )

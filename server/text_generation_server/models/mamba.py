@@ -560,7 +560,11 @@ class Mamba(Model):
             cuda_graph["inference_params"].ssm_states[:, :bs]
         )
         # Slice output to the correct shape
-        speculative_logits = cuda_graph["speculative_logits"][:bs] if cuda_graph["speculative_logits"] is not None else None
+        speculative_logits = (
+            cuda_graph["speculative_logits"][:bs]
+            if cuda_graph["speculative_logits"] is not None
+            else None
+        )
         logits = cuda_graph["logits"][:bs]
         return logits, speculative_logits
 
@@ -593,7 +597,9 @@ class Mamba(Model):
             batch.inference_params = inference_params
 
         # Forward pass
-        logits, speculative_logits = self.forward(input_ids, inference_params=batch.inference_params)
+        logits, speculative_logits = self.forward(
+            input_ids, inference_params=batch.inference_params
+        )
 
         # batch.inference_params = new_inference_params
         # Results

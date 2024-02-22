@@ -379,6 +379,7 @@ class SuperLayer(nn.Module):
     def forward(self, x):
         return self.linear.forward(x)
 
+
 class ResBlock(torch.nn.Module):
     def __init__(self, config, prefix, weights):
         super().__init__()
@@ -426,6 +427,7 @@ class MedusaHead(torch.nn.Module):
         x = self.out(x)
         return x
 
+
 class SpeculativeHead(nn.Module):
     def __init__(self, lm_head, medusa):
         super().__init__()
@@ -440,6 +442,7 @@ class SpeculativeHead(nn.Module):
             from pathlib import Path
             from safetensors import safe_open
             import json
+
             medusa_config = str(Path(use_medusa) / "config.json")
             medusa_head = str(Path(use_medusa) / "medusa_lm_head.pt")
 
@@ -460,10 +463,13 @@ class SpeculativeHead(nn.Module):
             medusa = None
         return SpeculativeHead(lm_head, medusa)
 
-    def forward(self, input: torch.Tensor) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    def forward(
+        self, input: torch.Tensor
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         logits = self.lm_head(input)
         speculative_logits = self.medusa(input) if self.medusa is not None else None
         return logits, speculative_logits
+
 
 class TensorParallelHead(SuperLayer):
     def __init__(self, linear, process_group, should_gather: bool):

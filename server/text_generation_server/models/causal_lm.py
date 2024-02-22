@@ -551,7 +551,9 @@ class CausalLM(Model):
 
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], List[Tuple[torch.Tensor, torch.Tensor]]]:
+    ) -> Tuple[
+        torch.Tensor, Optional[torch.Tensor], List[Tuple[torch.Tensor, torch.Tensor]]
+    ]:
         # Model Forward
         kwargs = {
             "input_ids": input_ids,
