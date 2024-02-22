@@ -528,30 +528,53 @@ pub(crate) struct ChatRequest {
     pub tools: Option<Vec<Tool>>,
 }
 
-// TODO: define and use better types for tools
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default)]
+pub struct Tools {
+    // rename to "$function" to avoid conflicts with other fields
+    #[serde(rename = "$function")]
+    pub function: std::collections::HashMap<String, serde_json::Value>,
+    pub any_of: Vec<FunctionRef>,
+}
 
-// #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
-// enum ToolType {
-//     #[serde(rename = "function")]
-//     Function,
-// }
+// add traut to convert to serde_json::Value for tools
+impl From<Tools> for serde_json::Value {
+    fn from(tools: Tools) -> Self {
+        println!("tools: {:?}", tools);
+        let mut map = serde_json::Map::new();
+        let mut functions = serde_json::Map::new();
+        for (name, value) in tools.function {
+            functions.insert(name, value);
+        }
+        map.insert("$functions".to_string(), serde_json::json!(functions));
+        let mut properties = serde_json::Map::new();
+        let mut function = serde_json::Map::new();
+        function.insert("anyOf".to_string(), serde_json::json!(tools.any_of));
+        properties.insert("function".to_string(), serde_json::json!(function));
+        map.insert("properties".to_string(), serde_json::json!(properties));
+        serde_json::Value::Object(map)
+    }
+}
 
-// impl Default for ToolType {
-//     fn default() -> Self {
-//         ToolType::Function
-//     }
-// }
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+pub struct FunctionRef {
+    #[serde(rename = "$ref")]
+    pub _ref: String,
+}
 
-// #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
-// pub(crate) struct Function {
-//     pub description: String,
-//     pub name: String,
-//     #[serde(
-//         rename = "json",
-//         deserialize_with = "json_object_or_string_to_string::deserialize"
-//     )]
-//     pub parameters: String,
-// }
+impl FunctionRef {
+    pub fn new(name: &str) -> Self {
+        Self {
+            _ref: format!("#/$functions/{}", name),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+pub(crate) struct Function {
+    pub description: String,
+    pub name: String,
+    pub parameters: serde_json::Value,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
 pub(crate) struct Tool {
@@ -559,7 +582,7 @@ pub(crate) struct Tool {
     #[schema(example = "function")]
     pub r#type: String,
     // Grab the tool as generic JSON for debugging purposes.
-    pub function: serde_json::Value,
+    pub function: Function,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
