@@ -1,3 +1,4 @@
+import os
 from google.cloud import storage
 
 GCS_PREFIX = "gs://"   
