@@ -1133,7 +1133,7 @@ class MPTForCausalLM(MPTPreTrainedModel):
             output_hidden_states=output_hidden_states,
             use_cache=use_cache,
         )
-        logits = self.lm_head(outputs.last_hidden_state)
+        logits, speculative_logits = self.lm_head(outputs.last_hidden_state)
         if self.logit_scale is not None:
             if self.logit_scale == 0:
                 warnings.warn(
@@ -1147,12 +1147,15 @@ class MPTForCausalLM(MPTPreTrainedModel):
             loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)), labels.to(logits.device).view(-1)
             )
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
+        return (
+            CausalLMOutputWithPast(
+                loss=loss,
+                logits=logits,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+            ),
+            speculative_logits,
         )
 
     def prepare_inputs_for_generation(
