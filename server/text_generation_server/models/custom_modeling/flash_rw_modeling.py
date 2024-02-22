@@ -12,7 +12,7 @@ from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     FastLayerNorm,
     PositionRotaryEmbedding,
     get_linear,
@@ -613,7 +613,7 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
 
         self.transformer = FlashRWModel(config, weights)
 
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config, prefix="lm_head", weights=weights
         )
 

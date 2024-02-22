@@ -409,8 +409,7 @@ class BaseFlashMistral(FlashCausalLM):
                 lm_head_indices=None,
             )
             self.cuda_graphs[bs]["logits"] = logits
-            if speculative_logits is not None:
-                self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
+            self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
 
     def forward(self, batch: FlashMistralBatch) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -516,7 +515,7 @@ class BaseFlashMistral(FlashCausalLM):
         cuda_graph["graph"].replay()
 
         # Slice output to the correct shape
-        speculative_logits = cuda_graph["speculative_logits"][:bs] if "speculative_logits" in cuda_graph else None
+        speculative_logits = cuda_graph["speculative_logits"][:bs] if cuda_graph["speculative_logits"] is not None else None
         logits = cuda_graph["logits"][:bs]
         return logits, speculative_logits
 

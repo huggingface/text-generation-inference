@@ -9,7 +9,7 @@ from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
-    TensorParallelHead,
+    SpeculativeHead,
     TensorParallelEmbedding,
     FastLayerNorm,
     get_linear,
@@ -453,7 +453,7 @@ class FlashSantacoderForCausalLM(nn.Module):
     def __init__(self, config, weights):
         super().__init__()
         self.transformer = FlashSantacoderModel(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config, prefix="transformer.wte", weights=weights
         )
 

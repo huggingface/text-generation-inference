@@ -115,16 +115,6 @@ def get_model(
     else:
         set_speculate(0)
 
-    if "facebook/galactica" in model_id:
-        return GalacticaSharded(
-            model_id,
-            revision,
-            quantize=quantize,
-            use_medusa=use_medusa,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
     config_dict, _ = PretrainedConfig.get_config_dict(
         model_id, revision=revision, trust_remote_code=trust_remote_code
     )
@@ -177,7 +167,7 @@ def get_model(
             trust_remote_code=trust_remote_code,
         )
 
-    if model_type == "gpt_bigcode":
+    if model_type in {"gpt_bigcode", "gpt2"}:
         if FLASH_ATTENTION:
             return FlashSantacoderSharded(
                 model_id,
@@ -311,9 +301,9 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
-                use_medusa=use_medusa,
             )
         elif sharded:
             raise NotImplementedError(
@@ -324,6 +314,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
+                use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -448,6 +439,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )

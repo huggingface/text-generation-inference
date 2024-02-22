@@ -21,7 +21,7 @@ from text_generation_server.utils.layers import (
     TensorParallelEmbedding,
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
 )
 
@@ -1090,7 +1090,7 @@ class MPTForCausalLM(MPTPreTrainedModel):
         if not config.tie_word_embeddings:
             raise ValueError("MPTForCausalLM only supports tied word embeddings")
         self.transformer = MPTModel(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config, prefix="transformer.wte", weights=weights
         )
         self.logit_scale = None

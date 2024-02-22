@@ -37,7 +37,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     PositionRotaryEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
     FastRMSNorm,
 )
@@ -575,7 +575,7 @@ class FlashGemmaForCausalLM(torch.nn.Module):
         super().__init__()
 
         self.model = FlashGemmaModel(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config,
             prefix="model.embed_tokens" if config.tie_word_embeddings else "lm_head",
             weights=weights,

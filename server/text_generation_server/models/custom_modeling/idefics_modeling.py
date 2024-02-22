@@ -51,7 +51,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
     PositionRotaryEmbedding,
     FastLinear,
 )
@@ -272,7 +272,7 @@ class IdeficsDecoupledTensorParallelLinear(nn.Module):
         weights,
     ) -> None:
         super().__init__()
-        self.fc = TensorParallelHead.load(
+        self.fc = SpeculativeHead.load(
             config=config, prefix="lm_head", weights=weights
         )
         self.additional_fc = FastLinear.load(
