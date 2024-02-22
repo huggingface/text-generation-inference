@@ -42,8 +42,11 @@ async def test_flash_phi_all_params(flash_phi, response_snapshot):
         seed=1,
     )
 
-    assert response.details.generated_tokens == 6
-    assert response.generated_text == "Test request to send data over a network"
+    assert response.details.generated_tokens == 10
+    assert (
+        response.generated_text
+        == 'Test request to the API\n        """\n\n    def test'
+    )
     assert response == response_snapshot
 
 

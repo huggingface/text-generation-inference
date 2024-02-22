@@ -11,47 +11,47 @@
       },
       {
         "id": 49833,
-        "logprob": -10.5390625,
+        "logprob": -10.5859375,
         "text": " dég"
       },
       {
         "id": 21543,
-        "logprob": -0.14758301,
+        "logprob": -0.14794922,
         "text": "uster"
       },
       {
         "id": 447,
-        "logprob": -1.9296875,
+        "logprob": -1.9277344,
         "text": " un"
       },
       {
         "id": 46341,
-        "logprob": -15.4453125,
+        "logprob": -15.3203125,
         "text": " ort"
       },
       {
         "id": 35567,
-        "logprob": -7.59375,
+        "logprob": -7.5664062,
         "text": "olan"
       },
       {
         "id": 15,
-        "logprob": -1.3994141,
+        "logprob": -1.3974609,
         "text": ","
       },
       {
         "id": 1669,
-        "logprob": -1.578125,
+        "logprob": -1.5351562,
         "text": " il"
       },
       {
         "id": 11580,
-        "logprob": -0.9453125,
+        "logprob": -0.9423828,
         "text": " faut"
       },
       {
         "id": 3913,
-        "logprob": -3.7011719,
+        "logprob": -3.671875,
         "text": " tout"
       },
       {
@@ -60,69 +60,70 @@
         "text": " d'abord"
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
-        "id": 578,
-        "logprob": -1.6474609,
+        "id": 2997,
+        "logprob": -4.4101562,
         "special": false,
-        "text": " le"
+        "text": " vous"
       },
       {
-        "id": 5608,
-        "logprob": -2.5097656,
+        "id": 71256,
+        "logprob": -5.421875,
         "special": false,
-        "text": " faire"
+        "text": " retrouver"
       },
       {
-        "id": 159570,
-        "logprob": -6.65625,
+        "id": 693,
+        "logprob": -2.1738281,
         "special": false,
-        "text": " réch"
+        "text": " à"
       },
       {
-        "id": 810,
-        "logprob": 0.0,
+        "id": 366,
+        "logprob": -1.5322266,
         "special": false,
-        "text": "au"
+        "text": " la"
       },
       {
-        "id": 12736,
-        "logprob": 0.0,
+        "id": 221398,
+        "logprob": -2.6640625,
         "special": false,
-        "text": "ffer"
+        "text": " terrasse"
       },
       {
-        "id": 1742,
-        "logprob": -2.5859375,
+        "id": 1375,
+        "logprob": -4.375,
         "special": false,
-        "text": " au"
+        "text": " pour"
       },
       {
-        "id": 6105,
-        "logprob": -2.03125,
+        "id": 86887,
+        "logprob": -4.8203125,
         "special": false,
-        "text": " bain"
+        "text": " essayer"
       },
       {
-        "id": 88254,
-        "logprob": -0.12695312,
+        "id": 2155,
+        "logprob": -2.7421875,
         "special": false,
-        "text": "-mar"
+        "text": " ce"
       },
       {
-        "id": 641,
-        "logprob": 0.0,
+        "id": 5743,
+        "logprob": -3.1757812,
         "special": false,
-        "text": "ie"
+        "text": " jus"
       },
       {
-        "id": 2940,
-        "logprob": -3.5175781,
+        "id": 1479,
+        "logprob": -3.3554688,
         "special": false,
-        "text": " avec"
+        "text": " qui"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": " le faire réchauffer au bain-marie avec"
+  "generated_text": " vous retrouver à la terrasse pour essayer ce jus qui"
 }

@@ -30,7 +30,7 @@
         "text": " "
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
         "id": 187,
@@ -39,22 +39,22 @@
         "text": "\n"
       },
       {
-        "id": 395,
-        "logprob": -0.3125,
+        "id": 11863,
+        "logprob": -1.3125,
         "special": false,
-        "text": "and"
+        "text": "blue"
       },
       {
-        "id": 4797,
+        "id": 285,
+        "logprob": -1.1015625,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 4759,
         "logprob": 0.0,
         "special": false,
-        "text": " blue"
-      },
-      {
-        "id": 9830,
-        "logprob": -1.65625,
-        "special": false,
-        "text": " colors"
+        "text": " green"
       },
       {
         "id": 15,
@@ -63,16 +63,16 @@
         "text": "."
       },
       {
-        "id": 329,
-        "logprob": -2.4375,
+        "id": 380,
+        "logprob": -1.65625,
         "special": false,
-        "text": " A"
+        "text": " The"
       },
       {
-        "id": 1180,
-        "logprob": -1.953125,
+        "id": 3295,
+        "logprob": -0.45117188,
         "special": false,
-        "text": " number"
+        "text": " color"
       },
       {
         "id": 273,
@@ -81,19 +81,19 @@
         "text": " of"
       },
       {
-        "id": 1027,
-        "logprob": -1.5546875,
+        "id": 253,
+        "logprob": 0.0,
         "special": false,
-        "text": " different"
+        "text": " the"
       },
       {
-        "id": 3295,
-        "logprob": -0.97265625,
+        "id": 2329,
+        "logprob": -3.125,
         "special": false,
-        "text": " color"
+        "text": " air"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "blue, red, yellow, \nand blue colors. A number of different color"
+  "generated_text": "blue, red, yellow, \nblue and green. The color of the air"
 }

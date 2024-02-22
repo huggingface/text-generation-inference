@@ -23,7 +23,7 @@ async def test_mt0_base(mt0_base, response_snapshot):
         seed=1,
     )
 
-    assert response.details.generated_tokens == 5
+    assert response.details.generated_tokens == 7
     assert response == response_snapshot
 
 

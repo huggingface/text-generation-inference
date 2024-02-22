@@ -45,7 +45,7 @@ async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
     assert response.details.generated_tokens == 10
     assert (
         response.generated_text
-        == "blue, red, yellow, \nand blue colors. A number of different color"
+        == "blue, red, yellow, \nblue and green. The color of the air"
     )
     assert response == response_snapshot
 
