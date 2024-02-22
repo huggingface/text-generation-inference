@@ -105,7 +105,7 @@ class BLOOMSharded(CausalLM):
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ):
-        outputs = self.model.forward(
+        outputs, speculative_logits = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -114,4 +114,4 @@ class BLOOMSharded(CausalLM):
         )
 
         logits = outputs.logits
-        return logits, outputs.past_key_values
+        return logits, speculative_logits, outputs.past_key_values

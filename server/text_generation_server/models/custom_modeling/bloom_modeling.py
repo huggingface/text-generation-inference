@@ -904,7 +904,7 @@ class BloomForCausalLM(BloomPreTrainedModel):
         )
         hidden_states = transformer_outputs[0]
 
-        lm_logits = self.lm_head(hidden_states)
+        logits, speculative_logits = self.lm_head(hidden_states)
         loss = None
 
         if not return_dict:
@@ -913,8 +913,8 @@ class BloomForCausalLM(BloomPreTrainedModel):
 
         return CausalLMOutputWithCrossAttentions(
             loss=loss,
-            logits=lm_logits,
+            logits=logits,
             past_key_values=transformer_outputs.past_key_values,
             hidden_states=transformer_outputs.hidden_states,
             attentions=transformer_outputs.attentions,
-        )
+        ), speculative_logits

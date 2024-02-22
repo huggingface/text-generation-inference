@@ -551,7 +551,7 @@ class CausalLM(Model):
 
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
-    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
         kwargs = {
             "input_ids": input_ids,
@@ -564,7 +564,11 @@ class CausalLM(Model):
             kwargs["position_ids"] = position_ids
 
         outputs = self.model.forward(**kwargs)
-        return outputs.logits, outputs.past_key_values
+        if isinstance(outputs, tuple):
+            outputs, speculative_logits = outputs
+        else:
+            speculative_logits = None
+        return outputs.logits, speculative_logits, outputs.past_key_values
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
@@ -574,7 +578,7 @@ class CausalLM(Model):
         # slice the attention mask to the correct shape
         attention_mask = batch.attention_mask[:, : -batch.padding_right_offset]
 
-        logits, past = self.forward(
+        logits, speculative_logits, past = self.forward(
             batch.input_ids,
             attention_mask,
             batch.position_ids,

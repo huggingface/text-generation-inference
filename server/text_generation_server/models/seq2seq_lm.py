@@ -602,7 +602,7 @@ class Seq2SeqLM(Model):
         List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
     ]:
         # Model Forward
-        outputs, speculative_logits = self.model.forward(
+        outputs = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
@@ -611,6 +611,12 @@ class Seq2SeqLM(Model):
             past_key_values=past_key_values,
             use_cache=True,
         )
+        if isinstance(outputs, tuple):
+            # Our custom models
+            outputs, speculative_logits = outputs
+        else:
+            # Generic transformers models
+            speculative_logits = None
         return (
             outputs.logits,
             speculative_logits,
