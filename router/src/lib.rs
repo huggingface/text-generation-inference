@@ -526,6 +526,11 @@ pub(crate) struct ChatRequest {
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
     pub tools: Option<Vec<Tool>>,
+
+    /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub tool_choice: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default)]
@@ -536,10 +541,9 @@ pub struct Tools {
     pub any_of: Vec<FunctionRef>,
 }
 
-// add traut to convert to serde_json::Value for tools
+// Allows Tools to be converted to a valid JSON schema object
 impl From<Tools> for serde_json::Value {
     fn from(tools: Tools) -> Self {
-        println!("tools: {:?}", tools);
         let mut map = serde_json::Map::new();
         let mut functions = serde_json::Map::new();
         for (name, value) in tools.function {

@@ -86,6 +86,8 @@ class ChatRequest(BaseModel):
     top_p: Optional[float] = None
     # List of tools to be used
     tools: Optional[List[Tool]] = None
+    # Choice of tool to be used
+    tool_choice: Optional[str] = None
 
 
 class Parameters(BaseModel):

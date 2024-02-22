@@ -73,12 +73,12 @@ tools = [
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_grammar_no_tools_regex(
+async def test_flash_llama_grammar_no_tools(
     flash_llama_grammar_tools, response_snapshot
 ):
     response = await flash_llama_grammar_tools.chat(
         max_tokens=100,
-        seed=0,
+        seed=1,
         messages=[
             {
                 "role": "system",
@@ -93,19 +93,17 @@ async def test_flash_llama_grammar_no_tools_regex(
 
     assert (
         response.choices[0].message.content
-        == 'As an up-to-date news station, our team has access to the latest information on weather conditions in Brooklyn, New York. Here is what we have learned so far:\n\n- Located in New York City, Brooklyn has a history of harsh weather patterns, especially in winter. The city\'s cold penchant makes it a popular winter destination, and meteorologists predict "bomb cyclone" conditions in the year 2021. - Due to'
+        == "As of today, there is a Update available for the Brooklyn, New York, area. According to the latest forecast, it's warm with high temperatures throughout the day. It's forecasted at 75°F for today and 77°F for tomorrow. However, in autumn, the weather typically changes drastically, becoming cooler and wetter. You can find the current weather forecast for the area through your local weather service. Additionally"
     )
     assert response == response_snapshot
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_grammar_tools_regex(
-    flash_llama_grammar_tools, response_snapshot
-):
+async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_snapshot):
     response = await flash_llama_grammar_tools.chat(
         max_tokens=100,
-        seed=0,
+        seed=1,
         tools=tools,
         presence_penalty=-1.1,
         messages=[
@@ -119,9 +117,39 @@ async def test_flash_llama_grammar_tools_regex(
             },
         ],
     )
-    assert len(response.choices[0].message.content) == 81
+    assert len(response.choices[0].message.content) == 78
     assert (
         response.choices[0].message.content
-        == """{"function":{"format": "celsius", "location": "Brooklyn, NYC", "num_days": 1255}}"""
+        == """{"function":{"format": "celsius", "location": "New York, NY", "num_days": 14}}"""
+    )
+    assert response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_choice(
+    flash_llama_grammar_tools, response_snapshot
+):
+    response = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=1,
+        tools=tools,
+        tool_choice="get_current_weather",
+        presence_penalty=-1.1,
+        messages=[
+            {
+                "role": "system",
+                "content": "Youre a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "What is the weather like in Brooklyn, New York?",
+            },
+        ],
+    )
+    assert len(response.choices[0].message.content) == 62
+    assert (
+        response.choices[0].message.content
+        == """{"function":{"format": "celsius", "location": "New York, NY"}}"""
     )
     assert response == response_snapshot

@@ -78,6 +78,7 @@ class Client:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
+        tool_choice: Optional[str] = None,
     ):
         """
         Given a list of messages, generate a response asynchronously
@@ -112,6 +113,8 @@ class Client:
                 higher are kept for generation
             tools (`List[Tool]`):
                 List of tools to use
+            tool_choice (`str`):
+                The tool to use
 
         """
         request = ChatRequest(
@@ -129,6 +132,7 @@ class Client:
             temperature=temperature,
             top_p=top_p,
             tools=tools,
+            tool_choice=tool_choice,
         )
 
         resp = requests.post(
@@ -412,6 +416,7 @@ class AsyncClient:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
+        tool_choice: Optional[str] = None,
     ):
         """
         Given a list of messages, generate a response asynchronously
@@ -446,6 +451,8 @@ class AsyncClient:
                 higher are kept for generation
             tools (`List[Tool]`):
                 List of tools to use
+            tool_choice (`str`):
+                The tool to use
 
         """
         request = ChatRequest(
@@ -463,6 +470,7 @@ class AsyncClient:
             temperature=temperature,
             top_p=top_p,
             tools=tools,
+            tool_choice=tool_choice,
         )
         print(self.base_url)
         async with ClientSession(

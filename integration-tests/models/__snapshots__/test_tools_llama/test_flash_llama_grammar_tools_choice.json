@@ -5,20 +5,20 @@
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": "{\"function\":{\"format\": \"celsius\", \"location\": \"New York, NY\", \"num_days\": 14}}",
+        "content": "{\"function\":{\"format\": \"celsius\", \"location\": \"New York, NY\"}}",
         "name": null,
         "role": "assistant"
       }
     }
   ],
-  "created": 1708626137,
+  "created": 1708626030,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",
   "system_fingerprint": "1.4.2-native",
   "usage": {
-    "completion_tokens": 29,
-    "prompt_tokens": 318,
-    "total_tokens": 347
+    "completion_tokens": 21,
+    "prompt_tokens": 189,
+    "total_tokens": 210
   }
 }

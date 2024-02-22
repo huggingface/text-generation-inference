@@ -601,10 +601,31 @@ async fn chat_completions(
 
     // if theres a tools object, we need to decompose it and use the function name as the key
     // and the parameters as the value in the "$functions" object.
-    let grammar = if let Some(req_tools) = &req.tools {
+    let grammar = if let Some(ref req_tools) = &req.tools {
+        // get the tool_choice if there is one
+        let tool_choice = &req.tool_choice;
+        let tools_to_use = if let Some(tool_choice) = tool_choice {
+            // get the tool based on the tool_choice
+            let tool = req_tools
+                .iter()
+                .find(|tool| tool.function.name == *tool_choice)
+                .ok_or_else(|| {
+                    (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(ErrorResponse {
+                            error: "Input validation error".to_string(),
+                            error_type: "Input validation error".to_string(),
+                        }),
+                    )
+                })?;
+            vec![tool.clone()]
+        } else {
+            req_tools.clone()
+        };
+
         let functions: HashMap<String, Value> = {
             let mut tools = HashMap::new();
-            for tool in req_tools {
+            for tool in &tools_to_use {
                 let func = tool.function.clone();
                 let name = func.name;
                 let parameters = match func.parameters.as_object() {
@@ -627,7 +648,7 @@ async fn chat_completions(
 
         let tools = Tools {
             function: functions,
-            any_of: req_tools
+            any_of: tools_to_use
                 .iter()
                 .map(|tool| FunctionRef::new(&tool.function.name))
                 .collect(),
