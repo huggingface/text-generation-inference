@@ -20,7 +20,7 @@ async def test_bloom_560m_sharded(bloom_560m_sharded, response_snapshot):
         max_new_tokens=10,
         top_p=0.9,
         decoder_input_details=True,
-        seed=0,
+        seed=1,
     )
 
     assert response.details.generated_tokens == 10

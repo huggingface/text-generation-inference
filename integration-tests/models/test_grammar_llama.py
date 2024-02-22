@@ -34,7 +34,7 @@ async def test_flash_llama_grammar_regex(flash_llama_grammar, response_snapshot)
         "Whats Googles DNS",
         max_new_tokens=10,
         decoder_input_details=True,
-        seed=0,
+        seed=1,
         grammar={
             "type": GrammarType.Regex,  # "regex"
             "value": "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)",
@@ -52,7 +52,7 @@ async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
         "info: david holtz like trees and has two cats. ",
         max_new_tokens=100,
         decoder_input_details=True,
-        seed=0,
+        seed=1,
         grammar={
             "type": GrammarType.Json,  # "json"
             "value": json.dumps(
@@ -104,7 +104,7 @@ async def test_flash_llama_grammar_load(
         max_new_tokens=10,
         n=4,
         stop_sequences=[".com"],
-        seed=0,
+        seed=1,
         grammar={
             "type": GrammarType.Regex,  # "regex"
             "value": "[\\w-]+@([\\w-]+\\.)+[\\w-]+",  # email regex
@@ -133,7 +133,7 @@ async def test_flash_llama_grammar_single_load_instance(
         "name: david. email:  ",
         max_new_tokens=10,
         stop_sequences=[".com"],
-        seed=0,
+        seed=1,
         grammar={
             "type": GrammarType.Regex,  # "regex"
             "value": "[\\w-]+@([\\w-]+\\.)+[\\w-]+",  # email regex

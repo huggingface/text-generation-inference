@@ -20,7 +20,7 @@ async def test_bloom_560m(bloom_560, response_snapshot):
         max_new_tokens=10,
         top_p=0.9,
         decoder_input_details=True,
-        seed=0,
+        seed=1,
     )
 
     assert response.details.generated_tokens == 10
@@ -42,7 +42,7 @@ async def test_bloom_560m_all_params(bloom_560, response_snapshot):
         typical_p=0.9,
         watermark=True,
         decoder_input_details=True,
-        seed=0,
+        seed=1,
     )
 
     assert response.details.generated_tokens == 10

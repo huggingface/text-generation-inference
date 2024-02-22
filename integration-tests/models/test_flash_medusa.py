@@ -38,7 +38,7 @@ async def test_flash_medusa_all_params(flash_medusa, response_snapshot):
         typical_p=0.9,
         watermark=True,
         decoder_input_details=True,
-        seed=0,
+        seed=1,
     )
 
     assert response.details.generated_tokens == 10

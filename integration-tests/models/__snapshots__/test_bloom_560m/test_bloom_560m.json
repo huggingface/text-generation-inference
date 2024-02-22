@@ -60,69 +60,70 @@
         "text": " d'abord"
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
-        "id": 578,
-        "logprob": -1.6591797,
+        "id": 2997,
+        "logprob": -4.4101562,
         "special": false,
-        "text": " le"
+        "text": " vous"
       },
       {
-        "id": 5608,
-        "logprob": -2.4492188,
+        "id": 71256,
+        "logprob": -5.3828125,
         "special": false,
-        "text": " faire"
+        "text": " retrouver"
       },
       {
-        "id": 159570,
-        "logprob": -6.6835938,
+        "id": 693,
+        "logprob": -2.1308594,
         "special": false,
-        "text": " réch"
+        "text": " à"
       },
       {
-        "id": 810,
-        "logprob": 0.0,
+        "id": 366,
+        "logprob": -1.5234375,
         "special": false,
-        "text": "au"
+        "text": " la"
       },
       {
-        "id": 12736,
-        "logprob": 0.0,
+        "id": 221398,
+        "logprob": -2.671875,
         "special": false,
-        "text": "ffer"
+        "text": " terrasse"
       },
       {
-        "id": 1742,
-        "logprob": -2.5175781,
+        "id": 1375,
+        "logprob": -4.375,
         "special": false,
-        "text": " au"
+        "text": " pour"
       },
       {
-        "id": 6105,
-        "logprob": -2.0078125,
+        "id": 86887,
+        "logprob": -4.859375,
         "special": false,
-        "text": " bain"
+        "text": " essayer"
       },
       {
-        "id": 88254,
-        "logprob": -0.12695312,
+        "id": 2155,
+        "logprob": -2.7519531,
         "special": false,
-        "text": "-mar"
+        "text": " ce"
       },
       {
-        "id": 641,
-        "logprob": 0.0,
+        "id": 5743,
+        "logprob": -3.1992188,
         "special": false,
-        "text": "ie"
+        "text": " jus"
       },
       {
-        "id": 2940,
-        "logprob": -3.5175781,
+        "id": 1479,
+        "logprob": -3.3203125,
         "special": false,
-        "text": " avec"
+        "text": " qui"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": " le faire réchauffer au bain-marie avec"
+  "generated_text": " vous retrouver à la terrasse pour essayer ce jus qui"
 }

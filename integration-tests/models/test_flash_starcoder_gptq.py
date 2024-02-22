@@ -34,7 +34,7 @@ async def test_flash_starcoder_gptq_default_params(
         temperature=0.2,
         top_p=0.95,
         decoder_input_details=True,
-        seed=0,
+        seed=1,
     )
     assert response.details.generated_tokens == 20
     assert response == generous_response_snapshot
