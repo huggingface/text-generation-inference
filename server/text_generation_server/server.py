@@ -204,6 +204,9 @@ def serve(
         except KeyboardInterrupt:
             logger.info("Signal received. Shutting down")
             await server.stop(0)
+        finally:
+            if hasattr(model,'finish_quantization_measurements'):
+                model.finish_quantization_measurements()
 
     logger.info(
         "Starting Server : model_id= {}, revision = {}  dtype = {}  sharded = {} ".format(

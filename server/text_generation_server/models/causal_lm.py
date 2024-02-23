@@ -4,15 +4,16 @@ import itertools
 import time
 import glob
 
-from text_generation_server.utils.tokens import batch_top_tokens
 import torch
 
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase, AutoConfig
 from typing import Optional, Tuple, List, Type, Dict
-from habana_frameworks.torch.hpu import wrap_in_hpu_graph
+
+import text_generation_server.habana_quantization_env as hq_env
 import habana_frameworks.torch as htorch
+from habana_frameworks.torch.hpu import wrap_in_hpu_graph
 from contextlib import nullcontext
 from optimum.habana.utils import HabanaProfile, to_gb_rounded
 
@@ -23,6 +24,7 @@ from optimum.habana.checkpoint_utils import (
     write_checkpoints_json,
 )
 
+from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
     Batch,
@@ -491,6 +493,8 @@ class CausalLM(Model):
         dtype: Optional[torch.dtype] = None,
     ):
         device = torch.device("hpu")
+        if hq_env.is_quantization_enabled:
+            htorch.core.hpu_set_env()
 
         dtype = torch.bfloat16 if dtype is None else dtype
 
@@ -555,6 +559,7 @@ class CausalLM(Model):
                 ds_inference_kwargs["checkpoint"] = checkpoints_json.name
             model = deepspeed.init_inference(model, **ds_inference_kwargs)
             model = model.module
+            model = self.prepare_model_for_quantization(model)
             model = remove_kv_cache_from_output(model)
             if self.enable_hpu_graph:
                 model = wrap_in_hpu_graph(model, disable_tensor_cache=True)
@@ -566,11 +571,13 @@ class CausalLM(Model):
                 revision=revision,
                 torch_dtype=dtype,
             )
+            model = self.prepare_model_for_quantization(model)
             model = model.eval().to(device)
             # wrap in hpu_graph only if self.enable_hpu_graph is set
             model = remove_kv_cache_from_output(model)
             if self.enable_hpu_graph:
                 model = wrap_in_hpu_graph(model, disable_tensor_cache=True)
+        model = self.setup_quantization(model)
 
         if model.config.model_type in MODELS_OPTIMIZED_WITH_STATIC_SHAPES:
             self.is_optimized_for_gaudi = True
@@ -620,6 +627,36 @@ class CausalLM(Model):
             self.hb_profer = None
             self.hb_profer_started = False
         self.step = 0
+
+    def setup_quantization(self, model):
+        if hq_env.is_quantization_enabled:
+            htorch.core.quantization._mark_params_as_const(model)
+            htorch.core.quantization._check_params_as_const(model)
+            htorch.core.hpu_initialize(model)
+        return model
+
+    def prepare_model_for_quantization(self, model):
+        if hq_env.is_quantization_enabled:
+            if model.config.model_type == "llama":
+                self.patch_scoped_linear_all_reduce(model)
+            import habana_quantization_toolkit
+            habana_quantization_toolkit.prep_model(model)
+        return model
+
+    def finish_quantization_measurements(self, model):
+        if hq_env.is_quantization_enabled:
+            import habana_quantization_toolkit
+            habana_quantization_toolkit.finish_measurements(self.model)
+        return model
+
+    def patch_scoped_linear_all_reduce(self, model):
+        from deepspeed.module_inject.layers import LinearAllreduce
+        from optimum.habana.transformers.models.modeling_all_models import ScopedLinearAllReduce
+        for name, module in model.named_children():
+            if type(module) is LinearAllreduce:
+                SL = ScopedLinearAllReduce(mod=module)
+                setattr(model, name, SL)
+            self.patch_scoped_linear_all_reduce(module)
 
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
