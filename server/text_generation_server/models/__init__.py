@@ -140,13 +140,17 @@ def get_model(
         config_dict, _ = PretrainedConfig.get_config_dict(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
-        medusa_config = hf_hub_download(
-            medusa_model_id, revision=revision, filename="config.json"
-        )
-        hf_hub_download(
-            medusa_model_id, revision=revision, filename="medusa_lm_head.pt"
-        )
-        use_medusa = Path(medusa_config).parent
+        is_local = Path(medusa_model_id).exists()
+        if not is_local:
+            medusa_config = hf_hub_download(
+                medusa_model_id, revision=revision, filename="config.json"
+            )
+            hf_hub_download(
+                medusa_model_id, revision=revision, filename="medusa_lm_head.pt"
+            )
+            use_medusa = Path(medusa_config).parent
+        else:
+            use_medusa = Path(medusa_model_id)
 
         method = "medusa"
     else:

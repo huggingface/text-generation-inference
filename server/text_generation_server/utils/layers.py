@@ -444,11 +444,10 @@ class SpeculativeHead(nn.Module):
             import json
 
             medusa_config = str(Path(use_medusa) / "config.json")
-            medusa_head = str(Path(use_medusa) / "medusa_lm_head.pt")
+            filename = str(Path(use_medusa) / "medusa_lm_head.safetensors")
 
             with open(medusa_config, "r") as f:
                 config = json.load(f)
-            filename = medusa_head[: -len(".pt")] + ".safetensors"
             routing = weights.routing
             with safe_open(filename, framework="pytorch") as f:
                 for k in f.keys():
