@@ -87,7 +87,7 @@ class GemmaTokenizerFast(PreTrainedTokenizerFast):
         bos_token="<bos>",
         eos_token="<eos>",
         pad_token="<pad>",
-        add_bos_token=True,
+        add_bos_token=False,
         add_eos_token=False,
         use_default_system_prompt=False,
         **kwargs,
