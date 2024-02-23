@@ -44,6 +44,7 @@ if 'GRAPH_VISUALIZATION' in os.environ:
         os.remove(f)
 
 BATCH_BUCKET_SIZE = int(os.environ.get('BATCH_BUCKET_SIZE', 8))
+PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get('PAD_SEQUENCE_TO_MULTIPLE_OF', 128))
 PREFILL_BATCH_BUCKET_SIZE = int(os.environ.get('PREFILL_BATCH_BUCKET_SIZE', 4))
 DBG_TRACE_FILENAME = os.environ.get('DBG_TRACE_FILENAME')
 START_TS = None
@@ -376,21 +377,24 @@ class CausalLMBatch(Batch):
         tokenized_inputs = tokenizer(
             [r.data.inputs for r in requests] + dummy_inputs,
             return_tensors="pt",
-            padding="max_length",
+            padding="longest",
             return_token_type_ids=False,
             truncation=True,
             max_length=max_input_length,
         )
 
         input_len = tokenized_inputs["input_ids"].shape[1]
+
+        bucket_size = max_input_length
+        left_padding = max_input_length - input_len
+        if input_len < max_input_length and PAD_SEQUENCE_TO_MULTIPLE_OF != 0:
+            assert PAD_SEQUENCE_TO_MULTIPLE_OF <= max_input_length, "PAD_SEQUENCE_TO_MULTIPLE_OF cannot be higher than max_input_length"
+            bucket_size = round_up(input_len + 1, PAD_SEQUENCE_TO_MULTIPLE_OF) - 1
+            left_padding = bucket_size - input_len
+
         extra_padding = 0
         if is_optimized_for_gaudi and max_total_tokens > 0:
-            extra_padding = max(extra_padding, max_total_tokens - max_input_length - max_new_tokens)
-
-        for r in requests:
-            r.input_length = input_len
-            r.prefix_offset = input_len - 5
-            r.read_offset = input_len
+            extra_padding = max(extra_padding, max_total_tokens - (bucket_size + 1) - max_new_tokens)
 
         input_ids = tokenized_inputs["input_ids"]
         attention_mask = tokenized_inputs["attention_mask"]
@@ -398,18 +402,23 @@ class CausalLMBatch(Batch):
         if is_optimized_for_gaudi:
             # Allocate space for first token
             input_ids = torch.nn.functional.pad(
-                input_ids, (0, 1), value=tokenizer.pad_token_id
+                input_ids, (left_padding, 1), value=tokenizer.pad_token_id
             )
             attention_mask = torch.nn.functional.pad(
-                attention_mask, (0, 1), value=0
+                attention_mask, (left_padding, 1), value=0
             )
             all_input_ids = torch.nn.functional.pad(
-                input_ids, (0, max_new_tokens + extra_padding - 1), value=tokenizer.pad_token_id
+                input_ids, (0, max_new_tokens + extra_padding), value=tokenizer.pad_token_id
             ).T.split(1, dim=1)
         else:
             all_input_ids = input_ids.clone().T.split(1, dim=1)
 
+        # New input length after left padding
+        input_len = bucket_size
         for r in requests:
+            r.input_length = input_len
+            r.prefix_offset = input_len - 5
+            r.read_offset = input_len
             r.all_input_ids = all_input_ids[r.idx]
 
         input_ids = input_ids.to(device)
@@ -429,7 +438,7 @@ class CausalLMBatch(Batch):
             next_token_chooser=next_token_chooser,
             top_n_tokens=top_n_tokens,
             top_n_tokens_tensor=top_n_tokens_tensor,
-            input_length=max_input_length,
+            input_length=input_len,
             right_padding=max_new_tokens + extra_padding if is_optimized_for_gaudi else 0
         )
 

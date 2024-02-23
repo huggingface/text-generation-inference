@@ -374,7 +374,7 @@ def make_tokenizer_optional(tokenizer):
             max_length
         ):
             assert return_tensors == "pt", "inccorrect input arguments when calling TransparentTokenizer"
-            assert padding == "max_length", "inccorrect input arguments when calling TransparentTokenizer"
+            assert padding == "max_length" or padding == "longest", "inccorrect input arguments when calling TransparentTokenizer"
             assert return_token_type_ids == False, "inccorrect input arguments when calling TransparentTokenizer"
             assert truncation == True, "inccorrect input arguments when calling TransparentTokenizer"
 
@@ -385,8 +385,10 @@ def make_tokenizer_optional(tokenizer):
                     return int(i)
             all_tokens = [[str_token_to_int(i.strip()) for i in inner_text.split(',')]
                           for inner_text in text]
-            return {"input_ids": torch.tensor([[tokenizer.pad_token_id] * (max_length-len(tokens)) + tokens for tokens in all_tokens], dtype=torch.int32),
-                    "attention_mask": torch.tensor([[0] * (max_length-len(tokens)) + [1]*len(tokens) for tokens in all_tokens], dtype=torch.int32)}
+            if padding == "longest":
+                max_length = max(len(tokens) for tokens in all_tokens)
+            return {"input_ids": torch.tensor([[tokenizer.pad_token_id] * (max_length - len(tokens)) + tokens for tokens in all_tokens], dtype=torch.int32),
+                    "attention_mask": torch.tensor([[0] * (max_length - len(tokens)) + [1] * len(tokens) for tokens in all_tokens], dtype=torch.int32)}
 
         def decode(
             self,
