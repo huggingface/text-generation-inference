@@ -13,7 +13,6 @@ async def flash_gemma(flash_gemma_handle):
     return flash_gemma_handle.client
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma(flash_gemma, response_snapshot):
@@ -25,7 +24,6 @@ async def test_flash_gemma(flash_gemma, response_snapshot):
     assert response == response_snapshot
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma_all_params(flash_gemma, response_snapshot):
@@ -49,7 +47,6 @@ async def test_flash_gemma_all_params(flash_gemma, response_snapshot):
     assert response == response_snapshot
 
 
-# @pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma_load(flash_gemma, generate_load, response_snapshot):

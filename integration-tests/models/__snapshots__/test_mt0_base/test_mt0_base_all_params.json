@@ -10,11 +10,11 @@
         "text": "<pad>"
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
         "id": 16017,
-        "logprob": -0.30908203,
+        "logprob": -0.3112793,
         "special": false,
         "text": " blue"
       },
@@ -25,38 +25,38 @@
         "text": " sky"
       },
       {
+        "id": 305,
+        "logprob": -1.8779297,
+        "special": false,
+        "text": " and"
+      },
+      {
         "id": 259,
-        "logprob": -0.28271484,
+        "logprob": -0.91503906,
         "special": false,
         "text": " "
       },
       {
-        "id": 15484,
-        "logprob": -1.7929688,
+        "id": 262,
+        "logprob": -1.1533203,
         "special": false,
-        "text": "appear"
+        "text": "a"
       },
       {
-        "id": 345,
-        "logprob": -0.8935547,
+        "id": 35622,
+        "logprob": -0.47705078,
         "special": false,
-        "text": "ed"
+        "text": " cloud"
       },
       {
-        "id": 281,
+        "id": 276,
         "logprob": 0.0,
         "special": false,
-        "text": " in"
-      },
-      {
-        "id": 287,
-        "logprob": 0.0,
-        "special": false,
-        "text": " the"
+        "text": "y"
       },
       {
         "id": 20495,
-        "logprob": -0.32299805,
+        "logprob": 0.0,
         "special": false,
         "text": " sky"
       },
@@ -66,7 +66,8 @@
         "special": true,
         "text": "</s>"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": "Why is the sky blue?blue sky appeared in the sky"
+  "generated_text": "Why is the sky blue?blue sky and a cloudy sky"
 }
