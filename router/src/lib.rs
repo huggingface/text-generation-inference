@@ -358,10 +358,11 @@ impl ChatCompletion {
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
-        output: String,
+        output: Option<String>,
         created: u64,
         details: Details,
         return_logprobs: bool,
+        tool_calls: Option<ToolCall>,
     ) -> Self {
         Self {
             id: String::new(),
@@ -375,6 +376,7 @@ impl ChatCompletion {
                     role: "assistant".into(),
                     content: output,
                     name: None,
+                    tool_calls,
                 },
                 logprobs: return_logprobs
                     .then(|| ChatCompletionLogprobs::from((details.tokens, details.top_tokens))),
@@ -527,10 +529,61 @@ pub(crate) struct ChatRequest {
     #[schema(nullable = true, example = "null")]
     pub tools: Option<Vec<Tool>>,
 
+    /// A prompt to be appended before the tools
+    #[serde(default = "default_tool_prompt")]
+    pub tool_prompt: Option<String>,
+
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
-    pub tool_choice: Option<String>,
+    #[serde(deserialize_with = "deserialize_tool_choice::deserialize")]
+    pub tool_choice: Option<ToolType>,
+}
+
+fn default_tool_prompt() -> Option<String> {
+    Some(
+        "\nBased on the conversation, please choose the most appropriate tool to use: ".to_string(),
+    )
+}
+#[derive(Clone, Deserialize, ToSchema, Serialize)]
+enum ToolType {
+    FunctionName(String),
+    OneOf,
+}
+
+/// Deserialize the tool choice from the JSON input or from the function name ("none" is allowed but mapped to None)
+mod deserialize_tool_choice {
+    use super::*;
+    use serde::de;
+    use serde::Deserializer;
+    use serde_json::Value;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<ToolType>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+
+        match value {
+            Value::String(s) => match s.as_str() {
+                "none" => Ok(None),
+                "auto" => Ok(Some(ToolType::OneOf)),
+                _ => Ok(Some(ToolType::FunctionName(s))),
+            },
+            Value::Object(map) => {
+                if let Some(content) = map
+                    .get("function")
+                    .and_then(|v| v.get("name"))
+                    .and_then(|v| v.as_str())
+                {
+                    Ok(Some(ToolType::FunctionName(content.to_string())))
+                } else {
+                    Err(de::Error::custom("function key not found in tool choice"))
+                }
+            }
+            _ => Err(de::Error::custom("invalid token format")),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default)]
@@ -575,7 +628,8 @@ impl FunctionRef {
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
 pub(crate) struct Function {
-    pub description: String,
+    #[serde(default)]
+    pub description: Option<String>,
     pub name: String,
     pub parameters: serde_json::Value,
 }
@@ -597,15 +651,24 @@ pub(crate) struct ChatTemplateInputs<'a> {
     add_generation_prompt: bool,
 }
 
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
+pub(crate) struct ToolCall {
+    pub id: u32,
+    pub r#type: String,
+    pub function: Function,
+}
+
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
 pub(crate) struct Message {
     #[schema(example = "user")]
     pub role: String,
     #[schema(example = "My name is David and I")]
-    pub content: String,
+    pub content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<ToolCall>,
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]

@@ -10,7 +10,7 @@ use crate::{
     HubTokenizerConfig, Infer, Info, Message, PrefillToken, SimpleToken, StreamDetails,
     StreamResponse, Token, TokenizeResponse, Usage, Validation, VertexRequest, VertexResponse,
 };
-use crate::{FunctionRef, Tools};
+use crate::{Function, FunctionRef, ToolCall, ToolType, Tools};
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -583,6 +583,16 @@ async fn chat_completions(
     let logprobs = req.logprobs.unwrap_or(false);
     let seed = req.seed;
 
+    if stream && req.tools.is_some() {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: "Tools are not supported with stream".to_string(),
+                error_type: "Input validation error".to_string(),
+            }),
+        ));
+    }
+
     // apply chat template to flatten the request into a single input
     let mut inputs = match infer.apply_chat_template(req.messages) {
         Ok(inputs) => inputs,
@@ -599,52 +609,34 @@ async fn chat_completions(
         }
     };
 
-    // if theres a tools object, we need to decompose it and use the function name as the key
-    // and the parameters as the value in the "$functions" object.
-    let grammar = if let Some(ref req_tools) = &req.tools {
-        // get the tool_choice if there is one
-        let tool_choice = &req.tool_choice;
-        let tools_to_use = if let Some(tool_choice) = tool_choice {
-            // get the tool based on the tool_choice
-            let tool = req_tools
-                .iter()
-                .find(|tool| tool.function.name == *tool_choice)
-                .ok_or_else(|| {
-                    (
-                        StatusCode::UNPROCESSABLE_ENTITY,
-                        Json(ErrorResponse {
-                            error: "Input validation error".to_string(),
-                            error_type: "Input validation error".to_string(),
-                        }),
-                    )
-                })?;
-            vec![tool.clone()]
-        } else {
-            req_tools.clone()
-        };
-
-        let functions: HashMap<String, Value> = {
-            let mut tools = HashMap::new();
-            for tool in &tools_to_use {
-                let func = tool.function.clone();
-                let name = func.name;
-                let parameters = match func.parameters.as_object() {
-                    Some(parameters) => parameters.clone(),
-                    None => {
-                        return Err((
+    let tool_grammar = if let Some((req_tools, tool_choice)) = req.tools.zip(req.tool_choice) {
+        let tool_prompt = req.tool_prompt.unwrap_or_default();
+        let tools_to_use = match tool_choice {
+            ToolType::FunctionName(name) => {
+                vec![req_tools
+                    .iter()
+                    .find(|tool| tool.function.name == *name)
+                    .ok_or_else(|| {
+                        (
                             StatusCode::UNPROCESSABLE_ENTITY,
                             Json(ErrorResponse {
                                 error: "Input validation error".to_string(),
                                 error_type: "Input validation error".to_string(),
                             }),
-                        ))
-                    }
-                };
-
-                tools.insert(name, Value::Object(parameters));
+                        )
+                    })?
+                    .clone()]
             }
-            tools
+            ToolType::OneOf => req_tools.to_owned(),
         };
+
+        let functions: HashMap<String, Value> = tools_to_use
+            .iter()
+            .map(|tool| {
+                let func = tool.function.clone();
+                (func.name, func.parameters)
+            })
+            .collect();
 
         let tools = Tools {
             function: functions,
@@ -654,7 +646,6 @@ async fn chat_completions(
                 .collect(),
         };
 
-        // update the input
         let tools_str = serde_json::to_string(&tools).map_err(|e| {
             (
                 StatusCode::UNPROCESSABLE_ENTITY,
@@ -664,12 +655,7 @@ async fn chat_completions(
                 }),
             )
         })?;
-
-        let tool_prompt =
-            "Based on the conversation, please choose the most appropriate tool to use:"
-                .to_string();
-        inputs = format!("{inputs}\n\n{tool_prompt}\n\n{tools_str}\n\n");
-
+        inputs = format!("{inputs}{tool_prompt}{tools_str}");
         Some(GrammarType::Json(tools.into()))
     } else {
         None
@@ -696,7 +682,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: None,
-            grammar,
+            grammar: tool_grammar.clone(),
         },
     };
 
@@ -760,14 +746,41 @@ async fn chat_completions(
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
+        let (tool_calls, output) = if tool_grammar.is_some() {
+            // gen_text should be valid json
+            let gen_text_value: Value =
+                serde_json::from_str(&generation.generated_text).map_err(|e| {
+                    (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(ErrorResponse {
+                            error: e.to_string(),
+                            error_type: "Input validation error".to_string(),
+                        }),
+                    )
+                })?;
+
+            let tool_call = Some(ToolCall {
+                id: 0,
+                r#type: "function".to_string(),
+                function: Function {
+                    description: None,
+                    name: "tools".to_string(),
+                    parameters: gen_text_value.get("function").unwrap().clone(),
+                },
+            });
+            (tool_call, None)
+        } else {
+            (None, Some(generation.generated_text))
+        };
         // build the complete response object with the full text
         let response = ChatCompletion::new(
             model_id,
             system_fingerprint,
-            generation.generated_text,
+            output,
             current_time,
             generation.details.unwrap(),
             logprobs,
+            tool_calls,
         );
 
         // wrap generation inside a Vec to match api-inference
