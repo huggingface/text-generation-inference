@@ -1,0 +1,84 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+          "id": 2271,
+          "text": "Test",
+          "logprob": null
+      },
+      {
+          "id": 1681,
+          "text": " request",
+          "logprob": -7.0351562
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+          "id": 311,
+          "text": " to",
+          "logprob": -1.4472656,
+          "special": false
+      },
+      {
+          "id": 633,
+          "text": " get",
+          "logprob": -0.4741211,
+          "special": false
+      },
+      {
+          "id": 264,
+          "text": " a",
+          "logprob": 0.0,
+          "special": false
+      },
+      {
+          "id": 1140,
+          "text": " list",
+          "logprob": 0.0,
+          "special": false
+      },
+      {
+          "id": 315,
+          "text": " of",
+          "logprob": 0.0,
+          "special": false
+      },
+      {
+          "id": 678,
+          "text": " all",
+          "logprob": 0.0,
+          "special": false
+      },
+      {
+          "id": 279,
+          "text": " the",
+          "logprob": -0.2590332,
+          "special": false
+      },
+      {
+          "id": 3847,
+          "text": " users",
+          "logprob": -0.45239258,
+          "special": false
+      },
+      {
+          "id": 304,
+          "text": " in",
+          "logprob": -0.12322998,
+          "special": false
+      },
+      {
+          "id": 419,
+          "text": " this",
+          "logprob": -1.7275391,
+          "special": false
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request to get a list of all the users in this"
+}
