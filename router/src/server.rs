@@ -3,11 +3,12 @@ use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
-    BestOfSequence, ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionDelta,
-    ChatCompletionLogprobs, ChatRequest, CompatGenerateRequest, Details, ErrorResponse,
+    BestOfSequence, ChatCompletion, ChatCompletionChoice, ChatCompletionChunk,
+    ChatCompletionComplete, ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs,
+    ChatCompletionTopLogprob, ChatRequest, CompatGenerateRequest, Details, ErrorResponse,
     FinishReason, GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
     HubTokenizerConfig, Infer, Info, Message, PrefillToken, SimpleToken, StreamDetails,
-    StreamResponse, Token, TokenizeResponse, Validation, VertexRequest, VertexResponse,
+    StreamResponse, Token, TokenizeResponse, Usage, Validation, VertexRequest, VertexResponse,
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -896,9 +897,13 @@ pub async fn run(
     GrammarType,
     ChatRequest,
     Message,
+    ChatCompletionComplete,
     ChatCompletionChoice,
     ChatCompletionDelta,
     ChatCompletionChunk,
+    ChatCompletionLogprob,
+    ChatCompletionLogprobs,
+    ChatCompletionTopLogprob,
     ChatCompletion,
     GenerateParameters,
     PrefillToken,
@@ -913,6 +918,7 @@ pub async fn run(
     StreamDetails,
     ErrorResponse,
     GrammarType,
+    Usage,
     )
     ),
     tags(
