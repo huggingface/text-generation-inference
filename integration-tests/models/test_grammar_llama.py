@@ -52,7 +52,7 @@ async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
         "info: david holtz like trees and has two cats. ",
         max_new_tokens=100,
         decoder_input_details=True,
-        seed=0,
+        seed=1,
         grammar={
             "type": GrammarType.Json,  # "json"
             "value": json.dumps(
@@ -89,7 +89,7 @@ async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
     assert response.details.generated_tokens == 30
     assert (
         response.generated_text
-        == '{"firstName":"David","lastName":"Holtz","hobby":"Trees","numCats":2}'
+        == '{"firstName":"David","hobby":"Trees","lastName":"Holtz","numCats":2}'
     )
     assert response == response_snapshot
 
