@@ -52,7 +52,7 @@ async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
         "info: david holtz like trees and has two cats. ",
         max_new_tokens=100,
         decoder_input_details=True,
-        seed=1,
+        seed=0,
         grammar={
             "type": GrammarType.Json,  # "json"
             "value": json.dumps(
