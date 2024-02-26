@@ -723,7 +723,7 @@ class FlashCausalLM(Model):
         torch.cuda.synchronize()
 
         with torch.cuda.graph(graph, pool=MEM_POOL):
-            self.cuda_graphs[bs]["logits"] = self.model.forward(
+            logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
                 cu_seqlen_prefill=None,
@@ -734,6 +734,8 @@ class FlashCausalLM(Model):
                 max_s=max_s,
                 lm_head_indices=None,
             )
+            self.cuda_graphs[bs]["logits"] = logits
+            self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
 
     def warmup(self, batch: FlashCausalLMBatch):
@@ -805,7 +807,9 @@ class FlashCausalLM(Model):
 
         return int(num_blocks * BLOCK_SIZE)
 
-    def forward(self, batch: FlashCausalLMBatch) -> torch.Tensor:
+    def forward(
+        self, batch: FlashCausalLMBatch
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Model Forward
         if batch.speculative_ids is not None:
             input_ids = batch.input_ids
@@ -900,9 +904,14 @@ class FlashCausalLM(Model):
 
         # Replay the graph
         cuda_graph["graph"].replay()
-
         # Slice output to the correct shape
-        return cuda_graph["logits"][:bs]
+        speculative_logits = (
+            cuda_graph["speculative_logits"][:bs]
+            if cuda_graph["speculative_logits"] is not None
+            else None
+        )
+        logits = cuda_graph["logits"][:bs]
+        return logits, speculative_logits
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
@@ -926,15 +935,10 @@ class FlashCausalLM(Model):
             batch.slots = slots
 
         try:
-            out = self.forward(batch)
+            out, speculative_logits = self.forward(batch)
         except Exception as e:
             del batch
             raise e
-
-        if isinstance(out, tuple):
-            out, speculative_logits = out
-        else:
-            speculative_logits = None
 
         if prefill:
             next_token_logits = (

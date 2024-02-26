@@ -51,7 +51,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
     PositionRotaryEmbedding,
     FastLinear,
 )
@@ -272,9 +272,7 @@ class IdeficsDecoupledTensorParallelLinear(nn.Module):
         weights,
     ) -> None:
         super().__init__()
-        self.fc = TensorParallelHead.load(
-            config=config, prefix="lm_head", weights=weights
-        )
+        self.fc = SpeculativeHead.load(config=config, prefix="lm_head", weights=weights)
         self.additional_fc = FastLinear.load(
             config=config,
             prefix="lm_head.additional_fc",
@@ -283,11 +281,11 @@ class IdeficsDecoupledTensorParallelLinear(nn.Module):
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        output = self.fc(input)
+        output, speculative_logits = self.fc(input)
         additional_features = self.additional_fc(input)
         output = torch.cat((output, additional_features), -1)
 
-        return output
+        return output, speculative_logits
 
     def extra_repr(self) -> str:
         """Overwriting `nn.Linear.extra_repr` to include new parameters."""
@@ -1503,17 +1501,20 @@ class IdeficsForVisionText2Text(IdeficsPreTrainedModel):
         )
 
         hidden_states = outputs[0]
-        logits = self.lm_head(hidden_states)
+        logits, speculative_logits = self.lm_head(hidden_states)
 
         loss = None
 
-        return CausalLMOutputWithPastImage(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-            image_hidden_states=outputs.image_hidden_states,
+        return (
+            CausalLMOutputWithPastImage(
+                loss=loss,
+                logits=logits,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+                image_hidden_states=outputs.image_hidden_states,
+            ),
+            speculative_logits,
         )
 
     def prepare_inputs_for_generation(self, input_ids, past=None, **kwargs):

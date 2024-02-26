@@ -32,7 +32,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     PositionRotaryEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
     FastRMSNorm,
 )
@@ -410,7 +410,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         super().__init__()
 
         self.model = FlashLlamaModel(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config,
             prefix="lm_head",
             weights=weights,
@@ -427,7 +427,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         input_lengths: torch.Tensor,
         max_s: int,
         lm_head_indices: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         hidden_states = self.model(
             input_ids,
             position_ids,
@@ -440,5 +440,5 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
-        logits = self.lm_head(hidden_states)
-        return logits
+        logits, speculative_logits = self.lm_head(hidden_states)
+        return logits, speculative_logits
