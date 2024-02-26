@@ -532,6 +532,7 @@ class Seq2SeqLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -596,6 +597,7 @@ class Seq2SeqLM(Model):
         past_key_values: Optional = None,
     ) -> Tuple[
         torch.Tensor,
+        Optional[torch.Tensor],
         torch.Tensor,
         List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
     ]:
@@ -609,8 +611,15 @@ class Seq2SeqLM(Model):
             past_key_values=past_key_values,
             use_cache=True,
         )
+        if isinstance(outputs, tuple):
+            # Our custom models
+            outputs, speculative_logits = outputs
+        else:
+            # Generic transformers models
+            speculative_logits = None
         return (
             outputs.logits,
+            speculative_logits,
             outputs.encoder_last_hidden_state,
             outputs.past_key_values,
         )
@@ -635,7 +644,7 @@ class Seq2SeqLM(Model):
         else:
             encoder_last_hidden_state = None
 
-        logits, encoder_last_hidden_state, past = self.forward(
+        logits, speculative_logits, encoder_last_hidden_state, past = self.forward(
             batch.input_ids,
             batch.attention_mask,
             batch.decoder_input_ids,

@@ -236,6 +236,7 @@ def launcher(event_loop):
         use_flash_attention: bool = True,
         disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
+        revision: Optional[str] = None,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -268,6 +269,9 @@ def launcher(event_loop):
         if dtype is not None:
             args.append("--dtype")
             args.append(dtype)
+        if revision is not None:
+            args.append("--revision")
+            args.append(revision)
         if trust_remote_code:
             args.append("--trust-remote-code")
 
@@ -302,6 +306,7 @@ def launcher(event_loop):
         use_flash_attention: bool = True,
         disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
+        revision: Optional[str] = None,
     ):
         port = random.randint(8000, 10_000)
 
@@ -317,6 +322,9 @@ def launcher(event_loop):
         if dtype is not None:
             args.append("--dtype")
             args.append(dtype)
+        if revision is not None:
+            args.append("--revision")
+            args.append(revision)
         if trust_remote_code:
             args.append("--trust-remote-code")
 

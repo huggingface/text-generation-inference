@@ -3,7 +3,9 @@ import torch
 from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
+from huggingface_hub import hf_hub_download
 from typing import Optional
+from pathlib import Path
 
 # Needed to properly setup habana_frameworks
 import text_generation_server.habana_quantization_env as hq_env
@@ -37,7 +39,8 @@ def get_model(
 
     use_medusa = None
     if "medusa_num_heads" in config_dict:
-        use_medusa = model_id
+        medusa_model_id = model_id
+        medusa_revision = revision
         model_id = config_dict["base_model_name_or_path"]
         revision = "main"
         speculate_medusa = config_dict["medusa_num_heads"]
@@ -54,6 +57,20 @@ def get_model(
         config_dict, _ = PretrainedConfig.get_config_dict(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
+        is_local = Path(medusa_model_id).exists()
+        if not is_local:
+            medusa_config = hf_hub_download(
+                medusa_model_id, revision=medusa_revision, filename="config.json"
+            )
+            hf_hub_download(
+                medusa_model_id,
+                revision=medusa_revision,
+                filename="medusa_lm_head.safetensors",
+            )
+            use_medusa = Path(medusa_config).parent
+        else:
+            use_medusa = Path(medusa_model_id)
+
         method = "medusa"
     else:
         method = "n-gram"
@@ -65,12 +82,30 @@ def get_model(
     model_type = config_dict["model_type"]
 
     if model_type == "gpt_bigcode":
-        return SantaCoder(model_id, revision, dtype)
+        return SantaCoder(
+            model_id,
+            revision,
+            use_medusa=use_medusa,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
     if model_type == "bloom":
-        return BLOOM(model_id, revision, dtype)
+        return BLOOM(
+            model_id,
+            revision,
+            use_medusa=use_medusa,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        return CausalLM(model_id, revision, dtype)
+        return CausalLM(
+            model_id,
+            revision,
+            use_medusa=use_medusa,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
     raise ValueError(f"Unsupported model type {model_type}")

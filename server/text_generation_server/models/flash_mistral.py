@@ -294,6 +294,7 @@ class BaseFlashMistral(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -319,6 +320,7 @@ class BaseFlashMistral(FlashCausalLM):
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
+        config.use_medusa = use_medusa
 
         # Set context windows
         if config.sliding_window is not None:
@@ -394,7 +396,7 @@ class BaseFlashMistral(FlashCausalLM):
         torch.cuda.synchronize()
 
         with torch.cuda.graph(graph, pool=MEM_POOL):
-            self.cuda_graphs[bs]["logits"] = self.model.forward(
+            logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
                 cu_seqlen_prefill=None,
@@ -406,9 +408,13 @@ class BaseFlashMistral(FlashCausalLM):
                 prefill_cache_indices=None,
                 lm_head_indices=None,
             )
+            self.cuda_graphs[bs]["logits"] = logits
+            self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
 
-    def forward(self, batch: FlashMistralBatch) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, batch: FlashMistralBatch
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Model Forward
         if batch.speculative_ids is not None:
             input_ids = batch.input_ids
@@ -479,7 +485,7 @@ class BaseFlashMistral(FlashCausalLM):
         cuda_graph = self.cuda_graphs.get(padded_bs, None)
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
-            logits = self.model.forward(
+            logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
                 cu_seqlen_prefill=cu_seqlen_prefill,
@@ -493,7 +499,7 @@ class BaseFlashMistral(FlashCausalLM):
             )
             if batch.prefill_cache_indices is not None:
                 batch.prefill_cache_indices = None
-            return logits
+            return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph
         # Static inputs are potentially padded
@@ -511,7 +517,13 @@ class BaseFlashMistral(FlashCausalLM):
         cuda_graph["graph"].replay()
 
         # Slice output to the correct shape
-        return cuda_graph["logits"][:bs]
+        speculative_logits = (
+            cuda_graph["speculative_logits"][:bs]
+            if cuda_graph["speculative_logits"] is not None
+            else None
+        )
+        logits = cuda_graph["logits"][:bs]
+        return logits, speculative_logits
 
 
 class FlashMistral(BaseFlashMistral):
@@ -520,6 +532,7 @@ class FlashMistral(BaseFlashMistral):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -529,6 +542,7 @@ class FlashMistral(BaseFlashMistral):
             model_id=model_id,
             revision=revision,
             quantize=quantize,
+            use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )

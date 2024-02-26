@@ -12,7 +12,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     PositionRotaryEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
     FastLayerNorm,
 )
@@ -376,7 +376,7 @@ class FlashPhiForCausalLM(torch.nn.Module):
         super().__init__()
 
         self.model = FlashPhiModel(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config,
             prefix="lm_head",
             weights=weights,

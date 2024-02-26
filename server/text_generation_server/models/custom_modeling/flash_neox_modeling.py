@@ -33,7 +33,7 @@ from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     FastLayerNorm,
     PositionRotaryEmbedding,
     get_linear,
@@ -369,7 +369,7 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         super().__init__(config)
         self.gpt_neox = FlashGPTNeoXModel(config, weights)
 
-        self.embed_out = TensorParallelHead.load(
+        self.embed_out = SpeculativeHead.load(
             config, prefix="embed_out", weights=weights
         )
 

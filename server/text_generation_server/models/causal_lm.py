@@ -573,7 +573,9 @@ class CausalLM(Model):
         self,
         model_id: str,
         revision: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
     ):
         adapt_transformers_to_gaudi()
 
@@ -583,6 +585,7 @@ class CausalLM(Model):
             revision=revision,
             padding_side="left",
             truncation_side="left",
+            trust_remote_code=trust_remote_code,
         )
         make_tokenizer_optional(tokenizer)
 
@@ -615,6 +618,7 @@ class CausalLM(Model):
                 model_id,
                 revision=revision,
                 torch_dtype=dtype,
+                trust_remote_code=trust_remote_code,
                 **model_kwargs
             )
             model = self.prepare_model_for_quantization(model)

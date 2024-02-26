@@ -21,7 +21,7 @@ from text_generation_server.utils.layers import (
     TensorParallelEmbedding,
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
 )
 
@@ -1090,7 +1090,7 @@ class MPTForCausalLM(MPTPreTrainedModel):
         if not config.tie_word_embeddings:
             raise ValueError("MPTForCausalLM only supports tied word embeddings")
         self.transformer = MPTModel(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config, prefix="transformer.wte", weights=weights
         )
         self.logit_scale = None
@@ -1133,7 +1133,7 @@ class MPTForCausalLM(MPTPreTrainedModel):
             output_hidden_states=output_hidden_states,
             use_cache=use_cache,
         )
-        logits = self.lm_head(outputs.last_hidden_state)
+        logits, speculative_logits = self.lm_head(outputs.last_hidden_state)
         if self.logit_scale is not None:
             if self.logit_scale == 0:
                 warnings.warn(
@@ -1147,12 +1147,15 @@ class MPTForCausalLM(MPTPreTrainedModel):
             loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)), labels.to(logits.device).view(-1)
             )
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
+        return (
+            CausalLMOutputWithPast(
+                loss=loss,
+                logits=logits,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+            ),
+            speculative_logits,
         )
 
     def prepare_inputs_for_generation(

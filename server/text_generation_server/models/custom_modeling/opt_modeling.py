@@ -32,7 +32,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
 )
 
 EPS = 1e-5
@@ -748,7 +748,7 @@ class OPTForCausalLM(OPTPreTrainedModel):
 
         self.model = OPTModel(config, weights)
 
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config, prefix="model.decoder.embed_tokens", weights=weights
         )
 
