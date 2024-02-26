@@ -64,6 +64,7 @@ try:
     from text_generation_server.models.flash_mistral import FlashMistral
     from text_generation_server.models.flash_mixtral import FlashMixtral
     from text_generation_server.models.flash_phi import FlashPhi
+    from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
     from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
 
 except ImportError as e:
@@ -80,6 +81,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashMistral)
     __all__.append(FlashMixtral)
     __all__.append(FlashPhi)
+    __all__.append(FlashStarcoder2)
 
 MAMBA_AVAILABLE = True
 try:
@@ -176,6 +178,16 @@ def get_model(
 
     if model_type == "ssm":
         return Mamba(
+            model_id,
+            revision,
+            quantize=quantize,
+            use_medusa=use_medusa,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
+
+    if model_id.startswith("facebook/galactica"):
+        return GalacticaSharded(
             model_id,
             revision,
             quantize=quantize,
@@ -398,6 +410,18 @@ def get_model(
                 revision,
                 quantize=quantize,
                 use_medusa=use_medusa,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    if model_type == "starcoder2":
+        sliding_window = config_dict.get("sliding_window", -1)
+        if (
+            (sliding_window is None or sliding_window == -1) and FLASH_ATTENTION
+        ) or HAS_FLASH_ATTN_V2_CUDA:
+            return FlashStarcoder2(
+                model_id,
+                revision,
+                quantize=quantize,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
