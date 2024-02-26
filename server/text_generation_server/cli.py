@@ -154,12 +154,8 @@ def download_weights(
             import json
 
             medusa_head = hf_hub_download(
-                model_id, revision=revision, filename="medusa_lm_head.pt"
+                model_id, revision=revision, filename="medusa_lm_head.safetensors"
             )
-            if auto_convert:
-                medusa_sf = Path(medusa_head[: -len(".pt")] + ".safetensors")
-                if not medusa_sf.exists():
-                    utils.convert_files([Path(medusa_head)], [medusa_sf], [])
             medusa_config = hf_hub_download(
                 model_id, revision=revision, filename="config.json"
             )
