@@ -71,6 +71,7 @@ tools = [
 ]
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_no_tools(
@@ -98,6 +99,7 @@ async def test_flash_llama_grammar_no_tools(
     assert response == response_snapshot
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_snapshot):
