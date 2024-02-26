@@ -146,7 +146,9 @@ def get_model(
                 medusa_model_id, revision=revision, filename="config.json"
             )
             hf_hub_download(
-                medusa_model_id, revision=revision, filename="medusa_lm_head.pt"
+                medusa_model_id,
+                revision=revision,
+                filename="medusa_lm_head.safetensors",
             )
             use_medusa = Path(medusa_config).parent
         else:
