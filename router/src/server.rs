@@ -579,24 +579,22 @@ async fn completions(
     let max_new_tokens = req.max_tokens.or(Some(100));
     let seed = req.seed;
 
-    let inputs = match infer.apply_completion_template(req.prompt, req.suffix) {
-        Ok(inputs) => inputs,
-        Err(err) => {
-            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
-            tracing::error!("{err}");
-            return Err((
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse {
-                    error: err.to_string(),
-                    error_type: err.error_type().to_string(),
-                }),
-            ));
-        }
-    };
+    // if suffix is present throw an error
+    if req.suffix.is_some() {
+        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: "Suffix is not supported and can be achieved by preprocessing the prompt."
+                    .to_string(),
+                error_type: "suffix not supported".to_string(),
+            }),
+        ));
+    }
 
     // build the request passing some parameters
     let generate_request = GenerateRequest {
-        inputs: inputs.to_string(),
+        inputs: req.prompt.to_string(),
         parameters: GenerateParameters {
             best_of: None,
             temperature: req.temperature,

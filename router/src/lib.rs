@@ -618,12 +618,6 @@ pub(crate) struct ChatTemplateInputs<'a> {
     add_generation_prompt: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct CompletionTemplateInputs<'a> {
-    prompt: &'a str,
-    suffix: Option<&'a str>,
-}
-
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
 pub(crate) struct Message {
     #[schema(example = "user")]

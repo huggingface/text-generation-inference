@@ -1,8 +1,8 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, CompletionTemplateInputs, Entry, GenerateRequest, GenerateStreamResponse,
-    HubTokenizerConfig, Message, PrefillToken, Queue, Token,
+    ChatTemplateInputs, Entry, GenerateRequest, GenerateStreamResponse, HubTokenizerConfig,
+    Message, PrefillToken, Queue, Token,
 };
 use futures::future::try_join_all;
 use minijinja::{Environment, ErrorKind, Template};
@@ -33,8 +33,6 @@ pub struct Infer {
     shared: Arc<Shared>,
     /// Chat template
     chat_template: Option<ChatTemplate>,
-    /// Completion template
-    completion_template: Option<CompletionTemplate>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
 }
@@ -90,10 +88,6 @@ impl Infer {
             .chat_template
             .map(|t| ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token));
 
-        let completion_template = tokenizer_config
-            .completion_template
-            .map(CompletionTemplate::new);
-
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
 
@@ -102,7 +96,6 @@ impl Infer {
             queue,
             shared,
             chat_template,
-            completion_template,
             limit_concurrent_requests: semaphore,
         }
     }
@@ -186,24 +179,6 @@ impl Infer {
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
             .apply(messages)
-            .map_err(|e| {
-                metrics::increment_counter!("tgi_request_failure", "err" => "template");
-                tracing::error!("{e}");
-                e
-            })
-    }
-
-    /// Apply the completion template to the request
-    #[instrument(skip_all)]
-    pub(crate) fn apply_completion_template(
-        &self,
-        prompt: String,
-        suffix: Option<String>,
-    ) -> Result<String, InferError> {
-        self.completion_template
-            .as_ref()
-            .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
-            .apply(prompt, suffix)
             .map_err(|e| {
                 metrics::increment_counter!("tgi_request_failure", "err" => "template");
                 tracing::error!("{e}");
@@ -362,34 +337,6 @@ impl ChatTemplate {
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
                 add_generation_prompt: true,
-            })
-            .map_err(InferError::TemplateError)
-    }
-}
-
-#[derive(Clone)]
-struct CompletionTemplate {
-    template: Template<'static, 'static>,
-}
-
-impl CompletionTemplate {
-    fn new(template: String) -> Self {
-        let mut env = Box::new(Environment::new());
-        let template_str = template.into_boxed_str();
-        env.add_function("raise_exception", raise_exception);
-        // leaking env and template_str as read-only, static resources for performance.
-        let template = Box::leak(env)
-            .template_from_str(Box::leak(template_str))
-            .unwrap();
-
-        Self { template }
-    }
-
-    fn apply(&self, prompt: String, suffix: Option<String>) -> Result<String, InferError> {
-        self.template
-            .render(CompletionTemplateInputs {
-                prompt: prompt.as_str(),
-                suffix: suffix.as_deref(),
             })
             .map_err(InferError::TemplateError)
     }
