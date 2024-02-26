@@ -71,7 +71,6 @@ tools = [
 ]
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_no_tools(
@@ -99,7 +98,6 @@ async def test_flash_llama_grammar_no_tools(
     assert response == response_snapshot
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_snapshot):
@@ -119,11 +117,59 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
             },
         ],
     )
-    assert len(response.choices[0].message.content) == 78
-    assert (
-        response.choices[0].message.content
-        == """{"function":{"format": "celsius", "location": "New York, NY", "num_days": 14}}"""
+    assert response.choices[0].message.content == None
+    assert response.choices[0].message.tool_calls == {
+        "function": {
+            "description": None,
+            "name": "tools",
+            "parameters": {
+                "format": "celsius",
+                "location": "San Francisco",
+                "num_days": 2,
+            },
+        },
+        "id": 0,
+        "type": "function",
+    }
+    assert response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_auto(
+    flash_llama_grammar_tools, response_snapshot
+):
+    response = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=1,
+        tools=tools,
+        tool_choice="auto",
+        presence_penalty=-1.1,
+        messages=[
+            {
+                "role": "system",
+                "content": "Youre a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "What is the weather like in Brooklyn, New York?",
+            },
+        ],
     )
+    assert response.choices[0].message.content == None
+    assert response.choices[0].message.tool_calls == {
+        "function": {
+            "description": None,
+            "name": "tools",
+            "parameters": {
+                "format": "celsius",
+                "location": "San Francisco",
+                "num_days": 2,
+            },
+        },
+        "id": 0,
+        "type": "function",
+    }
     assert response == response_snapshot
 
 
@@ -149,9 +195,14 @@ async def test_flash_llama_grammar_tools_choice(
             },
         ],
     )
-    assert len(response.choices[0].message.content) == 62
-    assert (
-        response.choices[0].message.content
-        == """{"function":{"format": "celsius", "location": "New York, NY"}}"""
-    )
+    assert response.choices[0].message.content == None
+    assert response.choices[0].message.tool_calls == {
+        "id": 0,
+        "type": "function",
+        "function": {
+            "description": None,
+            "name": "tools",
+            "parameters": {"format": "celsius", "location": "New York, NY"},
+        },
+    }
     assert response == response_snapshot

@@ -472,7 +472,6 @@ class AsyncClient:
             tools=tools,
             tool_choice=tool_choice,
         )
-        print(self.base_url)
         async with ClientSession(
             headers=self.headers, cookies=self.cookies, timeout=self.timeout
         ) as session:

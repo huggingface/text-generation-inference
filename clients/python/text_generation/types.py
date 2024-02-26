@@ -19,13 +19,24 @@ class Grammar(BaseModel):
     value: Union[str, dict]
 
 
+class ToolCall(BaseModel):
+    # Id of the tool call
+    id: int
+    # Type of the tool call
+    type: str
+    # Function details of the tool call
+    function: dict
+
+
 class Message(BaseModel):
     # Role of the message sender
     role: str
     # Content of the message
-    content: str
+    content: Optional[str]
     # Optional name of the message sender
     name: Optional[str] = None
+    # Tool calls associated with the chat completion
+    tool_calls: Optional[Any] = None
 
 
 class Tool(BaseModel):
@@ -44,6 +55,8 @@ class ChatCompletionComplete(BaseModel):
     logprobs: Optional[Any]
     # Reason for completion
     finish_reason: str
+    # Usage details of the chat completion
+    usage: Any
 
 
 class ChatComplete(BaseModel):

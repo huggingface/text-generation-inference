@@ -581,6 +581,7 @@ mod deserialize_tool_choice {
                     Err(de::Error::custom("function key not found in tool choice"))
                 }
             }
+            Value::Null => Ok(Some(ToolType::OneOf)),
             _ => Err(de::Error::custom("invalid token format")),
         }
     }
