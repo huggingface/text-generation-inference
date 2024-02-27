@@ -1,4 +1,4 @@
-flash_att_v2_commit_cuda := 54e80a3829c6d2337570d01e78ebd9529c02d342
+flash_att_v2_commit_cuda := 87a1277653fc55cd615f5341255e00c69d5c00a1
 flash_att_v2_commit_rocm := 8736558c287ff2ef28b24878e42828c595ac3e69
 
 
