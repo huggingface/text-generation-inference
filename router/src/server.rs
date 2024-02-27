@@ -583,16 +583,6 @@ async fn chat_completions(
     let logprobs = req.logprobs.unwrap_or(false);
     let seed = req.seed;
 
-    if stream && req.tools.is_some() {
-        return Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse {
-                error: "Tools are not supported with stream".to_string(),
-                error_type: "Input validation error".to_string(),
-            }),
-        ));
-    }
-
     // apply chat template to flatten the request into a single input
     let mut inputs = match infer.apply_chat_template(req.messages) {
         Ok(inputs) => inputs,
@@ -620,8 +610,8 @@ async fn chat_completions(
                         (
                             StatusCode::UNPROCESSABLE_ENTITY,
                             Json(ErrorResponse {
-                                error: "Input validation error".to_string(),
-                                error_type: "Input validation error".to_string(),
+                                error: "Tool choice not found in tool names".to_string(),
+                                error_type: "Tool not found".to_string(),
                             }),
                         )
                     })?
@@ -765,7 +755,20 @@ async fn chat_completions(
                 function: Function {
                     description: None,
                     name: "tools".to_string(),
-                    parameters: gen_text_value.get("function").unwrap().clone(),
+                    parameters: gen_text_value.get("function").map_or_else(
+                        || {
+                            serde_json::from_str(&generation.generated_text).map_err(|e| {
+                                (
+                                    StatusCode::UNPROCESSABLE_ENTITY,
+                                    Json(ErrorResponse {
+                                        error: e.to_string(),
+                                        error_type: "Input validation error".to_string(),
+                                    }),
+                                )
+                            })
+                        },
+                        |f| Ok(f.clone()),
+                    )?,
                 },
             });
             (tool_call, None)

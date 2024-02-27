@@ -531,6 +531,10 @@ pub(crate) struct ChatRequest {
 
     /// A prompt to be appended before the tools
     #[serde(default = "default_tool_prompt")]
+    #[schema(
+        nullable = true,
+        example = "\"Based on the conversation, please choose the most appropriate tool to use: \""
+    )]
     pub tool_prompt: Option<String>,
 
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
@@ -663,6 +667,7 @@ pub(crate) struct ToolCall {
 pub(crate) struct Message {
     #[schema(example = "user")]
     pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "My name is David and I")]
     pub content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
