@@ -37,4 +37,8 @@
     title: Safetensors
   - local: conceptual/flash_attention
     title: Flash Attention
+  - local: conceptual/speculation
+    title: Speculation (Medusa, ngram)
+  - local: conceptual/guidance
+    title: Guidance, JSON, tools (using outlines)
   title: Conceptual Guides
