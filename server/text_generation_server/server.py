@@ -84,7 +84,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         with self.profiler.record_event("external", "prefill", {"batch_size": batch.input_ids.size(0)}):
 
             with self.profiler.record_event("internal", "generate_token"):
-                generations, next_batch = self.model.generate_token(batch)
+                generations, next_batch = self.model.generate_token([batch])
             self.cache.set(next_batch)
 
             return generate_pb2.PrefillResponse(
@@ -111,14 +111,8 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             if len(batches) == 0:
                 raise ValueError("All batches are empty")
 
-            if len(batches) > 1:
-                with self.profiler.record_event("internal", "concatenate"):
-                    batch = self.model.batch_type.concatenate(batches, self.model.tokenizer.pad_token_id)
-            else:
-                batch = batches[0]
-
             with self.profiler.record_event("internal", "generate_token"):
-                generations, next_batch = self.model.generate_token(batch)
+                generations, next_batch = self.model.generate_token(batches)
             self.cache.set(next_batch)
 
             return generate_pb2.DecodeResponse(
