@@ -10,7 +10,7 @@ use crate::{
     HubTokenizerConfig, Infer, Info, Message, PrefillToken, SimpleToken, StreamDetails,
     StreamResponse, Token, TokenizeResponse, Usage, Validation, VertexRequest, VertexResponse,
 };
-use crate::{Function, FunctionRef, ToolCall, ToolType, Tools};
+use crate::{Function, FunctionRef, FunctionsMap, Properties, ToolCall, ToolType, Tools};
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -629,11 +629,15 @@ async fn chat_completions(
             .collect();
 
         let tools = Tools {
-            function: functions,
-            any_of: tools_to_use
-                .iter()
-                .map(|tool| FunctionRef::new(&tool.function.name))
-                .collect(),
+            functions_map: FunctionsMap { functions },
+            properties: Properties {
+                function: tools_to_use
+                    .iter()
+                    .map(|tool| FunctionRef {
+                        ref_path: format!("#/$functions/{}", tool.function.name.clone()),
+                    })
+                    .collect(),
+            },
         };
 
         let tools_str = serde_json::to_string(&tools).map_err(|e| {
@@ -646,7 +650,7 @@ async fn chat_completions(
             )
         })?;
         inputs = format!("{inputs}{tool_prompt}{tools_str}");
-        Some(GrammarType::Json(tools.into()))
+        Some(GrammarType::Json(serde_json::json!(tools)))
     } else {
         None
     };
