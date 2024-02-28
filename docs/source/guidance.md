@@ -1,25 +1,25 @@
 # Guidance
 
-Text Generation Inference (TGI) now supports [Grammar and Constraints](#grammar-and-constraints) and [Tools and Functions](#tools-and-functions) to help developer guide the LLM's responses and enhance its capabilities.
+Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-and-constraints) and [tools and functions](#tools-and-functions) to help developer guide LLM responses to fit their needs.
 
-These feature is available starting from version `1.4.3`. These features are accessible via the text-generation-client library and is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
+These feature are available starting from version `1.4.3`. They are accessible via the [text_generation](https://pypi.org/project/text-generation/) library and is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
 
-### Quick Start
+## Quick Start
 
-Before we jump into the deep end, ensure your system is rocking TGI version `1.4.3` or later to access all the cool new features we're about to explore.
+Before we jump into the deep end, ensure your system is using TGI version `1.4.3` or later to access all the features we're about to explore in this guide.
 
-If you're not up to date, grab the latest version and let's roll!
+If you're not up to date, grab the latest version and let's get started!
 
 ## Table of Contents 📚
 
-#### Grammar and Constraints
+### Grammar and Constraints
 
 - [The Grammar Parameter](#the-grammar-parameter): Shape your AI's responses with precision.
 - [Constrain with Pydantic](#constrain-with-pydantic): Define a grammar using Pydantic models.
 - [JSON Schema Integration](#json-schema-integration): Fine grain control over your requests via JSON schema.
 - [Using the client](#using-the-client): Use TGI's client libraries to shape the AI's responses.
 
-#### Tools and Functions
+### Tools and Functions
 
 - [The Tools Parameter](#the-tools-parameter): Enhance the AI's capabilities with predefined functions.
 - [Via the client](#text-generation-inference-client): Use TGI's client libraries to interact with the Messages API and Tool functions.
