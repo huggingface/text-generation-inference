@@ -52,6 +52,8 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
 - Logits warper (temperature scaling, top-p, top-k, repetition penalty, more details see [transformers.LogitsProcessor](https://huggingface.co/docs/transformers/internal/generation_utils#transformers.LogitsProcessor))
 - Stop sequences
 - Log probabilities
+- [Speculation](https://huggingface.co/docs/text-generation-inference/conceptual/speculation) ~2x latency
+- [Guidance/JSON](https://huggingface.co/docs/text-generation-inference/conceptual/guidance). Specify output format to speed up inference and make sure the output is valid according to some specs..
 - Custom Prompt Generation: Easily generate text by providing custom prompts to guide the model's output
 - Fine-tuning Support: Utilize fine-tuned models for specific tasks to achieve higher accuracy and performance
 

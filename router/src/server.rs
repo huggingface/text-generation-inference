@@ -242,7 +242,7 @@ async fn generate(
     headers.insert("x-compute-type", compute_type.parse().unwrap());
     headers.insert(
         "x-compute-time",
-        total_time.as_millis().to_string().parse().unwrap(),
+        total_time.as_secs_f64().to_string().parse().unwrap(),
     );
     headers.insert(
         "x-compute-characters",
