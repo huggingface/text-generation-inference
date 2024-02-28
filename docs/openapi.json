@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "1.4.2"
+    "version": "1.4.3"
   },
   "paths": {
     "/": {
