@@ -721,7 +721,7 @@ class GPTNeoxForCausalLM(GPTNeoXPreTrainedModel):
         )
 
         hidden_states = outputs[0]
-        lm_logits = self.embed_out(hidden_states)
+        lm_logits, speculative_logits = self.embed_out(hidden_states)
 
         lm_loss = None
         if labels is not None:
@@ -739,12 +739,15 @@ class GPTNeoxForCausalLM(GPTNeoXPreTrainedModel):
             output = (lm_logits,) + outputs[1:]
             return ((lm_loss,) + output) if lm_loss is not None else output
 
-        return CausalLMOutputWithPast(
-            loss=lm_loss,
-            logits=lm_logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
+        return (
+            CausalLMOutputWithPast(
+                loss=lm_loss,
+                logits=lm_logits,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+            ),
+            speculative_logits,
         )
 
     def prepare_inputs_for_generation(

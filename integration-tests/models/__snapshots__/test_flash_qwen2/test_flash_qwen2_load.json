@@ -1,0 +1,338 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2271,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 1681,
+          "logprob": -8.8515625,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 198,
+          "logprob": -2.9023438,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2,
+          "logprob": -2.9140625,
+          "special": false,
+          "text": "#"
+        },
+        {
+          "id": 4230,
+          "logprob": -3.1054688,
+          "special": false,
+          "text": " Create"
+        },
+        {
+          "id": 264,
+          "logprob": -1.0966797,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 1681,
+          "logprob": -1.6914062,
+          "special": false,
+          "text": " request"
+        },
+        {
+          "id": 198,
+          "logprob": -1.1923828,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2035,
+          "logprob": -1.3193359,
+          "special": false,
+          "text": "request"
+        },
+        {
+          "id": 284,
+          "logprob": -0.13586426,
+          "special": false,
+          "text": " ="
+        },
+        {
+          "id": 7388,
+          "logprob": -1.2412109,
+          "special": false,
+          "text": " requests"
+        },
+        {
+          "id": 670,
+          "logprob": -0.2775879,
+          "special": false,
+          "text": ".get"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n# Create a request\nrequest = requests.get"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2271,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 1681,
+          "logprob": -8.8515625,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 198,
+          "logprob": -2.9023438,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2,
+          "logprob": -2.9140625,
+          "special": false,
+          "text": "#"
+        },
+        {
+          "id": 4230,
+          "logprob": -3.1054688,
+          "special": false,
+          "text": " Create"
+        },
+        {
+          "id": 264,
+          "logprob": -1.0966797,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 1681,
+          "logprob": -1.6914062,
+          "special": false,
+          "text": " request"
+        },
+        {
+          "id": 198,
+          "logprob": -1.1923828,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2035,
+          "logprob": -1.3193359,
+          "special": false,
+          "text": "request"
+        },
+        {
+          "id": 284,
+          "logprob": -0.13586426,
+          "special": false,
+          "text": " ="
+        },
+        {
+          "id": 7388,
+          "logprob": -1.2412109,
+          "special": false,
+          "text": " requests"
+        },
+        {
+          "id": 670,
+          "logprob": -0.2775879,
+          "special": false,
+          "text": ".get"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n# Create a request\nrequest = requests.get"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2271,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 1681,
+          "logprob": -8.8515625,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 198,
+          "logprob": -2.9023438,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2,
+          "logprob": -2.9140625,
+          "special": false,
+          "text": "#"
+        },
+        {
+          "id": 4230,
+          "logprob": -3.1054688,
+          "special": false,
+          "text": " Create"
+        },
+        {
+          "id": 264,
+          "logprob": -1.0966797,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 1681,
+          "logprob": -1.6914062,
+          "special": false,
+          "text": " request"
+        },
+        {
+          "id": 198,
+          "logprob": -1.1923828,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2035,
+          "logprob": -1.3193359,
+          "special": false,
+          "text": "request"
+        },
+        {
+          "id": 284,
+          "logprob": -0.13586426,
+          "special": false,
+          "text": " ="
+        },
+        {
+          "id": 7388,
+          "logprob": -1.2412109,
+          "special": false,
+          "text": " requests"
+        },
+        {
+          "id": 670,
+          "logprob": -0.2775879,
+          "special": false,
+          "text": ".get"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n# Create a request\nrequest = requests.get"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2271,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 1681,
+          "logprob": -8.8515625,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 198,
+          "logprob": -2.9023438,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2,
+          "logprob": -2.9140625,
+          "special": false,
+          "text": "#"
+        },
+        {
+          "id": 4230,
+          "logprob": -3.1054688,
+          "special": false,
+          "text": " Create"
+        },
+        {
+          "id": 264,
+          "logprob": -1.0966797,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 1681,
+          "logprob": -1.6914062,
+          "special": false,
+          "text": " request"
+        },
+        {
+          "id": 198,
+          "logprob": -1.1923828,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 2035,
+          "logprob": -1.3193359,
+          "special": false,
+          "text": "request"
+        },
+        {
+          "id": 284,
+          "logprob": -0.13586426,
+          "special": false,
+          "text": " ="
+        },
+        {
+          "id": 7388,
+          "logprob": -1.2412109,
+          "special": false,
+          "text": " requests"
+        },
+        {
+          "id": 670,
+          "logprob": -0.2775879,
+          "special": false,
+          "text": ".get"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n# Create a request\nrequest = requests.get"
+  }
+]
