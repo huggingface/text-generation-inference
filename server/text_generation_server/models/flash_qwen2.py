@@ -1,12 +1,17 @@
+import math
+
 import torch
 import torch.distributed
 
 from opentelemetry import trace
-from transformers import AutoTokenizer
 from transformers.models.qwen2 import Qwen2Tokenizer
 from typing import Optional
 
-from text_generation_server.models import FlashCausalLM
+from text_generation_server.models.cache_manager import BLOCK_SIZE
+from text_generation_server.models.flash_mistral import (
+    BaseFlashMistral,
+    set_sliding_window,
+)
 from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
     Qwen2ForCausalLM,
 )
@@ -20,12 +25,13 @@ from text_generation_server.utils import (
 tracer = trace.get_tracer(__name__)
 
 
-class FlashQwen2(FlashCausalLM):
+class FlashQwen2(BaseFlashMistral):
     def __init__(
         self,
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -36,23 +42,25 @@ class FlashQwen2(FlashCausalLM):
         else:
             raise NotImplementedError("FlashQwen2 is only available on GPU")
 
-        try:
-            tokenizer = Qwen2Tokenizer.from_pretrained(
-                model_id,
-                revision=revision,
-                trust_remote_code=trust_remote_code,
-            )
-        except Exception:
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_id,
-                revision=revision,
-                trust_remote_code=trust_remote_code,
-            )
+        tokenizer = Qwen2Tokenizer.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
 
         config = Qwen2Config.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
+        config.use_medusa = use_medusa
+
+        # Set context windows
+        if config.sliding_window is not None:
+            set_sliding_window(
+                config.sliding_window, math.ceil(config.sliding_window / BLOCK_SIZE)
+            )
 
         torch.distributed.barrier(group=self.process_group)
 
@@ -63,8 +71,10 @@ class FlashQwen2(FlashCausalLM):
 
         model = Qwen2ForCausalLM(config, weights)
 
+        self.cuda_graphs = {}
+
         torch.distributed.barrier(group=self.process_group)
-        super(FlashQwen2, self).__init__(
+        super(BaseFlashMistral, self).__init__(
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),
@@ -74,4 +84,5 @@ class FlashQwen2(FlashCausalLM):
             device=device,
             rank=rank,
             world_size=world_size,
+            sliding_window=config.sliding_window,
         )

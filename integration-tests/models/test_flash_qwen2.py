@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_qwen2_handle(launcher):
-    with launcher("Qwen/Qwen1.5-7B") as handle:
+    with launcher("Qwen/Qwen1.5-0.5B") as handle:
         yield handle
 
 
@@ -20,7 +20,7 @@ async def test_flash_qwen2(flash_qwen2, response_snapshot):
     )
 
     assert response.details.generated_tokens == 10
-    assert response.generated_text == " for the following function\n\nInputs: def find_max"
+    assert response.generated_text == "\n# Create a request\nrequest = requests.get"
     assert response == response_snapshot
 
 
@@ -48,14 +48,12 @@ async def test_flash_qwen2_all_params(flash_qwen2, response_snapshot):
 
 @pytest.mark.asyncio
 async def test_flash_qwen2_load(flash_qwen2, generate_load, response_snapshot):
-    responses = await generate_load(
-        flash_qwen2, "Test request", max_new_tokens=10, n=4
-    )
+    responses = await generate_load(flash_qwen2, "Test request", max_new_tokens=10, n=4)
 
     assert len(responses) == 4
     assert all(
         [r.generated_text == responses[0].generated_text for r in responses]
     ), f"{[r.generated_text  for r in responses]}"
-    assert responses[0].generated_text == ": Let n = 10 - 1"
+    assert responses[0].generated_text == "\n# Create a request\nrequest = requests.get"
 
     assert responses == response_snapshot

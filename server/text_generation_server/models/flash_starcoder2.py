@@ -38,7 +38,7 @@ class FlashStarcoder2(BaseFlashMistral):
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
-            raise NotImplementedError("FlashLlama is only available on GPU")
+            raise NotImplementedError("FlashStarcoder2 is only available on GPU")
 
         tokenizer = GPT2TokenizerFast.from_pretrained(
             model_id,

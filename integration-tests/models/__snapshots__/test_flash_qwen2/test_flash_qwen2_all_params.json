@@ -5,80 +5,80 @@
     "generated_tokens": 10,
     "prefill": [
       {
-          "id": 2271,
-          "text": "Test",
-          "logprob": null
+        "id": 2271,
+        "logprob": null,
+        "text": "Test"
       },
       {
-          "id": 1681,
-          "text": " request",
-          "logprob": -7.0351562
+        "id": 1681,
+        "logprob": -8.8515625,
+        "text": " request"
       }
     ],
     "seed": 0,
     "tokens": [
       {
-          "id": 311,
-          "text": " to",
-          "logprob": -1.4472656,
-          "special": false
+        "id": 311,
+        "logprob": -1.4277344,
+        "special": false,
+        "text": " to"
       },
       {
-          "id": 633,
-          "text": " get",
-          "logprob": -0.4741211,
-          "special": false
+        "id": 279,
+        "logprob": -0.65478516,
+        "special": false,
+        "text": " the"
       },
       {
-          "id": 264,
-          "text": " a",
-          "logprob": 0.0,
-          "special": false
+        "id": 2473,
+        "logprob": -1.8300781,
+        "special": false,
+        "text": " service"
       },
       {
-          "id": 1140,
-          "text": " list",
-          "logprob": 0.0,
-          "special": false
+        "id": 382,
+        "logprob": -0.75,
+        "special": false,
+        "text": ".\n\n"
       },
       {
-          "id": 315,
-          "text": " of",
-          "logprob": 0.0,
-          "special": false
+        "id": 286,
+        "logprob": -0.11621094,
+        "special": false,
+        "text": "       "
       },
       {
-          "id": 678,
-          "text": " all",
-          "logprob": 0.0,
-          "special": false
+        "id": 549,
+        "logprob": 0.0,
+        "special": false,
+        "text": " :"
       },
       {
-          "id": 279,
-          "text": " the",
-          "logprob": -0.2590332,
-          "special": false
+        "id": 689,
+        "logprob": -0.48608398,
+        "special": false,
+        "text": "return"
       },
       {
-          "id": 3847,
-          "text": " users",
-          "logprob": -0.45239258,
-          "special": false
+        "id": 25,
+        "logprob": 0.0,
+        "special": false,
+        "text": ":"
       },
       {
-          "id": 304,
-          "text": " in",
-          "logprob": -0.12322998,
-          "special": false
+        "id": 5949,
+        "logprob": -0.5756836,
+        "special": false,
+        "text": " Response"
       },
       {
-          "id": 419,
-          "text": " this",
-          "logprob": -1.7275391,
-          "special": false
+        "id": 504,
+        "logprob": -0.24499512,
+        "special": false,
+        "text": " from"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request to get a list of all the users in this"
+  "generated_text": "Test request to the service.\n\n        :return: Response from"
 }

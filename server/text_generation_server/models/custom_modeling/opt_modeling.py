@@ -792,16 +792,19 @@ class OPTForCausalLM(OPTPreTrainedModel):
             return_dict=return_dict,
         )
 
-        logits = self.lm_head(outputs[0]).contiguous()
+        logits, speculative_logits = self.lm_head(outputs)
 
         loss = None
 
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
+        return (
+            CausalLMOutputWithPast(
+                loss=loss,
+                logits=logits,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+            ),
+            speculative_logits,
         )
 
     def prepare_inputs_for_generation(

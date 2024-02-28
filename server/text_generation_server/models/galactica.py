@@ -167,6 +167,7 @@ class GalacticaSharded(CausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -194,6 +195,7 @@ class GalacticaSharded(CausalLM):
         )
         config.quantize = quantize
         tokenizer.pad_token_id = config.pad_token_id
+        config.use_medusa = use_medusa
 
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
@@ -229,10 +231,10 @@ class GalacticaSharded(CausalLM):
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
     ):
-        outputs = self.model.forward(
+        outputs, speculative_logits = self.model.forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
             past_key_values=past_key_values,
             use_cache=True,
         )
-        return outputs.logits, outputs.past_key_values
+        return outputs.logits, speculative_logits, outputs.past_key_values

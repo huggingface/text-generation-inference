@@ -11,7 +11,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     PositionRotaryEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
     FastRMSNorm,
 )
@@ -51,8 +51,14 @@ def _load_gqa(config, prefix: str, weights):
             config.hidden_size,
         ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
+    w = [
+        weights.get_sharded(f"{p}.bias", dim=0)
+        for p in [f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"]
+    ]
+    bias = torch.cat(w, dim=0).to(dtype=weights.dtype).to(device=weights.device)
+
     return TensorParallelColumnLinear(
-        get_linear(weight, bias=None, quantize=config.quantize)
+        get_linear(weight, bias=bias, quantize=config.quantize)
     )
 
 
@@ -170,6 +176,7 @@ class Qwen2Attention(torch.nn.Module):
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
+
 class Qwen2MLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
@@ -212,7 +219,9 @@ class Qwen2Layer(nn.Module):
     def __init__(self, layer_id, config, weights):
         super().__init__()
         prefix = f"model.layers.{layer_id}"
-        self.self_attn = Qwen2Attention(prefix=f"{prefix}.self_attn", config=config, weights=weights)
+        self.self_attn = Qwen2Attention(
+            prefix=f"{prefix}.self_attn", config=config, weights=weights
+        )
         self.mlp = Qwen2MLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
         self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
@@ -262,6 +271,7 @@ class Qwen2Layer(nn.Module):
 
         return mlp_output, attn_res
 
+
 class Qwen2Model(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
@@ -286,7 +296,7 @@ class Qwen2Model(torch.nn.Module):
         )
 
         self.gradient_checkpointing = False
-        
+
         self.head_size = self.layers[0].self_attn.head_size
         self.num_heads = self.layers[0].self_attn.num_heads
         self.num_key_value_heads = self.layers[0].self_attn.num_key_value_heads
@@ -338,7 +348,7 @@ class Qwen2ForCausalLM(torch.nn.Module):
         super().__init__()
 
         self.model = Qwen2Model(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config,
             prefix="lm_head",
             weights=weights,
