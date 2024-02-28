@@ -536,6 +536,9 @@ class Seq2SeqLM(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        if use_medusa:
+            raise RuntimeError("Medusa decoding is not enabled for AutoModel")
+
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype

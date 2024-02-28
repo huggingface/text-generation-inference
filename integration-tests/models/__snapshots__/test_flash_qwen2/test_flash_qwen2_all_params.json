@@ -1,0 +1,84 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2271,
+        "logprob": null,
+        "text": "Test"
+      },
+      {
+        "id": 1681,
+        "logprob": -8.8515625,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 311,
+        "logprob": -1.4277344,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 279,
+        "logprob": -0.65478516,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 2473,
+        "logprob": -1.8300781,
+        "special": false,
+        "text": " service"
+      },
+      {
+        "id": 382,
+        "logprob": -0.75,
+        "special": false,
+        "text": ".\n\n"
+      },
+      {
+        "id": 286,
+        "logprob": -0.11621094,
+        "special": false,
+        "text": "       "
+      },
+      {
+        "id": 549,
+        "logprob": 0.0,
+        "special": false,
+        "text": " :"
+      },
+      {
+        "id": 689,
+        "logprob": -0.48608398,
+        "special": false,
+        "text": "return"
+      },
+      {
+        "id": 25,
+        "logprob": 0.0,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 5949,
+        "logprob": -0.5756836,
+        "special": false,
+        "text": " Response"
+      },
+      {
+        "id": 504,
+        "logprob": -0.24499512,
+        "special": false,
+        "text": " from"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request to the service.\n\n        :return: Response from"
+}

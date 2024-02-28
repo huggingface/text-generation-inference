@@ -1,29 +1,31 @@
 import math
 
 import torch
+import torch.distributed
 
+from opentelemetry import trace
+from transformers.models.qwen2 import Qwen2Tokenizer
 from typing import Optional
-
-from transformers.models.gpt2 import GPT2TokenizerFast
 
 from text_generation_server.models.cache_manager import BLOCK_SIZE
 from text_generation_server.models.flash_mistral import (
     BaseFlashMistral,
     set_sliding_window,
 )
-from text_generation_server.models.custom_modeling.flash_starcoder2_modeling import (
-    Starcoder2Config,
-    FlashStarcoder2ForCausalLM,
+from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
+    Qwen2ForCausalLM,
 )
+from transformers.models.qwen2 import Qwen2Config
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
     Weights,
 )
 
+tracer = trace.get_tracer(__name__)
 
-# Starcoder2 has the same base as Mistral
-class FlashStarcoder2(BaseFlashMistral):
+
+class FlashQwen2(BaseFlashMistral):
     def __init__(
         self,
         model_id: str,
@@ -38,9 +40,9 @@ class FlashStarcoder2(BaseFlashMistral):
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
-            raise NotImplementedError("FlashStarcoder2 is only available on GPU")
+            raise NotImplementedError("FlashQwen2 is only available on GPU")
 
-        tokenizer = GPT2TokenizerFast.from_pretrained(
+        tokenizer = Qwen2Tokenizer.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
@@ -48,7 +50,7 @@ class FlashStarcoder2(BaseFlashMistral):
             trust_remote_code=trust_remote_code,
         )
 
-        config = Starcoder2Config.from_pretrained(
+        config = Qwen2Config.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
@@ -67,7 +69,7 @@ class FlashStarcoder2(BaseFlashMistral):
         if config.quantize in ["gptq", "awq"]:
             weights._set_gptq_params(model_id, revision)
 
-        model = FlashStarcoder2ForCausalLM(config, weights)
+        model = Qwen2ForCausalLM(config, weights)
 
         self.cuda_graphs = {}
 

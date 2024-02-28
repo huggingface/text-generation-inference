@@ -577,6 +577,9 @@ class CausalLM(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        if use_medusa:
+            raise RuntimeError("Medusa decoding is not enabled for AutoModel")
+
         adapt_transformers_to_gaudi()
 
         # Create tokenizer
