@@ -230,7 +230,6 @@ message WarmupRequest {
     uint32 max_total_tokens = 4;
 }
 
-/// Empty response
 message WarmupResponse {
     /// Maximum number of tokens supported by the model
     optional uint32 max_supported_total_tokens = 1;

@@ -9,6 +9,8 @@
     title: Supported Models and Hardware
   - local: messages_api
     title: Messages API
+  - local: guidance
+    title: Guidance
   title: Getting started
 - sections:
   - local: basic_tutorials/consuming_tgi
@@ -37,4 +39,8 @@
     title: Safetensors
   - local: conceptual/flash_attention
     title: Flash Attention
+  - local: conceptual/speculation
+    title: Speculation (Medusa, ngram)
+  - local: conceptual/guidance
+    title: Guidance, JSON, tools (using outlines)
   title: Conceptual Guides

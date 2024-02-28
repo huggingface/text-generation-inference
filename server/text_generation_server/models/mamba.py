@@ -408,6 +408,7 @@ class Mamba(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -444,6 +445,7 @@ class Mamba(Model):
         tokenizer.pad_token = tokenizer.eos_token
 
         config.quantize = quantize
+        config.use_medusa = use_medusa
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(filenames, device, dtype, process_group=self.process_group)
@@ -505,7 +507,7 @@ class Mamba(Model):
         torch.cuda.synchronize()
 
         with torch.cuda.graph(graph, pool=MEM_POOL):
-            logits = self.model.forward(
+            logits, speculative_logits = self.model.forward(
                 input_ids=input_ids, inference_params=inference_params
             )
         torch.cuda.synchronize()
@@ -514,6 +516,7 @@ class Mamba(Model):
             "inference_params": inference_params,
             "graph": graph,
             "logits": logits,
+            "speculative_logits": speculative_logits,
         }
         self.cuda_graphs[batch_size] = graph_dict
 
@@ -556,9 +559,14 @@ class Mamba(Model):
         inference_params.ssm_states.copy_(
             cuda_graph["inference_params"].ssm_states[:, :bs]
         )
-
         # Slice output to the correct shape
-        return cuda_graph["logits"][:bs]
+        speculative_logits = (
+            cuda_graph["speculative_logits"][:bs]
+            if cuda_graph["speculative_logits"] is not None
+            else None
+        )
+        logits = cuda_graph["logits"][:bs]
+        return logits, speculative_logits
 
     def generate_token(self, batch) -> Tuple[List[Any], Optional[Any], Tuple[int, int]]:
         start = time.time_ns()
@@ -589,7 +597,9 @@ class Mamba(Model):
             batch.inference_params = inference_params
 
         # Forward pass
-        logits = self.forward(input_ids, inference_params=batch.inference_params)
+        logits, speculative_logits = self.forward(
+            input_ids, inference_params=batch.inference_params
+        )
 
         # batch.inference_params = new_inference_params
         # Results

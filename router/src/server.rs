@@ -10,6 +10,7 @@ use crate::{
     HubTokenizerConfig, Infer, Info, Message, PrefillToken, SimpleToken, StreamDetails,
     StreamResponse, Token, TokenizeResponse, Usage, Validation, VertexRequest, VertexResponse,
 };
+use crate::{FunctionDefinition, FunctionRef, FunctionsMap, Properties, ToolCall, ToolType, Tools};
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -22,6 +23,8 @@ use futures::stream::StreamExt;
 use futures::Stream;
 use futures::TryStreamExt;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use serde_json::Value;
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
@@ -239,7 +242,7 @@ async fn generate(
     headers.insert("x-compute-type", compute_type.parse().unwrap());
     headers.insert(
         "x-compute-time",
-        total_time.as_millis().to_string().parse().unwrap(),
+        total_time.as_secs_f64().to_string().parse().unwrap(),
     );
     headers.insert(
         "x-compute-characters",
@@ -581,7 +584,7 @@ async fn chat_completions(
     let seed = req.seed;
 
     // apply chat template to flatten the request into a single input
-    let inputs = match infer.apply_chat_template(req.messages) {
+    let mut inputs = match infer.apply_chat_template(req.messages) {
         Ok(inputs) => inputs,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
@@ -594,6 +597,62 @@ async fn chat_completions(
                 }),
             ));
         }
+    };
+
+    let tool_grammar = if let Some((req_tools, tool_choice)) = req.tools.zip(req.tool_choice) {
+        let tool_prompt = req.tool_prompt.unwrap_or_default();
+        let tools_to_use = match tool_choice {
+            ToolType::FunctionName(name) => {
+                vec![req_tools
+                    .iter()
+                    .find(|tool| tool.function.name == *name)
+                    .ok_or_else(|| {
+                        (
+                            StatusCode::UNPROCESSABLE_ENTITY,
+                            Json(ErrorResponse {
+                                error: "Tool choice not found in tool names".to_string(),
+                                error_type: "Tool not found".to_string(),
+                            }),
+                        )
+                    })?
+                    .clone()]
+            }
+            ToolType::OneOf => req_tools.to_owned(),
+        };
+
+        let functions: HashMap<String, Value> = tools_to_use
+            .iter()
+            .map(|tool| {
+                let func = tool.function.clone();
+                (func.name, func.parameters)
+            })
+            .collect();
+
+        let tools = Tools {
+            functions_map: FunctionsMap { functions },
+            properties: Properties {
+                function: tools_to_use
+                    .iter()
+                    .map(|tool| FunctionRef {
+                        ref_path: format!("#/$functions/{}", tool.function.name.clone()),
+                    })
+                    .collect(),
+            },
+        };
+
+        let tools_str = serde_json::to_string(&tools).map_err(|e| {
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                    error_type: "Input validation error".to_string(),
+                }),
+            )
+        })?;
+        inputs = format!("{inputs}{tool_prompt}{tools_str}");
+        Some(GrammarType::Json(serde_json::json!(tools)))
+    } else {
+        None
     };
 
     // build the request passing some parameters
@@ -617,7 +676,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: None,
-            grammar: None,
+            grammar: tool_grammar.clone(),
         },
     };
 
@@ -640,11 +699,19 @@ async fn chat_completions(
                 ChatCompletionLogprobs::from((stream_token.token.clone(), stream_token.top_tokens))
             });
 
+            // replace the content with the tool calls if grammar is present
+            let (content, tool_calls) = if tool_grammar.is_some() {
+                (None, Some(vec![stream_token.token.text]))
+            } else {
+                (Some(stream_token.token.text), None)
+            };
+
             event
                 .json_data(ChatCompletionChunk::new(
                     model_id.clone(),
                     system_fingerprint.clone(),
-                    stream_token.token.text,
+                    content,
+                    tool_calls,
                     current_time,
                     stream_token.index,
                     logprobs,
@@ -681,14 +748,54 @@ async fn chat_completions(
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
+        let (tool_calls, output) = if tool_grammar.is_some() {
+            // gen_text should be valid json
+            let gen_text_value: Value =
+                serde_json::from_str(&generation.generated_text).map_err(|e| {
+                    (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(ErrorResponse {
+                            error: e.to_string(),
+                            error_type: "Input validation error".to_string(),
+                        }),
+                    )
+                })?;
+
+            let tool_call = Some(ToolCall {
+                id: 0,
+                r#type: "function".to_string(),
+                function: FunctionDefinition {
+                    description: None,
+                    name: "tools".to_string(),
+                    parameters: gen_text_value.get("function").map_or_else(
+                        || {
+                            serde_json::from_str(&generation.generated_text).map_err(|e| {
+                                (
+                                    StatusCode::UNPROCESSABLE_ENTITY,
+                                    Json(ErrorResponse {
+                                        error: e.to_string(),
+                                        error_type: "Input validation error".to_string(),
+                                    }),
+                                )
+                            })
+                        },
+                        |f| Ok(f.clone()),
+                    )?,
+                },
+            });
+            (tool_call, None)
+        } else {
+            (None, Some(generation.generated_text))
+        };
         // build the complete response object with the full text
         let response = ChatCompletion::new(
             model_id,
             system_fingerprint,
-            generation.generated_text,
+            output,
             current_time,
             generation.details.unwrap(),
             logprobs,
+            tool_calls,
         );
 
         // wrap generation inside a Vec to match api-inference

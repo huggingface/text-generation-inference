@@ -3,7 +3,9 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_medusa_handle(launcher):
-    with launcher("FasterDecoding/medusa-vicuna-7b-v1.3", num_shard=2) as handle:
+    with launcher(
+        "FasterDecoding/medusa-vicuna-7b-v1.3", num_shard=2, revision="refs/pr/1"
+    ) as handle:
         yield handle
 
 

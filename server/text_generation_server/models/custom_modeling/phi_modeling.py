@@ -13,7 +13,7 @@ from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     FastLinear,
 )
 
@@ -120,7 +120,7 @@ class PhiCausalLMHead(nn.Module):
             weights=weights,
             eps=config.layer_norm_epsilon,
         )
-        self.linear = TensorParallelHead.load(
+        self.linear = SpeculativeHead.load(
             config=config, prefix="lm_head.linear", weights=weights
         )
 

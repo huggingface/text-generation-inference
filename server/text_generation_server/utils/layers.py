@@ -4,7 +4,7 @@ import torch.distributed
 
 from torch import nn
 from torch.nn import functional as F
-from typing import List
+from typing import List, Tuple, Optional
 from loguru import logger
 from functools import lru_cache
 
@@ -378,6 +378,96 @@ class SuperLayer(nn.Module):
 
     def forward(self, x):
         return self.linear.forward(x)
+
+
+class ResBlock(torch.nn.Module):
+    def __init__(self, config, prefix, weights):
+        super().__init__()
+        self.linear = FastLinear.load(
+            config, prefix=f"{prefix}.linear", weights=weights, bias=True
+        )
+        self.act = torch.nn.SiLU()
+
+    def forward(self, x):
+        return x + self.act(self.linear(x))
+
+
+class MedusaModel(torch.nn.Module):
+    def __init__(self, config, weights):
+        super().__init__()
+        self.heads = torch.nn.ModuleList(
+            [
+                MedusaHead(config, prefix=f"{i}", weights=weights)
+                for i in range(config["medusa_num_heads"])
+            ]
+        )
+
+    def forward(self, x):
+        speculative_logits = torch.stack([head(x) for head in self.heads], dim=1)
+        return speculative_logits
+
+
+class MedusaHead(torch.nn.Module):
+    def __init__(self, config, prefix, weights):
+        super().__init__()
+        self.blocks = torch.nn.ModuleList(
+            [
+                ResBlock(config, prefix=f"{prefix}.{i}", weights=weights)
+                for i in range(config["medusa_num_layers"])
+            ]
+        )
+        n = len(self.blocks)
+        self.out = FastLinear.load(
+            config, prefix=f"{prefix}.{n}", weights=weights, bias=False
+        )
+
+    def forward(self, x):
+        for block in self.blocks:
+            x = block(x)
+        x = self.out(x)
+        return x
+
+
+class SpeculativeHead(nn.Module):
+    def __init__(self, lm_head, medusa):
+        super().__init__()
+        self.lm_head = lm_head
+        self.medusa = medusa
+
+    @staticmethod
+    def load(config, prefix: str, weights):
+        lm_head = TensorParallelHead.load(config, prefix, weights)
+        use_medusa = config.use_medusa
+        if use_medusa:
+            from pathlib import Path
+            from safetensors import safe_open
+            import json
+
+            medusa_config = str(Path(use_medusa) / "config.json")
+            filename = str(Path(use_medusa) / "medusa_lm_head.safetensors")
+
+            with open(medusa_config, "r") as f:
+                config = json.load(f)
+            routing = weights.routing
+            with safe_open(filename, framework="pytorch") as f:
+                for k in f.keys():
+                    if k in routing:
+                        raise RuntimeError(
+                            f"Key {k} was found in multiple files: {filename} and {routing[k]}"
+                        )
+                    weights.routing[k] = filename
+
+            medusa = MedusaModel(config, weights)
+        else:
+            medusa = None
+        return SpeculativeHead(lm_head, medusa)
+
+    def forward(
+        self, input: torch.Tensor
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        logits = self.lm_head(input)
+        speculative_logits = self.medusa(input) if self.medusa is not None else None
+        return logits, speculative_logits
 
 
 class TensorParallelHead(SuperLayer):

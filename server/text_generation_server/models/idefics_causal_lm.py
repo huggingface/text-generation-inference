@@ -662,8 +662,13 @@ class IdeficsCausalLM(Model):
         if self.has_position_ids:
             kwargs["position_ids"] = position_ids
 
-        outputs = self.model.forward(**kwargs)
-        return outputs.logits, outputs.past_key_values, outputs.image_hidden_states
+        outputs, speculative_logits = self.model.forward(**kwargs)
+        return (
+            outputs.logits,
+            speculative_logits,
+            outputs.past_key_values,
+            outputs.image_hidden_states,
+        )
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
@@ -686,7 +691,7 @@ class IdeficsCausalLM(Model):
                 :, : -batch.padding_right_offset
             ]
 
-        logits, past, image_hidden_states = self.forward(
+        logits, speculative_logits, past, image_hidden_states = self.forward(
             input_ids=batch.input_ids,
             attention_mask=attention_mask,
             position_ids=batch.position_ids,

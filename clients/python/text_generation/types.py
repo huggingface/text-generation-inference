@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, validator
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Any
 
 from text_generation.errors import ValidationError
 
@@ -17,6 +17,124 @@ class Grammar(BaseModel):
     type: GrammarType
     # Grammar value
     value: Union[str, dict]
+
+
+class ToolCall(BaseModel):
+    # Id of the tool call
+    id: int
+    # Type of the tool call
+    type: str
+    # Function details of the tool call
+    function: dict
+
+
+class Message(BaseModel):
+    # Role of the message sender
+    role: str
+    # Content of the message
+    content: Optional[str]
+    # Optional name of the message sender
+    name: Optional[str] = None
+    # Tool calls associated with the chat completion
+    tool_calls: Optional[Any] = None
+
+
+class Tool(BaseModel):
+    # Type of the tool
+    type: str
+    # Function details of the tool
+    function: dict
+
+
+class ChatCompletionComplete(BaseModel):
+    # Index of the chat completion
+    index: int
+    # Message associated with the chat completion
+    message: Message
+    # Log probabilities for the chat completion
+    logprobs: Optional[Any]
+    # Reason for completion
+    finish_reason: str
+    # Usage details of the chat completion
+    usage: Any
+
+
+class Function(BaseModel):
+    name: Optional[str]
+    arguments: str
+
+
+class ChoiceDeltaToolCall(BaseModel):
+    index: int
+    id: str
+    type: str
+    function: Function
+
+
+class ChoiceDelta(BaseModel):
+    role: str
+    content: Optional[str]
+    tool_calls: Optional[ChoiceDeltaToolCall]
+
+
+class Choice(BaseModel):
+    index: int
+    delta: ChoiceDelta
+    logprobs: Optional[dict] = None
+    finish_reason: Optional[str] = None
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str
+    object: str
+    created: int
+    model: str
+    system_fingerprint: str
+    choices: List[Choice]
+
+
+class ChatComplete(BaseModel):
+    # Chat completion details
+    id: str
+    object: str
+    created: int
+    model: str
+    system_fingerprint: str
+    choices: List[ChatCompletionComplete]
+    usage: Any
+
+
+class ChatRequest(BaseModel):
+    # Model identifier
+    model: str
+    # List of messages in the conversation
+    messages: List[Message]
+    # Penalty for frequency of new tokens
+    frequency_penalty: Optional[float] = None
+    # Bias values for token selection
+    logit_bias: Optional[List[float]] = None
+    # Whether to return log probabilities
+    logprobs: Optional[bool] = None
+    # Number of most likely tokens to return at each position
+    top_logprobs: Optional[int] = None
+    # Maximum number of tokens to generate
+    max_tokens: Optional[int] = None
+    # Number of chat completion choices to generate
+    n: Optional[int] = None
+    # Penalty for presence of new tokens
+    presence_penalty: Optional[float] = None
+    # Flag to indicate streaming response
+    stream: bool = False
+    # Random sampling seed
+    seed: Optional[int] = None
+    # Sampling temperature
+    temperature: Optional[float] = None
+    # Top-p value for nucleus sampling
+    top_p: Optional[float] = None
+    # List of tools to be used
+    tools: Optional[List[Tool]] = None
+    # Choice of tool to be used
+    tool_choice: Optional[str] = None
 
 
 class Parameters(BaseModel):

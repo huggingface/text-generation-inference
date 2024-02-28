@@ -44,7 +44,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
 )
 
 
@@ -646,7 +646,7 @@ class GPTNeoxForCausalLM(GPTNeoXPreTrainedModel):
     def __init__(self, config, weights):
         super().__init__(config)
         self.gpt_neox = GPTNeoXModel(config, weights)
-        self.embed_out = TensorParallelHead.load(
+        self.embed_out = SpeculativeHead.load(
             config, prefix="embed_out", weights=weights
         )
 

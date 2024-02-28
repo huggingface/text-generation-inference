@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
+# Copyright 2024 Starcoder2 AI and the HuggingFace Inc. team. All rights reserved.
 #
 # This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
 # and OPT implementations in this library. It has been modified from its
@@ -35,30 +35,36 @@ from text_generation_server.utils.layers import (
     SpeculativeHead,
     get_linear,
     FastRMSNorm,
+    FastLayerNorm,
 )
 
 
-class LlamaConfig(PretrainedConfig):
+class Starcoder2Config(PretrainedConfig):
+    model_type = "starcoder2"
+
     def __init__(
         self,
-        vocab_size=32000,
-        hidden_size=4096,
-        intermediate_size=11008,
-        num_hidden_layers=32,
-        num_attention_heads=32,
-        num_key_value_heads=None,
-        hidden_act="silu",
-        max_position_embeddings=2048,
-        initializer_range=0.02,
-        rms_norm_eps=1e-6,
+        vocab_size=49152,
+        hidden_size=3072,
+        intermediate_size=12288,
+        num_hidden_layers=30,
+        num_attention_heads=24,
+        num_key_value_heads=2,
+        mlp_type="default",
+        hidden_act="gelu_pytorch_tanh",
+        max_position_embeddings=4096,
+        initializer_range=0.018042,
+        norm_type="layer_norm",
+        norm_epsilon=1e-5,
         use_cache=True,
-        pad_token_id=0,
-        bos_token_id=1,
-        eos_token_id=2,
-        pretraining_tp=1,
-        tie_word_embeddings=False,
-        rope_scaling=None,
+        bos_token_id=50256,
+        eos_token_id=50256,
         rope_theta=10000.0,
+        sliding_window=None,
+        attention_dropout=0.0,
+        residual_dropout=0.0,
+        embedding_dropout=0.0,
+        use_bias: bool = True,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -67,25 +73,28 @@ class LlamaConfig(PretrainedConfig):
         self.intermediate_size = intermediate_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
+        self.sliding_window = sliding_window
+        self.use_bias = use_bias
 
         # for backward compatibility
         if num_key_value_heads is None:
             num_key_value_heads = num_attention_heads
 
         self.num_key_value_heads = num_key_value_heads
+        self.mlp_type = mlp_type
         self.hidden_act = hidden_act
         self.initializer_range = initializer_range
-        self.rms_norm_eps = rms_norm_eps
-        self.pretraining_tp = pretraining_tp
+        self.norm_type = norm_type
+        self.norm_epsilon = norm_epsilon
         self.use_cache = use_cache
-        self.rope_scaling = rope_scaling
         self.rope_theta = rope_theta
+        self.attention_dropout = attention_dropout
+        self.residual_dropout = residual_dropout
+        self.embedding_dropout = embedding_dropout
 
         super().__init__(
-            pad_token_id=pad_token_id,
             bos_token_id=bos_token_id,
             eos_token_id=eos_token_id,
-            tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
 
@@ -94,21 +103,13 @@ def load_attention(config, prefix, weights):
     if config.num_attention_heads != config.num_key_value_heads:
         return _load_gqa(config, prefix, weights)
     else:
-        if config.model_type == "baichuan":
-            return TensorParallelColumnLinear.load_qkv(
-                config,
-                prefix=f"{prefix}.W_pack",
-                weights=weights,
-                bias=False,
-            )
-        else:
-            return TensorParallelColumnLinear.load_multi(
-                config,
-                prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-                dim=0,
-                weights=weights,
-                bias=False,
-            )
+        return TensorParallelColumnLinear.load_multi(
+            config,
+            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+            dim=0,
+            weights=weights,
+            bias=config.use_bias,
+        )
 
 
 def _load_gqa(config, prefix: str, weights):
@@ -132,12 +133,21 @@ def _load_gqa(config, prefix: str, weights):
             config.hidden_size,
         ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
+    if config.use_bias:
+        w = [
+            weights.get_sharded(f"{p}.bias", dim=0)
+            for p in [f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"]
+        ]
+        bias = torch.cat(w, dim=0).to(dtype=weights.dtype).to(device=weights.device)
+    else:
+        bias = None
+
     return TensorParallelColumnLinear(
-        get_linear(weight, bias=None, quantize=config.quantize)
+        get_linear(weight, bias=bias, quantize=config.quantize)
     )
 
 
-class FlashLlamaAttention(torch.nn.Module):
+class Starcoder2Attention(torch.nn.Module):
     def __init__(
         self,
         prefix: str,
@@ -145,6 +155,9 @@ class FlashLlamaAttention(torch.nn.Module):
         weights,
     ):
         super().__init__()
+        self.max_past = (
+            config.sliding_window if config.sliding_window is not None else -1
+        )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
@@ -174,7 +187,7 @@ class FlashLlamaAttention(torch.nn.Module):
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
-            bias=False,
+            bias=config.use_bias,
         )
         self.num_groups = self.num_heads // self.num_key_value_heads
         self.kv_head_mapping = torch.arange(
@@ -192,6 +205,7 @@ class FlashLlamaAttention(torch.nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         qkv = self.query_key_value(hidden_states)
         query, kv = qkv.split(
@@ -206,8 +220,13 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
+        if prefill_cache_indices is not None:
+            kv_to_cache = kv[prefill_cache_indices]
+        else:
+            kv_to_cache = kv
+
         paged_attention.reshape_and_cache(
-            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
+            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
         # output tensor
@@ -224,6 +243,7 @@ class FlashLlamaAttention(torch.nn.Module):
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
+                window_size_left=self.max_past,
             )
         # Decode
         else:
@@ -242,7 +262,41 @@ class FlashLlamaAttention(torch.nn.Module):
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
 
-class LlamaMLP(nn.Module):
+class Starcoder2MLP(nn.Module):
+    def __init__(self, prefix, config, weights):
+        super().__init__()
+        act = config.hidden_act
+        self.act = (
+            ACT2FN[act]
+            if "gelu" not in act
+            else lambda x: torch.nn.functional.gelu(
+                x,
+                approximate=(
+                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                ),
+            )
+        )
+        # Fuse gate and up proj
+        self.c_fc = TensorParallelColumnLinear.load(
+            config,
+            prefix=f"{prefix}.c_fc",
+            weights=weights,
+            bias=config.use_bias,
+        )
+        self.c_proj = TensorParallelRowLinear.load(
+            config,
+            prefix=f"{prefix}.c_proj",
+            weights=weights,
+            bias=config.use_bias,
+        )
+
+    def forward(self, hidden_states):
+        hidden_states = self.c_fc(hidden_states)
+        hidden_states = self.act(hidden_states)
+        return self.c_proj(hidden_states)
+
+
+class Starcoder2GatedMLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         act = config.hidden_act
@@ -262,13 +316,13 @@ class LlamaMLP(nn.Module):
             prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
             weights=weights,
             dim=0,
-            bias=False,
+            bias=config.use_bias,
         )
         self.down_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.down_proj",
             weights=weights,
-            bias=False,
+            bias=config.use_bias,
         )
         self.intermediate_size = (
             config.intermediate_size // weights.process_group.size()
@@ -280,22 +334,38 @@ class LlamaMLP(nn.Module):
         return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
 
 
-class FlashLlamaLayer(nn.Module):
+STARCODER2_NORMALIZATION_CLASSES = {
+    "layer_norm": FastLayerNorm,
+    "rms_norm": FastRMSNorm,
+}
+
+STARCODER2_MLP_CLASSES = {
+    "default": Starcoder2MLP,
+    "gated": Starcoder2GatedMLP,
+}
+
+
+class Starcoder2Layer(nn.Module):
     def __init__(self, layer_id, config, weights):
         super().__init__()
         prefix = f"model.layers.{layer_id}"
-        self.self_attn = FlashLlamaAttention(
+        self.self_attn = Starcoder2Attention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
-        self.mlp = LlamaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
-        self.input_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
+        self.mlp = STARCODER2_MLP_CLASSES[config.mlp_type](
+            prefix=f"{prefix}.mlp", config=config, weights=weights
         )
-        self.post_attention_layernorm = FastRMSNorm.load(
+
+        self.input_layernorm = STARCODER2_NORMALIZATION_CLASSES[config.norm_type].load(
+            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.norm_epsilon
+        )
+        self.post_attention_layernorm = STARCODER2_NORMALIZATION_CLASSES[
+            config.norm_type
+        ].load(
             prefix=f"{prefix}.post_attention_layernorm",
             weights=weights,
-            eps=config.rms_norm_eps,
+            eps=config.norm_epsilon,
         )
 
     def forward(
@@ -310,6 +380,7 @@ class FlashLlamaLayer(nn.Module):
         slots,
         input_lengths,
         max_s,
+        prefill_cache_indices,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -324,6 +395,7 @@ class FlashLlamaLayer(nn.Module):
             slots,
             input_lengths,
             max_s,
+            prefill_cache_indices,
         )
 
         # faster post attention rms norm
@@ -336,7 +408,7 @@ class FlashLlamaLayer(nn.Module):
         return mlp_output, attn_res
 
 
-class FlashLlamaModel(torch.nn.Module):
+class Starcoder2Model(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
 
@@ -348,7 +420,7 @@ class FlashLlamaModel(torch.nn.Module):
         )
         self.layers = nn.ModuleList(
             [
-                FlashLlamaLayer(
+                Starcoder2Layer(
                     layer_id,
                     config,
                     weights,
@@ -356,8 +428,8 @@ class FlashLlamaModel(torch.nn.Module):
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
-        self.norm = FastRMSNorm.load(
-            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
+        self.norm = STARCODER2_NORMALIZATION_CLASSES[config.norm_type].load(
+            prefix="model.norm", weights=weights, eps=config.norm_epsilon
         )
 
         self.gradient_checkpointing = False
@@ -376,13 +448,15 @@ class FlashLlamaModel(torch.nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        true_max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
+            position_ids, true_max_s, hidden_states.dtype
         )
 
         residual = None
@@ -398,6 +472,7 @@ class FlashLlamaModel(torch.nn.Module):
                 slots,
                 input_lengths,
                 max_s,
+                prefill_cache_indices,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -405,15 +480,29 @@ class FlashLlamaModel(torch.nn.Module):
         return hidden_states
 
 
-class FlashLlamaForCausalLM(torch.nn.Module):
+class FlashStarcoder2ForCausalLM(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
 
-        self.model = FlashLlamaModel(config, weights)
-        self.lm_head = SpeculativeHead.load(
-            config,
-            prefix="lm_head",
-            weights=weights,
+        self.model = Starcoder2Model(config, weights)
+        try:
+            self.lm_head = SpeculativeHead.load(
+                config,
+                prefix="lm_head",
+                weights=weights,
+            )
+        except RuntimeError:
+            self.lm_head = SpeculativeHead.load(
+                config,
+                prefix="model.embed_tokens",
+                weights=weights,
+            )
+
+        self.max_past = config.sliding_window
+        self.max_past_tensor = (
+            torch.tensor(config.sliding_window, device=weights.device)
+            if self.max_past is not None
+            else None
         )
 
     def forward(
@@ -426,8 +515,18 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    ) -> torch.Tensor:
+        true_max_s = max_s
+        if prefill_cache_indices is not None:
+            # Slots also need to be sliced as it has the same size as the whole kv tensor
+            slots = slots[prefill_cache_indices]
+        elif self.max_past is not None:
+            # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
+            # kernel requires the true values
+            input_lengths = torch.clamp(input_lengths, max=self.max_past_tensor)
+
         hidden_states = self.model(
             input_ids,
             position_ids,
@@ -437,8 +536,10 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             slots,
             input_lengths,
             max_s,
+            true_max_s,
+            prefill_cache_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
-        logits, speculative_logits = self.lm_head(hidden_states)
-        return logits, speculative_logits
+        logits = self.lm_head(hidden_states)
+        return logits

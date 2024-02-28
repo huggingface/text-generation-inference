@@ -22,6 +22,7 @@ class Phi(CausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -52,6 +53,7 @@ class Phi(CausalLM):
         tokenizer.pad_token = tokenizer.eos_token
 
         config.quantize = quantize
+        config.use_medusa = use_medusa
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(filenames, device, dtype, process_group=self.process_group)
