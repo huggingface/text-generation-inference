@@ -86,7 +86,7 @@ Environment Variables Added:
 | PAD_SEQUENCE_TO_MULTIPLE_OF | integer    | 128              | For prefill operation, sequences will be padded to a multiple of provided value.                                                 | add -e in docker run command |
 | SKIP_TOKENIZER_IN_TGI       | True/False | False            | Skip tokenizer for input/output processing                                                                                       | add -e in docker run command |
 | TGI_PROFILER_ENABLED        | True/False | False            | Collect high-level server tracing events                                                                                         | add -e in docker run command |
-
+| WARMUP_ENABLED              | True/False | True             | Enable warmup during server initialization to recompile all graphs. This can increase TGI setup time.                            | add -e in docker run command |
 </div>
 
 

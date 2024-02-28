@@ -213,7 +213,7 @@ message DecodeResponse {
 
 message WarmupRequest {
     /// Batch to warmup on
-    Batch batch = 1;
+    repeated Batch batches = 1;
 }
 
 /// Empty response

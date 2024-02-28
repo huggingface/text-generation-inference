@@ -990,3 +990,25 @@ class CausalLM(Model):
             else:
                 self.hb_profiler.step()
         return generations, batch if not stopped else None
+
+    def warmup(self, batches: List[CausalLMBatch]) -> None:
+        self.shifting_warmup()
+
+        if len(batches) < 2:
+            return
+
+        # prefill
+        _, prefill_batch = self.generate_token([batches[0]])
+        # decode
+        _, decode_batch = self.generate_token([prefill_batch])
+        # prefill
+        _, prefill_batch = self.generate_token([batches[1]])
+        # concatenate and decode
+        _, decode_batch = self.generate_token([decode_batch, prefill_batch])
+        # decodes
+        while decode_batch is not None:
+            _, decode_batch = self.generate_token([decode_batch])
+
+    def shifting_warmup(self) -> None:
+        # TODO: add warmup for all possible shift variants
+        pass
