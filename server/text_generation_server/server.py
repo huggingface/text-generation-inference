@@ -53,10 +53,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
     async def FilterBatch(self, request, context):
         batch = self.cache.pop(request.batch_id)
-        with self.profiler.record_event("external",
-                                        "filter_batch",
-                                        {"batch_id": request.batch_id, "request_ids": [id for id in request.request_ids]},
-                                        {"util": len(batch.requests)}):
+        with self.profiler.record_event(
+            type="external",
+            name="filter_batch",
+            args={"batch_id": request.batch_id, "request_ids": [id for id in request.request_ids]},
+            util={"util": len(batch.requests)}
+        ):
             if batch is None:
                 raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
             filtered_batch = batch.filter(request.request_ids)
@@ -81,9 +83,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.dtype, self.model.device, self.model.is_optimized_for_gaudi
         )
-        with self.profiler.record_event("external", "prefill", {"batch_size": batch.input_ids.size(0)}):
-
-            with self.profiler.record_event("internal", "generate_token"):
+        with self.profiler.record_event(
+            type="external",
+            name="prefill",
+            args={"batch_size": batch.batch_size, "sequence_length": batch.seq_length}
+        ):
+            with self.profiler.record_event(type="internal", name="generate_token", count_step=True):
                 generations, next_batch = self.model.generate_token([batch])
             self.cache.set(next_batch)
 
@@ -94,10 +99,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
     async def Decode(self, request, context):
         batch0 = self.cache.cache[request.batches[0].id]
-        with self.profiler.record_event("external",
-                                        "decode",
-                                        {"request_batches": [batch.id for batch in request.batches], "batch_size": batch0.input_ids.size(0)},
-                                        {"util": len(batch0.requests)}):
+        with self.profiler.record_event(
+            type="external",
+            name="decode",
+            args={"request_batches": [batch.id for batch in request.batches], "batch_size": batch0.batch_size},
+            util={"util": len(batch0.requests)}
+        ):
             if len(request.batches) == 0:
                 raise ValueError("Must provide at least one batch")
 
@@ -111,7 +118,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             if len(batches) == 0:
                 raise ValueError("All batches are empty")
 
-            with self.profiler.record_event("internal", "generate_token"):
+            with self.profiler.record_event(type="internal", name="generate_token", count_step=True):
                 generations, next_batch = self.model.generate_token(batches)
             self.cache.set(next_batch)
 

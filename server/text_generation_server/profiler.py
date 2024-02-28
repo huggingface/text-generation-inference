@@ -41,6 +41,7 @@ class Profiler():
     filename = "server_events.json"
 
     def __init__(self):
+        self.step = 0
         self.enabled = os.getenv("TGI_PROFILER_ENABLED", "false").lower() == "true" and int(os.getenv("RANK", "0")) == 0
         if self.enabled:
             # initialize the trace file
@@ -50,20 +51,17 @@ class Profiler():
             file_writer.start()
 
     @contextmanager
-    def record_event(self, type, name, args=None, util=None):
+    def record_event(self, type, name, args=None, util=None, count_step=False):
         if self.enabled:
             start = time.time() * 1000000.0
             if util is not None:
-                self.profiling_trace_events.put(json.dumps([{
-                "pid": 1,
-                "tid": self.event_tid["counter"],
-                "ph": "C",
-                "name": "util",
-                "ts": start,
-                "args": {
-                    "util": util["util"],
-                }}]))
+                self._add_util_event(util, start)
 
+            if count_step:
+                if args is None:
+                    args = {}
+                args["step"] = self.step
+                self.step += 1
             event = {
                 "pid": 1,
                 "tid": self.event_tid[type],
@@ -81,3 +79,16 @@ class Profiler():
             self.profiling_trace_events.put(json.dumps([event]))
         else:
             yield
+
+    def _add_util_event(self, util, start):
+        util_event = {
+            "pid": 1,
+            "tid": self.event_tid["counter"],
+            "ph": "C",
+            "name": "util",
+            "ts": start,
+            "args": {
+                "util": util["util"],
+            }
+        }
+        self.profiling_trace_events.put(json.dumps([util_event]))
