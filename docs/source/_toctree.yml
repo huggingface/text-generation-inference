@@ -9,8 +9,6 @@
     title: Supported Models and Hardware
   - local: messages_api
     title: Messages API
-  - local: guidance
-    title: Guidance
   title: Getting started
 - sections:
   - local: basic_tutorials/consuming_tgi
