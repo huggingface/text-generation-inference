@@ -32,7 +32,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     PositionRotaryEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
     FastRMSNorm,
     FastLayerNorm,
@@ -486,13 +486,13 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
 
         self.model = Starcoder2Model(config, weights)
         try:
-            self.lm_head = TensorParallelHead.load(
+            self.lm_head = SpeculativeHead.load(
                 config,
                 prefix="lm_head",
                 weights=weights,
             )
         except RuntimeError:
-            self.lm_head = TensorParallelHead.load(
+            self.lm_head = SpeculativeHead.load(
                 config,
                 prefix="model.embed_tokens",
                 weights=weights,
