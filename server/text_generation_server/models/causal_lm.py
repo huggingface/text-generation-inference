@@ -324,7 +324,8 @@ class CausalLMBatch(Batch):
         htorch.core.mark_step()
 
         dst_keys = [prepare_memory(new_bs * chunk_size, prev, inplace) for prev in src_keys[target_batch_idx]]
-        dst_keys = [move_data(dst_keys[layer_num], chunk_size, indices, [src[layer_num] for src in src_keys]) for layer_num in range(num_layers)]
+        dst_keys = [move_data(dst_keys[layer_num], chunk_size, indices, [src[layer_num]
+                              for src in src_keys]) for layer_num in range(num_layers)]
 
         src_values = [torch.stack(src) for src in src_values]
         htorch.core.mark_step()
@@ -334,7 +335,8 @@ class CausalLMBatch(Batch):
         htorch.core.mark_step()
 
         dst_values = [prepare_memory(new_bs * chunk_size, prev, inplace) for prev in src_values[target_batch_idx]]
-        dst_values = [move_data(dst_values[layer_num], chunk_size, indices, [src[layer_num] for src in src_values]) for layer_num in range(num_layers)]
+        dst_values = [move_data(dst_values[layer_num], chunk_size, indices, [src[layer_num]
+                                for src in src_values]) for layer_num in range(num_layers)]
 
         past_key_values = past_key_values_type(zip(dst_keys, dst_values))
 
@@ -626,18 +628,20 @@ class CausalLM(Model):
         )
         prof_ranks = [int(val) for val in os.getenv("PROF_RANKS", "0").split(',')]
         self.profiling_warmup_steps = int(os.getenv("PROF_WARMUPSTEP", "0")) if rank in prof_ranks else 0
-        self.profiling_steps = int(os.getenv("PROF_STEP", "5"))
+        self.profiling_steps = int(os.getenv("PROF_STEP", "0")) if rank in prof_ranks else 0
+        self.profiling_wait_steps = int(os.getenv("PROF_WAITSTEP", "0"))
         record_shapes = os.getenv("PROF_RECORD_SHAPES", "false").lower() == "true"
         output_dir = os.getenv("PROF_PATH", "/tmp/hpu_profile")
-        self.hb_profer = HabanaProfile(
-            warmup=self.profiling_warmup_steps, active=self.profiling_steps, output_dir=output_dir, record_shapes=record_shapes
-        )
-        if self.profiling_warmup_steps > 0:
-            self.hb_profer_started = True
-            self.hb_profer.start()
+        if self.profiling_steps > 0:
+            self.hb_profiler = HabanaProfile(
+                wait=self.profiling_wait_steps,
+                warmup=self.profiling_warmup_steps,
+                active=self.profiling_steps,
+                output_dir=output_dir, record_shapes=record_shapes
+            )
+            self.hb_profiler.start()
         else:
-            self.hb_profer = None
-            self.hb_profer_started = False
+            self.hb_profiler = None
         self.step = 0
 
     def setup_quantization(self, model):
@@ -979,10 +983,10 @@ class CausalLM(Model):
             req.prefix_offset = prefix_offset
             req.read_offset = read_offset
             htorch.core.mark_step()
-
         self.step = self.step + 1
-        if self.hb_profer_started == True and self.step > self.profiling_warmup_steps + self.profiling_steps:
-            self.hb_profer.stop()
-            self.hb_profer_started = False
-
+        if self.hb_profiler is not None:
+            if self.step > self.profiling_wait_steps + self.profiling_warmup_steps + self.profiling_steps:
+                self.hb_profiler.stop()
+            else:
+                self.hb_profiler.step()
         return generations, batch if not stopped else None
