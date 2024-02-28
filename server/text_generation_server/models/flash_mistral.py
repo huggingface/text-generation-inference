@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from transformers.models.llama import LlamaTokenizerFast
-from typing import Optional, Tuple, Type, List
+from typing import Optional, Tuple, Type
 
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models import FlashCausalLM
@@ -38,6 +38,19 @@ SLIDING_WINDOW_BLOCKS: Optional[int] = None
 MEM_POOL = torch.cuda.graph_pool_handle()
 
 
+def set_sliding_window(sliding_window: int, sliding_window_blocks: int):
+    global SLIDING_WINDOW
+    global SLIDING_WINDOW_BLOCKS
+    SLIDING_WINDOW = sliding_window
+    SLIDING_WINDOW_BLOCKS = sliding_window_blocks
+
+
+def get_sliding_windows() -> Tuple[int, int]:
+    global SLIDING_WINDOW
+    global SLIDING_WINDOW_BLOCKS
+    return SLIDING_WINDOW, SLIDING_WINDOW_BLOCKS
+
+
 # Adds windowing logic to FlashCausalLMBatch
 @dataclass
 class FlashMistralBatch(FlashCausalLMBatch):
@@ -53,8 +66,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "FlashCausalLMBatch":
-        global SLIDING_WINDOW
-        global SLIDING_WINDOW_BLOCKS
+        sliding_window, sliding_window_blocks = get_sliding_windows()
 
         batch_inputs = []
         max_truncation = 0
@@ -139,8 +151,8 @@ class FlashMistralBatch(FlashCausalLMBatch):
 
             # Needed blocks can not go over SLIDING_WINDOW_BLOCKS
             needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
-            if SLIDING_WINDOW_BLOCKS is not None:
-                needed_blocks = min(needed_blocks, SLIDING_WINDOW_BLOCKS)
+            if sliding_window_blocks is not None:
+                needed_blocks = min(needed_blocks, sliding_window_blocks)
             blocks += needed_blocks
 
             needed_blocks_slots.append((needed_blocks, total_tokens))
@@ -154,9 +166,9 @@ class FlashMistralBatch(FlashCausalLMBatch):
             slot_indices.append(request_slot_indices)
 
             # Create tensor to slice into the kv tensor in prefill
-            if SLIDING_WINDOW is not None:
+            if sliding_window is not None:
                 request_prefill_cache_indices = torch.arange(
-                    cumulative_length + max(0, input_length - SLIDING_WINDOW),
+                    cumulative_length + max(0, input_length - sliding_window),
                     cumulative_length + input_length,
                     dtype=torch.int64,
                 )
@@ -212,13 +224,13 @@ class FlashMistralBatch(FlashCausalLMBatch):
             input_ids = np.concatenate(all_input_ids, dtype=np.int64)
             position_ids = torch.cat(position_ids)
             slot_indices = torch.cat(slot_indices)
-            if SLIDING_WINDOW is not None:
+            if sliding_window is not None:
                 prefill_cache_indices = torch.cat(prefill_cache_indices)
         else:
             input_ids = all_input_ids[0]
             position_ids = position_ids[0]
             slot_indices = slot_indices[0]
-            if SLIDING_WINDOW is not None:
+            if sliding_window is not None:
                 prefill_cache_indices = prefill_cache_indices[0]
 
         cu_seqlen_prefill = torch.tensor(
@@ -228,7 +240,7 @@ class FlashMistralBatch(FlashCausalLMBatch):
         position_ids = position_ids.to(device)
         slot_indices = slot_indices.to(device)
         prefill_cache_indices = (
-            prefill_cache_indices.to(device) if SLIDING_WINDOW is not None else None
+            prefill_cache_indices.to(device) if sliding_window is not None else None
         )
         input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         input_lengths_tensor = torch.tensor(
@@ -298,9 +310,6 @@ class BaseFlashMistral(FlashCausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        global SLIDING_WINDOW
-        global SLIDING_WINDOW_BLOCKS
-
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
@@ -324,8 +333,9 @@ class BaseFlashMistral(FlashCausalLM):
 
         # Set context windows
         if config.sliding_window is not None:
-            SLIDING_WINDOW = config.sliding_window
-            SLIDING_WINDOW_BLOCKS = math.ceil(config.sliding_window / BLOCK_SIZE)
+            set_sliding_window(
+                config.sliding_window, math.ceil(config.sliding_window / BLOCK_SIZE)
+            )
 
         torch.distributed.barrier(group=self.process_group)
 

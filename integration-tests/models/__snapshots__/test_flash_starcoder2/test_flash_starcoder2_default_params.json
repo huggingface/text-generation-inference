@@ -1,0 +1,394 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 60,
+    "prefill": [
+      {
+        "id": 610,
+        "logprob": null,
+        "text": "def"
+      },
+      {
+        "id": 1489,
+        "logprob": -5.2617188,
+        "text": " print"
+      },
+      {
+        "id": 100,
+        "logprob": -0.38476562,
+        "text": "_"
+      },
+      {
+        "id": 7670,
+        "logprob": -7.640625,
+        "text": "hello"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 2284,
+        "logprob": -0.296875,
+        "special": false,
+        "text": "():"
+      },
+      {
+        "id": 303,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n   "
+      },
+      {
+        "id": 1489,
+        "logprob": 0.0,
+        "special": false,
+        "text": " print"
+      },
+      {
+        "id": 459,
+        "logprob": 0.0,
+        "special": false,
+        "text": "(\""
+      },
+      {
+        "id": 8302,
+        "logprob": -0.28125,
+        "special": false,
+        "text": "Hello"
+      },
+      {
+        "id": 10914,
+        "logprob": -0.79248047,
+        "special": false,
+        "text": " World"
+      },
+      {
+        "id": 16013,
+        "logprob": -0.61816406,
+        "special": false,
+        "text": "!\")"
+      },
+      {
+        "id": 222,
+        "logprob": -0.0619812,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 610,
+        "logprob": -0.4091797,
+        "special": false,
+        "text": "def"
+      },
+      {
+        "id": 1489,
+        "logprob": 0.0,
+        "special": false,
+        "text": " print"
+      },
+      {
+        "id": 100,
+        "logprob": 0.0,
+        "special": false,
+        "text": "_"
+      },
+      {
+        "id": 7670,
+        "logprob": 0.0,
+        "special": false,
+        "text": "hello"
+      },
+      {
+        "id": 100,
+        "logprob": 0.0,
+        "special": false,
+        "text": "_"
+      },
+      {
+        "id": 444,
+        "logprob": -0.21655273,
+        "special": false,
+        "text": "name"
+      },
+      {
+        "id": 45,
+        "logprob": 0.0,
+        "special": false,
+        "text": "("
+      },
+      {
+        "id": 444,
+        "logprob": 0.0,
+        "special": false,
+        "text": "name"
+      },
+      {
+        "id": 731,
+        "logprob": 0.0,
+        "special": false,
+        "text": "):"
+      },
+      {
+        "id": 303,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n   "
+      },
+      {
+        "id": 1489,
+        "logprob": 0.0,
+        "special": false,
+        "text": " print"
+      },
+      {
+        "id": 459,
+        "logprob": 0.0,
+        "special": false,
+        "text": "(\""
+      },
+      {
+        "id": 8302,
+        "logprob": 0.0,
+        "special": false,
+        "text": "Hello"
+      },
+      {
+        "id": 332,
+        "logprob": -0.034698486,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 494,
+        "logprob": 0.0,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 655,
+        "logprob": 0.0,
+        "special": false,
+        "text": " name"
+      },
+      {
+        "id": 494,
+        "logprob": -0.20141602,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 332,
+        "logprob": 0.0,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 16013,
+        "logprob": 0.0,
+        "special": false,
+        "text": "!\")"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 610,
+        "logprob": 0.0,
+        "special": false,
+        "text": "def"
+      },
+      {
+        "id": 1489,
+        "logprob": 0.0,
+        "special": false,
+        "text": " print"
+      },
+      {
+        "id": 100,
+        "logprob": 0.0,
+        "special": false,
+        "text": "_"
+      },
+      {
+        "id": 7670,
+        "logprob": 0.0,
+        "special": false,
+        "text": "hello"
+      },
+      {
+        "id": 100,
+        "logprob": 0.0,
+        "special": false,
+        "text": "_"
+      },
+      {
+        "id": 444,
+        "logprob": 0.0,
+        "special": false,
+        "text": "name"
+      },
+      {
+        "id": 100,
+        "logprob": 0.0,
+        "special": false,
+        "text": "_"
+      },
+      {
+        "id": 400,
+        "logprob": 0.0,
+        "special": false,
+        "text": "age"
+      },
+      {
+        "id": 45,
+        "logprob": 0.0,
+        "special": false,
+        "text": "("
+      },
+      {
+        "id": 444,
+        "logprob": 0.0,
+        "special": false,
+        "text": "name"
+      },
+      {
+        "id": 49,
+        "logprob": 0.0,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 11505,
+        "logprob": 0.0,
+        "special": false,
+        "text": " age"
+      },
+      {
+        "id": 731,
+        "logprob": 0.0,
+        "special": false,
+        "text": "):"
+      },
+      {
+        "id": 303,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n   "
+      },
+      {
+        "id": 1489,
+        "logprob": 0.0,
+        "special": false,
+        "text": " print"
+      },
+      {
+        "id": 459,
+        "logprob": 0.0,
+        "special": false,
+        "text": "(\""
+      },
+      {
+        "id": 8302,
+        "logprob": 0.0,
+        "special": false,
+        "text": "Hello"
+      },
+      {
+        "id": 332,
+        "logprob": 0.0,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 494,
+        "logprob": 0.0,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 655,
+        "logprob": 0.0,
+        "special": false,
+        "text": " name"
+      },
+      {
+        "id": 494,
+        "logprob": 0.0,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 3021,
+        "logprob": -0.5761719,
+        "special": false,
+        "text": " \","
+      },
+      {
+        "id": 863,
+        "logprob": 0.0,
+        "special": false,
+        "text": " you"
+      },
+      {
+        "id": 904,
+        "logprob": 0.0,
+        "special": false,
+        "text": " are"
+      },
+      {
+        "id": 332,
+        "logprob": 0.0,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 494,
+        "logprob": 0.0,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 615,
+        "logprob": 0.0,
+        "special": false,
+        "text": " str"
+      },
+      {
+        "id": 45,
+        "logprob": 0.0,
+        "special": false,
+        "text": "("
+      },
+      {
+        "id": 400,
+        "logprob": 0.0,
+        "special": false,
+        "text": "age"
+      },
+      {
+        "id": 46,
+        "logprob": 0.0,
+        "special": false,
+        "text": ")"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "():\n    print(\"Hello World!\")\n\ndef print_hello_name(name):\n    print(\"Hello \" + name + \"!\")\n\ndef print_hello_name_age(name, age):\n    print(\"Hello \" + name + \", you are \" + str(age)"
+}
