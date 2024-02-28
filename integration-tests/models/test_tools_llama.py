@@ -234,7 +234,6 @@ async def test_flash_llama_grammar_tools_stream(
 
     count = 0
     async for response in responses:
-        print(response)
         count += 1
 
     assert count == 20
