@@ -1,0 +1,84 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+          "id": 2271,
+          "text": "Test",
+          "logprob": null
+      },
+      {
+          "id": 1681,
+          "text": " request",
+          "logprob": -7.0351562
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+          "id": 369,
+          "text": " for",
+          "logprob": -2.1914062,
+          "special": false
+      },
+      {
+          "id": 279,
+          "text": " the",
+          "logprob": -2.6210938,
+          "special": false
+      },
+      {
+          "id": 2701,
+          "text": " following",
+          "logprob": -3.6445312,
+          "special": false
+      },
+      {
+          "id": 729,
+          "text": " function",
+          "logprob": -2.9648438,
+          "special": false
+      },
+      {
+          "id": 271,
+          "text": "\n\n",
+          "logprob": -1.9111328,
+          "special": false
+      },
+      {
+          "id": 31946,
+          "text": "Inputs",
+          "logprob": -1.6855469,
+          "special": false
+      },
+      {
+          "id": 25,
+          "text": ":",
+          "logprob": -1.6093254e-05,
+          "special": false
+      },
+      {
+          "id": 707,
+          "text": " def",
+          "logprob": -0.5678711,
+          "special": false
+      },
+      {
+          "id": 1477,
+          "text": " find",
+          "logprob": -2.5917969,
+          "special": false
+      },
+      {
+          "id": 6345,
+          "text": "_max",
+          "logprob": -1.8349609,
+          "special": false
+      }
+  ],
+    "top_tokens": null
+  },
+  "generated_text": " for the following function\n\nInputs: def find_max"
+}
