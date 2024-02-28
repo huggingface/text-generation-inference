@@ -3,7 +3,7 @@ import requests
 
 from aiohttp import ClientSession, ClientTimeout
 from pydantic import ValidationError
-from typing import Dict, Optional, List, AsyncIterator, Iterator
+from typing import Dict, Optional, List, AsyncIterator, Iterator, Union
 
 from text_generation.types import (
     StreamResponse,
@@ -12,6 +12,7 @@ from text_generation.types import (
     Parameters,
     Grammar,
     ChatRequest,
+    ChatCompletionChunk,
     ChatComplete,
     Message,
     Tool,
@@ -134,18 +135,42 @@ class Client:
             tools=tools,
             tool_choice=tool_choice,
         )
+        if not stream:
+            resp = requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                json=request.dict(),
+                headers=self.headers,
+                cookies=self.cookies,
+                timeout=self.timeout,
+            )
+            payload = resp.json()
+            if resp.status_code != 200:
+                raise parse_error(resp.status_code, payload)
+            return ChatComplete(**payload)
+        else:
+            return self._chat_stream_response(request)
 
+    def _chat_stream_response(self, request):
         resp = requests.post(
             f"{self.base_url}/v1/chat/completions",
             json=request.dict(),
             headers=self.headers,
             cookies=self.cookies,
             timeout=self.timeout,
+            stream=True,
         )
-        payload = resp.json()
-        if resp.status_code != 200:
-            raise parse_error(resp.status_code, payload)
-        return ChatComplete(**payload)
+        # iterate and print stream
+        for byte_payload in resp.iter_lines():
+            if byte_payload == b"\n":
+                continue
+            payload = byte_payload.decode("utf-8")
+            if payload.startswith("data:"):
+                json_payload = json.loads(payload.lstrip("data:").rstrip("\n"))
+                try:
+                    response = ChatCompletionChunk(**json_payload)
+                    yield response
+                except ValidationError:
+                    raise parse_error(resp.status, json_payload)
 
     def generate(
         self,
@@ -417,7 +442,7 @@ class AsyncClient:
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
         tool_choice: Optional[str] = None,
-    ):
+    ) -> Union[ChatComplete, AsyncIterator[ChatCompletionChunk]]:
         """
         Given a list of messages, generate a response asynchronously
 
@@ -472,6 +497,12 @@ class AsyncClient:
             tools=tools,
             tool_choice=tool_choice,
         )
+        if not stream:
+            return await self._chat_single_response(request)
+        else:
+            return self._chat_stream_response(request)
+
+    async def _chat_single_response(self, request):
         async with ClientSession(
             headers=self.headers, cookies=self.cookies, timeout=self.timeout
         ) as session:
@@ -482,6 +513,25 @@ class AsyncClient:
                 if resp.status != 200:
                     raise parse_error(resp.status, payload)
                 return ChatComplete(**payload)
+
+    async def _chat_stream_response(self, request):
+        async with ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        ) as session:
+            async with session.post(
+                f"{self.base_url}/v1/chat/completions", json=request.dict()
+            ) as resp:
+                async for byte_payload in resp.content:
+                    if byte_payload == b"\n":
+                        continue
+                    payload = byte_payload.decode("utf-8")
+                    if payload.startswith("data:"):
+                        json_payload = json.loads(payload.lstrip("data:").rstrip("\n"))
+                        try:
+                            response = ChatCompletionChunk(**json_payload)
+                            yield response
+                        except ValidationError:
+                            raise parse_error(resp.status, json_payload)
 
     async def generate(
         self,

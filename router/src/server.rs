@@ -10,7 +10,7 @@ use crate::{
     HubTokenizerConfig, Infer, Info, Message, PrefillToken, SimpleToken, StreamDetails,
     StreamResponse, Token, TokenizeResponse, Usage, Validation, VertexRequest, VertexResponse,
 };
-use crate::{Function, FunctionRef, FunctionsMap, Properties, ToolCall, ToolType, Tools};
+use crate::{FunctionDefinition, FunctionRef, FunctionsMap, Properties, ToolCall, ToolType, Tools};
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -699,11 +699,19 @@ async fn chat_completions(
                 ChatCompletionLogprobs::from((stream_token.token.clone(), stream_token.top_tokens))
             });
 
+            // replace the content with the tool calls if grammar is present
+            let (content, tool_calls) = if tool_grammar.is_some() {
+                (None, Some(vec![stream_token.token.text]))
+            } else {
+                (Some(stream_token.token.text), None)
+            };
+
             event
                 .json_data(ChatCompletionChunk::new(
                     model_id.clone(),
                     system_fingerprint.clone(),
-                    stream_token.token.text,
+                    content,
+                    tool_calls,
                     current_time,
                     stream_token.index,
                     logprobs,
@@ -756,7 +764,7 @@ async fn chat_completions(
             let tool_call = Some(ToolCall {
                 id: 0,
                 r#type: "function".to_string(),
-                function: Function {
+                function: FunctionDefinition {
                     description: None,
                     name: "tools".to_string(),
                     parameters: gen_text_value.get("function").map_or_else(

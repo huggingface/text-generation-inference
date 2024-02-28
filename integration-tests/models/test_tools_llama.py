@@ -124,8 +124,8 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
             "name": "tools",
             "parameters": {
                 "format": "celsius",
-                "location": "San Francisco",
-                "num_days": 2,
+                "location": "New York, NY",
+                "num_days": 14,
             },
         },
         "id": 0,
@@ -163,8 +163,8 @@ async def test_flash_llama_grammar_tools_auto(
             "name": "tools",
             "parameters": {
                 "format": "celsius",
-                "location": "San Francisco",
-                "num_days": 2,
+                "location": "New York, NY",
+                "num_days": 14,
             },
         },
         "id": 0,
@@ -205,4 +205,37 @@ async def test_flash_llama_grammar_tools_choice(
             "parameters": {"format": "celsius", "location": "New York, NY"},
         },
     }
+    assert response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_stream(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=1,
+        tools=tools,
+        tool_choice="get_current_weather",
+        presence_penalty=-1.1,
+        messages=[
+            {
+                "role": "system",
+                "content": "Youre a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "What is the weather like in Paris, France?",
+            },
+        ],
+        stream=True,
+    )
+
+    count = 0
+    async for response in responses:
+        print(response)
+        count += 1
+
+    assert count == 20
     assert response == response_snapshot

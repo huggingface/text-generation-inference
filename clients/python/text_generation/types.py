@@ -59,6 +59,40 @@ class ChatCompletionComplete(BaseModel):
     usage: Any
 
 
+class Function(BaseModel):
+    name: Optional[str]
+    arguments: str
+
+
+class ChoiceDeltaToolCall(BaseModel):
+    index: int
+    id: str
+    type: str
+    function: Function
+
+
+class ChoiceDelta(BaseModel):
+    role: str
+    content: Optional[str]
+    tool_calls: Optional[ChoiceDeltaToolCall]
+
+
+class Choice(BaseModel):
+    index: int
+    delta: ChoiceDelta
+    logprobs: Optional[dict] = None
+    finish_reason: Optional[str] = None
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str
+    object: str
+    created: int
+    model: str
+    system_fingerprint: str
+    choices: List[Choice]
+
+
 class ChatComplete(BaseModel):
     # Chat completion details
     id: str

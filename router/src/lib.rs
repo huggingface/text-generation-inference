@@ -415,15 +415,35 @@ pub(crate) struct ChatCompletionChoice {
 pub(crate) struct ChatCompletionDelta {
     #[schema(example = "user")]
     pub role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "What is Deep Learning?")]
-    pub content: String,
+    pub content: Option<String>,
+    // default to None
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<DeltaToolCall>,
 }
 
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug)]
+pub(crate) struct DeltaToolCall {
+    pub index: u32,
+    pub id: String,
+    pub r#type: String,
+    pub function: Function,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug)]
+pub(crate) struct Function {
+    pub name: Option<String>,
+    pub arguments: String,
+}
+
+#[allow(clippy::too_many_arguments)]
 impl ChatCompletionChunk {
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
-        delta: String,
+        delta: Option<String>,
+        tool_calls: Option<Vec<String>>,
         created: u64,
         index: u32,
         logprobs: Option<ChatCompletionLogprobs>,
@@ -440,6 +460,15 @@ impl ChatCompletionChunk {
                 delta: ChatCompletionDelta {
                     role: "assistant".to_string(),
                     content: delta,
+                    tool_calls: tool_calls.map(|tc| DeltaToolCall {
+                        index,
+                        id: String::new(),
+                        r#type: "function".to_string(),
+                        function: Function {
+                            name: None,
+                            arguments: tc[0].to_string(),
+                        },
+                    }),
                 },
                 logprobs,
                 finish_reason,
@@ -626,8 +655,8 @@ where
     state.end()
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
-pub(crate) struct Function {
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default)]
+pub(crate) struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
@@ -640,7 +669,7 @@ pub(crate) struct Tool {
     #[schema(example = "function")]
     pub r#type: String,
     // Grab the tool as generic JSON for debugging purposes.
-    pub function: Function,
+    pub function: FunctionDefinition,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -651,11 +680,11 @@ pub(crate) struct ChatTemplateInputs<'a> {
     add_generation_prompt: bool,
 }
 
-#[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
 pub(crate) struct ToolCall {
     pub id: u32,
     pub r#type: String,
-    pub function: Function,
+    pub function: FunctionDefinition,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
