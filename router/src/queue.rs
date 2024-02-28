@@ -372,6 +372,7 @@ mod tests {
                     watermark: false,
                     grammar: String::new(),
                     grammar_type: ProtoGrammarType::None as i32,
+                    grammar_state: 0,
                 },
                 stopping_parameters: StoppingCriteriaParameters {
                     ignore_eos_token: false,

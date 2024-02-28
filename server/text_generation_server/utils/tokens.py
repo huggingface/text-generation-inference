@@ -466,7 +466,10 @@ class HeterogeneousNextTokenChooser:
         dtype: torch.dtype,
         device: torch.device,
         tokenizer: PreTrainedTokenizerBase,
+        fsm_grammar_states: Optional[List[int]] = None,
     ) -> "HeterogeneousNextTokenChooser":
+        if fsm_grammar_states is None:
+            fsm_grammar_states = [pb_.grammar_state for pb_ in pb]
         return HeterogeneousNextTokenChooser(
             watermark=[pb_.watermark for pb_ in pb],
             temperature=[pb_.temperature for pb_ in pb],
@@ -482,7 +485,7 @@ class HeterogeneousNextTokenChooser:
             tokenizer=tokenizer,
             grammars=[pb_.grammar for pb_ in pb],
             grammar_types=[pb_.grammar_type for pb_ in pb],
-            fsm_grammar_states=[0] * len(pb),
+            fsm_grammar_states=fsm_grammar_states,
         )
 
 

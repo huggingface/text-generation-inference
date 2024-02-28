@@ -130,6 +130,7 @@ impl Client {
                     watermark: true,
                     grammar: String::new(),
                     grammar_type: GrammarType::None as i32,
+                    grammar_state: 0,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens: max_total_tokens - truncate,

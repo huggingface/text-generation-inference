@@ -80,6 +80,8 @@ message NextTokenChooserParameters {
     string grammar = 10;
     /// grammar type
     GrammarType grammar_type = 11;
+    /// grammar fsm state
+    uint32 grammar_state = 12;
 }
 
 message StoppingCriteriaParameters {

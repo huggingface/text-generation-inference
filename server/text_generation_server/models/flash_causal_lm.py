@@ -530,6 +530,7 @@ class FlashCausalLMBatch(Batch):
         read_offsets = []
 
         next_token_chooser_parameters = []
+        fsm_grammar_states = []
         stopping_criterias = []
         top_n_tokens = []
 
@@ -578,6 +579,7 @@ class FlashCausalLMBatch(Batch):
             read_offsets.extend(batch.read_offsets)
 
             next_token_chooser_parameters.extend([r.parameters for r in batch.requests])
+            fsm_grammar_states.extend(batch.next_token_chooser.fsm_grammar_states)
             stopping_criterias.extend(batch.stopping_criterias)
 
             top_n_tokens.extend(batch.top_n_tokens)
@@ -593,6 +595,7 @@ class FlashCausalLMBatch(Batch):
             dtype=batches[0].next_token_chooser.dtype,
             device=batches[0].next_token_chooser.device,
             tokenizer=batches[0].next_token_chooser.tokenizer,
+            fsm_grammar_states=fsm_grammar_states,
         )
 
         speculative_ids = (

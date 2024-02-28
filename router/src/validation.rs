@@ -356,6 +356,7 @@ impl Validation {
             watermark,
             grammar,
             grammar_type,
+            grammar_state: 0,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,
