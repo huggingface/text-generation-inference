@@ -424,7 +424,7 @@ class AsyncClient:
         self.base_url = base_url
         self.headers = headers
         self.cookies = cookies
-        self.timeout = ClientTimeout(timeout * 60)
+        self.timeout = ClientTimeout(timeout)
 
     async def chat(
         self,
