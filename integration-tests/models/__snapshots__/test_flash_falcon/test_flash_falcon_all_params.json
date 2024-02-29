@@ -11,88 +11,89 @@
       },
       {
         "id": 1622,
-        "logprob": -7.8125,
+        "logprob": -7.7421875,
         "text": "af"
       },
       {
         "id": 249,
-        "logprob": -4.5,
+        "logprob": -4.484375,
         "text": "at"
       },
       {
         "id": 1480,
-        "logprob": -10.875,
+        "logprob": -10.890625,
         "text": "ron"
       },
       {
         "id": 37,
-        "logprob": -3.6875,
+        "logprob": -3.6757812,
         "text": ":"
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
         "id": 836,
-        "logprob": -1.265625,
+        "logprob": -1.2822266,
         "special": false,
         "text": " i"
       },
       {
         "id": 18,
-        "logprob": -0.119628906,
+        "logprob": -0.11621094,
         "special": false,
         "text": "'"
       },
       {
-        "id": 298,
-        "logprob": -2.265625,
+        "id": 88,
+        "logprob": -0.11016846,
         "special": false,
-        "text": "ve"
-      },
-      {
-        "id": 650,
-        "logprob": -0.49804688,
-        "special": false,
-        "text": " been"
+        "text": "m"
       },
       {
         "id": 1241,
-        "logprob": 0.0,
+        "logprob": -0.9682617,
         "special": false,
         "text": " using"
       },
       {
-        "id": 334,
-        "logprob": 0.0,
+        "id": 61734,
+        "logprob": -1.8984375,
         "special": false,
-        "text": " it"
-      },
-      {
-        "id": 312,
-        "logprob": -1.2421875,
-        "special": false,
-        "text": " for"
-      },
-      {
-        "id": 909,
-        "logprob": -0.99609375,
-        "special": false,
-        "text": " years"
+        "text": " gnome"
       },
       {
         "id": 193,
-        "logprob": -0.30273438,
+        "logprob": -0.21923828,
         "special": false,
         "text": "\n"
       },
       {
-        "id": 807,
-        "logprob": -1.078125,
+        "id": 89,
+        "logprob": -1.1513672,
         "special": false,
-        "text": "ik"
+        "text": "n"
+      },
+      {
+        "id": 35,
+        "logprob": -0.93115234,
+        "special": false,
+        "text": "8"
+      },
+      {
+        "id": 86,
+        "logprob": -0.9790039,
+        "special": false,
+        "text": "k"
+      },
+      {
+        "id": 2512,
+        "logprob": 0.0,
+        "special": false,
+        "text": "99"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron: i've been using it for years\nik"
+  "generated_text": "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron: i'm using gnome\nn8k99"
 }

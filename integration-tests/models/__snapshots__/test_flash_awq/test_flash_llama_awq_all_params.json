@@ -30,7 +30,7 @@
         "text": "?"
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
         "id": 13,
@@ -39,61 +39,61 @@
         "text": "\n"
       },
       {
-        "id": 4013,
-        "logprob": -2.203125,
+        "id": 13,
+        "logprob": -1.078125,
         "special": false,
-        "text": "This"
+        "text": "\n"
       },
       {
-        "id": 1139,
-        "logprob": -0.23693848,
+        "id": 20001,
+        "logprob": -1.8847656,
         "special": false,
-        "text": " question"
+        "text": "Comment"
       },
       {
-        "id": 756,
+        "id": 29901,
         "logprob": 0.0,
         "special": false,
-        "text": " has"
-      },
-      {
-        "id": 1063,
-        "logprob": -0.076538086,
-        "special": false,
-        "text": " been"
-      },
-      {
-        "id": 4433,
-        "logprob": 0.0,
-        "special": false,
-        "text": " asked"
-      },
-      {
-        "id": 1784,
-        "logprob": -1.1367188,
-        "special": false,
-        "text": " many"
-      },
-      {
-        "id": 3064,
-        "logprob": 0.0,
-        "special": false,
-        "text": " times"
-      },
-      {
-        "id": 322,
-        "logprob": -1.7460938,
-        "special": false,
-        "text": " and"
+        "text": ":"
       },
       {
         "id": 306,
-        "logprob": 0.0,
+        "logprob": -0.31201172,
         "special": false,
         "text": " I"
+      },
+      {
+        "id": 30010,
+        "logprob": -0.077697754,
+        "special": false,
+        "text": "’"
+      },
+      {
+        "id": 29885,
+        "logprob": 0.0,
+        "special": false,
+        "text": "m"
+      },
+      {
+        "id": 28931,
+        "logprob": -0.14685059,
+        "special": false,
+        "text": " voting"
+      },
+      {
+        "id": 304,
+        "logprob": 0.0,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 3802,
+        "logprob": 0.0,
+        "special": false,
+        "text": " close"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "What is Deep Learning?\nThis question has been asked many times and I"
+  "generated_text": "What is Deep Learning?\n\nComment: I’m voting to close"
 }

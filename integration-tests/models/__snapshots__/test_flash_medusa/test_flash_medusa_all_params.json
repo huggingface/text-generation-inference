@@ -10,89 +10,90 @@
         "text": "<s>"
       },
       {
-        "id": 338,
-        "logprob": -10.0078125,
-        "text": "is"
-      },
-      {
         "id": 21784,
-        "logprob": -15.515625,
+        "logprob": -10.1875,
         "text": "Deep"
       },
       {
         "id": 29257,
-        "logprob": -2.8847656,
+        "logprob": -3.125,
         "text": "Learning"
       },
       {
         "id": 29973,
-        "logprob": -4.140625,
+        "logprob": -7.5664062,
         "text": "?"
+      },
+      {
+        "id": 29871,
+        "logprob": -4.3984375,
+        "text": ""
       }
     ],
-    "seed": 0,
+    "seed": 1337,
     "tokens": [
       {
+        "id": 243,
+        "logprob": 0.0,
+        "special": false,
+        "text": ""
+      },
+      {
+        "id": 162,
+        "logprob": 0.0,
+        "special": false,
+        "text": ""
+      },
+      {
+        "id": 170,
+        "logprob": -1.0087891,
+        "special": false,
+        "text": ""
+      },
+      {
+        "id": 163,
+        "logprob": 0.0,
+        "special": false,
+        "text": "🧠"
+      },
+      {
         "id": 13,
-        "logprob": -1.1582031,
+        "logprob": 0.0,
         "special": false,
         "text": "\n"
       },
       {
-        "id": 2772,
-        "logprob": -0.23083496,
+        "id": 797,
+        "logprob": -0.8491211,
         "special": false,
-        "text": "De"
+        "text": "In"
       },
       {
-        "id": 1022,
+        "id": 278,
+        "logprob": -0.4987793,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 3030,
+        "logprob": -2.4023438,
+        "special": false,
+        "text": " context"
+      },
+      {
+        "id": 310,
         "logprob": 0.0,
         "special": false,
-        "text": "ep"
+        "text": " of"
       },
       {
-        "id": 6509,
-        "logprob": 0.0,
+        "id": 319,
+        "logprob": -0.45654297,
         "special": false,
-        "text": " learning"
-      },
-      {
-        "id": 29892,
-        "logprob": -0.61816406,
-        "special": false,
-        "text": ","
-      },
-      {
-        "id": 607,
-        "logprob": -0.7089844,
-        "special": false,
-        "text": " which"
-      },
-      {
-        "id": 508,
-        "logprob": -1.7724609,
-        "special": false,
-        "text": " can"
-      },
-      {
-        "id": 367,
-        "logprob": 0.0,
-        "special": false,
-        "text": " be"
-      },
-      {
-        "id": 5545,
-        "logprob": 0.0,
-        "special": false,
-        "text": " considered"
-      },
-      {
-        "id": 408,
-        "logprob": -0.3869629,
-        "special": false,
-        "text": " as"
+        "text": " A"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": "What is Deep Learning?\nDeep learning, which can be considered as"
+  "generated_text": "What is Deep Learning? 🧠\nIn the context of A"
 }

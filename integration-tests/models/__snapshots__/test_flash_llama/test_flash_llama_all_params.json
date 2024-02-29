@@ -2,7 +2,7 @@
   "details": {
     "best_of_sequences": null,
     "finish_reason": "stop_sequence",
-    "generated_tokens": 5,
+    "generated_tokens": 4,
     "prefill": [
       {
         "id": 1,
@@ -20,7 +20,7 @@
         "text": "request"
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
         "id": 5229,
@@ -29,31 +29,25 @@
         "text": " failed"
       },
       {
-        "id": 29901,
-        "logprob": -0.44970703,
+        "id": 13,
+        "logprob": -1.4501953,
         "special": false,
-        "text": ":"
+        "text": "\n"
       },
       {
-        "id": 4829,
-        "logprob": -1.8339844,
+        "id": 1576,
+        "logprob": -0.359375,
         "special": false,
-        "text": " Error"
-      },
-      {
-        "id": 297,
-        "logprob": -1.0556641,
-        "special": false,
-        "text": " in"
+        "text": "The"
       },
       {
         "id": 1243,
-        "logprob": 0.0,
+        "logprob": -0.7578125,
         "special": false,
         "text": " test"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request failed: Error in test"
+  "generated_text": "Test request failed\nThe test"
 }

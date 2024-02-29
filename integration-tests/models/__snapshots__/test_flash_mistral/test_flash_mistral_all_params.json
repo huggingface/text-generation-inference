@@ -20,7 +20,7 @@
         "text": "request"
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
         "id": 28747,
@@ -35,55 +35,55 @@
         "text": " Let"
       },
       {
-        "id": 332,
-        "logprob": -2.3359375,
+        "id": 261,
+        "logprob": -2.0078125,
         "special": false,
-        "text": " u"
+        "text": " t"
       },
       {
-        "id": 347,
+        "id": 28732,
+        "logprob": -0.703125,
+        "special": false,
+        "text": "("
+      },
+      {
+        "id": 28715,
+        "logprob": -2.0019531,
+        "special": false,
+        "text": "d"
+      },
+      {
+        "id": 28731,
         "logprob": 0.0,
         "special": false,
-        "text": " be"
+        "text": ")"
       },
       {
-        "id": 325,
-        "logprob": -1.0234375,
+        "id": 327,
+        "logprob": 0.0,
         "special": false,
-        "text": " ("
+        "text": " ="
       },
       {
-        "id": 28734,
-        "logprob": -2.0292969,
+        "id": 281,
+        "logprob": -0.2849121,
         "special": false,
-        "text": "0"
+        "text": " d"
       },
       {
-        "id": 648,
-        "logprob": -1.0439453,
+        "id": 348,
+        "logprob": -0.6401367,
         "special": false,
-        "text": " +"
-      },
-      {
-        "id": 28705,
-        "logprob": -0.24499512,
-        "special": false,
-        "text": " "
+        "text": "**"
       },
       {
         "id": 28770,
-        "logprob": -0.5073242,
+        "logprob": -0.66259766,
         "special": false,
         "text": "3"
-      },
-      {
-        "id": 387,
-        "logprob": -1.5507812,
-        "special": false,
-        "text": " -"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request: Let u be (0 + 3 -"
+  "generated_text": "Test request: Let t(d) = d**3"
 }

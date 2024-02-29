@@ -16,17 +16,17 @@
       },
       {
         "id": 21017,
-        "logprob": -7.5898438,
+        "logprob": -7.5859375,
         "text": "ometric"
       },
       {
         "id": 81,
-        "logprob": -0.26586914,
+        "logprob": -0.26733398,
         "text": "_"
       },
       {
         "id": 6009,
-        "logprob": -1.6347656,
+        "logprob": -1.640625,
         "text": "mean"
       },
       {
@@ -36,17 +36,17 @@
       },
       {
         "id": 62,
-        "logprob": -5.2382812,
+        "logprob": -5.2304688,
         "text": "L"
       },
       {
         "id": 44,
-        "logprob": -3.0996094,
+        "logprob": -3.1132812,
         "text": ":"
       },
       {
         "id": 1682,
-        "logprob": -1.1025391,
+        "logprob": -1.1083984,
         "text": " List"
       },
       {
@@ -56,16 +56,16 @@
       },
       {
         "id": 1808,
-        "logprob": -0.32226562,
+        "logprob": -0.32177734,
         "text": "float"
       },
       {
         "id": 10794,
-        "logprob": -2.8164062,
+        "logprob": -2.8183594,
         "text": "]):"
       }
     ],
-    "seed": 0,
+    "seed": 1,
     "tokens": [
       {
         "id": 284,
@@ -75,13 +75,13 @@
       },
       {
         "id": 442,
-        "logprob": -1.3134766,
+        "logprob": -1.40625,
         "special": false,
         "text": " return"
       },
       {
         "id": 11665,
-        "logprob": -0.10021973,
+        "logprob": -0.09442139,
         "special": false,
         "text": " reduce"
       },
@@ -129,7 +129,7 @@
       },
       {
         "id": 319,
-        "logprob": -0.42871094,
+        "logprob": -0.3869629,
         "special": false,
         "text": " *"
       },
@@ -176,19 +176,19 @@
         "text": "1"
       },
       {
-        "id": 32,
-        "logprob": -0.31323242,
+        "id": 517,
+        "logprob": -1.3134766,
         "special": false,
-        "text": "."
+        "text": " /"
       },
       {
-        "id": 34,
+        "id": 2069,
         "logprob": 0.0,
         "special": false,
-        "text": "0"
+        "text": " len"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "\n    return reduce(lambda x, y: x * y, L) ** (1.0"
+  "generated_text": "\n    return reduce(lambda x, y: x * y, L) ** (1 / len"
 }
