@@ -2,6 +2,7 @@
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{GenerateParameters, GenerateRequest};
 use rand::{thread_rng, Rng};
+use std::env;
 use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
@@ -21,6 +22,7 @@ pub struct Validation {
     max_total_tokens: usize,
     /// Channel to communicate with the background tokenization task
     sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
+    skip_tokenizer_in_tgi: bool,
 }
 
 impl Validation {
@@ -59,6 +61,10 @@ impl Validation {
             None
         };
 
+        let skip_tokenizer_in_tgi = env::var("SKIP_TOKENIZER_IN_TGI")
+            .ok()
+            .map_or(false, |value| value.to_lowercase() == "true");
+
         Self {
             max_best_of,
             sender,
@@ -66,6 +72,7 @@ impl Validation {
             max_top_n_tokens,
             max_input_length,
             max_total_tokens,
+            skip_tokenizer_in_tgi,
         }
     }
 
@@ -130,7 +137,11 @@ impl Validation {
             } else {
                 return Err(ValidationError::UnsetMaxNewTokens);
             };
-            let input_length = truncate.unwrap_or(self.max_input_length);
+            let input_length = if self.skip_tokenizer_in_tgi {
+                inputs.chars().filter(|&c| c == ',').count() + 1
+            } else {
+                truncate.unwrap_or(self.max_input_length)
+            };
 
             // Validate MaxNewTokens
             if (input_length as u32 + max_new_tokens) > self.max_total_tokens as u32 {
