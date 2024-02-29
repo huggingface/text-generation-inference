@@ -491,7 +491,7 @@ class GrammarLogitProcessor(LogitsProcessor):
             return logits
         allowed_tokens = self.fsm.allowed_token_ids(fsm_grammar_state)
         mask = torch.full_like(logits, -math.inf)
-        mask[allowed_tokens] = 0
+        mask[:, allowed_tokens] = 0
         biased_scores = logits + mask
         return biased_scores
 
