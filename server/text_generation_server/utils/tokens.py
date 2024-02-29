@@ -212,8 +212,13 @@ class HeterogeneousNextTokenChooser:
             scores = warper(input_ids, scores)
 
         next_ids = self.choice(scores)
-        logprobs = torch.log_softmax(scores, -1)
-        next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
+        # ignore logprobs if we use greedy search
+        if type(self.choice) == Greedy:
+            logprobs = torch.zeros_like(scores, device="cpu")
+            next_logprobs = torch.zeros_like(next_ids.view(-1), device="cpu")
+        else:
+            logprobs = torch.log_softmax(scores, -1)
+            next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
 
         return next_ids, next_logprobs, logprobs
 

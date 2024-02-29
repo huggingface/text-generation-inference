@@ -16,21 +16,18 @@ from text_generation_server.models import Model, get_model
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 
-from .profiler import Profiler
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     def __init__(self, model: Model, cache: Cache, server_urls: List[str]):
-        self.profiler = Profiler()
-        with self.profiler.record_event("external", "init"):
-            self.cache = cache
-            self.model = model
-            self.server_urls = server_urls
-            # For some reason, inference_mode does not work well with GLOO which we use on CPU
-            # TODO: The inferecemode set messes up the autograd op dispatch. And results in aten::matmul
-            # op not optimized issue. Will investigate further.
-            # if model.device.type == "hpu":
-            # Force inference mode for the lifetime of TextGenerationService
-            # self._inference_mode_raii_guard = torch._C._InferenceMode(True)
+        self.cache = cache
+        self.model = model
+        self.server_urls = server_urls
+        # For some reason, inference_mode does not work well with GLOO which we use on CPU
+        # TODO: The inferecemode set messes up the autograd op dispatch. And results in aten::matmul
+        # op not optimized issue. Will investigate further.
+        # if model.device.type == "hpu":
+        # Force inference mode for the lifetime of TextGenerationService
+        # self._inference_mode_raii_guard = torch._C._InferenceMode(True)
 
     async def Info(self, request, context):
         return self.model.info
@@ -44,27 +41,20 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.ServiceDiscoveryResponse(urls=self.server_urls)
 
     async def ClearCache(self, request, context):
-        with self.profiler.record_event("external", "clear_cache"):
-            if request.HasField("id"):
-                self.cache.delete(request.id)
-            else:
-                self.cache.clear()
-            return generate_pb2.ClearCacheResponse()
+        if request.HasField("id"):
+            self.cache.delete(request.id)
+        else:
+            self.cache.clear()
+        return generate_pb2.ClearCacheResponse()
 
     async def FilterBatch(self, request, context):
         batch = self.cache.pop(request.batch_id)
-        with self.profiler.record_event(
-            type="external",
-            name="filter_batch",
-            args={"batch_id": request.batch_id, "request_ids": [id for id in request.request_ids]},
-            util={"util": len(batch.requests)}
-        ):
-            if batch is None:
-                raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
-            filtered_batch = batch.filter(request.request_ids)
-            self.cache.set(filtered_batch)
+        if batch is None:
+            raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
+        filtered_batch = batch.filter(request.request_ids)
+        self.cache.set(filtered_batch)
 
-            return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
+        return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
         def batch_from_pb(batch):
@@ -72,59 +62,44 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 batch, self.model.tokenizer, self.model.dtype, self.model.device, self.model.is_optimized_for_gaudi
             )
 
-        with self.profiler.record_event("external", "warmup"):
-            batches = [batch_from_pb(batch) for batch in request.batches]
-            self.model.warmup(batches)
+        batches = [batch_from_pb(batch) for batch in request.batches]
+        self.model.warmup(batches)
 
-            return generate_pb2.WarmupResponse()
+        return generate_pb2.WarmupResponse()
 
     async def Prefill(self, request, context):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.dtype, self.model.device, self.model.is_optimized_for_gaudi
         )
-        with self.profiler.record_event(
-            type="external",
-            name="prefill",
-            args={"batch_size": batch.batch_size, "sequence_length": batch.seq_length}
-        ):
-            with self.profiler.record_event(type="internal", name="generate_token", count_step=True):
-                generations, next_batch = self.model.generate_token([batch])
-            self.cache.set(next_batch)
+        generations, next_batch = self.model.generate_token([batch])
+        self.cache.set(next_batch)
 
-            return generate_pb2.PrefillResponse(
-                generations=[generation.to_pb() for generation in generations],
-                batch=next_batch.to_pb() if next_batch else None,
-            )
+        return generate_pb2.PrefillResponse(
+            generations=[generation.to_pb() for generation in generations],
+            batch=next_batch.to_pb() if next_batch else None,
+        )
 
     async def Decode(self, request, context):
-        batch0 = self.cache.cache[request.batches[0].id]
-        with self.profiler.record_event(
-            type="external",
-            name="decode",
-            args={"request_batches": [batch.id for batch in request.batches], "batch_size": batch0.batch_size},
-            util={"util": len(batch0.requests)}
-        ):
-            if len(request.batches) == 0:
-                raise ValueError("Must provide at least one batch")
+        if len(request.batches) == 0:
+            raise ValueError("Must provide at least one batch")
 
-            batches = []
-            for batch_pb in request.batches:
-                batch = self.cache.pop(batch_pb.id)
-                if batch is None:
-                    raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
-                batches.append(batch)
+        batches = []
+        for batch_pb in request.batches:
+            batch = self.cache.pop(batch_pb.id)
+            if batch is None:
+                raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
+            batches.append(batch)
 
-            if len(batches) == 0:
-                raise ValueError("All batches are empty")
+        if len(batches) == 0:
+            raise ValueError("All batches are empty")
 
-            with self.profiler.record_event(type="internal", name="generate_token", count_step=True):
-                generations, next_batch = self.model.generate_token(batches)
-            self.cache.set(next_batch)
+        generations, next_batch = self.model.generate_token(batches)
+        self.cache.set(next_batch)
 
-            return generate_pb2.DecodeResponse(
-                generations=[generation.to_pb() for generation in generations],
-                batch=next_batch.to_pb() if next_batch else None,
-            )
+        return generate_pb2.DecodeResponse(
+            generations=[generation.to_pb() for generation in generations],
+            batch=next_batch.to_pb() if next_batch else None,
+        )
 
 
 def serve(
