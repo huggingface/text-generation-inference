@@ -29,6 +29,8 @@ class ExceptionInterceptor(AsyncServerInterceptor):
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
+            from .utils.debug import dbg_trace
+            dbg_trace('EXCEPTION', traceback.format_exc())
             await context.abort_with_status(
                 rpc_status.to_status(
                     status_pb2.Status(code=code_pb2.INTERNAL, message=str(err) + trace)
