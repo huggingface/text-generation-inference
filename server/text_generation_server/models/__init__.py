@@ -36,7 +36,6 @@ __all__ = [
     "Model",
     "BLOOMSharded",
     "CausalLM",
-    "FlashCausalLM",
     "GalacticaSharded",
     "Seq2SeqLM",
     "SantaCoder",
@@ -48,6 +47,7 @@ __all__ = [
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
 FLASH_ATTENTION = True
+
 try:
     from text_generation_server.models.flash_rw import FlashRWSharded
     from text_generation_server.models.flash_neox import FlashNeoXSharded

@@ -3,12 +3,16 @@ use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
 use crate::validation::ValidationError;
 use crate::{
-    BestOfSequence, ChatCompletion, ChatCompletionChoice, ChatCompletionChunk,
-    ChatCompletionComplete, ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs,
-    ChatCompletionTopLogprob, ChatRequest, CompatGenerateRequest, Details, ErrorResponse,
-    FinishReason, GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
-    HubTokenizerConfig, Infer, Info, Message, PrefillToken, SimpleToken, StreamDetails,
-    StreamResponse, Token, TokenizeResponse, Usage, Validation, VertexRequest, VertexResponse,
+    BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
+    GenerateResponse, GrammarType, HubModelInfo, HubTokenizerConfig, Infer, Info, Message,
+    PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse, Usage,
+    Validation,
+};
+use crate::{
+    ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
+    ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
+    ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
+    CompletionRequest, VertexRequest, VertexResponse,
 };
 use crate::{FunctionDefinition, FunctionRef, FunctionsMap, Properties, ToolCall, ToolType, Tools};
 use axum::extract::Extension;
@@ -540,6 +544,183 @@ async fn generate_stream_internal(
 #[utoipa::path(
     post,
     tag = "Text Generation Inference",
+    path = "/v1/completions",
+    request_body = CompletionRequest,
+    responses(
+    (status = 200, description = "Generated Text", body = ChatCompletionChunk),
+    (status = 424, description = "Generation Error", body = ErrorResponse,
+    example = json ! ({"error": "Request failed during generation"})),
+    (status = 429, description = "Model is overloaded", body = ErrorResponse,
+    example = json ! ({"error": "Model is overloaded"})),
+    (status = 422, description = "Input validation error", body = ErrorResponse,
+    example = json ! ({"error": "Input validation error"})),
+    (status = 500, description = "Incomplete generation", body = ErrorResponse,
+    example = json ! ({"error": "Incomplete generation"})),
+    )
+    )]
+#[instrument(
+    skip_all,
+    fields(
+    // parameters = ? req.parameters,
+    total_time,
+    validation_time,
+    queue_time,
+    inference_time,
+    time_per_token,
+    seed,
+    )
+    )]
+async fn completions(
+    Extension(infer): Extension<Infer>,
+    Extension(compute_type): Extension<ComputeType>,
+    Extension(info): Extension<Info>,
+    Json(req): Json<CompletionRequest>,
+) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    metrics::increment_counter!("tgi_request_count");
+
+    let stream = req.stream;
+    let max_new_tokens = req.max_tokens.or(Some(100));
+    let seed = req.seed;
+
+    // if suffix is present throw an error
+    if req.suffix.is_some() {
+        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: "Suffix is not supported and can be achieved by preprocessing the prompt."
+                    .to_string(),
+                error_type: "suffix not supported".to_string(),
+            }),
+        ));
+    }
+
+    // build the request passing some parameters
+    let generate_request = GenerateRequest {
+        inputs: req.prompt.to_string(),
+        parameters: GenerateParameters {
+            best_of: None,
+            temperature: req.temperature,
+            repetition_penalty: req.repetition_penalty,
+            frequency_penalty: req.frequency_penalty,
+            top_k: None,
+            top_p: req.top_p,
+            typical_p: None,
+            do_sample: true,
+            max_new_tokens,
+            return_full_text: None,
+            stop: Vec::new(),
+            truncate: None,
+            watermark: false,
+            details: true,
+            decoder_input_details: !stream,
+            seed,
+            top_n_tokens: None,
+            grammar: None,
+        },
+    };
+
+    if stream {
+        let on_message_callback = move |stream_token: StreamResponse| {
+            let event = Event::default();
+
+            let current_time = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                .as_secs();
+
+            event
+                .json_data(CompletionCompleteChunk {
+                    id: "".to_string(),
+                    object: "text_completion".to_string(),
+                    created: current_time,
+
+                    choices: vec![CompletionComplete {
+                        finish_reason: "".to_string(),
+                        index: 0,
+                        logprobs: None,
+                        text: stream_token.token.text,
+                    }],
+
+                    model: info.model_id.clone(),
+                    system_fingerprint: format!(
+                        "{}-{}",
+                        info.version,
+                        info.docker_label.unwrap_or("native")
+                    ),
+                })
+                .map_or_else(
+                    |e| {
+                        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
+                        Event::default()
+                    },
+                    |data| data,
+                )
+        };
+
+        let (headers, response_stream) = generate_stream_internal(
+            infer,
+            compute_type,
+            Json(generate_request),
+            on_message_callback,
+        )
+        .await;
+
+        let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
+        Ok((headers, sse).into_response())
+    } else {
+        let (headers, Json(generation)) = generate(
+            Extension(infer),
+            Extension(compute_type),
+            Json(generate_request),
+        )
+        .await?;
+
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+            .as_secs();
+
+        let details = generation.details.ok_or((
+            // this should never happen but handle if details are missing unexpectedly
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "No details in generation".to_string(),
+                error_type: "no details".to_string(),
+            }),
+        ))?;
+
+        let response = Completion {
+            id: "".to_string(),
+            object: "text_completion".to_string(),
+            created: current_time,
+            model: info.model_id.clone(),
+            system_fingerprint: format!(
+                "{}-{}",
+                info.version,
+                info.docker_label.unwrap_or("native")
+            ),
+            choices: vec![CompletionComplete {
+                finish_reason: details.finish_reason.to_string(),
+                index: 0,
+                logprobs: None,
+                text: generation.generated_text,
+            }],
+            usage: Usage {
+                prompt_tokens: details.prefill.len() as u32,
+                completion_tokens: details.generated_tokens,
+                total_tokens: details.prefill.len() as u32 + details.generated_tokens,
+            },
+        };
+
+        Ok((headers, Json(response)).into_response())
+    }
+}
+
+/// Generate tokens
+#[utoipa::path(
+    post,
+    tag = "Text Generation Inference",
     path = "/v1/chat/completions",
     request_body = ChatRequest,
     responses(
@@ -993,6 +1174,7 @@ pub async fn run(
     generate,
     generate_stream,
     chat_completions,
+    completions,
     tokenize,
     metrics,
     ),
@@ -1012,6 +1194,9 @@ pub async fn run(
     ChatCompletionLogprobs,
     ChatCompletionTopLogprob,
     ChatCompletion,
+    CompletionRequest,
+    CompletionComplete,
+    CompletionCompleteChunk,
     GenerateParameters,
     PrefillToken,
     Token,
@@ -1184,6 +1369,7 @@ pub async fn run(
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
+        .route("/v1/completions", post(completions))
         .route("/vertex", post(vertex_compatibility))
         .route("/tokenize", post(tokenize))
         .route("/health", get(health))
