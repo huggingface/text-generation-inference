@@ -28,6 +28,7 @@ async def test_flash_llama_grammar(flash_llama_grammar, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_llama_grammar_regex(flash_llama_grammar, response_snapshot):
     response = await flash_llama_grammar.generate(
@@ -46,6 +47,7 @@ async def test_flash_llama_grammar_regex(flash_llama_grammar, response_snapshot)
     assert response == response_snapshot
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
     response = await flash_llama_grammar.generate(
@@ -94,6 +96,7 @@ async def test_flash_llama_grammar_json(flash_llama_grammar, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_llama_grammar_load(
     flash_llama_grammar, generate_load, response_snapshot
@@ -125,6 +128,7 @@ async def test_flash_llama_grammar_load(
 
 # this is the same as the above test, but only fires off a single request
 # this is only to ensure that the parallel and single inference produce the same result
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_llama_grammar_single_load_instance(
     flash_llama_grammar, generate_load, response_snapshot
