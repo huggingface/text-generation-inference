@@ -611,6 +611,11 @@ pub(crate) struct ChatRequest {
     #[schema(nullable = true, example = 0.1)]
     pub presence_penalty: Option<f32>,
 
+    /// Up to 4 sequences where the API will stop generating further tokens.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub stop: Option<Vec<String>>,
+
     #[serde(default = "bool::default")]
     pub stream: bool,
 

@@ -763,6 +763,7 @@ async fn chat_completions(
         .map(|x| x + 2.0);
     let logprobs = req.logprobs.unwrap_or(false);
     let seed = req.seed;
+    let stop = req.stop.unwrap_or_default();
 
     // apply chat template to flatten the request into a single input
     let mut inputs = match infer.apply_chat_template(req.messages) {
@@ -850,7 +851,7 @@ async fn chat_completions(
             do_sample: true,
             max_new_tokens,
             return_full_text: None,
-            stop: Vec::new(),
+            stop,
             truncate: None,
             watermark: false,
             details: true,
