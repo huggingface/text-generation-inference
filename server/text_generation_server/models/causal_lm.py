@@ -823,7 +823,7 @@ class CausalLM(Model):
                 if token_idx is None:
                     batch.input_ids[:, 0] = next_token_ids[:, 0]
                 else:
-                    batch.input_ids.index_copy_(1, token_idx.cpu(), next_token_ids.unsqueeze(1))
+                    batch.input_ids.index_copy_(1, token_idx, next_token_ids.unsqueeze(1))
 
                 # Slice unused values from prefill, use it to store next token
                 if token_idx is None:

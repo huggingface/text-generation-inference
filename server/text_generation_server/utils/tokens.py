@@ -214,8 +214,8 @@ class HeterogeneousNextTokenChooser:
         next_ids = self.choice(scores)
         # ignore logprobs if we use greedy search
         if type(self.choice) == Greedy:
-            logprobs = torch.zeros_like(scores, device="cpu")
-            next_logprobs = torch.zeros_like(next_ids.view(-1), device="cpu")
+            logprobs = torch.empty_like(scores, device="cpu")
+            next_logprobs = torch.empty_like(next_ids.view(-1), device="cpu")
         else:
             logprobs = torch.log_softmax(scores, -1)
             next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
