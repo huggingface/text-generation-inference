@@ -376,6 +376,7 @@ fn shard_manager(
     revision: Option<String>,
     quantize: Option<Quantization>,
     dtype: Option<Dtype>,
+    max_total_tokens: usize,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -457,6 +458,9 @@ fn shard_manager(
 
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
+
+    // Max total tokens
+    envs.push(("MAX_TOTAL_TOKENS".into(), max_total_tokens.to_string().into()));
 
     // Torch Distributed Env vars
     if  world_size == 1 {
@@ -884,6 +888,7 @@ fn spawn_shards(
         let otlp_endpoint = args.otlp_endpoint.clone();
         let quantize = args.quantize;
         let dtype = args.dtype;
+        let max_total_tokens = args.max_total_tokens;
         let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
@@ -898,6 +903,7 @@ fn spawn_shards(
                 revision,
                 quantize,
                 dtype,
+                max_total_tokens,
                 trust_remote_code,
                 uds_path,
                 rank,
