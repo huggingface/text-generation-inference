@@ -142,7 +142,9 @@ fn main() -> Result<(), RouterError> {
     // This will only be used to validate payloads
     let local_path = Path::new(&tokenizer_name);
     let local_model = local_path.exists() && local_path.is_dir();
-    let skip_tokenizer_in_tgi = env::var("SKIP_TOKENIZER_IN_TGI").ok().map_or(false, |value| value.to_lowercase() == "true");
+    let skip_tokenizer_in_tgi = env::var("SKIP_TOKENIZER_IN_TGI")
+        .ok()
+        .map_or(false, |value| value.to_lowercase() == "true");
     let tokenizer = if skip_tokenizer_in_tgi {
         None
     } else if local_model {
