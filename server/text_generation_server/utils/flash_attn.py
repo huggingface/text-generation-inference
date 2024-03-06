@@ -4,13 +4,20 @@ import torch
 from loguru import logger
 import math
 
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM, IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import (
+    IS_CUDA_SYSTEM,
+    IS_ROCM_SYSTEM,
+    IS_XPU_SYSTEM,
+)
 
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
     raise ImportError("`USE_FLASH_ATTENTION` is false.")
 HAS_FLASH_ATTN = True
 HAS_FLASH_ATTN_V2_CUDA = False
 HAS_FLASH_ATTN_V2_ROCM = False
+
+if IS_XPU_SYSTEM:
+    import intel_extension_for_pytorch as ipex
 
 if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
     if not torch.cuda.is_available():
@@ -90,7 +97,7 @@ def attention(
             raise ValueError(
                 f"XPU version of Flash Attention does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
             )
-        return torch.xpu.varlen_fwd(
+        return ipex.llm.modules.VarlenAttention.apply(
             q,
             k,
             v,
@@ -104,9 +111,8 @@ def attention(
             False,
             True,
             False,
-            None
+            None,
         )
-
 
     if HAS_FLASH_ATTN_V2_CUDA:
         return flash_attn_2_cuda.varlen_fwd(
