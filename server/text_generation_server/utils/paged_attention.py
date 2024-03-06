@@ -1,8 +1,8 @@
 import torch
-
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM, IS_XPU_SYSTEM
 
 _PARTITION_SIZE = 512
+
 
 
 def reshape_and_cache(
@@ -22,6 +22,8 @@ def reshape_and_cache(
         from vllm import cache_ops
 
         cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
+    elif IS_XPU_SYSTEM:
+        torch.xpu.reshape_and_cache(key, value, key_cache, value_cache, slots)
     else:
         raise ValueError("vllm is not supported on your system")
 
@@ -63,7 +65,22 @@ def attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
-    use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
+    if IS_XPU_SYSTEM:
+        query = query.contiguous()
+        return torch.xpu.IpexPaged_attention(
+            out,
+            query,
+            key_cache,
+            value_cache,
+            kv_head_mapping,
+            block_tables,
+            input_lengths,
+            softmax_scale,
+            block_size,
+            max_s,
+            None
+        )
+
     if use_v1:
         if IS_CUDA_SYSTEM:
             from vllm._C import ops

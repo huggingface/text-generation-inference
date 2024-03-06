@@ -18,7 +18,7 @@ except ImportError:
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM, IS_XPU_SYSTEM
 
 HAS_AWQ = True
 try:
@@ -812,7 +812,13 @@ try:
 
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
-            if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
+            if IS_XPU_SYSTEM:
+                if residual is not None:
+                    hidden_states += residual
+                residual = hidden_states
+                out = torch.ops.torch_ipex.fast_layer_norm(hidden_states, self.normalized_shape, self.weight, self.bias, self.eps)
+                return out, residual
+            elif hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
@@ -858,7 +864,15 @@ try:
             return cls(weight, eps)
 
         def forward(self, hidden_states, residual=None):
-            if hidden_states.shape[-1] > 8192:
+            if IS_XPU_SYSTEM:
+                if residual is not None:
+                    hidden_states += residual
+                residual = hidden_states
+                out = torch.ops.torch_ipex.rms_norm(
+                    hidden_states, [hidden_states.size(-1)], self.weight, self.variance_epsilon
+                )
+                return out[0], residual
+            elif hidden_states.shape[-1] > 8192:
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
@@ -984,10 +998,15 @@ try:
 
                 # Inplace operation, updating query and key.
                 pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, True)
+            elif IS_XPU_SYSTEM:
+                sin = sin.repeat(1, 1, 2).expand(query.shape)
+                cos = cos.repeat(1, 1, 2).expand(query.shape)
+                torch.ops.torch_ipex.apply_rotary_embedding_half_qk(query, key, sin, cos, query, key)
             else:
                 raise ValueError(
                     "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
                 )
+
 
         @classmethod
         def static(cls, config, dim, base, device):
