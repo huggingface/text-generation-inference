@@ -1,8 +1,14 @@
 import torch
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM, IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import (
+    IS_CUDA_SYSTEM,
+    IS_ROCM_SYSTEM,
+    IS_XPU_SYSTEM,
+)
 
 _PARTITION_SIZE = 512
 
+if IS_XPU_SYSTEM:
+    import intel_extension_for_pytorch as ipex
 
 
 def reshape_and_cache(
@@ -23,7 +29,9 @@ def reshape_and_cache(
 
         cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
     elif IS_XPU_SYSTEM:
-        torch.xpu.reshape_and_cache(key, value, key_cache, value_cache, slots)
+        ipex.llm.modules.PagedAttention.reshape_and_cache(
+            key, value, key_cache, value_cache, slots
+        )
     else:
         raise ValueError("vllm is not supported on your system")
 
@@ -67,18 +75,18 @@ def attention(
     # to parallelize.
     if IS_XPU_SYSTEM:
         query = query.contiguous()
-        return torch.xpu.IpexPaged_attention(
+        return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
             out,
             query,
             key_cache,
             value_cache,
             kv_head_mapping,
+            softmax_scale,
             block_tables,
             input_lengths,
-            softmax_scale,
             block_size,
             max_s,
-            None
+            None,
         )
 
     if use_v1:

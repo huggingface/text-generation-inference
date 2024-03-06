@@ -18,7 +18,14 @@ except ImportError:
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM, IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import (
+    IS_CUDA_SYSTEM,
+    IS_ROCM_SYSTEM,
+    IS_XPU_SYSTEM,
+)
+
+if IS_XPU_SYSTEM:
+    import intel_extension_for_pytorch as ipex
 
 HAS_AWQ = True
 try:
@@ -816,7 +823,13 @@ try:
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
-                out = torch.ops.torch_ipex.fast_layer_norm(hidden_states, self.normalized_shape, self.weight, self.bias, self.eps)
+                out = ipex.llm.modules.FastLayerNorm.apply(
+                    hidden_states,
+                    self.normalized_shape,
+                    self.eps,
+                    self.weight,
+                    self.bias,
+                )
                 return out, residual
             elif hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
                 if residual is not None:
@@ -868,8 +881,11 @@ try:
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
-                out = torch.ops.torch_ipex.rms_norm(
-                    hidden_states, [hidden_states.size(-1)], self.weight, self.variance_epsilon
+                out = ipex.llm.modules.RMSNorm.apply(
+                    hidden_states,
+                    [hidden_states.size(-1)],
+                    self.weight,
+                    self.variance_epsilon,
                 )
                 return out[0], residual
             elif hidden_states.shape[-1] > 8192:
@@ -999,14 +1015,13 @@ try:
                 # Inplace operation, updating query and key.
                 pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, True)
             elif IS_XPU_SYSTEM:
-                sin = sin.expand(query.shape)
-                cos = cos.expand(query.shape)
-                torch.ops.torch_ipex.apply_rotary_embedding_half_qk(query, key, sin, cos, query, key)
+                ipex.llm.modules.RotaryEmbedding.apply(
+                    query, key, sin, cos, query.size(-1), True
+                )
             else:
                 raise ValueError(
                     "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
                 )
-
 
         @classmethod
         def static(cls, config, dim, base, device):
@@ -1123,8 +1138,6 @@ try:
             cos = torch.index_select(self._cos_cached, 0, position_ids)
             sin = torch.index_select(self._sin_cached, 0, position_ids)
 
-            if IS_XPU_SYSTEM:
-                return cos.unsqueeze(1).repeat(1, 1, 2), sin.unsqueeze(1).repeat(1, 1, 2)
             # Note: this unsqueeze is not necessary on RoCm + VLLM ROPE implementation, but we leave it as is to avoid yet an other controlflow.
             return cos.unsqueeze(1), sin.unsqueeze(1)
 
