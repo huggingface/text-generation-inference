@@ -1,0 +1,72 @@
+# Rust builder
+FROM lukemathwalker/cargo-chef:latest-rust-1.71 AS chef
+WORKDIR /usr/src
+
+ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+FROM chef as planner
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY benchmark benchmark
+COPY router router
+COPY launcher launcher
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+
+ARG GIT_SHA
+ARG DOCKER_LABEL
+
+RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
+    curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
+    unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
+    unzip -o $PROTOC_ZIP -d /usr/local 'include/*' && \
+    rm -f $PROTOC_ZIP
+
+COPY --from=planner /usr/src/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY benchmark benchmark
+COPY router router
+COPY launcher launcher
+RUN cargo build --release
+
+# Text Generation Inference base image for Intel
+FROM intel/intel-extension-for-pytorch:2.1.10-xpu as base
+
+USER root
+# libssl.so.1.1 is not installed on Ubuntu 22.04 by default, install it
+RUN wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb && \
+    dpkg -i ./libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+
+# Text Generation Inference base env
+ENV HUGGINGFACE_HUB_CACHE=/data \
+    HF_HUB_ENABLE_HF_TRANSFER=1 \
+    PORT=80
+
+
+# Install server
+COPY proto proto
+COPY server server
+COPY server/Makefile server/Makefile
+RUN cd server && \
+    make gen-server && \
+    pip install -r requirements_common.txt && \
+    pip install ".[accelerate, peft]" --no-cache-dir
+
+# Install benchmarker
+COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+# Install router
+COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
+# Install launcher
+COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+
+# Final image
+FROM base
+
+ENTRYPOINT ["text-generation-launcher"]
+CMD ["--json-output"]
