@@ -1,7 +1,7 @@
 import torch
 import os
 
-MEM_POOL = torch.cuda.graph_pool_handle()
+MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 # This is overridden by the cli
 cuda_graphs = os.getenv("CUDA_GRAPHS")
 if cuda_graphs is not None and cuda_graphs != "0":

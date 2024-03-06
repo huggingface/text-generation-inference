@@ -883,11 +883,10 @@ try:
                 residual = hidden_states
                 out = ipex.llm.modules.RMSNorm.apply(
                     hidden_states,
-                    [hidden_states.size(-1)],
                     self.weight,
                     self.variance_epsilon,
                 )
-                return out[0], residual
+                return out, residual
             elif hidden_states.shape[-1] > 8192:
                 if residual is not None:
                     hidden_states += residual

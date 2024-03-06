@@ -35,7 +35,7 @@ SLIDING_WINDOW: Optional[int] = None
 SLIDING_WINDOW_BLOCKS: Optional[int] = None
 from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
 
-MEM_POOL = torch.cuda.graph_pool_handle()
+MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
 
 def set_sliding_window(sliding_window: int, sliding_window_blocks: int):
