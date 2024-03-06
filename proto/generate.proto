@@ -80,6 +80,18 @@ message NextTokenChooserParameters {
     string grammar = 10;
     /// grammar type
     GrammarType grammar_type = 11;
+    /// states to token maps
+    StatesToTokenMaps states_to_token_maps = 12;
+}
+
+/// StatesToTokenMaps maps to a BTreeMap<u32, BTreeMap<u32, u32>> in rust (start_state -> (token -> end_state))
+message StatesToTokenMaps {
+    /// Start state
+    repeated uint32 start_states = 1;
+    /// Token
+    repeated uint32 tokens = 2;
+    /// End state
+    repeated uint32 end_states = 3;
 }
 
 message StoppingCriteriaParameters {

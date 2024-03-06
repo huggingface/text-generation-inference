@@ -48,6 +48,7 @@ impl Health {
                     watermark: false,
                     grammar: String::new(),
                     grammar_type: ProtoGrammarType::None as i32,
+                    states_to_token_maps: None,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens: 1,
