@@ -46,7 +46,7 @@ TGI optimized models are supported on NVIDIA [A100](https://www.nvidia.com/en-us
 TGI also has support of ROCm-enabled AMD Instinct MI210 and MI250 GPUs, with paged attention, GPTQ quantization, flash attention v2 support. The following features are currently not supported in the ROCm version of TGI, and the supported may be extended in the future:
 * Loading [AWQ](https://huggingface.co/docs/transformers/quantization#awq) checkpoints.
 * Flash [layer norm kernel](https://github.com/Dao-AILab/flash-attention/tree/main/csrc/layer_norm)
-* Kernel for slinding window attention (Mistral)
+* Kernel for sliding window attention (Mistral)
 
 TGI is also supported on the following AI hardware accelerators:
 - *Habana first-gen Gaudi and Gaudi2:* check out this [repository](https://github.com/huggingface/tgi-gaudi) to serve models with TGI on Gaudi and Gaudi2 with [Optimum Habana](https://huggingface.co/docs/optimum/habana/index)
