@@ -39,6 +39,7 @@ class NextTokenChooser:
         grammar: str = "",
         grammar_type: GrammarType = GrammarType.GRAMMAR_TYPE_NONE,
         fsm_grammar_state: int = 0,
+        states_to_token_maps: List[List[int]] = None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -54,7 +55,9 @@ class NextTokenChooser:
             else None
         )
         self.grammar_processor = (
-            GrammarLogitProcessor(tokenizer, device, grammar, grammar_type)
+            GrammarLogitProcessor(
+                tokenizer, device, grammar, grammar_type, states_to_token_maps
+            )
             if grammar != ""
             else None
         )
@@ -78,6 +81,7 @@ class NextTokenChooser:
         self.choice = Sampling(seed, device) if sampling else Greedy()
         self.fsm_grammar_state = fsm_grammar_state
         self.grammar = grammar
+        self.states_to_token_maps = states_to_token_maps
 
     def __call__(self, input_ids, scores):
         if self.watermark_processor is not None:
@@ -126,6 +130,7 @@ class NextTokenChooser:
             tokenizer=tokenizer,
             grammar=pb.grammar,
             grammar_type=pb.grammar_type,
+            states_to_token_maps=pb.states_to_token_maps,
         )
 
 
@@ -233,7 +238,8 @@ class HeterogeneousNextTokenChooser:
         tokenizer: PreTrainedTokenizerBase,
         grammars: List[str],
         grammar_types: List[int],
-        fsm_grammar_states=List[int],
+        fsm_grammar_states: List[int],
+        states_to_token_maps: List[List[List[int]]],
     ):
         warpers = []
 
@@ -267,7 +273,7 @@ class HeterogeneousNextTokenChooser:
 
         self.grammar_processor = (
             HeterogeneousGrammarLogitProcessor(
-                tokenizer, device, grammars, grammar_types
+                tokenizer, device, grammars, grammar_types, states_to_token_maps
             )
             if any([grammar != "" for grammar in grammars])
             else None
@@ -308,6 +314,7 @@ class HeterogeneousNextTokenChooser:
         self.fsm_grammar_states = fsm_grammar_states
         self.grammars = grammars
         self.grammar_types = grammar_types
+        self.states_to_token_maps = states_to_token_maps
 
     def __call__(
         self,
@@ -486,6 +493,7 @@ class HeterogeneousNextTokenChooser:
             fsm_grammar_states=(
                 fsm_grammar_states if fsm_grammar_states else [0] * len(pb)
             ),
+            states_to_token_maps=[pb_.states_to_token_maps for pb_ in pb],
         )
 
 

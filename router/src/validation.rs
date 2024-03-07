@@ -397,10 +397,23 @@ impl Validation {
                             .await
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
 
+                        // flatten the BTreeMap<u32, BTreeMap<u32, u32>> to 3 Vec<u32> into 4 vectors (start_states, tokens, end_states, offsets)
+                        let mut start_states = vec![];
+                        let mut tokens = vec![];
+                        let mut end_states = vec![];
+
+                        for (start_state, token_map) in _states_to_token_maps.iter() {
+                            for (token, end_state) in token_map.iter() {
+                                start_states.push(*start_state);
+                                tokens.push(*token);
+                                end_states.push(*end_state);
+                            }
+                        }
+
                         let stm = StatesToTokenMaps {
-                            start_states: vec![],
-                            tokens: vec![],
-                            end_states: vec![],
+                            start_states,
+                            tokens,
+                            end_states,
                         };
 
                         (
