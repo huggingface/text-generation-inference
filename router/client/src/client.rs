@@ -135,8 +135,6 @@ impl Client {
                     repetition_penalty: 1.2,
                     frequency_penalty: 0.1,
                     watermark: true,
-                    grammar: String::new(),
-                    grammar_type: GrammarType::None as i32,
                     states_to_token_maps: None,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {

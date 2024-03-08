@@ -7,8 +7,7 @@ use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 use text_generation_client::{
-    GrammarType as ProtoGrammarType, NextTokenChooserParameters, StatesToTokenMaps,
-    StoppingCriteriaParameters,
+    NextTokenChooserParameters, StatesToTokenMaps, StoppingCriteriaParameters,
 };
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
@@ -368,7 +367,7 @@ impl Validation {
         // compiler and use that to build the FSM here.
 
         // Validate grammar and unpack the grammar and type for the proto message
-        let (grammar, grammar_type, states_to_token_maps) = match grammar {
+        let states_to_token_maps = match grammar {
             Some(grammar) => {
                 // Ensure that grammar is not set if it's not supported
                 if self.disable_grammar_support {
@@ -392,7 +391,7 @@ impl Validation {
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
 
                         // NOTE: this is the first step to compile the grammar
-                        let (regex_compiled_grammar, _states_to_token_maps) = self
+                        let (_regex_compiled_grammar, _states_to_token_maps) = self
                             .compile_grammar(serde_json::to_string(&json).unwrap())
                             .await
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
@@ -416,16 +415,12 @@ impl Validation {
                             end_states,
                         };
 
-                        (
-                            regex_compiled_grammar,
-                            ProtoGrammarType::Regex.into(),
-                            Some(stm),
-                        )
+                        Some(stm)
                     }
-                    GrammarType::Regex(regex) => (regex, ProtoGrammarType::Regex.into(), None),
+                    GrammarType::Regex(_regex) => None,
                 }
             }
-            None => (String::new(), ProtoGrammarType::None.into(), None),
+            None => None,
         };
 
         let parameters = NextTokenChooserParameters {
@@ -438,8 +433,6 @@ impl Validation {
             do_sample,
             seed,
             watermark,
-            grammar,
-            grammar_type,
             states_to_token_maps,
         };
         let stopping_parameters = StoppingCriteriaParameters {
@@ -567,7 +560,6 @@ fn compile_grammar(
             r#"
 from outlines.fsm.fsm import RegexFSM
 from outlines.fsm.json_schema import build_regex_from_schema
-import time
 from transformers.file_utils import SPIECE_UNDERLINE
 
 class Tokenizer:
@@ -589,13 +581,10 @@ class Tokenizer:
         return " ".join(tokens)
 
 def adapt_tokenizer(vocab, special_tokens):
-    start_time = time.time()
     tokenizer = Tokenizer(vocab, special_tokens)
 
     def convert_token_to_string(token: str) -> str:
-
         string = tokenizer.convert_tokens_to_string([token])
-
         # A hack to handle missing spaces to HF's Llama tokenizers
         if token.startswith(SPIECE_UNDERLINE) or token == "<0x20>":
             return " " + string
@@ -603,26 +592,16 @@ def adapt_tokenizer(vocab, special_tokens):
         return string
 
     tokenizer.convert_token_to_string = convert_token_to_string
-    print(f"Adapted tokenizer in {time.time() - start_time:.2f}s")
     return tokenizer
 
 def compile_regex_grammar(inputs, vocab, special_tokens):
-    start_time = time.time()
-    print("🔥 starting compile_regex_grammar", inputs)
     schema = build_regex_from_schema(inputs)
-    print(f"Compiled grammar in {time.time() - start_time:.2f}s")
     tokenizer = adapt_tokenizer(vocab, special_tokens)
-    print(f"Adapted tokenizer in {time.time() - start_time:.2f}s")
     fsm = RegexFSM(schema, tokenizer)
-    print(f"Compiled grammar in {time.time() - start_time:.2f}s")
     return fsm
 
 def convert_grammar_to_regex(inputs):
-    start_time = time.time()
-    print("🔥 starting convert_grammar_to_regex", inputs)
-    schema = build_regex_from_schema(inputs)
-    print(f"Compiled grammar in {time.time() - start_time:.2f}s")
-    return schema
+    return build_regex_from_schema(inputs)
 "#,
             "",
             "",
@@ -645,19 +624,7 @@ def convert_grammar_to_regex(inputs):
             .getattr("states_to_token_maps")?
             .extract::<StateTokenMaps>()?;
 
-        println!("🔥 elapsed: {:?}", start_time.elapsed());
-
-        // size of serialized states_to_token_maps
-        let states_to_token_maps_json = serde_json::to_string(&states_to_token_maps).unwrap();
-        println!(
-            "🔥 states_to_token_maps size: {:.2}MB",
-            states_to_token_maps_json.len() as f64 / 1024.0 / 1024.0
-        );
-
         let result = regex_fsm.into_ref(py).extract().unwrap();
-
-        println!("result: {:?}", result);
-
         Ok((result, states_to_token_maps))
     })
     .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;

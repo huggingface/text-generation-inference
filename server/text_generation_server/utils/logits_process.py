@@ -475,22 +475,26 @@ class GrammarLogitProcessor(LogitsProcessor):
     fsm_state: DefaultDict[int, int]
     fsm: RegexFSM
 
-    def __init__(self, tokenizer, device, grammar, grammar_type, states_to_token_maps):
+    def __init__(self, tokenizer, device, states_to_token_maps):
         self.device = device
-        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
 
-        # TODO: use the precompiled grammar here
-        self.states_to_token_maps = states_to_token_maps
-        precompiled_grammar = RegexFSM.precompiled(
-            states_to_token_maps=states_to_token_maps,
-            empty_token_ids=None,
-            vocabulary=None,
-            eos_token_id=None,
-        )
+        start_states = states_to_token_maps.start_states
+        tokens = states_to_token_maps.tokens
+        end_states = states_to_token_maps.end_states
 
-        self.fsm = GrammarLogitProcessor._cached_compile_fsm(
-            grammar_type, grammar, self.tokenizer
-        )
+        _states_to_token_maps = {}
+        for i in range(len(start_states)):
+            if start_states[i] in _states_to_token_maps:
+                _states_to_token_maps[start_states[i]][tokens[i]] = end_states[i]
+            else:
+                _states_to_token_maps[start_states[i]] = {tokens[i]: end_states[i]}
+
+        fsm = object.__new__(RegexFSM)
+        fsm.states_to_token_maps = _states_to_token_maps
+        fsm.empty_token_ids = None
+        fsm.vocabulary = list(tokenizer.get_vocab().values())
+        fsm.eos_token_id = tokenizer.eos_token_id
+        self.fsm = fsm
 
     def __call__(
         self,
@@ -560,17 +564,14 @@ class GrammarLogitProcessor(LogitsProcessor):
 
 
 class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
-    def __init__(
-        self, tokenizer, device, grammars, grammar_types, states_to_token_maps
-    ):
+    def __init__(self, tokenizer, device, states_to_token_maps):
         self.device = device
-        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
         self.fsms = []
 
-        for grammar, grammar_type in zip(grammars, grammar_types):
-            start_states = states_to_token_maps[0].start_states
-            tokens = states_to_token_maps[0].tokens
-            end_states = states_to_token_maps[0].end_states
+        for states_to_token_map in states_to_token_maps:
+            start_states = states_to_token_map.start_states
+            tokens = states_to_token_map.tokens
+            end_states = states_to_token_map.end_states
 
             _states_to_token_maps = {}
             for i in range(len(start_states)):
@@ -579,18 +580,11 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
                 else:
                     _states_to_token_maps[start_states[i]] = {tokens[i]: end_states[i]}
 
-            # TODO: cleanup how precompiled grammars are handled
-            precompiled_grammar = RegexFSM.precompiled(
-                states_to_token_maps=_states_to_token_maps,
-                empty_token_ids=None,
-                vocabulary=list(tokenizer.get_vocab().values()),
-                eos_token_id=self.tokenizer.eos_token_id,
-            )
-            # fsm = GrammarLogitProcessor._cached_compile_fsm(
-            #     grammar_type, grammar, self.tokenizer
-            # )
-
-            fsm = precompiled_grammar
+            fsm = object.__new__(RegexFSM)
+            fsm.states_to_token_maps = _states_to_token_maps
+            fsm.empty_token_ids = None
+            fsm.vocabulary = list(tokenizer.get_vocab().values())
+            fsm.eos_token_id = tokenizer.eos_token_id
             self.fsms.append(fsm)
 
     def __call__(

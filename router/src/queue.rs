@@ -343,9 +343,7 @@ enum QueueCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use text_generation_client::{
-        GrammarType as ProtoGrammarType, NextTokenChooserParameters, StoppingCriteriaParameters,
-    };
+    use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
     use tracing::info_span;
 
     fn default_entry() -> (
@@ -370,8 +368,6 @@ mod tests {
                     repetition_penalty: 0.0,
                     frequency_penalty: 0.0,
                     watermark: false,
-                    grammar: String::new(),
-                    grammar_type: ProtoGrammarType::None as i32,
                     states_to_token_maps: None,
                 },
                 stopping_parameters: StoppingCriteriaParameters {

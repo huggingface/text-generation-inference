@@ -250,5 +250,7 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
+ENV LD_LIBRARY_PATH=/opt/conda/lib/:$LD_LIBRARY_PATH
+
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]
