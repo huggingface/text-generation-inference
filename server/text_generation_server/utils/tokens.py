@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 import math
 import torch
 from text_generation_server.pb import generate_pb2
-from text_generation_server.pb.generate_pb2 import FinishReason, GrammarType
+from text_generation_server.pb.generate_pb2 import FinishReason
 from text_generation_server.utils.logits_process import (
     FrequencyPenaltyLogitsProcessor,
     GrammarLogitProcessor,
