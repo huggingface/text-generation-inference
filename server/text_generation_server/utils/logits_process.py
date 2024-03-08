@@ -3,10 +3,8 @@ import torch
 
 from loguru import logger
 from typing import Dict, Union
-from text_generation_server.pb.generate_pb2 import GrammarType
 
 from outlines.fsm.fsm import RegexFSM
-from outlines.fsm.json_schema import build_regex_from_schema
 from functools import lru_cache
 from typing import List, Optional, DefaultDict
 import time
@@ -519,19 +517,6 @@ class GrammarLogitProcessor(LogitsProcessor):
         if fsm_grammar_state == -1:
             return fsm_grammar_state
         return fsm.next_state(fsm_grammar_state, next_token_id)
-
-    # TODO: move grammar compilation into the router
-    @staticmethod
-    @lru_cache(maxsize=32, typed=True)
-    def _cached_compile_fsm(grammar_type, schema, tokenizer):
-        start_time = time.time()
-        if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
-            schema = build_regex_from_schema(schema)
-        elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
-            pass  # schema is already a regex just here for clarity
-        fsm = RegexFSM(schema, tokenizer)
-        logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
-        return fsm
 
     @staticmethod
     @lru_cache(maxsize=32, typed=True)
