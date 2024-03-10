@@ -29,6 +29,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 
    docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host tgi_gaudi --model-id $model
    ```
+   > For gated models such as [LLama](https://huggingface.co/meta-llama) or [StarCoder](https://huggingface.co/bigcode/starcoder), you will have to pass `-e HUGGING_FACE_HUB_TOKEN=<token>` to the `docker run` command above with a valid Hugging Face Hub read token.
 3. Launch a local server instance on 8 Gaudi cards:
    ```bash
    model=meta-llama/Llama-2-70b-hf
@@ -36,64 +37,69 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 
    docker run -p 8080:80 -v $volume:/data --runtime=habana -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host tgi_gaudi --model-id $model --sharded true --num-shard 8
    ```
-   > Set `LIMIT_HPU_GRAPH=True` for larger sequence/decoding lengths(e.g. 300/212).
-4. You can then send a request:
+4. You can then send a simple request:
    ```bash
    curl 127.0.0.1:8080/generate \
      -X POST \
-     -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":17, "do_sample": true}}' \
+     -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":32}}' \
      -H 'Content-Type: application/json'
    ```
-   > The first call will be slower as the model is compiled.
-5. To run benchmark test, please refer [TGI's benchmark tool](https://github.com/huggingface/text-generation-inference/tree/main/benchmark).
+5. To run static benchmark test, please refer to [TGI's benchmark tool](https://github.com/huggingface/text-generation-inference/tree/main/benchmark).
 
    To run it on the same machine, you can do the following:
    * `docker exec -it <docker name> bash` , pick the docker started from step 3 or 4 using docker ps
    * `text-generation-benchmark -t <model-id>` , pass the model-id from docker run command
    * after the completion of tests, hit ctrl+c to see the performance data summary.
 
-> For gated models such as [StarCoder](https://huggingface.co/bigcode/starcoder), you will have to pass `-e HUGGING_FACE_HUB_TOKEN=<token>` to the `docker run` command above with a valid Hugging Face Hub read token.
-
 For more information and documentation about Text Generation Inference, checkout [the README](https://github.com/huggingface/text-generation-inference#text-generation-inference) of the original repo.
 
 Not all features of TGI are currently supported as this is still a work in progress.
-
-New changes are added for the current release:
-- Sharded feature with support for DeepSpeed-inference auto tensor parallelism. Also, use HPU graphs for performance improvement.
-- Torch profile.
-- Batch size bucketing for decode and prefill.
-- Sequence bucketing for prefill.
+TGI on Intel Gaudi has been validated mainly with Llama model. Support for other models from Optimum Habana will be added successively.
 
 
+## Setup TGI
 
-Environment Variables Added:
-
-<div align="center">
-
-| Name                        | Value(s)   | Default          | Description                                                                                                                      | Usage                        |
-| --------------------------- | :--------- | :--------------- | :------------------------------------------------------------------------------------------------------------------------------- | :--------------------------- |
-| ENABLE_HPU_GRAPH            | True/False | True             | Enable hpu graph or not                                                                                                          | add -e in docker run command |
-| LIMIT_HPU_GRAPH             | True/False | False            | Skip HPU graph usage for prefill to save memory, set to `True` for large sequence/decoding lengths(e.g. 300/212)                 | add -e in docker run command |
-| PROF_WAITSTEP               | integer    | 0                | Control profile wait steps                                                                                                       | add -e in docker run command |
-| PROF_WARMUPSTEP             | integer    | 0                | Control profile warmup steps                                                                                                     | add -e in docker run command |
-| PROF_STEP                   | integer    | 0                | Enable/disable profile, control profile active steps                                                                             | add -e in docker run command |
-| PROF_PATH                   | string     | /tmp/hpu_profile | Define profile folder                                                                                                            | add -e in docker run command |
-| PROF_RANKS                  | string     | 0                | Comma-separated list of ranks to profile                                                                                         | add -e in docker run command |
-| PROF_RECORD_SHAPES          | True/False | False            | Control record_shapes option in the profiler                                                                                     | add -e in docker run command |
-| BATCH_BUCKET_SIZE           | integer    | 8                | Batch size for decode operation will be rounded to the nearest multiple of this number. This limits the number of cached graphs  | add -e in docker run command |
-| PREFILL_BATCH_BUCKET_SIZE   | integer    | 4                | Batch size for prefill operation will be rounded to the nearest multiple of this number. This limits the number of cached graphs | add -e in docker run command |
-| PAD_SEQUENCE_TO_MULTIPLE_OF | integer    | 128              | For prefill operation, sequences will be padded to a multiple of provided value.                                                 | add -e in docker run command |
-| SKIP_TOKENIZER_IN_TGI       | True/False | False            | Skip tokenizer for input/output processing                                                                                       | add -e in docker run command |
-| TGI_PROFILER_ENABLED        | True/False | False            | Collect high-level server tracing events                                                                                         | add -e in docker run command |
-| WARMUP_ENABLED              | True/False | True             | Enable warmup during server initialization to recompile all graphs. This can increase TGI setup time.                            | add -e in docker run command |
-| QUEUE_THRESHOLD_MS          | integer    | 120              | Controls the threshold beyond which the request are considered overdue and handled with priority. Shorter requests are prioritized otherwise.                            | add -e in docker run command |
-</div>
-
+Maximum sequence length is controlled by two arguments:
+- `--max-input-length` is the maximum possible input prompt length. Default value is `1024`.
+- `--max-total-tokens` is the maximum possible total length of the sequence (input and output). Default value is `2048`.
 
 Maximum batch size is controlled by two arguments:
 - For prefill operation, please set `--max-prefill-total-tokens` as `bs * max-input-length`, where `bs` is your expected maximum prefill batch size.
 - For decode operation, please set `--max-batch-total-tokens` as `bs * max-total-tokens`, where `bs` is your expected maximum decode batch size.
 - Please note that batch size will be always padded to the nearest multiplication of `BATCH_BUCKET_SIZE` and `PREFILL_BATCH_BUCKET_SIZE`.
+
+Environment variables:
+
+<div align="left">
+
+| Name                        | Value(s)   | Default          | Description                                                                                                                      | Usage                        |
+| --------------------------- | :--------- | :--------------- | :------------------------------------------------------------------------------------------------------------------------------- | :--------------------------- |
+| ENABLE_HPU_GRAPH            | True/False | True             | Enable hpu graph or not                                                                                                          | add -e in docker run command |
+| LIMIT_HPU_GRAPH             | True/False | False            | Skip HPU graph usage for prefill to save memory, set to `True` for large sequence/decoding lengths(e.g. 300/212)                 | add -e in docker run command |
+| BATCH_BUCKET_SIZE           | integer    | 8                | Batch size for decode operation will be rounded to the nearest multiple of this number. This limits the number of cached graphs  | add -e in docker run command |
+| PREFILL_BATCH_BUCKET_SIZE   | integer    | 4                | Batch size for prefill operation will be rounded to the nearest multiple of this number. This limits the number of cached graphs | add -e in docker run command |
+| PAD_SEQUENCE_TO_MULTIPLE_OF | integer    | 128              | For prefill operation, sequences will be padded to a multiple of provided value.                                                 | add -e in docker run command |
+| SKIP_TOKENIZER_IN_TGI       | True/False | False            | Skip tokenizer for input/output processing                                                                                       | add -e in docker run command |
+| WARMUP_ENABLED              | True/False | True             | Enable warmup during server initialization to recompile all graphs. This can increase TGI setup time.                            | add -e in docker run command |
+| QUEUE_THRESHOLD_MS          | integer    | 120              | Controls the threshold beyond which the request are considered overdue and handled with priority. Shorter requests are prioritized otherwise.                            | add -e in docker run command |
+</div>
+
+## Profiler
+
+To collect performance profiling, please set below environment variables:
+
+<div align="left">
+
+| Name               | Value(s)   | Default          | Description                                              | Usage                        |
+| ------------------ | :--------- | :--------------- | :------------------------------------------------------- | :--------------------------- |
+| PROF_WAITSTEP      | integer    | 0                | Control profile wait steps                               | add -e in docker run command |
+| PROF_WARMUPSTEP    | integer    | 0                | Control profile warmup steps                             | add -e in docker run command |
+| PROF_STEP          | integer    | 0                | Enable/disable profile, control profile active steps     | add -e in docker run command |
+| PROF_PATH          | string     | /tmp/hpu_profile | Define profile folder                                    | add -e in docker run command |
+| PROF_RANKS         | string     | 0                | Comma-separated list of ranks to profile                 | add -e in docker run command |
+| PROF_RECORD_SHAPES | True/False | False            | Control record_shapes option in the profiler             | add -e in docker run command |
+</div>
+
 
 
 > The license to use TGI on Habana Gaudi is the one of TGI: https://github.com/huggingface/text-generation-inference/blob/main/LICENSE
