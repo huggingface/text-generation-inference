@@ -433,7 +433,7 @@ impl ChatCompletion {
         created: u64,
         details: Details,
         return_logprobs: bool,
-        tool_calls: Option<ToolCall>,
+        tool_calls: Option<Vec<ChatCompletionMessageToolCall>>,
     ) -> Self {
         Self {
             id: String::new(),
@@ -764,7 +764,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
-pub(crate) struct ToolCall {
+pub(crate) struct ChatCompletionMessageToolCall {
     pub id: u32,
     pub r#type: String,
     pub function: FunctionDefinition,
@@ -781,7 +781,7 @@ pub(crate) struct Message {
     #[schema(example = "\"David\"")]
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_calls: Option<ToolCall>,
+    pub tool_calls: Option<Vec<ChatCompletionMessageToolCall>>,
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
