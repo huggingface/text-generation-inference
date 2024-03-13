@@ -175,7 +175,7 @@ impl Client {
                     watermark: false,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
-                    max_new_tokens: 10,
+                    max_new_tokens: cmp::min(10, max_total_tokens - max_input_length),
                     stop_sequences: vec![],
                     ignore_eos_token: true,
                 }),
