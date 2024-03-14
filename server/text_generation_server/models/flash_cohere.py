@@ -3,12 +3,12 @@ import torch.distributed
 
 from opentelemetry import trace
 from typing import Optional
-from transformers.models.gemma import GemmaTokenizerFast
+from transformers.models.llama import LlamaTokenizerFast
 
 from text_generation_server.models import FlashCausalLM
-from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
-    FlashGemmaForCausalLM,
-    GemmaConfig,
+from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
+    FlashCohereForCausalLM,
+    CohereConfig,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -19,7 +19,7 @@ from text_generation_server.utils import (
 tracer = trace.get_tracer(__name__)
 
 
-class FlashGemma(FlashCausalLM):
+class FlashCohere(FlashCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -34,9 +34,9 @@ class FlashGemma(FlashCausalLM):
             device = torch.device(f"cuda:{rank}")
             dtype = torch.bfloat16 if dtype is None else dtype
         else:
-            raise NotImplementedError("FlashGemma is only available on GPU")
+            raise NotImplementedError("FlashCohere is only available on GPU")
 
-        tokenizer = GemmaTokenizerFast.from_pretrained(
+        tokenizer = LlamaTokenizerFast.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
@@ -46,7 +46,7 @@ class FlashGemma(FlashCausalLM):
             from_slow=False,
         )
 
-        config = GemmaConfig.from_pretrained(
+        config = CohereConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
@@ -59,10 +59,10 @@ class FlashGemma(FlashCausalLM):
         if config.quantize in ["gptq", "awq"]:
             weights._set_gptq_params(model_id, revision)
 
-        model = FlashGemmaForCausalLM(config, weights)
+        model = FlashCohereForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(FlashGemma, self).__init__(
+        super(FlashCohere, self).__init__(
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),
