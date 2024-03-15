@@ -539,7 +539,7 @@ impl ChatCompletionChunk {
                     role: "assistant".to_string(),
                     content: delta,
                     tool_calls: tool_calls.map(|tc| DeltaToolCall {
-                        index,
+                        index: 0,
                         id: String::new(),
                         r#type: "function".to_string(),
                         function: Function {
