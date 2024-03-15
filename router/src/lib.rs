@@ -524,7 +524,6 @@ impl ChatCompletionChunk {
         delta: Option<String>,
         tool_calls: Option<Vec<String>>,
         created: u64,
-        index: u32,
         logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
     ) -> Self {
@@ -535,7 +534,7 @@ impl ChatCompletionChunk {
             model,
             system_fingerprint,
             choices: vec![ChatCompletionChoice {
-                index,
+                index: 0,
                 delta: ChatCompletionDelta {
                     role: "assistant".to_string(),
                     content: delta,
