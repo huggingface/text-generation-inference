@@ -22,8 +22,8 @@ install-megablocks:
 
 install: gen-server
 	pip install pip --upgrade
-	pip install -r requirements_cuda.txt
-	pip install -e ".[bnb, accelerate, quantize, peft, outlines]"
+	pip install -r requirements.txt
+	pip install -e "."
 
 run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded
