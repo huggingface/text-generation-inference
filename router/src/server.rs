@@ -895,7 +895,6 @@ async fn chat_completions(
                     content,
                     tool_calls,
                     current_time,
-                    stream_token.index,
                     logprobs,
                     stream_token.details.map(|d| d.finish_reason.to_string()),
                 ))
