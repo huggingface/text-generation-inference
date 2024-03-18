@@ -181,14 +181,14 @@ class Parameters(BaseModel):
         if field_value is not None:
             if field_value <= 0:
                 raise ValidationError("`best_of` must be strictly positive")
-            if field_value > 1 and values["seed"] is not None:
+            if field_value > 1 and values.data["seed"] is not None:
                 raise ValidationError("`seed` must not be set when `best_of` is > 1")
             sampling = (
-                values["do_sample"]
-                | (values["temperature"] is not None)
-                | (values["top_k"] is not None)
-                | (values["top_p"] is not None)
-                | (values["typical_p"] is not None)
+                values.data["do_sample"]
+                | (values.data["temperature"] is not None)
+                | (values.data["top_k"] is not None)
+                | (values.data["top_p"] is not None)
+                | (values.data["typical_p"] is not None)
             )
             if field_value > 1 and not sampling:
                 raise ValidationError("you must use sampling when `best_of` is > 1")
