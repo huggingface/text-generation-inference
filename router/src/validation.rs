@@ -97,6 +97,12 @@ impl Validation {
             // Unwrap is safe here
             let (inputs, input_length) = response_receiver.await.unwrap()?;
 
+            let input_length = if self.skip_tokenizer_in_tgi {
+                inputs.chars().filter(|&c| c == ',').count() + 1
+            } else {
+                truncate.unwrap_or(self.max_input_length)
+            };
+
             // Get total tokens
             let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
                 max_new_tokens
