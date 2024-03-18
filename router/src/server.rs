@@ -14,7 +14,10 @@ use crate::{
     ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
     CompletionRequest, VertexRequest, VertexResponse,
 };
-use crate::{FunctionDefinition, FunctionRef, FunctionsMap, Properties, ChatCompletionMessageToolCall, ToolType, Tools};
+use crate::{
+    ChatCompletionMessageToolCall, FunctionDefinition, FunctionRef, FunctionsMap, Properties,
+    ToolType, Tools,
+};
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
