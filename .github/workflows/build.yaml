@@ -142,9 +142,6 @@ jobs:
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}
-            "http_proxy=http://localhost:1055"
-            "https_proxy=http://localhost:1055"
-            "no_proxy='localhost,127.0.0.1,::1,*.github-runners.huggingface.tech,*.amazonaws.com,*.docker.io,*.docker.com,cdn.auth0.com,*.cloudfront.net'"
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache,mode=min
