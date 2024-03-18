@@ -169,6 +169,9 @@ jobs:
         uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          debugEnabled: ${{ secrets.ACTIONS_STEP_DEBUG }}
+          slackChannel: ${{ secrets.SLACK_CIFEEDBACK_CHANNEL }}
+          slackToken: ${{ secrets.SLACK_CIFEEDBACK_BOT_TOKEN }}
       - name: Prepare disks
         run: |
           sudo mkfs -t ext4 /dev/nvme1n1
@@ -182,7 +185,11 @@ jobs:
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
           pytest -s -vv integration-tests
-
+      - name: Wait for SSH
+        if: ${{ success() || failure() }}
+        run : |
+          sleep 1m
+          while [ "$(last | grep '^runner.*still logged in$')" ]; do sleep 1m; done
   build-and-push-image-rocm:
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-rocm-${{ github.head_ref || github.run_id }}
