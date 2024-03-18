@@ -98,7 +98,7 @@ async def test_flash_llama_grammar_no_tools(
     assert response == response_snapshot
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_snapshot):
@@ -119,23 +119,25 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
         ],
     )
     assert response.choices[0].message.content == None
-    assert response.choices[0].message.tool_calls == {
-        "function": {
-            "description": None,
-            "name": "tools",
-            "parameters": {
-                "format": "celsius",
-                "location": "New York, NY",
-                "num_days": 14,
+    assert response.choices[0].message.tool_calls == [
+        {
+            "function": {
+                "description": None,
+                "name": "tools",
+                "parameters": {
+                    "format": "celsius",
+                    "location": "New York, NY",
+                    "num_days": 14,
+                },
             },
-        },
-        "id": 0,
-        "type": "function",
-    }
+            "id": 0,
+            "type": "function",
+        }
+    ]
     assert response == response_snapshot
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_auto(
@@ -159,23 +161,25 @@ async def test_flash_llama_grammar_tools_auto(
         ],
     )
     assert response.choices[0].message.content == None
-    assert response.choices[0].message.tool_calls == {
-        "function": {
-            "description": None,
-            "name": "tools",
-            "parameters": {
-                "format": "celsius",
-                "location": "New York, NY",
-                "num_days": 14,
+    assert response.choices[0].message.tool_calls == [
+        {
+            "function": {
+                "description": None,
+                "name": "tools",
+                "parameters": {
+                    "format": "celsius",
+                    "location": "New York, NY",
+                    "num_days": 14,
+                },
             },
-        },
-        "id": 0,
-        "type": "function",
-    }
+            "id": 0,
+            "type": "function",
+        }
+    ]
     assert response == response_snapshot
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_choice(
@@ -199,19 +203,21 @@ async def test_flash_llama_grammar_tools_choice(
         ],
     )
     assert response.choices[0].message.content == None
-    assert response.choices[0].message.tool_calls == {
-        "id": 0,
-        "type": "function",
-        "function": {
-            "description": None,
-            "name": "tools",
-            "parameters": {"format": "celsius", "location": "New York, NY"},
-        },
-    }
+    assert response.choices[0].message.tool_calls == [
+        {
+            "id": 0,
+            "type": "function",
+            "function": {
+                "description": None,
+                "name": "tools",
+                "parameters": {"format": "celsius", "location": "New York, NY"},
+            },
+        }
+    ]
     assert response == response_snapshot
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_stream(
