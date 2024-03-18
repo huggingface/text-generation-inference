@@ -802,11 +802,11 @@ class CausalLM(Model):
                 input_length = batch.input_length
                 if self.is_optimized_for_gaudi and logits.shape[-2] > 1:
                     next_token_ids, next_token_logprobs, logprobs = batch.next_token_chooser(
-                        batch.input_ids[:, :token_idx_scalar], logits[:, input_length - 1: input_length, :].squeeze(-2)
+                        batch.input_ids, logits[:, input_length - 1: input_length, :].squeeze(-2)
                     )
                 else:
                     next_token_ids, next_token_logprobs, logprobs = batch.next_token_chooser(
-                        batch.input_ids[:, :token_idx_scalar], logits.squeeze(-2)
+                        batch.input_ids, logits.squeeze(-2)
                     )
                 batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
                     batch.top_n_tokens,
