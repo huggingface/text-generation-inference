@@ -17,5 +17,7 @@ homepage = "https://github.com/huggingface/text-generation-inference"
 [profile.release]
 debug = 1
 incremental = true
-lto = "off"
+lto = "fat"
+opt-level = 3
+codegen-units = 1
 panic = "abort"
