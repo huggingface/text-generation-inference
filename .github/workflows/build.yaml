@@ -78,18 +78,12 @@ jobs:
         uses: docker/setup-buildx-action@v3.0.0
         with:
           install: true
-          driver-opts: |
-              "env.http_proxy=http://localhost:1055"
-              "env.https_proxy=http://localhost:1055"
-              "env.no_proxy='localhost,127.0.0.1,::1,*.ubuntu.com,*.github-runners.huggingface.tech,*.amazonaws.com,*.docker.io,*.docker.com,cdn.auth0.com,*.cloudfront.net'"
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Tailscale
-        uses: tailscale/github-action@7a0b30ed3517c2244d1330e39467b95f067a33bd
+        uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          tailscaled-args: "--tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055"
-          version: ${{ vars.TAILSCALE_CLIENT_VERSION }}
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
@@ -175,11 +169,9 @@ jobs:
         with:
           python-version: 3.9
       - name: Tailscale
-        uses: tailscale/github-action@7a0b30ed3517c2244d1330e39467b95f067a33bd
+        uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          tailscaled-args: "--tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055"
-          version: ${{ vars.TAILSCALE_CLIENT_VERSION }}
       - name: Prepare disks
         run: |
           sudo mkfs -t ext4 /dev/nvme1n1
@@ -220,10 +212,9 @@ jobs:
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Tailscale
-        uses: tailscale/github-action@7a0b30ed3517c2244d1330e39467b95f067a33bd
+        uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          version: ${{ vars.TAILSCALE_CLIENT_VERSION }}
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
