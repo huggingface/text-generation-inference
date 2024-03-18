@@ -16,13 +16,25 @@ limitations under the License.
 
 # Text Generation Inference on Habana Gaudi
 
+## Table of contents
+
+- [Running TGI on Gaudi](#running-tgi-on-gaudi)
+- [Adjusting TGI parameters](#adjusting-tgi-parameters)
+- [Currently supported configurations](#currently-supported-configurations)
+- [Environment variables](#environment-variables)
+- [Profiler](#profiler)
+
+## Running TGI on Gaudi
+
 To use [🤗 text-generation-inference](https://github.com/huggingface/text-generation-inference) on Habana Gaudi/Gaudi2, follow these steps:
 
 1. Build the Docker image located in this folder with:
    ```bash
    docker build -t tgi_gaudi .
    ```
-2. Launch a local server instance on 1 Gaudi card:
+2. Launch a local server instance:
+    
+    i. On 1 Gaudi/Gaudi2 card
    ```bash
    model=meta-llama/Llama-2-7b-hf
    volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
@@ -30,7 +42,8 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host tgi_gaudi --model-id $model
    ```
    > For gated models such as [LLama](https://huggingface.co/meta-llama) or [StarCoder](https://huggingface.co/bigcode/starcoder), you will have to pass `-e HUGGING_FACE_HUB_TOKEN=<token>` to the `docker run` command above with a valid Hugging Face Hub read token.
-3. Launch a local server instance on 8 Gaudi cards:
+
+    ii. On 8 Gaudi/Gaudi2 cards:
    ```bash
    model=meta-llama/Llama-2-70b-hf
    volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
@@ -47,17 +60,11 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 5. To run static benchmark test, please refer to [TGI's benchmark tool](https://github.com/huggingface/text-generation-inference/tree/main/benchmark).
 
    To run it on the same machine, you can do the following:
-   * `docker exec -it <docker name> bash` , pick the docker started from step 3 or 4 using docker ps
+   * `docker exec -it <docker name> bash` , pick the docker started from step 2 using docker ps
    * `text-generation-benchmark -t <model-id>` , pass the model-id from docker run command
    * after the completion of tests, hit ctrl+c to see the performance data summary.
 
-For more information and documentation about Text Generation Inference, checkout [the README](https://github.com/huggingface/text-generation-inference#text-generation-inference) of the original repo.
-
-Not all features of TGI are currently supported as this is still a work in progress.
-TGI on Intel Gaudi has been validated mainly with Llama model. Support for other models from Optimum Habana will be added successively.
-
-
-## Setup TGI
+## Adjusting TGI parameters
 
 Maximum sequence length is controlled by two arguments:
 - `--max-input-length` is the maximum possible input prompt length. Default value is `1024`.
@@ -68,7 +75,37 @@ Maximum batch size is controlled by two arguments:
 - For decode operation, please set `--max-batch-total-tokens` as `bs * max-total-tokens`, where `bs` is your expected maximum decode batch size.
 - Please note that batch size will be always padded to the nearest multiplication of `BATCH_BUCKET_SIZE` and `PREFILL_BATCH_BUCKET_SIZE`.
 
-Environment variables:
+To ensure greatest performance results, at the begginging of each server run, warmup is performed. It's designed to cover major recompilations while using HPU Graphs. It creates queries with all possible input shapes, based on provided parameters (described in this section) and runs basic TGI operations on them (prefill, decode, concatenate).
+
+Except those already mentioned, there are other parameters that need to be properly adjusted to improve performance or memory usage:
+
+- `PAD_SEQUENCE_TO_MULTIPLE_OF` determines sizes of input legnth buckets. Since warmup creates several graphs for each bucket, it's important to adjust that value proportionally to input sequence length. Otherwise, some out of memory issues can be observed.
+- `ENABLE_HPU_GRAPH` enables HPU graphs usage, which is crucial for performance results. Recommended value to keep is `true` .
+
+For more information and documentation about Text Generation Inference, checkout [the README](https://github.com/huggingface/text-generation-inference#text-generation-inference) of the original repo.
+
+## Currently supported configurations
+
+Not all features of TGI are currently supported as this is still a work in progress.
+Currently supported and validated configurations (other configurations are not guaranted to work or ensure reasonable performance ):
+* LLaMA 70b:
+    * Num cards: 8
+    * Decode batch size: 128
+    * Dtype: bfloat16
+    * Max input tokens: 1024
+    * Max total tokens: 2048
+
+* LLaMA 7b:
+    * Num cards: 1
+    * Decode batch size: 16
+    * Dtype: bfloat16
+    * Max input tokens: 1024
+    * Max total tokens: 2048
+
+Other sequence lengths can be used with proportionally decreased/increased batch size (the higher sequence length, the lower batch size).
+Support for other models from Optimum Habana will be added successively.
+
+## Environment variables
 
 <div align="left">
 
