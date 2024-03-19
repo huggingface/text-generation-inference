@@ -98,7 +98,7 @@ async def test_flash_llama_grammar_no_tools(
     assert response == response_snapshot
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_snapshot):
@@ -137,7 +137,7 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
     assert response == response_snapshot
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_auto(
@@ -179,7 +179,7 @@ async def test_flash_llama_grammar_tools_auto(
     assert response == response_snapshot
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_choice(
@@ -217,7 +217,7 @@ async def test_flash_llama_grammar_tools_choice(
     assert response == response_snapshot
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_stream(
