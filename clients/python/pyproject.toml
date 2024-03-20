@@ -12,7 +12,7 @@ repository = "https://github.com/huggingface/text-generation-inference"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-pydantic = "> 1.10, < 3"
+pydantic = "> 2, < 3"
 aiohttp = "^3.8"
 huggingface-hub = ">= 0.12, < 1.0"
 

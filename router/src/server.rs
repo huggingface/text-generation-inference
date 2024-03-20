@@ -14,10 +14,7 @@ use crate::{
     ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
     CompletionRequest, VertexRequest, VertexResponse,
 };
-use crate::{
-    ChatCompletionMessageToolCall, FunctionDefinition, FunctionRef, FunctionsMap, Properties,
-    ToolType, Tools,
-};
+use crate::{FunctionDefinition, FunctionRef, FunctionsMap, Properties, ToolCall, ToolType, Tools};
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -945,7 +942,7 @@ async fn chat_completions(
                     )
                 })?;
 
-            let tool_calls = vec![ChatCompletionMessageToolCall {
+            let tool_calls = vec![ToolCall {
                 id: 0,
                 r#type: "function".to_string(),
                 function: FunctionDefinition {
