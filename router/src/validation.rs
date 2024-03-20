@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 /// Payload validation logic
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{GenerateParameters, GenerateRequest, GrammarType};
@@ -5,7 +7,7 @@ use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 use text_generation_client::{
-    GrammarType as ProtoGrammarType, NextTokenChooserParameters, StoppingCriteriaParameters,
+    NextTokenChooserParameters, StatesToTokenMaps, StoppingCriteriaParameters,
 };
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
@@ -13,6 +15,9 @@ use tokenizers::TruncationDirection;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
+
+use pyo3::prelude::*;
+use pyo3::types::IntoPyDict;
 
 /// Validation
 #[derive(Debug, Clone)]
@@ -26,6 +31,7 @@ pub struct Validation {
     disable_grammar_support: bool,
     /// Channel to communicate with the background tokenization task
     sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
+    grammar_compilation_sender: Option<mpsc::UnboundedSender<GrammarCompilationRequest>>,
 }
 
 impl Validation {
@@ -41,7 +47,7 @@ impl Validation {
         disable_grammar_support: bool,
     ) -> Self {
         // If we have a fast tokenizer
-        let sender = if let Some(tokenizer) = tokenizer {
+        let (sender, grammar_compilation_sender) = if let Some(tokenizer) = tokenizer {
             // Create round robin channel
             let (validation_sender, validation_round_robin_receiver) = mpsc::unbounded_channel();
             let mut senders = Vec::with_capacity(workers);
@@ -58,17 +64,46 @@ impl Validation {
                 });
             }
 
-            // Create tokenization round robin task
-            tokio::spawn(round_robin_task(validation_round_robin_receiver, senders));
+            // Create round robin channel
+            let (grammar_sender, grammar_round_robin_receiver) = mpsc::unbounded_channel();
+            let mut grammar_senders = Vec::with_capacity(workers);
 
-            Some(validation_sender)
+            // Create workers
+            for _ in 0..workers {
+                let tokenizer_clone = tokenizer.clone();
+                let (grammar_sender, grammar_receiver) = mpsc::unbounded_channel();
+                grammar_senders.push(grammar_sender);
+
+                // Spawn worker
+                tokio::task::spawn_blocking(move || {
+                    grammar_compilation_worker(tokenizer_clone, grammar_receiver).map_err(|e| {
+                        tracing::error!("Error in grammar compilation worker: {:?}", e);
+                        e
+                    })
+                });
+            }
+
+            // Create tokenization round robin task
+            tokio::spawn(round_robin_task::<TokenizerRequest>(
+                validation_round_robin_receiver,
+                senders,
+            ));
+
+            // Create grammar compilation round robin task
+            tokio::spawn(round_robin_task::<GrammarCompilationRequest>(
+                grammar_round_robin_receiver,
+                grammar_senders,
+            ));
+
+            (Some(validation_sender), Some(grammar_sender))
         } else {
-            None
+            (None, None)
         };
 
         Self {
             max_best_of,
             sender,
+            grammar_compilation_sender,
             max_stop_sequences,
             max_top_n_tokens,
             max_input_length,
@@ -100,6 +135,30 @@ impl Validation {
         } else {
             Ok(None)
         }
+    }
+
+    #[instrument(skip(self, inputs))]
+    pub async fn compile_grammar(
+        &self,
+        inputs: String,
+    ) -> Result<(String, StateTokenMaps), ValidationError> {
+        // If we have a fast tokenizer
+        if let Some(sender) = &self.grammar_compilation_sender {
+            // Create response channel
+            let (response_sender, response_receiver) = oneshot::channel();
+            // Send request to the background validation task
+            // Unwrap is safe here
+            sender
+                .send((inputs.clone(), response_sender, Span::current()))
+                .unwrap();
+
+            // Await on response channel
+            // Unwrap is safe here
+            let encoding = response_receiver.await.unwrap()?;
+            return Ok(encoding);
+        }
+
+        Ok((String::new(), BTreeMap::new()))
     }
 
     #[instrument(skip(self, inputs))]
@@ -308,7 +367,7 @@ impl Validation {
         // compiler and use that to build the FSM here.
 
         // Validate grammar and unpack the grammar and type for the proto message
-        let (grammar, grammar_type) = match grammar {
+        let states_to_token_maps = match grammar {
             Some(grammar) => {
                 // Ensure that grammar is not set if it's not supported
                 if self.disable_grammar_support {
@@ -331,17 +390,37 @@ impl Validation {
                             .compile(&json)
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
 
-                        (
-                            // Serialize json to string
-                            serde_json::to_string(&json)
-                                .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?,
-                            ProtoGrammarType::Json.into(),
-                        )
+                        // NOTE: this is the first step to compile the grammar
+                        let (_regex_compiled_grammar, _states_to_token_maps) = self
+                            .compile_grammar(serde_json::to_string(&json).unwrap())
+                            .await
+                            .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
+
+                        // flatten the BTreeMap<u32, BTreeMap<u32, u32>> to 3 Vec<u32> into 4 vectors (start_states, tokens, end_states, offsets)
+                        let mut start_states = vec![];
+                        let mut tokens = vec![];
+                        let mut end_states = vec![];
+
+                        for (start_state, token_map) in _states_to_token_maps.iter() {
+                            for (token, end_state) in token_map.iter() {
+                                start_states.push(*start_state);
+                                tokens.push(*token);
+                                end_states.push(*end_state);
+                            }
+                        }
+
+                        let stm = StatesToTokenMaps {
+                            start_states,
+                            tokens,
+                            end_states,
+                        };
+
+                        Some(stm)
                     }
-                    GrammarType::Regex(regex) => (regex, ProtoGrammarType::Regex.into()),
+                    GrammarType::Regex(_regex) => None,
                 }
             }
-            None => (String::new(), ProtoGrammarType::None.into()),
+            None => None,
         };
 
         let parameters = NextTokenChooserParameters {
@@ -354,8 +433,7 @@ impl Validation {
             do_sample,
             seed,
             watermark,
-            grammar,
-            grammar_type,
+            states_to_token_maps,
         };
         let stopping_parameters = StoppingCriteriaParameters {
             max_new_tokens,
@@ -392,9 +470,9 @@ impl Validation {
 }
 
 /// Round robin tokenization task
-async fn round_robin_task(
-    mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>,
-    senders: Vec<mpsc::UnboundedSender<TokenizerRequest>>,
+async fn round_robin_task<T>(
+    mut receiver: mpsc::UnboundedReceiver<T>,
+    senders: Vec<mpsc::UnboundedSender<T>>,
 ) {
     loop {
         for sender in &senders {
@@ -416,6 +494,32 @@ fn tokenizer_worker(tokenizer: Tokenizer, mut receiver: mpsc::UnboundedReceiver<
                 .unwrap_or(())
         })
     }
+}
+
+/// Start grammar compilation workers
+fn grammar_compilation_worker(
+    tokenizer: Tokenizer,
+    mut receiver: mpsc::UnboundedReceiver<GrammarCompilationRequest>,
+) -> Result<(), PyErr> {
+    // initialize python runtime
+    pyo3::prepare_freethreaded_python();
+
+    // load in outlines for all workers
+    Python::with_gil(|py| {
+        PyModule::import(py, "outlines")?;
+        Ok::<_, PyErr>(())
+    })?;
+
+    // Loop over requests
+    while let Some((inputs, response_tx, parent_span)) = receiver.blocking_recv() {
+        parent_span.in_scope(|| {
+            response_tx
+                .send(compile_grammar(inputs, &tokenizer))
+                .unwrap_or(())
+        })
+    }
+
+    Ok(())
 }
 
 /// Get input length and optionally truncate it
@@ -441,6 +545,99 @@ fn prepare_input(
 
     Ok((encoding, inputs))
 }
+
+type StateTokenMaps = BTreeMap<u32, BTreeMap<u32, u32>>;
+
+/// Compile a grammar
+fn compile_grammar(
+    inputs: String,
+    tokenizer: &Tokenizer,
+) -> Result<(String, StateTokenMaps), ValidationError> {
+    let start_time = std::time::Instant::now();
+    let (schema, states_to_token_maps) = Python::with_gil(|py| -> PyResult<(_, _)> {
+        let fun: Py<PyAny> = PyModule::from_code(
+            py,
+            r#"
+from outlines.fsm.fsm import RegexFSM
+from outlines.fsm.json_schema import build_regex_from_schema
+from transformers.file_utils import SPIECE_UNDERLINE
+
+class Tokenizer:
+    def __init__(self, vocab, special_tokens):
+        self.vocabulary = vocab
+        self.special_tokens = special_tokens
+        self.eos_token_id = 0
+
+    def get_vocab(self, with_added_tokens):
+        return self.vocabulary
+
+    def encode(self, text, add_special_tokens):
+        return text
+
+    def decode(self, text, skip_special_tokens):
+        return text
+
+    def convert_tokens_to_string(self, tokens):
+        return " ".join(tokens)
+
+def adapt_tokenizer(vocab, special_tokens):
+    tokenizer = Tokenizer(vocab, special_tokens)
+
+    def convert_token_to_string(token: str) -> str:
+        string = tokenizer.convert_tokens_to_string([token])
+        # A hack to handle missing spaces to HF's Llama tokenizers
+        if token.startswith(SPIECE_UNDERLINE) or token == "<0x20>":
+            return " " + string
+
+        return string
+
+    tokenizer.convert_token_to_string = convert_token_to_string
+    return tokenizer
+
+def compile_regex_grammar(inputs, vocab, special_tokens):
+    schema = build_regex_from_schema(inputs)
+    tokenizer = adapt_tokenizer(vocab, special_tokens)
+    fsm = RegexFSM(schema, tokenizer)
+    return fsm
+
+def convert_grammar_to_regex(inputs):
+    return build_regex_from_schema(inputs)
+"#,
+            "",
+            "",
+        )?
+        .into_py(py);
+
+        let convert_grammar_to_regex = fun.getattr(py, "convert_grammar_to_regex")?;
+        let compile_regex_grammar = fun.getattr(py, "compile_regex_grammar")?;
+
+        let args: &pyo3::types::PyDict = tokenizer.get_vocab(true).into_py_dict(py);
+        let special_tokens: Vec<String> = vec![];
+
+        let regex_fsm = convert_grammar_to_regex.call(py, (inputs.clone(),), None)?;
+
+        let compiled_grammar =
+            compile_regex_grammar.call(py, (inputs.clone(), args, special_tokens), None)?;
+        let compiled_grammar_ref = compiled_grammar.into_ref(py);
+
+        let states_to_token_maps = compiled_grammar_ref
+            .getattr("states_to_token_maps")?
+            .extract::<StateTokenMaps>()?;
+
+        let result = regex_fsm.into_ref(py).extract().unwrap();
+        Ok((result, states_to_token_maps))
+    })
+    .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
+    let elapsed = start_time.elapsed();
+    println!("🔥 elapsed: {:?}", elapsed);
+    Ok((schema, states_to_token_maps))
+}
+
+type GrammarCompilationRequest = (
+    String,
+    oneshot::Sender<Result<(String, StateTokenMaps), ValidationError>>,
+    Span,
+);
 
 type TokenizerRequest = (
     (String, Option<usize>),

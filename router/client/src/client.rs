@@ -19,8 +19,11 @@ impl Client {
     pub async fn connect(uri: Uri) -> Result<Self> {
         let channel = Channel::builder(uri).connect().await?;
 
+        let limit = 100 * 1024 * 1024; // 100MB
         Ok(Self {
-            stub: TextGenerationServiceClient::new(channel),
+            stub: TextGenerationServiceClient::new(channel)
+                .max_decoding_message_size(limit)
+                .max_encoding_message_size(limit),
         })
     }
 
@@ -33,8 +36,12 @@ impl Client {
             }))
             .await?;
 
+        let limit = 100 * 1024 * 1024; // 100MB
+        println!("limit: {}", limit);
         Ok(Self {
-            stub: TextGenerationServiceClient::new(channel),
+            stub: TextGenerationServiceClient::new(channel)
+                .max_decoding_message_size(limit)
+                .max_encoding_message_size(limit),
         })
     }
 
@@ -128,8 +135,7 @@ impl Client {
                     repetition_penalty: 1.2,
                     frequency_penalty: 0.1,
                     watermark: true,
-                    grammar: String::new(),
-                    grammar_type: GrammarType::None as i32,
+                    states_to_token_maps: None,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens: max_total_tokens - truncate,

@@ -3,10 +3,8 @@ import torch
 
 from loguru import logger
 from typing import Dict, Union
-from text_generation_server.pb.generate_pb2 import GrammarType
 
 from outlines.fsm.fsm import RegexFSM
-from outlines.fsm.json_schema import build_regex_from_object
 from functools import lru_cache
 from typing import List, Optional, DefaultDict
 import time
@@ -475,12 +473,26 @@ class GrammarLogitProcessor(LogitsProcessor):
     fsm_state: DefaultDict[int, int]
     fsm: RegexFSM
 
-    def __init__(self, tokenizer, device, grammar, grammar_type):
+    def __init__(self, tokenizer, device, states_to_token_maps):
         self.device = device
-        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
-        self.fsm = GrammarLogitProcessor._cached_compile_fsm(
-            grammar_type, grammar, self.tokenizer
-        )
+
+        start_states = states_to_token_maps.start_states
+        tokens = states_to_token_maps.tokens
+        end_states = states_to_token_maps.end_states
+
+        _states_to_token_maps = {}
+        for i in range(len(start_states)):
+            if start_states[i] in _states_to_token_maps:
+                _states_to_token_maps[start_states[i]][tokens[i]] = end_states[i]
+            else:
+                _states_to_token_maps[start_states[i]] = {tokens[i]: end_states[i]}
+
+        fsm = object.__new__(RegexFSM)
+        fsm.states_to_token_maps = _states_to_token_maps
+        fsm.empty_token_ids = None
+        fsm.vocabulary = list(tokenizer.get_vocab().values())
+        fsm.eos_token_id = tokenizer.eos_token_id
+        self.fsm = fsm
 
     def __call__(
         self,
@@ -505,19 +517,6 @@ class GrammarLogitProcessor(LogitsProcessor):
         if fsm_grammar_state == -1:
             return fsm_grammar_state
         return fsm.next_state(fsm_grammar_state, next_token_id)
-
-    # TODO: move grammar compilation into the router
-    @staticmethod
-    @lru_cache(maxsize=32, typed=True)
-    def _cached_compile_fsm(grammar_type, schema, tokenizer):
-        start_time = time.time()
-        if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
-            schema = build_regex_from_object(schema)
-        elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
-            pass  # schema is already a regex just here for clarity
-        fsm = RegexFSM(schema, tokenizer)
-        logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
-        return fsm
 
     @staticmethod
     @lru_cache(maxsize=32, typed=True)
@@ -550,14 +549,27 @@ class GrammarLogitProcessor(LogitsProcessor):
 
 
 class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
-    def __init__(self, tokenizer, device, grammars, grammar_types):
+    def __init__(self, tokenizer, device, states_to_token_maps):
         self.device = device
-        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
         self.fsms = []
-        for grammar, grammar_type in zip(grammars, grammar_types):
-            fsm = GrammarLogitProcessor._cached_compile_fsm(
-                grammar_type, grammar, self.tokenizer
-            )
+
+        for states_to_token_map in states_to_token_maps:
+            start_states = states_to_token_map.start_states
+            tokens = states_to_token_map.tokens
+            end_states = states_to_token_map.end_states
+
+            _states_to_token_maps = {}
+            for i in range(len(start_states)):
+                if start_states[i] in _states_to_token_maps:
+                    _states_to_token_maps[start_states[i]][tokens[i]] = end_states[i]
+                else:
+                    _states_to_token_maps[start_states[i]] = {tokens[i]: end_states[i]}
+
+            fsm = object.__new__(RegexFSM)
+            fsm.states_to_token_maps = _states_to_token_maps
+            fsm.empty_token_ids = None
+            fsm.vocabulary = list(tokenizer.get_vocab().values())
+            fsm.eos_token_id = tokenizer.eos_token_id
             self.fsms.append(fsm)
 
     def __call__(

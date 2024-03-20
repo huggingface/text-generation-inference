@@ -206,11 +206,20 @@ def serve(
             logger.exception("Error when initializing model")
             raise
 
+        max_send_message_size = 100 * 1024 * 1024  # 100 MB
+        max_receive_message_size = 100 * 1024 * 1024  # 100 MB
+
+        server_options = [
+            ("grpc.max_send_message_length", max_send_message_size),
+            ("grpc.max_receive_message_length", max_receive_message_size),
+        ]
+
         server = aio.server(
+            options=server_options,
             interceptors=[
                 ExceptionInterceptor(),
                 UDSOpenTelemetryAioServerInterceptor(),
-            ]
+            ],
         )
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
             TextGenerationService(model, Cache(), quantize, server_urls), server

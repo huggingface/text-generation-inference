@@ -46,6 +46,7 @@ ngrok = { version = "0.13.1", features = ["axum"], optional = true }
 init-tracing-opentelemetry = { version = "0.14.1", features = ["opentelemetry-otlp"] }
 minijinja = { git = "https://github.com/mitsuhiko/minijinja.git", branch = "main", commit = "5cd4efb" }
 futures-util = "0.3.30"
+pyo3 = "0.20.3"
 
 [build-dependencies]
 vergen = { version = "8.2.5", features = ["build", "git", "gitcl"] }

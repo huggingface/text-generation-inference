@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 import math
 import torch
 from text_generation_server.pb import generate_pb2
-from text_generation_server.pb.generate_pb2 import FinishReason, GrammarType
+from text_generation_server.pb.generate_pb2 import FinishReason
 from text_generation_server.utils.logits_process import (
     FrequencyPenaltyLogitsProcessor,
     GrammarLogitProcessor,
@@ -36,9 +36,8 @@ class NextTokenChooser:
         seed: int = 0,
         device: str = "cpu",
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
-        grammar: str = "",
-        grammar_type: GrammarType = GrammarType.GRAMMAR_TYPE_NONE,
         fsm_grammar_state: int = 0,
+        states_to_token_maps: List[List[int]] = None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -54,8 +53,8 @@ class NextTokenChooser:
             else None
         )
         self.grammar_processor = (
-            GrammarLogitProcessor(tokenizer, device, grammar, grammar_type)
-            if grammar != ""
+            GrammarLogitProcessor(tokenizer, device, states_to_token_maps)
+            if len(states_to_token_maps.start_states) > 0
             else None
         )
         self.tokenizer = tokenizer
@@ -77,7 +76,7 @@ class NextTokenChooser:
 
         self.choice = Sampling(seed, device) if sampling else Greedy()
         self.fsm_grammar_state = fsm_grammar_state
-        self.grammar = grammar
+        self.states_to_token_maps = states_to_token_maps
 
     def __call__(self, input_ids, scores):
         if self.watermark_processor is not None:
@@ -124,8 +123,7 @@ class NextTokenChooser:
             seed=pb.seed,
             device=device,
             tokenizer=tokenizer,
-            grammar=pb.grammar,
-            grammar_type=pb.grammar_type,
+            states_to_token_maps=pb.states_to_token_maps,
         )
 
 
@@ -231,9 +229,8 @@ class HeterogeneousNextTokenChooser:
         do_sample: List[bool],
         seeds: List[int],
         tokenizer: PreTrainedTokenizerBase,
-        grammars: List[str],
-        grammar_types: List[int],
-        fsm_grammar_states=List[int],
+        fsm_grammar_states: List[int],
+        states_to_token_maps: List[List[List[int]]],
     ):
         warpers = []
 
@@ -266,10 +263,8 @@ class HeterogeneousNextTokenChooser:
         )
 
         self.grammar_processor = (
-            HeterogeneousGrammarLogitProcessor(
-                tokenizer, device, grammars, grammar_types
-            )
-            if any([grammar != "" for grammar in grammars])
+            HeterogeneousGrammarLogitProcessor(tokenizer, device, states_to_token_maps)
+            if any([len(x.start_states) > 0 for x in states_to_token_maps])
             else None
         )
 
@@ -306,8 +301,7 @@ class HeterogeneousNextTokenChooser:
         self.device = device
         self.tokenizer = tokenizer
         self.fsm_grammar_states = fsm_grammar_states
-        self.grammars = grammars
-        self.grammar_types = grammar_types
+        self.states_to_token_maps = states_to_token_maps
 
     def __call__(
         self,
@@ -440,17 +434,14 @@ class HeterogeneousNextTokenChooser:
         self.seeds = [self.seeds[i] for i in indices]
         self.do_sample = [self.do_sample[i] for i in indices]
 
-        new_grammars = []
+        new_states_to_token_maps = []
         new_fsm_grammar_states = []
-        new_grammar_types = []
         for i in indices:
-            new_grammars.append(self.grammars[i])
+            new_states_to_token_maps.append(self.states_to_token_maps[i])
             new_fsm_grammar_states.append(self.fsm_grammar_states[i])
-            new_grammar_types.append(self.grammar_types[i])
 
-        self.grammars = new_grammars
+        self.states_to_token_maps = new_states_to_token_maps
         self.fsm_grammar_states = new_fsm_grammar_states
-        self.grammar_types = new_grammar_types
 
         if any(self.do_sample):
             self.choice.filter(indices)
@@ -481,11 +472,10 @@ class HeterogeneousNextTokenChooser:
             device=device,
             dtype=dtype,
             tokenizer=tokenizer,
-            grammars=[pb_.grammar for pb_ in pb],
-            grammar_types=[pb_.grammar_type for pb_ in pb],
             fsm_grammar_states=(
                 fsm_grammar_states if fsm_grammar_states else [0] * len(pb)
             ),
+            states_to_token_maps=[pb_.states_to_token_maps for pb_ in pb],
         )
 
 
