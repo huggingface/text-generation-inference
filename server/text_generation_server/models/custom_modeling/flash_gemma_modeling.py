@@ -209,7 +209,7 @@ class GemmaConfig(PretrainedConfig):
         num_attention_heads=16,
         num_key_value_heads=16,
         head_dim=256,
-        hidden_act="gelu",
+        hidden_act="gelu_pytorch_tanh",
         max_position_embeddings=8192,
         initializer_range=0.02,
         rms_norm_eps=1e-6,
@@ -473,7 +473,9 @@ class FlashGemmaLayer(nn.Module):
         input_lengths,
         max_s,
     ):
-        normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
+        normed_hidden_states, res = self.input_layernorm(
+            hidden_states, residual, force_downcast_after=True
+        )
 
         # Self Attention
         attn_output = self.self_attn(
@@ -490,7 +492,7 @@ class FlashGemmaLayer(nn.Module):
 
         # faster post attention rms norm
         normed_attn_res_output, attn_res = self.post_attention_layernorm(
-            attn_output, res
+            attn_output, res, force_downcast_after=True
         )
 
         mlp_output = self.mlp(normed_attn_res_output)

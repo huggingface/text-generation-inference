@@ -687,7 +687,7 @@ try:
             weight = weights.get_tensor(f"{prefix}.weight")
             return cls(weight, eps)
 
-        def forward(self, hidden_states, residual=None):
+        def forward(self, hidden_states, residual=None, force_downcast_after=False):
             if hidden_states.shape[-1] > 8192:
                 if residual is not None:
                     hidden_states += residual
@@ -701,9 +701,23 @@ try:
 
                 # convert into half-precision if necessary
                 if self.weight.dtype in [torch.float16, torch.bfloat16]:
-                    hidden_states = hidden_states.to(self.weight.dtype)
+                    # perform the multiplication in float32 then cast back to half
+                    if force_downcast_after:
+                        hidden_states = (hidden_states * self.weight).to(
+                            self.weight.dtype
+                        )
+                    else:
+                        # cast to half before the multiplication
+                        hidden_states = self.weight * hidden_states.to(
+                            self.weight.dtype
+                        )
 
-                return self.weight * hidden_states, residual
+                # avoid converting to half and multiply in float32
+                else:
+                    hidden_states = self.weight * hidden_states
+
+                return hidden_states, residual
+
             elif IS_CUDA_SYSTEM:
                 # faster post attention rms norm
                 (
