@@ -44,7 +44,7 @@ utoipa = { version = "3.5.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "3.1.5", features = ["axum"] }
 ngrok = { version = "0.13.1", features = ["axum"], optional = true }
 init-tracing-opentelemetry = { version = "0.14.1", features = ["opentelemetry-otlp"] }
-minijinja = "1.0.10"
+minijinja = { git = "https://github.com/mitsuhiko/minijinja.git", branch = "main", commit = "5cd4efb" }
 futures-util = "0.3.30"
 
 [build-dependencies]
