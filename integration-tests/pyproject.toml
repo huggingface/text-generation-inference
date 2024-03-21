@@ -5,6 +5,7 @@ description = "Text Generation Inference integration tests"
 authors = ["Nicolas Patry <nicolas@huggingface.co>"]
 
 [tool.poetry.dependencies]
+pydantic = "> 2, < 3"
 python = ">=3.9,<3.13"
 syrupy = "4.0.1"
 text-generation = "^0.6.0"

@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from typing import Optional, List, Union, Any
 
 from text_generation.errors import ValidationError
@@ -32,7 +32,7 @@ class Message(BaseModel):
     # Role of the message sender
     role: str
     # Content of the message
-    content: Optional[str]
+    content: Optional[str] = None
     # Optional name of the message sender
     name: Optional[str] = None
     # Tool calls associated with the chat completion
@@ -56,7 +56,7 @@ class ChatCompletionComplete(BaseModel):
     # Reason for completion
     finish_reason: str
     # Usage details of the chat completion
-    usage: Any
+    usage: Optional[Any] = None
 
 
 class Function(BaseModel):
@@ -73,7 +73,7 @@ class ChoiceDeltaToolCall(BaseModel):
 
 class ChoiceDelta(BaseModel):
     role: str
-    content: Optional[str]
+    content: Optional[str] = None
     tool_calls: Optional[ChoiceDeltaToolCall]
 
 
@@ -176,74 +176,74 @@ class Parameters(BaseModel):
     # grammar to use for generation
     grammar: Optional[Grammar] = None
 
-    @validator("best_of")
+    @field_validator("best_of")
     def valid_best_of(cls, field_value, values):
         if field_value is not None:
             if field_value <= 0:
                 raise ValidationError("`best_of` must be strictly positive")
-            if field_value > 1 and values["seed"] is not None:
+            if field_value > 1 and values.data["seed"] is not None:
                 raise ValidationError("`seed` must not be set when `best_of` is > 1")
             sampling = (
-                values["do_sample"]
-                | (values["temperature"] is not None)
-                | (values["top_k"] is not None)
-                | (values["top_p"] is not None)
-                | (values["typical_p"] is not None)
+                values.data["do_sample"]
+                | (values.data["temperature"] is not None)
+                | (values.data["top_k"] is not None)
+                | (values.data["top_p"] is not None)
+                | (values.data["typical_p"] is not None)
             )
             if field_value > 1 and not sampling:
                 raise ValidationError("you must use sampling when `best_of` is > 1")
 
         return field_value
 
-    @validator("repetition_penalty")
+    @field_validator("repetition_penalty")
     def valid_repetition_penalty(cls, v):
         if v is not None and v <= 0:
             raise ValidationError("`repetition_penalty` must be strictly positive")
         return v
 
-    @validator("seed")
+    @field_validator("seed")
     def valid_seed(cls, v):
         if v is not None and v < 0:
             raise ValidationError("`seed` must be positive")
         return v
 
-    @validator("temperature")
+    @field_validator("temperature")
     def valid_temp(cls, v):
         if v is not None and v <= 0:
             raise ValidationError("`temperature` must be strictly positive")
         return v
 
-    @validator("top_k")
+    @field_validator("top_k")
     def valid_top_k(cls, v):
         if v is not None and v <= 0:
             raise ValidationError("`top_k` must be strictly positive")
         return v
 
-    @validator("top_p")
+    @field_validator("top_p")
     def valid_top_p(cls, v):
         if v is not None and (v <= 0 or v >= 1.0):
             raise ValidationError("`top_p` must be > 0.0 and < 1.0")
         return v
 
-    @validator("truncate")
+    @field_validator("truncate")
     def valid_truncate(cls, v):
         if v is not None and v <= 0:
             raise ValidationError("`truncate` must be strictly positive")
         return v
 
-    @validator("typical_p")
+    @field_validator("typical_p")
     def valid_typical_p(cls, v):
         if v is not None and (v <= 0 or v >= 1.0):
             raise ValidationError("`typical_p` must be > 0.0 and < 1.0")
         return v
 
-    @validator("top_n_tokens")
+    @field_validator("top_n_tokens")
     def valid_top_n_tokens(cls, v):
         if v is not None and v <= 0:
             raise ValidationError("`top_n_tokens` must be strictly positive")
         return v
 
-    @validator("grammar")
+    @field_validator("grammar")
     def valid_grammar(cls, v):
         if v is not None:
             if v.type == GrammarType.Regex and not v.value:
@@ -261,15 +261,15 @@ class Request(BaseModel):
     # Whether to stream output tokens
     stream: bool = False
 
-    @validator("inputs")
+    @field_validator("inputs")
     def valid_input(cls, v):
         if not v:
             raise ValidationError("`inputs` cannot be empty")
         return v
 
-    @validator("stream")
+    @field_validator("stream")
     def valid_best_of_stream(cls, field_value, values):
-        parameters = values["parameters"]
+        parameters = values.data["parameters"]
         if (
             parameters is not None
             and parameters.best_of is not None

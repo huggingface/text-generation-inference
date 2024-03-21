@@ -942,7 +942,7 @@ async fn chat_completions(
                     )
                 })?;
 
-            let tool_call = Some(ToolCall {
+            let tool_calls = vec![ToolCall {
                 id: 0,
                 r#type: "function".to_string(),
                 function: FunctionDefinition {
@@ -963,8 +963,8 @@ async fn chat_completions(
                         |f| Ok(f.clone()),
                     )?,
                 },
-            });
-            (tool_call, None)
+            }];
+            (Some(tool_calls), None)
         } else {
             (None, Some(generation.generated_text))
         };
