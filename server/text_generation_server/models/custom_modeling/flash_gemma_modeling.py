@@ -261,6 +261,28 @@ class GemmaFastRMSNorm(FastRMSNorm):
         weight = weights.get_tensor(f"{prefix}.weight") + 1
         return cls(weight, eps)
 
+    # perform the multiplication in full precision and downcast after
+    def forward_downcast_after(self, hidden_states, residual=None):
+        if residual is not None:
+            hidden_states += residual
+        residual = hidden_states
+
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+
+        # convert into half-precision if necessary
+        if self.weight.dtype in [torch.float16, torch.bfloat16]:
+            hidden_states = (hidden_states * self.weight).to(self.weight.dtype)
+        else:
+            hidden_states = hidden_states * self.weight
+
+        return hidden_states, residual
+
+    def forward(self, hidden_states, residual=None):
+        hidden_states, residual = self.forward_downcast_after(hidden_states, residual)
+        return hidden_states, residual
+
 
 def load_attention(config, prefix, weights):
     if config.num_attention_heads != config.num_key_value_heads:
@@ -473,9 +495,7 @@ class FlashGemmaLayer(nn.Module):
         input_lengths,
         max_s,
     ):
-        normed_hidden_states, res = self.input_layernorm(
-            hidden_states, residual, force_downcast_after=True
-        )
+        normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
         # Self Attention
         attn_output = self.self_attn(
@@ -492,7 +512,7 @@ class FlashGemmaLayer(nn.Module):
 
         # faster post attention rms norm
         normed_attn_res_output, attn_res = self.post_attention_layernorm(
-            attn_output, res, force_downcast_after=True
+            attn_output, res
         )
 
         mlp_output = self.mlp(normed_attn_res_output)
