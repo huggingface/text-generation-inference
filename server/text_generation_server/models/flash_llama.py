@@ -68,6 +68,7 @@ class FlashLlama(FlashCausalLM):
             weights._set_gptq_params(model_id, revision)
 
         model = FlashLlamaForCausalLM(config, weights)
+        # model = torch.compile(model, mode="reduce-overhead")
         torch.distributed.barrier(group=self.process_group)
         super(FlashLlama, self).__init__(
             model=model,

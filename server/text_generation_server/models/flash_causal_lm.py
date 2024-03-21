@@ -798,11 +798,13 @@ class FlashCausalLM(Model):
             self.device,
         )
 
+        self.compiled_model = torch.compile(self.model, mode="reduce-overhead")
+
         if ENABLE_CUDA_GRAPHS:
             try:
                 logger.info("Experimental support for Cuda Graphs is enabled")
                 # Warmup cuda graphs
-                for bs in [1, 2, 4] + [8 * i for i in range(8)]:
+                for bs in [1]:
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except Exception:
@@ -881,7 +883,19 @@ class FlashCausalLM(Model):
             or cuda_graph is None
             or batch.speculative_ids is not None
         ):
-            return self.model.forward(
+            if cu_seqlen_prefill is None:
+                return self.compiled_model(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=cu_seqlen_prefill,
+                    kv_cache=kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    input_lengths=input_lengths,
+                    max_s=max_s,
+                    lm_head_indices=lm_head_indices,
+                )
+            return self.model(
                 input_ids=input_ids,
                 position_ids=position_ids,
                 cu_seqlen_prefill=cu_seqlen_prefill,
