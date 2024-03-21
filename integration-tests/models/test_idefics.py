@@ -15,17 +15,18 @@ async def idefics(idefics_handle):
     await idefics_handle.health(300)
     return idefics_handle.client
 
+
+# TODO fix the server parsser to count inline image tokens correctly
 def get_chicken():
-    with open("integrations-tests/images/chicken_on_money.png", "rb") as image_file:
+    with open("integration-tests/images/chicken_on_money.png", "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read())
     return f"data:image/png;base64,{encoded_string}"
 
 
 @pytest.mark.asyncio
 async def test_idefics(idefics, response_snapshot):
-    chicken = get_chicken()
     response = await idefics.generate(
-        f"User:![]({chicken})Can you tell me a very short story based on the image?",
+        "User:![](https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/chicken_on_money.png?download=true)Can you tell me a very short story based on the image?",
         max_new_tokens=10,
         decoder_input_details=True,
     )
@@ -38,7 +39,7 @@ async def test_idefics(idefics, response_snapshot):
 async def test_idefics_load(idefics, generate_load, response_snapshot):
     responses = await generate_load(
         idefics,
-        f"User:![]({chicken})Can you tell me a very short story based on the image?",
+        "User:![](https://huggingface.co/spaces/HuggingFaceM4/idefics_playground/resolve/main/example_images/chicken_on_money.png?download=true)Can you tell me a very short story based on the image?",
         max_new_tokens=10,
         n=4,
     )
