@@ -10,16 +10,16 @@
             "name": null
           },
           "id": "",
-          "index": 20,
+          "index": 0,
           "type": "function"
         }
       },
       "finish_reason": "eos_token",
-      "index": 20,
+      "index": 0,
       "logprobs": null
     }
   ],
-  "created": 1709087088,
+  "created": 1710795499,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",

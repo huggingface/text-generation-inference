@@ -25,6 +25,7 @@ from text_generation.types import (
     Grammar,
     ChatComplete,
     ChatCompletionChunk,
+    ChatCompletionComplete,
 )
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
@@ -42,11 +43,16 @@ class ResponseComparator(JSONSnapshotExtension):
         exclude=None,
         matcher=None,
     ):
-        if isinstance(data, Response):
-            data = data.dict()
+        if (
+            isinstance(data, Response)
+            or isinstance(data, ChatComplete)
+            or isinstance(data, ChatCompletionChunk)
+            or isinstance(data, ChatCompletionComplete)
+        ):
+            data = data.model_dump()
 
         if isinstance(data, List):
-            data = [d.dict() for d in data]
+            data = [d.model_dump() for d in data]
 
         data = self._filter(
             data=data, depth=0, path=(), exclude=exclude, matcher=matcher
