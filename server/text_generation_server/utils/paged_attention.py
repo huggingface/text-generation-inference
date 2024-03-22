@@ -1,10 +1,18 @@
 import torch
+from text_generation_server.utils.import_utils import (
+    IS_CUDA_SYSTEM,
+    IS_ROCM_SYSTEM,
+    IS_XPU_SYSTEM,
+)
 
-# vllm imports
-from vllm import cache_ops
-from vllm import attention_ops
+if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
+    from vllm import cache_ops
+    from vllm import attention_ops
 
 _PARTITION_SIZE = 512
+
+if IS_XPU_SYSTEM:
+    import intel_extension_for_pytorch as ipex
 
 
 def reshape_and_cache(
@@ -14,7 +22,12 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
+    if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
+        cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
+    elif IS_XPU_SYSTEM:
+        ipex.llm.modules.PagedAttention.reshape_and_cache(
+            key, value, key_cache, value_cache, slots
+        )
 
 
 def attention(
@@ -54,6 +67,22 @@ def attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
+    if IS_XPU_SYSTEM:
+        query = query.contiguous()
+        return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
+            out,
+            query,
+            key_cache,
+            value_cache,
+            kv_head_mapping,
+            softmax_scale,
+            block_tables,
+            input_lengths,
+            block_size,
+            max_s,
+            None,
+        )
+
     use_v1 = max_num_partitions == 1 or num_seqs * num_heads > 512
     if use_v1:
         attention_ops.paged_attention_v1(
