@@ -67,6 +67,7 @@ class Client:
     def chat(
         self,
         messages: List[Message],
+        repetition_penalty: Optional[float] = None,
         frequency_penalty: Optional[float] = None,
         logit_bias: Optional[List[float]] = None,
         logprobs: Optional[bool] = None,
@@ -87,9 +88,13 @@ class Client:
         Args:
             messages (`List[Message]`):
                 List of messages
-            frequency_penalty (`float`):
-                The parameter for frequency penalty. 0.0 means no penalty. See [this
+            repetition_penalty (`float`):
+                The parameter for repetition penalty. 0.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 0.0 means no penalty
+                Penalize new tokens based on their existing frequency in the text so far,
+                decreasing the model's likelihood to repeat the same line verbatim.
             logit_bias (`List[float]`):
                 Adjust the likelihood of specified tokens
             logprobs (`bool`):
@@ -121,6 +126,7 @@ class Client:
         request = ChatRequest(
             model="tgi",
             messages=messages,
+            repetition_penalty=repetition_penalty,
             frequency_penalty=frequency_penalty,
             logit_bias=logit_bias,
             logprobs=logprobs,
@@ -179,6 +185,7 @@ class Client:
         max_new_tokens: int = 20,
         best_of: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
         stop_sequences: Optional[List[str]] = None,
@@ -207,6 +214,10 @@ class Client:
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 1.0 means no penalty
+                Penalize new tokens based on their existing frequency in the text so far,
+                decreasing the model's likelihood to repeat the same line verbatim.
             return_full_text (`bool`):
                 Whether to prepend the prompt to the generated text
             seed (`int`):
@@ -245,6 +256,7 @@ class Client:
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
+            frequency_penalty=frequency_penalty,
             return_full_text=return_full_text,
             seed=seed,
             stop=stop_sequences if stop_sequences is not None else [],
@@ -278,6 +290,7 @@ class Client:
         do_sample: bool = False,
         max_new_tokens: int = 20,
         repetition_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
         stop_sequences: Optional[List[str]] = None,
@@ -303,6 +316,10 @@ class Client:
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 1.0 means no penalty
+                Penalize new tokens based on their existing frequency in the text so far,
+                decreasing the model's likelihood to repeat the same line verbatim.
             return_full_text (`bool`):
                 Whether to prepend the prompt to the generated text
             seed (`int`):
@@ -340,6 +357,7 @@ class Client:
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
+            frequency_penalty=frequency_penalty,
             return_full_text=return_full_text,
             seed=seed,
             stop=stop_sequences if stop_sequences is not None else [],
@@ -435,6 +453,7 @@ class AsyncClient:
     async def chat(
         self,
         messages: List[Message],
+        repetition_penalty: Optional[float] = None,
         frequency_penalty: Optional[float] = None,
         logit_bias: Optional[List[float]] = None,
         logprobs: Optional[bool] = None,
@@ -455,9 +474,13 @@ class AsyncClient:
         Args:
             messages (`List[Message]`):
                 List of messages
-            frequency_penalty (`float`):
+            repetition_penalty (`float`):
                 The parameter for frequency penalty. 0.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 0.0 means no penalty
+                Penalize new tokens based on their existing frequency in the text so far,
+                decreasing the model's likelihood to repeat the same line verbatim.
             logit_bias (`List[float]`):
                 Adjust the likelihood of specified tokens
             logprobs (`bool`):
@@ -489,6 +512,7 @@ class AsyncClient:
         request = ChatRequest(
             model="tgi",
             messages=messages,
+            repetition_penalty=repetition_penalty,
             frequency_penalty=frequency_penalty,
             logit_bias=logit_bias,
             logprobs=logprobs,
@@ -546,6 +570,7 @@ class AsyncClient:
         max_new_tokens: int = 20,
         best_of: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
         stop_sequences: Optional[List[str]] = None,
@@ -574,6 +599,10 @@ class AsyncClient:
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 1.0 means no penalty
+                Penalize new tokens based on their existing frequency in the text so far,
+                decreasing the model's likelihood to repeat the same line verbatim.
             return_full_text (`bool`):
                 Whether to prepend the prompt to the generated text
             seed (`int`):
@@ -614,6 +643,7 @@ class AsyncClient:
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
+            frequency_penalty=frequency_penalty,
             return_full_text=return_full_text,
             seed=seed,
             stop=stop_sequences if stop_sequences is not None else [],
@@ -644,6 +674,7 @@ class AsyncClient:
         do_sample: bool = False,
         max_new_tokens: int = 20,
         repetition_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
         return_full_text: bool = False,
         seed: Optional[int] = None,
         stop_sequences: Optional[List[str]] = None,
@@ -669,6 +700,10 @@ class AsyncClient:
             repetition_penalty (`float`):
                 The parameter for repetition penalty. 1.0 means no penalty. See [this
                 paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 1.0 means no penalty
+                Penalize new tokens based on their existing frequency in the text so far,
+                decreasing the model's likelihood to repeat the same line verbatim.
             return_full_text (`bool`):
                 Whether to prepend the prompt to the generated text
             seed (`int`):
@@ -706,6 +741,7 @@ class AsyncClient:
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
+            frequency_penalty=frequency_penalty,
             return_full_text=return_full_text,
             seed=seed,
             stop=stop_sequences if stop_sequences is not None else [],
