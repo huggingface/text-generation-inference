@@ -1830,13 +1830,13 @@ tests = ["GitPython", "datasets", "optuna", "parameterized", "psutil", "pytest (
 
 [[package]]
 name = "outlines"
-version = "0.0.27"
+version = "0.0.36"
 description = "Probabilistic Generative Model Programming"
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "outlines-0.0.27-py3-none-any.whl", hash = "sha256:dd614f49760ff8870a5d491fad4a372d7b7d4da5c1646f1b42f12a9d5e34db4b"},
-    {file = "outlines-0.0.27.tar.gz", hash = "sha256:debc49f0db4d968eea05a4a6134516b3e49c6c8607106aa097410a4b53d5af6c"},
+    {file = "outlines-0.0.36-py3-none-any.whl", hash = "sha256:afa02ca5c449c47731fa06af66d13c2f5ee8b30f8b82b4db90e08215d6f111d1"},
+    {file = "outlines-0.0.36.tar.gz", hash = "sha256:3cffb43143548cd78c6061990feb461cffd5479999391b8390471ea839c2d46e"},
 ]
 
 [package.dependencies]
@@ -1859,7 +1859,7 @@ transformers = "*"
 
 [package.extras]
 serve = ["fastapi", "pydantic (>=2.0)", "ray (==2.9.0)", "uvicorn", "vllm (>=0.3.0)"]
-test = ["accelerate", "beartype (<0.16.0)", "coverage[toml] (>=5.1)", "datasets", "diff-cover", "huggingface-hub", "llama-cpp-python", "pre-commit", "pytest", "pytest-benchmark", "pytest-cov", "pytest-mock", "responses", "transformers"]
+test = ["accelerate", "beartype (<0.16.0)", "coverage[toml] (>=5.1)", "datasets", "diff-cover", "huggingface-hub", "llama-cpp-python", "openai (>=1.0.0)", "pre-commit", "pytest", "pytest-benchmark", "pytest-cov", "pytest-mock", "responses", "transformers"]
 
 [[package]]
 name = "packaging"
@@ -3634,4 +3634,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "7510d50d3465d99cf08f9b1daed50c41d251262f548fb11dd141d46f02b8a8f5"
+content-hash = "70670851d12a378b67fd4b4ed8a4a17d0861637e13a02ddf96a119768e8444e5"

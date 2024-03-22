@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
+# Copyright 2024 Cohere team. All rights reserved.
 #
 # This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
 # and OPT implementations in this library. It has been modified from its
@@ -38,35 +38,34 @@ from text_generation_server.utils.layers import (
 )
 
 
-class GemmaConfig(PretrainedConfig):
+class CohereConfig(PretrainedConfig):
     def __init__(
         self,
-        vocab_size=256128,
-        hidden_size=3072,
-        intermediate_size=24576,
-        num_hidden_layers=28,
-        num_attention_heads=16,
-        num_key_value_heads=16,
-        head_dim=256,
-        hidden_act="gelu_pytorch_tanh",
+        vocab_size=256000,
+        hidden_size=8192,
+        intermediate_size=22528,
+        num_hidden_layers=40,
+        num_attention_heads=64,
+        num_key_value_heads=None,
+        hidden_act="silu",
         max_position_embeddings=8192,
         initializer_range=0.02,
-        rms_norm_eps=1e-6,
+        layer_norm_eps=1e-5,
         use_cache=True,
-        pad_token_id=None,
-        bos_token_id=1,
-        eos_token_id=2,
+        pad_token_id=0,
+        bos_token_id=5,
+        eos_token_id=255001,
+        pretraining_tp=1,
         tie_word_embeddings=True,
         rope_theta=10000.0,
-        rope_scaling=None,
         attention_bias=False,
         attention_dropout=0.0,
+        logit_scale=1.0,
         **kwargs,
     ):
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings
         self.hidden_size = hidden_size
-        self.head_dim = head_dim
         self.intermediate_size = intermediate_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
@@ -78,12 +77,13 @@ class GemmaConfig(PretrainedConfig):
         self.num_key_value_heads = num_key_value_heads
         self.hidden_act = hidden_act
         self.initializer_range = initializer_range
-        self.rms_norm_eps = rms_norm_eps
+        self.layer_norm_eps = layer_norm_eps
+        self.pretraining_tp = pretraining_tp
         self.use_cache = use_cache
         self.rope_theta = rope_theta
-        self.rope_scaling = rope_scaling
         self.attention_bias = attention_bias
         self.attention_dropout = attention_dropout
+        self.logit_scale = logit_scale
 
         super().__init__(
             pad_token_id=pad_token_id,
@@ -92,24 +92,6 @@ class GemmaConfig(PretrainedConfig):
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
-
-
-class GemmaFastRMSNorm(FastRMSNorm):
-    @classmethod
-    def load(cls, prefix, weights, eps=1e-6):
-        weight = weights.get_tensor(f"{prefix}.weight") + 1
-        return cls(weight, eps)
-
-    # perform the multiplication in full precision and downcast after
-    def forward(self, hidden_states, residual=None):
-        if residual is not None:
-            hidden_states += residual
-        residual = hidden_states
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        hidden_states = hidden_states * self.weight
-        return hidden_states.to(self.weight.dtype), residual
 
 
 def load_attention(config, prefix, weights):
@@ -121,11 +103,12 @@ def load_attention(config, prefix, weights):
             prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
             dim=0,
             weights=weights,
-            bias=False,
+            bias=config.attention_bias,
         )
 
 
 def _load_gqa(config, prefix: str, weights):
+    assert config.hidden_size % config.num_attention_heads == 0
     assert config.num_attention_heads % weights.process_group.size() == 0
 
     weight = weights.get_multi_weights_col(
@@ -137,7 +120,7 @@ def _load_gqa(config, prefix: str, weights):
     if config.quantize not in ["gptq", "awq"]:
         weight = weight.to(dtype=weights.dtype).to(device=weights.device)
 
-        head_size = config.head_dim
+        head_size = config.hidden_size // config.num_attention_heads
         num_heads = config.num_attention_heads // weights.process_group.size()
         num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
         assert list(weight.shape) == [
@@ -145,12 +128,21 @@ def _load_gqa(config, prefix: str, weights):
             config.hidden_size,
         ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
+    if config.attention_bias:
+        w = [
+            weights.get_sharded(f"{p}.bias", dim=0)
+            for p in [f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"]
+        ]
+        bias = torch.cat(w, dim=0).to(dtype=weights.dtype).to(device=weights.device)
+    else:
+        bias = None
+
     return TensorParallelColumnLinear(
-        get_linear(weight, bias=None, quantize=config.quantize)
+        get_linear(weight, bias=bias, quantize=config.quantize)
     )
 
 
-class FlashGemmaAttention(torch.nn.Module):
+class FlashCohereAttention(torch.nn.Module):
     def __init__(
         self,
         prefix: str,
@@ -159,7 +151,8 @@ class FlashGemmaAttention(torch.nn.Module):
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
-        self.head_size = config.head_dim
+        self.hidden_size = config.hidden_size
+        self.head_size = self.hidden_size // self.num_heads
 
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
@@ -186,7 +179,7 @@ class FlashGemmaAttention(torch.nn.Module):
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
-            bias=False,
+            bias=config.attention_bias,
         )
         self.num_groups = self.num_heads // self.num_key_value_heads
         self.kv_head_mapping = torch.arange(
@@ -251,10 +244,12 @@ class FlashGemmaAttention(torch.nn.Module):
                 max_s,
             )
 
-        return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
+        return self.o_proj(
+            attn_output.view(-1, self.num_heads * self.head_size), reduce=False
+        )
 
 
-class GemmaMLP(nn.Module):
+class CohereMLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         act = config.hidden_act
@@ -289,26 +284,26 @@ class GemmaMLP(nn.Module):
     def forward(self, hidden_states):
         gate_up_states = self.gate_up_proj(hidden_states)
         gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-        return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
+        return self.down_proj(
+            self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], reduce=False
+        )
 
 
-class FlashGemmaLayer(nn.Module):
+class FlashCohereLayer(nn.Module):
     def __init__(self, layer_id, config, weights):
         super().__init__()
         prefix = f"model.layers.{layer_id}"
-        self.self_attn = FlashGemmaAttention(
+        self.self_attn = FlashCohereAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
-        self.mlp = GemmaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
+        self.mlp = CohereMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
-        self.input_layernorm = GemmaFastRMSNorm.load(
-            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
-        )
-        self.post_attention_layernorm = GemmaFastRMSNorm.load(
-            prefix=f"{prefix}.post_attention_layernorm",
+        self.input_layernorm = FastRMSNorm.load(
+            prefix=f"{prefix}.input_layernorm",
             weights=weights,
-            eps=config.rms_norm_eps,
+            eps=config.layer_norm_eps,
         )
+        self.process_group = weights.process_group
 
     def forward(
         self,
@@ -338,32 +333,28 @@ class FlashGemmaLayer(nn.Module):
             max_s,
         )
 
-        # faster post attention rms norm
-        normed_attn_res_output, attn_res = self.post_attention_layernorm(
-            attn_output, res
-        )
+        mlp_output = self.mlp(normed_hidden_states)
+        output = attn_output + mlp_output
 
-        mlp_output = self.mlp(normed_attn_res_output)
+        if self.process_group.size() > 1:
+            torch.distributed.all_reduce(output, group=self.process_group)
 
-        return mlp_output, attn_res
+        return output, res
 
 
-class FlashGemmaModel(torch.nn.Module):
+class FlashCohereModel(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        embed_norm = config.hidden_size**0.5
         self.embed_tokens = TensorParallelEmbedding(
             prefix="model.embed_tokens", weights=weights
         )
-        self.embed_tokens.weight *= embed_norm
-
         self.layers = nn.ModuleList(
             [
-                FlashGemmaLayer(
+                FlashCohereLayer(
                     layer_id,
                     config,
                     weights,
@@ -371,8 +362,8 @@ class FlashGemmaModel(torch.nn.Module):
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
-        self.norm = GemmaFastRMSNorm.load(
-            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
+        self.norm = FastRMSNorm.load(
+            prefix="model.norm", weights=weights, eps=config.layer_norm_eps
         )
 
         self.gradient_checkpointing = False
@@ -420,16 +411,24 @@ class FlashGemmaModel(torch.nn.Module):
         return hidden_states
 
 
-class FlashGemmaForCausalLM(torch.nn.Module):
+class FlashCohereForCausalLM(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
 
-        self.model = FlashGemmaModel(config, weights)
-        self.lm_head = SpeculativeHead.load(
-            config,
-            prefix="model.embed_tokens" if config.tie_word_embeddings else "lm_head",
-            weights=weights,
-        )
+        self.model = FlashCohereModel(config, weights)
+        try:
+            self.lm_head = SpeculativeHead.load(
+                config,
+                prefix="lm_head",
+                weights=weights,
+            )
+        except RuntimeError:
+            self.lm_head = SpeculativeHead.load(
+                config,
+                prefix="model.embed_tokens",
+                weights=weights,
+            )
+        self.logit_scale = config.logit_scale
 
     def forward(
         self,
@@ -456,4 +455,7 @@ class FlashGemmaForCausalLM(torch.nn.Module):
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits, speculative_logits = self.lm_head(hidden_states)
+        logits *= self.logit_scale
+        if speculative_logits is not None:
+            speculative_logits *= self.logit_scale
         return logits, speculative_logits

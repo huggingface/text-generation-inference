@@ -36,4 +36,4 @@ update-lock:
 	poetry lock --no-update
 
 export-requirements:
-	poetry export -f requirements.txt --without-hashes --output requirements.txt
+	poetry export -o requirements.txt --without-hashes
