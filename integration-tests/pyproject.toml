@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "text-generation-integration-tests"
-version = "1.4.3"
+version = "1.4.4"
 description = "Text Generation Inference integration tests"
 authors = ["Nicolas Patry <nicolas@huggingface.co>"]
 
