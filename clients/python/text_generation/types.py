@@ -109,7 +109,12 @@ class ChatRequest(BaseModel):
     model: str
     # List of messages in the conversation
     messages: List[Message]
-    # Penalty for frequency of new tokens
+    # The parameter for repetition penalty. 1.0 means no penalty.
+    # See [this paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+    repetition_penalty: Optional[float] = None
+    # The parameter for frequency penalty. 1.0 means no penalty
+    # Penalize new tokens based on their existing frequency in the text so far,
+    # decreasing the model's likelihood to repeat the same line verbatim.
     frequency_penalty: Optional[float] = None
     # Bias values for token selection
     logit_bias: Optional[List[float]] = None
@@ -145,6 +150,10 @@ class Parameters(BaseModel):
     # The parameter for repetition penalty. 1.0 means no penalty.
     # See [this paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
     repetition_penalty: Optional[float] = None
+    # The parameter for frequency penalty. 1.0 means no penalty
+    # Penalize new tokens based on their existing frequency in the text so far,
+    # decreasing the model's likelihood to repeat the same line verbatim.
+    frequency_penalty: Optional[float] = None
     # Whether to prepend the prompt to the generated text
     return_full_text: bool = False
     # Stop generating tokens if a member of `stop_sequences` is generated
@@ -199,6 +208,12 @@ class Parameters(BaseModel):
     def valid_repetition_penalty(cls, v):
         if v is not None and v <= 0:
             raise ValidationError("`repetition_penalty` must be strictly positive")
+        return v
+
+    @field_validator("frequency_penalty")
+    def valid_frequency_penalty(cls, v):
+        if v is not None and v <= 0:
+            raise ValidationError("`frequency_penalty` must be strictly positive")
         return v
 
     @field_validator("seed")

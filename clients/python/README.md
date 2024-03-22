@@ -107,7 +107,19 @@ print(text)
 ### Types
 
 ```python
-# Request Parameters
+# enum for grammar type
+class GrammarType(Enum):
+    Json = "json"
+    Regex = "regex"
+
+
+# Grammar type and value
+class Grammar:
+    # Grammar type
+    type: GrammarType
+    # Grammar value
+    value: Union[str, dict]
+
 class Parameters:
     # Activate logits sampling
     do_sample: bool
@@ -116,6 +128,10 @@ class Parameters:
     # The parameter for repetition penalty. 1.0 means no penalty.
     # See [this paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
     repetition_penalty: Optional[float]
+    # The parameter for frequency penalty. 1.0 means no penalty
+    # Penalize new tokens based on their existing frequency in the text so far,
+    # decreasing the model's likelihood to repeat the same line verbatim.
+    frequency_penalty: Optional[float]
     # Whether to prepend the prompt to the generated text
     return_full_text: bool
     # Stop generating tokens if a member of `stop_sequences` is generated
@@ -138,10 +154,22 @@ class Parameters:
     best_of: Optional[int]
     # Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
     watermark: bool
+    # Get generation details
+    details: bool
     # Get decoder input token logprobs and ids
     decoder_input_details: bool
     # Return the N most likely tokens at each step
     top_n_tokens: Optional[int]
+    # grammar to use for generation
+    grammar: Optional[Grammar]
+
+class Request:
+    # Prompt
+    inputs: str
+    # Generation parameters
+    parameters: Optional[Parameters]
+    # Whether to stream output tokens
+    stream: bool
 
 # Decoder input tokens
 class InputToken:
@@ -161,7 +189,7 @@ class Token:
     # Token text
     text: str
     # Logprob
-    logprob: float
+    logprob: Optional[float]
     # Is the token a special token
     # Can be used to ignore tokens when concatenating
     special: bool
