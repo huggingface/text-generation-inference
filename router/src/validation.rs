@@ -13,6 +13,7 @@ use tokenizers::TruncationDirection;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
+use {once_cell::sync::Lazy, regex::Regex};
 
 /// Validation
 #[derive(Debug, Clone)]
@@ -409,10 +410,14 @@ async fn round_robin_task(
 /// Start tokenization workers
 fn tokenizer_worker(tokenizer: Tokenizer, mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>) {
     // Loop over requests
+    let is_multimodal = {
+        let vocab = tokenizer.get_vocab(true);
+        vocab.contains_key("<image>")
+    };
     while let Some(((inputs, truncate), response_tx, parent_span)) = receiver.blocking_recv() {
         parent_span.in_scope(|| {
             response_tx
-                .send(prepare_input(inputs, truncate, &tokenizer))
+                .send(prepare_input(inputs, truncate, &tokenizer, is_multimodal))
                 .unwrap_or(())
         })
     }
@@ -423,15 +428,22 @@ fn prepare_input(
     mut inputs: String,
     truncate: Option<usize>,
     tokenizer: &Tokenizer,
+    is_multimodal: bool,
 ) -> Result<(tokenizers::Encoding, String), ValidationError> {
+    let simplified_query = if is_multimodal {
+        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
+        RE.replace_all(&inputs, "<image>").into()
+    } else {
+        inputs.clone()
+    };
     // Get the number of tokens in the input
     let mut encoding = tokenizer
-        .encode(inputs.clone(), true)
+        .encode(simplified_query, true)
         .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
 
     // Optionally truncate
     if let Some(truncate) = truncate {
-        if truncate < encoding.len() {
+        if truncate < encoding.len() && !is_multimodal {
             encoding.truncate(truncate, 0, TruncationDirection::Left);
             inputs = tokenizer
                 .decode(encoding.get_ids(), false)
