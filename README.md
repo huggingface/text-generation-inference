@@ -28,18 +28,23 @@ limitations under the License.
 
 To use [🤗 text-generation-inference](https://github.com/huggingface/text-generation-inference) on Habana Gaudi/Gaudi2, follow these steps:
 
-1. Build the Docker image located in this folder with:
+1. Pull the official Docker image with:
    ```bash
-   docker build -t tgi_gaudi .
+   docker pull ghcr.io/huggingface/tgi-gaudi:1.2.1
    ```
+> [!NOTE]
+> Alternatively, you can build the Docker image using the `Dockerfile` located in this folder with:
+> ```bash
+> docker build -t tgi_gaudi .
+> ```
 2. Launch a local server instance:
-    
+
     i. On 1 Gaudi/Gaudi2 card
    ```bash
    model=meta-llama/Llama-2-7b-hf
    volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-   docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host tgi_gaudi --model-id $model
+   docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:1.2.1 --model-id $model
    ```
    > For gated models such as [LLama](https://huggingface.co/meta-llama) or [StarCoder](https://huggingface.co/bigcode/starcoder), you will have to pass `-e HUGGING_FACE_HUB_TOKEN=<token>` to the `docker run` command above with a valid Hugging Face Hub read token.
 
@@ -48,7 +53,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    model=meta-llama/Llama-2-70b-hf
    volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-   docker run -p 8080:80 -v $volume:/data --runtime=habana -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host tgi_gaudi --model-id $model --sharded true --num-shard 8
+   docker run -p 8080:80 -v $volume:/data --runtime=habana -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:1.2.1 --model-id $model --sharded true --num-shard 8
    ```
 4. You can then send a simple request:
    ```bash
