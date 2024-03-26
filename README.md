@@ -55,19 +55,21 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 
    docker run -p 8080:80 -v $volume:/data --runtime=habana -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:1.2.1 --model-id $model --sharded true --num-shard 8
    ```
-4. You can then send a simple request:
+3. You can then send a simple request:
    ```bash
    curl 127.0.0.1:8080/generate \
      -X POST \
      -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":32}}' \
      -H 'Content-Type: application/json'
    ```
-5. To run static benchmark test, please refer to [TGI's benchmark tool](https://github.com/huggingface/text-generation-inference/tree/main/benchmark).
+4. To run static benchmark test, please refer to [TGI's benchmark tool](https://github.com/huggingface/text-generation-inference/tree/main/benchmark).
 
    To run it on the same machine, you can do the following:
    * `docker exec -it <docker name> bash` , pick the docker started from step 2 using docker ps
    * `text-generation-benchmark -t <model-id>` , pass the model-id from docker run command
    * after the completion of tests, hit ctrl+c to see the performance data summary.
+
+5. To run continuous batching test, please refer to [examples](https://github.com/huggingface/tgi-gaudi/tree/habana-main/examples).
 
 ## Adjusting TGI parameters
 

@@ -1,0 +1,4 @@
+huggingface_hub==0.20.3
+requests==2.31.0
+datasets==2.18.0
+transformers>=4.37.0
