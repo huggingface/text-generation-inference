@@ -106,6 +106,7 @@ impl Client {
         max_input_length: u32,
         max_prefill_tokens: u32,
         max_total_tokens: u32,
+        max_batch_total_tokens: Option<u32>,
     ) -> Result<Option<u32>> {
         let warmup_enabled: bool = env::var("WARMUP_ENABLED").ok().map_or(true, |value| value.to_lowercase() == "true");
         if !warmup_enabled {
@@ -123,7 +124,12 @@ impl Client {
 
         // get all possible sequence lengths for prefill
         let seq_bucket_size: u32 = read_env_var("PAD_SEQUENCE_TO_MULTIPLE_OF", 128);
-        let seq_lengths: Vec<u32> = (seq_bucket_size..max_input_length+1).step_by(seq_bucket_size as usize).collect();
+        let mut seq_lengths: Vec<u32> = (seq_bucket_size..max_input_length+1).step_by(seq_bucket_size as usize).collect();
+        if let Some(&last) = seq_lengths.last() {
+            if last < max_input_length {
+                seq_lengths.push(max_input_length);
+            }
+        }
 
         // execute batch for each combination of batch size and sequence length
         let mut shapes: Vec<(u32, u32)> = Vec::with_capacity(batch_sizes.len() * seq_lengths.len());
@@ -134,11 +140,29 @@ impl Client {
         }
 
         let mut id_counter: u64 = 0;
+        let num_batches = match max_batch_total_tokens {
+            Some(val) => {
+                if val == max_total_tokens {
+                    1
+                } else {
+                    2
+                }
+            }
+            None => 2, // If max_batch_total_tokens is None, create two batches
+        };
         for shape in shapes.iter() {
             // create two batches in order to trigger concatenate operation
+            // in case decode bs=1 create one batch
             let batches: Vec<Batch> = vec![
-                self.create_warmup_batch(*shape, &mut id_counter, max_input_length, max_total_tokens, seq_bucket_size, false),
-                self.create_warmup_batch(*shape, &mut id_counter, max_input_length, max_total_tokens, seq_bucket_size, false)
+                self.create_warmup_batch(
+                    *shape,
+                    &mut id_counter,
+                    max_input_length,
+                    max_total_tokens,
+                    seq_bucket_size,
+                    false,
+                );
+                num_batches
             ];
             let request = tonic::Request::new(WarmupRequest { batches }).inject_context();
             let _response = self.stub.warmup(request).await?.into_inner();
@@ -151,8 +175,15 @@ impl Client {
         }
         for greedy_shape in greedy_shapes.iter() {
             let batches: Vec<Batch> = vec![
-                self.create_warmup_batch(*greedy_shape, &mut id_counter, max_input_length, max_total_tokens, seq_bucket_size, true),
-                self.create_warmup_batch(*greedy_shape, &mut id_counter, max_input_length, max_total_tokens, seq_bucket_size, true),
+                self.create_warmup_batch(
+                    *greedy_shape,
+                    &mut id_counter,
+                    max_input_length,
+                    max_total_tokens,
+                    seq_bucket_size,
+                    true,
+                );
+                num_batches
             ];
             let request = tonic::Request::new(WarmupRequest { batches }).inject_context();
             let _response = self.stub.warmup(request).await?.into_inner();
@@ -233,14 +264,21 @@ impl Client {
             // generate random tokens
             let mut rng = rand::thread_rng();
             let range = Uniform::new(2, 8192);
-            let tokens = input_length - seq_bucket_size / 2;
+            let tokens = if input_length % seq_bucket_size == 0 {
+                input_length - seq_bucket_size / 2
+            } else {
+                input_length - (input_length % seq_bucket_size) / 2
+            };
             (0..tokens)
                 .map(|_| rng.sample(&range).to_string())
                 .collect::<Vec<String>>()
                 .join(", ")
         } else {
             // repeat test string to get expected input shape
-            let bucket_id = input_length / seq_bucket_size;
+            let mut bucket_id = input_length / seq_bucket_size;
+            if input_length % seq_bucket_size != 0 {
+                bucket_id += 1
+            }
             let repeats = cmp::max(1, (bucket_id - 1) * seq_bucket_size / 2);
             "_test ".to_string().repeat(repeats as usize)
         }

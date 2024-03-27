@@ -461,7 +461,11 @@ class CausalLMBatch(Batch):
         left_padding = max_input_length - input_len
         if input_len < max_input_length and PAD_SEQUENCE_TO_MULTIPLE_OF != 0:
             assert PAD_SEQUENCE_TO_MULTIPLE_OF <= max_input_length, "PAD_SEQUENCE_TO_MULTIPLE_OF cannot be higher than max_input_length"
-            bucket_size = round_up(input_len + 1, PAD_SEQUENCE_TO_MULTIPLE_OF) - 1
+            rounded_seq_len = round_up(input_len + 1, PAD_SEQUENCE_TO_MULTIPLE_OF)
+            if rounded_seq_len <= max_input_length:    
+                bucket_size = rounded_seq_len - 1
+            else:
+                bucket_size = max_input_length - 1
             left_padding = bucket_size - input_len
 
         input_ids = tokenized_inputs["input_ids"]
@@ -1049,15 +1053,17 @@ class CausalLM(Model):
         return generations, batch if not stopped else None
 
     def warmup(self, batches: List[CausalLMBatch]) -> None:
-        if len(batches) < 2:
-            return
-
         # prefill
         _, prefill_batch = self.generate_token([batches.pop(0)])
         # decode
         _, decode_batch = self.generate_token([prefill_batch])
         # shifts
         self.shifting_warmup(decode_batch)
+
+        # if decode bs is 1 warmup ends here
+        if len(batches) == 0:
+            return
+        
         # prefill
         _, prefill_batch = self.generate_token([batches.pop(0)])
         # concatenate and decode

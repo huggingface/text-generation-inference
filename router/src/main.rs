@@ -220,7 +220,7 @@ fn main() -> Result<(), RouterError> {
             // Warmup model
             tracing::info!("Warming up model");
             let max_supported_batch_total_tokens = match sharded_client
-                .warmup(max_input_length as u32, max_batch_prefill_tokens, max_total_tokens as u32)
+                .warmup(max_input_length as u32, max_batch_prefill_tokens, max_total_tokens as u32, max_batch_total_tokens)
                 .await
                 .map_err(RouterError::Warmup)?
             {
