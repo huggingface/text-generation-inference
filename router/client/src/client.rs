@@ -225,7 +225,7 @@ impl Client {
                     do_sample: true,
                     seed: 0,
                     repetition_penalty: 1.2,
-                    watermark: true,
+                    watermark: false,
                 })
             };
             requests.push(Request {

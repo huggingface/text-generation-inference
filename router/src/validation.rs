@@ -207,6 +207,14 @@ impl Validation {
             return Err(ValidationError::RepetitionPenalty);
         }
 
+        // TODO: enable watermark with fp8 quantization
+        let quantization_enabled = env::var("QUANT_CONFIG")
+            .ok()
+            .map_or(false, |value| !value.is_empty());
+        if watermark && quantization_enabled {
+            return Err(ValidationError::WatermarkWithQuantization)
+        }
+
         // Different because the proto default value is not a valid value
         // for the user
         let top_p = top_p
@@ -450,6 +458,8 @@ pub enum ValidationError {
     StopSequence(usize, usize),
     #[error("tokenizer error {0}")]
     Tokenizer(String),
+    #[error("`watermark` = true is not allowed with FP8 quantization.")]
+    WatermarkWithQuantization,
 }
 
 #[cfg(test)]

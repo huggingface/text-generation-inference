@@ -153,9 +153,11 @@ class HeterogeneousNextTokenChooser:
         typical_p: List[float],
         do_sample: List[bool],
         seeds: List[int],
+        quantization_enabled: bool,
     ):
         warpers = []
 
+        # TODO: enable watermark with FP8 quantization
         self.watermark_processor = (
             HeterogeneousProcessorWrapper(
                 {
@@ -164,7 +166,7 @@ class HeterogeneousNextTokenChooser:
                     if do_watermark
                 }
             )
-            if any(watermark)
+            if any(watermark) and not quantization_enabled
             else None
         )
 
@@ -252,6 +254,7 @@ class HeterogeneousNextTokenChooser:
         pb: List[generate_pb2.NextTokenChooserParameters],
         dtype: torch.dtype,
         device: torch.device,
+        quantization_enabled: bool,
     ) -> "HeterogeneousNextTokenChooser":
         return HeterogeneousNextTokenChooser(
             watermark=[pb_.watermark for pb_ in pb],
@@ -264,6 +267,7 @@ class HeterogeneousNextTokenChooser:
             seeds=[pb_.seed for pb_ in pb],
             device=device,
             dtype=dtype,
+            quantization_enabled=quantization_enabled,
         )
 
 

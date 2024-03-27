@@ -390,7 +390,8 @@ class CausalLMBatch(Batch):
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             parameters,
             batches[dst_batch_idx].next_token_chooser.dtype,
-            batches[dst_batch_idx].next_token_chooser.device
+            batches[dst_batch_idx].next_token_chooser.device,
+            hq_env.is_quantization_enabled
         )
 
         input_ids = batches[dst_batch_idx].input_ids
@@ -445,7 +446,9 @@ class CausalLMBatch(Batch):
                 #append the dummy parameters for dummy request
                 parameters.append(parameters[0])
 
-        next_token_chooser = HeterogeneousNextTokenChooser.from_pb(parameters, dtype, device)
+        next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
+            parameters, dtype, device, hq_env.is_quantization_enabled
+        )
         tokenized_inputs = tokenizer(
             [r.data.inputs for r in requests] + dummy_inputs,
             return_tensors="pt",
