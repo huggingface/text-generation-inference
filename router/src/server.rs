@@ -857,7 +857,7 @@ async fn chat_completions(
             details: true,
             decoder_input_details: !stream,
             seed,
-            top_n_tokens: None,
+            top_n_tokens: req.top_logprobs,
             grammar: tool_grammar.clone(),
         },
     };
