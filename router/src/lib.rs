@@ -385,23 +385,33 @@ impl From<(Token, Vec<Token>)> for ChatCompletionLogprobs {
 impl From<(Vec<Token>, Vec<Vec<Token>>)> for ChatCompletionLogprobs {
     fn from(value: (Vec<Token>, Vec<Vec<Token>>)) -> Self {
         let (tokens, top_tokens) = value;
-        Self {
-            content: tokens
-                .into_iter()
-                .zip(top_tokens)
-                .map(|(t, top_t)| ChatCompletionLogprob {
-                    token: t.text,
-                    logprob: t.logprob,
-                    top_logprobs: top_t
+
+        // Create an iterator that produces None for top_tokens once it's exhausted
+        let top_tokens_iter = top_tokens
+            .into_iter()
+            .map(Some)
+            .chain(std::iter::repeat(None));
+
+        let content = tokens
+            .into_iter()
+            .zip(top_tokens_iter)
+            .map(|(t, top_t_option)| ChatCompletionLogprob {
+                token: t.text,
+                logprob: t.logprob,
+                top_logprobs: match top_t_option {
+                    Some(top_t) => top_t
                         .into_iter()
                         .map(|t| ChatCompletionTopLogprob {
                             token: t.text,
                             logprob: t.logprob,
                         })
                         .collect(),
-                })
-                .collect(),
-        }
+                    None => vec![], // Handle the case where there are no top tokens
+                },
+            })
+            .collect();
+
+        Self { content }
     }
 }
 
