@@ -612,7 +612,7 @@ fn shard_manager(
     // We read stderr in another thread as it seems that lines() can block in some cases
     let (err_sender, err_receiver) = mpsc::channel();
     thread::spawn(move || {
-        for line in shard_stderr_reader.lines().flatten() {
+        for line in shard_stderr_reader.lines().map_while(Result::ok) {
             err_sender.send(line).unwrap_or(());
         }
     });
@@ -730,7 +730,7 @@ impl TryFrom<&String> for PythonLogMessage {
 }
 
 fn log_lines<S: Sized + BufRead>(lines: Lines<S>) {
-    for line in lines.flatten() {
+    for line in lines.map_while(Result::ok) {
         match PythonLogMessage::try_from(&line) {
             Ok(log) => log.trace(),
             Err(_) => tracing::debug!("{line}"),
@@ -882,7 +882,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     // We read stderr in another thread as it seems that lines() can block in some cases
     let (err_sender, err_receiver) = mpsc::channel();
     thread::spawn(move || {
-        for line in download_stderr.lines().flatten() {
+        for line in download_stderr.lines().map_while(Result::ok) {
             err_sender.send(line).unwrap_or(());
         }
     });

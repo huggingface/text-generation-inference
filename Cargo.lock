@@ -268,6 +268,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
+name = "base64"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9475866fec1451be56a3c2400fd081ff546538961565ccb5b7142cbd22bc7a51"
+
+[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2960,7 +2966,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "1.4.4"
+version = "1.4.5"
 dependencies = [
  "average",
  "clap",
@@ -2981,7 +2987,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "1.4.4"
+version = "1.4.5"
 dependencies = [
  "futures",
  "grpc-metadata",
@@ -2998,7 +3004,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "1.4.4"
+version = "1.4.5"
 dependencies = [
  "clap",
  "ctrlc",
@@ -3014,7 +3020,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "1.4.4"
+version = "1.4.5"
 dependencies = [
  "async-stream",
  "axum",
@@ -3601,11 +3607,11 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "ureq"
-version = "2.9.6"
+version = "2.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11f214ce18d8b2cbe84ed3aa6486ed3f5b285cf8d8fbdbce9f3f767a724adc35"
+checksum = "d11a831e3c0b56e438a28308e7c810799e3c118417f342d30ecec080105395cd"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.0",
  "flate2",
  "log",
  "native-tls",
