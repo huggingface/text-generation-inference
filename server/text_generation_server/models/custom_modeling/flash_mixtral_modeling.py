@@ -552,6 +552,7 @@ class BlockSparseMoE(nn.Module):
 
         # Re-normalize
         weights = all_probs / all_probs.sum(dim=1, keepdim=True)
+        weights = weights.to(x.dtype)
 
         # Expand to [num_experts, sequence_length, model_dim]
         x = x.view(1, -1, input_shape[-1]).expand(self.num_experts, -1, input_shape[-1])
@@ -660,6 +661,7 @@ class DenseMoE(nn.Module):
 
         # Re-normalize
         weights = all_probs / all_probs.sum(dim=1, keepdim=True)
+        weights = weights.to(x.dtype)
 
         # Final output tensor
         out = x.new_zeros(x.shape[0], self.hidden_dim)

@@ -3,6 +3,7 @@ import torch.distributed
 
 from opentelemetry import trace
 from typing import Optional
+from transformers import AutoTokenizer
 from transformers.models.gpt2 import GPT2TokenizerFast
 
 from text_generation_server.models import FlashCausalLM
@@ -36,16 +37,27 @@ class FlashDbrx(FlashCausalLM):
         else:
             raise NotImplementedError("FlashDBRX is only available on GPU")
 
-        # FIXME: change back to model id once the tokenizer.json is merged
-        tokenizer = GPT2TokenizerFast.from_pretrained(
-            "Xenova/dbrx-instruct-tokenizer",
-            revision=revision,
-            padding_side="left",
-            truncation_side="left",
-            trust_remote_code=trust_remote_code,
-            use_fast=True,
-            from_slow=False,
-        )
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_id,
+                revision=revision,
+                padding_side="left",
+                truncation_side="left",
+                trust_remote_code=trust_remote_code,
+                use_fast=True,
+                from_slow=False,
+            )
+        except:
+            # FIXME: change back to model id once the tokenizer.json is merged
+            tokenizer = GPT2TokenizerFast.from_pretrained(
+                "Xenova/dbrx-instruct-tokenizer",
+                revision=revision,
+                padding_side="left",
+                truncation_side="left",
+                trust_remote_code=trust_remote_code,
+                use_fast=True,
+                from_slow=False,
+            )
 
         config = DbrxConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
