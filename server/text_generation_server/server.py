@@ -59,7 +59,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     async def Warmup(self, request, context):
         def batch_from_pb(batch):
             return self.model.batch_type.from_pb(
-                batch, self.model.tokenizer, self.model.dtype, self.model.device, self.model.is_optimized_for_gaudi
+                batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
 
         batches = [batch_from_pb(batch) for batch in request.batches]
@@ -69,7 +69,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
     async def Prefill(self, request, context):
         batch = self.model.batch_type.from_pb(
-            request.batch, self.model.tokenizer, self.model.dtype, self.model.device, self.model.is_optimized_for_gaudi
+            request.batch, self.model.tokenizer, self.model.dtype, self.model.device
         )
         generations, next_batch = self.model.generate_token([batch])
         self.cache.set(next_batch)
