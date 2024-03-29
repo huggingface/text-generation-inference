@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "1.4.4"
+    "version": "1.4.5"
   },
   "paths": {
     "/": {
@@ -471,6 +471,90 @@
           }
         }
       }
+    },
+    "/v1/completions": {
+      "post": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Generate tokens",
+        "description": "Generate tokens",
+        "operationId": "completions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Generated Text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionChunk"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Input validation error"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Generation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Request failed during generation"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Model is overloaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Model is overloaded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Incomplete generation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Incomplete generation"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -669,17 +753,25 @@
       "ChatCompletionDelta": {
         "type": "object",
         "required": [
-          "role",
-          "content"
+          "role"
         ],
         "properties": {
           "content": {
             "type": "string",
-            "example": "What is Deep Learning?"
+            "example": "What is Deep Learning?",
+            "nullable": true
           },
           "role": {
             "type": "string",
             "example": "user"
+          },
+          "tool_calls": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeltaToolCall"
+              }
+            ],
+            "nullable": true
           }
         }
       },
@@ -739,7 +831,8 @@
       "ChatRequest": {
         "type": "object",
         "required": [
-          "model"
+          "model",
+          "messages"
         ],
         "properties": {
           "frequency_penalty": {
@@ -777,11 +870,12 @@
             "items": {
               "$ref": "#/components/schemas/Message"
             },
-            "description": "A list of messages comprising the conversation so far."
+            "description": "A list of messages comprising the conversation so far.",
+            "example": "[{\"role\": \"user\", \"content\": \"What is Deep Learning?\"}]"
           },
           "model": {
             "type": "string",
-            "description": "UNUSED\nID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
+            "description": "[UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
             "example": "mistralai/Mistral-7B-Instruct-v0.2"
           },
           "n": {
@@ -806,6 +900,15 @@
             "nullable": true,
             "minimum": 0
           },
+          "stop": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to 4 sequences where the API will stop generating further tokens.",
+            "example": "null",
+            "nullable": true
+          },
           "stream": {
             "type": "boolean"
           },
@@ -814,6 +917,29 @@
             "format": "float",
             "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while\nlower values like 0.2 will make it more focused and deterministic.\n\nWe generally recommend altering this or `top_p` but not both.",
             "example": 1.0,
+            "nullable": true
+          },
+          "tool_choice": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ToolType"
+              }
+            ],
+            "nullable": true
+          },
+          "tool_prompt": {
+            "type": "string",
+            "description": "A prompt to be appended before the tools",
+            "example": "\"Based on the conversation, please choose the most appropriate tool to use: \"",
+            "nullable": true
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tool"
+            },
+            "description": "A list of tools the model may call. Currently, only functions are supported as a tool. Use this to provide a list of\nfunctions the model may generate JSON inputs for.",
+            "example": "null",
             "nullable": true
           },
           "top_logprobs": {
@@ -849,6 +975,164 @@
           "stream": {
             "type": "boolean",
             "default": "false"
+          }
+        }
+      },
+      "CompletionComplete": {
+        "type": "object",
+        "required": [
+          "index",
+          "text",
+          "finish_reason"
+        ],
+        "properties": {
+          "finish_reason": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "logprobs": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "float"
+            },
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "CompletionCompleteChunk": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "created",
+          "choices",
+          "model",
+          "system_fingerprint"
+        ],
+        "properties": {
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompletionComplete"
+            }
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string"
+          },
+          "system_fingerprint": {
+            "type": "string"
+          }
+        }
+      },
+      "CompletionRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "frequency_penalty": {
+            "type": "number",
+            "format": "float",
+            "description": "Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far,\ndecreasing the model's likelihood to repeat the same line verbatim.",
+            "example": "1.0",
+            "nullable": true
+          },
+          "max_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The maximum number of tokens that can be generated in the chat completion.",
+            "default": "32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "model": {
+            "type": "string",
+            "description": "UNUSED\nID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
+            "example": "mistralai/Mistral-7B-Instruct-v0.2"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The prompt to generate completions for.",
+            "example": "What is Deep Learning?"
+          },
+          "repetition_penalty": {
+            "type": "number",
+            "format": "float",
+            "nullable": true
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64",
+            "example": 42,
+            "nullable": true,
+            "minimum": 0
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "suffix": {
+            "type": "string",
+            "description": "The text to append to the prompt. This is useful for completing sentences or generating a paragraph of text.\nplease see the completion_template field in the model's tokenizer_config.json file for completion template.",
+            "nullable": true
+          },
+          "temperature": {
+            "type": "number",
+            "format": "float",
+            "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while\nlower values like 0.2 will make it more focused and deterministic. We generally recommend altering this or `top_p` but not both.",
+            "example": 1.0,
+            "nullable": true
+          },
+          "top_p": {
+            "type": "number",
+            "format": "float",
+            "description": "An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the\ntokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.",
+            "example": 0.95,
+            "nullable": true
+          }
+        }
+      },
+      "DeltaToolCall": {
+        "type": "object",
+        "required": [
+          "index",
+          "id",
+          "type",
+          "function"
+        ],
+        "properties": {
+          "function": {
+            "$ref": "#/components/schemas/Function"
+          },
+          "id": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "type": {
+            "type": "string"
           }
         }
       },
@@ -930,6 +1214,38 @@
           "stop_sequence"
         ],
         "example": "Length"
+      },
+      "Function": {
+        "type": "object",
+        "required": [
+          "arguments"
+        ],
+        "properties": {
+          "arguments": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FunctionDefinition": {
+        "type": "object",
+        "required": [
+          "name",
+          "parameters"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "parameters": {}
+        }
       },
       "GenerateParameters": {
         "type": "object",
@@ -1261,13 +1577,13 @@
       "Message": {
         "type": "object",
         "required": [
-          "role",
-          "content"
+          "role"
         ],
         "properties": {
           "content": {
             "type": "string",
-            "example": "My name is David and I"
+            "example": "My name is David and I",
+            "nullable": true
           },
           "name": {
             "type": "string",
@@ -1277,6 +1593,13 @@
           "role": {
             "type": "string",
             "example": "user"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            },
+            "nullable": true
           }
         }
       },
@@ -1436,6 +1759,64 @@
         "items": {
           "$ref": "#/components/schemas/SimpleToken"
         }
+      },
+      "Tool": {
+        "type": "object",
+        "required": [
+          "type",
+          "function"
+        ],
+        "properties": {
+          "function": {
+            "$ref": "#/components/schemas/FunctionDefinition"
+          },
+          "type": {
+            "type": "string",
+            "example": "function"
+          }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "function"
+        ],
+        "properties": {
+          "function": {
+            "$ref": "#/components/schemas/FunctionDefinition"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "ToolType": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "FunctionName"
+            ],
+            "properties": {
+              "FunctionName": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "string",
+            "enum": [
+              "OneOf"
+            ]
+          }
+        ]
       },
       "Usage": {
         "type": "object",
