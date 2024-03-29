@@ -12,7 +12,7 @@ use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
     ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
     ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
-    CompletionRequest, VertexRequest, VertexResponse,
+    CompletionRequest, DeltaToolCall, Function, Tool, VertexRequest, VertexResponse,
 };
 use crate::{FunctionDefinition, FunctionRef, FunctionsMap, Properties, ToolCall, ToolType, Tools};
 use axum::extract::Extension;
@@ -1211,6 +1211,12 @@ pub async fn run(
     ErrorResponse,
     GrammarType,
     Usage,
+    DeltaToolCall,
+    ToolType,
+    Tool,
+    ToolCall,
+    Function,
+    FunctionDefinition,
     )
     ),
     tags(

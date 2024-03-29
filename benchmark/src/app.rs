@@ -444,7 +444,7 @@ fn progress_gauge(title: &str, label: String, progress: f64, color: Color) -> Ga
 }
 
 /// Throughput paragraph
-fn throughput_paragraph<'a>(throughput: &Vec<f64>, name: &'static str) -> Paragraph<'a> {
+fn throughput_paragraph<'a>(throughput: &[f64], name: &'static str) -> Paragraph<'a> {
     // Throughput average/high/low texts
     let throughput_texts = statis_spans(throughput, "tokens/secs");
 
@@ -457,7 +457,7 @@ fn throughput_paragraph<'a>(throughput: &Vec<f64>, name: &'static str) -> Paragr
 }
 
 /// Latency paragraph
-fn latency_paragraph<'a>(latency: &mut Vec<f64>, name: &'static str) -> Paragraph<'a> {
+fn latency_paragraph<'a>(latency: &mut [f64], name: &'static str) -> Paragraph<'a> {
     // Latency average/high/low texts
     let mut latency_texts = statis_spans(latency, "ms");
 
@@ -483,7 +483,7 @@ fn latency_paragraph<'a>(latency: &mut Vec<f64>, name: &'static str) -> Paragrap
 }
 
 /// Average/High/Low spans
-fn statis_spans<'a>(data: &Vec<f64>, unit: &'static str) -> Vec<Line<'a>> {
+fn statis_spans<'a>(data: &[f64], unit: &'static str) -> Vec<Line<'a>> {
     vec![
         Line::from(vec![Span::styled(
             format!(
@@ -543,7 +543,7 @@ fn latency_histogram<'a>(
 
 /// Latency/Throughput chart
 fn latency_throughput_chart<'a>(
-    latency_throughput: &'a Vec<(f64, f64)>,
+    latency_throughput: &'a [(f64, f64)],
     batch_sizes: &'a [u32],
     zoom: bool,
     name: &'static str,
