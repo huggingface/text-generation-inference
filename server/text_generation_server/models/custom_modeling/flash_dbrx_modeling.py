@@ -1,10 +1,5 @@
 # coding=utf-8
-# Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
-#
-# This code is based on EleutherAI's GPT-NeoX library and the GPT-NeoX
-# and OPT implementations in this library. It has been modified from its
-# original forms to accommodate minor architectural differences compared
-# to GPT-NeoX and OPT used by the Meta AI team that trained the model.
+# Copyright 2022 HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,13 +21,13 @@ import numpy as np
 from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any
 from loguru import logger
 
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.layers import (
     FastLinear,
-    FastRMSNorm,
+    FastLayerNorm,
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
@@ -40,69 +35,123 @@ from text_generation_server.utils.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.utils.log import log_once
 
 HAS_MEGABLOCKS = True
 try:
     import stk
     import megablocks.ops as ops
 except ImportError:
-    logger.warning("Mixtral: megablocks is not installed")
+    logger.warning("Dbrx: megablocks is not installed")
     HAS_MEGABLOCKS = False
 
 
-class MixtralConfig(PretrainedConfig):
-    model_type = "mixtral"
-
+class DbrxAttentionConfig(PretrainedConfig):
     def __init__(
         self,
-        vocab_size=32000,
-        hidden_size=4096,
-        intermediate_size=14336,
-        num_hidden_layers=32,
-        num_attention_heads=32,
-        num_key_value_heads=8,
-        hidden_act="silu",
-        max_position_embeddings=4096 * 32,
-        initializer_range=0.02,
-        rms_norm_eps=1e-05,
-        use_cache=True,
-        pad_token_id=None,
-        bos_token_id=1,
-        eos_token_id=2,
-        pretraining_tp=1,
-        tie_word_embeddings=False,
-        rope_theta=10000.0,
-        sliding_window=None,
-        num_experts_per_tok=2,
-        num_local_experts=8,
-        **kwargs,
+        attn_pdrop: float = 0,
+        clip_qkv: Optional[float] = None,
+        kv_n_heads: int = 1,
+        rope_theta: float = 10000.0,
+        **kwargs: Any,
     ):
-        self.vocab_size = vocab_size
-        self.max_position_embeddings = max_position_embeddings
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-        self.sliding_window = sliding_window
-
-        # for backward compatibility
-        if num_key_value_heads is None:
-            num_key_value_heads = num_attention_heads
-
-        self.num_key_value_heads = num_key_value_heads
-        self.hidden_act = hidden_act
-        self.initializer_range = initializer_range
-        self.rms_norm_eps = rms_norm_eps
-        self.pretraining_tp = pretraining_tp
-        self.use_cache = use_cache
+        super().__init__(**kwargs)
+        self.attn_pdrop = attn_pdrop
+        self.clip_qkv = clip_qkv
+        self.kv_n_heads = kv_n_heads
         self.rope_theta = rope_theta
-        self.num_experts_per_tok = num_experts_per_tok
-        self.num_local_experts = num_local_experts
+
+        for k in ["model_type"]:
+            if k in kwargs:
+                kwargs.pop(k)
+        if len(kwargs) != 0:
+            raise ValueError(f"Found unknown {kwargs=}")
+
+
+class DbrxFFNConfig(PretrainedConfig):
+    def __init__(
+        self,
+        ffn_act_fn: Optional[dict] = None,
+        ffn_hidden_size: int = 3584,
+        moe_num_experts: int = 4,
+        moe_top_k: int = 1,
+        moe_jitter_eps: Optional[float] = None,
+        moe_loss_weight: float = 0.01,
+        moe_normalize_expert_weights: Optional[float] = 1,
+        uniform_expert_assignment: bool = False,
+        **kwargs: Any,
+    ):
+        super().__init__()
+        if ffn_act_fn is None:
+            ffn_act_fn = {"name": "silu"}
+        self.ffn_act_fn = ffn_act_fn
+        self.ffn_hidden_size = ffn_hidden_size
+        self.moe_num_experts = moe_num_experts
+        self.moe_top_k = moe_top_k
+        self.moe_jitter_eps = moe_jitter_eps
+        self.moe_loss_weight = moe_loss_weight
+        self.moe_normalize_expert_weights = moe_normalize_expert_weights
+        self.uniform_expert_assignment = uniform_expert_assignment
+
+        if uniform_expert_assignment:
+            raise ValueError("`uniform_expert_assignment = True` is not supported")
+
+        for k in ["model_type"]:
+            if k in kwargs:
+                kwargs.pop(k)
+        if len(kwargs) != 0:
+            raise ValueError(f"Found unknown {kwargs=}")
+
+
+class DbrxConfig(PretrainedConfig):
+    def __init__(
+        self,
+        d_model: int = 2048,
+        n_heads: int = 16,
+        n_layers: int = 24,
+        max_seq_len: int = 2048,
+        vocab_size: int = 32000,
+        resid_pdrop: float = 0.0,
+        emb_pdrop: float = 0.0,
+        attn_config: Optional[DbrxAttentionConfig] = None,
+        ffn_config: Optional[DbrxFFNConfig] = None,
+        use_cache: bool = True,
+        initializer_range: float = 0.02,
+        output_router_logits: bool = False,
+        router_aux_loss_coef: float = 0.05,
+        **kwargs: Any,
+    ):
+        if attn_config is None:
+            self.attn_config = DbrxAttentionConfig()
+        elif isinstance(attn_config, dict):
+            self.attn_config = DbrxAttentionConfig(**attn_config)
+        else:
+            self.attn_config = attn_config
+
+        if ffn_config is None:
+            self.ffn_config = DbrxFFNConfig()
+        elif isinstance(ffn_config, dict):
+            self.ffn_config = DbrxFFNConfig(**ffn_config)
+        else:
+            self.ffn_config = ffn_config
+
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.n_layers = n_layers
+        self.max_seq_len = max_seq_len
+        self.vocab_size = vocab_size
+        self.resid_pdrop = resid_pdrop
+        self.emb_pdrop = emb_pdrop
+        self.use_cache = use_cache
+        self.initializer_range = initializer_range
+        self.output_router_logits = output_router_logits
+        self.router_aux_loss_coef = router_aux_loss_coef
+
+        tie_word_embeddings = kwargs.pop("tie_word_embeddings", False)
+        if tie_word_embeddings:
+            raise ValueError("tie_word_embeddings is not supported for Dbrx models.")
 
         super().__init__(
-            pad_token_id=pad_token_id,
-            bos_token_id=bos_token_id,
-            eos_token_id=eos_token_id,
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
@@ -113,81 +162,189 @@ def promote_scalar(x: torch.Tensor) -> torch.Tensor:
 
 
 def load_attention(config, prefix, weights):
-    if config.num_attention_heads != config.num_key_value_heads:
+    if config.n_heads != config.attn_config.kv_n_heads:
         return _load_gqa(config, prefix, weights)
     else:
-        return TensorParallelColumnLinear.load_multi(
+        return TensorParallelColumnLinear.load_qkv(
             config,
-            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-            dim=0,
+            prefix=f"{prefix}.Wqkv",
             weights=weights,
             bias=False,
         )
 
 
 def _load_gqa(config, prefix: str, weights):
-    assert config.hidden_size % config.num_attention_heads == 0
-    assert config.num_attention_heads % weights.process_group.size() == 0
+    assert config.d_model % config.n_heads == 0
+    assert config.n_heads % weights.process_group.size() == 0
 
-    weight = weights.get_multi_weights_col(
-        prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
-        dim=0,
-    )
+    head_dim = config.d_model // config.n_heads
+    world_size = weights.process_group.size()
+    rank = weights.process_group.rank()
 
-    if config.quantize not in ["gptq", "awq"]:
+    q_block_size = config.d_model // world_size
+    q_start = rank * q_block_size
+    q_stop = (rank + 1) * q_block_size
+
+    kv_block_size = (config.attn_config.kv_n_heads * head_dim) // world_size
+    k_offset = config.d_model
+    k_start = k_offset + rank * kv_block_size
+    k_stop = k_offset + (rank + 1) * kv_block_size
+
+    v_offset = config.d_model + config.attn_config.kv_n_heads * head_dim
+    v_start = v_offset + rank * kv_block_size
+    v_stop = v_offset + (rank + 1) * kv_block_size
+
+    if config.quantize in ["gptq", "awq"]:
+        try:
+            qweight_slice = weights._get_slice(f"{prefix}.qweight")
+            q_qweight = qweight_slice[:, q_start:q_stop]
+            k_qweight = qweight_slice[:, k_start:k_stop]
+            v_qweight = qweight_slice[:, v_start:v_stop]
+
+            qweight = torch.cat([q_qweight, k_qweight, v_qweight], dim=1)
+        except RuntimeError:
+            raise RuntimeError(
+                f"Cannot load `{config.quantize}` weight, make sure the model is already quantized"
+            )
+
+        qzeros_slice = weights._get_slice(f"{prefix}.qzeros")
+        q_qzeros = qzeros_slice[:, q_start:q_stop]
+        k_qzeros = qzeros_slice[:, k_start:k_stop]
+        v_qzeros = qzeros_slice[:, v_start:v_stop]
+
+        qzeros = torch.cat([q_qzeros, k_qzeros, v_qzeros], dim=1)
+
+        scales_slice = weights._get_slice(f"{prefix}.scales")
+        q_scales = scales_slice[:, q_start:q_stop]
+        k_scales = scales_slice[:, k_start:k_stop]
+        v_scales = scales_slice[:, v_start:v_stop]
+
+        scales = torch.cat([q_scales, k_scales, v_scales], dim=1)
+
+        bits, groupsize, desc_act, quant_method = weights._get_gptq_params()
+
+        from text_generation_server.utils.layers import HAS_EXLLAMA
+
+        use_exllama = (
+            bits == 4 and HAS_EXLLAMA and config.quantize == "gptq" and not desc_act
+        )
+
+        if config.quantize == "gptq" and quant_method == "gptq":
+            g_idx_slice = weights._get_slice(f"{prefix}.g_idx")
+            q_g_idx = g_idx_slice[:, q_start:q_stop]
+            k_g_idx = g_idx_slice[:, k_start:k_stop]
+            v_g_idx = g_idx_slice[:, v_start:v_stop]
+
+            w = [q_g_idx, k_g_idx, v_g_idx]
+            for w2 in w[1:]:
+                torch.testing.assert_close(w2, w[0])
+            g_idx = w[0]
+        elif config.quantize == "gptq" and quant_method == "awq":
+            log_once(
+                logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
+            )
+            from text_generation_server.utils.awq.conversion_utils import (
+                fast_awq_to_gptq,
+            )
+
+            qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
+            if use_exllama:
+                g_idx = None
+            else:
+                g_idx = (
+                    torch.arange(qweight.shape[0] * (32 // bits), device=qweight.device)
+                    // groupsize
+                ).to(dtype=torch.int32)
+        else:
+            g_idx = None
+
+        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
+    else:
+        qkv_slice = weights._get_slice(f"{prefix}.Wqkv.weight")
+        q = qkv_slice[q_start:q_stop]
+        k = qkv_slice[k_start:k_stop]
+        v = qkv_slice[v_start:v_stop]
+
+        weight = torch.cat([q, k, v], dim=0)
         weight = weight.to(dtype=weights.dtype).to(device=weights.device)
-
-        head_size = config.hidden_size // config.num_attention_heads
-        num_heads = config.num_attention_heads // weights.process_group.size()
-        num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.shape) == [
-            (num_heads + 2 * num_key_value_heads) * head_size,
-            config.hidden_size,
-        ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
     return TensorParallelColumnLinear(
         get_linear(weight, bias=None, quantize=config.quantize)
     )
 
 
-def _load_experts(config, prefix, mat, weights):
-    if config.quantize is not None:
-        raise NotImplementedError("Mixtral does not support weight quantization yet.")
-
-    assert mat in ["w1", "w2", "w3"]
-
+def _load_experts(config, prefix, weights):
     world_size = weights.process_group.size()
     rank = weights.process_group.rank()
 
     assert (
-        config.intermediate_size % world_size == 0
-    ), f"The chosen size {config.intermediate_size} is not compatible with sharding on {world_size} shards"
+        config.ffn_config.ffn_hidden_size % world_size == 0
+    ), f"The chosen size {config.ffn_config.ffn_hidden_size} is not compatible with sharding on {world_size} shards"
 
-    block_size = config.intermediate_size // world_size
+    expert_size = config.ffn_config.ffn_hidden_size
+    block_size = expert_size // world_size
     start = rank * block_size
     stop = (rank + 1) * block_size
 
     tensor = torch.empty(
-        (config.num_local_experts * block_size, config.hidden_size),
+        (config.ffn_config.moe_num_experts * block_size, config.d_model),
         dtype=weights.dtype,
         device=weights.device,
     )
 
-    for i in range(config.num_local_experts):
-        slice_ = weights._get_slice(f"{prefix}.{i}.{mat}.weight")
+    slice_ = weights._get_slice(f"{prefix}")
 
-        if mat == "w2":
-            expert_slice = slice_[:, start:stop].t().contiguous()
-        else:
-            expert_slice = slice_[start:stop]
+    for i in range(config.ffn_config.moe_num_experts):
+        offset = i * expert_size
+        expert_slice = slice_[start + offset : stop + offset]
+
         tensor[i * block_size : (i + 1) * block_size] = expert_slice.to(
             dtype=weights.dtype
         ).to(device=weights.device)
     return tensor
 
 
-class MixtralAttention(torch.nn.Module):
+def _load_experts_quantized(config, prefix, weights, cls):
+    world_size = weights.process_group.size()
+    rank = weights.process_group.rank()
+
+    assert (
+        config.ffn_config.ffn_hidden_size % world_size == 0
+    ), f"The chosen size {config.ffn_config.ffn_hidden_size} is not compatible with sharding on {world_size} shards"
+
+    expert_size = config.ffn_config.ffn_hidden_size
+    block_size = expert_size // world_size
+    start = rank * block_size
+    stop = (rank + 1) * block_size
+
+    slice_ = weights._get_slice(f"{prefix}")
+
+    experts = []
+    for i in range(config.ffn_config.moe_num_experts):
+        if config.quantize in ["gptq", "awq"]:
+            raise NotImplementedError(
+                "Dbrx does not support gptq/awq quantization yet."
+            )
+        else:
+            offset = i * expert_size
+            expert_slice = (
+                slice_[start + offset : stop + offset]
+                .to(dtype=weights.dtype)
+                .to(device=weights.device)
+            )
+
+        if cls == TensorParallelRowLinear:
+            expert_slice = expert_slice.t().contiguous()
+            linear = get_linear(expert_slice, None, config.quantize)
+            experts.append(cls(linear, weights.process_group))
+        else:
+            linear = get_linear(expert_slice, None, config.quantize)
+            experts.append(cls(linear))
+
+    return experts
+
+
+class DbrxAttention(torch.nn.Module):
     def __init__(
         self,
         prefix: str,
@@ -195,17 +352,15 @@ class MixtralAttention(torch.nn.Module):
         weights,
     ):
         super().__init__()
-        self.max_past = (
-            config.sliding_window if config.sliding_window is not None else -1
-        )
-        self.num_heads = config.num_attention_heads
-        self.hidden_size = config.hidden_size
+        self.clip_qkv = config.attn_config.clip_qkv
+        self.num_heads = config.n_heads
+        self.hidden_size = config.d_model
         self.head_size = self.hidden_size // self.num_heads
 
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
             dim=self.head_size,
-            base=config.rope_theta,
+            base=config.attn_config.rope_theta,
             device=weights.device,
         )
 
@@ -218,14 +373,14 @@ class MixtralAttention(torch.nn.Module):
             )
         self.num_heads = self.num_heads // weights.process_group.size()
         self.num_key_value_heads = (
-            config.num_key_value_heads // weights.process_group.size()
+            config.attn_config.kv_n_heads // weights.process_group.size()
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
 
         self.o_proj = TensorParallelRowLinear.load(
             config,
-            prefix=f"{prefix}.o_proj",
+            prefix=f"{prefix}.out_proj",
             weights=weights,
             bias=False,
         )
@@ -245,9 +400,11 @@ class MixtralAttention(torch.nn.Module):
         slots,
         input_lengths,
         max_s,
-        prefill_cache_indices,
     ):
         qkv = self.query_key_value(hidden_states)
+        if self.clip_qkv is not None:
+            qkv = qkv.clamp(min=-self.clip_qkv, max=self.clip_qkv)
+
         query, kv = qkv.split(
             [
                 self.head_size * self.num_heads,
@@ -260,13 +417,8 @@ class MixtralAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        if prefill_cache_indices is not None:
-            kv_to_cache = kv[prefill_cache_indices]
-        else:
-            kv_to_cache = kv
-
         paged_attention.reshape_and_cache(
-            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
+            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
         # output tensor
@@ -283,7 +435,6 @@ class MixtralAttention(torch.nn.Module):
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
-                window_size_left=self.max_past,
             )
         # Decode
         else:
@@ -302,13 +453,72 @@ class MixtralAttention(torch.nn.Module):
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
 
+class DbrxNormAttentionNorm(nn.Module):
+    def __init__(
+        self,
+        prefix: str,
+        config,
+        weights,
+    ):
+        super().__init__()
+        self.norm_1 = FastLayerNorm.load_no_bias(
+            prefix=f"{prefix}.norm_1", weights=weights, eps=1e-5
+        )
+        self.self_attn = DbrxAttention(
+            prefix=f"{prefix}.attn", config=config, weights=weights
+        )
+        self.norm_2 = FastLayerNorm.load_no_bias(
+            prefix=f"{prefix}.norm_2",
+            weights=weights,
+            eps=1e-5,
+        )
+
+    def forward(
+        self,
+        hidden_states,
+        residual,
+        cos,
+        sin,
+        cu_seqlen_prefill,
+        kv_cache,
+        block_tables,
+        slots,
+        input_lengths,
+        max_s,
+    ):
+        normed_hidden_states, res = self.norm_1(hidden_states, residual)
+
+        # Self Attention
+        attn_output = self.self_attn(
+            normed_hidden_states,
+            cos,
+            sin,
+            cu_seqlen_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            input_lengths,
+            max_s,
+        )
+
+        # faster post attention rms norm
+        normed_attn_res_output, attn_res = self.norm_2(attn_output, res)
+
+        return normed_attn_res_output, attn_res
+
+
 @torch.jit.script
-def select_experts(gate_logits: torch.Tensor, top_k: int):
+def select_experts(
+    gate_logits: torch.Tensor, top_k: int, moe_normalize_expert_weights: int
+):
     # all_probs: (sequence_length, n_experts) and upcast for softmax
     all_probs = torch.nn.functional.softmax(gate_logits, dim=1, dtype=torch.float)
     # weights, selected_experts: (sequence_length, top-k)
     weights, selected_experts = torch.topk(all_probs, top_k, dim=-1)
-    weights /= weights.sum(dim=-1, keepdim=True)
+    if moe_normalize_expert_weights:
+        weights = weights / torch.norm(
+            weights, p=moe_normalize_expert_weights, dim=-1, keepdim=True
+        )
     weights = weights.view(-1)
     selected_experts = selected_experts.view(-1)
 
@@ -333,14 +543,17 @@ class BlockSparseMoE(nn.Module):
     and memory on padding.
     """
 
-    def __init__(self, prefix, config: MixtralConfig, weights):
+    def __init__(self, prefix, config: DbrxConfig, weights):
         super().__init__()
-        self.hidden_dim = config.hidden_size
-        self.ffn_dim = config.intermediate_size // weights.process_group.size()
-        self.num_experts = config.num_local_experts
-        self.top_k = config.num_experts_per_tok
+        self.moe_normalize_expert_weights = (
+            config.ffn_config.moe_normalize_expert_weights
+        )
+        self.hidden_dim = config.d_model
+        self.ffn_dim = config.ffn_config.ffn_hidden_size // weights.process_group.size()
+        self.num_experts = config.ffn_config.moe_num_experts
+        self.top_k = config.ffn_config.moe_top_k
 
-        act = config.hidden_act
+        act = config.ffn_config.ffn_act_fn["name"]
         if "gelu" in act:
             self.act = lambda x: torch.nn.functional.gelu(
                 x,
@@ -354,12 +567,14 @@ class BlockSparseMoE(nn.Module):
             self.act = ACT2FN[act]
 
         # gating
-        self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
+        self.gate = FastLinear.load(
+            config, f"{prefix}.router.layer", weights, bias=False
+        )
 
         # merged expert weights, all of size  (n_experts * ffn_dim, hidden_dim)
-        self.w1 = _load_experts(config, f"{prefix}.experts", "w1", weights)
-        self.w2 = _load_experts(config, f"{prefix}.experts", "w2", weights)
-        self.w3 = _load_experts(config, f"{prefix}.experts", "w3", weights)
+        self.w1 = _load_experts(config, f"{prefix}.experts.mlp.w1", weights)
+        self.w2 = _load_experts(config, f"{prefix}.experts.mlp.w2", weights)
+        self.v1 = _load_experts(config, f"{prefix}.experts.mlp.v1", weights)
 
         self.offsets = None
         self.offsets_block_rows = 0
@@ -470,7 +685,9 @@ class BlockSparseMoE(nn.Module):
 
         # gate_logits: (sequence_length, n_experts)
         gate_logits = self.gate(x)
-        selected_experts, weights = select_experts(gate_logits, self.top_k)
+        selected_experts, weights = select_experts(
+            gate_logits, self.top_k, self.moe_normalize_expert_weights
+        )
 
         (
             indices,
@@ -489,12 +706,12 @@ class BlockSparseMoE(nn.Module):
             topo = self.topology(x, padded_bins)
 
         # Perform the expert computation
-        # First Dense x Dense -> Sparse for w1 and w3,
+        # First Dense x Dense -> Sparse for w1 and v1,
         # (top_k * sequence_length + padding, ffn_dim * n_experts)
         x = stk.Matrix(
             topo.size(),
             self.act(stk.ops.sdd(x, self.w1.t(), topo).data)
-            * stk.ops.sdd(x, self.w3.t(), topo).data,
+            * stk.ops.sdd(x, self.v1.t(), topo).data,
             topo.row_indices,
             topo.column_indices,
             topo.offsets,
@@ -537,21 +754,24 @@ class BlockSparseMoE(nn.Module):
         # gate_logits: (sequence_length, n_experts)
         gate_logits = self.gate(x)
         # all_probs: (sequence_length, n_experts) and upcast for softmax
-        all_probs = torch.nn.functional.softmax(gate_logits, dim=1, dtype=torch.float)
+        weights = torch.nn.functional.softmax(gate_logits, dim=1, dtype=torch.float)
 
         if self.top_k < self.num_experts:
             _, not_selected_experts = torch.topk(
-                all_probs,
+                weights,
                 self.num_experts - self.top_k,
                 largest=False,
                 sorted=False,
                 dim=1,
             )
             # Mask not selected experts
-            all_probs.scatter_(1, not_selected_experts, 0)
+            weights.scatter_(1, not_selected_experts, 0)
 
         # Re-normalize
-        weights = all_probs / all_probs.sum(dim=1, keepdim=True)
+        if self.moe_normalize_expert_weights:
+            weights = weights / torch.norm(
+                weights, p=self.moe_normalize_expert_weights, dim=-1, keepdim=True
+            )
         weights = weights.to(x.dtype)
 
         # Expand to [num_experts, sequence_length, model_dim]
@@ -561,11 +781,11 @@ class BlockSparseMoE(nn.Module):
         w1 = self.w1.view(self.num_experts, self.ffn_dim, self.hidden_dim).permute(
             0, 2, 1
         )
-        w3 = self.w3.view(self.num_experts, self.ffn_dim, self.hidden_dim).permute(
+        v1 = self.v1.view(self.num_experts, self.ffn_dim, self.hidden_dim).permute(
             0, 2, 1
         )
 
-        inter = self.act(torch.bmm(x, w1)) * torch.bmm(x, w3)
+        inter = self.act(torch.bmm(x, w1)) * torch.bmm(x, v1)
 
         out = torch.bmm(
             inter, self.w2.view(self.num_experts, self.ffn_dim, self.hidden_dim)
@@ -590,14 +810,18 @@ class BlockSparseMoE(nn.Module):
 
 
 class DenseMoE(nn.Module):
-    def __init__(self, prefix, config: MixtralConfig, weights):
+    def __init__(self, prefix, config: DbrxConfig, weights):
         super().__init__()
-        self.hidden_dim = config.hidden_size
-        self.ffn_dim = config.intermediate_size // weights.process_group.size()
-        self.num_experts = config.num_local_experts
-        self.top_k = config.num_experts_per_tok
 
-        act = config.hidden_act
+        self.moe_normalize_expert_weights = (
+            config.ffn_config.moe_normalize_expert_weights
+        )
+        self.hidden_dim = config.d_model
+        self.ffn_dim = config.ffn_config.ffn_hidden_size // weights.process_group.size()
+        self.num_experts = config.ffn_config.moe_num_experts
+        self.top_k = config.ffn_config.moe_top_k
+
+        act = config.ffn_config.ffn_act_fn["name"]
         if "gelu" in act:
             self.act = lambda x: torch.nn.functional.gelu(
                 x,
@@ -611,26 +835,28 @@ class DenseMoE(nn.Module):
             self.act = ACT2FN[act]
 
         # gating
-        self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
+        self.gate = FastLinear.load(
+            config, f"{prefix}.router.layer", weights, bias=False
+        )
 
-        self.w1 = [
-            TensorParallelColumnLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w1", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
-        self.w3 = [
-            TensorParallelColumnLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w3", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
-        self.w2 = [
-            TensorParallelRowLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w2", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
+        self.w1 = _load_experts_quantized(
+            config,
+            prefix=f"{prefix}.experts.mlp.w1",
+            weights=weights,
+            cls=TensorParallelColumnLinear,
+        )
+        self.w2 = _load_experts_quantized(
+            config,
+            prefix=f"{prefix}.experts.mlp.w2",
+            weights=weights,
+            cls=TensorParallelRowLinear,
+        )
+        self.v1 = _load_experts_quantized(
+            config,
+            prefix=f"{prefix}.experts.mlp.v1",
+            weights=weights,
+            cls=TensorParallelColumnLinear,
+        )
 
         self.process_group = weights.process_group
 
@@ -646,27 +872,30 @@ class DenseMoE(nn.Module):
         # gate_logits: (sequence_length, n_experts)
         gate_logits = self.gate(x)
         # all_probs: (sequence_length, n_experts) and upcast for softmax
-        all_probs = torch.nn.functional.softmax(gate_logits, dim=1, dtype=torch.float)
+        weights = torch.nn.functional.softmax(gate_logits, dim=1, dtype=torch.float)
 
         if self.top_k < self.num_experts:
             _, not_selected_experts = torch.topk(
-                all_probs,
+                weights,
                 self.num_experts - self.top_k,
                 largest=False,
                 sorted=False,
                 dim=1,
             )
             # Mask not selected experts
-            all_probs.scatter_(1, not_selected_experts, 0)
+            weights.scatter_(1, not_selected_experts, 0)
 
         # Re-normalize
-        weights = all_probs / all_probs.sum(dim=1, keepdim=True)
+        if self.moe_normalize_expert_weights:
+            weights = weights / torch.norm(
+                weights, p=self.moe_normalize_expert_weights, dim=-1, keepdim=True
+            )
         weights = weights.to(x.dtype)
 
         # Final output tensor
         out = x.new_zeros(x.shape[0], self.hidden_dim)
         for i in range(self.num_experts):
-            h = self.act(self.w1[i](x)) * self.w3[i](x)
+            h = self.act(self.w1[i](x)) * self.v1[i](x)
             h = self.w2[i](h, reduce=False)
             # Add expert output to out with masking
             out += h * weights[:, i].view(-1, 1)
@@ -678,26 +907,17 @@ class DenseMoE(nn.Module):
         return out
 
 
-class MixtralLayer(nn.Module):
+class DbrxLayer(nn.Module):
     def __init__(self, layer_id, config, weights):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
+        prefix = f"transformer.blocks.{layer_id}"
 
-        self.self_attn = MixtralAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
+        self.attn = DbrxNormAttentionNorm(
+            prefix=f"{prefix}.norm_attn_norm", config=config, weights=weights
         )
 
         moe_cls = BlockSparseMoE if config.quantize is None else DenseMoE
-        self.moe = moe_cls(f"{prefix}.block_sparse_moe", config, weights)
-
-        self.input_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
-        )
-        self.post_attention_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.post_attention_layernorm",
-            weights=weights,
-            eps=config.rms_norm_eps,
-        )
+        self.moe = moe_cls(f"{prefix}.ffn", config, weights)
 
     def forward(
         self,
@@ -711,13 +931,11 @@ class MixtralLayer(nn.Module):
         slots,
         input_lengths,
         max_s,
-        prefill_cache_indices,
     ):
-        normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
-
         # Self Attention
-        attn_output = self.self_attn(
-            normed_hidden_states,
+        attn_output, attn_res = self.attn(
+            hidden_states,
+            residual,
             cos,
             sin,
             cu_seqlen_prefill,
@@ -726,44 +944,38 @@ class MixtralLayer(nn.Module):
             slots,
             input_lengths,
             max_s,
-            prefill_cache_indices,
         )
 
-        # faster post attention rms norm
-        normed_attn_res_output, attn_res = self.post_attention_layernorm(
-            attn_output, res
-        )
-
-        moe_output = self.moe(normed_attn_res_output)
+        moe_output = self.moe(attn_output)
 
         return moe_output, attn_res
 
 
-class MixtralModel(torch.nn.Module):
+class DbrxModel(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
+            prefix="transformer.wte", weights=weights
         )
 
         self.layers = nn.ModuleList(
             [
-                MixtralLayer(
+                DbrxLayer(
                     layer_id,
                     config,
                     weights,
                 )
-                for layer_id in range(config.num_hidden_layers)
+                for layer_id in range(config.n_layers)
             ]
         )
-        self.norm = FastRMSNorm.load(
-            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
+        self.norm = FastLayerNorm.load_no_bias(
+            prefix="transformer.norm_f", weights=weights, eps=1e-5
         )
 
-        self.head_size = self.layers[0].self_attn.head_size
-        self.num_heads = self.layers[0].self_attn.num_heads
-        self.num_key_value_heads = self.layers[0].self_attn.num_key_value_heads
+        self.head_size = self.layers[0].attn.self_attn.head_size
+        self.num_heads = self.layers[0].attn.self_attn.num_heads
+        self.num_key_value_heads = self.layers[0].attn.self_attn.num_key_value_heads
 
     def forward(
         self,
@@ -775,15 +987,13 @@ class MixtralModel(torch.nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
-        true_max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, true_max_s, hidden_states.dtype
+        cos, sin = self.layers[0].attn.self_attn.rotary_emb.get_cos_sin(
+            position_ids, max_s, hidden_states.dtype
         )
 
         residual = None
@@ -799,7 +1009,6 @@ class MixtralModel(torch.nn.Module):
                 slots,
                 input_lengths,
                 max_s,
-                prefill_cache_indices,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -807,21 +1016,15 @@ class MixtralModel(torch.nn.Module):
         return hidden_states
 
 
-class FlashMixtralForCausalLM(torch.nn.Module):
+class FlashDbrxForCausalLM(torch.nn.Module):
     def __init__(self, config, weights):
         super().__init__()
 
-        self.model = MixtralModel(config, weights)
+        self.model = DbrxModel(config, weights)
         self.lm_head = SpeculativeHead.load(
             config,
             prefix="lm_head",
             weights=weights,
-        )
-        self.max_past = config.sliding_window
-        self.max_past_tensor = (
-            torch.tensor(config.sliding_window, device=weights.device)
-            if self.max_past is not None
-            else None
         )
 
     def forward(
@@ -834,18 +1037,8 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        true_max_s = max_s
-        if prefill_cache_indices is not None:
-            # Slots also need to be sliced as it has the same size as the whole kv tensor
-            slots = slots[prefill_cache_indices]
-        elif self.max_past is not None:
-            # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
-            # kernel requires the true values
-            input_lengths = torch.clamp(input_lengths, max=self.max_past_tensor)
-
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         hidden_states = self.model(
             input_ids,
             position_ids,
@@ -855,10 +1048,8 @@ class FlashMixtralForCausalLM(torch.nn.Module):
             slots,
             input_lengths,
             max_s,
-            true_max_s,
-            prefill_cache_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
-        logits = self.lm_head(hidden_states)
-        return logits
+        logits, speculative_logits = self.lm_head(hidden_states)
+        return logits, speculative_logits
