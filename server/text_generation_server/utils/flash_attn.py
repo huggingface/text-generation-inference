@@ -97,7 +97,7 @@ def attention(
             raise ValueError(
                 f"XPU version of Flash Attention does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
             )
-        return ipex.llm.modules.VarlenAttention.apply(
+        return ipex.llm.functional.varlen_attention(
             q,
             k,
             v,

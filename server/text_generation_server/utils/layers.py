@@ -820,17 +820,13 @@ try:
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
             if IS_XPU_SYSTEM:
-                if residual is not None:
-                    hidden_states += residual
-                residual = hidden_states
-                out = ipex.llm.modules.FastLayerNorm.apply(
-                    hidden_states,
-                    self.normalized_shape,
-                    self.eps,
-                    self.weight,
-                    self.bias,
+                res_out = hidden_states
+                out = ipex.llm.functional.add_layer_norm(
+                    residual, hidden_states, self.weight, self.bias, self.eps, True
                 )
-                return out, residual
+                if residual is not None:
+                    res_out = residual
+                return out, res_out
             elif hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
                 if residual is not None:
                     hidden_states += residual
@@ -878,15 +874,18 @@ try:
 
         def forward(self, hidden_states, residual=None):
             if IS_XPU_SYSTEM:
-                if residual is not None:
-                    hidden_states += residual
-                residual = hidden_states
-                out = ipex.llm.modules.RMSNorm.apply(
+                residual_out = hidden_states
+                out = ipex.llm.functional.add_rms_norm(
+                    residual,
                     hidden_states,
                     self.weight,
+                    None,
                     self.variance_epsilon,
+                    True,
                 )
-                return out, residual
+                if residual is not None:
+                    residual_out = residual
+                return out, residual_out
             elif hidden_states.shape[-1] > 8192:
                 if residual is not None:
                     hidden_states += residual
@@ -1014,7 +1013,7 @@ try:
                 # Inplace operation, updating query and key.
                 pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, True)
             elif IS_XPU_SYSTEM:
-                ipex.llm.modules.RotaryEmbedding.apply(
+                ipex.llm.functional.rotary_embedding(
                     query, key, sin, cos, query.size(-1), True
                 )
             else:

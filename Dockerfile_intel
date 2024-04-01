@@ -47,7 +47,7 @@ RUN wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.
 RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
 | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
 
-RUN apt-get update && apt install -y intel-basekit xpu-smi cmake python3-dev
+RUN apt-get update && apt install -y intel-basekit xpu-smi cmake python3-dev ninja-build
 
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
@@ -69,22 +69,22 @@ RUN cd server && \
     pip install -r requirements_common.txt && \
     pip install ".[accelerate, peft, outlines]" --no-cache-dir
 
-ENV CCL_ROOT=/opt/intel/oneapi/ccl/2021.11
-ENV I_MPI_ROOT=/opt/intel/oneapi/mpi/2021.11
-ENV FI_PROVIDER_PATH=/opt/intel/oneapi/mpi/2021.11/opt/mpi/libfabric/lib/prov:/usr/lib/x86_64-linux-gnu/libfabric
-ENV DIAGUTIL_PATH=/opt/intel/oneapi/compiler/2024.0/etc/compiler/sys_check/sys_check.sh
+ENV CCL_ROOT=/opt/intel/oneapi/ccl/latest
+ENV I_MPI_ROOT=/opt/intel/oneapi/mpi/latest
+ENV FI_PROVIDER_PATH=/opt/intel/oneapi/mpi/latest/opt/mpi/libfabric/lib/prov:/usr/lib/x86_64-linux-gnu/libfabric
+ENV DIAGUTIL_PATH=/opt/intel/oneapi/compiler/latest/etc/compiler/sys_check/sys_check.sh
 ENV CCL_CONFIGURATION=cpu_gpu_dpcpp
-ENV MANPATH=/opt/intel/oneapi/mpi/2021.11/share/man:/opt/intel/oneapi/mpi/2021.11/share/man:/opt/intel/oneapi/compiler/2024.0/documentation/en/man/common:
-ENV CMAKE_PREFIX_PATH=/opt/intel/oneapi/mkl/2024.0/lib/cmake:/opt/intel/oneapi/compiler/2024.0
-ENV CMPLR_ROOT=/opt/intel/oneapi/compiler/2024.0
-ENV LIBRARY_PATH=/opt/intel/oneapi/mpi/2021.11/lib:/opt/intel/oneapi/ccl/2021.11/lib/:/opt/intel/oneapi/mkl/2024.0/lib/:/opt/intel/oneapi/compiler/2024.0/lib
-ENV OCL_ICD_FILENAMES=libintelocl_emu.so:libalteracl.so:/opt/intel/oneapi/compiler/2024.0/lib/libintelocl.so
-ENV CLASSPATH=/opt/intel/oneapi/mpi/2021.11/share/java/mpi.jar:/opt/intel/oneapi/mpi/2021.11/share/java/mpi.jar
-ENV LD_LIBRARY_PATH=/opt/intel/oneapi/ccl/2021.11/lib/:/opt/intel/oneapi/mpi/2021.11/opt/mpi/libfabric/lib:/opt/intel/oneapi/mpi/2021.11/lib:/opt/intel/oneapi/mkl/2024.0/lib:/opt/intel/oneapi/compiler/2024.0/opt/compiler/lib:/opt/intel/oneapi/compiler/2024.0/lib:/opt/intel/oneapi/lib:/opt/intel/oneapi/lib/intel64:
-ENV MKLROOT=/opt/intel/oneapi/mkl/2024.0
-ENV NLSPATH=/opt/intel/oneapi/mkl/2024.0/share/locale/%l_%t/%N:/opt/intel/oneapi/compiler/2024.0/lib/locale/%l_%t/%N
-ENV PATH=/opt/intel/oneapi/mpi/2021.11/opt/mpi/libfabric/bin:/opt/intel/oneapi/mpi/2021.11/bin:/opt/intel/oneapi/mpi/2021.11/opt/mpi/libfabric/bin:/opt/intel/oneapi/mkl/2024.0/bin/:/opt/intel/oneapi/compiler/2024.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ENV CPATH=/opt/intel/oneapi/mpi/2021.11/include:/opt/intel/oneapi/ccl/2021.11/include:/opt/intel/oneapi/mkl/2024.0/include
+ENV MANPATH=/opt/intel/oneapi/mpi/latest/share/man:/opt/intel/oneapi/mpi/latest/share/man:/opt/intel/oneapi/compiler/latest/share/man
+ENV CMAKE_PREFIX_PATH=/opt/intel/oneapi/mkl/latest/lib/cmake:/opt/intel/oneapi/compiler/latest
+ENV CMPLR_ROOT=/opt/intel/oneapi/compiler/latest
+ENV LIBRARY_PATH=/opt/intel/oneapi/mpi/latest/lib:/opt/intel/oneapi/ccl/latest/lib/:/opt/intel/oneapi/mkl/latest/lib/:/opt/intel/oneapi/compiler/latest/lib
+ENV OCL_ICD_FILENAMES=libintelocl_emu.so:libalteracl.so:/opt/intel/oneapi/compiler/latest/lib/libintelocl.so
+ENV CLASSPATH=/opt/intel/oneapi/mpi/latest/share/java/mpi.jar:/opt/intel/oneapi/mpi/latest/share/java/mpi.jar
+ENV LD_LIBRARY_PATH=/opt/intel/oneapi/ccl/latest/lib/:/opt/intel/oneapi/mpi/latest/opt/mpi/libfabric/lib:/opt/intel/oneapi/mpi/latest/lib:/opt/intel/oneapi/mkl/latest/lib:/opt/intel/oneapi/compiler/latest/opt/compiler/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/lib:/opt/intel/oneapi/lib/intel64:
+ENV MKLROOT=/opt/intel/oneapi/mkl/latest
+ENV NLSPATH=/opt/intel/oneapi/mkl/latest/share/locale/%l_%t/%N:/opt/intel/oneapi/compiler/latest/lib/locale/%l_%t/%N
+ENV PATH=/opt/intel/oneapi/mpi/latest/opt/mpi/libfabric/bin:/opt/intel/oneapi/mpi/latest/bin:/opt/intel/oneapi/mpi/latest/opt/mpi/libfabric/bin:/opt/intel/oneapi/mkl/latest/bin/:/opt/intel/oneapi/compiler/latest/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV CPATH=/opt/intel/oneapi/mpi/latest/include:/opt/intel/oneapi/ccl/latest/include:/opt/intel/oneapi/mkl/latest/include
 ENV CCL_ZE_IPC_EXCHANGE=sockets
 
 
