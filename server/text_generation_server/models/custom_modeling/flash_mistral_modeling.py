@@ -285,9 +285,8 @@ class MistralMLP(nn.Module):
 
 
 class MistralLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
         self.self_attn = MistralAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
@@ -343,27 +342,27 @@ class MistralLayer(nn.Module):
 
 
 class MistralModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
+            prefix=f"{prefix}.embed_tokens", weights=weights
         )
         self.layers = nn.ModuleList(
             [
                 MistralLayer(
-                    layer_id,
-                    config,
-                    weights,
+                    prefix=f"{prefix}.layers.{layer_id}",
+                    config=config,
+                    weights=weights,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
         self.norm = FastRMSNorm.load(
-            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
+            prefix=f"{prefix}.norm", weights=weights, eps=config.rms_norm_eps
         )
 
         self.gradient_checkpointing = False
@@ -415,13 +414,17 @@ class MistralModel(torch.nn.Module):
 
 
 class FlashMistralForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
-        self.model = MistralModel(config, weights)
+        self.model = MistralModel(
+            prefix="model" if not prefix else f"{prefix}.model",
+            config=config,
+            weights=weights,
+        )
         self.lm_head = SpeculativeHead.load(
             config,
-            prefix="lm_head",
+            prefix="lm_head" if not prefix else f"{prefix}.lm_head",
             weights=weights,
         )
         self.max_past = config.sliding_window

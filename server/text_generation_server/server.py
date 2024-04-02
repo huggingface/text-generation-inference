@@ -15,7 +15,7 @@ from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
-from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
+from text_generation_server.models.vlm_causal_lm import VlmCausalLMBatch
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
@@ -79,7 +79,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 pass
 
         if (
-            self.model.batch_type == IdeficsCausalLMBatch
+            self.model.batch_type == VlmCausalLMBatch
         ):  # Hack, i would rather use kwargs in the `from_pb` call
             batch = self.model.batch_type.from_pb(
                 request.batch,
@@ -101,7 +101,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     async def Prefill(self, request, context):
         start = time.time_ns()
         if (
-            self.model.batch_type == IdeficsCausalLMBatch
+            self.model.batch_type == VlmCausalLMBatch
         ):  # Hack, i would rather use kwargs in the `from_pb` call
             batch = self.model.batch_type.from_pb(
                 request.batch,

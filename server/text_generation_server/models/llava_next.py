@@ -8,15 +8,11 @@ from transformers import (
     AutoConfig,
     AutoProcessor,
 )
+from text_generation_server.models.custom_modeling.llava_next import (
+    LlavaNextForConditionalGeneration,
+)
 
-from text_generation_server.models.custom_modeling.idefics_config import IdeficsConfig
-from text_generation_server.models.custom_modeling.idefics_processing import (
-    IdeficsProcessor,
-)
-from transformers import LlamaTokenizerFast
-from text_generation_server.models.custom_modeling.idefics_modeling import (
-    IdeficsForVisionText2Text,
-)
+# from transformers import AutoConfig, AutoTokenizer, AutoProcessor
 from text_generation_server.models.vlm_causal_lm import VlmCausalLM
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -25,7 +21,7 @@ from text_generation_server.utils import (
 )
 
 
-class IDEFICSSharded(VlmCausalLM):
+class LlavaNext(VlmCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -46,7 +42,7 @@ class IDEFICSSharded(VlmCausalLM):
             dtype = torch.float32 if dtype is None else dtype
         self.device, self.dtype = device, dtype
 
-        config = IdeficsConfig.from_pretrained(
+        config = AutoConfig.from_pretrained(
             model_id,
             revision=revision,
             trust_remote_code=trust_remote_code,
@@ -55,14 +51,14 @@ class IDEFICSSharded(VlmCausalLM):
         config.use_medusa = use_medusa
         config.vision_config.quantize = quantize
 
-        tokenizer = LlamaTokenizerFast.from_pretrained(
+        tokenizer = AutoTokenizer.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
-        self.processor = IdeficsProcessor.from_pretrained(
+        self.processor = AutoProcessor.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
@@ -79,7 +75,7 @@ class IDEFICSSharded(VlmCausalLM):
             process_group=self.process_group,
         )
 
-        model = IdeficsForVisionText2Text(config, weights)
+        model = LlavaNextForConditionalGeneration(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
         super(VlmCausalLM, self).__init__(
