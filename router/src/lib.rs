@@ -399,33 +399,23 @@ impl From<(Token, Vec<Token>)> for ChatCompletionLogprobs {
 impl From<(Vec<Token>, Vec<Vec<Token>>)> for ChatCompletionLogprobs {
     fn from(value: (Vec<Token>, Vec<Vec<Token>>)) -> Self {
         let (tokens, top_tokens) = value;
-
-        // Create an iterator that produces None for top_tokens once it's exhausted
-        let top_tokens_iter = top_tokens
-            .into_iter()
-            .map(Some)
-            .chain(std::iter::repeat(None));
-
-        let content = tokens
-            .into_iter()
-            .zip(top_tokens_iter)
-            .map(|(t, top_t_option)| ChatCompletionLogprob {
-                token: t.text,
-                logprob: t.logprob,
-                top_logprobs: match top_t_option {
-                    Some(top_t) => top_t
+        Self {
+            content: tokens
+                .into_iter()
+                .zip(top_tokens)
+                .map(|(t, top_t)| ChatCompletionLogprob {
+                    token: t.text,
+                    logprob: t.logprob,
+                    top_logprobs: top_t
                         .into_iter()
                         .map(|t| ChatCompletionTopLogprob {
                             token: t.text,
                             logprob: t.logprob,
                         })
                         .collect(),
-                    None => vec![], // Handle the case where there are no top tokens
-                },
-            })
-            .collect();
-
-        Self { content }
+                })
+                .collect(),
+        }
     }
 }
 
@@ -727,26 +717,26 @@ mod deserialize_tool_choice {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
 pub struct Tools {
     #[serde(flatten)]
     functions_map: FunctionsMap,
     properties: Properties,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct FunctionsMap {
     #[serde(rename = "$functions")]
     functions: std::collections::HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct FunctionRef {
     #[serde(rename = "$ref")]
     ref_path: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Properties {
     #[serde(serialize_with = "serialize_function")]
     function: Vec<FunctionRef>,
@@ -767,7 +757,8 @@ pub(crate) struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
-    pub parameters: serde_json::Value,
+    #[serde(alias = "parameters")]
+    pub arguments: serde_json::Value,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
