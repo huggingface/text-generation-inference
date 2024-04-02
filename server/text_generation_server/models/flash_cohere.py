@@ -3,7 +3,7 @@ import torch.distributed
 
 from opentelemetry import trace
 from typing import Optional
-from transformers.models.llama import LlamaTokenizerFast
+from transformers import AutoTokenizer
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
@@ -36,7 +36,7 @@ class FlashCohere(FlashCausalLM):
         else:
             raise NotImplementedError("FlashCohere is only available on GPU")
 
-        tokenizer = LlamaTokenizerFast.from_pretrained(
+        tokenizer = AutoTokenizer.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
