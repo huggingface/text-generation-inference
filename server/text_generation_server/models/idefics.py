@@ -17,7 +17,7 @@ from transformers import LlamaTokenizerFast
 from text_generation_server.models.custom_modeling.idefics_modeling import (
     IdeficsForVisionText2Text,
 )
-from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+from text_generation_server.models.idefics_causal_lm import IdeficsCausalLM
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -25,7 +25,7 @@ from text_generation_server.utils import (
 )
 
 
-class IDEFICSSharded(VlmCausalLM):
+class IDEFICSSharded(IdeficsCausalLM):
     def __init__(
         self,
         model_id: str,

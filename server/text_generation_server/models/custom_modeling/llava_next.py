@@ -113,7 +113,13 @@ def load_vision_model(prefix, config, weights):
 
 
 def load_text_model(prefix, config, weights):
-    if config.model_type == "mistral":
+    if config.model_type == "llama":
+        from text_generation_server.models.custom_modeling.flash_llama_modeling import (
+            FlashLlamaForCausalLM,
+        )
+
+        return FlashLlamaForCausalLM(prefix, config, weights)
+    elif config.model_type == "mistral":
         from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
             FlashMistralForCausalLM,
         )
@@ -124,22 +130,25 @@ def load_text_model(prefix, config, weights):
 
 
 class LlavaNextForConditionalGeneration(nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
         config.vision_config.quantize = config.quantize
-        self.vision_tower = load_vision_model(
-            prefix="vision_tower", config=config.vision_config, weights=weights
-        )
+        # self.vision_tower = load_vision_model(
+        #     prefix="vision_tower" if not prefix else f"{prefix}.vision_tower", config=config.vision_config, weights=weights
+        # )
 
-        self.multi_modal_projector = LlavaNextMultiModalProjector(config)
+        # self.multi_modal_projector = LlavaNextMultiModalProjector(config)
 
         self.image_newline = weights.get_tensor("image_newline")
 
         self.vocab_size = config.text_config.vocab_size
+        self.config = config
         config.text_config.quantize = config.quantize
         config.text_config.use_medusa = config.use_medusa
         self.language_model = load_text_model(
-            prefix="language_model", config=config.text_config, weights=weights
+            prefix="language_model" if not prefix else f"{prefix}.language_model",
+            config=config.text_config,
+            weights=weights,
         )
         self.pad_token_id = (
             config.pad_token_id if config.pad_token_id is not None else -1
@@ -257,168 +266,141 @@ class LlavaNextForConditionalGeneration(nn.Module):
 
     def forward(
         self,
-        input_ids: torch.LongTensor = None,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        cu_seqlen_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        input_lengths: torch.Tensor,
+        max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
         image_sizes: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         vision_feature_layer: Optional[int] = None,
         vision_feature_select_strategy: Optional[str] = None,
     ):
 
-        vision_feature_layer = (
-            vision_feature_layer
-            if vision_feature_layer is not None
-            else self.config.vision_feature_layer
+        # vision_feature_layer = (
+        #     vision_feature_layer
+        #     if vision_feature_layer is not None
+        #     else self.config.vision_feature_layer
+        # )
+        # vision_feature_select_strategy = (
+        #     vision_feature_select_strategy
+        #     if vision_feature_select_strategy is not None
+        #     else self.config.vision_feature_select_strategy
+        # )
+
+        # if cu_seqlen_prefill is not None:
+        #     pass
+        #     # # 1. Extract the input embeddings
+        #     # inputs_embeds = self.get_input_embeddings()(input_ids)
+
+        #     # # 2. Merge text and images
+        #     # if pixel_values is not None and input_ids.shape[1] != 1:
+        #     #     batch_size, num_patches, num_channels, height, width = (
+        #     #         pixel_values.shape
+        #     #     )
+        #     #     reshaped_pixel_values = pixel_values.view(
+        #     #         batch_size * num_patches, num_channels, height, width
+        #     #     )
+        #     #     image_features = self.vision_tower(
+        #     #         reshaped_pixel_values, output_hidden_states=True
+        #     #     )
+
+        #     #     selected_image_feature = image_features.hidden_states[
+        #     #         vision_feature_layer
+        #     #     ]
+
+        #     #     if vision_feature_select_strategy == "default":
+        #     #         selected_image_feature = selected_image_feature[:, 1:]
+        #     #     elif vision_feature_select_strategy == "full":
+        #     #         selected_image_feature = selected_image_feature
+
+        #     #     image_features = self.multi_modal_projector(selected_image_feature)
+
+        #     #     # split up image_features for each of the individual images
+        #     #     # hence we get a list of image_features, each of shape (5, num_patches, hidden_size)
+        #     #     # if we assume each image has 5 image features (base image + 4 patches)
+        #     #     split_sizes = [image.shape[0] for image in pixel_values]
+        #     #     image_features = torch.split(image_features, split_sizes, dim=0)
+
+        #     #     # NOTE we only support multimodal_patch_merge_type == "spatial_unpad"
+        #     #     height = width = (
+        #     #         self.config.vision_config.image_size
+        #     #         // self.config.vision_config.patch_size
+        #     #     )
+
+        #     #     new_image_features = []
+        #     #     for image_idx, image_feature in enumerate(image_features):
+        #     #         if image_feature.shape[0] > 1:
+        #     #             base_image_feature = image_feature[0]
+        #     #             image_feature = image_feature[1:]
+
+        #     #             if height * width != base_image_feature.shape[0]:
+        #     #                 raise ValueError(
+        #     #                     "The number of patches is not consistent with the image size."
+        #     #                 )
+        #     #             num_patch_height, num_patch_width = get_anyres_image_grid_shape(
+        #     #                 image_sizes[image_idx],
+        #     #                 self.config.image_grid_pinpoints,
+        #     #                 self.config.vision_config.image_size,
+        #     #             )
+        #     #             image_feature = image_feature.view(
+        #     #                 num_patch_height, num_patch_width, height, width, -1
+        #     #             )
+        #     #             image_feature = image_feature.permute(
+        #     #                 4, 0, 2, 1, 3
+        #     #             ).contiguous()
+        #     #             image_feature = image_feature.flatten(1, 2).flatten(2, 3)
+        #     #             image_feature = unpad_image(
+        #     #                 image_feature, image_sizes[image_idx]
+        #     #             )
+        #     #             image_feature = torch.cat(
+        #     #                 (
+        #     #                     image_feature,
+        #     #                     self.image_newline[:, None, None].expand(
+        #     #                         *image_feature.shape[:-1], 1
+        #     #                     ),
+        #     #                 ),
+        #     #                 dim=-1,
+        #     #             )
+        #     #             image_feature = image_feature.flatten(1, 2).transpose(0, 1)
+        #     #             image_feature = torch.cat(
+        #     #                 (base_image_feature, image_feature), dim=0
+        #     #             )
+        #     #         else:
+        #     #             image_feature = image_feature[0]
+        #     #             image_feature = torch.cat(
+        #     #                 (image_feature, self.image_newline[None]), dim=0
+        #     #             )
+        #     #         new_image_features.append(image_feature)
+        #     #     image_features = torch.stack(new_image_features, dim=0)
+
+        #     #     inputs_embeds, attention_mask, labels, position_ids = (
+        #     #         self._merge_input_ids_with_image_features(
+        #     #             image_features, inputs_embeds, input_ids, attention_mask, labels
+        #     #         )
+        #     #     )
+        #     #     if labels is None:
+        #     #         labels = torch.full_like(
+        #     #             attention_mask, self.config.ignore_index
+        #     #         ).to(torch.long)
+
+        logits = self.language_model(
+            input_ids,
+            position_ids,
+            cu_seqlen_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            input_lengths,
+            max_s,
+            prefill_cache_indices,
+            lm_head_indices,
         )
-        vision_feature_select_strategy = (
-            vision_feature_select_strategy
-            if vision_feature_select_strategy is not None
-            else self.config.vision_feature_select_strategy
-        )
-
-        if inputs_embeds is None:
-            # 1. Extract the input embeddings
-            inputs_embeds = self.get_input_embeddings()(input_ids)
-
-            # 2. Merge text and images
-            if pixel_values is not None and input_ids.shape[1] != 1:
-                batch_size, num_patches, num_channels, height, width = (
-                    pixel_values.shape
-                )
-                reshaped_pixel_values = pixel_values.view(
-                    batch_size * num_patches, num_channels, height, width
-                )
-                image_features = self.vision_tower(
-                    reshaped_pixel_values, output_hidden_states=True
-                )
-
-                selected_image_feature = image_features.hidden_states[
-                    vision_feature_layer
-                ]
-
-                if vision_feature_select_strategy == "default":
-                    selected_image_feature = selected_image_feature[:, 1:]
-                elif vision_feature_select_strategy == "full":
-                    selected_image_feature = selected_image_feature
-
-                image_features = self.multi_modal_projector(selected_image_feature)
-
-                # split up image_features for each of the individual images
-                # hence we get a list of image_features, each of shape (5, num_patches, hidden_size)
-                # if we assume each image has 5 image features (base image + 4 patches)
-                split_sizes = [image.shape[0] for image in pixel_values]
-                image_features = torch.split(image_features, split_sizes, dim=0)
-
-                # NOTE we only support multimodal_patch_merge_type == "spatial_unpad"
-                height = width = (
-                    self.config.vision_config.image_size
-                    // self.config.vision_config.patch_size
-                )
-
-                new_image_features = []
-                for image_idx, image_feature in enumerate(image_features):
-                    if image_feature.shape[0] > 1:
-                        base_image_feature = image_feature[0]
-                        image_feature = image_feature[1:]
-
-                        if height * width != base_image_feature.shape[0]:
-                            raise ValueError(
-                                "The number of patches is not consistent with the image size."
-                            )
-                        num_patch_height, num_patch_width = get_anyres_image_grid_shape(
-                            image_sizes[image_idx],
-                            self.config.image_grid_pinpoints,
-                            self.config.vision_config.image_size,
-                        )
-                        image_feature = image_feature.view(
-                            num_patch_height, num_patch_width, height, width, -1
-                        )
-                        image_feature = image_feature.permute(
-                            4, 0, 2, 1, 3
-                        ).contiguous()
-                        image_feature = image_feature.flatten(1, 2).flatten(2, 3)
-                        image_feature = unpad_image(
-                            image_feature, image_sizes[image_idx]
-                        )
-                        image_feature = torch.cat(
-                            (
-                                image_feature,
-                                self.image_newline[:, None, None].expand(
-                                    *image_feature.shape[:-1], 1
-                                ),
-                            ),
-                            dim=-1,
-                        )
-                        image_feature = image_feature.flatten(1, 2).transpose(0, 1)
-                        image_feature = torch.cat(
-                            (base_image_feature, image_feature), dim=0
-                        )
-                    else:
-                        image_feature = image_feature[0]
-                        image_feature = torch.cat(
-                            (image_feature, self.image_newline[None]), dim=0
-                        )
-                    new_image_features.append(image_feature)
-                image_features = torch.stack(new_image_features, dim=0)
-
-                inputs_embeds, attention_mask, labels, position_ids = (
-                    self._merge_input_ids_with_image_features(
-                        image_features, inputs_embeds, input_ids, attention_mask, labels
-                    )
-                )
-                if labels is None:
-                    labels = torch.full_like(
-                        attention_mask, self.config.ignore_index
-                    ).to(torch.long)
-
-            # In case input_ids.shape[1] == 1 & pixel_values==None & past_key_values != None, we are in the case of
-            # generation with cache
-            elif (
-                past_key_values is not None
-                and pixel_values is not None
-                and input_ids.shape[1] == 1
-            ):
-                # Retrieve the first layer to inspect the logits and mask out the hidden states
-                # that are set to 0
-                first_layer_past_key_value = past_key_values[0][0][:, :, :, 0]
-
-                # Sum all dimensions of head_dim (-2) to avoid random errors such as: https://github.com/huggingface/transformers/pull/28032#issuecomment-1863691941
-                batch_index, non_attended_tokens = torch.where(
-                    first_layer_past_key_value.float().sum(-2) == 0
-                )
-
-                # Get the target length
-                target_seqlen = first_layer_past_key_value.shape[-1] + 1
-
-                extended_attention_mask = torch.ones(
-                    (attention_mask.shape[0], target_seqlen - attention_mask.shape[1]),
-                    dtype=attention_mask.dtype,
-                    device=attention_mask.device,
-                )
-
-                # Filter out only the tokens that can be un-attended, this can happen
-                # if one uses Llava + Fused modules where the cache on the
-                # first iteration is already big enough, or if one passes custom cache
-                valid_indices = non_attended_tokens < extended_attention_mask.size(-1)
-                new_batch_index = batch_index[valid_indices]
-                new_non_attended_tokens = non_attended_tokens[valid_indices]
-
-                # Zero-out the places where we don't need to attend
-                extended_attention_mask[new_batch_index, new_non_attended_tokens] = 0
-
-                attention_mask = torch.cat(
-                    (attention_mask, extended_attention_mask), dim=1
-                )
-                position_ids = torch.sum(attention_mask, dim=1).unsqueeze(-1) - 1
-
-        outputs = self.language_model(
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-        )
-
-        logits = outputs[0]
         return logits
