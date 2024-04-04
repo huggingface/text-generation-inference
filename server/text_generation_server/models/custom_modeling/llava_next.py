@@ -22,7 +22,11 @@ from torch import nn
 
 from transformers.activations import ACT2FN
 from transformers.image_processing_utils import select_best_resolution
-from transformers import AutoModel, AutoModelForCausalLM
+
+from text_generation_server.utils.layers import (
+    TensorParallelColumnLinear,
+    TensorParallelRowLinear,
+)
 
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
@@ -83,15 +87,15 @@ def unpad_image(tensor, original_size):
 
 # Copied from transformers.models.llava.modeling_llava.LlavaMultiModalProjector with Llava->LlavaNext
 class LlavaNextMultiModalProjector(nn.Module):
-    def __init__(self, config):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
-        self.linear_1 = nn.Linear(
-            config.vision_config.hidden_size, config.text_config.hidden_size, bias=True
+        self.linear_1 = TensorParallelColumnLinear.load(
+            prefix=f"{prefix}.linear_1", config=config, weights=weights, bias=True
         )
         self.act = ACT2FN[config.projector_hidden_act]
-        self.linear_2 = nn.Linear(
-            config.text_config.hidden_size, config.text_config.hidden_size, bias=True
+        self.linear_2 = TensorParallelRowLinear.load(
+            prefix=f"{prefix}.linear_2", config=config, weights=weights, bias=True
         )
 
     def forward(self, image_features):
@@ -135,13 +139,19 @@ class LlavaNextForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         config.vision_config.quantize = config.quantize
+        vision_config = config.vision_config
+        # Instead of selecting in hidden_states[-2].
+        # Instead compute only the n -2 + 1 layers and don't pool
+        vision_config.num_hidden_layers += config.vision_feature_layer + 1
         self.vision_tower = load_vision_model(
             prefix="vision_tower" if not prefix else f"{prefix}.vision_tower",
             config=config.vision_config,
             weights=weights,
         )
 
-        self.multi_modal_projector = LlavaNextMultiModalProjector(config)
+        self.multi_modal_projector = LlavaNextMultiModalProjector(
+            prefix="multi_modal_projector", config=config, weights=weights
+        )
 
         self.image_newline = weights.get_tensor("image_newline")
 
@@ -158,114 +168,17 @@ class LlavaNextForConditionalGeneration(nn.Module):
             config.pad_token_id if config.pad_token_id is not None else -1
         )
 
-    # Copied from transformers.models.llava.modeling_llava.LlavaForConditionalGeneration._merge_input_ids_with_image_features
     def _merge_input_ids_with_image_features(
-        self, image_features, inputs_embeds, input_ids, attention_mask, labels
+        self,
+        input_ids: torch.Tensor,
+        inputs_embeds: torch.Tensor,
+        image_features: torch.Tensor,
     ):
-        num_images, num_image_patches, embed_dim = image_features.shape
-        batch_size, sequence_length = input_ids.shape
-        left_padding = not torch.sum(
-            input_ids[:, -1] == torch.tensor(self.pad_token_id)
-        )
-        # 1. Create a mask to know where special image tokens are
-        special_image_token_mask = input_ids == self.config.image_token_index
-        num_special_image_tokens = torch.sum(special_image_token_mask, dim=-1)
-        # Compute the maximum embed dimension
-        max_embed_dim = (
-            num_special_image_tokens.max() * (num_image_patches - 1)
-        ) + sequence_length
-        batch_indices, non_image_indices = torch.where(
-            input_ids != self.config.image_token_index
-        )
-
-        # 2. Compute the positions where text should be written
-        # Calculate new positions for text tokens in merged image-text sequence.
-        # `special_image_token_mask` identifies image tokens. Each image token will be replaced by `nb_text_tokens_per_images - 1` text tokens.
-        # `torch.cumsum` computes how each image token shifts subsequent text token positions.
-        # - 1 to adjust for zero-based indexing, as `cumsum` inherently increases indices by one.
-        new_token_positions = (
-            torch.cumsum((special_image_token_mask * (num_image_patches - 1) + 1), -1)
-            - 1
-        )
-        nb_image_pad = max_embed_dim - 1 - new_token_positions[:, -1]
-        if left_padding:
-            new_token_positions += nb_image_pad[:, None]  # offset for left padding
-        text_to_overwrite = new_token_positions[batch_indices, non_image_indices]
-
-        # 3. Create the full embedding, already padded to the maximum position
-        final_embedding = torch.zeros(
-            batch_size,
-            max_embed_dim,
-            embed_dim,
-            dtype=inputs_embeds.dtype,
-            device=inputs_embeds.device,
-        )
-        final_attention_mask = torch.zeros(
-            batch_size,
-            max_embed_dim,
-            dtype=attention_mask.dtype,
-            device=inputs_embeds.device,
-        )
-        if labels is not None:
-            final_labels = torch.full(
-                (batch_size, max_embed_dim),
-                self.config.ignore_index,
-                dtype=input_ids.dtype,
-                device=input_ids.device,
-            )
-        # In case the Vision model or the Language model has been offloaded to CPU, we need to manually
-        # set the corresponding tensors into their correct target device.
-        target_device = inputs_embeds.device
-        batch_indices, non_image_indices, text_to_overwrite = (
-            batch_indices.to(target_device),
-            non_image_indices.to(target_device),
-            text_to_overwrite.to(target_device),
-        )
-        attention_mask = attention_mask.to(target_device)
-
-        # 4. Fill the embeddings based on the mask. If we have ["hey" "<image>", "how", "are"]
-        # we need to index copy on [0, 577, 578, 579] for the text and [1:576] for the image features
-        final_embedding[batch_indices, text_to_overwrite] = inputs_embeds[
-            batch_indices, non_image_indices
-        ]
-        final_attention_mask[batch_indices, text_to_overwrite] = attention_mask[
-            batch_indices, non_image_indices
-        ]
-        if labels is not None:
-            final_labels[batch_indices, text_to_overwrite] = labels[
-                batch_indices, non_image_indices
-            ]
-
-        # 5. Fill the embeddings corresponding to the images. Anything that is still zeros needs filling
-        image_to_overwrite = torch.all(final_embedding == 0, dim=-1)
-        image_to_overwrite &= image_to_overwrite.cumsum(-1) - 1 >= nb_image_pad[
-            :, None
-        ].to(target_device)
-
-        if image_to_overwrite.sum() != image_features.shape[:-1].numel():
-            raise ValueError(
-                f"The input provided to the model are wrong. The number of image tokens is {torch.sum(special_image_token_mask)} while"
-                f" the number of image given to the model is {num_images}. This prevents correct indexing and breaks batch generation."
-            )
-
-        final_embedding[image_to_overwrite] = (
-            image_features.contiguous().reshape(-1, embed_dim).to(target_device)
-        )
-        final_attention_mask |= image_to_overwrite
-        position_ids = (final_attention_mask.cumsum(-1) - 1).masked_fill_(
-            (final_attention_mask == 0), 1
-        )
-
-        # 6. Mask out the embedding at padding positions, as we later use the past_key_value value to determine the non-attended tokens.
-        batch_indices, pad_indices = torch.where(input_ids == self.pad_token_id)
-        indices_to_mask = new_token_positions[batch_indices, pad_indices]
-
-        final_embedding[batch_indices, indices_to_mask] = 0
-
-        if labels is None:
-            final_labels = None
-
-        return final_embedding, final_attention_mask, final_labels, position_ids
+        """In place merges in vision_embeddings with inputs_embeds."""
+        mask = input_ids == self.config.image_token_index
+        # Let's pray we have enabled enough slots !
+        inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
+        return inputs_embeds
 
     def forward(
         self,
@@ -282,15 +195,11 @@ class LlavaNextForConditionalGeneration(nn.Module):
         pixel_values: torch.FloatTensor = None,
         image_sizes: Optional[torch.LongTensor] = None,
     ):
+        inputs_embeds = self.language_model.model.embed_tokens(input_ids)
         if pixel_values is not None and len(pixel_values) > 0:
-            num_special_image_tokens = (
-                input_ids == self.config.image_token_index
-            ).sum()
-            assert num_special_image_tokens == len(
-                pixel_values
-            ), f"Received {num_special_image_tokens} for {len(pixel_values)} images, this is invalid"
+            # num_special_image_tokens = (input_ids == self.config.image_token_index).sum()
+            # assert num_special_image_tokens == len(pixel_values), f"Received {num_special_image_tokens} for {len(pixel_values)} images, this is invalid"
             # 1. Extract the input embeddings
-            inputs_embeds = self.language_model.model.embed_tokens(input_ids)
 
             # 2. Merge text and images
             num_images, num_patches, channels, height, width = pixel_values.shape
@@ -299,9 +208,9 @@ class LlavaNextForConditionalGeneration(nn.Module):
             )
             image_features = self.vision_tower(pixel_values)
 
-            selected_image_feature = image_features.hidden_states[
-                self.config.vision_feature_layer
-            ]
+            # selected_image_feature = image_features.hidden_states[self.config.vision_feature_layer]
+            # Already done within the clip model
+            selected_image_feature = image_features.last_hidden_state
 
             if self.config.vision_feature_select_strategy == "default":
                 selected_image_feature = selected_image_feature[:, 1:]
@@ -368,26 +277,21 @@ class LlavaNextForConditionalGeneration(nn.Module):
                 new_image_features.append(image_feature)
             image_features = torch.stack(new_image_features, dim=0)
 
-            inputs_embeds, attention_mask, labels, position_ids = (
-                self._merge_input_ids_with_image_features(
-                    image_features, inputs_embeds, input_ids, attention_mask, labels
-                )
+            inputs_embeds = self._merge_input_ids_with_image_features(
+                input_ids, inputs_embeds, image_features
             )
-            if labels is None:
-                labels = torch.full_like(attention_mask, self.config.ignore_index).to(
-                    torch.long
-                )
 
-        logits = self.language_model(
-            input_ids,
-            position_ids,
-            cu_seqlen_prefill,
-            kv_cache,
-            block_tables,
-            slots,
-            input_lengths,
-            max_s,
-            prefill_cache_indices,
-            lm_head_indices,
+        hidden_states = self.language_model.model(
+            inputs_embeds=inputs_embeds,
+            position_ids=position_ids,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=kv_cache,
+            block_tables=block_tables,
+            slots=slots,
+            input_lengths=input_lengths,
+            max_s=max_s,
         )
-        return logits
+        if lm_head_indices is not None:
+            hidden_states = hidden_states[lm_head_indices]
+        logits, speculative_logits = self.language_model.lm_head(hidden_states)
+        return logits, speculative_logits

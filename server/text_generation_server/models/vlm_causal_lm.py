@@ -52,7 +52,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
                 if chunk["type"] == "text":
                     full_text += chunk["content"]
                 elif chunk["type"] == "image":
-                    full_text += "<image>"
+                    full_text += "<image>" * 2928
                     images.append(chunk["content"])
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk['type']}")

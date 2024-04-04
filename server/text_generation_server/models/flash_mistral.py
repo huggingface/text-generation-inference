@@ -7,7 +7,6 @@ import numpy as np
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase, AutoTokenizer, AutoConfig
-from transformers.models.llama import LlamaTokenizerFast
 from typing import Optional, Tuple, Type
 
 from text_generation_server.pb import generate_pb2
