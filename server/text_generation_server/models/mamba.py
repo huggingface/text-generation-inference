@@ -13,7 +13,7 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
-from text_generation_server.models.globals import ENABLE_CUDA_GRAPHS, MEM_POOL
+from text_generation_server.models.globals import CUDA_GRAPHS, MEM_POOL
 import time
 from text_generation_server.models.custom_modeling.mamba_modeling import (
     MambaModel,
@@ -465,12 +465,12 @@ class Mamba(Model):
 
     def warmup(self, batch) -> Optional[int]:
         # TODO: implement warmup for Mamba if needed
-        if ENABLE_CUDA_GRAPHS:
+        if CUDA_GRAPHS:
             if self.speculate is None or self.speculate == 0:
                 try:
-                    logger.info("Experimental support for Cuda Graphs is enabled")
+                    logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
                     # Warmup cuda graphs
-                    for bs in [1, 2, 4] + [8 * i for i in range(1, 9)]:
+                    for bs in CUDA_GRAPHS:
                         self.cuda_graph_warmup(bs)
                 except Exception:
                     logger.exception(f"Decode cuda graph warmup failed")

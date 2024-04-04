@@ -284,9 +284,15 @@ struct Args {
     #[clap(long, env)]
     max_batch_size: Option<usize>,
 
-    /// Enable experimental support for cuda graphs
-    #[clap(long, env)]
-    enable_cuda_graphs: bool,
+    /// Specify the batch sizes to compute cuda graphs for.
+    /// Use "0" to disable.
+    #[clap(
+        long,
+        env,
+        value_delimiter = ',',
+        default_value = "1,2,4,8,16,32,64,96,128"
+    )]
+    cuda_graphs: Vec<usize>,
 
     /// The IP address to listen on
     #[clap(default_value = "0.0.0.0", long, env)]
@@ -416,7 +422,7 @@ fn shard_manager(
     disable_custom_kernels: bool,
     watermark_gamma: Option<f32>,
     watermark_delta: Option<f32>,
-    enable_cuda_graphs: bool,
+    cuda_graphs: Vec<usize>,
     cuda_memory_fraction: f32,
     rope_scaling: Option<RopeScaling>,
     rope_factor: Option<f32>,
@@ -549,8 +555,16 @@ fn shard_manager(
     };
 
     // Enable experimental support for cuda graphs
-    if enable_cuda_graphs {
-        envs.push(("ENABLE_CUDA_GRAPHS".into(), "True".into()))
+    if !cuda_graphs.is_empty() {
+        envs.push((
+            "CUDA_GRAPHS".into(),
+            cuda_graphs
+                .into_iter()
+                .map(|c| c.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+                .into(),
+        ));
     }
 
     // If disable_custom_kernels is true, pass it to the shard as an env var
@@ -941,7 +955,11 @@ fn spawn_shards(
         let disable_custom_kernels = args.disable_custom_kernels;
         let watermark_gamma = args.watermark_gamma;
         let watermark_delta = args.watermark_delta;
-        let enable_cuda_graphs = args.enable_cuda_graphs;
+        let cuda_graphs: Vec<usize> = args
+            .cuda_graphs
+            .iter()
+            .filter_map(|&c| if c > 0 { Some(c) } else { None })
+            .collect();
         let cuda_memory_fraction = args.cuda_memory_fraction;
         let rope_scaling = args.rope_scaling;
         let rope_factor = args.rope_factor;
@@ -963,7 +981,7 @@ fn spawn_shards(
                 disable_custom_kernels,
                 watermark_gamma,
                 watermark_delta,
-                enable_cuda_graphs,
+                cuda_graphs,
                 cuda_memory_fraction,
                 rope_scaling,
                 rope_factor,
