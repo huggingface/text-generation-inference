@@ -95,7 +95,7 @@ impl Validation {
 
             // Await on response channel
             // Unwrap is safe here
-            let (inputs, input_length) = response_receiver.await.unwrap()?;
+            let (inputs, _) = response_receiver.await.unwrap()?;
 
             let input_length = if self.skip_tokenizer_in_tgi {
                 inputs.chars().filter(|&c| c == ',').count() + 1
@@ -521,7 +521,7 @@ mod tests {
             .validate_input("Hello".to_string(), None, Some(max_new_tokens))
             .await
         {
-            Err(ValidationError::MaxTotalTokens(6, 1, 10)) => (),
+            Err(ValidationError::MaxTotalTokens(6, 5, 10)) => (),
             _ => panic!("Unexpected not max new tokens"),
         }
     }
