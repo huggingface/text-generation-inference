@@ -249,6 +249,13 @@ def download_weights(
         local_pt_files = utils.download_weights(pt_filenames, model_id, revision)
 
     if auto_convert:
+        if not trust_remote_code:
+            raise RuntimeError(
+                f"Safetensors conversion is disabled without `--trust-remote-code` because "
+                f"Pickle files are unsafe and can essentially contain remote code execution."
+                f"Please check the safety checks on the hub and ideally make the conversion in a sandbox or in a space."
+            )
+
         logger.warning(
             f"No safetensors weights found for model {model_id} at revision {revision}. "
             f"Converting PyTorch weights to safetensors."
