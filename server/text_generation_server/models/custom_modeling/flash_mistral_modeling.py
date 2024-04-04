@@ -385,7 +385,32 @@ class MistralModel(torch.nn.Module):
         prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
+        return self.with_hidden_states(
+            hidden_states,
+            position_ids,
+            cu_seqlen_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            input_lengths,
+            max_s,
+            true_max_s,
+            prefill_cache_indices,
+        )
 
+    def with_hidden_states(
+        self,
+        hidden_states: torch.Tensor,
+        position_ids: torch.Tensor,
+        cu_seqlen_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        input_lengths: torch.Tensor,
+        max_s: int,
+        true_max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+    ):
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
@@ -409,7 +434,6 @@ class MistralModel(torch.nn.Module):
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
-
         return hidden_states
 
 

@@ -1,11 +1,17 @@
 import re
+import torch
 
 from opentelemetry import trace
 from typing import Optional, Tuple, List, Type, Dict
 
+from transformers import PreTrainedTokenizerBase
+from text_generation_server.pb import generate_pb2
 from text_generation_server.models.flash_mistral import (
     BaseFlashMistral,
     FlashMistralBatch,
+)
+from text_generation_server.models.cache_manager import (
+    get_cache_manager,
 )
 
 tracer = trace.get_tracer(__name__)
@@ -31,13 +37,65 @@ def split(string) -> List[Dict[str, str]]:
 
 
 class VlmCausalLMBatch(FlashMistralBatch):
-    pass
+    pixel_values: Optional[List[torch.Tensor]]
+    image_sizes: Optional[List[Tuple[int, int]]]
+
+    @classmethod
+    def batch_tokenized_inputs(cls, requests, tokenizer, processor):
+        batch_inputs = []
+        images = []
+        max_truncation = 0
+        for r in requests:
+            chunks = split(r.inputs)
+            full_text = ""
+            for chunk in chunks:
+                if chunk["type"] == "text":
+                    full_text += chunk["content"]
+                elif chunk["type"] == "image":
+                    full_text += "<image>"
+                    images.append(chunk["content"])
+                else:
+                    raise RuntimeError(f"Invalid chunk type {chunk['type']}")
+
+            batch_inputs.append(full_text)
+            max_truncation = max(max_truncation, r.truncate)
+
+        batch_tokenized_inputs = tokenizer(
+            batch_inputs, truncation=True, max_length=max_truncation
+        )["input_ids"]
+        images = processor.image_processor.fetch_images(images)
+        if images:
+            image_inputs = processor.image_processor(images, return_tensors="pt")
+        else:
+            image_inputs = None
+        return batch_tokenized_inputs, image_inputs
+
+    @classmethod
+    def from_pb_processor(
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        processor,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "VlmCausalLMBatch":
+        batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
+            pb.requests, tokenizer, processor
+        )
+        batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
+        if image_inputs is not None:
+            batch.pixel_values = image_inputs["pixel_values"].to(device=device)
+            batch.image_sizes = image_inputs["image_sizes"].to(device=device)
+        else:
+            batch.pixel_values = None
+            batch.image_sizes = None
+        return batch
 
 
 class VlmCausalLM(BaseFlashMistral):
     @property
-    def batch_type(self) -> Type[FlashMistralBatch]:
-        return FlashMistralBatch
+    def batch_type(self) -> Type[VlmCausalLMBatch]:
+        return VlmCausalLMBatch
 
     def get_layer_config(self, model) -> Tuple[int, int, int]:
         return (
@@ -48,3 +106,122 @@ class VlmCausalLM(BaseFlashMistral):
 
     def max_past(self) -> Optional[int]:
         return getattr(self.model.language_model, "max_past", None)
+
+    def forward(
+        self, batch: VlmCausalLMBatch
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        # Model Forward
+        if batch.speculative_ids is not None:
+            input_ids = batch.input_ids
+            position_ids = batch.position_ids
+            cu_seqlen_prefill = batch.cu_seqlen_prefill
+            kv_cache = get_cache_manager().kv_cache
+            block_tables = batch.block_tables_tensor
+            slots = batch.slots[batch.slot_indices]
+            input_lengths = batch.input_lengths_tensor
+            max_s = batch.max_seqlen
+            lm_head_indices = batch.prefill_head_indices
+
+            speculative_ids = batch.speculative_ids
+
+            B, speculative_length = speculative_ids.shape
+            new_length = speculative_length + 1
+            new_input_ids = torch.cat(
+                [input_ids.unsqueeze(-1), speculative_ids], dim=1
+            ).reshape(-1)
+            arange = torch.arange(new_length, device=position_ids.device).unsqueeze(0)
+            arange_int = arange.to(dtype=torch.int32)
+            new_position_ids = (
+                position_ids.unsqueeze(-1).expand(B, new_length) + arange
+            ).view(-1)
+            slots = (slots.unsqueeze(-1).expand(B, new_length) + arange_int).view(-1)
+            input_lengths = (
+                input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int
+            ).view(-1)
+
+            # Add Copy the block tables for all members
+            block_tables = (
+                block_tables.unsqueeze(1)
+                .expand(B, new_length, -1)
+                .reshape(B * new_length, -1)
+                .contiguous()
+            )
+            max_s = max_s + speculative_length
+
+            input_ids = new_input_ids
+            position_ids = new_position_ids
+        else:
+            input_ids = batch.input_ids
+            position_ids = batch.position_ids
+            cu_seqlen_prefill = batch.cu_seqlen_prefill
+            kv_cache = get_cache_manager().kv_cache
+            block_tables = batch.block_tables_tensor
+            slots = batch.slots[batch.slot_indices]
+            input_lengths = batch.input_lengths_tensor
+            max_s = batch.max_seqlen
+            lm_head_indices = batch.prefill_head_indices
+
+        if cu_seqlen_prefill is None and self.max_past() is not None:
+            # In decode, not prefill, we're actually overwriting the KV-cache
+            # in a circular buffer mode.
+            # This makes sure the max_s for the decode pass is correct.
+            max_s = min(self.max_past(), max_s)
+
+        bs = input_ids.shape[0]
+        padded_bs = bs
+        if bs == 3:
+            padded_bs = 4
+        elif 3 < bs <= 8:
+            padded_bs = 8
+        elif bs > 8:
+            padded_bs = (bs + 7) // 8 * 8
+
+        # Try to find an associated cuda graph
+        cuda_graph = self.cuda_graphs.get(padded_bs, None)
+
+        if cu_seqlen_prefill is not None or cuda_graph is None:
+            logits, speculative_logits = self.model.forward(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                cu_seqlen_prefill=cu_seqlen_prefill,
+                kv_cache=kv_cache,
+                block_tables=block_tables,
+                slots=slots,
+                input_lengths=input_lengths,
+                max_s=max_s,
+                prefill_cache_indices=batch.prefill_cache_indices,
+                lm_head_indices=lm_head_indices,
+                pixel_values=batch.pixel_values,
+                image_sizes=batch.image_sizes,
+            )
+            if batch.prefill_cache_indices is not None:
+                batch.prefill_cache_indices = None
+            if batch.pixel_values is not None:
+                batch.pixel_values = None
+            if batch.image_sizes is not None:
+                batch.image_sizes = None
+            return logits, speculative_logits
+
+        # Copy inputs to the static inputs of the cuda graph
+        # Static inputs are potentially padded
+        cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
+        cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
+        cuda_graph["block_tables"][
+            : block_tables.shape[0], : block_tables.shape[1]
+        ] = block_tables
+        cuda_graph["slots"].fill_(-1)
+        cuda_graph["slots"][: slots.shape[0]] = slots
+        cuda_graph["input_lengths"].zero_()
+        cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
+
+        # Replay the graph
+        cuda_graph["graph"].replay()
+
+        # Slice output to the correct shape
+        speculative_logits = (
+            cuda_graph["speculative_logits"][:bs]
+            if cuda_graph["speculative_logits"] is not None
+            else None
+        )
+        logits = cuda_graph["logits"][:bs]
+        return logits, speculative_logits

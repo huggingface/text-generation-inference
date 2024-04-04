@@ -10,16 +10,23 @@ from transformers.modeling_attn_mask_utils import (
 )
 from transformers import CLIPConfig, CLIPTextConfig, CLIPVisionConfig
 
+from text_generation_server.utils.layers import (
+    TensorParallelEmbedding,
+    TensorParallelColumnLinear,
+    TensorParallelRowLinear,
+)
+
 
 class CLIPVisionEmbeddings(nn.Module):
-    def __init__(self, config: CLIPVisionConfig):
+    def __init__(self, prefix, config: CLIPVisionConfig, weights):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
         self.image_size = config.image_size
         self.patch_size = config.patch_size
 
-        self.class_embedding = nn.Parameter(torch.randn(self.embed_dim))
+        # TODO Should we TP this ?
+        self.class_embedding = weights.get_tensor(f"{prefix}.class_embedding")
 
         self.patch_embedding = nn.Conv2d(
             in_channels=config.num_channels,
@@ -28,13 +35,18 @@ class CLIPVisionEmbeddings(nn.Module):
             stride=self.patch_size,
             bias=False,
         )
+        self.patch_embedding.weight = nn.Parameter(
+            weights.get_tensor(f"{prefix}.patch_embedding.weight"), requires_grad=False
+        )
 
         self.num_patches = (self.image_size // self.patch_size) ** 2
         self.num_positions = self.num_patches + 1
-        self.position_embedding = nn.Embedding(self.num_positions, self.embed_dim)
+        self.position_embedding = TensorParallelEmbedding(
+            prefix=f"{prefix}.position_embedding", weights=weights
+        )
         self.register_buffer(
             "position_ids",
-            torch.arange(self.num_positions).expand((1, -1)),
+            torch.arange(self.num_positions, device=weights.device).expand((1, -1)),
             persistent=False,
         )
 
@@ -94,28 +106,38 @@ class CLIPTextEmbeddings(nn.Module):
 class CLIPAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config):
+    def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_attention_heads
-        self.head_dim = self.embed_dim // self.num_heads
-        if self.head_dim * self.num_heads != self.embed_dim:
+        self.head_size = self.embed_dim // self.num_heads
+        if self.head_size * self.num_heads != self.embed_dim:
             raise ValueError(
                 f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim} and `num_heads`:"
                 f" {self.num_heads})."
             )
-        self.scale = self.head_dim**-0.5
+        self.num_heads = self.num_heads // weights.process_group.size()
+        self.scale = self.head_size**-0.5
         self.dropout = config.attention_dropout
 
-        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.qkv = TensorParallelColumnLinear.load_multi(
+            config,
+            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+            dim=0,
+            weights=weights,
+            bias=True,
+        )
+        self.out_proj = TensorParallelRowLinear.load(
+            config,
+            prefix=f"{prefix}.out_proj",
+            weights=weights,
+            bias=False,
+        )
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return (
-            tensor.view(bsz, seq_len, self.num_heads, self.head_dim)
+            tensor.view(bsz, seq_len, self.num_heads, self.head_size)
             .transpose(1, 2)
             .contiguous()
         )
@@ -132,11 +154,20 @@ class CLIPAttention(nn.Module):
         bsz, tgt_len, embed_dim = hidden_states.size()
 
         # get query proj
-        query_states = self.q_proj(hidden_states) * self.scale
-        key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
-        value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
 
-        proj_shape = (bsz * self.num_heads, -1, self.head_dim)
+        qkv = self.qkv(hidden_states)
+        query_states, key_states, value_states = qkv.split(
+            [
+                self.head_size * self.num_heads,
+            ]
+            * 3,
+            dim=2,
+        )
+        query_states = query_states * self.scale
+        key_states = self._shape(key_states, -1, bsz)
+        value_states = self._shape(value_states, -1, bsz)
+
+        proj_shape = (bsz * self.num_heads, -1, self.head_size)
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
         key_states = key_states.view(*proj_shape)
         value_states = value_states.view(*proj_shape)
@@ -176,48 +207,38 @@ class CLIPAttention(nn.Module):
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
-        if output_attentions:
-            # this operation is a bit akward, but it's required to
-            # make sure that attn_weights keeps its gradient.
-            # In order to do so, attn_weights have to reshaped
-            # twice and have to be reused in the following
-            attn_weights_reshaped = attn_weights.view(
-                bsz, self.num_heads, tgt_len, src_len
-            )
-            attn_weights = attn_weights_reshaped.view(
-                bsz * self.num_heads, tgt_len, src_len
-            )
-        else:
-            attn_weights_reshaped = None
-
         attn_probs = nn.functional.dropout(
             attn_weights, p=self.dropout, training=self.training
         )
 
         attn_output = torch.bmm(attn_probs, value_states)
 
-        if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
+        if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_size):
             raise ValueError(
-                f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is"
+                f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_size)}, but is"
                 f" {attn_output.size()}"
             )
 
-        attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+        attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_size)
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
 
         attn_output = self.out_proj(attn_output)
 
-        return attn_output, attn_weights_reshaped
+        return attn_output, None
 
 
 class CLIPMLP(nn.Module):
-    def __init__(self, config):
+    def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
         self.activation_fn = ACT2FN[config.hidden_act]
-        self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size)
-        self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size)
+        self.fc1 = TensorParallelColumnLinear.load(
+            prefix=f"{prefix}.fc1", config=config, weights=weights, bias=True
+        )
+        self.fc2 = TensorParallelRowLinear.load(
+            prefix=f"{prefix}.fc2", config=config, weights=weights, bias=True
+        )
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         hidden_states = self.fc1(hidden_states)
@@ -227,13 +248,19 @@ class CLIPMLP(nn.Module):
 
 
 class CLIPEncoderLayer(nn.Module):
-    def __init__(self, config: CLIPConfig):
+    def __init__(self, prefix, config: CLIPConfig, weights):
         super().__init__()
         self.embed_dim = config.hidden_size
-        self.self_attn = CLIPAttention(config)
-        self.layer_norm1 = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
-        self.mlp = CLIPMLP(config)
-        self.layer_norm2 = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
+        self.self_attn = CLIPAttention(
+            prefix=f"{prefix}.self_attn", config=config, weights=weights
+        )
+        self.layer_norm1 = nn.LayerNorm.load(
+            prefix=f"{prefix}.layer_norm1", weights=weights, eps=config.layer_norm_eps
+        )
+        self.mlp = CLIPMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
+        self.layer_norm2 = nn.LayerNorm.load(
+            prefix=f"{prefix}.layer_norm2", weights=weights, eps=config.layer_norm_eps
+        )
 
     def forward(
         self,
@@ -280,73 +307,6 @@ class CLIPPreTrainedModel(nn.Module):
     config_class = CLIPConfig
     base_model_prefix = "clip"
     supports_gradient_checkpointing = True
-
-    def _init_weights(self, module):
-        """Initialize the weights"""
-        factor = self.config.initializer_factor
-        if isinstance(module, CLIPTextEmbeddings):
-            module.token_embedding.weight.data.normal_(mean=0.0, std=factor * 0.02)
-            module.position_embedding.weight.data.normal_(mean=0.0, std=factor * 0.02)
-        elif isinstance(module, CLIPVisionEmbeddings):
-            factor = self.config.initializer_factor
-            nn.init.normal_(
-                module.class_embedding, mean=0.0, std=module.embed_dim**-0.5 * factor
-            )
-            nn.init.normal_(
-                module.patch_embedding.weight,
-                std=module.config.initializer_range * factor,
-            )
-            nn.init.normal_(
-                module.position_embedding.weight,
-                std=module.config.initializer_range * factor,
-            )
-        elif isinstance(module, CLIPAttention):
-            factor = self.config.initializer_factor
-            in_proj_std = (
-                (module.embed_dim**-0.5)
-                * ((2 * module.config.num_hidden_layers) ** -0.5)
-                * factor
-            )
-            out_proj_std = (module.embed_dim**-0.5) * factor
-            nn.init.normal_(module.q_proj.weight, std=in_proj_std)
-            nn.init.normal_(module.k_proj.weight, std=in_proj_std)
-            nn.init.normal_(module.v_proj.weight, std=in_proj_std)
-            nn.init.normal_(module.out_proj.weight, std=out_proj_std)
-        elif isinstance(module, CLIPMLP):
-            factor = self.config.initializer_factor
-            in_proj_std = (
-                (module.config.hidden_size**-0.5)
-                * ((2 * module.config.num_hidden_layers) ** -0.5)
-                * factor
-            )
-            fc_std = (2 * module.config.hidden_size) ** -0.5 * factor
-            nn.init.normal_(module.fc1.weight, std=fc_std)
-            nn.init.normal_(module.fc2.weight, std=in_proj_std)
-        elif isinstance(module, CLIPModel):
-            nn.init.normal_(
-                module.text_projection.weight,
-                std=module.text_embed_dim**-0.5 * self.config.initializer_factor,
-            )
-            nn.init.normal_(
-                module.visual_projection.weight,
-                std=module.vision_embed_dim**-0.5 * self.config.initializer_factor,
-            )
-        elif isinstance(module, CLIPVisionModelWithProjection):
-            nn.init.normal_(
-                module.visual_projection.weight,
-                std=self.config.hidden_size**-0.5 * self.config.initializer_factor,
-            )
-        elif isinstance(module, CLIPTextModelWithProjection):
-            nn.init.normal_(
-                module.text_projection.weight,
-                std=self.config.hidden_size**-0.5 * self.config.initializer_factor,
-            )
-
-        if isinstance(module, nn.LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-        if isinstance(module, nn.Linear) and module.bias is not None:
-            module.bias.data.zero_()
 
 
 CLIP_START_DOCSTRING = r"""
@@ -458,13 +418,17 @@ class CLIPEncoder(nn.Module):
         config: CLIPConfig
     """
 
-    def __init__(self, config: CLIPConfig):
+    def __init__(self, prefix, config: CLIPConfig, weights):
         super().__init__()
         self.config = config
         self.layers = nn.ModuleList(
-            [CLIPEncoderLayer(config) for _ in range(config.num_hidden_layers)]
+            [
+                CLIPEncoderLayer(
+                    prefix=f"{prefix}.layers.{i}", config=config, weights=weights
+                )
+                for i in range(config.num_hidden_layers)
+            ]
         )
-        self.gradient_checkpointing = False
 
     def forward(
         self,
@@ -523,28 +487,14 @@ class CLIPEncoder(nn.Module):
 
         hidden_states = inputs_embeds
         for idx, encoder_layer in enumerate(self.layers):
-            if output_hidden_states:
-                encoder_states = encoder_states + (hidden_states,)
-            if self.gradient_checkpointing and self.training:
-                layer_outputs = self._gradient_checkpointing_func(
-                    encoder_layer.__call__,
-                    hidden_states,
-                    attention_mask,
-                    causal_attention_mask,
-                    output_attentions,
-                )
-            else:
-                layer_outputs = encoder_layer(
-                    hidden_states,
-                    attention_mask,
-                    causal_attention_mask,
-                    output_attentions=output_attentions,
-                )
+            layer_outputs = encoder_layer(
+                hidden_states,
+                attention_mask,
+                causal_attention_mask,
+                output_attentions=output_attentions,
+            )
 
             hidden_states = layer_outputs[0]
-
-            if output_attentions:
-                all_attentions = all_attentions + (layer_outputs[1],)
 
         return hidden_states
 
@@ -555,7 +505,9 @@ class CLIPTextTransformer(nn.Module):
         self.config = config
         embed_dim = config.hidden_size
         self.embeddings = CLIPTextEmbeddings(config)
-        self.encoder = CLIPEncoder(config)
+        self.encoder = CLIPEncoder(
+            prefix=f"{prefix}.encoder", config=config, weights=weights
+        )
         self.final_layer_norm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps)
 
         # For `pooled_output` computation
@@ -710,10 +662,20 @@ class CLIPVisionTransformer(nn.Module):
         self.config = config
         embed_dim = config.hidden_size
 
-        self.embeddings = CLIPVisionEmbeddings(config)
-        self.pre_layrnorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps)
-        self.encoder = CLIPEncoder(config)
-        self.post_layernorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps)
+        self.embeddings = CLIPVisionEmbeddings(
+            prefix=f"{prefix}.embeddings", config=config, weights=weights
+        )
+        self.pre_layrnorm = nn.LayerNorm.load(
+            prefix=f"{prefix}.pre_layrnorm", weights=weights, eps=config.layer_norm_eps
+        )
+        self.encoder = CLIPEncoder(
+            prefix=f"{prefix}.encoder", config=config, weights=weights
+        )
+        self.post_layernorm = nn.LayerNorm.load(
+            prefix=f"{prefix}.post_layernorm",
+            weights=weights,
+            eps=config.layer_norm_eps,
+        )
 
     def forward(
         self,

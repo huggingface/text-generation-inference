@@ -927,7 +927,7 @@ class IdeficsCausalLMBatch(Batch):
         )
 
     @classmethod
-    def from_pb(
+    def from_pb_processor(
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,

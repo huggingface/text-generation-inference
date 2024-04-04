@@ -107,6 +107,19 @@ class FlashCausalLMBatch(Batch):
         )
 
     @classmethod
+    def batch_tokenized_inputs(cls, requests, tokenizer):
+        batch_inputs = []
+        max_truncation = 0
+        for r in requests:
+            batch_inputs.append(r.inputs)
+            max_truncation = max(max_truncation, r.truncate)
+
+        batch_tokenized_inputs = tokenizer(
+            batch_inputs, truncation=True, max_length=max_truncation
+        )["input_ids"]
+        return batch_tokenized_inputs
+
+    @classmethod
     def from_pb(
         cls,
         pb: generate_pb2.Batch,
@@ -114,16 +127,7 @@ class FlashCausalLMBatch(Batch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "FlashCausalLMBatch":
-        batch_inputs = []
-        max_truncation = 0
-        for r in pb.requests:
-            batch_inputs.append(r.inputs)
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs, truncation=True, max_length=max_truncation
-        )["input_ids"]
-
+        batch_tokenized_inputs = cls.batch_tokenized_inputs(pb.requests, tokenizer)
         position_ids = []
         speculative_ids = []
         cu_seqlen_prefill = [0]

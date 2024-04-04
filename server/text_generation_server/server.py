@@ -83,7 +83,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             IdeficsCausalLMBatch,
             VlmCausalLMBatch,
         }:  # Hack, i would rather use kwargs in the `from_pb` call
-            batch = self.model.batch_type.from_pb(
+            batch = self.model.batch_type.from_pb_processor(
                 request.batch,
                 self.model.tokenizer,
                 self.model.processor,
@@ -106,7 +106,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             IdeficsCausalLMBatch,
             VlmCausalLMBatch,
         }:  # Hack, i would rather use kwargs in the `from_pb` call
-            batch = self.model.batch_type.from_pb(
+            batch = self.model.batch_type.from_pb_processor(
                 request.batch,
                 self.model.tokenizer,
                 self.model.processor,
