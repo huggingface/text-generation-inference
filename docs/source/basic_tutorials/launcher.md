@@ -209,7 +209,7 @@ Options:
 ## CUDA_GRAPHS
 ```shell
       --cuda-graphs <CUDA_GRAPHS>
-          Specify the batch sizes to compute cuda graphs for
+          Specify the batch sizes to compute cuda graphs for. Use "0" to disable
           
           [env: CUDA_GRAPHS=]
           [default: 1,2,4,8,16,32,64,96,128]

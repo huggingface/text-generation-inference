@@ -284,7 +284,8 @@ struct Args {
     #[clap(long, env)]
     max_batch_size: Option<usize>,
 
-    /// Specify the batch sizes to compute cuda graphs for
+    /// Specify the batch sizes to compute cuda graphs for.
+    /// Use "0" to disable.
     #[clap(
         long,
         env,
@@ -954,7 +955,11 @@ fn spawn_shards(
         let disable_custom_kernels = args.disable_custom_kernels;
         let watermark_gamma = args.watermark_gamma;
         let watermark_delta = args.watermark_delta;
-        let cuda_graphs = args.cuda_graphs.clone();
+        let cuda_graphs: Vec<usize> = args
+            .cuda_graphs
+            .iter()
+            .filter_map(|&c| if c > 0 { Some(c) } else { None })
+            .collect();
         let cuda_memory_fraction = args.cuda_memory_fraction;
         let rope_scaling = args.rope_scaling;
         let rope_factor = args.rope_factor;
