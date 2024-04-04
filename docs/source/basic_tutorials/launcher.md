@@ -206,12 +206,13 @@ Options:
           [env: MAX_BATCH_SIZE=]
 
 ```
-## ENABLE_CUDA_GRAPHS
+## CUDA_GRAPHS
 ```shell
-      --enable-cuda-graphs
-          Enable experimental support for cuda graphs
+      --cuda-graphs <CUDA_GRAPHS>
+          Specify the batch sizes to compute cuda graphs for. Use "0" to disable
           
-          [env: ENABLE_CUDA_GRAPHS=]
+          [env: CUDA_GRAPHS=]
+          [default: 1,2,4,8,16,32,64,96,128]
 
 ```
 ## HOSTNAME
