@@ -160,11 +160,6 @@ WORKDIR /usr/src
 COPY server/Makefile-selective-scan Makefile
 RUN make build-all
 
-# Build megablocks
-FROM kernel-builder as megablocks-builder
-
-RUN pip install git+https://github.com/OlivierDehaene/megablocks@181709df192de9a941fdf3a641cdc65a0462996e
-
 # Text Generation Inference base image
 FROM nvidia/cuda:12.1.0-base-ubuntu22.04 as base
 
@@ -185,9 +180,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         make \
         curl \
         && rm -rf /var/lib/apt/lists/*
-
-# Copy conda with PyTorch and Megablocks installed
-COPY --from=megablocks-builder /opt/conda /opt/conda
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages

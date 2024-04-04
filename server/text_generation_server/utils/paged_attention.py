@@ -1,8 +1,7 @@
 import torch
 
 # vllm imports
-from vllm import cache_ops
-from vllm import attention_ops
+from vllm._C import cache_ops, ops
 
 _PARTITION_SIZE = 512
 
@@ -14,7 +13,7 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
+    cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots, "auto", 1.0)
 
 
 def attention(
@@ -22,7 +21,7 @@ def attention(
     query: torch.Tensor,
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
-    kv_head_mapping: torch.Tensor,
+    num_key_value_heads: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
     input_lengths: torch.Tensor,
@@ -54,20 +53,22 @@ def attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
-    use_v1 = max_num_partitions == 1 or num_seqs * num_heads > 512
+    use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
     if use_v1:
-        attention_ops.paged_attention_v1(
+        ops.paged_attention_v1(
             out,
             query,
             key_cache,
             value_cache,
-            kv_head_mapping,
+            num_key_value_heads,
             softmax_scale,
             block_tables,
             input_lengths,
             block_size,
             max_s,
             None,
+            "auto",
+            1.0,
         )
     else:
         # Run PagedAttention V2.
@@ -83,7 +84,7 @@ def attention(
             device=out.device,
         )
         max_logits = torch.empty_like(exp_sums)
-        attention_ops.paged_attention_v2(
+        ops.paged_attention_v2(
             out,
             exp_sums,
             max_logits,
@@ -91,11 +92,13 @@ def attention(
             query,
             key_cache,
             value_cache,
-            kv_head_mapping,
+            num_key_value_heads,
             softmax_scale,
             block_tables,
             input_lengths,
             block_size,
             max_s,
             None,
+            "auto",
+            1.0,
         )

@@ -174,6 +174,8 @@ class EETQLinear(nn.Module):
     ) -> None:
         super().__init__()
         device = weight.device
+        if weight.dtype != torch.float16:
+            weight = weight.to(dtype=torch.float16)
         weight = torch.t(weight).contiguous().cpu()
         weight, scale = quant_weights(weight, torch.int8, False)
 

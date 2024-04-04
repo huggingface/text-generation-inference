@@ -173,10 +173,6 @@ class MistralAttention(torch.nn.Module):
             weights=weights,
             bias=False,
         )
-        self.num_groups = self.num_heads // self.num_key_value_heads
-        self.kv_head_mapping = torch.arange(
-            0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
-        ).repeat_interleave(self.num_groups)
 
     def forward(
         self,
@@ -236,7 +232,7 @@ class MistralAttention(torch.nn.Module):
                 query,
                 kv_cache[0],
                 kv_cache[1],
-                self.kv_head_mapping,
+                self.num_key_value_heads,
                 self.softmax_scale,
                 block_tables,
                 input_lengths,

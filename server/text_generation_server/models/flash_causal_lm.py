@@ -690,7 +690,7 @@ class FlashCausalLM(Model):
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
         input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
         position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
-        slots = torch.arange(bs, dtype=torch.int32, device=self.device)
+        slots = torch.arange(bs, dtype=torch.int64, device=self.device)
         input_lengths = torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
         block_tables = (
             torch.arange(max_bt, dtype=torch.int32, device=self.device)

@@ -17,9 +17,6 @@ gen-server:
 	find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
 	touch text_generation_server/pb/__init__.py
 
-install-megablocks:
-	pip install git+https://github.com/OlivierDehaene/megablocks@181709df192de9a941fdf3a641cdc65a0462996e
-
 install: gen-server
 	pip install pip --upgrade
 	pip install -r requirements_cuda.txt

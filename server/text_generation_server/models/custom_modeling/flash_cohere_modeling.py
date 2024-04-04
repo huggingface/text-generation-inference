@@ -61,6 +61,7 @@ class CohereConfig(PretrainedConfig):
         attention_bias=False,
         attention_dropout=0.0,
         logit_scale=1.0,
+        use_qk_norm=False,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -84,6 +85,7 @@ class CohereConfig(PretrainedConfig):
         self.attention_bias = attention_bias
         self.attention_dropout = attention_dropout
         self.logit_scale = logit_scale
+        self.use_qk_norm = use_qk_norm
 
         super().__init__(
             pad_token_id=pad_token_id,
@@ -175,16 +177,28 @@ class FlashCohereAttention(torch.nn.Module):
 
         self.query_key_value = load_attention(config, prefix, weights)
 
+        self.use_qk_norm = config.use_qk_norm
+        if self.use_qk_norm:
+            self.q_norm = FastRMSNorm.load(
+                prefix=f"{prefix}.q_norm",
+                weights=weights,
+                eps=config.layer_norm_eps,
+            )
+            self.k_norm = FastRMSNorm.load(
+                prefix=f"{prefix}.k_norm",
+                weights=weights,
+                eps=config.layer_norm_eps,
+            )
+        else:
+            self.q_norm = None
+            self.k_norm = None
+
         self.o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
             bias=config.attention_bias,
         )
-        self.num_groups = self.num_heads // self.num_key_value_heads
-        self.kv_head_mapping = torch.arange(
-            0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
-        ).repeat_interleave(self.num_groups)
 
     def forward(
         self,
@@ -199,21 +213,25 @@ class FlashCohereAttention(torch.nn.Module):
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
-        query, kv = qkv.split(
+        query, key, value = qkv.split(
             [
                 self.head_size * self.num_heads,
-                2 * self.head_size * self.num_key_value_heads,
+                self.head_size * self.num_key_value_heads,
+                self.head_size * self.num_key_value_heads,
             ],
             dim=1,
         )
+        if self.use_qk_norm:
+            query = self.q_norm(query)
+            key = self.k_norm(key)
+
         query = query.view(-1, self.num_heads, self.head_size)
-        kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
+        key = key.view(-1, self.num_key_value_heads, self.head_size)
+        value = key.view(-1, self.num_key_value_heads, self.head_size)
 
-        self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
+        self.rotary_emb(query, key, cos, sin)
 
-        paged_attention.reshape_and_cache(
-            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
-        )
+        paged_attention.reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
 
         # output tensor
         attn_output = torch.empty_like(query)
@@ -223,8 +241,8 @@ class FlashCohereAttention(torch.nn.Module):
             # flash attention
             flash_attn.attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
+                key,
+                value,
                 attn_output,
                 cu_seqlen_prefill,
                 max_s,
@@ -235,9 +253,9 @@ class FlashCohereAttention(torch.nn.Module):
             paged_attention.attention(
                 attn_output,
                 query,
-                kv_cache[0],
-                kv_cache[1],
-                self.kv_head_mapping,
+                key,
+                value,
+                self.num_key_value_heads,
                 self.softmax_scale,
                 block_tables,
                 input_lengths,
