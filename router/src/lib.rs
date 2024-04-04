@@ -669,7 +669,7 @@ pub(crate) struct ChatRequest {
     #[serde(default = "default_tool_prompt")]
     #[schema(
         nullable = true,
-        example = "\"Based on the conversation, please choose the most appropriate tool to use: \""
+        example = "\"You will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n\""
     )]
     pub tool_prompt: Option<String>,
 

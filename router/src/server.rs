@@ -767,9 +767,9 @@ async fn chat_completions(
     let stop = req.stop.unwrap_or_default();
     let tool_prompt = req.tool_prompt.unwrap_or_default();
 
-    // apply chat template to flatten the request into a single input
-    let mut inputs = match infer.apply_chat_template(req.messages) {
-        Ok(inputs) => inputs,
+    // extract tool grammar if present
+    let tool_grammar = match ToolGrammar::apply(req.tools.as_ref(), req.tool_choice.as_ref()) {
+        Ok(grammar) => grammar,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
             tracing::error!("{err}");
@@ -783,8 +783,9 @@ async fn chat_completions(
         }
     };
 
-    let tool_grammar = match ToolGrammar::apply(req.tools.as_ref(), req.tool_choice.as_ref()) {
-        Ok(grammar) => grammar,
+    // apply chat template to flatten the request into a single input
+    let mut inputs = match infer.apply_chat_template(req.messages) {
+        Ok(inputs) => inputs,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
             tracing::error!("{err}");
@@ -809,7 +810,7 @@ async fn chat_completions(
             )
         })?;
         inputs = format!("{inputs}{tool_prompt}{tools_str}");
-        Some(GrammarType::Json(serde_json::to_value(tools).unwrap()))
+        Some(GrammarType::Json(serde_json::json!(tools)))
     } else {
         None
     };
