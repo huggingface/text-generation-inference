@@ -28,7 +28,7 @@ from text_generation_server.models.cache_manager import (
     BLOCK_SIZE,
 )
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.globals import MEM_POOL, ENABLE_CUDA_GRAPHS
+from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
@@ -798,11 +798,11 @@ class FlashCausalLM(Model):
             self.device,
         )
 
-        if ENABLE_CUDA_GRAPHS:
+        if CUDA_GRAPHS:
             try:
-                logger.info("Experimental support for Cuda Graphs is enabled")
+                logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
                 # Warmup cuda graphs
-                for bs in [1, 2, 4] + [8 * i for i in range(1, 9)]:
+                for bs in CUDA_GRAPHS:
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except Exception:

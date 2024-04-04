@@ -383,7 +383,6 @@ def launcher(event_loop):
 
         env = {
             "LOG_LEVEL": "info,text_generation_router=debug",
-            "ENABLE_CUDA_GRAPHS": "true",
         }
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
