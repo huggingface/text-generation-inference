@@ -250,13 +250,10 @@ def download_weights(
 
     if auto_convert:
         if not trust_remote_code:
-            import warnings
-
-            warnings.warn(
+            logger.warning(
                 f"🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
                 f"Pickle files are unsafe and can essentially contain remote code execution!"
                 f"Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
-                UserWarning,
             )
 
         logger.warning(
