@@ -23,6 +23,8 @@
     title: All TGI CLI  options
   - local: basic_tutorials/non_core_models
     title: Non-core Model Serving
+  - local: basic_tutorials/safety
+    title: Safety
   title: Tutorials
 - sections:
   - local: conceptual/streaming
