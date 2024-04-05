@@ -277,6 +277,8 @@ def launcher(event_loop):
         disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
         revision: Optional[str] = None,
+        max_input_length: Optional[int] = None,
+        max_total_tokens: Optional[int] = None,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -314,6 +316,12 @@ def launcher(event_loop):
             args.append(revision)
         if trust_remote_code:
             args.append("--trust-remote-code")
+        if max_input_length:
+            args.append("--max-input-length")
+            args.append(str(max_input_length))
+        if max_total_tokens:
+            args.append("--max-total-tokens")
+            args.append(str(max_total_tokens))
 
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
 
@@ -347,6 +355,8 @@ def launcher(event_loop):
         disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
         revision: Optional[str] = None,
+        max_input_length: Optional[int] = None,
+        max_total_tokens: Optional[int] = None,
     ):
         port = random.randint(8000, 10_000)
 
@@ -367,6 +377,12 @@ def launcher(event_loop):
             args.append(revision)
         if trust_remote_code:
             args.append("--trust-remote-code")
+        if max_input_length:
+            args.append("--max-input-length")
+            args.append(str(max_input_length))
+        if max_total_tokens:
+            args.append("--max-total-tokens")
+            args.append(str(max_total_tokens))
 
         client = docker.from_env()
 
