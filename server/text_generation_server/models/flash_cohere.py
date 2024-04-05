@@ -32,7 +32,7 @@ class FlashCohere(FlashCausalLM):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.bfloat16 if dtype is None else dtype
+            dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashCohere is only available on GPU")
 

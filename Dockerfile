@@ -211,7 +211,7 @@ COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-310/ /op
 COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 
 # Install flash-attention dependencies
-RUN pip install einops --no-cache-dir
+RUN pip install einops prometheus_client --no-cache-dir
 
 # Install server
 COPY proto proto
