@@ -68,7 +68,7 @@ def convert_file(pt_file: Path, sf_file: Path, discard_names: List[str]):
     Forcing us to check for potentially different keys during load when looking
     for specific tensors (making tensor sharing explicit).
     """
-    loaded = torch.load(pt_file, map_location="cpu")
+    loaded = torch.load(pt_file, map_location="cpu", weights_only=True)
     if "state_dict" in loaded:
         loaded = loaded["state_dict"]
     to_removes = _remove_duplicate_names(loaded, discard_names=discard_names)
