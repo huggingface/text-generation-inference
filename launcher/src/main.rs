@@ -499,6 +499,9 @@ fn shard_manager(
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
+    // Remove LOG_LEVEL if present
+    envs.retain(|(name, _)| name != "LOG_LEVEL");
+
     // Torch Distributed Env vars
     envs.push(("RANK".into(), rank.to_string().into()));
     envs.push(("WORLD_SIZE".into(), world_size.to_string().into()));
@@ -823,6 +826,9 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
+
+    // Remove LOG_LEVEL if present
+    envs.retain(|(name, _)| name != "LOG_LEVEL");
 
     // Disable progress bar
     envs.push(("HF_HUB_DISABLE_PROGRESS_BARS".into(), "1".into()));
