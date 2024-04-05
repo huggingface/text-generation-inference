@@ -82,7 +82,7 @@ docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingf
 And then you can make requests like
 
 ```bash
-curl 127.0.0.1:8080/generate \
+curl 127.0.0.1:8080/generate_stream \
     -X POST \
     -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
     -H 'Content-Type: application/json'
