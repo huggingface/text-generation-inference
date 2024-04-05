@@ -589,6 +589,7 @@ fn shard_manager(
     tracing::info!("Starting shard");
     let mut p = match Command::new("text-generation-server")
         .args(shard_args)
+        .env_clear()
         .envs(envs)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -864,6 +865,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     tracing::info!("Starting download process.");
     let mut download_process = match Command::new("text-generation-server")
         .args(download_args)
+        .env_clear()
         .envs(envs)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
