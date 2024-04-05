@@ -113,7 +113,8 @@ class VlmCausalLMBatch(FlashMistralBatch):
                     full_text += chunk["content"]
                 elif chunk["type"] == "image":
                     image = chunk["content"]
-                    image = processor.image_processor.fetch_images(image)
+                    if image.startswith("https://") or image.startswith("http://"):
+                        image = processor.image_processor.fetch_images(image)
                     image_input = processor.image_processor(image, return_tensors="pt")
                     height, width = image_input["image_sizes"][0]
                     num_features = get_number_of_features(height, width, config)
