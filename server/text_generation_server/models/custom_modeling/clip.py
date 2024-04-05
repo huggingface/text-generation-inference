@@ -123,6 +123,7 @@ class CLIPAttention(nn.Module):
                 f" {self.num_heads})."
             )
         self.num_heads = self.num_heads // weights.process_group.size()
+        self.embed_dim = self.embed_dim // weights.process_group.size()
         self.scale = self.head_size**-0.5
         self.dropout = config.attention_dropout
 
@@ -137,7 +138,7 @@ class CLIPAttention(nn.Module):
             config,
             prefix=f"{prefix}.out_proj",
             weights=weights,
-            bias=False,
+            bias=True,
         )
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
@@ -155,7 +156,7 @@ class CLIPAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
-        bsz, tgt_len, embed_dim = hidden_states.size()
+        bsz, tgt_len, _ = hidden_states.size()
 
         # get query proj
 
@@ -225,7 +226,7 @@ class CLIPAttention(nn.Module):
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_size)
         attn_output = attn_output.transpose(1, 2)
-        attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
+        attn_output = attn_output.reshape(bsz, tgt_len, self.embed_dim)
 
         attn_output = self.out_proj(attn_output)
 

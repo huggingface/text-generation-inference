@@ -142,7 +142,10 @@ class LlavaNextForConditionalGeneration(nn.Module):
         vision_config = config.vision_config
         # Instead of selecting in hidden_states[-2].
         # Instead compute only the n -2 + 1 layers and don't pool
-        vision_config.num_hidden_layers += config.vision_feature_layer + 1
+        if config.vision_feature_layer < 0:
+            vision_config.num_hidden_layers += config.vision_feature_layer + 1
+        else:
+            vision_config.num_hidden_layers = config.vision_feature_layer + 1
         self.vision_tower = load_vision_model(
             prefix="vision_tower" if not prefix else f"{prefix}.vision_tower",
             config=config.vision_config,
@@ -195,7 +198,7 @@ class LlavaNextForConditionalGeneration(nn.Module):
         pixel_values: torch.FloatTensor = None,
         image_sizes: Optional[torch.LongTensor] = None,
     ):
-        inputs_embeds = self.language_model.model.embed_tokens(input_ids)
+        inputs_embeds = self.language_model.embed_tokens(input_ids)
         if pixel_values is not None and len(pixel_values) > 0:
             # num_special_image_tokens = (input_ids == self.config.image_token_index).sum()
             # assert num_special_image_tokens == len(pixel_values), f"Received {num_special_image_tokens} for {len(pixel_values)} images, this is invalid"
@@ -290,6 +293,8 @@ class LlavaNextForConditionalGeneration(nn.Module):
             slots=slots,
             input_lengths=input_lengths,
             max_s=max_s,
+            true_max_s=max_s,
+            prefill_cache_indices=None,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

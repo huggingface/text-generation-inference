@@ -5,6 +5,7 @@ from opentelemetry import trace
 from typing import Optional, Tuple, List, Type, Dict
 
 from transformers import PreTrainedTokenizerBase
+from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.flash_mistral import (
     BaseFlashMistral,
@@ -36,14 +37,73 @@ def split(string) -> List[Dict[str, str]]:
     return parts
 
 
+def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
+    """
+    Calculate the shape of the image patch grid after the preprocessing for images of any resolution.
+
+    Args:
+        image_size (`tuple`):
+            The size of the input image in the format (width, height).
+        grid_pinpoints (`List`):
+            A list containing possible resolutions. Each item in the list should be a tuple or list
+            of the form `(height, width)`.
+        patch_size (`int`):
+            The size of each image patch.
+
+    Returns:
+        tuple: The shape of the image patch grid in the format (width, height).
+    """
+    if not isinstance(grid_pinpoints, list):
+        raise ValueError("grid_pinpoints should be a list of tuples or lists")
+
+    height, width = select_best_resolution(image_size, grid_pinpoints)
+    return height // patch_size, width // patch_size
+
+
+def get_number_of_features(height: int, width: int, config) -> int:
+    # From config
+    # Hardcoded for CLIP for now
+    # image_grid_pinpoints = [[336, 672], [672, 336], [672, 672], [1008, 336], [336, 1008]]
+    image_grid_pinpoints = config.image_grid_pinpoints
+    image_size = config.vision_config.image_size
+    patch_size = config.vision_config.patch_size
+
+    assert image_size % patch_size == 0
+
+    npatches = image_size // patch_size
+
+    num_patch_height, num_patch_width = get_anyres_image_grid_shape(
+        [height, width],
+        image_grid_pinpoints,
+        image_size,
+    )
+    import math
+
+    height_of_patch = math.ceil(height / width * npatches)
+
+    unpadded_features = npatches * height_of_patch * num_patch_height * num_patch_width
+    # They are only added after width
+    newline_features = height_of_patch * num_patch_width
+    # The base patch covers the entire image
+    base_features = npatches**2
+    return unpadded_features + newline_features + base_features
+    if height == 640 and width == 640:
+        return 2928
+    return 2634
+
+
+# assert get_number_of_features(889, 1024) == 2634, f"{get_number_of_features(889, 1024)}"
+# assert get_number_of_features(640, 640) == 2928
+
+
 class VlmCausalLMBatch(FlashMistralBatch):
     pixel_values: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
 
     @classmethod
-    def batch_tokenized_inputs(cls, requests, tokenizer, processor):
+    def batch_tokenized_inputs(cls, requests, tokenizer, processor, config):
         batch_inputs = []
-        images = []
+        image_inputs = []
         max_truncation = 0
         for r in requests:
             chunks = split(r.inputs)
@@ -52,8 +112,13 @@ class VlmCausalLMBatch(FlashMistralBatch):
                 if chunk["type"] == "text":
                     full_text += chunk["content"]
                 elif chunk["type"] == "image":
-                    full_text += "<image>" * 2928
-                    images.append(chunk["content"])
+                    image = chunk["content"]
+                    image = processor.image_processor.fetch_images(image)
+                    image_input = processor.image_processor(image, return_tensors="pt")
+                    height, width = image_input["image_sizes"][0]
+                    num_features = get_number_of_features(height, width, config)
+                    full_text += "<image>" * num_features
+                    image_inputs.append(image_input)
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk['type']}")
 
@@ -63,9 +128,13 @@ class VlmCausalLMBatch(FlashMistralBatch):
         batch_tokenized_inputs = tokenizer(
             batch_inputs, truncation=True, max_length=max_truncation
         )["input_ids"]
-        images = processor.image_processor.fetch_images(images)
-        if images:
-            image_inputs = processor.image_processor(images, return_tensors="pt")
+        if image_inputs:
+            image_inputs = {
+                "pixel_values": torch.cat(
+                    [img["pixel_values"] for img in image_inputs], dim=0
+                ),
+                "image_sizes": torch.cat([img["image_sizes"] for img in image_inputs]),
+            }
         else:
             image_inputs = None
         return batch_tokenized_inputs, image_inputs
@@ -76,11 +145,12 @@ class VlmCausalLMBatch(FlashMistralBatch):
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
         processor,
+        config,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "VlmCausalLMBatch":
         batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
-            pb.requests, tokenizer, processor
+            pb.requests, tokenizer, processor, config
         )
         batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
         if image_inputs is not None:

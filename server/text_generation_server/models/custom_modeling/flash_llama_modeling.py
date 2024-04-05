@@ -342,12 +342,6 @@ class FlashLlamaModel(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        self.embed_tokens = TensorParallelEmbedding(
-            prefix=(
-                "model.embed_tokens" if not prefix else f"{prefix}.model.embed_tokens"
-            ),
-            weights=weights,
-        )
         self.layers = nn.ModuleList(
             [
                 FlashLlamaLayer(
@@ -384,6 +378,8 @@ class FlashLlamaModel(torch.nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        true_max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -417,6 +413,12 @@ class FlashLlamaForCausalLM(torch.nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
 
+        self.embed_tokens = TensorParallelEmbedding(
+            prefix=(
+                "model.embed_tokens" if not prefix else f"{prefix}.model.embed_tokens"
+            ),
+            weights=weights,
+        )
         self.model = FlashLlamaModel(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
             config,
@@ -447,6 +449,8 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             slots,
             input_lengths,
             max_s,
+            true_max_s=max_s,
+            prefill_cache_indices=prefill_cache_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

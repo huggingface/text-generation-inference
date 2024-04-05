@@ -87,6 +87,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch,
                 self.model.tokenizer,
                 self.model.processor,
+                self.model.model.config,
                 self.model.dtype,
                 self.model.device,
             )
@@ -110,6 +111,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch,
                 self.model.tokenizer,
                 self.model.processor,
+                self.model.model.config,
                 self.model.dtype,
                 self.model.device,
             )
