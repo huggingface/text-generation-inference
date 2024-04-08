@@ -148,3 +148,14 @@ async def test_generate_stream_async_validation_error(flan_t5_xxl_url, hf_header
     with pytest.raises(ValidationError):
         async for _ in client.generate_stream("test", max_new_tokens=10_000):
             pass
+
+
+@pytest.mark.asyncio
+async def test_async_client_context_manager(flan_t5_xxl_url, hf_headers):
+    async with AsyncClient(flan_t5_xxl_url, hf_headers) as client:
+        # Perform actions with the client here
+        response = await client.generate("Test input")
+        assert response is not None
+
+        async for chunk in client.generate_stream("Test input"):
+            assert chunk is not None

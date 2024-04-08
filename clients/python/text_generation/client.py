@@ -450,6 +450,15 @@ class AsyncClient:
         self.cookies = cookies
         self.timeout = ClientTimeout(timeout)
 
+    async def __aenter__(self):
+        self.session = ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        )
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.session.close()
+
     async def chat(
         self,
         messages: List[Message],
