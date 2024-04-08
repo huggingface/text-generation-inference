@@ -82,7 +82,7 @@ class IDEFICSSharded(IdeficsCausalLM):
         model = IdeficsForVisionText2Text(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(VlmCausalLM, self).__init__(
+        super(IdeficsCausalLM, self).__init__(
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,

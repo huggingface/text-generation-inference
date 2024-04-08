@@ -13,7 +13,7 @@ def get_chicken():
 def flash_llava_next_handle(launcher):
     with launcher(
         "llava-hf/llava-v1.6-mistral-7b-hf",
-        num_shard=4,
+        num_shard=1,
         max_input_length=4000,
         max_total_tokens=4096,
     ) as handle:
@@ -34,7 +34,9 @@ async def test_flash_llava_next_simple(flash_llava_next, response_snapshot):
         f"User:![]({chicken})Can you tell me a very short story based on the image?",
         max_new_tokens=10,
     )
-    assert response.generated_text == "toto"
+    assert (
+        response.generated_text == "\n\nOnce upon a time, there was a"
+    ), f"{repr(response.generated_text)}"
     assert response.details.generated_tokens == 10
     assert response == response_snapshot
 
@@ -58,7 +60,7 @@ async def test_flash_llava_next_all_params(flash_llava_next, response_snapshot):
         seed=0,
     )
 
-    assert response.details.generated_tokens == 5
+    assert response.details.generated_tokens == 6
     assert response == response_snapshot
 
 
@@ -75,7 +77,7 @@ async def test_flash_llava_next_load(
         n=4,
     )
     generated_texts = [r.generated_text for r in responses]
-    assert generated_texts[0] == "\n\nDeep learning is a new type of machine"
+    assert generated_texts[0] == "\n\nOnce upon a time, there was a"
     assert len(generated_texts) == 4
     assert all([r.generated_text == generated_texts[0] for r in responses])
 

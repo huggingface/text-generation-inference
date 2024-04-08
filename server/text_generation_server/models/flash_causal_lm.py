@@ -1047,12 +1047,7 @@ class FlashCausalLM(Model):
         batch.input_ids = next_input_ids[accepted_ids.cumsum(dim=-1) - 1]
         batch.speculative_ids = speculative_ids
         batch.position_ids = next_position_ids + accepted_ids
-        try:
-            batch.input_lengths_tensor += accepted_ids
-        except Exception:
-            import ipdb
-
-            ipdb.set_trace()
+        batch.input_lengths_tensor += accepted_ids
         batch.slot_indices += accepted_ids
 
         if prefill and prefill_logprobs:

@@ -1,5 +1,8 @@
 import re
 import torch
+from PIL import Image
+from io import BytesIO
+import base64
 
 from opentelemetry import trace
 from typing import Optional, Tuple, List, Type, Dict
@@ -92,6 +95,13 @@ def get_number_of_features(height: int, width: int, config) -> int:
     return 2634
 
 
+def load_data_uri(image_uri: str) -> Image.Image:
+    image_uri = image_uri.split(",")[-1]
+    content = base64.b64decode(image_uri)
+    image = Image.open(BytesIO(content))
+    return image
+
+
 # assert get_number_of_features(889, 1024) == 2634, f"{get_number_of_features(889, 1024)}"
 # assert get_number_of_features(640, 640) == 2928
 
@@ -99,6 +109,21 @@ def get_number_of_features(height: int, width: int, config) -> int:
 class VlmCausalLMBatch(FlashMistralBatch):
     pixel_values: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
+
+    @classmethod
+    @tracer.start_as_current_span("concatenate")
+    def concatenate(cls, batches):
+        batch = super(VlmCausalLMBatch, cls).concatenate(batches)
+        batch.pixel_values = None
+        batch.image_sizes = None
+        return batch
+
+    @tracer.start_as_current_span("filter")
+    def filter(self, request_ids: List[int]):
+        batch = super().filter(request_ids)
+        batch.pixel_values = None
+        batch.image_sizes = None
+        return batch
 
     @classmethod
     def batch_tokenized_inputs(cls, requests, tokenizer, processor, config):
@@ -115,6 +140,12 @@ class VlmCausalLMBatch(FlashMistralBatch):
                     image = chunk["content"]
                     if image.startswith("https://") or image.startswith("http://"):
                         image = processor.image_processor.fetch_images(image)
+                    elif image.startswith("data:"):
+                        image = load_data_uri(image)
+                    else:
+                        raise RuntimeError(
+                            "Cannot process input image not starting with http(s):// nor data:"
+                        )
                     image_input = processor.image_processor(image, return_tensors="pt")
                     height, width = image_input["image_sizes"][0]
                     num_features = get_number_of_features(height, width, config)

@@ -1,0 +1,65 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "stop_sequence",
+    "generated_tokens": 6,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 3735,
+        "logprob": -10.5,
+        "text": "Test"
+      },
+      {
+        "id": 2159,
+        "logprob": -12.140625,
+        "text": "request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -1.0654297,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 1014,
+        "logprob": -2.7460938,
+        "special": false,
+        "text": "The"
+      },
+      {
+        "id": 6032,
+        "logprob": -1.359375,
+        "special": false,
+        "text": " purpose"
+      },
+      {
+        "id": 302,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 456,
+        "logprob": 0.0,
+        "special": false,
+        "text": " this"
+      },
+      {
+        "id": 1369,
+        "logprob": -0.40063477,
+        "special": false,
+        "text": " test"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request\nThe purpose of this test"
+}

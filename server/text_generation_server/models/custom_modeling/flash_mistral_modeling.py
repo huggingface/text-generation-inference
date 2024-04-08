@@ -413,7 +413,10 @@ class FlashMistralForCausalLM(torch.nn.Module):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
-            prefix=f"{prefix}.model.embed_tokens", weights=weights
+            prefix=(
+                "model.embed_tokens" if not prefix else f"{prefix}.model.embed_tokens"
+            ),
+            weights=weights,
         )
         self.model = MistralModel(
             prefix="model" if not prefix else f"{prefix}.model",
