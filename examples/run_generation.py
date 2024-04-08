@@ -1,3 +1,5 @@
+# Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 import argparse
 import requests
 import time

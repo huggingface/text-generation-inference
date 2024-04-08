@@ -1,3 +1,5 @@
+/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::{Entry, Queue, Token};

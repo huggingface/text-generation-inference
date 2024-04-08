@@ -1,3 +1,5 @@
+/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 /// Text Generation Inference webserver entrypoint
 use axum::http::HeaderValue;
 use clap::Parser;

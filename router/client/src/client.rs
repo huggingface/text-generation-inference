@@ -1,3 +1,5 @@
+/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 /// Single shard Client
 use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
 use crate::pb::generate::v1::*;

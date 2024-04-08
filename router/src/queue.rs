@@ -1,3 +1,5 @@
+/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 use crate::infer::InferError;
 use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;

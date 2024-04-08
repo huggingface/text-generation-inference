@@ -1,3 +1,5 @@
+# Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 import bisect
 from dataclasses import dataclass
 from functools import wraps

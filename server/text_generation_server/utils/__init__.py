@@ -1,3 +1,5 @@
+# Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 from text_generation_server.utils.convert import convert_file, convert_files
 from text_generation_server.utils.dist import initialize_torch_distributed
 from text_generation_server.utils.weights import Weights

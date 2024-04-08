@@ -1,3 +1,5 @@
+/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 /// Multi shard Client
 use crate::{Batch, CachedBatch, Client, Generation, HealthResponse, ShardInfo};
 use crate::{ClientError, Result};

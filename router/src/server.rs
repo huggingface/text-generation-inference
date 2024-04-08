@@ -1,3 +1,5 @@
+/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 /// HTTP Server logic
 use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};

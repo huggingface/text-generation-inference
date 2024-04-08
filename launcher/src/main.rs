@@ -1,3 +1,5 @@
+/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 use clap::{Parser, ValueEnum};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
