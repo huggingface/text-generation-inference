@@ -164,7 +164,8 @@ async fn generate(
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
 
-    tracing::debug!("Input: {}", req.inputs);
+    // Do not long ultra long inputs, like image payloads.
+    tracing::debug!("Input: {}", &req.inputs[..1000.min(req.inputs.len())]);
 
     let compute_characters = req.inputs.chars().count();
     let mut add_prompt = None;

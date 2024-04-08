@@ -432,7 +432,11 @@ fn prepare_input(
 ) -> Result<(tokenizers::Encoding, String), ValidationError> {
     let simplified_query = if is_multimodal {
         static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
-        RE.replace_all(&inputs, "<image>").into()
+        // HACK: Llava uses arbitrary number of tokens (between 576 and ~576 * 5).
+        // Idefics uses a sequence encoder which doesn't take as much space in the KV cache, but
+        // there is still some encoder values.
+        // This hacks just forces more "allocation" for the given
+        RE.replace_all(&inputs, "<image>".repeat(576)).into()
     } else {
         inputs.clone()
     };
@@ -443,6 +447,8 @@ fn prepare_input(
 
     // Optionally truncate
     if let Some(truncate) = truncate {
+        // XXX: Critical to keep the multimodal check otherwise this modifies the original string
+        // Which we really don't want.
         if truncate < encoding.len() && !is_multimodal {
             encoding.truncate(truncate, 0, TruncationDirection::Left);
             inputs = tokenizer
