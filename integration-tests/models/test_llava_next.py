@@ -13,7 +13,7 @@ def get_chicken():
 def flash_llava_next_handle(launcher):
     with launcher(
         "llava-hf/llava-v1.6-mistral-7b-hf",
-        num_shard=2,
+        num_shard=4,
         max_input_length=4000,
         max_total_tokens=4096,
     ) as handle:
