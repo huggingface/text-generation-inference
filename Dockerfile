@@ -210,8 +210,8 @@ COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/c
 COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 
-# Install flash-attention dependencies
-RUN pip install einops prometheus_client --no-cache-dir
+# Install vllm/flash-attention dependencies
+RUN pip install einops py-cpuinfo prometheus_client --no-cache-dir
 
 # Install server
 COPY proto proto
