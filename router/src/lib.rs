@@ -291,15 +291,23 @@ mod prompt_serde {
         let value = Value::deserialize(deserializer)?;
         match value {
             Value::String(s) => Ok(s),
-            Value::Array(arr) => arr
-                .first()
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .ok_or_else(|| {
-                    serde::de::Error::custom("array is empty or contains non-string elements")
-                }),
+            Value::Array(arr) => {
+                if arr.len() == 1 {
+                    match arr[0].as_str() {
+                        Some(s) => Ok(s.to_string()),
+                        None => Err(serde::de::Error::custom(
+                            "Array contains non-string elements",
+                        )),
+                    }
+                } else {
+                    Err(serde::de::Error::custom(
+                        "Array contains non-string element. Expected string. In general arrays should not be used for prompts. Please use a string instead if possible.",
+                    ))
+                }
+            }
+
             _ => Err(serde::de::Error::custom(
-                "expected a string or an array of strings",
+                "Expected a string or an array of strings",
             )),
         }
     }
