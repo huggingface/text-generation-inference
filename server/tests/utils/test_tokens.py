@@ -1,6 +1,9 @@
 # Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
 
+import pytest
 import torch
+from transformers import AutoTokenizer
+
 from text_generation_server.utils.tokens import (
     StopSequenceCriteria,
     StoppingCriteria,
@@ -8,10 +11,8 @@ from text_generation_server.utils.tokens import (
     batch_top_tokens,
     make_tokenizer_optional,
 )
-from transformers import AutoTokenizer
 
 
-import pytest
 @pytest.fixture
 def skip_tokenizer_env_var():
     import os
