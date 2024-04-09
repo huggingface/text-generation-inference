@@ -218,13 +218,14 @@ async fn main() -> Result<(), RouterError> {
         };
 
         let config: Option<Config> = api_repo.get("config.json").await.ok().and_then(|filename| {
-            tracing::info!("Config filename {filename:?}");
             std::fs::read_to_string(filename)
                 .ok()
                 .as_ref()
                 .and_then(|c| {
                     let config: Result<Config, _> = serde_json::from_str(c);
-                    tracing::info!("Config parse {config:?}");
+                    if let Err(err) = &config {
+                        tracing::warn!("Could not parse config {err:?}");
+                    }
                     config.ok()
                 })
         });
