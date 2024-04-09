@@ -1,8 +1,8 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "eos_token",
-    "generated_tokens": 9,
+    "finish_reason": "length",
+    "generated_tokens": 10,
     "prefill": [
       {
         "id": 0,
@@ -14,7 +14,7 @@
     "tokens": [
       {
         "id": 16017,
-        "logprob": -0.30908203,
+        "logprob": 0.0,
         "special": false,
         "text": " blue"
       },
@@ -26,39 +26,45 @@
       },
       {
         "id": 259,
-        "logprob": -0.28271484,
+        "logprob": -0.4716797,
         "special": false,
         "text": " "
       },
       {
-        "id": 15484,
-        "logprob": -1.7929688,
+        "id": 261,
+        "logprob": -0.044677734,
         "special": false,
-        "text": "appear"
+        "text": ","
       },
       {
-        "id": 345,
-        "logprob": -0.8935547,
+        "id": 35622,
+        "logprob": -0.79589844,
         "special": false,
-        "text": "ed"
+        "text": " cloud"
       },
       {
-        "id": 281,
+        "id": 263,
+        "logprob": -1.2958984,
+        "special": false,
+        "text": "s"
+      },
+      {
+        "id": 305,
         "logprob": 0.0,
         "special": false,
-        "text": " in"
+        "text": " and"
       },
       {
-        "id": 287,
+        "id": 35622,
+        "logprob": -1.1630859,
+        "special": false,
+        "text": " cloud"
+      },
+      {
+        "id": 263,
         "logprob": 0.0,
         "special": false,
-        "text": " the"
-      },
-      {
-        "id": 20495,
-        "logprob": -0.32299805,
-        "special": false,
-        "text": " sky"
+        "text": "s"
       },
       {
         "id": 1,
@@ -66,7 +72,8 @@
         "special": true,
         "text": "</s>"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": "Why is the sky blue?blue sky appeared in the sky"
+  "generated_text": "Why is the sky blue?blue sky, clouds and clouds"
 }

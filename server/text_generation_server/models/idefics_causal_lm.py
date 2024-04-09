@@ -1,4 +1,5 @@
 import torch
+import torch
 import time
 
 from dataclasses import dataclass
@@ -20,27 +21,11 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.models.vlm_causal_lm import split
 
 import re
 
 IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
-
-
-def split(string):
-    parts = []
-    cursor = 0
-    for pattern in IMAGES.finditer(string):
-        start = pattern.start()
-        if start != cursor:
-            parts.append(string[cursor:start])
-
-        parts.append(pattern.group(1))
-        cursor = pattern.end()
-
-    if cursor != len(string):
-        parts.append(string[cursor:])
-
-    return parts
 
 
 tracer = trace.get_tracer(__name__)
@@ -96,7 +81,18 @@ class IdeficsCausalLMBatch(Batch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "IdeficsCausalLMBatch":
+        raise NotImplementedError
+
+    @classmethod
+    def from_pb_processor(
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
         processor: ProcessorMixin,  # Hack
+        config,
         dtype: torch.dtype,
         device: torch.device,
     ) -> "IdeficsCausalLMBatch":
@@ -127,10 +123,14 @@ class IdeficsCausalLMBatch(Batch):
                 padding_right_offset, stopping_criteria.max_new_tokens
             )
 
+        # TODO Check impact on idefics
         prompts = []
         for inp in inputs:
             # Each input is encoded into a list, where each element of this input list is either a string or a URL
-            prompts.append(split(inp))
+            prompt = []
+            for chunk in split(inp):
+                prompt.append(chunk["content"])
+            prompts.append(prompt)
 
         # The processor replaces the call to tokenizer, and
         # a/ takes care of fetching images from the URL
@@ -141,7 +141,8 @@ class IdeficsCausalLMBatch(Batch):
             padding=True,
             truncation=True,
             max_length=max_truncation,
-            add_end_of_utterance_token=False,  # Already taken care of inside the prompts, so bypassing the processor's handling of this token
+            # TODO Check impact on idefics
+            # add_end_of_utterance_token=False,  # Already taken care of inside the prompts, so bypassing the processor's handling of this token
         ).to(device)
         for _ in pb.requests:
             input_len = tokenized_inputs["input_ids"].shape[1]
@@ -156,7 +157,7 @@ class IdeficsCausalLMBatch(Batch):
         max_input_length = input_lengths.max()
 
         input_ids = tokenized_inputs["input_ids"]
-        pixel_values = tokenized_inputs["pixel_values"]
+        pixel_values = tokenized_inputs.get("pixel_values", None)
         image_hidden_states = None
         # Allocate maximum attention_mask
         attention_mask = input_ids.new_zeros(
@@ -165,16 +166,19 @@ class IdeficsCausalLMBatch(Batch):
         # Copy tokenizer attention_mask into fully allocated attention_mask
         attention_mask[:, :max_input_length] = tokenized_inputs["attention_mask"]
         # Do the same for image_attention_mask
-        image_attention_mask = input_ids.new_zeros(
-            (
-                pb.size,
-                max_input_length + padding_right_offset,
-                tokenized_inputs["pixel_values"].size(1),
+        if pixel_values is None:
+            image_attention_mask = None
+        else:
+            image_attention_mask = input_ids.new_zeros(
+                (
+                    pb.size,
+                    max_input_length + padding_right_offset,
+                    pixel_values.size(1),
+                )
             )
-        )
-        image_attention_mask[:, :max_input_length, :] = tokenized_inputs[
-            "image_attention_mask"
-        ]
+            image_attention_mask[:, :max_input_length, :] = tokenized_inputs[
+                "image_attention_mask"
+            ]
 
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
@@ -677,19 +681,22 @@ class IdeficsCausalLM(Model):
         start = time.time_ns()
         # slice the attention mask to the correct shape
         attention_mask = batch.attention_mask[:, : -batch.padding_right_offset]
-        if batch.input_ids.size(1) == 1:
-            # THIS is a hack: when calling idefics.generate, the first time, we need the whole image_attention_mask (size bs x max_seq_len x max_num_images),
-            # but the subsequent times, we only need the last attention mask along the `max_seq_len` dimension
-            # this is due to the nature IDEFICS: it's an encoder decoder, and so when decoding, only the currently generated
-            # token need to attend to the encoder hidden states (i.e. the vision encoder)
-            # Also see seq2seq_lm.Seq2SeqLM.generate_token which has roughly the same logic
-            image_attention_mask = batch.image_attention_mask[
-                :, -(batch.padding_right_offset + 1)
-            ].unsqueeze(1)
+        if batch.image_attention_mask is None:
+            image_attention_mask = None
         else:
-            image_attention_mask = batch.image_attention_mask[
-                :, : -batch.padding_right_offset
-            ]
+            if batch.input_ids.size(1) == 1:
+                # THIS is a hack: when calling idefics.generate, the first time, we need the whole image_attention_mask (size bs x max_seq_len x max_num_images),
+                # but the subsequent times, we only need the last attention mask along the `max_seq_len` dimension
+                # this is due to the nature IDEFICS: it's an encoder decoder, and so when decoding, only the currently generated
+                # token need to attend to the encoder hidden states (i.e. the vision encoder)
+                # Also see seq2seq_lm.Seq2SeqLM.generate_token which has roughly the same logic
+                image_attention_mask = batch.image_attention_mask[
+                    :, -(batch.padding_right_offset + 1)
+                ].unsqueeze(1)
+            else:
+                image_attention_mask = batch.image_attention_mask[
+                    :, : -batch.padding_right_offset
+                ]
 
         logits, speculative_logits, past, image_hidden_states = self.forward(
             input_ids=batch.input_ids,

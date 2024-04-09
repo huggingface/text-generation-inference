@@ -1,3 +1,4 @@
+pub mod config;
 mod health;
 /// Text Generation Inference Webserver
 mod infer;
