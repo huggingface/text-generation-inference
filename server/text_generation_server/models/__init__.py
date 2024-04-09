@@ -186,6 +186,14 @@ def get_model(
             raise RuntimeError(
                 f"Could not determine model type for {model_id} revision {revision}"
             )
+    quantization_config = config_dict.get("quantization_config", None)
+    if quantization_config is not None and quantize is None:
+        method = quantization_config.get("quant_method", None)
+        if method in {"gptq", "awq"}:
+            logger.info(f"Auto selecting quantization method {method}")
+            quantize = method
+        else:
+            logger.info(f"Unknown quantization method {method}")
 
     if model_type == "ssm":
         return Mamba(
