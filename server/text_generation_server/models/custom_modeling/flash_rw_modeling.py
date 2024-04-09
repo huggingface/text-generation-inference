@@ -151,6 +151,15 @@ class FlashRWAttention(torch.nn.Module):
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
 
+        if self.num_heads_kv == 1:
+            self.kv_head_mapping = torch.zeros(
+                self.num_heads, dtype=torch.int32, device=weights.device
+            )
+        else:
+            self.kv_head_mapping = torch.arange(
+                0, self.num_heads, dtype=torch.int32, device=weights.device
+            )
+
     def forward(
         self,
         hidden_states,
@@ -204,7 +213,7 @@ class FlashRWAttention(torch.nn.Module):
                 query,
                 kv_cache[0],
                 kv_cache[1],
-                self.num_heads_kv,
+                self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 input_lengths,
@@ -263,6 +272,10 @@ class FlashRWLargeAttention(torch.nn.Module):
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
 
+        self.kv_head_mapping = torch.arange(
+            0, self.num_groups, dtype=torch.int32, device=weights.device
+        ).repeat_interleave(self.num_heads)
+
     def forward(
         self,
         hidden_states,
@@ -319,7 +332,7 @@ class FlashRWLargeAttention(torch.nn.Module):
                 query,
                 kv_cache[0],
                 kv_cache[1],
-                self.num_groups,
+                self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 input_lengths,

@@ -1,8 +1,8 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, Entry, GenerateRequest, GenerateStreamResponse, HubTokenizerConfig,
-    Message, PrefillToken, Queue, Token,
+    ChatTemplateInputs, ChatTemplateVersions, Entry, GenerateRequest, GenerateStreamResponse,
+    HubTokenizerConfig, Message, PrefillToken, Queue, Token,
 };
 use futures::future::try_join_all;
 use minijinja::{Environment, ErrorKind, Template};
@@ -86,7 +86,18 @@ impl Infer {
 
         let chat_template = tokenizer_config
             .chat_template
-            .map(|t| ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token));
+            .and_then(|t| match t {
+                ChatTemplateVersions::Single(template) => Some(template),
+                ChatTemplateVersions::Multiple(templates) => templates
+                    .into_iter()
+                    .find(|t| t.name == "default")
+                    .map(|t| t.template),
+            })
+            .map(|t| {
+                // .strip() is not supported in minijinja
+                let t = t.replace(".strip()", " | trim");
+                ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token)
+            });
 
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
@@ -1099,7 +1110,7 @@ mod tests {
             ChatTemplateTestItem {
                 name: "_base",
                 chat_template: "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\\n' + message['content'] + '<|im_end|>' + '\\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\\n' }}{% endif %}",
-                input: ChatTemplateInputs{
+                input: ChatTemplateInputs {
                     messages: example_chat.clone(),
                     add_generation_prompt: false,
                     bos_token: Some(""),
@@ -1110,7 +1121,7 @@ mod tests {
             ChatTemplateTestItem {
                 name: "blenderbot",
                 chat_template: "{% for message in messages %}{% if message['role'] == 'user' %}{{ ' ' }}{% endif %}{{ message['content'] }}{% if not loop.last %}{{ '  ' }}{% endif %}{% endfor %}{{ eos_token }}",
-                input: ChatTemplateInputs{
+                input: ChatTemplateInputs {
                     messages: example_chat.clone(),
                     add_generation_prompt: false,
                     bos_token: Some(""),
@@ -1121,7 +1132,7 @@ mod tests {
             ChatTemplateTestItem {
                 name: "blenderbot_small",
                 chat_template: "{% for message in messages %}{% if message['role'] == 'user' %}{{ ' ' }}{% endif %}{{ message['content'] }}{% if not loop.last %}{{ '  ' }}{% endif %}{% endfor %}{{ eos_token }}",
-                input: ChatTemplateInputs{
+                input: ChatTemplateInputs {
                     messages: example_chat.clone(),
                     add_generation_prompt: false,
                     bos_token: Some(""),
@@ -1132,7 +1143,7 @@ mod tests {
             ChatTemplateTestItem {
                 name: "bloom",
                 chat_template: "{% for message in messages %}{{ message.content }}{{ eos_token }}{% endfor %}",
-                input: ChatTemplateInputs{
+                input: ChatTemplateInputs {
                     messages: example_chat.clone(),
                     add_generation_prompt: false,
                     bos_token: Some(""),
@@ -1143,7 +1154,7 @@ mod tests {
             ChatTemplateTestItem {
                 name: "gpt_neox",
                 chat_template: "{% for message in messages %}{{ message.content }}{{ eos_token }}{% endfor %}",
-                input: ChatTemplateInputs{
+                input: ChatTemplateInputs {
                     messages: example_chat.clone(),
                     add_generation_prompt: false,
                     bos_token: Some(""),
@@ -1154,38 +1165,37 @@ mod tests {
             ChatTemplateTestItem {
                 name: "gpt2",
                 chat_template: "{% for message in messages %}{{ message.content }}{{ eos_token }}{% endfor %}",
-                input: ChatTemplateInputs{
-                messages: example_chat.clone(),
-                add_generation_prompt: false,
-                bos_token: Some(""),
-                eos_token: Some("<|endoftext|>"),
+                input: ChatTemplateInputs {
+                    messages: example_chat.clone(),
+                    add_generation_prompt: false,
+                    bos_token: Some(""),
+                    eos_token: Some("<|endoftext|>"),
                 },
-                target: "Hello, how are you?<|endoftext|>I'm doing great. How can I help you today?<|endoftext|>I'd like to show off how chat templating works!<|endoftext|>"
+                target: "Hello, how are you?<|endoftext|>I'm doing great. How can I help you today?<|endoftext|>I'd like to show off how chat templating works!<|endoftext|>",
             },
             ChatTemplateTestItem {
                 name: "llama",
                 // NOTE: the `.strip()` has been replaced with `| trim` in the following template
                 chat_template: "{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% elif USE_DEFAULT_PROMPT == true and not '<<SYS>>' in messages[0]['content'] %}{% set loop_messages = messages %}{% set system_message = 'DEFAULT_SYSTEM_MESSAGE' %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ bos_token +'[INST] ' + content | trim + ' [/INST]' }}{% elif message['role'] == 'system' %}{{ '<<SYS>>\\n' + content | trim + '\\n<</SYS>>\\n\\n' }}{% elif message['role'] == 'assistant' %}{{ ' ' + content | trim + ' ' + eos_token }}{% endif %}{% endfor %}",
-                input: ChatTemplateInputs{
-                messages: example_chat_with_system.clone(),
-                add_generation_prompt: true,
-                bos_token: Some("<s>"),
-                eos_token: Some("</s>"),
+                input: ChatTemplateInputs {
+                    messages: example_chat_with_system.clone(),
+                    add_generation_prompt: true,
+                    bos_token: Some("<s>"),
+                    eos_token: Some("</s>"),
                 },
-                target: "<s>[INST] <<SYS>>\nYou are a friendly chatbot who always responds in the style of a pirate\n<</SYS>>\n\nHello, how are you? [/INST] I'm doing great. How can I help you today? </s><s>[INST] I'd like to show off how chat templating works! [/INST]"
+                target: "<s>[INST] <<SYS>>\nYou are a friendly chatbot who always responds in the style of a pirate\n<</SYS>>\n\nHello, how are you? [/INST] I'm doing great. How can I help you today? </s><s>[INST] I'd like to show off how chat templating works! [/INST]",
             },
             ChatTemplateTestItem {
                 name: "whisper",
                 chat_template: "{% for message in messages %}{{ message.content }}{{ eos_token }}{% endfor %}",
-                input: ChatTemplateInputs{
-                messages: example_chat.clone(),
-                add_generation_prompt: true,
-                bos_token: Some(""),
-                eos_token: Some("<|endoftext|>"),
+                input: ChatTemplateInputs {
+                    messages: example_chat.clone(),
+                    add_generation_prompt: true,
+                    bos_token: Some(""),
+                    eos_token: Some("<|endoftext|>"),
                 },
-                target: "Hello, how are you?<|endoftext|>I'm doing great. How can I help you today?<|endoftext|>I'd like to show off how chat templating works!<|endoftext|>"
-            }
-
+                target: "Hello, how are you?<|endoftext|>I'm doing great. How can I help you today?<|endoftext|>I'd like to show off how chat templating works!<|endoftext|>",
+            },
         ];
 
         #[allow(unused_variables)] // name is unused
@@ -1211,7 +1221,7 @@ mod tests {
                     messages: example_chat_with_system.clone(),
                     add_generation_prompt: false,
                     bos_token: Some(""),
-                    eos_token: Some("</s>")
+                    eos_token: Some("</s>"),
                 },
                 target: "<|system|>\nYou are a friendly chatbot who always responds in the style of a pirate</s><|user|>\nHello, how are you?</s><|assistant|>\nI'm doing great. How can I help you today?</s><|user|>\nI'd like to show off how chat templating works!</s>",
             },
@@ -1237,7 +1247,7 @@ mod tests {
                     bos_token: Some(""),
                     eos_token: Some("</s>"),
                 },
-                target: "<|system|>\nYou are a friendly chatbot who always responds in the style of a pirate</s><|user|>\nHow many helicopters can a human eat in one sitting?</s><|assistant|>"
+                target: "<|system|>\nYou are a friendly chatbot who always responds in the style of a pirate</s><|user|>\nHow many helicopters can a human eat in one sitting?</s><|assistant|>",
             },
             ChatTemplateTestItem {
                 name: "HuggingFaceH4/zephyr-7b-gemma-v0.1",
@@ -1259,7 +1269,7 @@ mod tests {
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
                 },
-                target: "<s>[INST] Hello, how are you? [/INST]I'm doing great. How can I help you today?</s> [INST] I'd like to show off how chat templating works! [/INST]"
+                target: "<s>[INST] Hello, how are you? [/INST]I'm doing great. How can I help you today?</s> [INST] I'd like to show off how chat templating works! [/INST]",
             },
             ChatTemplateTestItem {
                 name: "mistralai/Mixtral-8x7B-Instruct-v0.1",
@@ -1276,7 +1286,7 @@ mod tests {
                 name: "cognitivecomputations/dolphin-2.5-mixtral-8x7b",
                 chat_template: "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% for message in messages %}{{'<|im_start|>' + message['role'] + '\\n' + message['content'] + '<|im_end|>' + '\\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\\n' }}{% endif %}",
                 input: ChatTemplateInputs {
-                messages: example_chat.clone(),
+                    messages: example_chat.clone(),
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
@@ -1360,7 +1370,7 @@ mod tests {
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
                 },
-                target: "<|prompt|>Hello, how are you?</s><|answer|>I'm doing great. How can I help you today?</s><|prompt|>I'd like to show off how chat templating works!</s>"
+                target: "<|prompt|>Hello, how are you?</s><|answer|>I'm doing great. How can I help you today?</s><|prompt|>I'd like to show off how chat templating works!</s>",
             },
             ChatTemplateTestItem {
                 name: "internlm/internlm2-chat-7b",
@@ -1443,7 +1453,7 @@ mod tests {
                     eos_token: Some("</s>"),
                 },
                 target: "You are a friendly chatbot who always responds in the style of a pirateYou are a friendly chatbot who always responds in the style of a pirate### Instruction: Hello, how are you?### Response: I'm doing great. How can I help you today?### Instruction: I'd like to show off how chat templating works!",
-            }
+            },
         ];
 
         #[allow(unused_variables)] // name is unused

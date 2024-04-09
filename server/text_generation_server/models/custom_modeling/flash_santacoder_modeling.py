@@ -241,6 +241,9 @@ class FlashMQAttention(torch.nn.Module):
         self.c_proj = load_row(
             config, prefix=f"{prefix}.c_proj", weights=weights, bias=True
         )
+        self.kv_head_mapping = torch.zeros(
+            self.num_heads, dtype=torch.int32, device=weights.device
+        )
 
     def forward(
         self,
@@ -289,7 +292,7 @@ class FlashMQAttention(torch.nn.Module):
                 query,
                 kv_cache[0],
                 kv_cache[1],
-                self.num_heads,
+                self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 input_lengths,

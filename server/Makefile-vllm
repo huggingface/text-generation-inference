@@ -1,10 +1,10 @@
 vllm-cuda:
     # Clone vllm
 	pip install -U ninja packaging --no-cache-dir
-	git clone https://github.com/vllm-project/vllm.git vllm
+	git clone https://github.com/OlivierDehaene/vllm.git vllm
 
 build-vllm-cuda: vllm-cuda
-	cd vllm && git fetch && git checkout b7782002e1da25de77e0b1890ff8b72dd4df917c
+	cd vllm && git fetch && git checkout 2b42fc4826258c961f22b5172ada41a9e0c87686
 	cd vllm && python setup.py build
 
 install-vllm-cuda: build-vllm-cuda

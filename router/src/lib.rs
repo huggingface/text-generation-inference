@@ -48,9 +48,22 @@ pub struct HubModelInfo {
     pub pipeline_tag: Option<String>,
 }
 
-#[derive(Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChatTemplate {
+    name: String,
+    template: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum ChatTemplateVersions {
+    Single(String),
+    Multiple(Vec<ChatTemplate>),
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct HubTokenizerConfig {
-    pub chat_template: Option<String>,
+    pub chat_template: Option<ChatTemplateVersions>,
     pub completion_template: Option<String>,
     #[serde(deserialize_with = "token_serde::deserialize")]
     pub bos_token: Option<String>,

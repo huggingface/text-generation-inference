@@ -120,6 +120,9 @@ class FlashNeoxAttention(torch.nn.Module):
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=True
         )
+        self.kv_head_mapping = torch.arange(
+            0, self.num_heads, dtype=torch.int32, device=weights.device
+        )
 
     def forward(
         self,
@@ -165,7 +168,7 @@ class FlashNeoxAttention(torch.nn.Module):
                 qkv[:, 0],
                 kv_cache[0],
                 kv_cache[1],
-                self.num_heads,
+                self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 input_lengths,

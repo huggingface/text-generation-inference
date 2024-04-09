@@ -165,6 +165,11 @@ class FlashCausalLMBatch(Batch):
             requests_idx_mapping[r.id] = i
 
             tokenized_input = tokenized_input[-r.truncate :]
+            if (
+                tokenized_input[0] == tokenizer.bos_token_id
+                and tokenized_input[1] == tokenizer.bos_token_id
+            ):
+                tokenized_input = tokenized_input[1:]
 
             input_length = len(tokenized_input)
             input_lengths.append(input_length)

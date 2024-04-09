@@ -23,7 +23,6 @@ import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils import paged_attention, flash_attn
@@ -47,14 +46,18 @@ else:
 class CohereLayerNorm(nn.Module):
     def __init__(self, prefix, weights, eps):
         super().__init__()
-        weight = weights.get_tensor(f"{prefix}.weight")
+        weight = weights.get_sharded(f"{prefix}.weight", dim=0)
         self.weight = nn.Parameter(weight)
         # Fake weights
         self.ones = weight.new_ones(weight.shape[1])
         self.eps = eps
 
     def forward(self, hidden_states):
-        if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
+        # if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
+        if True:
+            hidden_states = hidden_states.reshape(
+                -1, self.weight.shape[0], self.weight.shape[1]
+            )
             input_dtype = hidden_states.dtype
             hidden_states = hidden_states.to(torch.float32)
             mean = hidden_states.mean(-1, keepdim=True)
@@ -62,6 +65,7 @@ class CohereLayerNorm(nn.Module):
             variance = hidden_states_minus_mean.pow(2).mean(-1, keepdim=True)
             hidden_states = hidden_states_minus_mean * torch.rsqrt(variance + self.eps)
             hidden_states = self.weight.to(torch.float32) * hidden_states
+            hidden_states = hidden_states.view(-1, self.weight.shape[1])
             return hidden_states.to(input_dtype)
 
         (
@@ -93,64 +97,6 @@ class CohereLayerNorm(nn.Module):
         hidden_states = hidden_states.view(-1, self.weight.shape[1])
 
         return hidden_states
-
-
-class CohereConfig(PretrainedConfig):
-    def __init__(
-        self,
-        vocab_size=256000,
-        hidden_size=8192,
-        intermediate_size=22528,
-        num_hidden_layers=40,
-        num_attention_heads=64,
-        num_key_value_heads=None,
-        hidden_act="silu",
-        max_position_embeddings=8192,
-        initializer_range=0.02,
-        layer_norm_eps=1e-5,
-        use_cache=True,
-        pad_token_id=0,
-        bos_token_id=5,
-        eos_token_id=255001,
-        pretraining_tp=1,
-        tie_word_embeddings=True,
-        rope_theta=10000.0,
-        attention_bias=False,
-        attention_dropout=0.0,
-        logit_scale=1.0,
-        use_qk_norm=False,
-        **kwargs,
-    ):
-        self.vocab_size = vocab_size
-        self.max_position_embeddings = max_position_embeddings
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-
-        # for backward compatibility
-        if num_key_value_heads is None:
-            num_key_value_heads = num_attention_heads
-
-        self.num_key_value_heads = num_key_value_heads
-        self.hidden_act = hidden_act
-        self.initializer_range = initializer_range
-        self.layer_norm_eps = layer_norm_eps
-        self.pretraining_tp = pretraining_tp
-        self.use_cache = use_cache
-        self.rope_theta = rope_theta
-        self.attention_bias = attention_bias
-        self.attention_dropout = attention_dropout
-        self.logit_scale = logit_scale
-        self.use_qk_norm = use_qk_norm
-
-        super().__init__(
-            pad_token_id=pad_token_id,
-            bos_token_id=bos_token_id,
-            eos_token_id=eos_token_id,
-            tie_word_embeddings=tie_word_embeddings,
-            **kwargs,
-        )
 
 
 def load_attention(config, prefix, weights):
@@ -236,23 +182,16 @@ class FlashCohereAttention(torch.nn.Module):
 
         self.use_qk_norm = config.use_qk_norm
         if self.use_qk_norm:
-            rank = weights.process_group.rank()
             self.q_norm = CohereLayerNorm(
                 prefix=f"{prefix}.q_norm",
                 weights=weights,
                 eps=config.layer_norm_eps,
             )
-            self.q_norm.weight.data = self.q_norm.weight[
-                self.num_heads * rank : self.num_heads * (rank + 1)
-            ]
             self.k_norm = CohereLayerNorm(
                 prefix=f"{prefix}.k_norm",
                 weights=weights,
                 eps=config.layer_norm_eps,
             )
-            self.k_norm.weight.data = self.k_norm.weight[
-                self.num_key_value_heads * rank : self.num_key_value_heads * (rank + 1)
-            ]
         else:
             self.q_norm = None
             self.k_norm = None
@@ -263,6 +202,10 @@ class FlashCohereAttention(torch.nn.Module):
             weights=weights,
             bias=config.attention_bias,
         )
+        self.num_groups = self.num_heads // self.num_key_value_heads
+        self.kv_head_mapping = torch.arange(
+            0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
+        ).repeat_interleave(self.num_groups)
 
     def forward(
         self,
@@ -322,7 +265,7 @@ class FlashCohereAttention(torch.nn.Module):
                 query,
                 kv_cache[0],
                 kv_cache[1],
-                self.num_key_value_heads,
+                self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 input_lengths,
