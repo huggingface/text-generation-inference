@@ -340,6 +340,9 @@ class CausalLMBatch(Batch):
 
     @classmethod
     def recombine(cls, batches: List["CausalLMBatch"], pad_token_id: int) -> "CausalLMBatch":
+        if not all(b.past_key_values is not None for b in batches):
+            raise ValueError("KV cache not allocated! Cannot recombine before prefill!")
+
         total_requests = sum(len(b) for b in batches)
         new_bs = round_up(total_requests, BATCH_BUCKET_SIZE)
         batch_id = batches[0].batch_id
