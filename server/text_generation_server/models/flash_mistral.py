@@ -6,8 +6,7 @@ import numpy as np
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import PreTrainedTokenizerBase, AutoTokenizer
-from transformers.models.llama import LlamaTokenizerFast
+from transformers import PreTrainedTokenizerBase, AutoTokenizer, AutoConfig
 from typing import Optional, Tuple, Type
 
 from text_generation_server.pb import generate_pb2
@@ -66,17 +65,19 @@ class FlashMistralBatch(FlashCausalLMBatch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "FlashCausalLMBatch":
+        batch_tokenized_inputs = cls.batch_tokenized_inputs(pb.requests, tokenizer)
+        return cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
+
+    @classmethod
+    def from_tokenized(
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        batch_tokenized_inputs,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "FlashCausalLMBatch":
         sliding_window, sliding_window_blocks = get_sliding_windows()
-
-        batch_inputs = []
-        max_truncation = 0
-        for r in pb.requests:
-            batch_inputs.append(r.inputs)
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs, truncation=True, max_length=max_truncation
-        )["input_ids"]
 
         position_ids = []
         cu_seqlen_prefill = [0]
@@ -301,14 +302,15 @@ class FlashMistralBatch(FlashCausalLMBatch):
 class BaseFlashMistral(FlashCausalLM):
     def __init__(
         self,
-        config_cls,
         model_cls,
         model_id: str,
+        config_cls=AutoConfig,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
         use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
+        tokenizer_class=AutoTokenizer,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -317,22 +319,13 @@ class BaseFlashMistral(FlashCausalLM):
         else:
             raise NotImplementedError("FlashMistral is only available on GPU")
 
-        try:
-            tokenizer = LlamaTokenizerFast.from_pretrained(
-                model_id,
-                revision=revision,
-                padding_side="left",
-                truncation_side="left",
-                trust_remote_code=trust_remote_code,
-            )
-        except Exception:
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_id,
-                revision=revision,
-                padding_side="left",
-                truncation_side="left",
-                trust_remote_code=trust_remote_code,
-            )
+        tokenizer = tokenizer_class.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
 
         config = config_cls.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
@@ -341,10 +334,12 @@ class BaseFlashMistral(FlashCausalLM):
         config.use_medusa = use_medusa
 
         # Set context windows
-        if config.sliding_window is not None:
+        if getattr(config, "sliding_window", None) is not None:
             set_sliding_window(
                 config.sliding_window, math.ceil(config.sliding_window / BLOCK_SIZE)
             )
+        else:
+            config.sliding_window = None
 
         torch.distributed.barrier(group=self.process_group)
 
@@ -353,23 +348,35 @@ class BaseFlashMistral(FlashCausalLM):
         if config.quantize in ["gptq", "awq"]:
             weights._set_gptq_params(model_id, revision)
 
-        model = model_cls(config, weights)
+        prefix = ""
+        model = model_cls(prefix, config, weights)
 
         self.cuda_graphs = {}
 
         torch.distributed.barrier(group=self.process_group)
-        super(BaseFlashMistral, self).__init__(
+        num_layers, num_kv_heads, head_size = self.get_layer_config(model)
+        super().__init__(
             model=model,
             tokenizer=tokenizer,
-            num_layers=len(model.model.layers),
-            num_kv_heads=model.model.num_key_value_heads,
-            head_size=model.model.head_size,
+            num_layers=num_layers,
+            num_kv_heads=num_kv_heads,
+            head_size=head_size,
             dtype=dtype,
             device=device,
             rank=rank,
             world_size=world_size,
             sliding_window=config.sliding_window,
         )
+
+    def get_layer_config(self, model) -> Tuple[int, int, int]:
+        return (
+            len(model.model.layers),
+            model.model.num_key_value_heads,
+            model.model.head_size,
+        )
+
+    def max_past(self) -> int:
+        return self.model.max_past
 
     @property
     def batch_type(self) -> Type[FlashMistralBatch]:
@@ -485,11 +492,11 @@ class BaseFlashMistral(FlashCausalLM):
             max_s = batch.max_seqlen
             lm_head_indices = batch.prefill_head_indices
 
-        if cu_seqlen_prefill is None and self.model.max_past is not None:
+        if cu_seqlen_prefill is None and self.max_past() is not None:
             # In decode, not prefill, we're actually overwriting the KV-cache
             # in a circular buffer mode.
             # This makes sure the max_s for the decode pass is correct.
-            max_s = min(self.model.max_past, max_s)
+            max_s = min(self.max_past(), max_s)
 
         bs = input_ids.shape[0]
         padded_bs = bs

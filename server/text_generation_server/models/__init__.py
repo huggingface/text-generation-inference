@@ -67,6 +67,7 @@ try:
         FlashSantacoderSharded,
     )
     from text_generation_server.models.idefics import IDEFICSSharded
+    from text_generation_server.models.llava_next import LlavaNext
     from text_generation_server.models.flash_mistral import FlashMistral
     from text_generation_server.models.flash_mixtral import FlashMixtral
     from text_generation_server.models.flash_phi import FlashPhi
@@ -578,6 +579,19 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+
+    if model_type == "llava_next":
+        if FLASH_ATTENTION:
+            return LlavaNext(
+                model_id,
+                revision,
+                quantize=quantize,
+                use_medusa=use_medusa,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("LlavaNext"))
 
     if sharded:
         raise NotImplementedError("sharded is not supported for AutoModel")
