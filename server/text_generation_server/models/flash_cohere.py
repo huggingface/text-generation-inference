@@ -3,12 +3,12 @@ import torch.distributed
 
 from opentelemetry import trace
 from typing import Optional
-from transformers.models.cohere import AutoTokenizer, CohereConfig
+from transformers import AutoTokenizer, AutoConfig
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
     FlashCohereForCausalLM,
-    CohereConfig,
+)
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -45,7 +45,7 @@ class FlashCohere(FlashCausalLM):
             from_slow=False,
         )
 
-        config = CohereConfig.from_pretrained(
+        config = AutoConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
