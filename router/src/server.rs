@@ -1,3 +1,4 @@
+use crate::config::Config;
 /// HTTP Server logic
 use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
@@ -164,7 +165,8 @@ async fn generate(
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
 
-    tracing::debug!("Input: {}", req.inputs);
+    // Do not long ultra long inputs, like image payloads.
+    tracing::debug!("Input: {}", &req.inputs[..1000.min(req.inputs.len())]);
 
     let compute_characters = req.inputs.chars().count();
     let mut add_prompt = None;
@@ -1154,6 +1156,7 @@ pub async fn run(
     max_batch_size: Option<usize>,
     client: ShardedClient,
     tokenizer: Option<Tokenizer>,
+    config: Option<Config>,
     validation_workers: usize,
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
@@ -1236,6 +1239,7 @@ pub async fn run(
     let validation = Validation::new(
         validation_workers,
         tokenizer,
+        config,
         max_best_of,
         max_stop_sequences,
         max_top_n_tokens,

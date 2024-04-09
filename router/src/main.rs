@@ -13,6 +13,7 @@ use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use text_generation_client::{ClientError, ShardedClient};
+use text_generation_router::config::Config;
 use text_generation_router::{server, HubModelInfo, HubTokenizerConfig};
 use thiserror::Error;
 use tokenizers::Tokenizer;
@@ -191,15 +192,19 @@ async fn main() -> Result<(), RouterError> {
     };
 
     // Load tokenizer and model info
-    let (tokenizer, model_info) = if local_model {
+    let (tokenizer, model_info, config) = if local_model {
         let tokenizer = Tokenizer::from_file(local_path.join("tokenizer.json")).ok();
         let model_info = HubModelInfo {
             model_id: tokenizer_name.to_string(),
             sha: None,
             pipeline_tag: None,
         };
+        let config: Option<Config> = std::fs::read_to_string(local_path.join("config.json"))
+            .ok()
+            .as_ref()
+            .and_then(|c| serde_json::from_str(c).ok());
 
-        (tokenizer, model_info)
+        (tokenizer, model_info, config)
     } else if let Some(api) = api.clone() {
         let api_repo = api.repo(Repo::with_revision(
             tokenizer_name.to_string(),
@@ -212,6 +217,19 @@ async fn main() -> Result<(), RouterError> {
             Err(_) => get_base_tokenizer(&api, &api_repo).await,
         };
 
+        let config: Option<Config> = api_repo.get("config.json").await.ok().and_then(|filename| {
+            std::fs::read_to_string(filename)
+                .ok()
+                .as_ref()
+                .and_then(|c| {
+                    let config: Result<Config, _> = serde_json::from_str(c);
+                    if let Err(err) = &config {
+                        tracing::warn!("Could not parse config {err:?}");
+                    }
+                    config.ok()
+                })
+        });
+
         let model_info = get_model_info(&api_repo).await.unwrap_or_else(|| {
             tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
             HubModelInfo {
@@ -221,13 +239,15 @@ async fn main() -> Result<(), RouterError> {
             }
         });
 
-        (tokenizer, model_info)
+        (tokenizer, model_info, config)
     } else {
         // No API and no local model
         return Err(RouterError::ArgumentValidation(
             "No local model found and no revision specified".to_string(),
         ));
     };
+
+    tracing::info!("Using config {config:?}");
 
     // Load tokenizer config if found locally, or check if we can get it from the API if needed
     let tokenizer_config = if let Some(path) = tokenizer_config_path {
@@ -363,6 +383,7 @@ async fn main() -> Result<(), RouterError> {
         max_batch_size,
         sharded_client,
         tokenizer,
+        config,
         validation_workers,
         addr,
         cors_allow_origin,
