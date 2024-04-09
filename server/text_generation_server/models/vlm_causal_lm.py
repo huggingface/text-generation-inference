@@ -1,5 +1,6 @@
 import re
 import torch
+import math
 from PIL import Image
 from io import BytesIO
 import base64
@@ -80,7 +81,6 @@ def get_number_of_features(height: int, width: int, config) -> int:
         image_grid_pinpoints,
         image_size,
     )
-    import math
 
     height_of_patch = math.ceil(height / width * npatches)
 
