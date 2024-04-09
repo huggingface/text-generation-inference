@@ -90,9 +90,6 @@ def get_number_of_features(height: int, width: int, config) -> int:
     # The base patch covers the entire image
     base_features = npatches**2
     return unpadded_features + newline_features + base_features
-    if height == 640 and width == 640:
-        return 2928
-    return 2634
 
 
 def load_data_uri(image_uri: str) -> Image.Image:
@@ -138,13 +135,16 @@ class VlmCausalLMBatch(FlashMistralBatch):
                     full_text += chunk["content"]
                 elif chunk["type"] == "image":
                     image = chunk["content"]
-                    if image.startswith("https://") or image.startswith("http://"):
-                        image = processor.image_processor.fetch_images(image)
-                    elif image.startswith("data:"):
+                    # Should never receive URLs anymore, processing should be done
+                    # On the rust layer.
+                    # This avoid making n queries per TP
+                    # if image.startswith("https://") or image.startswith("http://"):
+                    #     image = processor.image_processor.fetch_images(image)
+                    if image.startswith("data:"):
                         image = load_data_uri(image)
                     else:
                         raise RuntimeError(
-                            "Cannot process input image not starting with http(s):// nor data:"
+                            "Cannot process input image not starting with data:"
                         )
                     image_input = processor.image_processor(image, return_tensors="pt")
                     height, width = image_input["image_sizes"][0]

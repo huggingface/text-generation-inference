@@ -1,3 +1,4 @@
+use crate::config::Config;
 /// HTTP Server logic
 use crate::health::Health;
 use crate::infer::{InferError, InferResponse, InferStreamResponse};
@@ -1155,6 +1156,7 @@ pub async fn run(
     max_batch_size: Option<usize>,
     client: ShardedClient,
     tokenizer: Option<Tokenizer>,
+    config: Option<Config>,
     validation_workers: usize,
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
@@ -1237,6 +1239,7 @@ pub async fn run(
     let validation = Validation::new(
         validation_workers,
         tokenizer,
+        config,
         max_best_of,
         max_stop_sequences,
         max_top_n_tokens,
