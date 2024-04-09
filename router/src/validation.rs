@@ -646,9 +646,11 @@ mod tests {
         let max_total_tokens = 6;
         let workers = 1;
         let disable_grammar_support = true;
+        let config = None;
         let validation = Validation::new(
             workers,
             tokenizer,
+            config,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -677,9 +679,11 @@ mod tests {
         let max_total_tokens = 6;
         let disable_grammar_support = true;
         let workers = 1;
+        let config = None;
         let validation = Validation::new(
             workers,
             tokenizer,
+            config,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -708,9 +712,11 @@ mod tests {
         let max_total_tokens = 6;
         let workers = 1;
         let disable_grammar_support = true;
+        let config = None;
         let validation = Validation::new(
             workers,
             tokenizer,
+            config,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -744,9 +750,11 @@ mod tests {
         let max_total_tokens = 106;
         let workers = 1;
         let disable_grammar_support = true;
+        let config = None;
         let validation = Validation::new(
             workers,
             tokenizer,
+            config,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -809,9 +817,11 @@ mod tests {
         let max_total_tokens = 106;
         let workers = 1;
         let disable_grammar_support = true;
+        let config = None;
         let validation = Validation::new(
             workers,
             tokenizer,
+            config,
             max_best_of,
             max_stop_sequences,
             max_top_n_tokens,
