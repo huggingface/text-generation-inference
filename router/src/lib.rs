@@ -155,6 +155,8 @@ pub struct Info {
     pub max_batch_size: Option<usize>,
     #[schema(example = "2")]
     pub validation_workers: usize,
+    #[schema(example = "32")]
+    pub max_client_batch_size: usize,
     /// Router Info
     #[schema(example = "0.5.0")]
     pub version: &'static str,
@@ -284,28 +286,20 @@ mod prompt_serde {
     use serde::{self, Deserialize, Deserializer};
     use serde_json::Value;
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
     where
         D: Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
         match value {
-            Value::String(s) => Ok(s),
-            Value::Array(arr) => {
-                if arr.len() == 1 {
-                    match arr[0].as_str() {
-                        Some(s) => Ok(s.to_string()),
-                        None => Err(serde::de::Error::custom(
-                            "Array contains non-string elements",
-                        )),
-                    }
-                } else {
-                    Err(serde::de::Error::custom(
-                        "Array contains non-string element. Expected string. In general arrays should not be used for prompts. Please use a string instead if possible.",
-                    ))
-                }
-            }
-
+            Value::String(s) => Ok(vec![s]),
+            Value::Array(arr) => arr
+                .iter()
+                .map(|v| match v {
+                    Value::String(s) => Ok(s.to_owned()),
+                    _ => Err(serde::de::Error::custom("Expected a string")),
+                })
+                .collect(),
             _ => Err(serde::de::Error::custom(
                 "Expected a string or an array of strings",
             )),
@@ -323,7 +317,7 @@ pub struct CompletionRequest {
     /// The prompt to generate completions for.
     #[schema(example = "What is Deep Learning?")]
     #[serde(deserialize_with = "prompt_serde::deserialize")]
-    pub prompt: String,
+    pub prompt: Vec<String>,
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
@@ -960,6 +954,20 @@ pub(crate) struct Details {
     pub best_of_sequences: Option<Vec<BestOfSequence>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub top_tokens: Vec<Vec<Token>>,
+}
+
+impl Default for Details {
+    fn default() -> Self {
+        Self {
+            finish_reason: FinishReason::Length,
+            generated_tokens: 0,
+            seed: None,
+            prefill: Vec::new(),
+            tokens: Vec::new(),
+            best_of_sequences: None,
+            top_tokens: Vec::new(),
+        }
+    }
 }
 
 #[derive(Serialize, ToSchema)]
