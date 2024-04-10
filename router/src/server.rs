@@ -639,6 +639,10 @@ async fn completions(
         generate_requests.push(generate_request);
     }
 
+    let mut x_compute_type = "unknown".to_string();
+    let mut x_compute_characters = 0u32;
+    let mut x_accel_buffering = "no".to_string();
+
     if stream {
         let response_streams = FuturesUnordered::new();
         for (index, generate_request) in generate_requests.into_iter().enumerate() {
@@ -677,7 +681,6 @@ async fn completions(
                         |data| data,
                     )
             };
-
             let (headers, response_stream) = generate_stream_internal(
                 infer.clone(),
                 compute_type.clone(),
@@ -685,7 +688,20 @@ async fn completions(
                 on_message_callback,
             )
             .await;
-
+            if index == 0 {
+                x_compute_type = headers
+                    .get("x-compute-type")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or("unknown".to_string());
+                x_accel_buffering = headers
+                    .get("x-accel-buffering")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or("no".to_string());
+            }
+            x_compute_characters += headers
+                .get("x-compute-characters")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
             response_streams.push((headers, Box::pin(response_stream)));
         }
 
@@ -698,8 +714,13 @@ async fn completions(
             }
         };
 
+        let mut headers = HeaderMap::new();
+        headers.insert("x-compute-type", x_compute_type.parse().unwrap());
+        headers.insert("x-compute-characters", x_compute_characters.into());
+        headers.insert("x-accel-buffering", x_accel_buffering.parse().unwrap());
+
         let sse = Sse::new(stream).keep_alive(KeepAlive::default());
-        return Ok((HeaderMap::new(), sse).into_response());
+        return Ok((headers, sse).into_response());
     }
 
     let current_time = std::time::SystemTime::now()
@@ -722,11 +743,7 @@ async fn completions(
     let mut completion_tokens = 0u32;
     let mut total_tokens = 0u32;
 
-    let mut headers = HeaderMap::new();
-
-    let mut x_compute_type: Option<String> = None;
     let mut x_compute_time = 0u32;
-    let mut x_compute_characters = 0u32;
     let mut x_total_time = 0u32;
     let mut x_validation_time = 0u32;
     let mut x_queue_time = 0u32;
@@ -735,44 +752,57 @@ async fn completions(
     let mut x_prompt_tokens = 0u32;
     let mut x_generated_tokens = 0u32;
 
-    // helper closure to extract a header value or default to 0
-    let extract_or_zero = |headers: &HeaderMap, key: &str| {
-        headers
-            .get(key)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("0")
-            .parse::<u32>()
-            .unwrap_or(0)
-    };
-
     let choices = generate_responses
         .into_iter()
         .enumerate()
         .map(|(index, (headers, Json(generation)))| {
             let details = generation.details.unwrap_or_default();
-            if x_compute_type.is_none() {
-                x_compute_type = Some(
-                    headers
-                        .get("x-compute-type")
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .to_string(),
-                );
+            if index == 0 {
+                x_compute_type = headers
+                    .get("x-compute-type")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("unknown")
+                    .to_string();
             }
 
-            // update headers
-            x_compute_time += extract_or_zero(&headers, "x-compute-time");
-            x_compute_characters += extract_or_zero(&headers, "x-compute-characters");
-            x_total_time += extract_or_zero(&headers, "x-total-time");
-            x_validation_time += extract_or_zero(&headers, "x-validation-time");
-            x_queue_time += extract_or_zero(&headers, "x-queue-time");
-            x_inference_time += extract_or_zero(&headers, "x-inference-time");
-            x_time_per_token += extract_or_zero(&headers, "x-time-per-token");
-            x_prompt_tokens += extract_or_zero(&headers, "x-prompt-tokens");
-            x_generated_tokens += extract_or_zero(&headers, "x-generated-tokens");
+            // accumulate headers and usage from each response
+            x_compute_time += headers
+                .get("x-compute-time")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            x_compute_characters += headers
+                .get("x-compute-characters")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            x_total_time += headers
+                .get("x-total-time")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            x_validation_time += headers
+                .get("x-validation-time")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            x_queue_time += headers
+                .get("x-queue-time")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            x_inference_time += headers
+                .get("x-inference-time")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            x_time_per_token += headers
+                .get("x-time-per-token")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            x_prompt_tokens += headers
+                .get("x-prompt-tokens")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            x_generated_tokens += headers
+                .get("x-generated-tokens")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
 
-            // update usage
             prompt_tokens += details.prefill.len() as u32;
             completion_tokens += details.generated_tokens;
             total_tokens += details.prefill.len() as u32 + details.generated_tokens;
@@ -785,45 +815,6 @@ async fn completions(
             }
         })
         .collect::<Vec<_>>();
-
-    // Headers similar to `generate` but aggregated
-    headers.insert(
-        "x-compute-type",
-        x_compute_type
-            .unwrap_or("unknown".to_string())
-            .parse()
-            .unwrap(),
-    );
-    headers.insert(
-        "x-compute-time",
-        x_compute_time.to_string().parse().unwrap(),
-    );
-    headers.insert(
-        "x-compute-characters",
-        x_compute_characters.to_string().parse().unwrap(),
-    );
-    headers.insert("x-total-time", x_total_time.to_string().parse().unwrap());
-    headers.insert(
-        "x-validation-time",
-        x_validation_time.to_string().parse().unwrap(),
-    );
-    headers.insert("x-queue-time", x_queue_time.to_string().parse().unwrap());
-    headers.insert(
-        "x-inference-time",
-        x_inference_time.to_string().parse().unwrap(),
-    );
-    headers.insert(
-        "x-time-per-token",
-        x_time_per_token.to_string().parse().unwrap(),
-    );
-    headers.insert(
-        "x-prompt-tokens",
-        x_prompt_tokens.to_string().parse().unwrap(),
-    );
-    headers.insert(
-        "x-generated-tokens",
-        x_generated_tokens.to_string().parse().unwrap(),
-    );
 
     let response = Completion {
         id: "".to_string(),
@@ -838,6 +829,19 @@ async fn completions(
             total_tokens,
         },
     };
+
+    // headers similar to `generate` but aggregated
+    let mut headers = HeaderMap::new();
+    headers.insert("x-compute-type", x_compute_type.parse().unwrap());
+    headers.insert("x-compute-characters", x_compute_characters.into());
+    headers.insert("x-total-time", x_total_time.into());
+    headers.insert("x-validation-time", x_validation_time.into());
+    headers.insert("x-queue-time", x_queue_time.into());
+    headers.insert("x-inference-time", x_inference_time.into());
+    headers.insert("x-time-per-token", x_time_per_token.into());
+    headers.insert("x-prompt-tokens", x_prompt_tokens.into());
+    headers.insert("x-generated-tokens", x_generated_tokens.into());
+    headers.insert("x-accel-buffering", x_accel_buffering.parse().unwrap());
 
     Ok((headers, Json(response)).into_response())
 }
