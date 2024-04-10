@@ -757,23 +757,17 @@ async fn chat_completions(
     metrics::increment_counter!("tgi_request_count");
 
     let ChatRequest {
-        frequency_penalty: _,
-        logit_bias: _,
         logprobs,
         max_tokens,
         messages,
-        model: _,
-        n: _,
         presence_penalty,
         seed,
         stop,
         stream,
-        temperature: _,
         tools,
         tool_choice,
         tool_prompt,
-        top_p: _,
-        top_logprobs: _,
+        ..
     } = req;
 
     let repetition_penalty = presence_penalty.map(|x| x + 2.0);
@@ -798,8 +792,16 @@ async fn chat_completions(
         }
     };
 
+    let grammar_with_prompt = tool_grammar
+        .as_ref()
+        .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt));
+
+    let typed_grammar = grammar_with_prompt
+        .as_ref()
+        .map(|(grammar, _)| grammar.clone());
+
     // apply chat template to flatten the request into a single input
-    let mut inputs = match infer.apply_chat_template(messages) {
+    let inputs = match infer.apply_chat_template(messages, grammar_with_prompt) {
         Ok(inputs) => inputs,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
@@ -812,22 +814,6 @@ async fn chat_completions(
                 }),
             ));
         }
-    };
-
-    let grammar = if let Some(tools) = &tool_grammar {
-        let tools_str = serde_json::to_string(&tools).map_err(|e| {
-            (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse {
-                    error: e.to_string(),
-                    error_type: "Input validation error".to_string(),
-                }),
-            )
-        })?;
-        inputs = format!("{inputs}{tool_prompt}{tools_str}");
-        Some(GrammarType::Json(serde_json::json!(tools)))
-    } else {
-        None
     };
 
     // build the request passing some parameters
@@ -851,7 +837,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: req.top_logprobs,
-            grammar,
+            grammar: typed_grammar,
         },
     };
 
@@ -934,7 +920,6 @@ async fn chat_completions(
                         }),
                     )
                 })?;
-
             let tool_calls = vec![ToolCall {
                 id: 0,
                 r#type: "function".to_string(),

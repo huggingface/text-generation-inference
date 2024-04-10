@@ -71,7 +71,6 @@ tools = [
 ]
 
 
-@pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_no_tools(
     flash_llama_grammar_tools, response_snapshot
@@ -98,7 +97,6 @@ async def test_flash_llama_grammar_no_tools(
     assert response == response_snapshot
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_snapshot):
@@ -121,23 +119,18 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
     assert response.choices[0].message.content == None
     assert response.choices[0].message.tool_calls == [
         {
-            "function": {
-                "description": None,
-                "name": "tools",
-                "parameters": {
-                    "format": "celsius",
-                    "location": "New York, NY",
-                    "num_days": 14,
-                },
-            },
             "id": 0,
             "type": "function",
+            "function": {
+                "description": None,
+                "name": "get_current_weather",
+                "arguments": {"format": "celsius", "location": "Brooklyn"},
+            },
         }
     ]
     assert response == response_snapshot
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_auto(
@@ -163,23 +156,19 @@ async def test_flash_llama_grammar_tools_auto(
     assert response.choices[0].message.content == None
     assert response.choices[0].message.tool_calls == [
         {
-            "function": {
-                "description": None,
-                "name": "tools",
-                "parameters": {
-                    "format": "celsius",
-                    "location": "New York, NY",
-                    "num_days": 14,
-                },
-            },
             "id": 0,
             "type": "function",
+            "function": {
+                "description": None,
+                "name": "get_current_weather",
+                "arguments": {"format": "celsius", "location": "Brooklyn"},
+            },
         }
     ]
+
     assert response == response_snapshot
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_choice(
@@ -209,15 +198,15 @@ async def test_flash_llama_grammar_tools_choice(
             "type": "function",
             "function": {
                 "description": None,
-                "name": "tools",
-                "parameters": {"format": "celsius", "location": "New York, NY"},
+                "name": "get_current_weather",
+                "arguments": {"format": "celsius", "location": "New York, NY"},
             },
         }
     ]
+
     assert response == response_snapshot
 
 
-@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_stream(
@@ -246,5 +235,47 @@ async def test_flash_llama_grammar_tools_stream(
     async for response in responses:
         count += 1
 
-    assert count == 20
+    assert count == 38
     assert response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_insufficient_information(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=26,
+        tools=tools,
+        tool_choice="auto",
+        messages=[
+            {
+                "role": "system",
+                "content": "ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
+            },
+            {
+                "role": "user",
+                "content": "Tell me a story about 3 sea creatures",
+            },
+        ],
+        stream=False,
+    )
+
+    assert responses.choices[0].message.content == None
+    assert responses.choices[0].message.tool_calls == [
+        {
+            "id": 0,
+            "type": "function",
+            "function": {
+                "description": None,
+                "name": "default_function_name",
+                "arguments": {
+                    "error": "One of the parameters (e.g. 'number_of_days') is not valid or is too few.",
+                    "name": "notify_error",
+                },
+            },
+        }
+    ]
+
+    assert responses == response_snapshot
