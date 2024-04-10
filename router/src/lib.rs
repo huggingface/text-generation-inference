@@ -49,9 +49,22 @@ pub struct HubModelInfo {
     pub pipeline_tag: Option<String>,
 }
 
-#[derive(Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct ChatTemplate {
+    name: String,
+    template: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum ChatTemplateVersions {
+    Single(String),
+    Multiple(Vec<ChatTemplate>),
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct HubTokenizerConfig {
-    pub chat_template: Option<String>,
+    pub chat_template: Option<ChatTemplateVersions>,
     pub completion_template: Option<String>,
     #[serde(deserialize_with = "token_serde::deserialize")]
     pub bos_token: Option<String>,
@@ -978,7 +991,10 @@ mod tests {
         let config: HubTokenizerConfig = serde_json::from_str(json_content).unwrap();
 
         // check that we successfully parsed the tokens
-        assert_eq!(config.chat_template, Some("test".to_string()));
+        assert_eq!(
+            config.chat_template,
+            Some(ChatTemplateVersions::Single("test".to_string()))
+        );
         assert_eq!(
             config.bos_token,
             Some("<｜begin▁of▁sentence｜>".to_string())
@@ -1010,7 +1026,10 @@ mod tests {
         let config: HubTokenizerConfig = serde_json::from_str(json_content).unwrap();
 
         // check that we successfully parsed the tokens
-        assert_eq!(config.chat_template, Some("test".to_string()));
+        assert_eq!(
+            config.chat_template,
+            Some(ChatTemplateVersions::Single("test".to_string()))
+        );
         assert_eq!(
             config.bos_token,
             Some("<｜begin▁of▁sentence｜>".to_string())
