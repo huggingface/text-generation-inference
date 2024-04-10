@@ -23,10 +23,10 @@ import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.utils.import_utils import IS_ROCM_SYSTEM, IS_CUDA_SYSTEM
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -34,64 +34,105 @@ from text_generation_server.utils.layers import (
     PositionRotaryEmbedding,
     SpeculativeHead,
     get_linear,
-    FastRMSNorm,
+    FastLayerNorm,
 )
 
+if IS_CUDA_SYSTEM:
+    import dropout_layer_norm
+else:
+    dropout_layer_norm = None
 
-class CohereConfig(PretrainedConfig):
-    def __init__(
+
+class CohereRotary(PositionRotaryEmbedding):
+    def forward(
         self,
-        vocab_size=256000,
-        hidden_size=8192,
-        intermediate_size=22528,
-        num_hidden_layers=40,
-        num_attention_heads=64,
-        num_key_value_heads=None,
-        hidden_act="silu",
-        max_position_embeddings=8192,
-        initializer_range=0.02,
-        layer_norm_eps=1e-5,
-        use_cache=True,
-        pad_token_id=0,
-        bos_token_id=5,
-        eos_token_id=255001,
-        pretraining_tp=1,
-        tie_word_embeddings=True,
-        rope_theta=10000.0,
-        attention_bias=False,
-        attention_dropout=0.0,
-        logit_scale=1.0,
-        **kwargs,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        cos: torch.Tensor,
+        sin: torch.Tensor,
     ):
-        self.vocab_size = vocab_size
-        self.max_position_embeddings = max_position_embeddings
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
+        # Such controlflows may add some overhead.
+        if IS_CUDA_SYSTEM:
+            import rotary_emb
 
-        # for backward compatibility
-        if num_key_value_heads is None:
-            num_key_value_heads = num_attention_heads
+            q1 = query[..., ::2]
+            q2 = query[..., 1::2]
 
-        self.num_key_value_heads = num_key_value_heads
-        self.hidden_act = hidden_act
-        self.initializer_range = initializer_range
-        self.layer_norm_eps = layer_norm_eps
-        self.pretraining_tp = pretraining_tp
-        self.use_cache = use_cache
-        self.rope_theta = rope_theta
-        self.attention_bias = attention_bias
-        self.attention_dropout = attention_dropout
-        self.logit_scale = logit_scale
+            rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, False)
 
-        super().__init__(
-            pad_token_id=pad_token_id,
-            bos_token_id=bos_token_id,
-            eos_token_id=eos_token_id,
-            tie_word_embeddings=tie_word_embeddings,
-            **kwargs,
+            k1 = key[..., ::2]
+            k2 = key[..., 1::2]
+
+            rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
+        elif IS_ROCM_SYSTEM:
+            from vllm import pos_encoding_ops
+
+            # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
+            # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773
+
+            head_size = query.shape[-1]
+
+            # Inplace operation, updating query and key.
+            pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, False)
+        else:
+            raise ValueError(
+                "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
+            )
+
+
+class CohereLayerNorm(nn.Module):
+    def __init__(self, prefix, weights, eps):
+        super().__init__()
+        weight = weights.get_sharded(f"{prefix}.weight", dim=0)
+        self.weight = nn.Parameter(weight)
+        # Fake weights
+        self.ones = weight.new_ones(weight.shape[1])
+        self.eps = eps
+
+    def forward(self, hidden_states):
+        if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
+            hidden_states = hidden_states.reshape(
+                -1, self.weight.shape[0], self.weight.shape[1]
+            )
+            input_dtype = hidden_states.dtype
+            hidden_states = hidden_states.to(torch.float32)
+            mean = hidden_states.mean(-1, keepdim=True)
+            hidden_states_minus_mean = hidden_states - mean
+            variance = hidden_states_minus_mean.pow(2).mean(-1, keepdim=True)
+            hidden_states = hidden_states_minus_mean * torch.rsqrt(variance + self.eps)
+            hidden_states = self.weight.to(torch.float32) * hidden_states
+            hidden_states = hidden_states.view(-1, self.weight.shape[1])
+            return hidden_states.to(input_dtype)
+
+        (
+            hidden_states,
+            *rest,
+        ) = dropout_layer_norm.dropout_add_ln_fwd(
+            hidden_states,
+            None,
+            self.ones,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.0,
+            self.eps,
+            1.0,
+            0,
+            None,
+            False,
+            False,
         )
+
+        # Required to apply one weight matrix per head
+        hidden_states = hidden_states.view(
+            -1, self.weight.shape[0], self.weight.shape[1]
+        )
+        hidden_states = self.weight * hidden_states
+        hidden_states = hidden_states.view(-1, self.weight.shape[1])
+
+        return hidden_states
 
 
 def load_attention(config, prefix, weights):
@@ -154,7 +195,7 @@ class FlashCohereAttention(torch.nn.Module):
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
-        self.rotary_emb = PositionRotaryEmbedding.static(
+        self.rotary_emb = CohereRotary.static(
             config=config,
             dim=self.head_size,
             base=config.rope_theta,
@@ -174,6 +215,22 @@ class FlashCohereAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+
+        self.use_qk_norm = config.use_qk_norm
+        if self.use_qk_norm:
+            self.q_norm = CohereLayerNorm(
+                prefix=f"{prefix}.q_norm",
+                weights=weights,
+                eps=config.layer_norm_eps,
+            )
+            self.k_norm = CohereLayerNorm(
+                prefix=f"{prefix}.k_norm",
+                weights=weights,
+                eps=config.layer_norm_eps,
+            )
+        else:
+            self.q_norm = None
+            self.k_norm = None
 
         self.o_proj = TensorParallelRowLinear.load(
             config,
@@ -199,21 +256,28 @@ class FlashCohereAttention(torch.nn.Module):
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
-        query, kv = qkv.split(
+        query, key, value = qkv.split(
             [
                 self.head_size * self.num_heads,
-                2 * self.head_size * self.num_key_value_heads,
+                self.head_size * self.num_key_value_heads,
+                self.head_size * self.num_key_value_heads,
             ],
             dim=1,
         )
+
+        if self.use_qk_norm:
+            query = query.reshape(-1, self.head_size)
+            key = key.reshape(-1, self.head_size)
+            query = self.q_norm(query.contiguous())
+            key = self.k_norm(key.contiguous())
+
         query = query.view(-1, self.num_heads, self.head_size)
-        kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
+        key = key.view(-1, self.num_key_value_heads, self.head_size)
+        value = value.view(-1, self.num_key_value_heads, self.head_size)
 
-        self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
+        self.rotary_emb(query, key, cos, sin)
 
-        paged_attention.reshape_and_cache(
-            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
-        )
+        paged_attention.reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
 
         # output tensor
         attn_output = torch.empty_like(query)
@@ -223,8 +287,8 @@ class FlashCohereAttention(torch.nn.Module):
             # flash attention
             flash_attn.attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
+                key,
+                value,
                 attn_output,
                 cu_seqlen_prefill,
                 max_s,
@@ -298,7 +362,7 @@ class FlashCohereLayer(nn.Module):
         )
         self.mlp = CohereMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
-        self.input_layernorm = FastRMSNorm.load(
+        self.input_layernorm = FastLayerNorm.load_no_bias(
             prefix=f"{prefix}.input_layernorm",
             weights=weights,
             eps=config.layer_norm_eps,
@@ -362,7 +426,7 @@ class FlashCohereModel(torch.nn.Module):
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
-        self.norm = FastRMSNorm.load(
+        self.norm = FastLayerNorm.load_no_bias(
             prefix="model.norm", weights=weights, eps=config.layer_norm_eps
         )
 
