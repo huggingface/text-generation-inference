@@ -19,7 +19,6 @@ from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
 from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
-from text_generation_server.utils.log import log_once
 
 HAS_AWQ = True
 try:
@@ -35,12 +34,6 @@ except Exception:
 HAS_EXLLAMA = False
 CAN_EXLLAMA = major >= 8 or IS_ROCM_SYSTEM
 V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
-# if V2 and int(os.getenv("WORLD_SIZE", "1")) > 1:
-#     V2 = False
-#     log_once(
-#         logger.warning,
-#         "Disabling exllama v2 and using v1 instead because there are issues when sharding",
-#     )
 
 if os.getenv("DISABLE_EXLLAMA") == "True":
     HAS_EXLLAMA = False
