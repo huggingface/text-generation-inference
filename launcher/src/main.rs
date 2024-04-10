@@ -499,6 +499,9 @@ fn shard_manager(
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
+    // Remove LOG_LEVEL if present
+    envs.retain(|(name, _)| name != "LOG_LEVEL");
+
     // Torch Distributed Env vars
     envs.push(("RANK".into(), rank.to_string().into()));
     envs.push(("WORLD_SIZE".into(), world_size.to_string().into()));
@@ -586,6 +589,7 @@ fn shard_manager(
     tracing::info!("Starting shard");
     let mut p = match Command::new("text-generation-server")
         .args(shard_args)
+        .env_clear()
         .envs(envs)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -824,6 +828,9 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
 
+    // Remove LOG_LEVEL if present
+    envs.retain(|(name, _)| name != "LOG_LEVEL");
+
     // Disable progress bar
     envs.push(("HF_HUB_DISABLE_PROGRESS_BARS".into(), "1".into()));
 
@@ -858,6 +865,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     tracing::info!("Starting download process.");
     let mut download_process = match Command::new("text-generation-server")
         .args(download_args)
+        .env_clear()
         .envs(envs)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

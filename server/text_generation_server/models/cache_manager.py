@@ -43,7 +43,7 @@ class CacheManager:
         ]
         self.free_block_mask = torch.ones(num_blocks, dtype=torch.int32, device="cpu")
         self.slots = torch.arange(
-            0, num_blocks * self.block_size, dtype=torch.int32
+            0, num_blocks * self.block_size, dtype=torch.int64
         ).view(num_blocks, self.block_size)
 
     def allocate(

@@ -3,12 +3,11 @@ import torch.distributed
 
 from opentelemetry import trace
 from typing import Optional
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoConfig
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
     FlashCohereForCausalLM,
-    CohereConfig,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -32,7 +31,7 @@ class FlashCohere(FlashCausalLM):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.bfloat16 if dtype is None else dtype
+            dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashCohere is only available on GPU")
 
@@ -46,7 +45,7 @@ class FlashCohere(FlashCausalLM):
             from_slow=False,
         )
 
-        config = CohereConfig.from_pretrained(
+        config = AutoConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize

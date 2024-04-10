@@ -85,7 +85,7 @@ FROM pytorch-install as kernel-builder
 ARG MAX_JOBS=8
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ninja-build \
+        ninja-build cmake \
         && rm -rf /var/lib/apt/lists/*
 
 # Build Flash Attention CUDA kernels
@@ -160,11 +160,6 @@ WORKDIR /usr/src
 COPY server/Makefile-selective-scan Makefile
 RUN make build-all
 
-# Build megablocks
-FROM kernel-builder as megablocks-builder
-
-RUN pip install git+https://github.com/OlivierDehaene/megablocks@181709df192de9a941fdf3a641cdc65a0462996e
-
 # Text Generation Inference base image
 FROM nvidia/cuda:12.1.0-base-ubuntu22.04 as base
 
@@ -186,8 +181,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         curl \
         && rm -rf /var/lib/apt/lists/*
 
-# Copy conda with PyTorch and Megablocks installed
-COPY --from=megablocks-builder /opt/conda /opt/conda
+# Copy conda with PyTorch installed
+COPY --from=pytorch-install /opt/conda /opt/conda
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
@@ -215,7 +210,7 @@ COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/c
 COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 
-# Install flash-attention dependencies
+# Install vllm/flash-attention dependencies
 RUN pip install einops --no-cache-dir
 
 # Install server
