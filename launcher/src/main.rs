@@ -1332,11 +1332,14 @@ fn main() -> Result<(), LauncherError> {
         }
     };
     let max_batch_prefill_tokens = {
-        // TODO get config.
         match args.max_batch_prefill_tokens {
             Some(max_batch_prefill_tokens) => max_batch_prefill_tokens,
             None => {
-                let value = config.max_position_embeddings as u32 - 1;
+                let value: u32 = if let Some(max_batch_size) = args.max_batch_size {
+                    max_batch_size * max_input_tokens
+                } else {
+                    max_input_tokens
+                } as u32;
                 tracing::info!("Default `max_batch_prefill_tokens` to {value}");
                 value
             }

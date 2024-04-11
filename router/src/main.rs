@@ -402,12 +402,15 @@ async fn main() -> Result<(), RouterError> {
 ///     - otlp_endpoint is an optional URL to an Open Telemetry collector
 ///     - LOG_LEVEL may be TRACE, DEBUG, INFO, WARN or ERROR (default to INFO)
 ///     - LOG_FORMAT may be TEXT or JSON (default to TEXT)
+///     - LOG_COLORIZE may be "false" or "true" (default to "true" or ansi supported platforms)
 fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
     let mut layers = Vec::new();
 
     // STDOUT/STDERR layer
+    let ansi = std::env::var("LOG_COLORIZE") != Ok("1".to_string());
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_file(true)
+        .with_ansi(ansi)
         .with_line_number(true);
 
     let fmt_layer = match json_output {
