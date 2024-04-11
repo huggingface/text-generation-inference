@@ -71,5 +71,7 @@ COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/
 # Final image
 FROM base
 
-ENTRYPOINT ["text-generation-launcher"]
+COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
+
+ENTRYPOINT ["/tgi-entrypoint.sh"]
 CMD ["--json-output"]
