@@ -38,7 +38,7 @@ struct Args {
     #[clap(default_value = "5", long, env)]
     max_top_n_tokens: u32,
     #[clap(default_value = "1024", long, env)]
-    max_input_length: usize,
+    max_input_tokens: usize,
     #[clap(default_value = "2048", long, env)]
     max_total_tokens: usize,
     #[clap(default_value = "1.2", long, env)]
@@ -93,7 +93,7 @@ async fn main() -> Result<(), RouterError> {
         max_best_of,
         max_stop_sequences,
         max_top_n_tokens,
-        max_input_length,
+        max_input_tokens,
         max_total_tokens,
         waiting_served_ratio,
         max_batch_prefill_tokens,
@@ -121,13 +121,13 @@ async fn main() -> Result<(), RouterError> {
     init_logging(otlp_endpoint, json_output);
 
     // Validate args
-    if max_input_length >= max_total_tokens {
+    if max_input_tokens >= max_total_tokens {
         return Err(RouterError::ArgumentValidation(
-            "`max_input_length` must be < `max_total_tokens`".to_string(),
+            "`max_input_tokens` must be < `max_total_tokens`".to_string(),
         ));
     }
-    if max_input_length as u32 > max_batch_prefill_tokens {
-        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_length`. Given: {max_batch_prefill_tokens} and {max_input_length}")));
+    if max_input_tokens as u32 > max_batch_prefill_tokens {
+        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {max_batch_prefill_tokens} and {max_input_tokens}")));
     }
 
     if validation_workers == 0 {
@@ -340,7 +340,7 @@ async fn main() -> Result<(), RouterError> {
     tracing::info!("Warming up model");
     let max_supported_batch_total_tokens = match sharded_client
         .warmup(
-            max_input_length as u32,
+            max_input_tokens as u32,
             max_batch_prefill_tokens,
             max_total_tokens as u32,
             max_batch_size,
@@ -403,7 +403,7 @@ async fn main() -> Result<(), RouterError> {
         max_best_of,
         max_stop_sequences,
         max_top_n_tokens,
-        max_input_length,
+        max_input_tokens,
         max_total_tokens,
         waiting_served_ratio,
         max_batch_prefill_tokens,
