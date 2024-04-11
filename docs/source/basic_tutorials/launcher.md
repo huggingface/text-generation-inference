@@ -405,7 +405,7 @@ Options:
           Control the maximum number of inputs that a client can send in a single request
           
           [env: MAX_CLIENT_BATCH_SIZE=]
-          [default: 32]
+          [default: 4]
 
 ```
 ## HELP
