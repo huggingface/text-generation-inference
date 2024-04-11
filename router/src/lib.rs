@@ -293,6 +293,9 @@ mod prompt_serde {
         let value = Value::deserialize(deserializer)?;
         match value {
             Value::String(s) => Ok(vec![s]),
+            Value::Array(arr) if arr.is_empty() => Err(serde::de::Error::custom(
+                "Empty array detected. Do not use an empty array for the prompt.",
+            )),
             Value::Array(arr) => arr
                 .iter()
                 .map(|v| match v {

@@ -78,7 +78,7 @@ struct Args {
     messages_api_enabled: bool,
     #[clap(long, env, default_value_t = false)]
     disable_grammar_support: bool,
-    #[clap(default_value = "32", long, env)]
+    #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
 }
 

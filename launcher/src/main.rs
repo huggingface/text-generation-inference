@@ -416,7 +416,7 @@ struct Args {
     env: bool,
 
     /// Control the maximum number of inputs that a client can send in a single request
-    #[clap(default_value = "32", long, env)]
+    #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
 }
 
