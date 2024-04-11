@@ -210,13 +210,8 @@ class Fp8Linear(nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         qinput, scale = fp8_quantize(input)
-        seqlen = qinput.shape[0]
-        if seqlen % 16 != 0:
-            missing = 16 - seqlen % 16
-            qinput = F.pad(qinput, (0, 0, 0, missing), "constant", value=0)
         output, _ = torch._scaled_mm(qinput, self.qweight.t(), out_dtype=self.dtype,
                              scale_a=scale , scale_b=self.scale, bias=self.bias)
-        output = output[:seqlen]
         return output
 
 class Linear8bitLt(nn.Module):
