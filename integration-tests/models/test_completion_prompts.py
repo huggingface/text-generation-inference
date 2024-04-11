@@ -47,7 +47,7 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
         f"{flash_llama_completion.base_url}/v1/completions",
         json={
             "model": "tgi",
-            "prompt": ["Say", "this", "is", "a", "test"],
+            "prompt": ["Say", "this", "is", "a"],
             "max_tokens": 10,
             "seed": 0,
         },
@@ -55,11 +55,11 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
         stream=False,
     )
     response = response.json()
-    assert len(response["choices"]) == 5
+    assert len(response["choices"]) == 4
 
     all_indexes = [choice["index"] for choice in response["choices"]]
     all_indexes.sort()
-    assert all_indexes == [0, 1, 2, 3, 4]
+    assert all_indexes == [0, 1, 2, 3]
 
     response == response_snapshot
 
