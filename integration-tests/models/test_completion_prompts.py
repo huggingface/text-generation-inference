@@ -39,6 +39,8 @@ def test_flash_llama_completion_single_prompt(
     response = response.json()
     assert len(response["choices"]) == 1
 
+    response == response_snapshot
+
 
 def test_flash_llama_completion_many_prompts(flash_llama_completion, response_snapshot):
     response = requests.post(
@@ -46,7 +48,7 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
         json={
             "model": "tgi",
             "prompt": ["Say", "this", "is", "a", "test"],
-            "max_tokens": 5,
+            "max_tokens": 10,
             "seed": 0,
         },
         headers=flash_llama_completion.headers,
@@ -59,32 +61,43 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
     all_indexes.sort()
     assert all_indexes == [0, 1, 2, 3, 4]
 
+    response == response_snapshot
+
 
 async def test_flash_llama_completion_many_prompts_stream(
     flash_llama_completion, response_snapshot
 ):
     request = {
         "model": "tgi",
-        "prompt": ["Say", "this", "is", "a", "test"],
-        "max_tokens": 5,
+        "prompt": [
+            "What color is the sky?",
+            "Is water wet?",
+            "What is the capital of France?",
+            "def mai",
+        ],
+        "max_tokens": 10,
         "seed": 0,
         "stream": True,
     }
 
-    headers = {
-        "Content-Type": "application/json",
-    }
-
     url = f"{flash_llama_completion.base_url}/v1/completions"
 
-    async with ClientSession(headers=headers) as session:
-        async with session.post(url, json=request) as resp:
+    async with ClientSession(headers=flash_llama_completion.headers) as session:
+        async with session.post(url, json=request) as response:
             # iterate over the stream
-            async for chunk in resp.content.iter_any():
-                # strip data: prefix and convert to json
-                data = json.loads(chunk.decode("utf-8")[5:])
-                assert "choices" in data
-                assert len(data["choices"]) == 1
-                assert data["choices"][0]["index"] in [*range(len(request["prompt"]))]
+            async for chunk in response.content.iter_any():
+                # remove "data:"
+                chunk = chunk.decode().split("\n\n")
+                # remove "data:" if present
+                chunk = [c.replace("data:", "") for c in chunk]
+                # remove empty strings
+                chunk = [c for c in chunk if c]
+                # parse json
+                chunk = [json.loads(c) for c in chunk]
 
-    assert resp.status == 200
+                for c in chunk:
+                    assert "choices" in c
+                    assert 0 <= c["choices"][0]["index"] <= 4
+
+    assert response.status == 200
+    response == response_snapshot
