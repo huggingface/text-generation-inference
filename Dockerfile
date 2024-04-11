@@ -245,5 +245,7 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
-ENTRYPOINT ["text-generation-launcher"]
+COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
+
+ENTRYPOINT ["/tgi-entrypoint.sh"]
 CMD ["--json-output"]
