@@ -22,14 +22,14 @@ mod env_runtime;
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum Quantization {
     /// 4 bit quantization. Requires a specific AWQ quantized model:
-    ///   https://hf.co/models?search=awq.
+    ///   <https://hf.co/models?search=awq>.
     /// Should replace GPTQ models wherever possible because of the better latency
     Awq,
     /// 8 bit quantization, doesn't require specific model.
     /// Should be a drop-in replacement to bitsandbytes with much better performance.
-    /// Kernels are from https://github.com/NetEase-FuXi/EETQ.git
+    /// Kernels are from <https://github.com/NetEase-FuXi/EETQ.git>
     Eetq,
-    /// 4 bit quantization. Requires a specific GTPQ quantized model: https://hf.co/models?search=gptq.
+    /// 4 bit quantization. Requires a specific GTPQ quantized model: <https://hf.co/models?search=gptq>.
     /// text-generation-inference will use exllama (faster) kernels wherever possible, and use
     /// triton kernel (wider support) when it's not.
     /// AWQ has faster kernels.
@@ -206,8 +206,13 @@ struct Args {
     /// for users. The larger this value, the longer prompt users can send which
     /// can impact the overall memory required to handle the load.
     /// Please note that some models have a finite range of sequence they can handle.
-    #[clap(default_value = "1024", long, env)]
-    max_input_length: usize,
+    /// Default to min(max_position_embeddings - 1, 13383)
+    #[clap(long, env)]
+    max_input_tokens: Option<usize>,
+
+    /// Legacy version of [`Args::max_input_tokens`].
+    #[clap(long, env)]
+    max_input_length: Option<usize>,
 
     /// This is the most important value to set as it defines the "memory budget"
     /// of running clients requests.
@@ -217,8 +222,9 @@ struct Args {
     /// `1511` max_new_tokens.
     /// The larger this value, the larger amount each request will be in your RAM
     /// and the less effective batching can be.
-    #[clap(default_value = "2048", long, env)]
-    max_total_tokens: usize,
+    /// Default to min(max_position_embeddings - 1, 16384)
+    #[clap(long, env)]
+    max_total_tokens: Option<usize>,
 
     /// This represents the ratio of waiting queries vs running queries where
     /// you want to start considering pausing the running queries to include the waiting
@@ -236,8 +242,8 @@ struct Args {
     /// Limits the number of tokens for the prefill operation.
     /// Since this operation take the most memory and is compute bound, it is interesting
     /// to limit the number of requests that can be sent.
-    #[clap(default_value = "4096", long, env)]
-    max_batch_prefill_tokens: u32,
+    #[clap(long, env)]
+    max_batch_prefill_tokens: Option<u32>,
 
     /// **IMPORTANT** This is one critical control to allow maximum usage
     /// of the available hardware.
@@ -1045,6 +1051,9 @@ fn compute_type(num_shard: usize) -> Option<String> {
 fn spawn_webserver(
     num_shard: usize,
     args: Args,
+    max_input_tokens: usize,
+    max_total_tokens: usize,
+    max_batch_prefill_tokens: u32,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
 ) -> Result<Child, LauncherError> {
@@ -1060,12 +1069,12 @@ fn spawn_webserver(
         args.max_stop_sequences.to_string(),
         "--max-top-n-tokens".to_string(),
         args.max_top_n_tokens.to_string(),
-        "--max-input-length".to_string(),
-        args.max_input_length.to_string(),
+        "--max-input-tokens".to_string(),
+        max_input_tokens.to_string(),
         "--max-total-tokens".to_string(),
-        args.max_total_tokens.to_string(),
+        max_total_tokens.to_string(),
         "--max-batch-prefill-tokens".to_string(),
-        args.max_batch_prefill_tokens.to_string(),
+        max_batch_prefill_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
         args.waiting_served_ratio.to_string(),
         "--max-waiting-tokens".to_string(),
@@ -1253,16 +1262,99 @@ fn main() -> Result<(), LauncherError> {
 
     tracing::info!("{:?}", args);
 
+    use hf_hub::{api::sync::Api, Repo, RepoType};
+
+    #[derive(Deserialize)]
+    struct Config {
+        max_position_embeddings: usize,
+    }
+
+    let config: Config = {
+        let model_id = args.model_id.clone();
+        let mut path = std::path::Path::new(&args.model_id).to_path_buf();
+        let filename = if !path.exists() {
+            // Assume it's a hub id
+            let api = Api::new().unwrap();
+            let repo = if let Some(ref revision) = args.revision {
+                api.repo(Repo::with_revision(
+                    model_id,
+                    RepoType::Model,
+                    revision.to_string(),
+                ))
+            } else {
+                api.model(model_id)
+            };
+            repo.get("config.json").unwrap()
+        } else {
+            path.push("config.json");
+            path
+        };
+
+        let content = std::fs::read_to_string(filename).unwrap();
+        let config: Config = serde_json::from_str(&content).unwrap();
+
+        let max_default = 2usize.pow(14);
+
+        let max_position_embeddings = if config.max_position_embeddings > max_default {
+            let max = config.max_position_embeddings;
+            tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max - 1, max - 1);
+            max_default
+        } else {
+            config.max_position_embeddings
+        };
+
+        Config {
+            max_position_embeddings,
+        }
+    };
+
+    let max_input_tokens = {
+        match (args.max_input_tokens, args.max_input_length) {
+            (Some(max_input_tokens), Some(max_input_length)) => {
+                return Err(LauncherError::ArgumentValidation(
+                    format!("Both `max_input_tokens` ({max_input_tokens}) and `max_input_length` ({max_input_length}) are set. Please define only `max_input_tokens` as `max_input_length is deprecated for naming consistency.",
+                )));
+            }
+            (Some(max_input_tokens), None) | (None, Some(max_input_tokens)) => max_input_tokens,
+            (None, None) => {
+                let value = config.max_position_embeddings - 1;
+                tracing::info!("Default `max_input_tokens` to {value}");
+                value
+            }
+        }
+    };
+    let max_total_tokens = {
+        match args.max_total_tokens {
+            Some(max_total_tokens) => max_total_tokens,
+            None => {
+                let value = config.max_position_embeddings;
+                tracing::info!("Default `max_total_tokens` to {value}");
+                value
+            }
+        }
+    };
+    let max_batch_prefill_tokens = {
+        // TODO get config.
+        match args.max_batch_prefill_tokens {
+            Some(max_batch_prefill_tokens) => max_batch_prefill_tokens,
+            None => {
+                let value = config.max_position_embeddings as u32 - 1;
+                tracing::info!("Default `max_batch_prefill_tokens` to {value}");
+                value
+            }
+        }
+    };
+
     // Validate args
-    if args.max_input_length >= args.max_total_tokens {
+    if max_input_tokens >= max_total_tokens {
         return Err(LauncherError::ArgumentValidation(
-            "`max_input_length` must be < `max_total_tokens`".to_string(),
+            "`max_input_tokens must be < `max_total_tokens`".to_string(),
         ));
     }
-    if args.max_input_length as u32 > args.max_batch_prefill_tokens {
+    if max_input_tokens as u32 > max_batch_prefill_tokens {
         return Err(LauncherError::ArgumentValidation(format!(
-            "`max_batch_prefill_tokens` must be >= `max_input_length`. Given: {} and {}",
-            args.max_batch_prefill_tokens, args.max_input_length
+            "`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {} and {}",
+            max_batch_prefill_tokens, max_input_tokens
         )));
     }
 
@@ -1284,16 +1376,16 @@ fn main() -> Result<(), LauncherError> {
     }
 
     if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
-        if args.max_batch_prefill_tokens > *max_batch_total_tokens {
+        if max_batch_prefill_tokens > *max_batch_total_tokens {
             return Err(LauncherError::ArgumentValidation(format!(
                 "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-                args.max_batch_prefill_tokens, max_batch_total_tokens
+                max_batch_prefill_tokens, max_batch_total_tokens
             )));
         }
-        if args.max_total_tokens as u32 > *max_batch_total_tokens {
+        if max_total_tokens as u32 > *max_batch_total_tokens {
             return Err(LauncherError::ArgumentValidation(format!(
                 "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-                args.max_total_tokens, max_batch_total_tokens
+                max_total_tokens, max_batch_total_tokens
             )));
         }
     }
@@ -1354,11 +1446,19 @@ fn main() -> Result<(), LauncherError> {
         return Ok(());
     }
 
-    let mut webserver = spawn_webserver(num_shard, args, shutdown.clone(), &shutdown_receiver)
-        .map_err(|err| {
-            shutdown_shards(shutdown.clone(), &shutdown_receiver);
-            err
-        })?;
+    let mut webserver = spawn_webserver(
+        num_shard,
+        args,
+        max_input_tokens,
+        max_total_tokens,
+        max_batch_prefill_tokens,
+        shutdown.clone(),
+        &shutdown_receiver,
+    )
+    .map_err(|err| {
+        shutdown_shards(shutdown.clone(), &shutdown_receiver);
+        err
+    })?;
 
     // Default exit code
     let mut exit_code = Ok(());
