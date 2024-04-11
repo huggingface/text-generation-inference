@@ -1290,7 +1290,12 @@ fn main() -> Result<(), LauncherError> {
         let content = std::fs::read_to_string(filename)?;
         let config: Config = serde_json::from_str(&content)?;
 
-        let max_default = 2usize.pow(14);
+        // Quantization usually means you're even more RAM constrained.
+        let max_default = if args.quantize.is_some() {
+            4096
+        } else {
+            2usize.pow(14)
+        };
 
         let max_position_embeddings = if config.max_position_embeddings > max_default {
             let max = config.max_position_embeddings;
