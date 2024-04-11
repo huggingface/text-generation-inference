@@ -4,9 +4,12 @@ use crate::{
     ChatTemplateInputs, ChatTemplateVersions, Entry, GenerateRequest, GenerateStreamResponse,
     HubTokenizerConfig, Message, PrefillToken, Queue, Token,
 };
+use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
 use futures::future::try_join_all;
 use minijinja::{Environment, ErrorKind, Template};
 use nohash_hasher::IntMap;
+use serde_json::{json, Map, Value};
+use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -185,11 +188,15 @@ impl Infer {
 
     /// Apply the chat template to the chat request
     #[instrument(skip_all)]
-    pub(crate) fn apply_chat_template(&self, messages: Vec<Message>) -> Result<String, InferError> {
+    pub(crate) fn apply_chat_template(
+        &self,
+        messages: Vec<Message>,
+        grammar_with_prompt: Option<(GrammarType, String)>,
+    ) -> Result<String, InferError> {
         self.chat_template
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
-            .apply(messages)
+            .apply(messages, grammar_with_prompt)
             .map_err(|e| {
                 metrics::increment_counter!("tgi_request_failure", "err" => "template");
                 tracing::error!("{e}");
@@ -322,6 +329,7 @@ struct ChatTemplate {
     template: Template<'static, 'static>,
     bos_token: Option<String>,
     eos_token: Option<String>,
+    use_default_tool_template: bool,
 }
 
 impl ChatTemplate {
@@ -329,6 +337,10 @@ impl ChatTemplate {
         let mut env = Box::new(Environment::new());
         let template_str = template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
+
+        // check if contains the tools variable within the template
+        let use_default_tool_template =
+            !template_str.as_ref().replace(' ', "").contains("{{tools}}");
         // leaking env and template_str as read-only, static resources for performance.
         let template = Box::leak(env)
             .template_from_str(Box::leak(template_str))
@@ -338,18 +350,156 @@ impl ChatTemplate {
             template,
             bos_token,
             eos_token,
+            use_default_tool_template,
         }
     }
 
-    fn apply(&self, messages: Vec<Message>) -> Result<String, InferError> {
+    fn apply(
+        &self,
+        mut messages: Vec<Message>,
+        grammar_with_prompt: Option<(GrammarType, String)>,
+    ) -> Result<String, InferError> {
+        if self.use_default_tool_template {
+            if let Some(last_message) = messages.last_mut() {
+                if let Some((GrammarType::Json(tools), tool_prompt)) = grammar_with_prompt {
+                    last_message.content = Some(format!(
+                        "{}\n---\n{}\n{}",
+                        last_message.content.as_deref().unwrap_or_default(),
+                        tool_prompt,
+                        tools
+                    ));
+                }
+            }
+        }
+
         self.template
             .render(ChatTemplateInputs {
                 messages,
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
                 add_generation_prompt: true,
+                tools: None,
+                tools_prompt: None,
             })
             .map_err(InferError::TemplateError)
+    }
+}
+
+pub struct ToolGrammar {}
+
+impl ToolGrammar {
+    pub fn apply(
+        tools: Option<Vec<Tool>>,
+        tool_choice: Option<ToolType>,
+    ) -> Result<Option<Tools>, InferError> {
+        if let Some((req_tools, tool_choice)) = tools.zip(tool_choice) {
+            // let tool_prompt = tool_prompt.unwrap_or_default();
+            let tools_to_use = match tool_choice {
+                ToolType::FunctionName(name) => {
+                    vec![req_tools
+                        .iter()
+                        .find(|tool| tool.function.name == *name)
+                        .unwrap_or_else(|| panic!("Tool with name {} not found", name))
+                        .clone()]
+                }
+                ToolType::OneOf => req_tools.to_owned(),
+            };
+
+            // adds the error notification function for LLM feedback if required
+            let mut text_response_properties = Map::new();
+            text_response_properties.insert(
+                "error".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "The error or issue to notify"
+                }),
+            );
+            text_response_properties.insert(
+                "_name".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "const": "notify_error"
+                }),
+            );
+
+            let functions: HashMap<String, serde_json::Value> = tools_to_use
+                .iter()
+                .map(|tool| {
+                    let func = tool.function.clone();
+
+                    // Clone the existing parameters, which are expected to be a JSON object
+                    let mut params = if let Value::Object(params) = &func.arguments {
+                        params.clone()
+                    } else {
+                        Map::new()
+                    };
+
+                    // Insert the function's description at the top level, outside of properties
+                    params.insert(
+                        "description".to_string(),
+                        Value::String(func.description.clone().unwrap_or_default()),
+                    );
+
+                    // Ensure 'properties' exists and is an object
+                    let properties = params
+                        .entry("properties".to_string())
+                        .or_insert_with(|| json!({}))
+                        .as_object_mut()
+                        .unwrap();
+
+                    // Insert the constant for the function name inside 'properties'
+                    properties.insert(
+                        "_name".to_string(),
+                        json!({
+                            "type": "string",
+                            "const": func.name.clone(),
+                            // "description": "The name of the function"
+                        }),
+                    );
+
+                    // Check if 'required' exists, and it is an array. If not, create an empty array.
+                    let required = params
+                        .entry("required".to_string())
+                        .or_insert_with(|| json!([]))
+                        .as_array_mut()
+                        .unwrap();
+
+                    // Add 'name' to the 'required' array if it is not already present
+                    if !required.iter().any(|r| r == "_name") {
+                        required.push(json!("_name"));
+                    }
+
+                    (func.name, Value::Object(params))
+                })
+                .chain([(
+                    "notify_error".to_string(),
+                    serde_json::json!({
+                        "properties": text_response_properties,
+                        "required": ["error", "_name"],
+                        "type": "object"
+                    }),
+                )])
+                .collect();
+
+            let tools = Tools {
+                functions_map: FunctionsMap { functions },
+                properties: Properties {
+                    function: tools_to_use
+                        .iter()
+                        .map(|tool| FunctionRef {
+                            ref_path: format!("#/$functions/{}", tool.function.name.clone()),
+                        })
+                        .chain(std::iter::once(FunctionRef {
+                            ref_path: "#/$functions/notify_error".to_string(),
+                        }))
+                        .collect(),
+                },
+            };
+
+            return Ok(Some(tools));
+        }
+        // Err(InferError::ToolError("No tools provided".to_string()))
+        Ok(None)
     }
 }
 
@@ -768,6 +918,8 @@ pub enum InferError {
     IncompleteGeneration,
     #[error("Template error: {0}")]
     TemplateError(#[from] minijinja::Error),
+    #[error("Tool error: {0}")]
+    ToolError(String),
 }
 
 impl InferError {
@@ -778,6 +930,7 @@ impl InferError {
             InferError::ValidationError(_) => "validation",
             InferError::IncompleteGeneration => "incomplete_generation",
             InferError::TemplateError(_) => "template_error",
+            InferError::ToolError(_) => "tool_error",
         }
     }
 }
@@ -849,6 +1002,7 @@ mod tests {
             bos_token: Some("[BOS]"),
             eos_token: Some("[EOS]"),
             add_generation_prompt: true,
+            ..Default::default()
         };
 
         let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
@@ -924,6 +1078,7 @@ mod tests {
             bos_token: Some("[BOS]"),
             eos_token: Some("[EOS]"),
             add_generation_prompt: true,
+            ..Default::default()
         };
 
         let result = tmpl.unwrap().render(chat_template_inputs); //.err().unwrap();
@@ -998,6 +1153,7 @@ mod tests {
             bos_token: Some("[BOS]"),
             eos_token: Some("[EOS]"),
             add_generation_prompt: true,
+            ..Default::default()
         };
 
         let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
@@ -1056,6 +1212,7 @@ mod tests {
             bos_token: Some("[BOS]"),
             eos_token: Some("[EOS]"),
             add_generation_prompt: true,
+            ..Default::default()
         };
 
         let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
@@ -1115,6 +1272,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some(""),
                     eos_token: Some(""),
+                    ..Default::default()
                 },
                 target: "<|im_start|>user\nHello, how are you?<|im_end|>\n<|im_start|>assistant\nI'm doing great. How can I help you today?<|im_end|>\n<|im_start|>user\nI'd like to show off how chat templating works!<|im_end|>\n",
             },
@@ -1126,6 +1284,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some(""),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: " Hello, how are you?  I'm doing great. How can I help you today?   I'd like to show off how chat templating works!</s>",
             },
@@ -1137,6 +1296,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some(""),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: " Hello, how are you?  I'm doing great. How can I help you today?   I'd like to show off how chat templating works!</s>",
             },
@@ -1148,6 +1308,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some(""),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "Hello, how are you?</s>I'm doing great. How can I help you today?</s>I'd like to show off how chat templating works!</s>",
             },
@@ -1159,6 +1320,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some(""),
                     eos_token: Some("<|endoftext|>"),
+                    ..Default::default()
                 },
                 target: "Hello, how are you?<|endoftext|>I'm doing great. How can I help you today?<|endoftext|>I'd like to show off how chat templating works!<|endoftext|>",
             },
@@ -1170,6 +1332,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some(""),
                     eos_token: Some("<|endoftext|>"),
+                    ..Default::default()
                 },
                 target: "Hello, how are you?<|endoftext|>I'm doing great. How can I help you today?<|endoftext|>I'd like to show off how chat templating works!<|endoftext|>",
             },
@@ -1182,6 +1345,7 @@ mod tests {
                     add_generation_prompt: true,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<s>[INST] <<SYS>>\nYou are a friendly chatbot who always responds in the style of a pirate\n<</SYS>>\n\nHello, how are you? [/INST] I'm doing great. How can I help you today? </s><s>[INST] I'd like to show off how chat templating works! [/INST]",
             },
@@ -1193,6 +1357,7 @@ mod tests {
                     add_generation_prompt: true,
                     bos_token: Some(""),
                     eos_token: Some("<|endoftext|>"),
+                    ..Default::default()
                 },
                 target: "Hello, how are you?<|endoftext|>I'm doing great. How can I help you today?<|endoftext|>I'd like to show off how chat templating works!<|endoftext|>",
             },
@@ -1222,6 +1387,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some(""),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<|system|>\nYou are a friendly chatbot who always responds in the style of a pirate</s><|user|>\nHello, how are you?</s><|assistant|>\nI'm doing great. How can I help you today?</s><|user|>\nI'd like to show off how chat templating works!</s>",
             },
@@ -1246,6 +1412,7 @@ mod tests {
                     add_generation_prompt: true,
                     bos_token: Some(""),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<|system|>\nYou are a friendly chatbot who always responds in the style of a pirate</s><|user|>\nHow many helicopters can a human eat in one sitting?</s><|assistant|>",
             },
@@ -1257,6 +1424,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<bos>"),
                     eos_token: Some("<eos>"),
+                    ..Default::default()
                 },
                 target: "<bos><|im_start|>user\nHello, how are you?<|im_end|>\n<|im_start|>assistant\nI'm doing great. How can I help you today?<|im_end|>\n<|im_start|>user\nI'd like to show off how chat templating works!<|im_end|>\n",
             },
@@ -1268,6 +1436,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<s>[INST] Hello, how are you? [/INST]I'm doing great. How can I help you today?</s> [INST] I'd like to show off how chat templating works! [/INST]",
             },
@@ -1279,6 +1448,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<s>[INST] Hello, how are you? [/INST]I'm doing great. How can I help you today?</s>[INST] I'd like to show off how chat templating works! [/INST]",
             },
@@ -1290,6 +1460,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<|im_start|>user\nHello, how are you?<|im_end|>\n<|im_start|>assistant\nI'm doing great. How can I help you today?<|im_end|>\n<|im_start|>user\nI'd like to show off how chat templating works!<|im_end|>\n",
             },
@@ -1302,6 +1473,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<s>GPT4 Correct User: Hello, how are you?<|end_of_turn|>GPT4 Correct Assistant: I'm doing great. How can I help you today?<|end_of_turn|>GPT4 Correct User: I'd like to show off how chat templating works!<|end_of_turn|>",
             },
@@ -1313,6 +1485,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "Hello, how are you?</s>I'm doing great. How can I help you today?</s>I'd like to show off how chat templating works!</s>",
             },
@@ -1325,6 +1498,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<s>Source: user\n\n Hello, how are you? <step> Source: assistant\n\n I'm doing great. How can I help you today? <step> Source: user\n\n I'd like to show off how chat templating works! <step> Source: assistant\nDestination: user\n\n ",
             },
@@ -1336,6 +1510,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "### User:\nHello, how are you?### Assistant:\nI'm doing great. How can I help you today?### User:\nI'd like to show off how chat templating works!",
             },
@@ -1347,6 +1522,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<|im_start|>system\nYou are a helpful assistant<|im_end|>\n<|im_start|>user\nHello, how are you?<|im_end|>\n<|im_start|>assistant\nI'm doing great. How can I help you today?<|im_end|>\n<|im_start|>user\nI'd like to show off how chat templating works!",
             },
@@ -1358,6 +1534,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<｜begin▁of▁sentence｜>"),
                     eos_token: Some("<｜end▁of▁sentence｜>"),
+                    ..Default::default()
                 },
                 target: "<｜begin▁of▁sentence｜>User: Hello, how are you?\n\nAssistant: I'm doing great. How can I help you today?<｜end▁of▁sentence｜>User: I'd like to show off how chat templating works!\n\n",
             },
@@ -1369,6 +1546,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<|prompt|>Hello, how are you?</s><|answer|>I'm doing great. How can I help you today?</s><|prompt|>I'd like to show off how chat templating works!</s>",
             },
@@ -1380,6 +1558,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "<s><|im_start|>user\nHello, how are you?<|im_end|>\n<|im_start|>assistant\nI'm doing great. How can I help you today?<|im_end|>\n<|im_start|>user\nI'd like to show off how chat templating works!<|im_end|>\n",
             },
@@ -1391,6 +1570,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<｜begin▁of▁sentence｜>"),
                     eos_token: Some("<|EOT|>"),
+                    ..Default::default()
                 },
                 target: "You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer.\n### Instruction:\nHello, how are you?\n### Response:\nI'm doing great. How can I help you today?\n<|EOT|>\n### Instruction:\nI'd like to show off how chat templating works!\n### Response:\n",
             },
@@ -1403,6 +1583,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<|endoftext|>"),
                     eos_token: Some("<|endoftext|>"),
+                    ..Default::default()
                 },
                 target: "[INST] Hello, how are you? [RESP] I'm doing great. How can I help you today?<|endoftext|>[INST] I'd like to show off how chat templating works!",
             },
@@ -1414,6 +1595,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "Hello, how are you? [/INST] I'm doing great. How can I help you today? </s><s>[INST] I'd like to show off how chat templating works! [/INST]",
             },
@@ -1425,6 +1607,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "Below is an instruction that describes a task. Write a response that appropriately completes the request.### Instruction:Hello, how are you?### Response:I'm doing great. How can I help you today?### Instruction:I'd like to show off how chat templating works!",
             },
@@ -1436,6 +1619,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<｜begin▁of▁sentence｜>"),
                     eos_token: Some("</EOT>"),
+                    ..Default::default()
                 },
                 target: "<｜begin▁of▁sentence｜>You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer\n### Instruction:\nHello, how are you?\n### Response:\nI'm doing great. How can I help you today?\n<|EOT|>\n### Instruction:\nI'd like to show off how chat templating works!\n",
             },
@@ -1451,6 +1635,7 @@ mod tests {
                     add_generation_prompt: false,
                     bos_token: Some("<s>"),
                     eos_token: Some("</s>"),
+                    ..Default::default()
                 },
                 target: "You are a friendly chatbot who always responds in the style of a pirateYou are a friendly chatbot who always responds in the style of a pirate### Instruction: Hello, how are you?### Response: I'm doing great. How can I help you today?### Instruction: I'd like to show off how chat templating works!",
             },

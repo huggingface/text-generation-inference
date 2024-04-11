@@ -124,7 +124,7 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "Brooklyn"},
+                "arguments": {"format": "celsius", "location": "New York, NY"},
             },
         }
     ]
@@ -161,7 +161,7 @@ async def test_flash_llama_grammar_tools_auto(
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "Brooklyn"},
+                "arguments": {"format": "celsius", "location": "New York, NY"},
             },
         }
     ]
@@ -246,7 +246,7 @@ async def test_flash_llama_grammar_tools_insufficient_information(
 ):
     responses = await flash_llama_grammar_tools.chat(
         max_tokens=100,
-        seed=26,
+        seed=8,
         tools=tools,
         tool_choice="auto",
         messages=[
@@ -265,16 +265,15 @@ async def test_flash_llama_grammar_tools_insufficient_information(
     assert responses.choices[0].message.content == None
     assert responses.choices[0].message.tool_calls == [
         {
+            "function": {
+                "arguments": {
+                    "error": "Cannot get current weather forecast from specified location and temperature unit. Please try again with different options."
+                },
+                "description": None,
+                "name": "notify_error",
+            },
             "id": 0,
             "type": "function",
-            "function": {
-                "description": None,
-                "name": "default_function_name",
-                "arguments": {
-                    "error": "One of the parameters (e.g. 'number_of_days') is not valid or is too few.",
-                    "name": "notify_error",
-                },
-            },
         }
     ]
 
