@@ -814,7 +814,7 @@ class FlashCausalLM(Model):
                 for bs in CUDA_GRAPHS:
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_s, max_bt)
-            except Exception:
+            except torch.cuda.OutOfMemoryError:
                 logger.exception(f"Decode cuda graph warmup failed")
 
         return int(num_blocks * BLOCK_SIZE)
@@ -874,22 +874,14 @@ class FlashCausalLM(Model):
             lm_head_indices = batch.prefill_head_indices
 
         bs = input_ids.shape[0]
-        padded_bs = bs
-        if bs == 3:
-            padded_bs = 4
-        elif 3 < bs <= 8:
-            padded_bs = 8
-        elif bs > 8:
-            padded_bs = (bs + 7) // 8 * 8
+        sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
+        if sorted_padded_bs:
+            # Get associated cuda graph
+            cuda_graph = self.cuda_graphs[sorted_padded_bs[0]]
+        else:
+            cuda_graph = None
 
-        # Try to find an associated cuda graph
-        cuda_graph = self.cuda_graphs.get(padded_bs, None)
-
-        if (
-            cu_seqlen_prefill is not None
-            or cuda_graph is None
-            or batch.speculative_ids is not None
-        ):
+        if cu_seqlen_prefill is not None or cuda_graph is None:
             return self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
