@@ -47,6 +47,11 @@ enum Quantization {
     /// Bitsandbytes 4bit. nf4 should be preferred in most cases but maybe this one has better
     /// perplexity performance for you model
     BitsandbytesFP4,
+    /// [FP8](https://developer.nvidia.com/blog/nvidia-arm-and-intel-publish-fp8-specification-for-standardization-as-an-interchange-format-for-ai/) (e4m3) works on H100 and above
+    /// This dtype has native ops should be the fastest if available.
+    /// This is currently not the fastest because of local unpacking + padding to satisfy matrix
+    /// multiplication limitations.
+    Fp8,
 }
 
 impl std::fmt::Display for Quantization {
@@ -72,6 +77,9 @@ impl std::fmt::Display for Quantization {
             }
             Quantization::Eetq => {
                 write!(f, "eetq")
+            }
+            Quantization::Fp8 => {
+                write!(f, "fp8")
             }
         }
     }
