@@ -161,13 +161,13 @@ impl Validation {
             } else {
                 return Err(ValidationError::UnsetMaxNewTokens);
             };
-            let input_length = truncate.unwrap_or(self.max_input_length);
+            let mut input_length = truncate.unwrap_or(self.max_input_length);
 
             // We don't have a tokenizer, therefore we have no idea how long is the query, let
             // them through and hope for the best.
             // Validate MaxNewTokens
             if (input_length as u32 + max_new_tokens) > self.max_total_tokens as u32 {
-                // input_length = input_length.saturating_sub(max_new_tokens as usize);
+                input_length = input_length.saturating_sub(max_new_tokens as usize);
                 // return Err(ValidationError::MaxNewTokens(
                 //     self.max_total_tokens - self.max_input_length,
                 //     max_new_tokens,

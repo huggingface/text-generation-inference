@@ -1340,7 +1340,9 @@ fn main() -> Result<(), LauncherError> {
                 let value: u32 = if let Some(max_batch_size) = args.max_batch_size {
                     max_batch_size * max_input_tokens
                 } else {
-                    max_input_tokens
+                    // Adding some edge in order to account for potential block_size alignement
+                    // issue.
+                    max_input_tokens + 50
                 } as u32;
                 tracing::info!("Default `max_batch_prefill_tokens` to {value}");
                 value
