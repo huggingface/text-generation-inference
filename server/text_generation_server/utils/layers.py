@@ -209,7 +209,7 @@ class Fp8Linear(nn.Module):
         self.dtype = weight.dtype
         self.qweight, self.scale = fp8_quantize(weight)
 
-        self.bias = bias.cuda(device) if bias is not None else None
+        self.bias = bias.cuda(bias.device) if bias is not None else None
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         qinput, scale = fp8_quantize(input)
