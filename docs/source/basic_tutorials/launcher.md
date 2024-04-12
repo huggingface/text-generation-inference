@@ -168,7 +168,7 @@ Options:
 ## MAX_BATCH_PREFILL_TOKENS
 ```shell
       --max-batch-prefill-tokens <MAX_BATCH_PREFILL_TOKENS>
-          Limits the number of tokens for the prefill operation. Since this operation take the most memory and is compute bound, it is interesting to limit the number of requests that can be sent. Default to `max_input_length + 50` to give a bit of room
+          Limits the number of tokens for the prefill operation. Since this operation take the most memory and is compute bound, it is interesting to limit the number of requests that can be sent. Default to `max_input_tokens + 50` to give a bit of room
           
           [env: MAX_BATCH_PREFILL_TOKENS=]
 
