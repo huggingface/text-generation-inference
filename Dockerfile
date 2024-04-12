@@ -39,7 +39,7 @@ RUN cargo build --release
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
 FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 as pytorch-install
 
-ARG PYTORCH_VERSION=2.1.1
+ARG PYTORCH_VERSION=2.2.2
 ARG PYTHON_VERSION=3.10
 # Keep in sync with `server/pyproject.toml
 ARG CUDA_VERSION=12.1
@@ -210,7 +210,7 @@ COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/c
 COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 
-# Install vllm/flash-attention dependencies
+# Install flash-attention dependencies
 RUN pip install einops --no-cache-dir
 
 # Install server
