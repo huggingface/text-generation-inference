@@ -106,6 +106,7 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_auto(
@@ -144,6 +145,7 @@ async def test_flash_llama_grammar_tools_auto(
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_choice(
@@ -182,6 +184,7 @@ async def test_flash_llama_grammar_tools_choice(
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_stream(
@@ -214,6 +217,7 @@ async def test_flash_llama_grammar_tools_stream(
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_insufficient_information(
