@@ -874,21 +874,15 @@ class FlashCausalLM(Model):
             lm_head_indices = batch.prefill_head_indices
 
         bs = input_ids.shape[0]
-        padded_bs = bs
-        if bs == 3:
-            padded_bs = 4
-        elif 3 < bs <= 8:
-            padded_bs = 8
-        elif bs > 8:
-            padded_bs = (bs + 7) // 8 * 8
-
-        # Try to find an associated cuda graph
-        cuda_graph = self.cuda_graphs.get(padded_bs, None)
+        graphs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
+        if graphs:
+            cuda_graph = graphs[0]
+        else:
+            cuda_graph = None
 
         if (
             cu_seqlen_prefill is not None
             or cuda_graph is None
-            or batch.speculative_ids is not None
         ):
             return self.model.forward(
                 input_ids=input_ids,
@@ -979,6 +973,9 @@ class FlashCausalLM(Model):
             batch.speculative_ids,
             speculative_logits,
         )
+
+        if os.getenv("RANK") == "0":
+            logger.info(f"Accepted ids {accepted_ids}")
 
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens, batch.top_n_tokens_tensor, logprobs, accepted_ids
