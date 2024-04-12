@@ -221,7 +221,7 @@ struct Args {
     /// for users. The larger this value, the longer prompt users can send which
     /// can impact the overall memory required to handle the load.
     /// Please note that some models have a finite range of sequence they can handle.
-    /// Default to min(max_position_embeddings - 1, 13383)
+    /// Default to min(max_position_embeddings - 1, 4095)
     #[clap(long, env)]
     max_input_tokens: Option<usize>,
 
@@ -237,7 +237,7 @@ struct Args {
     /// `1511` max_new_tokens.
     /// The larger this value, the larger amount each request will be in your RAM
     /// and the less effective batching can be.
-    /// Default to min(max_position_embeddings, 16384)
+    /// Default to min(max_position_embeddings, 4096)
     #[clap(long, env)]
     max_total_tokens: Option<usize>,
 
@@ -257,7 +257,7 @@ struct Args {
     /// Limits the number of tokens for the prefill operation.
     /// Since this operation take the most memory and is compute bound, it is interesting
     /// to limit the number of requests that can be sent.
-    /// Default to min(max_input_length + 50, 16384) to give a bit of room.
+    /// Default to `max_input_length + 50` to give a bit of room.
     #[clap(long, env)]
     max_batch_prefill_tokens: Option<u32>,
 
@@ -1294,11 +1294,7 @@ fn main() -> Result<(), LauncherError> {
         let config: Config = serde_json::from_str(&content)?;
 
         // Quantization usually means you're even more RAM constrained.
-        let max_default = if args.quantize.is_some() {
-            4096
-        } else {
-            2usize.pow(14)
-        };
+        let max_default = 4096;
 
         let max_position_embeddings = match (config.max_position_embeddings, config.max_seq_len) {
             (Some(max_position_embeddings), _) | (None, Some(max_position_embeddings)) => {
