@@ -248,6 +248,7 @@ ENTRYPOINT ["./entrypoint.sh"]
 FROM base
 
 COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
+RUN chmod +x /tgi-entrypoint.sh
 
 ENTRYPOINT ["/tgi-entrypoint.sh"]
 CMD ["--json-output"]
