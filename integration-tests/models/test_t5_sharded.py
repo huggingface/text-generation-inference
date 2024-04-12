@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def t5_sharded_handle(launcher):
-    with launcher("google/flan-t5-xxl", num_shard=2) as handle:
+    with launcher("google/flan-t5-xxl", num_shard=4) as handle:
         yield handle
 
 
