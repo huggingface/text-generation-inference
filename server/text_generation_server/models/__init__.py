@@ -145,7 +145,7 @@ def get_model(
         if speculate is not None:
             if speculate > speculate_medusa:
                 raise RuntimeError(
-                    "Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match"
+                    f"Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match"
                 )
             else:
                 set_speculate(speculate)
