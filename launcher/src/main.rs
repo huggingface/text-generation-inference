@@ -257,7 +257,7 @@ struct Args {
     /// Limits the number of tokens for the prefill operation.
     /// Since this operation take the most memory and is compute bound, it is interesting
     /// to limit the number of requests that can be sent.
-    /// Default to `max_input_length + 50` to give a bit of room.
+    /// Default to `max_input_tokens + 50` to give a bit of room.
     #[clap(long, env)]
     max_batch_prefill_tokens: Option<u32>,
 
