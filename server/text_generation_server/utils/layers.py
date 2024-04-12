@@ -503,6 +503,10 @@ class MedusaHeadV1(nn.Module):
         self, input: torch.Tensor
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         logits = self.lm_head(input)
+        # If we have too many tokens, we skip speculative logits
+        if input.shape[0] > 128:
+            return logits, None
+
         speculative_logits = self.medusa(input)
         return logits, speculative_logits
 
@@ -549,6 +553,11 @@ class MedusaHeadV2(nn.Module):
         self.lm_head = TensorParallelHead.load(config, prefix, weights)
 
     def forward(self, x):
+        # If we have too many tokens, we skip speculative logits
+        if x.shape[0] > 128:
+            logits = self.lm_head(x)
+            return logits, None
+
         size = x.shape[-1]
         block_size = (size + self.world_size - 1) // self.world_size
         start = self.rank * block_size

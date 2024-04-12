@@ -3406,7 +3406,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "1.4.5"
+version = "2.0.0"
 dependencies = [
  "average",
  "clap",
@@ -3427,7 +3427,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "1.4.5"
+version = "2.0.0"
 dependencies = [
  "futures",
  "grpc-metadata",
@@ -3444,7 +3444,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "1.4.5"
+version = "2.0.0"
 dependencies = [
  "clap",
  "ctrlc",
@@ -3462,7 +3462,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "1.4.5"
+version = "2.0.0"
 dependencies = [
  "async-stream",
  "axum",
@@ -4657,9 +4657,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.8.0"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63381fa6624bf92130a6b87c0d07380116f80b565c42cf0d754136f0238359ef"
+checksum = "525b4ec142c6b68a2d10f01f7bbf6755599ca3f81ea53b8431b7dd348f5fdb2d"
 
 [[package]]
 name = "zip"
