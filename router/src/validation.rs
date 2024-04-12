@@ -692,7 +692,7 @@ mod tests {
             .await
         {
             Err(ValidationError::MaxNewTokens(1, 10)) => (),
-            _ => panic!("Unexpected not max new tokens"),
+            r => panic!("Unexpected not max new tokens: {r:?}"),
         }
     }
 

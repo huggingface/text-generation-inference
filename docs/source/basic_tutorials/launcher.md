@@ -60,9 +60,9 @@ Options:
           [env: QUANTIZE=]
 
           Possible values:
-          - awq:              4 bit quantization. Requires a specific AWQ quantized model: https://hf.co/models?search=awq. Should replace GPTQ models wherever possible because of the better latency
-          - eetq:             8 bit quantization, doesn't require specific model. Should be a drop-in replacement to bitsandbytes with much better performance. Kernels are from https://github.com/NetEase-FuXi/EETQ.git
-          - gptq:             4 bit quantization. Requires a specific GTPQ quantized model: https://hf.co/models?search=gptq. text-generation-inference will use exllama (faster) kernels wherever possible, and use triton kernel (wider support) when it's not. AWQ has faster kernels
+          - awq:              4 bit quantization. Requires a specific AWQ quantized model: <https://hf.co/models?search=awq>. Should replace GPTQ models wherever possible because of the better latency
+          - eetq:             8 bit quantization, doesn't require specific model. Should be a drop-in replacement to bitsandbytes with much better performance. Kernels are from <https://github.com/NetEase-FuXi/EETQ.git>
+          - gptq:             4 bit quantization. Requires a specific GTPQ quantized model: <https://hf.co/models?search=gptq>. text-generation-inference will use exllama (faster) kernels wherever possible, and use triton kernel (wider support) when it's not. AWQ has faster kernels
           - bitsandbytes:     Bitsandbytes 8bit. Can be applied on any model, will cut the memory requirement in half, but it is known that the model will be much slower to run than the native f16
           - bitsandbytes-nf4: Bitsandbytes 4bit. Can be applied on any model, will cut the memory requirement by 4x, but it is known that the model will be much slower to run than the native f16
           - bitsandbytes-fp4: Bitsandbytes 4bit. nf4 should be preferred in most cases but maybe this one has better perplexity performance for you model
@@ -130,22 +130,28 @@ Options:
           [default: 5]
 
 ```
+## MAX_INPUT_TOKENS
+```shell
+      --max-input-tokens <MAX_INPUT_TOKENS>
+          This is the maximum allowed input length (expressed in number of tokens) for users. The larger this value, the longer prompt users can send which can impact the overall memory required to handle the load. Please note that some models have a finite range of sequence they can handle. Default to min(max_position_embeddings - 1, 4095)
+          
+          [env: MAX_INPUT_TOKENS=]
+
+```
 ## MAX_INPUT_LENGTH
 ```shell
       --max-input-length <MAX_INPUT_LENGTH>
-          This is the maximum allowed input length (expressed in number of tokens) for users. The larger this value, the longer prompt users can send which can impact the overall memory required to handle the load. Please note that some models have a finite range of sequence they can handle
+          Legacy version of [`Args::max_input_tokens`]
           
           [env: MAX_INPUT_LENGTH=]
-          [default: 1024]
 
 ```
 ## MAX_TOTAL_TOKENS
 ```shell
       --max-total-tokens <MAX_TOTAL_TOKENS>
-          This is the most important value to set as it defines the "memory budget" of running clients requests. Clients will send input sequences and ask to generate `max_new_tokens` on top. with a value of `1512` users can send either a prompt of `1000` and ask for `512` new tokens, or send a prompt of `1` and ask for `1511` max_new_tokens. The larger this value, the larger amount each request will be in your RAM and the less effective batching can be
+          This is the most important value to set as it defines the "memory budget" of running clients requests. Clients will send input sequences and ask to generate `max_new_tokens` on top. with a value of `1512` users can send either a prompt of `1000` and ask for `512` new tokens, or send a prompt of `1` and ask for `1511` max_new_tokens. The larger this value, the larger amount each request will be in your RAM and the less effective batching can be. Default to min(max_position_embeddings, 4096)
           
           [env: MAX_TOTAL_TOKENS=]
-          [default: 2048]
 
 ```
 ## WAITING_SERVED_RATIO
@@ -162,10 +168,9 @@ Options:
 ## MAX_BATCH_PREFILL_TOKENS
 ```shell
       --max-batch-prefill-tokens <MAX_BATCH_PREFILL_TOKENS>
-          Limits the number of tokens for the prefill operation. Since this operation take the most memory and is compute bound, it is interesting to limit the number of requests that can be sent
+          Limits the number of tokens for the prefill operation. Since this operation take the most memory and is compute bound, it is interesting to limit the number of requests that can be sent. Default to `max_input_tokens + 50` to give a bit of room
           
           [env: MAX_BATCH_PREFILL_TOKENS=]
-          [default: 4096]
 
 ```
 ## MAX_BATCH_TOTAL_TOKENS
@@ -210,10 +215,9 @@ Options:
 ## CUDA_GRAPHS
 ```shell
       --cuda-graphs <CUDA_GRAPHS>
-          Specify the batch sizes to compute cuda graphs for. Use "0" to disable
+          Specify the batch sizes to compute cuda graphs for. Use "0" to disable. Default = "1,2,4,8,16,32"
           
           [env: CUDA_GRAPHS=]
-          [default: 1,2,4,8,16,32,64,96,128]
 
 ```
 ## HOSTNAME
