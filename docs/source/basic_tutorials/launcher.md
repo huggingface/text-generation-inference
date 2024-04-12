@@ -168,7 +168,7 @@ Options:
 ## MAX_BATCH_PREFILL_TOKENS
 ```shell
       --max-batch-prefill-tokens <MAX_BATCH_PREFILL_TOKENS>
-          Limits the number of tokens for the prefill operation. Since this operation take the most memory and is compute bound, it is interesting to limit the number of requests that can be sent
+          Limits the number of tokens for the prefill operation. Since this operation take the most memory and is compute bound, it is interesting to limit the number of requests that can be sent. Default to min(max_input_length + 50, 16384) to give a bit of room
           
           [env: MAX_BATCH_PREFILL_TOKENS=]
 
@@ -215,10 +215,9 @@ Options:
 ## CUDA_GRAPHS
 ```shell
       --cuda-graphs <CUDA_GRAPHS>
-          Specify the batch sizes to compute cuda graphs for. Use "0" to disable
+          Specify the batch sizes to compute cuda graphs for. Use "0" to disable. Default = "1,2,4,8,16,32"
           
           [env: CUDA_GRAPHS=]
-          [default: 1,2,4,8,16,32,64,96,128]
 
 ```
 ## HOSTNAME
