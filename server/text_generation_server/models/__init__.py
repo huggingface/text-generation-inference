@@ -114,6 +114,7 @@ def get_model(
     speculate: Optional[int],
     dtype: Optional[str],
     trust_remote_code: bool,
+    post_attn_method: Optional[str] = None,
 ) -> Model:
     if dtype is None:
         # Keep it as default for now and let
@@ -357,6 +358,7 @@ def get_model(
                 use_medusa=use_medusa,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                post_attn_method=post_attn_method,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma"))

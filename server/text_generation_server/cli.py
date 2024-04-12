@@ -40,6 +40,7 @@ def serve(
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
+    post_attn_method: Optional[str] = None,
 ):
     if sharded:
         assert (
@@ -96,6 +97,7 @@ def serve(
         dtype,
         trust_remote_code,
         uds_path,
+        post_attn_method,
     )
 
 

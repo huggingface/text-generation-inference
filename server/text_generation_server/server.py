@@ -176,6 +176,7 @@ def serve(
     dtype: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
+    post_attn_method: Optional[str],
 ):
     async def serve_inner(
         model_id: str,
@@ -185,6 +186,7 @@ def serve(
         speculate: Optional[int] = None,
         dtype: Optional[str] = None,
         trust_remote_code: bool = False,
+        post_attn_method: Optional[str] = None,
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:
@@ -206,6 +208,7 @@ def serve(
                 speculate,
                 dtype,
                 trust_remote_code,
+                post_attn_method,
             )
         except Exception:
             logger.exception("Error when initializing model")
@@ -239,6 +242,13 @@ def serve(
 
     asyncio.run(
         serve_inner(
-            model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code
+            model_id,
+            revision,
+            sharded,
+            quantize,
+            speculate,
+            dtype,
+            trust_remote_code,
+            post_attn_method,
         )
     )

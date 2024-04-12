@@ -28,6 +28,7 @@ class FlashGemma(FlashCausalLM):
         use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
+        post_attn_method: Optional[str] = None,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -51,6 +52,7 @@ class FlashGemma(FlashCausalLM):
         )
         config.quantize = quantize
         config.use_medusa = use_medusa
+        config.post_attn_method = post_attn_method
 
         torch.distributed.barrier(group=self.process_group)
 

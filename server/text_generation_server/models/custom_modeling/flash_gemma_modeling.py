@@ -36,6 +36,8 @@ from text_generation_server.utils.layers import (
     get_linear,
     FastRMSNorm,
 )
+from .custom_triton_kernels.gemma_kernel import call
+from .custom_triton_kernels.gemma_kernel_decode_one import call as call_decode_one
 
 
 class GemmaConfig(PretrainedConfig):
@@ -61,6 +63,7 @@ class GemmaConfig(PretrainedConfig):
         rope_scaling=None,
         attention_bias=False,
         attention_dropout=0.0,
+        post_attn_method="post_attn_layer_norm_and_mlp_fused",
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -84,6 +87,7 @@ class GemmaConfig(PretrainedConfig):
         self.rope_scaling = rope_scaling
         self.attention_bias = attention_bias
         self.attention_dropout = attention_dropout
+        self.post_attn_method = post_attn_method
 
         super().__init__(
             pad_token_id=pad_token_id,
@@ -310,6 +314,67 @@ class FlashGemmaLayer(nn.Module):
             eps=config.rms_norm_eps,
         )
 
+        if config.post_attn_method == "post_attn_layer_norm_and_mlp_fused":
+            arg0_1 = self.post_attention_layernorm.weight
+            arg1_1 = self.mlp.gate_up_proj.linear.weight
+            arg2_1 = self.mlp.down_proj.linear.weight
+
+            # wrap the variable sized kernel call and use it as inner_forward
+            def _wrapped_inner_forward(
+                res,
+                attn_output,
+            ):
+                arg3_1 = res.size(0)
+                arg4_1 = res
+                arg5_1 = attn_output
+                return call(
+                    [arg0_1, arg1_1, arg2_1, arg3_1, arg4_1, arg5_1],
+                )
+
+            self.inner_forward = _wrapped_inner_forward
+
+            # now wrap the kernel for a fixed size input and use it as decode_one_forward
+            def _wrapped_decode_one_forward(
+                res,
+                attn_output,
+            ):
+                arg3_1 = res
+                arg4_1 = attn_output
+                return call_decode_one(
+                    [arg0_1, arg1_1, arg2_1, arg3_1, arg4_1],
+                )
+
+            self.decode_one_forward = _wrapped_decode_one_forward
+
+        elif config.post_attn_method == "compile":
+            # compile the function specifically for a fixed size input (variable one compiled outside this example)
+            self.decode_one_forward = torch.compile(
+                # the original forward function
+                self._inner_forward,
+                # avoid "reduce-overhead" mode, as it caches the graph and misleads timing
+                mode="max-autotune",
+                # avoid graph breaks
+                fullgraph=True,
+                # allow compilation for differnt input shapes
+                dynamic=True,
+            )
+            self.inner_forward = self._inner_forward
+        else:
+            # if nothing specified use the original forward function in both cases
+            self.decode_one_forward = self._inner_forward
+            self.inner_forward = self._inner_forward
+
+    def _inner_forward(
+        self,
+        res,
+        attn_output,
+    ):
+        normed_attn_res_output, attn_res = self.post_attention_layernorm(
+            attn_output, res
+        )
+        mlp_output = self.mlp(normed_attn_res_output)
+        return mlp_output, attn_res
+
     def forward(
         self,
         hidden_states,
@@ -338,14 +403,16 @@ class FlashGemmaLayer(nn.Module):
             max_s,
         )
 
-        # faster post attention rms norm
-        normed_attn_res_output, attn_res = self.post_attention_layernorm(
-            attn_output, res
+        if hidden_states.shape[0] == 1:
+            return self.decode_one_forward(
+                res,
+                attn_output,
+            )
+
+        return self.inner_forward(
+            res,
+            attn_output,
         )
-
-        mlp_output = self.mlp(normed_attn_res_output)
-
-        return mlp_output, attn_res
 
 
 class FlashGemmaModel(torch.nn.Module):
