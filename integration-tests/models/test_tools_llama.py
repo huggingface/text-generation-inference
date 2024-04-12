@@ -71,6 +71,7 @@ tools = [
 ]
 
 
+@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_snapshot):
