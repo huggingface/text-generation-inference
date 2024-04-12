@@ -149,6 +149,8 @@ FROM kernel-builder as vllm-builder
 
 WORKDIR /usr/src
 
+ENV TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0+PTX"
+
 COPY server/Makefile-vllm Makefile
 
 # Build specific version of vllm
