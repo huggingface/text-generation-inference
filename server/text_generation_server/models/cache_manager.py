@@ -2,6 +2,7 @@ import math
 import torch
 
 from typing import Optional, List, Tuple
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM, IS_NPU_SYSTEM
 
 BLOCK_SIZE: int = 16
 # Will be set in warmup
@@ -119,7 +120,10 @@ def set_cache_manager(
     global CACHE_MANAGER
     if CACHE_MANAGER is not None:
         del CACHE_MANAGER
-        torch.cuda.empty_cache()
+        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
+            torch.cuda.empty_cache()
+        elif IS_NPU_SYSTEM:
+            torch.npu.empty_cache()
 
     CACHE_MANAGER = CacheManager(
         num_blocks, num_layers, num_heads, head_size, repeat_slots, dtype, device

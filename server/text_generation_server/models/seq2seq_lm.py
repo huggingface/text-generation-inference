@@ -16,6 +16,7 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 tracer = trace.get_tracer(__name__)
 
@@ -542,6 +543,9 @@ class Seq2SeqLM(Model):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype
+        elif IS_NPU_SYSTEM:
+            device = torch.device("npu")
+            dtype = torch.float16 if dtype is None else dtype           
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")
@@ -549,20 +553,25 @@ class Seq2SeqLM(Model):
             device = torch.device("cpu")
             dtype = torch.float32 if dtype is None else dtype
 
+        if (
+            torch.cuda.is_available() and torch.cuda.device_count() > 1
+            or IS_NPU_SYSTEM and torch.npu.is_available() > 1
+        ):
+            device_map = "auto"
+        else:
+            device_map = None
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if torch.cuda.is_available() and torch.cuda.device_count() > 1
-                else None
-            ),
+            device_map=device_map,
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
         if torch.cuda.is_available() and torch.cuda.device_count() == 1:
             model = model.cuda()
+        if IS_NPU_SYSTEM and torch.npu.device_count() == 1:
+            model = model.npu()
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,

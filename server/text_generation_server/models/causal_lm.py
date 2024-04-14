@@ -16,6 +16,7 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 tracer = trace.get_tracer(__name__)
 
@@ -492,6 +493,9 @@ class CausalLM(Model):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype
+        elif IS_NPU_SYSTEM:
+            device = torch.device("npu")
+            dtype = torch.float16 if dtype is None else dtype
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")
@@ -506,15 +510,19 @@ class CausalLM(Model):
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
+
+        if (
+            torch.cuda.is_available() and torch.cuda.device_count() > 1
+            or IS_NPU_SYSTEM and torch.npu.device_count() > 1
+        ):
+            device_map = "auto"
+        else:
+            device_map = None
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if torch.cuda.is_available() and torch.cuda.device_count() > 1
-                else None
-            ),
+            device_map=device_map,
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
@@ -524,6 +532,12 @@ class CausalLM(Model):
             and quantize != "bitsandbytes"
         ):
             model = model.cuda()
+        if (
+            IS_NPU_SYSTEM 
+            and torch.npu.device_count() == 1
+            and quantize != "bitsandbytes"
+        ):
+            model = model.npu()
 
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:

@@ -4,6 +4,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import List, Optional, Tuple
 
 from text_generation_server.models import CausalLM
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 
 class RW(CausalLM):
@@ -22,6 +23,9 @@ class RW(CausalLM):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype
+        elif IS_NPU_SYSTEM:
+            device = torch.device("npu")
+            dtype = torch.float16 if dtype is None else dtype            
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")
@@ -36,20 +40,25 @@ class RW(CausalLM):
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
+        if (
+            torch.cuda.is_available() and torch.cuda.device_count() > 1
+            or IS_NPU_SYSTEM and torch.npu.device_count() > 1
+        ):
+            device_map = "auto"
+        else:
+            device_map = None
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if torch.cuda.is_available() and torch.cuda.device_count() > 1
-                else None
-            ),
+            device_map=device_map,
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
         if torch.cuda.is_available() and torch.cuda.device_count() == 1:
             model = model.cuda()
+        if IS_NPU_SYSTEM and torch.npu.device_count() == 1:
+            model = model.npu()
 
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:

@@ -20,6 +20,7 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 import re
 
@@ -579,6 +580,9 @@ class IdeficsCausalLM(Model):
 
         if torch.cuda.is_available():
             device = torch.device("cuda")
+            dtype = torch.bfloat16 if dtype is None else dtype
+        elif IS_NPU_SYSTEM:
+            device = torch.device("npu")
             dtype = torch.bfloat16 if dtype is None else dtype
         else:
             if quantize:

@@ -30,6 +30,7 @@ from text_generation_server.models.types import (
 from text_generation_server.utils.tokens import batch_top_tokens, Sampling
 from dataclasses import dataclass
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 
 def new_inference_params(
@@ -421,6 +422,9 @@ class Mamba(Model):
             # Bf16 is important. In f16 accumulations in the matmul are causing
             # differences while the server is under load.
             # This is detectable by the integration load test
+            dtype = torch.bfloat16 if dtype is None else dtype
+        elif IS_NPU_SYSTEM:
+            device = torch.device("npu")
             dtype = torch.bfloat16 if dtype is None else dtype
         else:
             if quantize:

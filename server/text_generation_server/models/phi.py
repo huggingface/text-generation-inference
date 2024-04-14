@@ -14,6 +14,7 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 
 class Phi(CausalLM):
@@ -30,6 +31,9 @@ class Phi(CausalLM):
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype
+        elif IS_NPU_SYSTEM:
+            device = torch.device("npu")
+            dtype = torch.float16 if dtype is None else dtype           
         else:
             if quantize:
                 raise ValueError("quantization is not available on CPU")

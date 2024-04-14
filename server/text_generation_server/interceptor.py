@@ -6,6 +6,7 @@ from grpc_status import rpc_status
 from grpc_interceptor.server import AsyncServerInterceptor
 from loguru import logger
 from typing import Callable, Any
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 
 class ExceptionInterceptor(AsyncServerInterceptor):
@@ -25,6 +26,8 @@ class ExceptionInterceptor(AsyncServerInterceptor):
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+            elif IS_NPU_SYSTEM:
+                torch.npu.empty_cache()
 
             await context.abort_with_status(
                 rpc_status.to_status(

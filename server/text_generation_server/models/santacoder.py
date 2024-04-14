@@ -5,6 +5,7 @@ from typing import Optional, List
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from text_generation_server.models import CausalLM
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 FIM_PREFIX = "<fim-prefix>"
 FIM_MIDDLE = "<fim-middle>"
@@ -25,6 +26,9 @@ class SantaCoder(CausalLM):
     ):
         if torch.cuda.is_available():
             device = torch.device("cuda")
+            dtype = torch.float16 if dtype is None else dtype
+        elif IS_NPU_SYSTEM:
+            device = torch.device("npu")
             dtype = torch.float16 if dtype is None else dtype
         else:
             if quantize:

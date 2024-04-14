@@ -3,12 +3,14 @@ import torch
 
 from datetime import timedelta
 from loguru import logger
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 # Tensor Parallelism settings
 RANK = int(os.getenv("RANK", "0"))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", "1"))
 
 # CUDA memory fraction
+# TODO: Do we need to rename CUDA_MEMORY_FRACTION to DEVICE_MEMORY_FRACTION?
 MEMORY_FRACTION = float(os.getenv("CUDA_MEMORY_FRACTION", "1.0"))
 
 
@@ -53,6 +55,15 @@ def initialize_torch_distributed():
         torch.cuda.set_device(device)
         torch.cuda.set_per_process_memory_fraction(MEMORY_FRACTION, device)
         backend = "nccl"
+        options = ProcessGroupNCCL.Options()
+        options.is_high_priority_stream = True
+        options._timeout = timedelta(seconds=60)
+    elif IS_NPU_SYSTEM:
+        assert WORLD_SIZE <= torch.npu.device_count(), "Each process is one npu"
+        device = RANK % torch.npu.device_count()
+        torch.npu.set_device(device)
+        torch.npu.set_per_process_memory_fraction(MEMORY_FRACTION, device)
+        backend = "hccl"
         options = ProcessGroupNCCL.Options()
         options.is_high_priority_stream = True
         options._timeout = timedelta(seconds=60)

@@ -19,6 +19,7 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 tracer = trace.get_tracer(__name__)
 
@@ -50,6 +51,9 @@ class MPTSharded(CausalLM):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16 if dtype is None else dtype
+        elif IS_NPU_SYSTEM:
+            device = torch.device(f"npu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
             device = torch.device("cpu")

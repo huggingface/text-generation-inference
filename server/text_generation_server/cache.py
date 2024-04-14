@@ -3,6 +3,7 @@ import torch
 from typing import Dict, Optional, TypeVar
 
 from text_generation_server.models.types import Batch
+from text_generation_server.utils.import_utils import IS_NPU_SYSTEM
 
 B = TypeVar("B", bound=Batch)
 
@@ -24,6 +25,8 @@ class Cache:
             del batch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        elif IS_NPU_SYSTEM:
+            torch.npu.empty_cache()
 
     def clear(self):
         keys = list(self.cache.keys())
