@@ -1009,8 +1009,8 @@ async fn chat_completions(
     let logprobs = logprobs.unwrap_or(false);
     let tool_prompt = tool_prompt.unwrap_or_default();
     let stop = stop.unwrap_or_default();
-    // rescale where 0 is deterministic and 1 is random (this is the opposite of other endpoints)
-    let adjusted_temperature = temperature.map_or(1.0, |t| 1.0 - t);
+    // rescale temperature starting from 0.0 to 1.0
+    let adjusted_temperature = req.temperature.map_or(1.0, |t| t + 1.0);
     let do_sample = adjusted_temperature > 0.0;
     let temperature = Some(adjusted_temperature);
 
