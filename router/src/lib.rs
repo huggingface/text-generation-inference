@@ -709,6 +709,10 @@ pub(crate) struct ChatRequest {
     #[schema(nullable = true, example = "null")]
     #[serde(deserialize_with = "deserialize_tool_choice::deserialize")]
     pub tool_choice: Option<ToolType>,
+
+    #[serde(default)]
+    #[schema(default = "false", example = true)]
+    pub do_sample: bool,
 }
 
 fn default_tool_prompt() -> Option<String> {

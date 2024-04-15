@@ -1060,7 +1060,7 @@ async fn chat_completions(
             top_k: None,
             top_p: req.top_p,
             typical_p: None,
-            do_sample: true,
+            do_sample: req.do_sample,
             max_new_tokens,
             return_full_text: None,
             stop,
