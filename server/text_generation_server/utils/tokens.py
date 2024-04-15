@@ -275,7 +275,9 @@ class HeterogeneousNextTokenChooser:
 
         if any([x != 1.0 for x in temperature]):
             do_sample = [
-                sample or x != 1.0 for x, sample in zip(temperature, do_sample)
+                # 1 and 0 both mean no sampling in different contexts
+                sample or x == 1.0 or x == 0.0 or math.isclose(x, 0.0)
+                for x, sample in zip(temperature, do_sample)
             ]
             warpers.append(
                 HeterogeneousTemperatureLogitsWarper(temperature, dtype, device)
