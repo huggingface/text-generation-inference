@@ -1000,6 +1000,7 @@ async fn chat_completions(
         tools,
         tool_choice,
         tool_prompt,
+        temperature
         ..
     } = req;
 
@@ -1008,6 +1009,10 @@ async fn chat_completions(
     let logprobs = logprobs.unwrap_or(false);
     let tool_prompt = tool_prompt.unwrap_or_default();
     let stop = stop.unwrap_or_default();
+    // rescale where 0 is deterministic and 1 is random (this is the opposite of other endpoints)
+    let adjusted_temperature = temperature.map_or(1.0, |t| 1.0 - t);
+    let do_sample = adjusted_temperature > 0.0;
+    let temperature = Some(adjusted_temperature);
 
     // extract tool grammar if present
     let tool_grammar = match ToolGrammar::apply(tools, tool_choice) {
@@ -1054,13 +1059,13 @@ async fn chat_completions(
         inputs: inputs.to_string(),
         parameters: GenerateParameters {
             best_of: None,
-            temperature: req.temperature.map(|t| 1.0 - t),
+            temperature,
             repetition_penalty,
             frequency_penalty: req.frequency_penalty,
             top_k: None,
             top_p: req.top_p,
             typical_p: None,
-            do_sample: req.temperature.map_or(true, |t| t > 0.0),
+            do_sample,
             max_new_tokens,
             return_full_text: None,
             stop,
