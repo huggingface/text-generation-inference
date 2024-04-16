@@ -959,20 +959,6 @@ pub(crate) struct Details {
     pub top_tokens: Vec<Vec<Token>>,
 }
 
-impl Default for Details {
-    fn default() -> Self {
-        Self {
-            finish_reason: FinishReason::Length,
-            generated_tokens: 0,
-            seed: None,
-            prefill: Vec::new(),
-            tokens: Vec::new(),
-            best_of_sequences: None,
-            top_tokens: Vec::new(),
-        }
-    }
-}
-
 #[derive(Serialize, ToSchema)]
 pub(crate) struct GenerateResponse {
     #[schema(example = "test")]
