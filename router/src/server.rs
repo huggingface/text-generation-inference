@@ -548,7 +548,11 @@ async fn generate_stream_internal(
     path = "/v1/completions",
     request_body = CompletionRequest,
     responses(
-    (status = 200, description = "Generated Text", body = ChatCompletionChunk),
+    (status = 200, description = "Generated Chat Completion",
+    content(
+    ("application/json" = Completion),
+    ("text/event-stream" = CompletionCompleteChunk),
+    )),
     (status = 424, description = "Generation Error", body = ErrorResponse,
     example = json ! ({"error": "Request failed during generation"})),
     (status = 429, description = "Model is overloaded", body = ErrorResponse,
@@ -652,7 +656,7 @@ async fn completions(
                 })
                 .map_or_else(
                     |e| {
-                        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
+                        println!("Failed to serialize CompletionCompleteChunk: {:?}", e);
                         Event::default()
                     },
                     |data| data,
@@ -725,7 +729,11 @@ async fn completions(
     path = "/v1/chat/completions",
     request_body = ChatRequest,
     responses(
-    (status = 200, description = "Generated Text", body = ChatCompletionChunk),
+    (status = 200, description = "Generated Chat Completion",
+    content(
+    ("application/json" = ChatCompletion),
+    ("text/event-stream" = ChatCompletionChunk),
+    )),
     (status = 424, description = "Generation Error", body = ErrorResponse,
     example = json ! ({"error": "Request failed during generation"})),
     (status = 429, description = "Model is overloaded", body = ErrorResponse,
