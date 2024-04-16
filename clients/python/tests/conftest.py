@@ -10,6 +10,11 @@ def flan_t5_xxl():
 
 
 @pytest.fixture
+def llama_7b():
+    return "meta-llama/Llama-2-7b-chat-hf"
+
+
+@pytest.fixture
 def fake_model():
     return "fake/model"
 
@@ -32,6 +37,11 @@ def bloom_url(base_url, bloom_model):
 @pytest.fixture
 def flan_t5_xxl_url(base_url, flan_t5_xxl):
     return f"{base_url}/{flan_t5_xxl}"
+
+
+@pytest.fixture
+def llama_7b_url(base_url, llama_7b):
+    return f"{base_url}/{llama_7b}"
 
 
 @pytest.fixture
