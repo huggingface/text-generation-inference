@@ -12,11 +12,10 @@
           {
             "function": {
               "arguments": {
-                "format": "celsius",
-                "location": "Brooklyn"
+                "error": "Cannot get current weather forecast from specified location and temperature unit. Please try again with different options."
               },
               "description": null,
-              "name": "get_current_weather"
+              "name": "notify_error"
             },
             "id": 0,
             "type": "function"
@@ -26,14 +25,14 @@
       "usage": null
     }
   ],
-  "created": 1712782670,
+  "created": 1712852597,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",
-  "system_fingerprint": "2.0.0-native",
+  "system_fingerprint": "1.4.5-native",
   "usage": {
-    "completion_tokens": 37,
-    "prompt_tokens": 524,
-    "total_tokens": 561
+    "completion_tokens": 39,
+    "prompt_tokens": 496,
+    "total_tokens": 535
   }
 }

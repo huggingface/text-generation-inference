@@ -11,12 +11,12 @@
         "tool_calls": [
           {
             "function": {
-              "description": null,
-              "name": "tools",
-              "parameters": {
+              "arguments": {
                 "format": "celsius",
                 "location": "New York, NY"
-              }
+              },
+              "description": null,
+              "name": "get_current_weather"
             },
             "id": 0,
             "type": "function"
@@ -26,14 +26,14 @@
       "usage": null
     }
   ],
-  "created": 1710795557,
+  "created": 1712852394,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",
   "system_fingerprint": "2.0.0-native",
   "usage": {
-    "completion_tokens": 21,
-    "prompt_tokens": 187,
-    "total_tokens": 208
+    "completion_tokens": 48,
+    "prompt_tokens": 320,
+    "total_tokens": 368
   }
 }
