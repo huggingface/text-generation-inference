@@ -9,6 +9,7 @@ import json
 import math
 import time
 import random
+import re
 
 from docker.errors import NotFound
 from typing import Optional, List, Dict
@@ -26,6 +27,7 @@ from text_generation.types import (
     ChatComplete,
     ChatCompletionChunk,
     ChatCompletionComplete,
+    CompletionComplete,
 )
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
@@ -69,12 +71,12 @@ class ResponseComparator(JSONSnapshotExtension):
             data = json.loads(data)
             if isinstance(data, Dict) and "choices" in data:
                 choices = data["choices"]
-                if (
-                    isinstance(choices, List)
-                    and len(choices) >= 1
-                    and "delta" in choices[0]
-                ):
-                    return ChatCompletionChunk(**data)
+                print(choices)
+                if isinstance(choices, List) and len(choices) >= 1:
+                    if "delta" in choices[0]:
+                        return ChatCompletionChunk(**data)
+                    if "text" in choices[0]:
+                        return CompletionComplete(**data)
                 return ChatComplete(**data)
 
             if isinstance(data, Dict):
@@ -161,6 +163,9 @@ class ResponseComparator(JSONSnapshotExtension):
                 )
             )
 
+        def eq_completion(response: ChatComplete, other: ChatComplete) -> bool:
+            return response.choices[0].text == other.choices[0].text
+
         def eq_chat_complete(response: ChatComplete, other: ChatComplete) -> bool:
             return (
                 response.choices[0].message.content == other.choices[0].message.content
@@ -183,6 +188,11 @@ class ResponseComparator(JSONSnapshotExtension):
             serialized_data = [serialized_data]
         if not isinstance(snapshot_data, List):
             snapshot_data = [snapshot_data]
+
+        if isinstance(serialized_data[0], CompletionComplete):
+            return len(snapshot_data) == len(serialized_data) and all(
+                [eq_completion(r, o) for r, o in zip(serialized_data, snapshot_data)]
+            )
 
         if isinstance(serialized_data[0], ChatComplete):
             return len(snapshot_data) == len(serialized_data) and all(

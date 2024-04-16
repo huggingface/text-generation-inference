@@ -3,6 +3,10 @@ import requests
 import json
 from aiohttp import ClientSession
 
+from text_generation.types import (
+    CompletionComplete,
+)
+
 
 @pytest.fixture(scope="module")
 def flash_llama_completion_handle(launcher):
@@ -82,6 +86,7 @@ async def test_flash_llama_completion_many_prompts_stream(
 
     url = f"{flash_llama_completion.base_url}/v1/completions"
 
+    chunks = []
     async with ClientSession(headers=flash_llama_completion.headers) as session:
         async with session.post(url, json=request) as response:
             # iterate over the stream
@@ -96,8 +101,10 @@ async def test_flash_llama_completion_many_prompts_stream(
                 chunk = [json.loads(c) for c in chunk]
 
                 for c in chunk:
+                    print(c)
+                    chunks.append(CompletionComplete(**c))
                     assert "choices" in c
                     assert 0 <= c["choices"][0]["index"] <= 4
 
     assert response.status == 200
-    assert response == response_snapshot
+    assert chunks == response_snapshot
