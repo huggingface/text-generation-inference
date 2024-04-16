@@ -1011,7 +1011,7 @@ async fn chat_completions(
     let stop = stop.unwrap_or_default();
     // rescale temperature starting from 0.0 to 1.0
     let adjusted_temperature = req.temperature.map_or(1.0, |t| t + 1.0);
-    let do_sample = adjusted_temperature > 0.0;
+    let do_sample = adjusted_temperature != 0.0;
     let temperature = Some(adjusted_temperature);
 
     // extract tool grammar if present
