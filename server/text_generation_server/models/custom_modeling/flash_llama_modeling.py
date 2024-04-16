@@ -37,6 +37,8 @@ from text_generation_server.utils.layers import (
     FastRMSNorm,
 )
 
+from .custom_triton_kernels.mlp import CustomMLP
+
 
 class LlamaConfig(PretrainedConfig):
     def __init__(
@@ -287,6 +289,10 @@ class FlashLlamaLayer(nn.Module):
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
         self.mlp = LlamaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
+        # TODO: reuse weights until we can use the precompiled mlp in all cases
+        self.pre_compiled_mlp = CustomMLP(
+            self.mlp.gate_up_proj.linear.weight, self.mlp.down_proj.linear.weight
+        )
 
         self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
@@ -330,7 +336,10 @@ class FlashLlamaLayer(nn.Module):
             attn_output, res
         )
 
-        mlp_output = self.mlp(normed_attn_res_output)
+        if normed_attn_res_output.size(0) == 1:
+            mlp_output = self.pre_compiled_mlp(normed_attn_res_output)
+        else:
+            mlp_output = self.mlp(normed_attn_res_output)
 
         return mlp_output, attn_res
 
