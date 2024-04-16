@@ -4,7 +4,7 @@ import json
 from aiohttp import ClientSession
 
 from text_generation.types import (
-    CompletionComplete,
+    Completion,
 )
 
 
@@ -101,8 +101,7 @@ async def test_flash_llama_completion_many_prompts_stream(
                 chunk = [json.loads(c) for c in chunk]
 
                 for c in chunk:
-                    print(c)
-                    chunks.append(CompletionComplete(**c))
+                    chunks.append(Completion(**c))
                     assert "choices" in c
                     assert 0 <= c["choices"][0]["index"] <= 4
 

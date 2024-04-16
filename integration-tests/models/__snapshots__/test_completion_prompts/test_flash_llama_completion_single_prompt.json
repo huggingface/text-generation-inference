@@ -7,11 +7,11 @@
       "text": " PR for flake8"
     }
   ],
-  "created": 1712875413,
+  "created": 1713284454,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",
-  "system_fingerprint": "1.4.5-native",
+  "system_fingerprint": "2.0.0-native",
   "usage": {
     "completion_tokens": 5,
     "prompt_tokens": 6,

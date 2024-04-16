@@ -115,7 +115,7 @@ class ChatComplete(BaseModel):
     usage: Any
 
 
-class CompletionComplete(BaseModel):
+class Completion(BaseModel):
     # Completion details
     id: str
     object: str
