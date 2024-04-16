@@ -39,7 +39,7 @@ def test_flash_llama_completion_single_prompt(
     response = response.json()
     assert len(response["choices"]) == 1
 
-    response == response_snapshot
+    return response == response_snapshot
 
 
 def test_flash_llama_completion_many_prompts(flash_llama_completion, response_snapshot):
@@ -61,7 +61,7 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
     all_indexes.sort()
     assert all_indexes == [0, 1, 2, 3]
 
-    response == response_snapshot
+    return response == response_snapshot
 
 
 async def test_flash_llama_completion_many_prompts_stream(
@@ -100,4 +100,4 @@ async def test_flash_llama_completion_many_prompts_stream(
                     assert 0 <= c["choices"][0]["index"] <= 4
 
     assert response.status == 200
-    response == response_snapshot
+    return response == response_snapshot

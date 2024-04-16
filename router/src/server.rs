@@ -701,7 +701,10 @@ async fn completions(
                     // pin an emit messages to the sse_tx
                     let mut sse = Box::pin(sse);
                     while let Some(event) = sse.next().await {
-                        sse_tx.send(event).expect("Failed to send event");
+                        if sse_tx.send(event).is_err() {
+                            tracing::error!("Failed to send event. Receiver dropped.");
+                            break;
+                        }
                     }
                 });
 
@@ -716,7 +719,16 @@ async fn completions(
             all_rxs.push(sse_rx);
 
             // get the headers from the first response of each stream
-            let headers = header_rx.await.expect("Failed to get headers");
+            let headers = header_rx.await.map_err(|e| {
+                tracing::error!("Failed to get headers: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "Failed to get headers".to_string(),
+                        error_type: "headers".to_string(),
+                    }),
+                )
+            })?;
             if x_compute_type.is_none() {
                 x_compute_type = headers
                     .get("x-compute-type")
