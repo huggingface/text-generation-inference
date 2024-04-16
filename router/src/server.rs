@@ -1000,7 +1000,7 @@ async fn chat_completions(
         tools,
         tool_choice,
         tool_prompt,
-        temperature
+        temperature,
         ..
     } = req;
 
