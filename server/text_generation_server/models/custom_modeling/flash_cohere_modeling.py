@@ -216,7 +216,9 @@ class FlashCohereAttention(torch.nn.Module):
 
         self.query_key_value = load_attention(config, prefix, weights)
 
-        self.use_qk_norm = config.use_qk_norm
+        self.use_qk_norm = (
+            config.use_qk_norm if hasattr(config, "use_qk_norm") else False
+        )
         if self.use_qk_norm:
             self.q_norm = CohereLayerNorm(
                 prefix=f"{prefix}.q_norm",
