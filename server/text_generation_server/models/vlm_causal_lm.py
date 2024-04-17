@@ -147,8 +147,10 @@ class VlmCausalLMBatch(FlashMistralBatch):
                             "Cannot process input image not starting with data:"
                         )
                     image_input = processor.image_processor(image, return_tensors="pt")
-                    height, width = image_input["image_sizes"][0]
-                    num_features = get_number_of_features(height, width, config)
+                    # import ipdb;ipdb.set_trace()
+                    # height, width = image_input["image_sizes"][0]
+                    # num_features = get_number_of_features(height, width, config)
+                    num_features = 1
                     full_text += "<image>" * num_features
                     image_inputs.append(image_input)
                 else:
@@ -165,7 +167,10 @@ class VlmCausalLMBatch(FlashMistralBatch):
                 "pixel_values": torch.cat(
                     [img["pixel_values"] for img in image_inputs], dim=0
                 ),
-                "image_sizes": torch.cat([img["image_sizes"] for img in image_inputs]),
+                "pixel_attention_mask": torch.cat(
+                    [img["pixel_attention_mask"] for img in image_inputs], dim=0
+                ),
+                # "image_sizes": torch.cat([img["image_sizes"] for img in image_inputs]),
             }
         else:
             image_inputs = None
@@ -187,10 +192,14 @@ class VlmCausalLMBatch(FlashMistralBatch):
         batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
         if image_inputs is not None:
             batch.pixel_values = image_inputs["pixel_values"].to(device=device)
-            batch.image_sizes = image_inputs["image_sizes"].to(device=device)
+            batch.pixel_attention_mask = image_inputs["pixel_attention_mask"].to(
+                device=device
+            )
+            # batch.image_sizes = image_inputs["image_sizes"].to(device=device)
         else:
             batch.pixel_values = None
-            batch.image_sizes = None
+            batch.pixel_attention_mask = None
+            # batch.image_sizes = None
         return batch
 
 
@@ -198,16 +207,6 @@ class VlmCausalLM(BaseFlashMistral):
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
         return VlmCausalLMBatch
-
-    def get_layer_config(self, model) -> Tuple[int, int, int]:
-        return (
-            len(model.language_model.model.layers),
-            model.language_model.model.num_key_value_heads,
-            model.language_model.model.head_size,
-        )
-
-    def max_past(self) -> Optional[int]:
-        return getattr(self.model.language_model, "max_past", None)
 
     def forward(
         self, batch: VlmCausalLMBatch
@@ -294,14 +293,17 @@ class VlmCausalLM(BaseFlashMistral):
                 prefill_cache_indices=batch.prefill_cache_indices,
                 lm_head_indices=lm_head_indices,
                 pixel_values=batch.pixel_values,
-                image_sizes=batch.image_sizes,
+                pixel_attention_mask=batch.pixel_attention_mask,
+                # image_sizes=batch.image_sizes,
             )
             if batch.prefill_cache_indices is not None:
                 batch.prefill_cache_indices = None
             if batch.pixel_values is not None:
                 batch.pixel_values = None
-            if batch.image_sizes is not None:
-                batch.image_sizes = None
+            if batch.pixel_attention_mask is not None:
+                batch.pixel_attention_mask = None
+            # if batch.image_sizes is not None:
+            #     batch.image_sizes = None
             return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph

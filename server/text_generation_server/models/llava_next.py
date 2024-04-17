@@ -1,6 +1,6 @@
 import torch
 
-from typing import Optional
+from typing import Optional, Tuple
 
 from transformers import (
     AutoProcessor,
@@ -34,3 +34,13 @@ class LlavaNext(VlmCausalLM):
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
+
+    def get_layer_config(self, model) -> Tuple[int, int, int]:
+        return (
+            len(model.language_model.model.layers),
+            model.language_model.model.num_key_value_heads,
+            model.language_model.model.head_size,
+        )
+
+    def max_past(self) -> Optional[int]:
+        return getattr(self.model.language_model, "max_past", None)
