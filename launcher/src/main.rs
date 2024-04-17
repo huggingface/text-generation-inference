@@ -414,6 +414,10 @@ struct Args {
     /// Display a lot of information about your runtime environment
     #[clap(long, short, action)]
     env: bool,
+
+    /// Control the maximum number of inputs that a client can send in a single request
+    #[clap(default_value = "4", long, env)]
+    max_client_batch_size: usize,
 }
 
 #[derive(Debug)]
@@ -1078,6 +1082,8 @@ fn spawn_webserver(
     // Start webserver
     tracing::info!("Starting Webserver");
     let mut router_args = vec![
+        "--max-client-batch-size".to_string(),
+        args.max_client_batch_size.to_string(),
         "--max-concurrent-requests".to_string(),
         args.max_concurrent_requests.to_string(),
         "--max-best-of".to_string(),

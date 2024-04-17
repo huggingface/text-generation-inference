@@ -155,6 +155,8 @@ pub struct Info {
     pub max_batch_size: Option<usize>,
     #[schema(example = "2")]
     pub validation_workers: usize,
+    #[schema(example = "32")]
+    pub max_client_batch_size: usize,
     /// Router Info
     #[schema(example = "0.5.0")]
     pub version: &'static str,
@@ -280,6 +282,34 @@ fn default_parameters() -> GenerateParameters {
     }
 }
 
+mod prompt_serde {
+    use serde::{self, Deserialize, Deserializer};
+    use serde_json::Value;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        match value {
+            Value::String(s) => Ok(vec![s]),
+            Value::Array(arr) if arr.is_empty() => Err(serde::de::Error::custom(
+                "Empty array detected. Do not use an empty array for the prompt.",
+            )),
+            Value::Array(arr) => arr
+                .iter()
+                .map(|v| match v {
+                    Value::String(s) => Ok(s.to_owned()),
+                    _ => Err(serde::de::Error::custom("Expected a string")),
+                })
+                .collect(),
+            _ => Err(serde::de::Error::custom(
+                "Expected a string or an array of strings",
+            )),
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize, ToSchema, Debug)]
 pub struct CompletionRequest {
     /// UNUSED
@@ -289,7 +319,8 @@ pub struct CompletionRequest {
 
     /// The prompt to generate completions for.
     #[schema(example = "What is Deep Learning?")]
-    pub prompt: String,
+    #[serde(deserialize_with = "prompt_serde::deserialize")]
+    pub prompt: Vec<String>,
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]

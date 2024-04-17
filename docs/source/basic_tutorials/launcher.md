@@ -399,6 +399,15 @@ Options:
           Display a lot of information about your runtime environment
 
 ```
+## MAX_CLIENT_BATCH_SIZE
+```shell
+      --max-client-batch-size <MAX_CLIENT_BATCH_SIZE>
+          Control the maximum number of inputs that a client can send in a single request
+          
+          [env: MAX_CLIENT_BATCH_SIZE=]
+          [default: 4]
+
+```
 ## HELP
 ```shell
   -h, --help
