@@ -1009,9 +1009,9 @@ async fn chat_completions(
     let logprobs = logprobs.unwrap_or(false);
     let tool_prompt = tool_prompt.unwrap_or_default();
     let stop = stop.unwrap_or_default();
-    // chat temperature is zero-indexed instead of one-indexed; so we add 1.0 to the input or default to 1.0
-    let adjusted_temperature = temperature.map_or(1.0, |t| t + 1.0);
-    let do_sample = adjusted_temperature != 1.0;
+    // enable greedy only when temperature is 0
+    let do_sample = temperature.map_or(true, |t| t > 0.0);
+    let adjusted_temperature = temperature.map_or(1.0, |t| if t == 0.0 { 1.0 } else { t });
     let temperature = Some(adjusted_temperature);
 
     // extract tool grammar if present
