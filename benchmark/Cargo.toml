@@ -23,9 +23,9 @@ serde_json = "1.0"
 tabled = "0.14.0"
 text-generation-client = { path = "../router/client" }
 thiserror = "1.0.48"
-tokenizers = { version = "0.14.0", features = ["http"] }
+tokenizers = { workspace = true }
 tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync", "macros"] }
 tui = {package = "ratatui", version = "0.23", default-features = false, features = ["crossterm"]}
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
-hf-hub = "0.3.1"
+hf-hub = { workspace = true }
