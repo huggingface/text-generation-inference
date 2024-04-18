@@ -21,7 +21,7 @@ axum-tracing-opentelemetry = "0.14.1"
 text-generation-client = { path = "client" }
 clap = { version = "4.4.5", features = ["derive", "env"] }
 futures = "0.3.28"
-hf-hub = { version = "0.3.0", features = ["tokio"] }
+hf-hub = { workspace = true }
 jsonschema = { version = "0.17.1", features = ["draft202012"] }
 metrics = "0.21.1"
 metrics-exporter-prometheus = { version = "0.12.1", features = [] }
@@ -33,7 +33,7 @@ reqwest = { version = "0.11.20", features = [] }
 serde = "1.0.188"
 serde_json = "1.0.107"
 thiserror = "1.0.48"
-tokenizers = { version = "0.15.1", features = ["http"] }
+tokenizers = { workspace = true}
 tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tokio-stream = "0.1.14"
 tower-http = { version = "0.4.4", features = ["cors"] }

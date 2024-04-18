@@ -238,7 +238,7 @@ pub(crate) struct GenerateParameters {
     #[schema(default = "true")]
     pub details: bool,
     #[serde(default)]
-    #[schema(default = "true")]
+    #[schema(default = "false")]
     pub decoder_input_details: bool,
     #[serde(default)]
     #[schema(
@@ -252,6 +252,7 @@ pub(crate) struct GenerateParameters {
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 5)]
     pub top_n_tokens: Option<u32>,
     #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
     pub grammar: Option<GrammarType>,
 }
 
