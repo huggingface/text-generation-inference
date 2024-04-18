@@ -30,7 +30,7 @@
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",
-  "system_fingerprint": "2.0.0-native",
+  "system_fingerprint": "2.0.1-native",
   "usage": {
     "completion_tokens": 48,
     "prompt_tokens": 320,
