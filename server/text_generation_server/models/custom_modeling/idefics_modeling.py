@@ -60,7 +60,7 @@ from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SY
 if IS_CUDA_SYSTEM:
     import dropout_layer_norm
 elif IS_ROCM_SYSTEM:
-    from vllm import layernorm_ops
+    from vllm._C import ops
 
 
 @dataclass
@@ -418,7 +418,7 @@ class IdeficsRMSNorm(nn.Module):
                 hidden_states = hidden_states.reshape(-1, shape[-1])
 
             out = torch.empty_like(hidden_states)
-            layernorm_ops.rms_norm(
+            ops.rms_norm(
                 out,
                 hidden_states,
                 self.weight.data,

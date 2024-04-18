@@ -793,7 +793,7 @@ try:
     if IS_CUDA_SYSTEM:
         import dropout_layer_norm
     elif IS_ROCM_SYSTEM:
-        from vllm import layernorm_ops
+        from vllm._C import ops
     else:
         dropout_layer_norm = None
 
@@ -895,7 +895,7 @@ try:
                 residual = hidden_states
 
                 out = torch.empty_like(hidden_states)
-                layernorm_ops.rms_norm(
+                ops.rms_norm(
                     out,
                     hidden_states,
                     self.weight.data,
@@ -915,7 +915,7 @@ try:
         from flash_attn.layers.rotary import RotaryEmbedding
         import rotary_emb
     elif IS_ROCM_SYSTEM:
-        from vllm import pos_encoding_ops
+        from vllm._C import ops
 
     def _create_inv_freq(dim, base, device):
         inv_freq = 1.0 / (
@@ -970,7 +970,7 @@ try:
                 head_size = query.shape[-1]
 
                 # Inplace operation, updating query and key.
-                pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, True)
+                ops.rotary_embedding(query, key, head_size, cos, sin, True)
             else:
                 raise ValueError(
                     "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
@@ -1231,6 +1231,5 @@ try:
                 freqs = torch.outer(t, self.inv_freq.to(device=t.device))
                 self._cos_cached = (torch.cos(freqs) * self.mscale).to(dtype)
                 self._sin_cached = (torch.sin(freqs) * self.mscale).to(dtype)
-
-except ImportError:
-    pass
+except ImportError as e:
+    raise e

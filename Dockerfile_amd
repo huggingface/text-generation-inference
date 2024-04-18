@@ -36,7 +36,7 @@ COPY launcher launcher
 RUN cargo build --release
 
 # Text Generation Inference base image for RoCm
-FROM rocm/dev-ubuntu-22.04:5.7 as base
+FROM rocm/dev-ubuntu-22.04:6.0.2 as base
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
@@ -50,13 +50,24 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     # Needed to build VLLM & flash.
     rocthrust-dev \
     hipsparse-dev \
-    hipblas-dev && \
+    hipblas-dev \
+    hipblaslt-dev \
+    rocblas-dev \
+    hiprand-dev \
+    rocrand-dev \
+    miopen-hip-dev \
+    hipfft-dev \
+    hipcub-dev \
+    hipsolver-dev \
+    rccl-dev \
+    cmake \
+    python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Keep in sync with `server/pyproject.toml
 ARG MAMBA_VERSION=23.1.0-1
-ARG PYTORCH_VERSION='2.2.0.dev0'
-ARG ROCM_VERSION='5.7'
+ARG PYTORCH_VERSION='2.3.0'
+ARG ROCM_VERSION='6.0.2'
 ARG PYTHON_VERSION='3.10.10'
 # Automatically set by buildx
 ARG TARGETPLATFORM
@@ -75,8 +86,8 @@ RUN chmod +x ~/mambaforge.sh && \
     mamba init && \
     rm ~/mambaforge.sh
 
-# Install PyTorch 2.2 RC compiled against RoCm 5.7, as VLLM can not be compiled with RoCm 5.6.
-RUN pip install torch --index-url https://download.pytorch.org/whl/test/rocm5.7/
+# Install PyTorch 2.3 RC compiled against RoCm 6.0
+RUN pip install torch numpy --index-url https://download.pytorch.org/whl/test/rocm6.0
 
 FROM base AS kernel-builder
 
@@ -102,21 +113,21 @@ RUN make build-flash-attention-v2-rocm
 FROM kernel-builder as custom-kernels-builder
 WORKDIR /usr/src
 COPY server/custom_kernels/ .
-RUN PYTORCH_ROCM_ARCH=gfx90a python setup.py build
+RUN PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build
 
 # Build exllama kernels
 FROM kernel-builder as exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
 
-RUN PYTORCH_ROCM_ARCH="gfx90a" python setup.py build
+RUN PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build
 
 # Build exllama v2 kernels
 FROM kernel-builder as exllamav2-kernels-builder
 WORKDIR /usr/src
 COPY server/exllamav2_kernels/ .
 
-RUN PYTORCH_ROCM_ARCH="gfx90a" python setup.py build
+RUN PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build
 
 FROM base as base-copy
 
@@ -147,10 +158,8 @@ RUN pip install einops --no-cache-dir
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
-RUN cd server && \
-    make gen-server && \
-    pip install -r requirements_rocm.txt && \
-    pip install ".[accelerate, peft, outlines]" --no-cache-dir
+    # pip install -r requirements_rocm.txt && \
+    #pip install ".[accelerate, peft, outlines]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
@@ -158,6 +167,10 @@ COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local
 COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+
+RUN cd server && \
+    make gen-server && \
+    pip install -r requirements_rocm.txt
 
 # AWS Sagemaker compatible image
 FROM base-copy as sagemaker
@@ -169,5 +182,5 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base-copy
 
-ENTRYPOINT ["text-generation-launcher"]
-CMD ["--json-output"]
+# ENTRYPOINT ["text-generation-launcher"]
+# CMD ["--json-output"]

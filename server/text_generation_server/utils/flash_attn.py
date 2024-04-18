@@ -15,6 +15,7 @@ major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
 is_sm8x = major == 8 and minor >= 0
 is_sm90 = major == 9 and minor == 0
+is_sm94 = major == 9 and minor == 4
 
 HAS_FLASH_ATTN = False
 HAS_FLASH_ATTN_V2_CUDA = False
@@ -33,9 +34,14 @@ try:
             "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
             f"or install flash attention v2 with `cd server && make install install-flash-attention-v2{architecture_suffix}`"
         )
-    if not (is_sm8x or is_sm90):
+    if IS_CUDA_SYSTEM and not (is_sm8x or is_sm90):
         raise ImportError(
             f"GPU with CUDA capability {major} {minor} is not supported for "
+            "Flash Attention V2"
+        )
+    elif IS_ROCM_SYSTEM and not (is_sm8x or is_sm90 or is_sm94):
+        raise ImportError(
+            f"AMD GPU with compute capability {major} {minor} is not supported for "
             "Flash Attention V2"
         )
     HAS_FLASH_ATTN_V2_CUDA = IS_CUDA_SYSTEM
