@@ -1221,7 +1221,9 @@ class FlashCausalLM(Model):
             # have more than one new token per request with speculative decoding
             for next_token_id in _next_token_ids:
                 batch.next_token_chooser = (
-                    batch.next_token_chooser.advance_grammar_single(i, next_token_id)
+                    batch.next_token_chooser.advance_grammar_single(
+                        i, next_token_id, stopped
+                    )
                 )
 
             # Update values

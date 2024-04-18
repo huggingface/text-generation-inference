@@ -593,6 +593,10 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
             next_token_id, fsm_grammar_state, self.fsms[index]
         )
 
+    def reset_at_index(self, index):
+        self.fsms[index] = None
+        return -1
+
     def filter(self, indices):
         new_fsms = []
         for i in indices:
