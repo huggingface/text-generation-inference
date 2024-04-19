@@ -1291,5 +1291,6 @@ try:
                 freqs = torch.outer(t, self.inv_freq.to(device=t.device))
                 self._cos_cached = (torch.cos(freqs) * self.mscale).to(dtype)
                 self._sin_cached = (torch.sin(freqs) * self.mscale).to(dtype)
-except ImportError as e:
-    raise e
+
+except ImportError:
+    pass

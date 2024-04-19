@@ -28,10 +28,10 @@ ROCM_USE_FLASH_ATTN_V2_TRITON = False
 if IS_ROCM_SYSTEM:
     if os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() == "true":
         ROCM_USE_FLASH_ATTN_V2_TRITON = True
-        logger.info("ROCm: using Flash Attention 2 Triton implementaion.")
+        logger.info("ROCm: using Flash Attention 2 Triton implementation.")
     else:
         ROCM_USE_FLASH_ATTN_V2_CK = True
-        logger.info("ROCm: using Flash Attention 2 Composable Kernel implementaion.")
+        logger.info("ROCm: using Flash Attention 2 Composable Kernel implementation.")
 
 try:
     try:
