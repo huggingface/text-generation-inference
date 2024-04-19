@@ -181,7 +181,8 @@ COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/
 
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_rocm.txt
+    pip install -r requirements_rocm.txt && \
+    pip install ".[accelerate, peft, outlines]" --no-cache-dir
 
 # AWS Sagemaker compatible image
 FROM base-copy as sagemaker
@@ -193,5 +194,5 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base-copy
 
-# ENTRYPOINT ["text-generation-launcher"]
-# CMD ["--json-output"]
+ENTRYPOINT ["text-generation-launcher"]
+CMD ["--json-output"]
