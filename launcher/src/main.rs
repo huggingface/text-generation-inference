@@ -1373,6 +1373,7 @@ fn main() -> Result<(), LauncherError> {
 
     let cuda_graphs = match (&args.cuda_graphs, &args.quantize) {
         (Some(cuda_graphs), Some(_q)) => cuda_graphs.clone(),
+        (Some(cuda_graphs), None) => cuda_graphs.clone(),
         #[allow(deprecated)]
         (
             None,
@@ -1385,7 +1386,7 @@ fn main() -> Result<(), LauncherError> {
             tracing::info!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
             vec![]
         }
-        (None, _) => {
+        _ => {
             let cuda_graphs = vec![1, 2, 4, 8, 16, 32];
             tracing::info!("Using default cuda graphs {cuda_graphs:?}");
             cuda_graphs
