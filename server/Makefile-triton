@@ -1,0 +1,8 @@
+triton-rocm:
+	pip uninstall -y triton
+	pip install -U ninja cmake wheel packaging --no-cache-dir
+	git clone https://github.com/ROCm/triton.git triton
+
+build-triton-rocm: triton-rocm
+	cd triton && git fetch && git checkout b9e5290de8bf3a79c4e91ceed7e61b3c8d041b30
+	cd triton/python && python setup.py build
