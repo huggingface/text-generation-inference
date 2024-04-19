@@ -67,6 +67,11 @@ try:
 except ImportError:
     pass
 
+if IS_ROCM_SYSTEM:
+    try:
+        from vllm import _custom_C
+    except Exception as e:
+        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
 # Monkey patching
 @classmethod
@@ -324,10 +329,65 @@ def warn_deprecate_bnb():
         "Bitsandbytes 8bit is deprecated, using `eetq` is a drop-in replacement, and has much better performnce"
     )
 
+class FastLinearROCm(nn.Module):
+    def __init__(
+        self,
+        weight,
+        bias,
+    ) -> None:
+        super().__init__()
+        self.weight = nn.Parameter(weight)
+        if bias is not None:
+            self.bias = nn.Parameter(bias)
+        else:
+            self.bias = None
+
+    @classmethod
+    def load(cls, config, prefix: str, weights, bias: bool):
+        weight = weights.get_tensor(f"{prefix}.weight")
+        if bias:
+            bias = weights.get_tensor(f"{prefix}.bias")
+        else:
+            bias = None
+        return cls(weight, bias)
+
+    def forward(self, inp: torch.Tensor) -> torch.Tensor:
+        weight = self.weight
+        bias = self.bias
+
+        if IS_ROCM_SYSTEM and inp.numel() // inp.size(-1) == 1:
+            batched = False
+
+            if inp.dim() == 3:
+                inp = inp.view(-1, inp.size(-1))
+                batched = True
+            
+            m, k = weight.shape[0], inp.shape[1]
+            out = torch.empty(inp.shape[0],
+                              weight.shape[0],
+                              dtype=inp.dtype,
+                              device='cuda')
+            if (k == 8192 and
+                (m == 1280 or m == 7168)) or (k == 3584 and m == 8192):
+                _custom_C.LLMM1(weight, inp, out, 8)
+            elif k <= 8192 and k % 8 == 0 and m % 4 == 0:
+                _custom_C.LLMM1(weight, inp, out, 4)
+            else:
+                out = F.linear(inp, weight)
+            if batched:
+                out = out.view(inp.shape[0], inp.shape[1], weight.shape[0])
+            if bias is not None:
+                out = out + bias
+            return out
+        return F.linear(inp, self.weight, self.bias)
+
 
 def get_linear(weight, bias, quantize):
     if quantize is None:
-        linear = FastLinear(weight, bias)
+        if IS_ROCM_SYSTEM:
+            linear = FastLinearROCm(weight, bias)
+        else:
+            linear = FastLinear(weight, bias)
     elif quantize == "eetq":
         if HAS_EETQ:
             linear = EETQLinear(weight, bias)

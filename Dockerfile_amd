@@ -141,7 +141,8 @@ FROM base as base-copy
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
-    PORT=80
+    PORT=80 \
+    HIP_FORCE_DEV_KERNARG=1
 
 # Copy builds artifacts from triton builder
 COPY --from=triton-builder /usr/src/triton/python/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
