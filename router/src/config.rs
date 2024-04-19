@@ -87,12 +87,23 @@ pub struct ClipVisionModel {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
+pub struct Idefics2 {}
+
+impl Idefics2 {
+    pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
+        320
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "model_type")]
+#[serde(rename_all = "snake_case")]
 pub enum Config {
     LlavaNext(LlavaNext),
     ClipVisionModel(ClipVisionModel),
     Mistral,
     Idefics,
-    Idefics2,
+    Idefics2(Idefics2),
     Ssm,
     GptBigcode,
     Santacoder,

@@ -36,6 +36,20 @@ from text_generation_server.utils.layers import (
 )
 
 
+def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """
+    This is the equivalent of torch.repeat_interleave(x, dim=1, repeats=n_rep). The hidden states go from (batch,
+    num_key_value_heads, seqlen, head_dim) to (batch, num_attention_heads, seqlen, head_dim)
+    """
+    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    if n_rep == 1:
+        return hidden_states
+    hidden_states = hidden_states[:, :, None, :, :].expand(
+        batch, num_key_value_heads, n_rep, slen, head_dim
+    )
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+
+
 class Idefics2VisionEmbeddings(nn.Module):
     """
     This is a modified version of `siglip.modelign_siglip.SiglipVisionEmbeddings` to enable images of variable
@@ -390,14 +404,15 @@ class Idefics2MLP(nn.Module):
             weights=weights,
             bias=False,
         )
-        self.intermediate_size = (
-            config.text_config.intermediate_size // weights.process_group.size()
-        )
 
     def forward(self, hidden_states):
+        start_shape = hidden_states.shape[:-1]
         gate_up_states = self.gate_up_proj(hidden_states)
-        gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-        return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
+        intermediate_size = gate_up_states.shape[-1] // 2
+        gate_up_states = gate_up_states.view(-1, 2, intermediate_size)
+        return self.down_proj(
+            self.act(gate_up_states[:, 0]) * gate_up_states[:, 1]
+        ).view(*start_shape, -1)
 
 
 class Idefics2RMSNorm(nn.Module):
@@ -432,17 +447,23 @@ class Idefics2PerceiverAttention(nn.Module):
         self.attention_dropout = config.perceiver_config.attention_dropout
         self.num_heads = self.num_heads // weights.process_group.size()
         self.num_key_value_heads = (
-            config.text_config.num_key_value_heads // weights.process_group.size()
+            self.num_key_value_heads // weights.process_group.size()
         )
 
-        self.qkv = TensorParallelColumnLinear.load_multi(
+        self.q_proj = TensorParallelColumnLinear.load(
             config,
-            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+            prefix=f"{prefix}.q_proj",
+            weights=weights,
+            bias=False,
+        )
+        self.kv = TensorParallelColumnLinear.load_multi(
+            config,
+            prefixes=[f"{prefix}.k_proj", f"{prefix}.v_proj"],
             dim=0,
             weights=weights,
             bias=False,
         )
-        self.out_proj = TensorParallelRowLinear.load(
+        self.o_proj = TensorParallelRowLinear.load(
             config=config, prefix=f"{prefix}.o_proj", weights=weights, bias=False
         )
 
@@ -457,19 +478,13 @@ class Idefics2PerceiverAttention(nn.Module):
         bsz, q_len, _ = latents.size()
         kv_seq_len = q_len + context.size()[1]
 
-        try:
-            hidden_states = torch.concat([context, latents], dim=-2)
-        except Exception as e:
-            print(e)
-            import ipdb
-
-            ipdb.set_trace()
-
-        qkv = self.qkv(hidden_states)
-        query_states, key_states, value_states = qkv.split(
+        hidden_states = torch.concat([context, latents], dim=-2)
+        query_states = self.q_proj(latents)
+        kv = self.kv(hidden_states)
+        key_states, value_states = kv.split(
             [
-                self.head_size * self.num_heads,
-                2 * self.head_size * self.num_key_value_heads,
+                self.head_size * self.num_key_value_heads,
+                self.head_size * self.num_key_value_heads,
             ],
             dim=2,
         )
@@ -704,7 +719,8 @@ class Idefics2ForConditionalGeneration(nn.Module):
         image_features: torch.Tensor,
     ):
         """In place merges in vision_embeddings with inputs_embeds."""
-        mask = input_ids == self.config.image_token_index
+        # mask = input_ids == self.config.image_token_index
+        mask = input_ids == self.config.image_token_id
         # Let's pray we have enabled enough slots !
         inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
         return inputs_embeds

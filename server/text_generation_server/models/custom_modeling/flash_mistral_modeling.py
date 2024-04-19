@@ -430,7 +430,7 @@ class FlashMistralForCausalLM(torch.nn.Module):
             config,
             # TODO dirty hack for idefics2.
             prefix=(
-                "lm_head" if not prefix or name is not "model" else f"{prefix}.lm_head"
+                "lm_head" if not prefix or name != "model" else f"{prefix}.lm_head"
             ),
             weights=weights,
         )

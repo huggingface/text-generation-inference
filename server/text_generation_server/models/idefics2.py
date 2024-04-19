@@ -23,7 +23,10 @@ class Idefics2(VlmCausalLM):
         trust_remote_code: bool = False,
     ):
         self.processor = AutoProcessor.from_pretrained(
-            model_id, revision=revision, trust_remote_code=trust_remote_code
+            model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+            size={"longest_edge": 448, "shortest_edge": 378},
         )
         super().__init__(
             model_cls=Idefics2ForConditionalGeneration,

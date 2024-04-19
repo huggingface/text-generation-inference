@@ -154,19 +154,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch = batches[0]
             concat_ns = None
 
-        torch.profiler._utils._init_for_cuda_graphs()
-        # prof = torch.profiler.profile()
-        # if self.model.rank != 0:
-        if True:
-            import contextlib
-
-            prof = contextlib.nullcontext()
-        else:
-            prof = torch.profiler.profile()
-        with prof:
-            generations, next_batch, timings = self.model.generate_token(batch)
-        # if self.model.rank == 0:
-        #     prof.export_chrome_trace(f"out_rank_0.json")
+        generations, next_batch, timings = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
         return generate_pb2.DecodeResponse(
