@@ -1385,7 +1385,7 @@ fn main() -> Result<(), LauncherError> {
             tracing::info!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
             vec![]
         }
-        _ => {
+        (None, _) => {
             let cuda_graphs = vec![1, 2, 4, 8, 16, 32];
             tracing::info!("Using default cuda graphs {cuda_graphs:?}");
             cuda_graphs
