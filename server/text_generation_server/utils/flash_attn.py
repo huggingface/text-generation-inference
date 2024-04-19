@@ -4,6 +4,7 @@ import torch
 from loguru import logger
 
 from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
+from text_generation_server.utils.flash_attn_triton import triton_attention
 
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
     raise ImportError("`USE_FLASH_ATTENTION` is false.")
@@ -193,6 +194,25 @@ def attention(
             None,
         )
     elif IS_ROCM_SYSTEM and ROCM_USE_FLASH_ATTN_V2_TRITON:
-        raise NotImplementedError("TODO")
+        logger.info(f"q shape {q.shape} {q.dtype} {q.is_contiguous()}")
+        logger.info(f"k shape {k.shape} {k.dtype} {k.is_contiguous()}")
+        logger.info(f"v shape {v.shape} {v.dtype} {v.is_contiguous()}")
+        logger.info(f"cu_seqlens {cu_seqlens}")
+        logger.info(f"max_s {max_s}")
+        output, _ = triton_attention(
+            q,
+            k,
+            v,
+            None,
+            cu_seqlens,
+            cu_seqlens,
+            max_s,
+            max_s,
+            True,
+            softmax_scale,
+        )
+        logger.info(f"output shape {output.shape} {output.dtype}")
+        logger.info(f"output {output}")
+        return output
     else:
         raise NotImplementedError(f"Flash attention is not installed (IS_CUDA_SYSTEM={IS_CUDA_SYSTEM}, IS_ROCM_SYSTEM={IS_ROCM_SYSTEM}, HAS_FLASH_ATTN_V2_CUDA={HAS_FLASH_ATTN_V2_CUDA}, HAS_FLASH_ATTN_V2_ROCM={HAS_FLASH_ATTN_V2_ROCM})")

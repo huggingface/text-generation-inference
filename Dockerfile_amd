@@ -91,6 +91,13 @@ RUN pip install torch numpy --index-url https://download.pytorch.org/whl/test/ro
 
 FROM base AS kernel-builder
 
+# Build Triton
+FROM kernel-builder as triton-builder
+WORKDIR /usr/src
+
+COPY server/Makefile-triton Makefile
+RUN make build-triton-rocm
+
 # Build vllm kernels
 FROM kernel-builder AS vllm-builder
 WORKDIR /usr/src
@@ -135,6 +142,9 @@ FROM base as base-copy
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     PORT=80
+
+# Copy builds artifacts from triton builder
+COPY --from=triton-builder /usr/src/triton/python/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 
 # Copy builds artifacts from vllm builder
 COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
