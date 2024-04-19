@@ -64,6 +64,26 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     return height // patch_size, width // patch_size
 
 
+def image_text_replacement(image_input, config) -> str:
+    if config.model_type == "idefics2":
+        # TODO technically depends on image splitting which is not implemented.
+        num_features = 320
+        return (
+            "<fake_token_around_image>"
+            + "<image>" * num_features
+            + "<fake_token_around_image>"
+        )
+    elif config.model_type == "llava_next":
+        height, width = image_input["image_sizes"][0]
+        num_features = get_number_of_features(height, width, config)
+        from loguru import logger
+
+        logger.info(f"Found {num_features} in image of resolution {height}x{width}")
+        return "<image>" * num_features
+    else:
+        raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
+
+
 def get_number_of_features(height: int, width: int, config) -> int:
     # From config
     # Hardcoded for CLIP for now
@@ -82,7 +102,7 @@ def get_number_of_features(height: int, width: int, config) -> int:
         image_size,
     )
 
-    height_of_patch = math.ceil(height / width * npatches)
+    height_of_patch = (height * npatches + width - 10) // width
 
     unpadded_features = npatches * height_of_patch * num_patch_height * num_patch_width
     # They are only added after width
@@ -99,12 +119,9 @@ def load_data_uri(image_uri: str) -> Image.Image:
     return image
 
 
-# assert get_number_of_features(889, 1024) == 2634, f"{get_number_of_features(889, 1024)}"
-# assert get_number_of_features(640, 640) == 2928
-
-
 class VlmCausalLMBatch(FlashMistralBatch):
     pixel_values: Optional[List[torch.Tensor]]
+    pixel_attention_mask: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
 
     @classmethod
@@ -112,6 +129,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
     def concatenate(cls, batches):
         batch = super(VlmCausalLMBatch, cls).concatenate(batches)
         batch.pixel_values = None
+        batch.pixel_attention_mask = None
         batch.image_sizes = None
         return batch
 
@@ -119,6 +137,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
     def filter(self, request_ids: List[int]):
         batch = super().filter(request_ids)
         batch.pixel_values = None
+        batch.pixel_attention_mask = None
         batch.image_sizes = None
         return batch
 
@@ -147,11 +166,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
                             "Cannot process input image not starting with data:"
                         )
                     image_input = processor.image_processor(image, return_tensors="pt")
-                    # import ipdb;ipdb.set_trace()
-                    # height, width = image_input["image_sizes"][0]
-                    # num_features = get_number_of_features(height, width, config)
-                    num_features = 320
-                    full_text += "<image>" * num_features
+                    full_text += image_text_replacement(image_input, config)
                     image_inputs.append(image_input)
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk['type']}")
@@ -163,15 +178,21 @@ class VlmCausalLMBatch(FlashMistralBatch):
             batch_inputs, truncation=True, max_length=max_truncation
         )["input_ids"]
         if image_inputs:
-            image_inputs = {
+            image_input = image_inputs[0]
+            new_image_inputs = {
                 "pixel_values": torch.cat(
                     [img["pixel_values"] for img in image_inputs], dim=0
                 ),
-                "pixel_attention_mask": torch.cat(
-                    [img["pixel_attention_mask"] for img in image_inputs], dim=0
-                ),
-                # "image_sizes": torch.cat([img["image_sizes"] for img in image_inputs]),
             }
+            if "pixel_attention_mask" in image_input:
+                new_image_inputs["pixel_attention_mask"] = torch.cat(
+                    [img["pixel_attention_mask"] for img in image_inputs], dim=0
+                )
+            if "image_sizes" in image_input:
+                new_image_inputs["image_sizes"] = torch.cat(
+                    [img["image_sizes"] for img in image_inputs], dim=0
+                )
+            image_inputs = new_image_inputs
         else:
             image_inputs = None
         return batch_tokenized_inputs, image_inputs
@@ -192,14 +213,20 @@ class VlmCausalLMBatch(FlashMistralBatch):
         batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
         if image_inputs is not None:
             batch.pixel_values = image_inputs["pixel_values"].to(device=device)
-            batch.pixel_attention_mask = image_inputs["pixel_attention_mask"].to(
-                device=device
-            )
-            # batch.image_sizes = image_inputs["image_sizes"].to(device=device)
+            if "pixel_attention_mask" in image_inputs:
+                batch.pixel_attention_mask = image_inputs["pixel_attention_mask"].to(
+                    device=device
+                )
+            else:
+                batch.pixel_attention_mask = None
+            if "image_sizes" in image_inputs:
+                batch.image_sizes = image_inputs["image_sizes"].to(device=device)
+            else:
+                batch.image_sizes = None
         else:
             batch.pixel_values = None
             batch.pixel_attention_mask = None
-            # batch.image_sizes = None
+            batch.image_sizes = None
         return batch
 
 
@@ -291,7 +318,7 @@ class VlmCausalLM(BaseFlashMistral):
                 lm_head_indices=lm_head_indices,
                 pixel_values=batch.pixel_values,
                 pixel_attention_mask=batch.pixel_attention_mask,
-                # image_sizes=batch.image_sizes,
+                image_sizes=batch.image_sizes,
             )
             if batch.prefill_cache_indices is not None:
                 batch.prefill_cache_indices = None
@@ -299,8 +326,8 @@ class VlmCausalLM(BaseFlashMistral):
                 batch.pixel_values = None
             if batch.pixel_attention_mask is not None:
                 batch.pixel_attention_mask = None
-            # if batch.image_sizes is not None:
-            #     batch.image_sizes = None
+            if batch.image_sizes is not None:
+                batch.image_sizes = None
             return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph

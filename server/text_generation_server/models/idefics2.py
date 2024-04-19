@@ -26,6 +26,8 @@ class Idefics2(VlmCausalLM):
             model_id,
             revision=revision,
             trust_remote_code=trust_remote_code,
+            # XXX: Extremely important to cap resolution in order to limit
+            # VRAM usage.
             size={"longest_edge": 448, "shortest_edge": 378},
         )
         super().__init__(

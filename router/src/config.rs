@@ -66,7 +66,8 @@ impl LlavaNext {
         let (num_patch_height, num_patch_width) =
             get_anyres_image_grid_shape(height, width, &self.image_grid_pinpoints, image_size);
         // Ceil
-        let height_of_patch = (height * npatches + width - 1) / width;
+        // TODO Very odd artifact when the rounding is super close
+        let height_of_patch = (height * npatches + width - 10) / width;
         let unpadded_features = npatches * height_of_patch * num_patch_height * num_patch_width;
         // They are only added after width
         let newline_features = height_of_patch * num_patch_width;
@@ -166,5 +167,7 @@ mod test {
         assert_eq!(slots, 2732);
         let slots = config.get_number_of_features(1024, 899);
         assert_eq!(slots, 3320);
+        let slots = config.get_number_of_features(1067, 1600);
+        assert_eq!(slots, 2144);
     }
 }

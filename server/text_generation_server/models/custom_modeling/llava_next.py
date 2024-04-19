@@ -170,6 +170,8 @@ class LlavaNextForConditionalGeneration(nn.Module):
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
+        # Unused for this model
+        pixel_attention_mask=None,
         image_sizes: Optional[torch.LongTensor] = None,
     ):
         inputs_embeds = self.language_model.embed_tokens(input_ids)
