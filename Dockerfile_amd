@@ -169,8 +169,10 @@ RUN pip install einops --no-cache-dir
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
-    # pip install -r requirements_rocm.txt && \
-    #pip install ".[accelerate, peft, outlines]" --no-cache-dir
+RUN cd server && \
+    make gen-server && \
+    pip install -r requirements_rocm.txt && \
+    pip install ".[accelerate, peft, outlines]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
@@ -178,11 +180,6 @@ COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local
 COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
-
-RUN cd server && \
-    make gen-server && \
-    pip install -r requirements_rocm.txt && \
-    pip install ".[accelerate, peft, outlines]" --no-cache-dir
 
 # AWS Sagemaker compatible image
 FROM base-copy as sagemaker
