@@ -20,6 +20,18 @@ is_sm94 = major == 9 and minor == 4
 HAS_FLASH_ATTN = False
 HAS_FLASH_ATTN_V2_CUDA = False
 HAS_FLASH_ATTN_V2_ROCM = False
+
+ROCM_USE_FLASH_ATTN_V2_CK = False
+ROCM_USE_FLASH_ATTN_V2_TRITON = False
+
+if IS_ROCM_SYSTEM:
+    if os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() == "true":
+        ROCM_USE_FLASH_ATTN_V2_TRITON = True
+        logger.info("ROCm: using Flash Attention 2 Triton implementaion.")
+    else:
+        ROCM_USE_FLASH_ATTN_V2_CK = True
+        logger.info("ROCm: using Flash Attention 2 Composable Kernel implementaion.")
+
 try:
     try:
         import flash_attn_2_cuda
@@ -86,7 +98,7 @@ def attention(
     if window_size_left <= 0 and window_size_left != -1:
         raise ValueError("`window_size_left` must be > 0 or -1")
 
-    if HAS_FLASH_ATTN_V2_CUDA:
+    if IS_CUDA_SYSTEM and HAS_FLASH_ATTN_V2_CUDA:
         return flash_attn_2_cuda.varlen_fwd(
             q,
             k,
@@ -108,30 +120,7 @@ def attention(
             False,
             None,
         )
-    elif HAS_FLASH_ATTN_V2_ROCM:
-        if window_size_left != -1:
-            raise ValueError(
-                f"RoCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
-            )
-
-        # RoCm flash API does not take the window_size_left and window_size_right arguments.
-        return flash_attn_2_cuda.varlen_fwd(
-            q,
-            k,
-            v,
-            out,
-            cu_seqlens,
-            cu_seqlens,
-            max_s,
-            max_s,
-            0.0,
-            softmax_scale,
-            False,
-            True,
-            False,
-            None,
-        )
-    elif HAS_FLASH_ATTN:
+    elif IS_CUDA_SYSTEM and HAS_FLASH_ATTN:
         if window_size_left != -1:
             raise NotImplementedError(
                 "window_size_left is only available with flash attn v2"
@@ -180,5 +169,30 @@ def attention(
             0,
             None,
         )
+    elif IS_ROCM_SYSTEM and HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_CK:
+        if window_size_left != -1:
+            raise ValueError(
+                f"RoCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
+            )
 
-    raise NotImplementedError("flash attention is not installed")
+        # RoCm flash API does not take the window_size_left and window_size_right arguments.
+        return flash_attn_2_cuda.varlen_fwd(
+            q,
+            k,
+            v,
+            out,
+            cu_seqlens,
+            cu_seqlens,
+            max_s,
+            max_s,
+            0.0,
+            softmax_scale,
+            False,
+            True,
+            False,
+            None,
+        )
+    elif IS_ROCM_SYSTEM and ROCM_USE_FLASH_ATTN_V2_TRITON:
+        raise NotImplementedError("TODO")
+    else:
+        raise NotImplementedError(f"Flash attention is not installed (IS_CUDA_SYSTEM={IS_CUDA_SYSTEM}, IS_ROCM_SYSTEM={IS_ROCM_SYSTEM}, HAS_FLASH_ATTN_V2_CUDA={HAS_FLASH_ATTN_V2_CUDA}, HAS_FLASH_ATTN_V2_ROCM={HAS_FLASH_ATTN_V2_ROCM})")

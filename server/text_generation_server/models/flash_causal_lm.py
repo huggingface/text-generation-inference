@@ -13,6 +13,7 @@ from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
 
+from text_generation_server.utils.import_utils import IS_ROCM_SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.speculate import get_speculate
@@ -807,7 +808,6 @@ class FlashCausalLM(Model):
             self.device,
         )
 
-        logger.info("CUDA_GRAPHS", CUDA_GRAPHS)
         if CUDA_GRAPHS:
             try:
                 logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
@@ -817,8 +817,11 @@ class FlashCausalLM(Model):
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except torch.cuda.OutOfMemoryError:
                 logger.exception(f"Decode cuda graph warmup failed")
+        else:
+            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
-        if IS_ROCM_SYSTEM and TUNABLEOP:
+        # TODO: fix
+        if IS_ROCM_SYSTEM and False:
             total_seqlens = list(range(16))
             for seqlen in total_seqlens:
                 self.tunableop_warmup(seqlen, max_s, max_bt)

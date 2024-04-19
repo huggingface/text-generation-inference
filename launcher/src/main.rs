@@ -1379,6 +1379,7 @@ fn main() -> Result<(), LauncherError> {
 
     let cuda_graphs = match (&args.cuda_graphs, &args.quantize) {
         (Some(cuda_graphs), Some(_q)) => cuda_graphs.clone(),
+        (Some(cuda_graphs), None) => cuda_graphs.clone(),
         #[allow(deprecated)]
         (
             None,
