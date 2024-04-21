@@ -9,13 +9,19 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.4.5"
+version = "2.0.1"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 homepage = "https://github.com/huggingface/text-generation-inference"
 
+[workspace.dependencies]
+tokenizers = { version = "0.19.1", features = ["http"] }
+hf-hub = { version = "0.3.1", features = ["tokio"] }
+
 [profile.release]
 debug = 1
 incremental = true
-lto = "off"
+lto = "fat"
+opt-level = 3
+codegen-units = 1
 panic = "abort"

@@ -67,7 +67,8 @@ class FlashLlama(FlashCausalLM):
         if config.quantize in ["gptq", "awq"]:
             weights._set_gptq_params(model_id, revision)
 
-        model = FlashLlamaForCausalLM(config, weights)
+        prefix = ""
+        model = FlashLlamaForCausalLM(prefix, config, weights)
         torch.distributed.barrier(group=self.process_group)
         super(FlashLlama, self).__init__(
             model=model,

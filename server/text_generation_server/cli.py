@@ -19,6 +19,7 @@ class Quantization(str, Enum):
     gptq = "gptq"
     awq = "awq"
     eetq = "eetq"
+    fp8 = "fp8"
 
 
 class Dtype(str, Enum):

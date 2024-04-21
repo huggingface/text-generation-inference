@@ -9,6 +9,7 @@ import json
 import math
 import time
 import random
+import re
 
 from docker.errors import NotFound
 from typing import Optional, List, Dict
@@ -26,6 +27,7 @@ from text_generation.types import (
     ChatComplete,
     ChatCompletionChunk,
     ChatCompletionComplete,
+    Completion,
 )
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
@@ -69,17 +71,22 @@ class ResponseComparator(JSONSnapshotExtension):
             data = json.loads(data)
             if isinstance(data, Dict) and "choices" in data:
                 choices = data["choices"]
-                if (
-                    isinstance(choices, List)
-                    and len(choices) >= 1
-                    and "delta" in choices[0]
-                ):
-                    return ChatCompletionChunk(**data)
+                if isinstance(choices, List) and len(choices) >= 1:
+                    if "delta" in choices[0]:
+                        return ChatCompletionChunk(**data)
+                    if "text" in choices[0]:
+                        return Completion(**data)
                 return ChatComplete(**data)
 
             if isinstance(data, Dict):
                 return Response(**data)
             if isinstance(data, List):
+                if (
+                    len(data) > 0
+                    and "object" in data[0]
+                    and data[0]["object"] == "text_completion"
+                ):
+                    return [Completion(**d) for d in data]
                 return [Response(**d) for d in data]
             raise NotImplementedError
 
@@ -161,6 +168,9 @@ class ResponseComparator(JSONSnapshotExtension):
                 )
             )
 
+        def eq_completion(response: Completion, other: Completion) -> bool:
+            return response.choices[0].text == other.choices[0].text
+
         def eq_chat_complete(response: ChatComplete, other: ChatComplete) -> bool:
             return (
                 response.choices[0].message.content == other.choices[0].message.content
@@ -183,6 +193,11 @@ class ResponseComparator(JSONSnapshotExtension):
             serialized_data = [serialized_data]
         if not isinstance(snapshot_data, List):
             snapshot_data = [snapshot_data]
+
+        if isinstance(serialized_data[0], Completion):
+            return len(snapshot_data) == len(serialized_data) and all(
+                [eq_completion(r, o) for r, o in zip(serialized_data, snapshot_data)]
+            )
 
         if isinstance(serialized_data[0], ChatComplete):
             return len(snapshot_data) == len(serialized_data) and all(
@@ -277,6 +292,8 @@ def launcher(event_loop):
         disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
         revision: Optional[str] = None,
+        max_input_length: Optional[int] = None,
+        max_total_tokens: Optional[int] = None,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -314,6 +331,12 @@ def launcher(event_loop):
             args.append(revision)
         if trust_remote_code:
             args.append("--trust-remote-code")
+        if max_input_length:
+            args.append("--max-input-length")
+            args.append(str(max_input_length))
+        if max_total_tokens:
+            args.append("--max-total-tokens")
+            args.append(str(max_total_tokens))
 
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
 
@@ -347,6 +370,8 @@ def launcher(event_loop):
         disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
         revision: Optional[str] = None,
+        max_input_length: Optional[int] = None,
+        max_total_tokens: Optional[int] = None,
     ):
         port = random.randint(8000, 10_000)
 
@@ -367,6 +392,12 @@ def launcher(event_loop):
             args.append(revision)
         if trust_remote_code:
             args.append("--trust-remote-code")
+        if max_input_length:
+            args.append("--max-input-length")
+            args.append(str(max_input_length))
+        if max_total_tokens:
+            args.append("--max-total-tokens")
+            args.append(str(max_total_tokens))
 
         client = docker.from_env()
 

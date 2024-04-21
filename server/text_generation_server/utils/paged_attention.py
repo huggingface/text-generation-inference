@@ -1,8 +1,6 @@
 import torch
 
-# vllm imports
-from vllm import cache_ops
-from vllm import attention_ops
+from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
 
 _PARTITION_SIZE = 512
 
@@ -14,7 +12,18 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
+    if IS_CUDA_SYSTEM:
+        from vllm._C import cache_ops
+
+        cache_ops.reshape_and_cache(
+            key, value, key_cache, value_cache, slots, "auto", 1.0
+        )
+    elif IS_ROCM_SYSTEM:
+        from vllm import cache_ops
+
+        cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
+    else:
+        raise ValueError("vllm is not supported on your system")
 
 
 def attention(
@@ -54,21 +63,45 @@ def attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
-    use_v1 = max_num_partitions == 1 or num_seqs * num_heads > 512
+    use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
     if use_v1:
-        attention_ops.paged_attention_v1(
-            out,
-            query,
-            key_cache,
-            value_cache,
-            kv_head_mapping,
-            softmax_scale,
-            block_tables,
-            input_lengths,
-            block_size,
-            max_s,
-            None,
-        )
+        if IS_CUDA_SYSTEM:
+            from vllm._C import ops
+
+            ops.paged_attention_v1(
+                out,
+                query,
+                key_cache,
+                value_cache,
+                kv_head_mapping,
+                softmax_scale,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
+                None,
+                "auto",
+                1.0,
+            )
+        elif IS_ROCM_SYSTEM:
+            from vllm import attention_ops
+
+            attention_ops.paged_attention_v1(
+                out,
+                query,
+                key_cache,
+                value_cache,
+                kv_head_mapping,
+                softmax_scale,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
+                None,
+            )
+        else:
+            raise ValueError("vllm is not supported on your system")
+
     else:
         # Run PagedAttention V2.
         assert _PARTITION_SIZE % block_size == 0
@@ -83,19 +116,46 @@ def attention(
             device=out.device,
         )
         max_logits = torch.empty_like(exp_sums)
-        attention_ops.paged_attention_v2(
-            out,
-            exp_sums,
-            max_logits,
-            tmp_output,
-            query,
-            key_cache,
-            value_cache,
-            kv_head_mapping,
-            softmax_scale,
-            block_tables,
-            input_lengths,
-            block_size,
-            max_s,
-            None,
-        )
+
+        if IS_CUDA_SYSTEM:
+            from vllm._C import ops
+
+            ops.paged_attention_v2(
+                out,
+                exp_sums,
+                max_logits,
+                tmp_output,
+                query,
+                key_cache,
+                value_cache,
+                kv_head_mapping,
+                softmax_scale,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
+                None,
+                "auto",
+                1.0,
+            )
+        elif IS_ROCM_SYSTEM:
+            from vllm import attention_ops
+
+            attention_ops.paged_attention_v2(
+                out,
+                exp_sums,
+                max_logits,
+                tmp_output,
+                query,
+                key_cache,
+                value_cache,
+                kv_head_mapping,
+                softmax_scale,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
+                None,
+            )
+        else:
+            raise ValueError("vllm is not supported on your system")

@@ -43,7 +43,7 @@ class CacheManager:
         ]
         self.free_block_mask = torch.ones(num_blocks, dtype=torch.int32, device="cpu")
         self.slots = torch.arange(
-            0, num_blocks * self.block_size, dtype=torch.int32
+            0, num_blocks * self.block_size, dtype=torch.int64
         ).view(num_blocks, self.block_size)
 
     def allocate(
@@ -55,9 +55,10 @@ class CacheManager:
     ):
         # Get free blocks indices by finding values in mask that are not set to 0
         free_block_indices = self.free_block_mask.nonzero()
-        assert (
-            len(free_block_indices) >= blocks
-        ), f"Out of available cache blocks: asked {blocks}, only {len(free_block_indices)} free blocks"
+        if blocks > len(free_block_indices):
+            raise RuntimeError(
+                f"Out of available cache blocks: asked {blocks}, only {len(free_block_indices)} free blocks"
+            )
 
         # Slice by the number of required blocks
         block_indices = free_block_indices[:blocks]

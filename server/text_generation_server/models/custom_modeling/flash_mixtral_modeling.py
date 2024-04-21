@@ -24,6 +24,7 @@ import torch.distributed
 import numpy as np
 
 from torch import nn
+from vllm.model_executor.layers.fused_moe import fused_moe
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
@@ -40,14 +41,6 @@ from text_generation_server.utils.layers import (
     SpeculativeHead,
     get_linear,
 )
-
-HAS_MEGABLOCKS = True
-try:
-    import stk
-    import megablocks.ops as ops
-except ImportError:
-    logger.warning("Mixtral: megablocks is not installed")
-    HAS_MEGABLOCKS = False
 
 
 class MixtralConfig(PretrainedConfig):
@@ -321,18 +314,6 @@ def round_up(x: torch.Tensor, value: int):
 
 
 class BlockSparseMoE(nn.Module):
-    """
-    Built on the paper and library Megablocks as described in
-    https://arxiv.org/abs/2211.15841. This implementation is
-    strictly equivalent to standard MoE with full capacity (no
-    dropped tokens). It's faster since it formulates MoE operations
-    in terms of block-sparse operations to accomodate imbalanced
-    assignments of tokens to experts, whereas standard MoE either
-    (1) drop tokens at the cost of reduced performance or (2) set
-    capacity factor to number of experts and thus waste computation
-    and memory on padding.
-    """
-
     def __init__(self, prefix, config: MixtralConfig, weights):
         super().__init__()
         self.hidden_dim = config.hidden_size
@@ -357,236 +338,40 @@ class BlockSparseMoE(nn.Module):
         self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
 
         # merged expert weights, all of size  (n_experts * ffn_dim, hidden_dim)
-        self.w1 = _load_experts(config, f"{prefix}.experts", "w1", weights)
-        self.w2 = _load_experts(config, f"{prefix}.experts", "w2", weights)
-        self.w3 = _load_experts(config, f"{prefix}.experts", "w3", weights)
-
-        self.offsets = None
-        self.offsets_block_rows = 0
+        w1 = _load_experts(config, f"{prefix}.experts", "w1", weights).view(
+            self.num_experts, self.ffn_dim, self.hidden_dim
+        )
+        w3 = _load_experts(config, f"{prefix}.experts", "w3", weights).view(
+            self.num_experts, self.ffn_dim, self.hidden_dim
+        )
+        self.w13 = torch.cat([w1, w3], dim=1)
+        self.w2 = (
+            _load_experts(config, f"{prefix}.experts", "w2", weights)
+            .view(self.num_experts, self.ffn_dim, self.hidden_dim)
+            .transpose(1, 2)
+            .contiguous()
+        )
 
         self.process_group = weights.process_group
 
-        # Calculate the number of bits needed to represent the expert indices
-        # so that we can pass it to radix sort.
-        self.sort_end_bit = max(int(np.ceil(np.log2(self.num_experts))), 1)
-        self.blocking = 128
-        self.quantize_scatter_num_bits = -1
-
-    def topology(self, x: torch.Tensor, padded_bins: torch.Tensor):
-        padded_tokens, _ = x.size()
-        assert padded_tokens % self.blocking == 0
-        assert self.ffn_dim % self.blocking == 0
-
-        # Offsets for the sparse matrix. All rows have the
-        # same number of nonzero blocks dictated by the
-        # dimensionality of a single expert.
-        block_rows = padded_tokens // self.blocking
-        blocks_per_row = self.ffn_dim // self.blocking
-        if self.offsets is None or block_rows > self.offsets_block_rows:
-            self.offsets = torch.arange(
-                0,
-                block_rows * blocks_per_row + 1,
-                blocks_per_row,
-                dtype=torch.int32,
-                device=x.device,
-            )
-            self.offsets_block_rows = block_rows
-            offsets = self.offsets
-        else:
-            offsets = self.offsets[: block_rows + 1]
-
-        # Indices for the sparse matrix. The indices for
-        # the intermediate matrix are dynamic depending
-        # on the mapping of tokens to experts.
-        column_indices = ops.topology(
-            padded_bins, self.blocking, block_rows, blocks_per_row
-        )
-
-        # For now, use meta init to save the device memory.
-        data = torch.empty(
-            column_indices.numel(),
-            self.blocking,
-            self.blocking,
-            dtype=x.dtype,
-            device="meta",
-        )
-        shape = (padded_tokens, self.ffn_dim * self.num_experts)
-        row_indices = stk.ops.row_indices(shape, data, offsets, column_indices)
-        return stk.Matrix(
-            shape,
-            data,
-            row_indices,
-            column_indices,
-            offsets,
-            False,
-            False,
-            False,
-        )
-
-    def indices_and_padded_bins(self, selected_experts: torch.Tensor):
-        # Sort the expert ids to produce the scatter/gather
-        # indices for the permutation.
-        # selected_experts = selected_experts.int()
-
-        # returns bin_ids == num of experts for this sequence ? == unique selected experts?
-        # and indices == how to sort tokens?
-        bin_ids, indices = ops.sort(selected_experts, self.sort_end_bit)
-        # bin_ids => [0, 0, 0, 2, 2, ...] => [num_tokens * top_k]
-        # indices => [14, 32, 33, ...] => [num_tokens * top_k]
-
-        # Histogram the expert ids to identify the number of
-        # tokens routed to each expert.
-        tokens_per_expert = ops.histogram(selected_experts, self.num_experts)
-        # tokens_per_expert => [3, 0, 2, ...] => [num_experts]
-
-        # Round the token counts up to the block size used in
-        # the matrix muliplications. Caculate the starting
-        # position of each bin.
-
-        # List of size num_experts
-        padded_tokens_per_expert = round_up(tokens_per_expert, self.blocking)
-        # padded_tokens_per_expert => [128, O, 128, ...]
-
-        # Cumulative selected experts per token
-        padded_bins = ops.inclusive_cumsum(padded_tokens_per_expert, 0)
-        padded_bins = promote_scalar(padded_bins)
-        # padded_bins => [128, 128, 256, ...]
-
-        # Calculate the bin bounds for the sorted tokens.
-        bins = ops.inclusive_cumsum(tokens_per_expert, 0)
-        bins = promote_scalar(bins)
-        # bins => [3, 3, 5, ...]
-
-        return indices, bin_ids, bins, padded_bins, tokens_per_expert
-
-    def sparse_forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        x: (sequence_length, model_dim)
-        gate_logits: (sequence_length, n_experts)
-        """
-        # optional reshape
-        input_shape = x.shape
-        x = x.view(-1, input_shape[-1])
-
-        # gate_logits: (sequence_length, n_experts)
-        gate_logits = self.gate(x)
-        selected_experts, weights = select_experts(gate_logits, self.top_k)
-
-        (
-            indices,
-            bin_ids,
-            bins,
-            padded_bins,
-            _,
-        ) = self.indices_and_padded_bins(selected_experts)
-
-        # Permute tokens and pad to prepare expert computation
-        # (top_k * sequence_length + padding, model_dim)
-        x = ops.padded_gather(x, indices, bin_ids, bins, padded_bins, self.top_k)
-
-        # Create the sparse matrix topology
-        with torch.no_grad():
-            topo = self.topology(x, padded_bins)
-
-        # Perform the expert computation
-        # First Dense x Dense -> Sparse for w1 and w3,
-        # (top_k * sequence_length + padding, ffn_dim * n_experts)
-        x = stk.Matrix(
-            topo.size(),
-            self.act(stk.ops.sdd(x, self.w1.t(), topo).data)
-            * stk.ops.sdd(x, self.w3.t(), topo).data,
-            topo.row_indices,
-            topo.column_indices,
-            topo.offsets,
-            topo.column_indices_t,
-            topo.offsets_t,
-            topo.block_offsets_t,
-        )
-
-        # Then Sparse x Dense -> Dense for w2
-        # (top_k * sequence_length + padding, model_dim)
-        x = stk.ops.dsd(x, self.w2)
-
-        # Permute back and remove padding
-        # (sequence_length, model_dim)
-        x = ops.padded_scatter(
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # router_logits: (num_tokens, n_experts)
+        router_logits = self.gate(x)
+        out = fused_moe(
             x,
-            indices,
-            bin_ids,
-            weights,
-            bins,
-            padded_bins,
+            self.w13,
+            self.w2,
+            router_logits,
             self.top_k,
-            self.quantize_scatter_num_bits,
-        ).view(*input_shape)
-
-        if self.process_group.size() > 1:
-            torch.distributed.all_reduce(x, group=self.process_group)
-
-        return x.view(*input_shape)
-
-    def dense_forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        x: (sequence_length, model_dim)
-        gate_logits: (sequence_length, n_experts)
-        """
-        # optional reshape
-        input_shape = x.shape
-        x = x.view(-1, input_shape[-1])
-
-        # gate_logits: (sequence_length, n_experts)
-        gate_logits = self.gate(x)
-        # all_probs: (sequence_length, n_experts) and upcast for softmax
-        all_probs = torch.nn.functional.softmax(gate_logits, dim=1, dtype=torch.float)
-
-        if self.top_k < self.num_experts:
-            _, not_selected_experts = torch.topk(
-                all_probs,
-                self.num_experts - self.top_k,
-                largest=False,
-                sorted=False,
-                dim=1,
-            )
-            # Mask not selected experts
-            all_probs.scatter_(1, not_selected_experts, 0)
-
-        # Re-normalize
-        weights = all_probs / all_probs.sum(dim=1, keepdim=True)
-        weights = weights.to(x.dtype)
-
-        # Expand to [num_experts, sequence_length, model_dim]
-        x = x.view(1, -1, input_shape[-1]).expand(self.num_experts, -1, input_shape[-1])
-
-        # Permute to [num_experts, model_dim, ffn_dim]
-        w1 = self.w1.view(self.num_experts, self.ffn_dim, self.hidden_dim).permute(
-            0, 2, 1
+            renormalize=True,
+            inplace=True,
         )
-        w3 = self.w3.view(self.num_experts, self.ffn_dim, self.hidden_dim).permute(
-            0, 2, 1
-        )
-
-        inter = self.act(torch.bmm(x, w1)) * torch.bmm(x, w3)
-
-        out = torch.bmm(
-            inter, self.w2.view(self.num_experts, self.ffn_dim, self.hidden_dim)
-        )
-        # Mask not selected experts
-        out *= weights.t().view(self.num_experts, -1, 1)
-
-        # Sum experts
-        out = out.sum(0)
 
         # Reduce sum
         if self.process_group.size() > 1:
             torch.distributed.all_reduce(out, group=self.process_group)
 
-        return out
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if len(x) > 256 and HAS_MEGABLOCKS:
-            return self.sparse_forward(x)
-        # This is faster when there is not a lot of tokens
-        return self.dense_forward(x)
+        return out.view(*x.shape)
 
 
 class DenseMoE(nn.Module):
@@ -679,9 +464,9 @@ class DenseMoE(nn.Module):
 
 
 class MixtralLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix, layer_id, config, weights):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
+        prefix = f"{prefix}.layers.{layer_id}"
 
         self.self_attn = MixtralAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
@@ -740,16 +525,20 @@ class MixtralLayer(nn.Module):
 
 
 class MixtralModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
+            prefix=(
+                "model.embed_tokens" if not prefix else f"{prefix}.model.embed_tokens"
+            ),
+            weights=weights,
         )
 
         self.layers = nn.ModuleList(
             [
                 MixtralLayer(
+                    "model" if not prefix else f"{prefix}.model",
                     layer_id,
                     config,
                     weights,
@@ -758,7 +547,9 @@ class MixtralModel(torch.nn.Module):
             ]
         )
         self.norm = FastRMSNorm.load(
-            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
+            prefix="model.norm" if not prefix else f"{prefix}.model.norm",
+            weights=weights,
+            eps=config.rms_norm_eps,
         )
 
         self.head_size = self.layers[0].self_attn.head_size
@@ -808,13 +599,13 @@ class MixtralModel(torch.nn.Module):
 
 
 class FlashMixtralForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
-        self.model = MixtralModel(config, weights)
+        self.model = MixtralModel(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
             config,
-            prefix="lm_head",
+            prefix="lm_head" if not prefix else f"{prefix}.lm_head",
             weights=weights,
         )
         self.max_past = config.sliding_window

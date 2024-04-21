@@ -67,6 +67,7 @@ try:
         FlashSantacoderSharded,
     )
     from text_generation_server.models.idefics import IDEFICSSharded
+    from text_generation_server.models.llava_next import LlavaNext
     from text_generation_server.models.flash_mistral import FlashMistral
     from text_generation_server.models.flash_mixtral import FlashMixtral
     from text_generation_server.models.flash_phi import FlashPhi
@@ -144,7 +145,7 @@ def get_model(
         if speculate is not None:
             if speculate > speculate_medusa:
                 raise RuntimeError(
-                    "Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match"
+                    f"Speculate is set to `{speculate}` but this medusa models only has `{speculate_medusa}` heads, please make them match"
                 )
             else:
                 set_speculate(speculate)
@@ -186,6 +187,14 @@ def get_model(
             raise RuntimeError(
                 f"Could not determine model type for {model_id} revision {revision}"
             )
+    quantization_config = config_dict.get("quantization_config", None)
+    if quantization_config is not None and quantize is None:
+        method = quantization_config.get("quant_method", None)
+        if method in {"gptq", "awq"}:
+            logger.info(f"Auto selecting quantization method {method}")
+            quantize = method
+        else:
+            logger.info(f"Unknown quantization method {method}")
 
     if model_type == "ssm":
         return Mamba(
@@ -570,6 +579,19 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+
+    if model_type == "llava_next":
+        if FLASH_ATTENTION:
+            return LlavaNext(
+                model_id,
+                revision,
+                quantize=quantize,
+                use_medusa=use_medusa,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("LlavaNext"))
 
     if sharded:
         raise NotImplementedError("sharded is not supported for AutoModel")
