@@ -151,7 +151,7 @@ json_schema = {
 }
 
 data = {
-    "inputs": "[INST]convert to JSON: I saw a puppy a cat and a raccoon during my bike ride in the park [/INST]",
+    "inputs": "convert to JSON: I saw a puppy a cat and a raccoon during my bike ride in the park",
     "parameters": {
         "max_new_tokens": 200,
         "repetition_penalty": 1.3,
