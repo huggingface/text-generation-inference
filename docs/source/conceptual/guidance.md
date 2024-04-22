@@ -1,6 +1,6 @@
 # Guidance
 
-Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-and-constraints) and [tools and functions](#tools-and-functions) to help developer guide LLM responses to fit their needs.
+Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-and-constraints) and [tools and functions](#tools-and-functions) to help developers guide LLM responses to fit their needs.
 
 These feature are available starting from version `1.4.3`. They are accessible via the [text_generation](https://pypi.org/project/text-generation/) library and is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
 
@@ -16,7 +16,7 @@ If you're not up to date, grab the latest version and let's get started!
 
 - [The Grammar Parameter](#the-grammar-parameter): Shape your AI's responses with precision.
 - [Constrain with Pydantic](#constrain-with-pydantic): Define a grammar using Pydantic models.
-- [JSON Schema Integration](#json-schema-integration): Fine grain control over your requests via JSON schema.
+- [JSON Schema Integration](#json-schema-integration): Fine-grained control over your requests via JSON schema.
 - [Using the client](#using-the-client): Use TGI's client libraries to shape the AI's responses.
 
 ### Tools and Functions
@@ -72,9 +72,9 @@ curl localhost:3000/generate \
 
 ```
 
-A grammar can be defined using Pydantic models, JSON schema, or regular expressions. The AI will then generate a response that conforms to the specified grammar.
+A grammar can be defined using Pydantic models, JSON schemas, or regular expressions. The AI will then generate a response that conforms to the specified grammar.
 
-> Note: A grammar must compile to a intermediate representation to constrain the output. Grammar compilation is a computationally expensive and may take a few seconds to complete on the first request. Subsequent requests will use the cached grammar and will be much faster.
+> Note: A grammar must compile to an intermediate representation to constrain the output. Grammar compilation is a computationally expensive and may take a few seconds to complete on the first request. Subsequent requests will use the cached grammar and will be much faster.
 
 ### Constrain with Pydantic
 
@@ -151,7 +151,7 @@ json_schema = {
 }
 
 data = {
-    "inputs": "[INST]convert to JSON: I saw a puppy a cat and a raccoon during my bike ride in the park [/INST]",
+    "inputs": "convert to JSON: I saw a puppy a cat and a raccoon during my bike ride in the park",
     "parameters": {
         "max_new_tokens": 200,
         "repetition_penalty": 1.3,
