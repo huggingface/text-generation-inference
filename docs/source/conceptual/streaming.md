@@ -15,7 +15,7 @@ Token streaming is the mode in which the server returns the tokens one by one as
     />
 </div>
 
-With token streaming, the server can start returning the tokens one by one before having to generate the whole response. Users can have a sense of the generation's quality earlier than the end of the generation. This has different positive effects:
+With token streaming, the server can start returning the tokens one by one before having to generate the whole response. Users can have a sense of the generation's quality before the end of the generation. This has different positive effects:
 
 * Users can get results orders of magnitude earlier for extremely long queries.
 * Seeing something in progress allows users to stop the generation if it's not going in the direction they expect.
@@ -116,7 +116,7 @@ curl -N 127.0.0.1:8080/generate_stream \
 First, we need to install the `@huggingface/inference` library.
 `npm install @huggingface/inference`
 
-If you're using the free Inference API, you can use `HfInference`. If you're using inference endpoints, you can use `HfInferenceEndpoint`. Let's
+If you're using the free Inference API, you can use `HfInference`. If you're using inference endpoints, you can use `HfInferenceEndpoint`.
 
 We can create a `HfInferenceEndpoint` providing our endpoint URL and credential.
 
