@@ -229,10 +229,6 @@ class LlavaNextForConditionalGeneration(nn.Module):
                         self.config.image_grid_pinpoints,
                         self.config.vision_config.image_size,
                     )
-                    if image_sizes[image_idx][0].item() == 22:
-                        import ipdb
-
-                        ipdb.set_trace()
                     image_feature = image_feature.view(
                         num_patch_height, num_patch_width, height, width, -1
                     )
