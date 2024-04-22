@@ -71,14 +71,11 @@ fn get_unpadded_features(
     let current_aspect_ratio: f64 = current_width as f64 / current_height as f64;
     let (current_height, current_width) = if aspect_ratio > current_aspect_ratio {
         let new_height = (height * current_width) / width;
-        // let padding = (current_height - new_height) / 2;
-        // let new_height = current_height - 2 * padding;
         (new_height, current_width)
     } else {
         let new_width = (width * current_height) / height;
         (current_height, new_width)
     };
-    println!("{current_height} {current_width}");
 
     let unpadded_features = current_height * current_width;
     let newline_features = current_height;
