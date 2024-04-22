@@ -114,8 +114,6 @@ class HeterogeneousRepetitionPenaltyLogitsProcessor(LogitsProcessor):
             score < 0, score * self.penalty_tensor, score / self.penalty_tensor
         )
 
-        # set score to 0 where input_ids is a padding token
-        score *= input_ids.ne(0)
         scores.scatter_(1, input_ids, score)
         return scores
 
