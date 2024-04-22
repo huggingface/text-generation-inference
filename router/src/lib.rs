@@ -116,6 +116,7 @@ mod token_serde {
                     ))
                 }
             }
+            Value::Null => Ok(None),
             _ => Err(de::Error::custom("invalid token format")),
         }
     }
