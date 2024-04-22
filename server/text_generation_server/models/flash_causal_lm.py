@@ -816,6 +816,8 @@ class FlashCausalLM(Model):
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except torch.cuda.OutOfMemoryError:
                 logger.exception(f"Decode cuda graph warmup failed")
+        else:
+            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
         return int(num_blocks * BLOCK_SIZE)
 
