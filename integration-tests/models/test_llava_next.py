@@ -15,6 +15,7 @@ def flash_llava_next_handle(launcher):
         "llava-hf/llava-v1.6-mistral-7b-hf",
         num_shard=4,
         max_input_length=4000,
+        max_batch_prefill_tokens=8000,
         max_total_tokens=4096,
     ) as handle:
         yield handle

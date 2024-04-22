@@ -64,7 +64,7 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     return height // patch_size, width // patch_size
 
 
-def image_text_replacement(image_input, config) -> str:
+def image_text_replacement(image_input, config, image_id) -> str:
     if config.model_type == "idefics2":
         # TODO technically depends on image splitting which is not implemented.
         num_features = 320
@@ -74,7 +74,7 @@ def image_text_replacement(image_input, config) -> str:
             + "<fake_token_around_image>"
         )
     elif config.model_type == "llava_next":
-        height, width = image_input["image_sizes"][0]
+        height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
         from loguru import logger
 
@@ -82,6 +82,26 @@ def image_text_replacement(image_input, config) -> str:
         return "<image>" * num_features
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
+
+
+def get_unpadded_features(
+    height: int, width: int, npatches: int, num_patch_height: int, num_patch_width: int
+) -> Tuple[int, int]:
+    current_height = npatches * num_patch_height
+    current_width = npatches * num_patch_width
+
+    aspect_ratio: float = width / height
+    current_aspect_ratio: float = current_width / current_height
+    if aspect_ratio > current_aspect_ratio:
+        new_height = (height * current_width) // width
+        current_height = new_height
+    else:
+        new_width = (width * current_height) // height
+        current_width = new_width
+
+    unpadded_features = current_height * current_width
+    newline_features = current_height
+    return (unpadded_features, newline_features)
 
 
 def get_number_of_features(height: int, width: int, config) -> int:
@@ -101,12 +121,9 @@ def get_number_of_features(height: int, width: int, config) -> int:
         image_grid_pinpoints,
         image_size,
     )
-
-    height_of_patch = (height * npatches + width - 10) // width
-
-    unpadded_features = npatches * height_of_patch * num_patch_height * num_patch_width
-    # They are only added after width
-    newline_features = height_of_patch * num_patch_width
+    unpadded_features, newline_features = get_unpadded_features(
+        height, width, npatches, num_patch_height, num_patch_width
+    )
     # The base patch covers the entire image
     base_features = npatches**2
     return unpadded_features + newline_features + base_features
@@ -149,6 +166,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
         for r in requests:
             chunks = split(r.inputs)
             full_text = ""
+            image_id = 0
             for chunk in chunks:
                 if chunk["type"] == "text":
                     full_text += chunk["content"]
@@ -166,7 +184,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
                             "Cannot process input image not starting with data:"
                         )
                     image_input = processor.image_processor(image, return_tensors="pt")
-                    full_text += image_text_replacement(image_input, config)
+                    full_text += image_text_replacement(image_input, config, image_id)
                     image_inputs.append(image_input)
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk['type']}")
