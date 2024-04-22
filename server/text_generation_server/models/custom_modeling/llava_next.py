@@ -154,7 +154,12 @@ class LlavaNextForConditionalGeneration(nn.Module):
         """In place merges in vision_embeddings with inputs_embeds."""
         mask = input_ids == self.config.image_token_index
         # Let's pray we have enabled enough slots !
-        inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
+        try:
+            inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
+        except Exception as e:
+            raise RuntimeError(
+                f"Cannot fill images right now. If error happens at warmup, make sure you have enough `--max-input-tokens`  to handle images. If error happens at regular runtime, please fill in an issue: {e}"
+            )
         return inputs_embeds
 
     def forward(

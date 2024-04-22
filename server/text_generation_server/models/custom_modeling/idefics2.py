@@ -745,58 +745,66 @@ class Idefics2ForConditionalGeneration(nn.Module):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         if pixel_values is not None:
             batch_size, num_images, num_channels, height, width = pixel_values.shape
-            pixel_values = pixel_values.to(dtype=self.dtype)  # fp16 compatibility
-            pixel_values = pixel_values.view(
-                batch_size * num_images, *pixel_values.shape[2:]
-            )
+            all_states = []
+            all_pixel_values = pixel_values
+            all_pixel_mask = pixel_attention_mask
+            for i in range(batch_size):
+                pixel_values = all_pixel_values.to(
+                    dtype=self.dtype
+                )  # fp16 compatibility
+                pixel_values = pixel_values[i : i + 1]
+                pixel_values = pixel_values.view(num_images, *pixel_values.shape[2:])
 
-            # Remove padding images - padding images are full 0.
-            nb_values_per_image = pixel_values.shape[1:].numel()
-            real_images_inds = (pixel_values == 0.0).sum(
-                dim=(-1, -2, -3)
-            ) != nb_values_per_image
-            pixel_values = pixel_values[real_images_inds].contiguous()
+                # Remove padding images - padding images are full 0.
+                nb_values_per_image = pixel_values.shape[1:].numel()
+                real_images_inds = (pixel_values == 0.0).sum(
+                    dim=(-1, -2, -3)
+                ) != nb_values_per_image
+                pixel_values = pixel_values[real_images_inds].contiguous()
 
-            # Handle the vision attention mask
-            if pixel_attention_mask is None:
-                pixel_attention_mask = torch.ones(
-                    size=(
-                        pixel_values.size(0),
-                        pixel_values.size(2),
-                        pixel_values.size(3),
-                    ),
-                    dtype=torch.bool,
-                    device=pixel_values.device,
+                # Handle the vision attention mask
+                if pixel_attention_mask is None:
+                    pixel_attention_mask = torch.ones(
+                        size=(
+                            pixel_values.size(0),
+                            pixel_values.size(2),
+                            pixel_values.size(3),
+                        ),
+                        dtype=torch.bool,
+                        device=pixel_values.device,
+                    )
+                else:
+                    # Remove padding images from the mask/pP p
+                    pixel_attention_mask = all_pixel_mask[i : i + 1]
+                    pixel_attention_mask = pixel_attention_mask.view(
+                        1 * num_images, *pixel_attention_mask.shape[2:]
+                    )
+                    pixel_attention_mask = pixel_attention_mask[
+                        real_images_inds
+                    ].contiguous()
+
+                patch_size = self.config.vision_config.patch_size
+                patches_subgrid = pixel_attention_mask.unfold(
+                    dimension=1, size=patch_size, step=patch_size
                 )
-            else:
-                # Remove padding images from the mask/pP p
-                pixel_attention_mask = pixel_attention_mask.view(
-                    batch_size * num_images, *pixel_attention_mask.shape[2:]
+                patches_subgrid = patches_subgrid.unfold(
+                    dimension=2, size=patch_size, step=patch_size
                 )
-                pixel_attention_mask = pixel_attention_mask[
-                    real_images_inds
-                ].contiguous()
+                patch_attention_mask = (patches_subgrid.sum(dim=(-1, -2)) > 0).bool()
 
-            patch_size = self.config.vision_config.patch_size
-            patches_subgrid = pixel_attention_mask.unfold(
-                dimension=1, size=patch_size, step=patch_size
-            )
-            patches_subgrid = patches_subgrid.unfold(
-                dimension=2, size=patch_size, step=patch_size
-            )
-            patch_attention_mask = (patches_subgrid.sum(dim=(-1, -2)) > 0).bool()
+                # Get sequence from the vision encoder
+                image_hidden_states = self.vision_model(
+                    pixel_values=pixel_values,
+                    patch_attention_mask=patch_attention_mask,
+                )
 
-            # Get sequence from the vision encoder
-            image_hidden_states = self.vision_model(
-                pixel_values=pixel_values,
-                patch_attention_mask=patch_attention_mask,
-            )
-
-            # Modality projection & resampling
-            image_hidden_states = self.connector(
-                image_hidden_states,
-                attention_mask=patch_attention_mask.view(pixel_values.size(0), -1),
-            )
+                # Modality projection & resampling
+                image_hidden_states = self.connector(
+                    image_hidden_states,
+                    attention_mask=patch_attention_mask.view(pixel_values.size(0), -1),
+                )
+                all_states.append(image_hidden_states)
+            image_hidden_states = torch.stack(all_states, dim=0)
             # When we generate, we don't want to replace the potential image_token_id that we generated by images
             # that simply don't exist
             inputs_embeds = self._merge_input_ids_with_image_features(
