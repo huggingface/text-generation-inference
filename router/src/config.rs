@@ -88,7 +88,6 @@ impl LlavaNext {
         let patch_size = self.vision_config.patch_size;
         assert!(image_size % patch_size == 0);
         let npatches = image_size / patch_size;
-        println!("{npatches} {image_size} {patch_size}");
         let (num_patch_height, num_patch_width) =
             get_anyres_image_grid_shape(height, width, &self.image_grid_pinpoints, image_size);
 
