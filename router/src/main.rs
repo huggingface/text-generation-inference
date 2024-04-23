@@ -283,7 +283,10 @@ async fn main() -> Result<(), RouterError> {
 
     // Load tokenizer config if found locally, or check if we can get it from the API if needed
     let tokenizer_config = if let Some(path) = tokenizer_config_path {
-        tracing::info!("Using local tokenizer config from user specified path");
+        tracing::info!(
+            "Using local tokenizer config from user specified path {}",
+            path
+        );
         HubTokenizerConfig::from_file(&std::path::PathBuf::from(path))
     } else if local_model {
         tracing::info!("Using local tokenizer config");
