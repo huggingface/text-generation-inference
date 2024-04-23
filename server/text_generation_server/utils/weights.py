@@ -141,6 +141,12 @@ class Weights:
         return weight
 
     def get_weights_col_packed_qkv(self, prefix: str, quantize: str):
+        return self.get_weights_col_packed(prefix, quantize, 3)
+
+    def get_weights_col_packed_gate_up(self, prefix: str, quantize: str):
+        return self.get_weights_col_packed(prefix, quantize, 2)
+
+    def get_weights_col_packed(self, prefix: str, quantize: str, blocks: int):
         """
         Highly specific when the underlying tensor is a simple cat of Q,K,V instead of being
         already alternating Q,K,V within the main tensor
@@ -181,8 +187,8 @@ class Weights:
         else:
             slice_ = self._get_slice(f"{prefix}.weight")
             total_size = slice_.get_shape()[0]
-            assert total_size % 3 == 0, "Prepacked qkv is not divisible by 3"
-            single_size = total_size // 3
+            assert total_size % blocks == 0, f"Prepacked is not divisible by {blocks}"
+            single_size = total_size // blocks
             world_size = self.process_group.size()
             rank = self.process_group.rank()
 
@@ -192,10 +198,11 @@ class Weights:
             block_size = single_size // world_size
             start = rank * block_size
             stop = (rank + 1) * block_size
-            q = slice_[start:stop]
-            k = slice_[start + single_size : stop + single_size]
-            v = slice_[start + 2 * single_size : stop + 2 * single_size]
-            weight = torch.cat([q, k, v], dim=0)
+            tensors = []
+            for i in range(blocks):
+                tensor = slice_[start + i * single_size : stop + i * single_size]
+                tensors.append(tensor)
+            weight = torch.cat(tensors, dim=0)
             weight = weight.to(device=self.device)
             weight = weight.to(dtype=self.dtype)
         return weight
