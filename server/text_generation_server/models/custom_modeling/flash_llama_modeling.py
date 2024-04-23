@@ -101,6 +101,13 @@ def load_attention(config, prefix, weights):
                 weights=weights,
                 bias=False,
             )
+        elif config.model_type == "phi3":
+            return TensorParallelColumnLinear.load_qkv(
+                config,
+                prefix=f"{prefix}.qkv_proj",
+                weights=weights,
+                bias=False,
+            )
         else:
             return TensorParallelColumnLinear.load_multi(
                 config,
@@ -257,13 +264,21 @@ class LlamaMLP(nn.Module):
             )
         )
         # Fuse gate and up proj
-        self.gate_up_proj = TensorParallelColumnLinear.load_multi(
-            config,
-            prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
-            weights=weights,
-            dim=0,
-            bias=False,
-        )
+        if config.model_type == "phi3":
+            self.gate_up_proj = TensorParallelColumnLinear.load_gate_up(
+                config,
+                prefix=f"{prefix}.gate_up_proj",
+                weights=weights,
+                bias=False,
+            )
+        else:
+            self.gate_up_proj = TensorParallelColumnLinear.load_multi(
+                config,
+                prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
+                weights=weights,
+                dim=0,
+                bias=False,
+            )
         self.down_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.down_proj",
