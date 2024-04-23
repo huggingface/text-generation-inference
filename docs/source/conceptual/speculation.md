@@ -1,5 +1,6 @@
 ## Speculation
 
+
 Speculative decoding, assisted generation, Medusa, and others are a few different names for the same idea.
 The idea is to generate tokens *before* the large model actually runs, and only *check* if those tokens where valid.
 
@@ -36,7 +37,7 @@ In order to use medusa models in TGI, simply point to a medusa enabled model, an
 
 
 If you don't have a medusa model, or don't have the resource to fine-tune, you can try to use `n-gram`.
-N-gram works by trying to find matching tokens in the previous sequence, and use those as speculation for generating new tokens. For example, if the tokens "np.mean" appear multiple times in the sequence, the model can speculate that the next continuation of the tokens "np." is probably also "mean". 
+N-gram works by trying to find matching tokens in the previous sequence, and use those as speculation for generating new tokens. For example, if the tokens "np.mean" appear multiple times in the sequence, the model can speculate that the next continuation of the tokens "np." is probably also "mean".
 
 This is an extremely simple method, which works best for code, or highly repetitive text. This might not be beneficial, if the speculation misses too much.
 

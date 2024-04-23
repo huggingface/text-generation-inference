@@ -540,7 +540,57 @@ fn prepare_input(
             inputs = modified_inputs;
             tokenizer_query
         }
-        Some(Config::Idefics) => RE.replace_all(&inputs, "<image>").into(),
+        Some(Config::Idefics2(config)) => {
+            let mut modified_inputs = String::with_capacity(inputs.len());
+            let mut tokenizer_query = String::with_capacity(inputs.len());
+            let mut start = 0;
+            for chunk in RE.find_iter(&inputs) {
+                let chunk_start = chunk.start();
+                let chunk_end = chunk.end();
+                if chunk_start != start {
+                    modified_inputs.push_str(&inputs[start..chunk_start]);
+                    tokenizer_query.push_str(&inputs[start..chunk_start]);
+                }
+                let (image_uri, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
+                let slots = config.get_number_of_features(height, width);
+                tokenizer_query.push_str("<fake_token_around_image>");
+                tokenizer_query.push_str(&"<image>".repeat(slots));
+                tokenizer_query.push_str("<fake_token_around_image>");
+
+                modified_inputs.push_str(&image_uri);
+                start = chunk_end;
+            }
+            if start != inputs.len() - 1 {
+                modified_inputs.push_str(&inputs[start..]);
+                tokenizer_query.push_str(&inputs[start..]);
+            }
+            inputs = modified_inputs;
+            tokenizer_query
+        }
+        Some(Config::Idefics) => {
+            let mut modified_inputs = String::with_capacity(inputs.len());
+            let mut tokenizer_query = String::with_capacity(inputs.len());
+            let mut start = 0;
+            for chunk in RE.find_iter(&inputs) {
+                let chunk_start = chunk.start();
+                let chunk_end = chunk.end();
+                if chunk_start != start {
+                    modified_inputs.push_str(&inputs[start..chunk_start]);
+                    tokenizer_query.push_str(&inputs[start..chunk_start]);
+                }
+                let (image_uri, _height, _width) = fetch_image(&inputs[chunk_start..chunk_end])?;
+                let slots = 1;
+                tokenizer_query.push_str(&"<image>".repeat(slots));
+                modified_inputs.push_str(&image_uri);
+                start = chunk_end;
+            }
+            if start != inputs.len() - 1 {
+                modified_inputs.push_str(&inputs[start..]);
+                tokenizer_query.push_str(&inputs[start..]);
+            }
+            inputs = modified_inputs;
+            tokenizer_query
+        }
         _ => inputs.clone(),
     };
 
