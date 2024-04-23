@@ -73,9 +73,9 @@ pub struct HubTokenizerConfig {
 }
 
 impl HubTokenizerConfig {
-    pub fn from_file(filename: &std::path::Path) -> Self {
-        let content = std::fs::read_to_string(filename).unwrap();
-        serde_json::from_str(&content).unwrap_or_default()
+    pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Option<Self> {
+        let content = std::fs::read_to_string(filename).ok()?;
+        serde_json::from_str(&content).ok()
     }
 }
 
