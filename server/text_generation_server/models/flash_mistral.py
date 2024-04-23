@@ -511,18 +511,33 @@ class BaseFlashMistral(FlashCausalLM):
         cuda_graph = self.cuda_graphs.get(padded_bs, None)
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
-            logits, speculative_logits = self.model.forward(
-                input_ids=input_ids,
-                position_ids=position_ids,
-                cu_seqlen_prefill=cu_seqlen_prefill,
-                kv_cache=kv_cache,
-                block_tables=block_tables,
-                slots=slots,
-                input_lengths=input_lengths,
-                max_s=max_s,
-                prefill_cache_indices=batch.prefill_cache_indices,
-                lm_head_indices=lm_head_indices,
-            )
+
+            if cu_seqlen_prefill is None:
+                logits, speculative_logits = self.compiled_model(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=cu_seqlen_prefill,
+                    kv_cache=kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    input_lengths=input_lengths,
+                    max_s=max_s,
+                    prefill_cache_indices=batch.prefill_cache_indices,
+                    lm_head_indices=lm_head_indices,
+                )
+            else:
+                logits, speculative_logits = self.model.forward(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=cu_seqlen_prefill,
+                    kv_cache=kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    input_lengths=input_lengths,
+                    max_s=max_s,
+                    prefill_cache_indices=batch.prefill_cache_indices,
+                    lm_head_indices=lm_head_indices,
+                )
             if batch.prefill_cache_indices is not None:
                 batch.prefill_cache_indices = None
             return logits, speculative_logits
