@@ -510,17 +510,21 @@ fn fetch_image(input: &str) -> Result<(String, usize, usize), ValidationError> {
 /// Get input length and optionally truncate it
 fn prepare_input(
     mut inputs: String,
-    _truncate: Option<usize>,
+    truncate: Option<usize>,
     tokenizer: &Tokenizer,
     config: &Option<Config>,
 ) -> Result<(tokenizers::Encoding, String), ValidationError> {
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
+    tracing::info!("Truncate {truncate:?}");
     let tokenizer_query = match config {
         Some(Config::LlavaNext(config)) => {
             let mut modified_inputs = String::with_capacity(inputs.len());
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
             for chunk in RE.find_iter(&inputs) {
+                if let Some(truncate) = truncate {
+                    return Err(ValidationError::TruncateImage(truncate));
+                }
                 let chunk_start = chunk.start();
                 let chunk_end = chunk.end();
                 if chunk_start != start {
@@ -545,6 +549,9 @@ fn prepare_input(
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
             for chunk in RE.find_iter(&inputs) {
+                if let Some(truncate) = truncate {
+                    return Err(ValidationError::TruncateImage(truncate));
+                }
                 let chunk_start = chunk.start();
                 let chunk_end = chunk.end();
                 if chunk_start != start {
@@ -681,6 +688,10 @@ pub enum ValidationError {
     InvalidImageContent(String),
     #[error("Could not fetch image: {0}")]
     FailedFetchImage(#[from] reqwest::Error),
+    #[error(
+        "`truncate` cannot be used with VLM and images as it is truncating the image in the middle"
+    )]
+    TruncateImage(usize),
 }
 
 #[cfg(test)]
