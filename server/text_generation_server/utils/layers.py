@@ -697,6 +697,19 @@ class TensorParallelHead(SuperLayer):
 
 class TensorParallelColumnLinear(SuperLayer):
     @classmethod
+    def load_gate_up(cls, config, prefix: str, weights, bias: bool):
+        """Specific method when the QKV was joined after the fact"""
+        weight = weights.get_weights_col_packed_gate_up(
+            prefix, quantize=config.quantize
+        )
+        if bias:
+            raise NotImplementedError("packed_gate_up only implemented without bias")
+        else:
+            bias = None
+        linear = get_linear(weight, bias, config.quantize)
+        return cls(linear)
+
+    @classmethod
     def load_qkv(cls, config, prefix: str, weights, bias: bool):
         """Specific method when the QKV was joined after the fact"""
         weight = weights.get_weights_col_packed_qkv(prefix, quantize=config.quantize)
