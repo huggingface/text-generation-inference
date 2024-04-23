@@ -834,7 +834,9 @@ class FlashCausalLM(Model):
         slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
 
         # TODO: is this correct?
-        input_lengths = torch.ones(seqlen, dtype=torch.int32, device=self.device) * max_s
+        input_lengths = (
+            torch.ones(seqlen, dtype=torch.int32, device=self.device) * max_s
+        )
         block_tables = (
             torch.arange(max_bt, dtype=torch.int32, device=self.device)
             .repeat(bs)
