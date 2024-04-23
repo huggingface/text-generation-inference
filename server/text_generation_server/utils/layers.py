@@ -73,6 +73,7 @@ if IS_ROCM_SYSTEM:
     except Exception as e:
         raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
+
 # Monkey patching
 @classmethod
 def load_layer_norm(cls, prefix, weights, eps):
@@ -329,6 +330,7 @@ def warn_deprecate_bnb():
         "Bitsandbytes 8bit is deprecated, using `eetq` is a drop-in replacement, and has much better performnce"
     )
 
+
 class FastLinearROCm(nn.Module):
     def __init__(
         self,
@@ -361,14 +363,12 @@ class FastLinearROCm(nn.Module):
             if inp.dim() == 3:
                 inp = inp.view(-1, inp.size(-1))
                 batched = True
-            
+
             m, k = weight.shape[0], inp.shape[1]
-            out = torch.empty(inp.shape[0],
-                              weight.shape[0],
-                              dtype=inp.dtype,
-                              device='cuda')
-            if (k == 8192 and
-                (m == 1280 or m == 7168)) or (k == 3584 and m == 8192):
+            out = torch.empty(
+                inp.shape[0], weight.shape[0], dtype=inp.dtype, device="cuda"
+            )
+            if (k == 8192 and (m == 1280 or m == 7168)) or (k == 3584 and m == 8192):
                 _custom_C.LLMM1(weight, inp, out, 8)
             elif k <= 8192 and k % 8 == 0 and m % 4 == 0:
                 _custom_C.LLMM1(weight, inp, out, 4)
