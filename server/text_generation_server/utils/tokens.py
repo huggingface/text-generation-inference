@@ -273,7 +273,7 @@ class HeterogeneousNextTokenChooser:
             else None
         )
 
-        if any([x != 1.0 for x in temperature]):
+        if any(x != 1.0 for x in temperature):
             do_sample = [
                 sample or x != 1.0 for x, sample in zip(temperature, do_sample)
             ]
@@ -281,15 +281,15 @@ class HeterogeneousNextTokenChooser:
                 HeterogeneousTemperatureLogitsWarper(temperature, dtype, device)
             )
 
-        if any([x != 0 for x in top_k]):
+        if any(x != 0 for x in top_k):
             do_sample = [sample or x != 0 for x, sample in zip(top_k, do_sample)]
             warpers.append(HeterogeneousTopKLogitsWarper(top_k, device))
 
-        if any([x < 1.0 for x in top_p]):
+        if any(x < 1.0 for x in top_p):
             do_sample = [sample or x < 1.0 for x, sample in zip(top_p, do_sample)]
             warpers.append(HeterogeneousTopPLogitsWarper(top_p, dtype, device))
 
-        if any([x < 1.0 for x in typical_p]):
+        if any(x < 1.0 for x in typical_p):
             do_sample = [sample or x < 1.0 for x, sample in zip(typical_p, do_sample)]
             warpers.append(HeterogeneousTypicalLogitsWarper(typical_p, dtype, device))
 
