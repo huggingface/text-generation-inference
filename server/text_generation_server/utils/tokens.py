@@ -151,7 +151,7 @@ class StoppingCriteria:
         if eos_token_ids is None:
             eos_token_ids = set()
         elif isinstance(eos_token_ids, int):
-            eos_token_ids = set(eos_token_ids)
+            eos_token_ids = set([eos_token_ids])
         elif isinstance(eos_token_ids, set):
             eos_token_ids = eos_token_ids
         else:
