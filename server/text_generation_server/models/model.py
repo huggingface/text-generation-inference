@@ -27,7 +27,14 @@ class Model(ABC):
     ):
         self.model = model.eval()
         self.tokenizer = tokenizer
+
+        # all_special_ids is not set correctly if the rust tokenizer is unpacked
+        # TODO report this to transformers.
+        other_special_ids = {
+            id for id, token in tokenizer.added_tokens_decoder.items() if token.special
+        }
         self.all_special_ids = set(tokenizer.all_special_ids)
+        self.all_special_ids.update(other_special_ids)
         self.requires_padding = requires_padding
         self.dtype = dtype
         self.device = device

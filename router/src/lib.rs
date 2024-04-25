@@ -589,7 +589,9 @@ pub(crate) struct ChatCompletionChoice {
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionDelta {
     #[schema(example = "user")]
-    pub role: String,
+    // TODO Modify this to a true enum.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "What is Deep Learning?")]
     pub content: Option<String>,
@@ -623,6 +625,31 @@ impl ChatCompletionChunk {
         logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
     ) -> Self {
+        let delta = match (delta, tool_calls) {
+            (Some(delta), _) => ChatCompletionDelta {
+                role: Some("assistant".to_string()),
+                content: Some(delta),
+                tool_calls: None,
+            },
+            (None, Some(tool_calls)) => ChatCompletionDelta {
+                role: Some("assistant".to_string()),
+                content: None,
+                tool_calls: Some(DeltaToolCall {
+                    index: 0,
+                    id: String::new(),
+                    r#type: "function".to_string(),
+                    function: Function {
+                        name: None,
+                        arguments: tool_calls[0].to_string(),
+                    },
+                }),
+            },
+            (None, None) => ChatCompletionDelta {
+                role: None,
+                content: None,
+                tool_calls: None,
+            },
+        };
         Self {
             id: String::new(),
             object: "text_completion".to_string(),
@@ -631,19 +658,7 @@ impl ChatCompletionChunk {
             system_fingerprint,
             choices: vec![ChatCompletionChoice {
                 index: 0,
-                delta: ChatCompletionDelta {
-                    role: "assistant".to_string(),
-                    content: delta,
-                    tool_calls: tool_calls.map(|tc| DeltaToolCall {
-                        index: 0,
-                        id: String::new(),
-                        r#type: "function".to_string(),
-                        function: Function {
-                            name: None,
-                            arguments: tc[0].to_string(),
-                        },
-                    }),
-                },
+                delta,
                 logprobs,
                 finish_reason,
             }],

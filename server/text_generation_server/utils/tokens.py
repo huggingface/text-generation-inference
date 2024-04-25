@@ -197,8 +197,10 @@ class StoppingCriteria:
         stop_sequence_criterias = [
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
         ]
+        # TODO Hack because eos_token_id cannot be what we want.
+        eos_token_id = getattr(tokenizer, "_eos_token_ids", tokenizer.eos_token_id)
         return StoppingCriteria(
-            tokenizer.eos_token_id,
+            eos_token_id,
             stop_sequence_criterias,
             pb.max_new_tokens,
             pb.ignore_eos_token,

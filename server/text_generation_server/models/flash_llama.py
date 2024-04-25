@@ -56,7 +56,8 @@ class FlashLlama(FlashCausalLM):
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         if isinstance(generation_config.eos_token_id, (list, set)):
-            tokenizer.eos_token_id = set(tokenizer.eos_token_id)
+            # TODO Huge hack
+            tokenizer._eos_token_ids = set(generation_config.eos_token_id)
 
         config = AutoConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
