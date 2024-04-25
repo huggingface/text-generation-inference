@@ -185,7 +185,13 @@ class StoppingCriteria:
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
         ]
         eos_token_id = tokenizer.eos_token_id
-        eos_token_ids: Set[int] = eos_token_id if isinstance(eos_token_id, set) else {eos_token_id}
+
+        if eos_token_id is None:
+            eos_token_ids = {}
+        elif isinstance(eos_token_id, set):
+            eos_token_ids = eos_token_id
+        else:
+            eos_token_ids = eos_token_id
         return StoppingCriteria(
             eos_token_ids,
             stop_sequence_criterias,
