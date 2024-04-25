@@ -1105,7 +1105,13 @@ async fn chat_completions(
             let (content, tool_calls) = if tool_grammar.is_some() {
                 (None, Some(vec![stream_token.token.text]))
             } else {
-                (Some(stream_token.token.text), None)
+                let content = if !stream_token.token.special {
+                    Some(stream_token.token.text)
+                } else {
+                    None
+                };
+
+                (content, None)
             };
 
             event
