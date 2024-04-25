@@ -52,12 +52,15 @@ class FlashLlama(FlashCausalLM):
                 truncation_side="left",
                 trust_remote_code=trust_remote_code,
             )
-        generation_config = GenerationConfig.from_pretrained(
-            model_id, revision=revision, trust_remote_code=trust_remote_code
-        )
-        if isinstance(generation_config.eos_token_id, (list, set)):
-            # TODO Huge hack
-            tokenizer._eos_token_ids = set(generation_config.eos_token_id)
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id, revision=revision, trust_remote_code=trust_remote_code
+            )
+            if isinstance(generation_config.eos_token_id, (list, set)):
+                # TODO Huge hack
+                tokenizer._eos_token_ids = set(generation_config.eos_token_id)
+        except Exception:
+            pass
 
         config = AutoConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
