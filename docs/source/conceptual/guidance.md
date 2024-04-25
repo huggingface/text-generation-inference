@@ -2,7 +2,9 @@
 
 Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-and-constraints) and [tools and functions](#tools-and-functions) to help developers guide LLM responses to fit their needs.
 
-These feature are available starting from version `1.4.3`. They are accessible via the [text_generation](https://pypi.org/project/text-generation/) library and is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
+These feature are available starting from version `1.4.3`. They are accessible via the [text_generation](https://pypi.org/project/text-generation/) library.  The tool support is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
+
+> The Grammar guidance support is currently only available in the TGI API due to lack of support in Open AI API.
 
 ## Quick Start
 
