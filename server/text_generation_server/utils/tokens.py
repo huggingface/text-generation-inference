@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set
 
 import math
 import torch
@@ -143,12 +143,12 @@ class StopSequenceCriteria:
 class StoppingCriteria:
     def __init__(
         self,
-        eos_token_id: int,
+        eos_token_ids: Set[int],
         stop_sequence_criterias: List[StopSequenceCriteria],
         max_new_tokens: int = 20,
         ignore_eos_token: bool = False,
     ):
-        self.eos_token_id = eos_token_id
+        self.eos_token_ids = eos_token_ids
         self.stop_sequence_criterias = stop_sequence_criterias
         self.max_new_tokens = max_new_tokens
         self.current_tokens = 0
@@ -160,7 +160,7 @@ class StoppingCriteria:
         if self.current_tokens >= self.max_new_tokens:
             return True, FinishReason.FINISH_REASON_LENGTH
 
-        if not self.ignore_eos_token and last_token == self.eos_token_id:
+        if not self.ignore_eos_token and last_token in self.eos_token_ids:
             return True, FinishReason.FINISH_REASON_EOS_TOKEN
 
         if self.stop_sequence_criterias:
@@ -184,8 +184,10 @@ class StoppingCriteria:
         stop_sequence_criterias = [
             StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
         ]
+        eos_token_id = tokenizer.eos_token_id
+        eos_token_ids: Set[int] = eos_token_id if isinstance(eos_token_id, set) else {eos_token_id}
         return StoppingCriteria(
-            tokenizer.eos_token_id,
+            eos_token_ids,
             stop_sequence_criterias,
             pb.max_new_tokens,
             pb.ignore_eos_token,
