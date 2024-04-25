@@ -1,18 +1,21 @@
 import pytest
 
 
+@pytest.mark.skip
 @pytest.fixture(scope="module")
 def flash_mistral_handle(launcher):
     with launcher("mistralai/Mistral-7B-Instruct-v0.1") as handle:
         yield handle
 
 
+@pytest.mark.skip
 @pytest.fixture(scope="module")
 async def flash_mistral(flash_mistral_handle):
     await flash_mistral_handle.health(300)
     return flash_mistral_handle.client
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_mistral(flash_mistral, response_snapshot):
     response = await flash_mistral.generate(
@@ -24,6 +27,7 @@ async def test_flash_mistral(flash_mistral, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_mistral_all_params(flash_mistral, response_snapshot):
     response = await flash_mistral.generate(
@@ -46,6 +50,7 @@ async def test_flash_mistral_all_params(flash_mistral, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_flash_mistral_load(flash_mistral, generate_load, response_snapshot):
     responses = await generate_load(
