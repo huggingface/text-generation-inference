@@ -2,14 +2,13 @@ import torch
 import torch.distributed
 
 from opentelemetry import trace
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer, GenerationConfig
 from transformers.models.llama import LlamaTokenizer
 from typing import Optional
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_llama_modeling import (
     FlashLlamaForCausalLM,
-    LlamaConfig,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -53,8 +52,17 @@ class FlashLlama(FlashCausalLM):
                 truncation_side="left",
                 trust_remote_code=trust_remote_code,
             )
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id, revision=revision, trust_remote_code=trust_remote_code
+            )
+            if isinstance(generation_config.eos_token_id, (list, set)):
+                # TODO Huge hack
+                tokenizer._eos_token_ids = set(generation_config.eos_token_id)
+        except Exception:
+            pass
 
-        config = LlamaConfig.from_pretrained(
+        config = AutoConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
