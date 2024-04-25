@@ -1010,8 +1010,12 @@ async fn chat_completions(
     let tool_prompt = tool_prompt.unwrap_or_default();
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
-    let do_sample = temperature.map_or(true, |t| t != 0.0);
-    let temperature = temperature.map(|t| if t == 0.0 { 1.0 } else { t });
+    let (do_sample, temperature) = match temperature{
+        Some(temperature) if temperature == 0.0 => {
+            (false, None)
+        }
+        other => (true, other)
+    };
 
     // extract tool grammar if present
     let tool_grammar = match ToolGrammar::apply(tools, tool_choice) {
