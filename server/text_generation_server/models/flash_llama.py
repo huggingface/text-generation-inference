@@ -20,6 +20,7 @@ tracer = trace.get_tracer(__name__)
 
 from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
 
+
 class FlashLlama(FlashCausalLM):
     def __init__(
         self,
