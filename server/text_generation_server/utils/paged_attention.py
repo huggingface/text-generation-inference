@@ -68,11 +68,6 @@ def attention(
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
-    # NOTE(woosuk): We use a simple heuristic to decide whether to use
-    # PagedAttention V1 or V2. If the number of partitions is 1, we use
-    # V1 to avoid the overhead of reduction. Also, if the number of
-    # sequences or heads is large, we use V1 since there is enough work
-    # to parallelize.
     if IS_XPU_SYSTEM:
         query = query.contiguous()
         return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
@@ -89,6 +84,12 @@ def attention(
             None,
         )
 
+    # NOTE(woosuk): We use a simple heuristic to decide whether to use
+    # PagedAttention V1 or V2. If the number of partitions is 1, we use
+    # V1 to avoid the overhead of reduction. Also, if the number of
+    # sequences or heads is large, we use V1 since there is enough work
+    # to parallelize.
+    use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
     if use_v1:
         if IS_CUDA_SYSTEM:
             from vllm._C import ops
