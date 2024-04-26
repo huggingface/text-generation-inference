@@ -43,4 +43,6 @@
     title: Speculation (Medusa, ngram)
   - local: conceptual/guidance
     title: Guidance, JSON, tools (using outlines)
+  - local: conceptual/visual-language-models.md
+    title: Visual Language Models
   title: Conceptual Guides
