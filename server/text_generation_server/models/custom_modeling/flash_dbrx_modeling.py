@@ -21,8 +21,10 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
 from loguru import logger
+from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
 
-from vllm.model_executor.layers.fused_moe import fused_moe
+if not IS_XPU_SYSTEM:
+    from vllm.model_executor.layers.fused_moe import fused_moe
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.layers import (
     FastLinear,
