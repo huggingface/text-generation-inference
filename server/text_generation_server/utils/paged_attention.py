@@ -1,8 +1,14 @@
 import torch
-
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import (
+    IS_CUDA_SYSTEM,
+    IS_ROCM_SYSTEM,
+    IS_XPU_SYSTEM,
+)
 
 _PARTITION_SIZE = 512
+
+if IS_XPU_SYSTEM:
+    import intel_extension_for_pytorch as ipex
 
 
 def reshape_and_cache(
@@ -22,6 +28,10 @@ def reshape_and_cache(
         from vllm import cache_ops
 
         cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
+    elif IS_XPU_SYSTEM:
+        ipex.llm.modules.PagedAttention.reshape_and_cache(
+            key, value, key_cache, value_cache, slots
+        )
     else:
         raise ValueError("vllm is not supported on your system")
 
@@ -58,6 +68,22 @@ def attention(
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
+    if IS_XPU_SYSTEM:
+        query = query.contiguous()
+        return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
+            out,
+            query,
+            key_cache,
+            value_cache,
+            kv_head_mapping,
+            softmax_scale,
+            block_tables,
+            input_lengths,
+            block_size,
+            max_s,
+            None,
+        )
+
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
     # V1 to avoid the overhead of reduction. Also, if the number of
