@@ -58,6 +58,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements.txt && \
+    bash ./dill-0.3.7-patch.sh && \
     pip install git+https://github.com/HabanaAI/DeepSpeed.git@1.14.0 && \
     pip install . --no-cache-dir
 
