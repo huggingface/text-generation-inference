@@ -57,7 +57,14 @@ def initialize_torch_distributed():
         options.is_high_priority_stream = True
         options._timeout = timedelta(seconds=60)
     else:
-        backend = "gloo"
+        try:
+            import oneccl_bindings_for_pytorch
+
+            backend = "ccl"
+            if os.getenv("CCL_WORKER_COUNT", None) is None:
+                os.environ["CCL_WORKER_COUNT"] = str(1)
+        except ImportError:
+            backend = "gloo"
         options = None
 
     if WORLD_SIZE == 1:

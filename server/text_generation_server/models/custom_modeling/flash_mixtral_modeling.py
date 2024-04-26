@@ -24,7 +24,10 @@ import torch.distributed
 import numpy as np
 
 from torch import nn
-from vllm.model_executor.layers.fused_moe import fused_moe
+from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+
+if not IS_XPU_SYSTEM:
+    from vllm.model_executor.layers.fused_moe import fused_moe
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple

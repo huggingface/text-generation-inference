@@ -2,6 +2,7 @@ import math
 import torch
 
 from typing import Optional, List, Tuple
+from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
 
 BLOCK_SIZE: int = 16
 # Will be set in warmup
@@ -24,7 +25,10 @@ class CacheManager:
         self.repeat_slots = repeat_slots
 
         element_size = torch.tensor([], dtype=dtype).element_size()
-        x = self.block_size // element_size
+        if IS_XPU_SYSTEM:
+            x = 1
+        else:
+            x = self.block_size // element_size
 
         self.kv_cache = [
             (
