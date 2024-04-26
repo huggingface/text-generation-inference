@@ -16,7 +16,6 @@ from opentelemetry import trace
 import text_generation_server.habana_quantization_env as hq_env
 import habana_frameworks.torch as htorch
 from habana_frameworks.torch.hpu import wrap_in_hpu_graph
-from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 from optimum.habana.utils import HabanaProfile
 from optimum.habana.transformers.generation import MODELS_OPTIMIZED_WITH_STATIC_SHAPES
 from optimum.habana.checkpoint_utils import (
@@ -572,8 +571,6 @@ class CausalLM(Model):
         revision: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
     ):
-        adapt_transformers_to_gaudi()
-
         # Create tokenizer
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,

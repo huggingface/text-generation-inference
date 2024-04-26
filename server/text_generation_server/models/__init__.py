@@ -10,6 +10,8 @@ from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
 from text_generation_server.models.santacoder import SantaCoder
 
+from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+
 
 # Disable gradients
 torch.set_grad_enabled(False)
@@ -20,6 +22,7 @@ def get_model(
     revision: Optional[str],
     dtype: Optional[torch.dtype] = None,
 ) -> Model:
+    adapt_transformers_to_gaudi()
     config = AutoConfig.from_pretrained(model_id, revision=revision)
     model_type = config.model_type
 
