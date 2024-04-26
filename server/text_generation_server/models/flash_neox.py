@@ -15,6 +15,7 @@ from text_generation_server.utils import (
     Weights,
 )
 from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+
 tracer = trace.get_tracer(__name__)
 
 
