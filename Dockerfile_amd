@@ -86,8 +86,7 @@ RUN chmod +x ~/mambaforge.sh && \
     mamba init && \
     rm ~/mambaforge.sh
 
-# Install PyTorch 2.3 RC compiled against RoCm 6.0
-RUN pip install torch numpy --index-url https://download.pytorch.org/whl/test/rocm6.0
+RUN pip install torch numpy --index-url https://download.pytorch.org/whl/rocm6.0
 
 FROM base AS kernel-builder
 
