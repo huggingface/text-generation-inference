@@ -26,23 +26,23 @@ export function get_options() {
             // }],
         },
         scenarios: {
-            single_user: {
+            // single_user: {
+            //     executor: 'constant-arrival-rate',
+            //     duration: '60s',
+            //     preAllocatedVUs: 1,
+            //     rate: 20,
+            //     timeUnit: '1s',
+            // },
+            load_test: {
                 executor: 'constant-arrival-rate',
                 duration: '60s',
-                preAllocatedVUs: 1,
+                preAllocatedVUs: 100,
                 rate: 1,
                 timeUnit: '1s',
             },
-            // load_test: {
-            //     executor: 'constant-arrival-rate',
-            //     duration: '60s',
-            //     preAllocatedVUs: 100,
-            //     rate: 1,
-            //     timeUnit: '1s',
-            // },
             // breakpoint: {
             //     executor: 'ramping-arrival-rate', //Assure load increase if the system slows
-            //     preAllocatedVUs: 1000,
+            //     preAllocatedVUs: 300,
             //     stages: [
             //         { duration: '60s', target: 100 }, // just slowly ramp-up to a HUGE load
             //     ],
