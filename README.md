@@ -68,6 +68,18 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
 
 ## Get Started
 
+### Quick Start ⚡️
+
+The fastest way to get started is to use the quickstart script. This script simplifies the docker and nvidia container toolkit installation process. It also installs the latest version of the text-generation-inference container and runs it with a default model.
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf \
+    https://raw.githubusercontent.com/huggingface/text-generation-inference/quickstart.sh \
+    | bash
+```
+![best practice script review](https://img.shields.io/badge/Best_Practice-yellow) Always review the contents of a script before running it.
+
+
 ### Docker
 
 For a detailed starting guide, please see the [Quick Tour](https://huggingface.co/docs/text-generation-inference/quicktour). The easiest way of getting started is using the official Docker container:

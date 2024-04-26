@@ -35,4 +35,4 @@ model="HuggingFaceH4/zephyr-7b-beta"
 volume="$PWD/data"
 
 # Run the Docker container in interactive mode to allow CTRL+C to stop the container
-docker run -it --gpus all --shm-size 1g -p 8080:80 -v "$volume:/data" ghcr.io/huggingface/text-generation-inference:2.0 --model-id "$model"
+docker run -it --gpus all --shm-size 1g -p 8080:80 -v "$volume:/data" ghcr.io/huggingface/text-generation-inference:latest --model-id "$model"
