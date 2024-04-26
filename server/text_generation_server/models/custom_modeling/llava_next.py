@@ -23,6 +23,10 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.image_processing_utils import select_best_resolution
 
+from text_generation_server.models.custom_modeling.vlm import (
+    load_text_model,
+    load_vision_model,
+)
 from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
@@ -105,36 +109,6 @@ class LlavaNextMultiModalProjector(nn.Module):
         return hidden_states
 
 
-def load_vision_model(prefix, config, weights):
-    if config.model_type == "clip_vision_model":
-        from text_generation_server.models.custom_modeling.clip import (
-            CLIPVisionTransformer,
-        )
-
-        return CLIPVisionTransformer(
-            prefix=f"{prefix}.vision_model", config=config, weights=weights
-        )
-    else:
-        raise RuntimeError(f"Unsupported model type {config.model_type}")
-
-
-def load_text_model(prefix, config, weights):
-    if config.model_type == "llama":
-        from text_generation_server.models.custom_modeling.flash_llama_modeling import (
-            FlashLlamaForCausalLM,
-        )
-
-        return FlashLlamaForCausalLM(prefix, config, weights)
-    elif config.model_type == "mistral":
-        from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
-            FlashMistralForCausalLM,
-        )
-
-        return FlashMistralForCausalLM(prefix, config, weights)
-    else:
-        raise RuntimeError(f"Unsupported model type {config.model_type}")
-
-
 class LlavaNextForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
@@ -180,7 +154,12 @@ class LlavaNextForConditionalGeneration(nn.Module):
         """In place merges in vision_embeddings with inputs_embeds."""
         mask = input_ids == self.config.image_token_index
         # Let's pray we have enabled enough slots !
-        inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
+        try:
+            inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
+        except Exception as e:
+            raise RuntimeError(
+                f"Cannot fill images right now. If error happens at warmup, make sure you have enough `--max-input-tokens`  to handle images. If error happens at regular runtime, please fill in an issue: {e}"
+            )
         return inputs_embeds
 
     def forward(
@@ -196,6 +175,8 @@ class LlavaNextForConditionalGeneration(nn.Module):
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
+        # Unused for this model
+        pixel_attention_mask=None,
         image_sizes: Optional[torch.LongTensor] = None,
     ):
         inputs_embeds = self.language_model.embed_tokens(input_ids)

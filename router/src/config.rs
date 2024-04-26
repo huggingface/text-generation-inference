@@ -57,6 +57,31 @@ fn select_best_resolution(
     best_fit.unwrap_or((original_height, original_width))
 }
 
+fn get_unpadded_features(
+    height: usize,
+    width: usize,
+    npatches: usize,
+    num_patch_height: usize,
+    num_patch_width: usize,
+) -> (usize, usize) {
+    let current_height = npatches * num_patch_height;
+    let current_width = npatches * num_patch_width;
+
+    let aspect_ratio: f64 = width as f64 / height as f64;
+    let current_aspect_ratio: f64 = current_width as f64 / current_height as f64;
+    let (current_height, current_width) = if aspect_ratio > current_aspect_ratio {
+        let new_height = (height * current_width) / width;
+        (new_height, current_width)
+    } else {
+        let new_width = (width * current_height) / height;
+        (current_height, new_width)
+    };
+
+    let unpadded_features = current_height * current_width;
+    let newline_features = current_height;
+    (unpadded_features, newline_features)
+}
+
 impl LlavaNext {
     pub fn get_number_of_features(&self, height: usize, width: usize) -> usize {
         let image_size = self.vision_config.image_size;
@@ -65,11 +90,9 @@ impl LlavaNext {
         let npatches = image_size / patch_size;
         let (num_patch_height, num_patch_width) =
             get_anyres_image_grid_shape(height, width, &self.image_grid_pinpoints, image_size);
-        // Ceil
-        let height_of_patch = (height * npatches + width - 1) / width;
-        let unpadded_features = npatches * height_of_patch * num_patch_height * num_patch_width;
-        // They are only added after width
-        let newline_features = height_of_patch * num_patch_width;
+
+        let (unpadded_features, newline_features) =
+            get_unpadded_features(height, width, npatches, num_patch_height, num_patch_width);
         // The base patch covers the entire image
         let base_features = npatches.pow(2);
         unpadded_features + newline_features + base_features
@@ -87,11 +110,23 @@ pub struct ClipVisionModel {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
+pub struct Idefics2 {}
+
+impl Idefics2 {
+    pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
+        320
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "model_type")]
+#[serde(rename_all = "snake_case")]
 pub enum Config {
     LlavaNext(LlavaNext),
     ClipVisionModel(ClipVisionModel),
     Mistral,
     Idefics,
+    Idefics2(Idefics2),
     Ssm,
     GptBigcode,
     Santacoder,
@@ -146,13 +181,17 @@ mod test {
             ],
         };
 
+        let slots = config.get_number_of_features(20, 20);
+        assert_eq!(slots, 1176);
         let slots = config.get_number_of_features(640, 640);
         assert_eq!(slots, 2928);
         let slots = config.get_number_of_features(480, 640);
         assert_eq!(slots, 2340);
         let slots = config.get_number_of_features(899, 1024);
-        assert_eq!(slots, 2732);
+        assert_eq!(slots, 2634);
         let slots = config.get_number_of_features(1024, 899);
-        assert_eq!(slots, 3320);
+        assert_eq!(slots, 2640);
+        let slots = config.get_number_of_features(1067, 1600);
+        assert_eq!(slots, 2144);
     }
 }

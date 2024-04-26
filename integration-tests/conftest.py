@@ -293,6 +293,7 @@ def launcher(event_loop):
         dtype: Optional[str] = None,
         revision: Optional[str] = None,
         max_input_length: Optional[int] = None,
+        max_batch_prefill_tokens: Optional[int] = None,
         max_total_tokens: Optional[int] = None,
     ):
         port = random.randint(8000, 10_000)
@@ -334,6 +335,9 @@ def launcher(event_loop):
         if max_input_length:
             args.append("--max-input-length")
             args.append(str(max_input_length))
+        if max_batch_prefill_tokens:
+            args.append("--max-batch-prefill-tokens")
+            args.append(str(max_batch_prefill_tokens))
         if max_total_tokens:
             args.append("--max-total-tokens")
             args.append(str(max_total_tokens))
@@ -371,6 +375,7 @@ def launcher(event_loop):
         dtype: Optional[str] = None,
         revision: Optional[str] = None,
         max_input_length: Optional[int] = None,
+        max_batch_prefill_tokens: Optional[int] = None,
         max_total_tokens: Optional[int] = None,
     ):
         port = random.randint(8000, 10_000)
@@ -395,6 +400,9 @@ def launcher(event_loop):
         if max_input_length:
             args.append("--max-input-length")
             args.append(str(max_input_length))
+        if max_batch_prefill_tokens:
+            args.append("--max-batch-prefill-tokens")
+            args.append(str(max_batch_prefill_tokens))
         if max_total_tokens:
             args.append("--max-total-tokens")
             args.append(str(max_total_tokens))
