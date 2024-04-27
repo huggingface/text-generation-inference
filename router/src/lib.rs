@@ -525,7 +525,7 @@ impl ChatCompletion {
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
-        output: Option<String>,
+        _output: Option<String>,
         created: u64,
         details: Details,
         return_logprobs: bool,
@@ -541,7 +541,7 @@ impl ChatCompletion {
                 index: 0,
                 message: Message {
                     role: "assistant".into(),
-                    content: output,
+                    content: None,
                     name: None,
                     tool_calls,
                 },
@@ -867,9 +867,18 @@ pub(crate) struct Tool {
     pub function: FunctionDefinition,
 }
 
+// a serializeable version of Message
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub(crate) struct SerializedMessage {
+    role: String,
+    content: String,
+    name: Option<String>,
+    tool_calls: Option<Vec<ToolCall>>,
+}
+
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub(crate) struct ChatTemplateInputs<'a> {
-    messages: Vec<Message>,
+    messages: Vec<SerializedMessage>,
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
@@ -884,13 +893,34 @@ pub(crate) struct ToolCall {
     pub function: FunctionDefinition,
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
+pub(crate) struct Text {
+    #[serde(default)]
+    pub text: String,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
+pub(crate) struct ImageUrl {
+    #[serde(default)]
+    pub url: String,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
+pub(crate) struct Content {
+    pub r#type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<ImageUrl>,
+}
+
+#[derive(Clone, Deserialize, ToSchema, Serialize, Debug)]
 pub(crate) struct Message {
     #[schema(example = "user")]
     pub role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "My name is David and I")]
-    pub content: Option<String>,
+    pub content: Option<Vec<Content>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     pub name: Option<String>,
