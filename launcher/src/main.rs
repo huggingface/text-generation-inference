@@ -251,7 +251,7 @@ struct Args {
     ///
     /// This setting is only applied if there is room in the batch
     /// as defined by `max_batch_total_tokens`.
-    #[clap(default_value = "1.2", long, env)]
+    #[clap(default_value = "0.3", long, env)]
     waiting_served_ratio: f32,
 
     /// Limits the number of tokens for the prefill operation.

@@ -162,7 +162,7 @@ Options:
           This setting is only applied if there is room in the batch as defined by `max_batch_total_tokens`.
           
           [env: WAITING_SERVED_RATIO=]
-          [default: 1.2]
+          [default: 0.3]
 
 ```
 ## MAX_BATCH_PREFILL_TOKENS
