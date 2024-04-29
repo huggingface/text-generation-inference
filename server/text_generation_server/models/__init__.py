@@ -16,6 +16,8 @@ from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
 from text_generation_server.models.santacoder import SantaCoder
 
+from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+
 
 # Disable gradients
 torch.set_grad_enabled(False)
@@ -28,6 +30,8 @@ def get_model(
     dtype: Optional[torch.dtype],
     trust_remote_code: bool,
 ) -> Model:
+    adapt_transformers_to_gaudi()
+
     if speculate is not None:
         set_speculate(speculate)
     else:
