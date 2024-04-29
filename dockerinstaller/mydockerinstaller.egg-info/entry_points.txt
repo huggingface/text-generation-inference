@@ -1,0 +1,2 @@
+[console_scripts]
+mydockerinstaller = mydockerinstaller.installer:main
