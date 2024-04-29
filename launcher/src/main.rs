@@ -683,12 +683,7 @@ fn shard_manager(
 
         // We received a shutdown signal
         if shutdown.load(Ordering::SeqCst) {
-            signal::kill(Pid::from_raw(p.id() as i32), Signal::SIGTERM).unwrap();
-            if let Err(err) = p.wait() {
-                tracing::error!("Error in shard termination {err:?}");
-            } else {
-                tracing::info!("Shard terminated");
-            }
+            terminate("shard", p, Duration::from_secs(90)).unwrap();
             return;
         }
 
@@ -1248,7 +1243,6 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
     signal::kill(Pid::from_raw(process.id() as i32), Signal::SIGTERM).unwrap();
 
     tracing::info!("Waiting for {process_name} to gracefully shutdown");
-
     while terminate_time.elapsed() < timeout {
         if let Some(status) = process.try_wait()? {
             tracing::info!("{process_name} terminated");
@@ -1256,7 +1250,6 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
         }
         sleep(Duration::from_millis(100));
     }
-
     tracing::info!("Killing {process_name}");
 
     process.kill()?;
