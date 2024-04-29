@@ -683,9 +683,12 @@ fn shard_manager(
 
         // We received a shutdown signal
         if shutdown.load(Ordering::SeqCst) {
-            p.kill().unwrap();
-            let _ = p.wait();
-            tracing::info!("Shard terminated");
+            signal::kill(Pid::from_raw(p.id() as i32), Signal::SIGTERM).unwrap();
+            if let Err(err) = p.wait() {
+                tracing::error!("Error in shard termination {err:?}");
+            } else {
+                tracing::info!("Shard terminated");
+            }
             return;
         }
 
