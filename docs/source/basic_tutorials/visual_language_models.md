@@ -10,7 +10,6 @@ Below are couple of common use cases for vision language models:
 
 - **Image Captioning**: Given an image, generate a caption that describes the image.
 - **Visual Question Answering (VQA)**: Given an image and a question about the image, generate an answer to the question.
-- **Visual Dialog**: Given an image and a dialog history, generate a response to the dialog.
 - **Mulimodal Dialog**: Generate response to multiple turns of images and conversations.
 - **Image Information Retrieval**: Given an image, retrieve information from the image.
 
