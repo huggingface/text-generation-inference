@@ -525,7 +525,7 @@ impl ChatCompletion {
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
-        _output: Option<String>,
+        output: Option<String>,
         created: u64,
         details: Details,
         return_logprobs: bool,
@@ -541,7 +541,7 @@ impl ChatCompletion {
                 index: 0,
                 message: Message {
                     role: "assistant".into(),
-                    content: None,
+                    content: output,
                     name: None,
                     tool_calls,
                 },
@@ -878,7 +878,7 @@ pub(crate) struct SerializedMessage {
 
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub(crate) struct ChatTemplateInputs<'a> {
-    messages: Vec<SerializedMessage>,
+    messages: Vec<Message>,
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
@@ -914,13 +914,55 @@ pub(crate) struct Content {
     pub image_url: Option<ImageUrl>,
 }
 
+mod message_content_serde {
+    use super::*;
+    use serde::de;
+    use serde::Deserializer;
+    use serde_json::Value;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        match value {
+            Value::String(s) => Ok(Some(s)),
+            Value::Array(arr) => {
+                let results: Result<Vec<String>, _> = arr
+                    .into_iter()
+                    .map(|v| {
+                        let content: Content =
+                            serde_json::from_value(v).map_err(de::Error::custom)?;
+                        match content.r#type.as_str() {
+                            "text" => Ok(content.text.unwrap_or_default()),
+                            "image_url" => {
+                                if let Some(url) = content.image_url {
+                                    Ok(format!("\n![]({})", url.url))
+                                } else {
+                                    Ok(String::new())
+                                }
+                            }
+                            _ => Err(de::Error::custom("invalid content type")),
+                        }
+                    })
+                    .collect();
+
+                results.map(|strings| Some(strings.join("")))
+            }
+            Value::Null => Ok(None),
+            _ => Err(de::Error::custom("invalid token format")),
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug)]
 pub(crate) struct Message {
     #[schema(example = "user")]
     pub role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "My name is David and I")]
-    pub content: Option<Vec<Content>>,
+    #[serde(deserialize_with = "message_content_serde::deserialize")]
+    pub content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     pub name: Option<String>,
