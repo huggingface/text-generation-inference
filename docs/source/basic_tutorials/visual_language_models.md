@@ -1,40 +1,24 @@
 # Vision Language Models (VLM)
 
-## What is VLM?
+Visual Language Model (VLM) are models that consume both image and text inputs to generate text.
 
-Visual Language Model (VLM) are models that consume both visual and textual inputs to generate text.
+VLM's are trained on a combination of image and text data and can handle a wide range of tasks, such as image captioning, visual question answering, and visual dialog.
 
-These models are trained on multimodal data, which includes both images and text.
+> What distinguishes VLMs from other text and image models is their ability to handle long context and generate text that is coherent and relevant to the image even after multiple turns or in some cases, multiple images.
 
-VLMs can be used for a variety of tasks, such as image captioning, visual question answering, and more.
-
-<div class="flex justify-center">
-    <pre>placeholder for architecture diagram</pre>
-</div>
-
-With VLM, you can generate text from an image. For example, you can generate a caption for an image, answer questions about an image, or generate a description of an image.
+Below are couple of common use cases for vision language models:
 
 - **Image Captioning**: Given an image, generate a caption that describes the image.
 - **Visual Question Answering (VQA)**: Given an image and a question about the image, generate an answer to the question.
 - **Visual Dialog**: Given an image and a dialog history, generate a response to the dialog.
-- **Visual Data Extraction**: Given an image, extract information from the image.
+- **Mulimodal Dialog**: Generate response to multiple turns of images and conversations.
+- **Image Information Retrieval**: Given an image, retrieve information from the image.
 
-For example, given the image of a cat, a VLM can generate the caption "A cat sitting on a couch" or answer the question "What is the cat doing?" with "The cat is sitting on a couch."
+## How to Use a Vision Language Model?
 
-## How to use VLM?
+### Hugging Face Hub Python Library
 
-### VLM with Python
-
-To use VLM with Python, you can use the `huggingface_hub` library. The `InferenceClient` class provides a simple way to interact with the Inference API.
-
-This is the following image:
-
-<div class="flex justify-center">
-    <img
-        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"
-        width="400"
-    />
-</div>
+To infer with vision language models through Python, you can use the [`huggingface_hub`](https://pypi.org/project/huggingface-hub/) library. The `InferenceClient` class provides a simple way to interact with the [Inference API](https://huggingface.co/docs/api-inference/index)
 
 ```python
 from huggingface_hub import InferenceClient
@@ -45,34 +29,10 @@ prompt = f"![]({image})What is this a picture of?\n\n"
 for token in client.text_generation(prompt, max_new_tokens=16, stream=True):
     print(token)
 
-# This
-#  is
-#  a
-#  picture
-#  of
-#  an
-#  anth
-# rop
-# omorphic
-#  rab
-# bit
-#  in
-#  a
-#  space
-#  suit
-# .
+# This is a picture of an anthropomorphic rabbit in a space suit.
 ```
 
 Images can be passed as URLs or base64-encoded strings. The `InferenceClient` will automatically detect the image format.
-
-This is the following image:
-
-<div class="flex justify-center">
-    <img
-        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/beaver.png"
-        width="400"
-    />
-</div>
 
 ```python
 from huggingface_hub import InferenceClient
@@ -82,35 +42,25 @@ import io
 
 client = InferenceClient("http://127.0.0.1:3000")
 
-url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/beaver.png"
-original_image = requests.get(url)
+# read image from local file
+image_path = "rabbit.png"
+with open(image_path, "rb") as f:
+    image = base64.b64encode(f.read()).decode("utf-8")
 
-# encode image to base64
-image_bytes = io.BytesIO(original_image.content)
-image = base64.b64encode(image_bytes.getvalue()).decode("utf-8")
 image = f"data:image/png;base64,{image}"
-
 prompt = f"![]({image})What is this a picture of?\n\n"
 
 for token in client.text_generation(prompt, max_new_tokens=10, stream=True):
     print(token)
 
-# This
-#  is
-#  a
-#  picture
-#  of
-#  a
-#  be
-# aver
-# .
+# This is a picture of an anthropomorphic rabbit in a space suit.
 ```
 
 If you want additional details, you can add `details=True`. In this case, you get a `TextGenerationStreamResponse` which contains additional information such as the probabilities and the tokens. For the final response in the stream, it also returns the full generated text.
 
-### VLM with cURL
+### Inference Through Sending `cURL` Requests
 
-To use the `generate_stream` endpoint with curl, you can add the `-N` flag, which disables curl default buffering and shows data as it arrives from the server
+To use the `generate_stream` endpoint with curl, you can add the `-N` flag. This flag disables curl default buffering and shows data as it arrives from the server.
 
 ```bash
 curl -N 127.0.0.1:3000/generate_stream \
@@ -122,19 +72,22 @@ curl -N 127.0.0.1:3000/generate_stream \
 # data:{"index":16,"token":{"id":28723,"text":".","logprob":-0.6196289,"special":false},"generated_text":"This is a picture of an anthropomorphic rabbit in a space suit.","details":null}
 ```
 
-### VLM with JavaScript
+### Inference Through JavaScript
 
 First, we need to install the `@huggingface/inference` library.
-`npm install @huggingface/inference`
 
-If you're using the free Inference API, you can use `HfInference`. If you're using inference endpoints, you can use `HfInferenceEndpoint`.
+```bash
+npm install @huggingface/inference
+```
 
-We can create a `HfInferenceEndpoint` providing our endpoint URL and credential.
+If you're using the free Inference API, you can use [Huggingface.js](https://huggingface.co/docs/huggingface.js/inference/README)'s `HfInference`. If you're using inference endpoints, you can use `HfInferenceEndpoint` class to easily interact with the Inference API.
+
+We can create a `HfInferenceEndpoint` providing our endpoint URL and We can create a `HfInferenceEndpoint` providing our endpoint URL and [Hugging Face access token](https://huggingface.co/settings/tokens).
 
 ```js
 import { HfInferenceEndpoint } from "@huggingface/inference";
 
-const hf = new HfInferenceEndpoint("http://127.0.0.1:3000", "hf_YOUR_TOKEN");
+const hf = new HfInferenceEndpoint("http://127.0.0.1:3000", "HF_TOKEN");
 
 const prompt =
   "![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)What is this a picture of?\n\n";
@@ -151,7 +104,7 @@ for await (const r of stream) {
 // This is a picture of an anthropomorphic rabbit in a space suit.
 ```
 
-## Advantages of VLM in TGI
+## Combining Vision Language Models with Other Features
 
 VLMs in TGI have several advantages, for example these models can be used in tandem with other features for more complex tasks. For example, you can use VLMs with [Guided Generation](/docs/conceptual/guided-generation) to generate specific JSON data from an image.
 
@@ -217,8 +170,4 @@ curl localhost:3000/generate \
 # }
 ```
 
-## How does VLM work under the hood?
-
-coming soon...
-
-<pre>placeholder for architecture diagram (image to tokens)</pre>
+Want to learn more about how Vision Language Models work? Check out the [awesome blog post on the topic](https://huggingface.co/blog/vlms).
