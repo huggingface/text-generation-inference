@@ -1,8 +1,0 @@
-setup.py
-mydockerinstaller/__init__.py
-mydockerinstaller/installer.py
-mydockerinstaller.egg-info/PKG-INFO
-mydockerinstaller.egg-info/SOURCES.txt
-mydockerinstaller.egg-info/dependency_links.txt
-mydockerinstaller.egg-info/entry_points.txt
-mydockerinstaller.egg-info/top_level.txt
