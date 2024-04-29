@@ -4,6 +4,11 @@ from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SY
 
 _PARTITION_SIZE = 512
 
+try:
+    from vllm._C import cache_ops
+except Exception as e:
+    raise ImportError(f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}")
+
 
 def reshape_and_cache(
     key: torch.Tensor,
@@ -12,18 +17,9 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if IS_CUDA_SYSTEM:
-        from vllm._C import cache_ops
-
-        cache_ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
-        )
-    elif IS_ROCM_SYSTEM:
-        from vllm import cache_ops
-
-        cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
-    else:
-        raise ValueError("vllm is not supported on your system")
+    cache_ops.reshape_and_cache(
+        key, value, key_cache, value_cache, slots, "auto", 1.0
+    )
 
 
 def attention(

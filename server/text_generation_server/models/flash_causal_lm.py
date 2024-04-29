@@ -766,6 +766,9 @@ class FlashCausalLM(Model):
             )
             max_bt = batch.max_blocks
             max_s = max_bt * get_cache_manager().block_size
+
+            if IS_ROCM_SYSTEM and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
+                logger.info("PyTorch TunableOp (https://github.com/pytorch/pytorch/tree/v2.3.0/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes.")
             _, batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
@@ -820,10 +823,10 @@ class FlashCausalLM(Model):
         else:
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
-        # TODO: fix
-        if IS_ROCM_SYSTEM and False:
-            total_seqlens = list(range(16))
+        if IS_ROCM_SYSTEM and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
+            total_seqlens = list(range(2))
             for seqlen in total_seqlens:
+                logger.info(f"Warming up TunableOp for seqlen={seqlen}")
                 self.tunableop_warmup(seqlen, max_s, max_bt)
 
         return int(num_blocks * BLOCK_SIZE)
