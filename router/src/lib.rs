@@ -867,15 +867,6 @@ pub(crate) struct Tool {
     pub function: FunctionDefinition,
 }
 
-// a serializeable version of Message
-#[derive(Clone, Serialize, Deserialize, Default)]
-pub(crate) struct SerializedMessage {
-    role: String,
-    content: String,
-    name: Option<String>,
-    tool_calls: Option<Vec<ToolCall>>,
-}
-
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub(crate) struct ChatTemplateInputs<'a> {
     messages: Vec<Message>,
