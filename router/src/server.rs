@@ -1004,7 +1004,7 @@ async fn chat_completions(
         ..
     } = req;
 
-    let repetition_penalty = presence_penalty.map(|x| x + 1.0);
+    let repetition_penalty = presence_penalty.map(|x| x + 2.0);
     let max_new_tokens = max_tokens.or(Some(100));
     let logprobs = logprobs.unwrap_or(false);
     let tool_prompt = tool_prompt.unwrap_or_default();
