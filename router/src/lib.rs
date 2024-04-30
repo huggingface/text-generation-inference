@@ -928,7 +928,7 @@ mod message_content_serde {
                             "text" => Ok(content.text.unwrap_or_default()),
                             "image_url" => {
                                 if let Some(url) = content.image_url {
-                                    Ok(format!("\n![]({})", url.url))
+                                    Ok(format!("![]({})", url.url))
                                 } else {
                                     Ok(String::new())
                                 }
