@@ -59,6 +59,17 @@ This process can be broken down into the following steps:
 
 4. The grammar mask is applied and the model samples from the remaining tokens. Once a token is chosen, we update the grammar state with the new token, to prepare it for the next pass.
 
+<div class="flex justify-center">
+    <img
+        class="block dark:hidden"
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/sample-logits.gif"
+    />
+    <img
+        class="hidden dark:block"
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/sample-logits-dark.gif"
+    />
+</div>
+
 ## How to use Guidance?
 
 There are two main ways to use guidance; you can either use the `/generate` endpoint with a grammar or use the `/chat/completion` endpoint with tools.
