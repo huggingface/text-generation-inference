@@ -12,6 +12,10 @@ Before we jump into the deep end, ensure your system is using TGI version `1.4.3
 
 If you're not up to date, grab the latest version and let's get started!
 
+## How it works
+
+TGI leverages the [outlines](https://github.com/outlines-dev/outlines) library to efficiently parse and compile the grammatical structures and tools specified by users. This integration transforms the defined grammars into an intermediate representation that acts as a framework to guide and constrain content generation, ensuring that outputs adhere to the specified grammatical rules.
+
 ## Table of Contents 📚
 
 ### Grammar and Constraints
@@ -270,58 +274,58 @@ curl localhost:3000/v1/chat/completions \
 <details>
   <summary>Tools used in example below</summary>
 
-  ```python
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "get_current_weather",
-                "description": "Get the current weather",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA",
-                        },
-                        "format": {
-                            "type": "string",
-                            "enum": ["celsius", "fahrenheit"],
-                            "description": "The temperature unit to use. Infer this from the users location.",
-                        },
-                    },
-                    "required": ["location", "format"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_n_day_weather_forecast",
-                "description": "Get an N-day weather forecast",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA",
-                        },
-                        "format": {
-                            "type": "string",
-                            "enum": ["celsius", "fahrenheit"],
-                            "description": "The temperature unit to use. Infer this from the users location.",
-                        },
-                        "num_days": {
-                            "type": "integer",
-                            "description": "The number of days to forecast",
-                        },
-                    },
-                    "required": ["location", "format", "num_days"],
-                },
-            },
-        }
-    ]
-  ```
+```python
+  tools = [
+      {
+          "type": "function",
+          "function": {
+              "name": "get_current_weather",
+              "description": "Get the current weather",
+              "parameters": {
+                  "type": "object",
+                  "properties": {
+                      "location": {
+                          "type": "string",
+                          "description": "The city and state, e.g. San Francisco, CA",
+                      },
+                      "format": {
+                          "type": "string",
+                          "enum": ["celsius", "fahrenheit"],
+                          "description": "The temperature unit to use. Infer this from the users location.",
+                      },
+                  },
+                  "required": ["location", "format"],
+              },
+          },
+      },
+      {
+          "type": "function",
+          "function": {
+              "name": "get_n_day_weather_forecast",
+              "description": "Get an N-day weather forecast",
+              "parameters": {
+                  "type": "object",
+                  "properties": {
+                      "location": {
+                          "type": "string",
+                          "description": "The city and state, e.g. San Francisco, CA",
+                      },
+                      "format": {
+                          "type": "string",
+                          "enum": ["celsius", "fahrenheit"],
+                          "description": "The temperature unit to use. Infer this from the users location.",
+                      },
+                      "num_days": {
+                          "type": "integer",
+                          "description": "The number of days to forecast",
+                      },
+                  },
+                  "required": ["location", "format", "num_days"],
+              },
+          },
+      }
+  ]
+```
 
 </details>
 
