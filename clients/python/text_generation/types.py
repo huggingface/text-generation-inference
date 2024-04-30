@@ -159,6 +159,8 @@ class ChatRequest(BaseModel):
     top_p: Optional[float] = None
     # List of tools to be used
     tools: Optional[List[Tool]] = None
+    # A prompt to be appended before the tools
+    tool_prompt: Optional[str] = None
     # Choice of tool to be used
     tool_choice: Optional[str] = None
 
