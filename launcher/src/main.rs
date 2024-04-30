@@ -1284,7 +1284,7 @@ fn main() -> Result<(), LauncherError> {
         tracing::info!("{}", env_runtime);
     }
 
-    tracing::info!("{:?}", args);
+    tracing::info!("{:#?}", args);
 
     let get_max_position_embeddings = || -> Result<usize, Box<dyn std::error::Error>> {
         let model_id = args.model_id.clone();
@@ -1317,7 +1317,12 @@ fn main() -> Result<(), LauncherError> {
             (Some(max_position_embeddings), _) | (None, Some(max_position_embeddings)) => {
                 if max_position_embeddings > max_default {
                     let max = max_position_embeddings;
-                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
+                    if args.max_input_tokens.is_none()
+                        && args.max_total_tokens.is_none()
+                        && args.max_batch_prefill_tokens.is_none()
+                    {
+                        tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
+                    }
                     max_default
                 } else {
                     max_position_embeddings
@@ -1389,8 +1394,7 @@ fn main() -> Result<(), LauncherError> {
     }
 
     let cuda_graphs = match (&args.cuda_graphs, &args.quantize) {
-        (Some(cuda_graphs), Some(_q)) => cuda_graphs.clone(),
-        (Some(cuda_graphs), None) => cuda_graphs.clone(),
+        (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
         #[allow(deprecated)]
         (
             None,
