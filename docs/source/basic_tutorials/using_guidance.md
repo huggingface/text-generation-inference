@@ -4,11 +4,6 @@ Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-
 
 These feature are available starting from version `1.4.3`. They are accessible via the [text_generation](https://pypi.org/project/text-generation/) library. The tool support is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
 
-| Endpoint            | Grammar | Tools |
-| ------------------- | ------- | ----- |
-| `/generate`         | ✅      | ❌    |
-| `/chat/completions` | ❌      | ✅    |
-
 _note: guidance is supported as grammar in the `/generate` endpoint and as tools in the `/chat/completions` endpoint._
 
 ## How it works
