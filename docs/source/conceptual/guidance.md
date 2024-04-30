@@ -23,7 +23,6 @@ However these use cases can span a wide range of applications, such as:
 - provide reliable and consistent output for downstream tasks
 - extract data from multimodal inputs
 
-
 ## How it works?
 
 Diving into the details, guidance is enabled by including a grammar with a generation request that is compiled, and used to modify the chosen tokens.
@@ -31,6 +30,18 @@ Diving into the details, guidance is enabled by including a grammar with a gener
 This process can be broken down into the following steps:
 
 1. A request is sent to the backend, it is processed and placed in batch. Processing includes compiling the grammar into a finite state machine and a grammar state.
+
+<div class="flex justify-center">
+    <img
+        class="block dark:hidden"
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/request-to-batch.gif"
+    />
+    <img
+        class="hidden dark:block"
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/request-to-batch-dark.gif"
+    />
+</div>
+
 2. The model does a forward pass over the batch. This returns probabilities for each token in the vocabulary for each request in the batch.
 
 3. The process of choosing one of those tokens is called `sampling`. The model samples from the distribution of probabilities to choose the next token. In TGI all of the steps before sampling are called `processor`. Grammars are applied as a processor that masks out tokens that are not allowed by the grammar.

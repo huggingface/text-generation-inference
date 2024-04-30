@@ -26,7 +26,7 @@
   - local: basic_tutorials/safety
     title: Safety
   - local: basic_tutorials/using_guidance
-    title: Using Guidance, JSON, tools (via outlines)
+    title: Using Guidance, JSON, tools
   - local: basic_tutorials/visual_language_models
     title: Visual Language Models
   title: Tutorials
@@ -46,6 +46,6 @@
   - local: conceptual/speculation
     title: Speculation (Medusa, ngram)
   - local: conceptual/guidance
-    title: How Guidance Works
+    title: How Guidance Works (via outlines)
 
   title: Conceptual Guides

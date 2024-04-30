@@ -122,7 +122,7 @@ print(response.json())
 
 ### JSON Schema Integration
 
-If Pydantic's not your style, go raw with direct JSON Schema integration. This is simliar to the first example but with programmatic control.
+If Pydantic's not your style, go raw with direct JSON Schema integration. This is similar to the first example but with programmatic control.
 
 ```python
 import requests
