@@ -211,12 +211,13 @@ def attention(
         # NOTE: The Triton kernel silently outputs wrong results when using MQA/GQA and not
         # repeating.
         # TODO: just a sketch. Kind of need to abstract this `attention` function to enable some customization and pass those - let's sync with Nicolas for which implem he'd like
-        num_heads = q.shape[1]
-        num_kv_heads = k.shape[1]
-        if num_kv_heads != num_heads:
-            # Interleave for MQA workaround.
-            k = repeat_kv(k, num_heads // num_kv_heads)
-            v = repeat_kv(v, num_heads // num_kv_heads)
+        
+        # num_heads = q.shape[1]
+        # num_kv_heads = k.shape[1]
+        # if num_kv_heads != num_heads:
+        #     # Interleave for MQA workaround.
+        #     k = repeat_kv(k, num_heads // num_kv_heads)
+        #     v = repeat_kv(v, num_heads // num_kv_heads)
 
         output, _ = triton_attention(
             q,

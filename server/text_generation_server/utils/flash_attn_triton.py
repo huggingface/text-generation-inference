@@ -293,7 +293,7 @@ def _attn_fwd_inner(
             num_warps=4,
         ),
     ],
-    key=["hq", "hk", "IS_CAUSAL", "dropout_p", "BLOCK_DMODEL"],
+    key=["IS_CAUSAL", "dropout_p", "BLOCK_DMODEL"],
 )
 @triton.jit
 def attn_fwd(
@@ -330,8 +330,8 @@ def attn_fwd(
     philox_seed,
     philox_offset_base,
     encoded_softmax,
-    hq,
-    hk,
+    HQ: tl.constexpr,
+    HK:tl.constexpr,
     ACTUAL_BLOCK_DMODEL: tl.constexpr,
     MAX_SEQLENS_Q: tl.constexpr,
     MAX_SEQLENS_K: tl.constexpr,
@@ -414,14 +414,19 @@ def attn_fwd(
             # TODO: Should dropout and return encoded softmax be handled here?
             return
 
-    is_mqa = hq != hk
-    off_h_k = off_h_q % hk if is_mqa else off_h_q
+    # If MQA / GQA, set the K and V head offsets appropriately.
+    GROUP_SIZE: tl.constexpr = HQ // HK
+    if GROUP_SIZE != 1:
+        off_h_k = off_h_q // GROUP_SIZE
+    else:
+        off_h_k = off_h_q
+
     n_extra_tokens = 0
     if seqlen_k < BLOCK_N:
         n_extra_tokens = BLOCK_N - seqlen_k
     elif seqlen_k % BLOCK_N:
         n_extra_tokens = seqlen_k % BLOCK_N
-    padded_head = ACTUAL_BLOCK_DMODEL != BLOCK_DMODEL
+    PADDED_HEAD:tl.constexpr = (ACTUAL_BLOCK_DMODEL != BLOCK_DMODEL)
 
     # Compute pointers for all the tensors used in this kernel.
     q_offset = (off_z * stride_qz + off_h_q * stride_qh +
@@ -467,7 +472,7 @@ def attn_fwd(
         bias_ptr = None
     if ENABLE_DROPOUT:
         batch_philox_offset = philox_offset_base \
-                              + (off_z * hq + off_h_q) \
+                              + (off_z * HQ + off_h_q) \
                               * seqlen_q * seqlen_k
     else:
         batch_philox_offset = 0
@@ -494,7 +499,7 @@ def attn_fwd(
     # have native e^x support in HW.
     qk_scale = sm_scale * 1.44269504089
     # Q is loaded once at the beginning and shared by all N blocks.
-    q = load_fn(Q_block_ptr, True, padded_head, "zero")
+    q = load_fn(Q_block_ptr, True, PADDED_HEAD, "zero")
     q = (q * qk_scale).to(Q_block_ptr.type.element_ty)
 
     # Here we compute how many full and masked blocks we have.
@@ -549,7 +554,7 @@ def attn_fwd(
             False,
             ENABLE_DROPOUT,
             RETURN_ENCODED_SOFTMAX,
-            padded_head,
+            PADDED_HEAD,
         )
         block_min = block_max
         block_max = n_blocks * BLOCK_N
@@ -595,7 +600,7 @@ def attn_fwd(
             True,
             ENABLE_DROPOUT,
             RETURN_ENCODED_SOFTMAX,
-            padded_head,
+            PADDED_HEAD,
         )
     # epilogue
     acc = acc / l_i[:, None]
@@ -729,16 +734,8 @@ class _attention(torch.autograd.Function):
             o_strides = (o.stride(0), o.stride(2), o.stride(1), o.stride(3))
 
         # Get closest power of 2 over or equal to 32.
-        unpadded_head_dims = {32, 64, 128}
-        if head_size not in unpadded_head_dims:
-            padded_d_model = None
-            for i in unpadded_head_dims:
-                if i > head_size:
-                    padded_d_model = i
-                    break
-            assert padded_d_model is not None
-        else:
-            padded_d_model = head_size
+        padded_d_model = 1 << (head_size - 1).bit_length()
+        padded_d_model = max(padded_d_model, 16)
 
         grid = lambda META: (
             triton.cdiv(max_seqlens_q, META["BLOCK_M"]),
@@ -781,8 +778,8 @@ class _attention(torch.autograd.Function):
             philox_seed=philox_seed,
             philox_offset_base=philox_offset,
             encoded_softmax=encoded_softmax,
-            hq=nheads_q,
-            hk=nheads_k,
+            HQ=nheads_q,
+            HK=nheads_k,
             ACTUAL_BLOCK_DMODEL=head_size,
             MAX_SEQLENS_Q=max_seqlens_q,
             MAX_SEQLENS_K=max_seqlens_k,
