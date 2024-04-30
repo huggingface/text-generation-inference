@@ -23,11 +23,6 @@ However these use cases can span a wide range of applications, such as:
 - provide reliable and consistent output for downstream tasks
 - extract data from multimodal inputs
 
-<div class="flex justify-center">
-    <img
-        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/multimodal-guidance.png"
-    />
-</div>
 
 ## How it works?
 
@@ -42,7 +37,12 @@ This process can be broken down into the following steps:
 
 <div class="flex justify-center">
     <img
+        class="block dark:hidden"
         src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/logit-grammar-mask.gif"
+    />
+    <img
+        class="hidden dark:block"
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/logit-grammar-mask-dark.gif"
     />
 </div>
 
