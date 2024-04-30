@@ -118,7 +118,7 @@ jobs:
           rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Install sccache
         run: |
-          curl -fsSL https://github.com/mozilla/sccache/releases/download/v$SCCACHE/sccache-v$SCCACHE-x86_64-unknown-linux-musl.tar.gz | tar -xzv --strip-components=1 -C /usr/bin sccache-v$SCCACHE-x86_64-unknown-linux-musl/sccache
+          curl -fsSL https://github.com/mozilla/sccache/releases/download/v$SCCACHE/sccache-v$SCCACHE-x86_64-unknown-linux-musl.tar.gz | tar -xzv --strip-components=1 -C /opt/ sccache-v$SCCACHE-x86_64-unknown-linux-musl/sccache
           chmod +x /usr/bin/sccache
       - name: configure sccache
         uses: actions/github-script@v6
@@ -154,6 +154,6 @@ jobs:
       - name: Run Rust tests
         run: |
           cargo test
-      - name: sccache stats
+      - name: /opt/sccache stats
         run: |
-          /usr/bin/sccache --show-stats
+          /opt/sccache --show-stats
