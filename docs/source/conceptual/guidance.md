@@ -21,6 +21,13 @@ However these use cases can span a wide range of applications, such as:
 - limit output to specific classes of words (act as a LLM powered classifier)
 - generate the input to specific APIs or services
 - provide reliable and consistent output for downstream tasks
+- extract data from multimodal inputs
+
+<div class="flex justify-center">
+    <img
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/multimodal-guidance.png"
+    />
+</div>
 
 ## How it works?
 
@@ -29,14 +36,15 @@ Diving into the details, guidance is enabled by including a grammar with a gener
 This process can be broken down into the following steps:
 
 1. A request is sent to the backend, it is processed and placed in batch. Processing includes compiling the grammar into a finite state machine and a grammar state.
-
-<div>placeholder for image 1</div>
-
 2. The model does a forward pass over the batch. This returns probabilities for each token in the vocabulary for each request in the batch.
 
 3. The process of choosing one of those tokens is called `sampling`. The model samples from the distribution of probabilities to choose the next token. In TGI all of the steps before sampling are called `processor`. Grammars are applied as a processor that masks out tokens that are not allowed by the grammar.
 
-<div>placeholder for image 2</div>
+<div class="flex justify-center">
+    <img
+        src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/logit-grammar-mask.gif"
+    />
+</div>
 
 4. The grammar mask is applied and the model samples from the remaining tokens. Once a token is chosen, we update the grammar state with the new token, to prepare it for the next pass.
 

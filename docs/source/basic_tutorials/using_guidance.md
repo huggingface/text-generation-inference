@@ -4,13 +4,12 @@ Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-
 
 These feature are available starting from version `1.4.3`. They are accessible via the [text_generation](https://pypi.org/project/text-generation/) library. The tool support is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
 
-> The Grammar guidance support is currently only available in the TGI API due to lack of support in Open AI API.
+| Endpoint            | Grammar | Tools |
+| ------------------- | ------- | ----- |
+| `/generate`         | ✅      | ❌    |
+| `/chat/completions` | ❌      | ✅    |
 
-## Quick Start
-
-Before we jump into the deep end, ensure your system is using TGI version `1.4.3` or later to access all the features we're about to explore in this guide.
-
-If you're not up to date, grab the latest version and let's get started!
+_note: guidance is supported as grammar in the `/generate` endpoint and as tools in the `/chat/completions` endpoint._
 
 ## How it works
 
@@ -37,7 +36,7 @@ If you are interested in the technical details on how outlines is used in TGI, y
 
 ### The Grammar Parameter
 
-In TGI `1.4.3`, we've introduced the grammar parameter, which allows you to specify the format of the response you want from the AI. This is a game-changer for those who need precise control over the AI's output.
+In TGI `1.4.3`, we've introduced the grammar parameter, which allows you to specify the format of the response you want from the LLM.
 
 Using curl, you can make a request to TGI's Messages API with the grammar parameter. This is the most primitive way to interact with the API and using [Pydantic](#constrain-with-pydantic) is recommended for ease of use and readability.
 
@@ -80,13 +79,11 @@ curl localhost:3000/generate \
 
 ```
 
-A grammar can be defined using Pydantic models, JSON schemas, or regular expressions. The AI will then generate a response that conforms to the specified grammar.
+A grammar can be defined using Pydantic models, JSON schemas, or regular expressions. The LLM will then generate a response that conforms to the specified grammar.
 
 > Note: A grammar must compile to an intermediate representation to constrain the output. Grammar compilation is a computationally expensive and may take a few seconds to complete on the first request. Subsequent requests will use the cached grammar and will be much faster.
 
 ### Constrain with Pydantic
-
-Pydantic is a powerful library for data validation and settings management. It's the perfect tool for crafting the a specific response format.
 
 Using Pydantic models we can define a similar grammar as the previous example in a shorter and more readable way.
 
@@ -130,7 +127,7 @@ print(response.json())
 
 ### JSON Schema Integration
 
-If Pydantic's not your style, go raw with direct JSON Schema integration. It's like having a conversation with the AI in its own language. This is simliar to the first example but with programmatic control.
+If Pydantic's not your style, go raw with direct JSON Schema integration. This is simliar to the first example but with programmatic control.
 
 ```python
 import requests
@@ -228,7 +225,7 @@ if __name__ == "__main__":
 
 In addition to the grammar parameter, we've also introduced a set of tools and functions to help you get the most out of the Messages API.
 
-Tools are a set of user defined functions that can be used in tandem with the chat functionality to enhance the AI's capabilities. You can use these tools to perform a variety of tasks, such as data manipulation, formatting, and more.
+Tools are a set of user defined functions that can be used in tandem with the chat functionality to enhance the LLM's capabilities. Functions, similar to grammar are defined as JSON schema and can be passed as part of the parameters to the Messages API.
 
 Functions, similar to grammar are defined as JSON schema and can be passed as part of the parameters to the Messages API.
 
@@ -273,8 +270,51 @@ curl localhost:3000/v1/chat/completions \
 // {"id":"","object":"text_completion","created":1709051640,"model":"HuggingFaceH4/zephyr-7b-beta","system_fingerprint":"1.4.3-native","choices":[{"index":0,"message":{"role":"assistant","tool_calls":{"id":0,"type":"function","function":{"description":null,"name":"tools","parameters":{"format":"celsius","location":"New York"}}}},"logprobs":null,"finish_reason":"eos_token"}],"usage":{"prompt_tokens":157,"completion_tokens":19,"total_tokens":176}}
 ```
 
+### Text Generation Inference Client
+
+TGI provides a client library to interact with the Messages API and Tool functions. The client library is available in both synchronous and asynchronous versions.
+
+```python
+from text_generation import AsyncClient
+
+# NOTE: tools defined above and removed for brevity
+
+# Define an async function to encapsulate the async operation
+async def main():
+    client = AsyncClient(base_url="http://localhost:3000")
+
+    # Use 'await' to wait for the async method 'chat' to complete
+    response = await client.chat(
+        max_tokens=100,
+        seed=1,
+        tools=tools,
+        presence_penalty=-1.1,
+        messages=[
+            {
+                "role": "system",
+                "content": "You're a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "What is the weather like in Brooklyn, New York?",
+            },
+        ],
+    )
+
+    # Once the response is received, you can process it
+    print(response.choices[0].message.tool_calls)
+
+# Ensure the main async function is run in the event loop
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+
+# {"id":"","object":"text_completion","created":1709051942,"model":"HuggingFaceH4/zephyr-7b-beta","system_fingerprint":"1.4.3-native","choices":[{"index":0,"message":{"role":"assistant","tool_calls":{"id":0,"type":"function","function":{"description":null,"name":"tools","parameters":{"format":"celsius","location":"New York"}}}},"logprobs":null,"finish_reason":"eos_token"}],"usage":{"prompt_tokens":157,"completion_tokens":20,"total_tokens":177}}
+
+```
+
 <details>
-  <summary>Tools used in example below</summary>
+  <summary>Tools used in example above</summary>
 
 ```python
   tools = [
@@ -330,49 +370,6 @@ curl localhost:3000/v1/chat/completions \
 ```
 
 </details>
-
-### Text Generation Inference Client
-
-TGI provides a client library to interact with the Messages API and Tool functions. The client library is available in both synchronous and asynchronous versions.
-
-```python
-from text_generation import AsyncClient
-
-# NOTE: tools defined above and removed for brevity
-
-# Define an async function to encapsulate the async operation
-async def main():
-    client = AsyncClient(base_url="http://localhost:3000")
-
-    # Use 'await' to wait for the async method 'chat' to complete
-    response = await client.chat(
-        max_tokens=100,
-        seed=1,
-        tools=tools,
-        presence_penalty=-1.1,
-        messages=[
-            {
-                "role": "system",
-                "content": "You're a helpful assistant! Answer the users question best you can.",
-            },
-            {
-                "role": "user",
-                "content": "What is the weather like in Brooklyn, New York?",
-            },
-        ],
-    )
-
-    # Once the response is received, you can process it
-    print(response.choices[0].message.tool_calls)
-
-# Ensure the main async function is run in the event loop
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-
-# {"id":"","object":"text_completion","created":1709051942,"model":"HuggingFaceH4/zephyr-7b-beta","system_fingerprint":"1.4.3-native","choices":[{"index":0,"message":{"role":"assistant","tool_calls":{"id":0,"type":"function","function":{"description":null,"name":"tools","parameters":{"format":"celsius","location":"New York"}}}},"logprobs":null,"finish_reason":"eos_token"}],"usage":{"prompt_tokens":157,"completion_tokens":20,"total_tokens":177}}
-
-```
 
 ### OpenAI integration
 
