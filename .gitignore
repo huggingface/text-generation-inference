@@ -13,3 +13,4 @@ server/exllama_kernels/exllama_kernels/hip_buffers.cuh
 server/exllama_kernels/exllama_kernels/exllama_ext_hip.cpp
 
 data/
+load_tests/*.json
