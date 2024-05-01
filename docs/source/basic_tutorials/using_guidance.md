@@ -74,6 +74,45 @@ curl localhost:3000/generate \
 
 ```
 
+### Hugging Face Hub Python Library
+
+The Hugging Face Hub Python library provides a client that makes it easy to interact with the Messages API. Here's an example of how to use the client to send a request with a grammar parameter.
+
+```python
+from huggingface_hub import InferenceClient
+
+client = InferenceClient("http://localhost:3000")
+
+schema = {
+    "properties": {
+        "location": {"title": "Location", "type": "string"},
+        "activity": {"title": "Activity", "type": "string"},
+        "animals_seen": {
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Animals Seen",
+            "type": "integer",
+        },
+        "animals": {"items": {"type": "string"}, "title": "Animals", "type": "array"},
+    },
+    "required": ["location", "activity", "animals_seen", "animals"],
+    "title": "Animals",
+    "type": "object",
+}
+
+user_input = "I saw a puppy a cat and a raccoon during my bike ride in the park"
+resp = client.text_generation(
+    f"convert to JSON: 'f{user_input}'. please use the following schema: {schema}",
+    max_new_tokens=100,
+    seed=42,
+    grammar={"type": "json", "value": schema},
+)
+
+print(resp)
+# { "activity": "bike ride", "animals": ["puppy", "cat", "raccoon"], "animals_seen": 3, "location": "park" }
+
+```
+
 A grammar can be defined using Pydantic models, JSON schemas, or regular expressions. The LLM will then generate a response that conforms to the specified grammar.
 
 > Note: A grammar must compile to an intermediate representation to constrain the output. Grammar compilation is a computationally expensive and may take a few seconds to complete on the first request. Subsequent requests will use the cached grammar and will be much faster.
@@ -83,9 +122,10 @@ A grammar can be defined using Pydantic models, JSON schemas, or regular express
 Using Pydantic models we can define a similar grammar as the previous example in a shorter and more readable way.
 
 ```python
-import requests
+from huggingface_hub import InferenceClient
 from pydantic import BaseModel, conint
 from typing import List
+
 
 class Animals(BaseModel):
     location: str
@@ -93,115 +133,44 @@ class Animals(BaseModel):
     animals_seen: conint(ge=1, le=5)  # Constrained integer type
     animals: List[str]
 
-prompt = "convert to JSON: I saw a puppy a cat and a raccoon during my bike ride in the park"
 
-data = {
-    "inputs": prompt,
-    "parameters": {
-        "repetition_penalty": 1.3,
-        "grammar": {
-            "type": "json",
-            "value": Animals.schema()
-        }
-    }
-}
+client = InferenceClient("http://localhost:3000")
 
-headers = {
-    "Content-Type": "application/json",
-}
-
-response = requests.post(
-    'http://127.0.0.1:3000/generate',
-    headers=headers,
-    json=data
+user_input = "I saw a puppy a cat and a raccoon during my bike ride in the park"
+resp = client.text_generation(
+    f"convert to JSON: 'f{user_input}'. please use the following schema: {Animals.schema()}",
+    max_new_tokens=100,
+    seed=42,
+    grammar={"type": "json", "value": Animals.schema()},
 )
-print(response.json())
-# {'generated_text': '{ "activity": "bike riding", "animals": ["puppy","cat","raccoon"],"animals_seen": 3, "location":"park" }'}
+
+print(resp)
+# { "activity": "bike ride", "animals": ["puppy", "cat", "raccoon"], "animals_seen": 3, "location": "park" }
+
 
 ```
 
-### JSON Schema Integration
-
-If Pydantic's not your style, go raw with direct JSON Schema integration. This is similar to the first example but with programmatic control.
-
-```python
-import requests
-
-json_schema = {
-    "properties": {
-        "location": {
-            "type": "string"
-        },
-        "activity": {
-            "type": "string"
-        },
-        "animals_seen": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 5
-        },
-        "animals": {
-            "type": "array",
-            "items": {
-                "type": "string"
-            }
-        }
-    },
-    "required": ["location", "activity", "animals_seen", "animals"]
-}
-
-data = {
-    "inputs": "convert to JSON: I saw a puppy a cat and a raccoon during my bike ride in the park",
-    "parameters": {
-        "max_new_tokens": 200,
-        "repetition_penalty": 1.3,
-        "grammar": {
-            "type": "json",
-            "value": json_schema
-        }
-    }
-}
-
-headers = {
-    "Content-Type": "application/json",
-}
-
-response = requests.post(
-    'http://127.0.0.1:3000/generate',
-    headers=headers,
-    json=data
-)
-print(response.json())
-# {'generated_text': '{\n"activity": "biking",\n"animals": ["puppy","cat","raccoon"]\n  , "animals_seen": 3,\n   "location":"park"}'}
-
-```
-
-### Hugging Face Hub Python Library
-
-The Hugging Face Hub Python library provides a client that makes it easy to interact with the Messages API. Here's an example of how to use the client to send a request with a grammar parameter.
+defining a grammar as regular expressions
 
 ```python
 from huggingface_hub import InferenceClient
 
-client = InferenceClient(
-    "http://localhost:3000"                 # local endpoint
-    # "meta-llama/Meta-Llama-3-8B-Instruct" # HF serverless endpoint
-)
+client = InferenceClient("http://localhost:3000")
+
+regexp = "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)"
 
 resp = client.text_generation(
-    "Whats Googles DNS",
-    max_new_tokens=10,
-    decoder_input_details=True,
+    f"Whats Googles DNS? Please use the following regex: {regexp}",
     seed=42,
     grammar={
         "type": "regex",
-        "value": "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)",
+        "value": regexp,
     },
 )
 
 
 print(resp)
-# 1.0.0.1
+# 7.1.1.1
 
 ```
 

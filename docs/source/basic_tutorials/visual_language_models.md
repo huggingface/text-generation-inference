@@ -115,8 +115,6 @@ print(chat_completion)
 # ChatCompletion(id='', choices=[Choice(finish_reason='eos_token', index=0, logprobs=None, message=ChatCompletionMessage(content=' The image depicts an anthropomorphic rabbit dressed in a space suit with gear that resembles NASA attire. The setting appears to be a solar eclipse with dramatic mountain peaks and a partial celestial body in the sky. The artwork is detailed and vivid, with a warm color palette and a sense of an adventurous bunny exploring or preparing for a journey beyond Earth. ', role='assistant', function_call=None, tool_calls=None))], created=1714589732, model='llava-hf/llava-v1.6-mistral-7b-hf', object='text_completion', system_fingerprint='2.0.2-native', usage=CompletionUsage(completion_tokens=84, prompt_tokens=2943, total_tokens=3027))
 ```
 
-If you want additional details, you can add `details=True`. In this case, you get a `TextGenerationStreamResponse` which contains additional information such as the probabilities and the tokens. For the final response in the stream, it also returns the full generated text.
-
 ### Inference Through Sending `cURL` Requests
 
 To use the `generate_stream` endpoint with curl, you can add the `-N` flag. This flag disables curl default buffering and shows data as it arrives from the server.
