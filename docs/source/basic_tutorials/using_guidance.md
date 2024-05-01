@@ -2,7 +2,7 @@
 
 Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-and-constraints) and [tools and functions](#tools-and-functions) to help developers guide LLM responses to fit their needs.
 
-These feature are available starting from version `1.4.3`. They are accessible via the [text_generation](https://pypi.org/project/text-generation/) library. The tool support is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
+These feature are available starting from version `1.4.3`. They are accessible via the [`huggingface_hub`](https://pypi.org/project/huggingface-hub/) library. The tool support is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
 
 _note: guidance is supported as grammar in the `/generate` endpoint and as tools in the `/chat/completions` endpoint._
 
@@ -176,41 +176,32 @@ print(response.json())
 
 ```
 
-### Using the client
+### Hugging Face Hub Python Library
 
-TGI provides a client library to that make it easy to send requests with all of the parameters we've discussed above. Here's an example of how to use the client to send a request with a grammar parameter.
+The Hugging Face Hub Python library provides a client that makes it easy to interact with the Messages API. Here's an example of how to use the client to send a request with a grammar parameter.
 
 ```python
-from text_generation import AsyncClient
-from text_generation.types import GrammarType
+from huggingface_hub import InferenceClient
 
-# NOTE: tools defined above and removed for brevity
+client = InferenceClient(
+    "http://localhost:3000"                 # local endpoint
+    # "meta-llama/Meta-Llama-3-8B-Instruct" # HF serverless endpoint
+)
 
-# Define an async function to encapsulate the async operation
-async def main():
-    client = AsyncClient(base_url="http://localhost:3000")
+resp = client.text_generation(
+    "Whats Googles DNS",
+    max_new_tokens=10,
+    decoder_input_details=True,
+    seed=42,
+    grammar={
+        "type": "regex",
+        "value": "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)",
+    },
+)
 
-    # Use 'await' to wait for the async method 'chat' to complete
-    response = await client.generate(
-        "Whats Googles DNS",
-        max_new_tokens=10,
-        decoder_input_details=True,
-        seed=1,
-        grammar={
-            "type": GrammarType.Regex,
-            "value": "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)",
-        },
-    )
 
-    # Once the response is received, you can process it
-    print(response.generated_text)
-
-# Ensure the main async function is run in the event loop
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-
-# 118.8.0.84
+print(resp)
+# 1.0.0.1
 
 ```
 
@@ -265,106 +256,86 @@ curl localhost:3000/v1/chat/completions \
 // {"id":"","object":"text_completion","created":1709051640,"model":"HuggingFaceH4/zephyr-7b-beta","system_fingerprint":"1.4.3-native","choices":[{"index":0,"message":{"role":"assistant","tool_calls":{"id":0,"type":"function","function":{"description":null,"name":"tools","parameters":{"format":"celsius","location":"New York"}}}},"logprobs":null,"finish_reason":"eos_token"}],"usage":{"prompt_tokens":157,"completion_tokens":19,"total_tokens":176}}
 ```
 
-### Text Generation Inference Client
+### Chat Completion with Tools
 
-TGI provides a client library to interact with the Messages API and Tool functions. The client library is available in both synchronous and asynchronous versions.
-
-```python
-from text_generation import AsyncClient
-
-# NOTE: tools defined above and removed for brevity
-
-# Define an async function to encapsulate the async operation
-async def main():
-    client = AsyncClient(base_url="http://localhost:3000")
-
-    # Use 'await' to wait for the async method 'chat' to complete
-    response = await client.chat(
-        max_tokens=100,
-        seed=1,
-        tools=tools,
-        presence_penalty=-1.1,
-        messages=[
-            {
-                "role": "system",
-                "content": "You're a helpful assistant! Answer the users question best you can.",
-            },
-            {
-                "role": "user",
-                "content": "What is the weather like in Brooklyn, New York?",
-            },
-        ],
-    )
-
-    # Once the response is received, you can process it
-    print(response.choices[0].message.tool_calls)
-
-# Ensure the main async function is run in the event loop
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-
-# {"id":"","object":"text_completion","created":1709051942,"model":"HuggingFaceH4/zephyr-7b-beta","system_fingerprint":"1.4.3-native","choices":[{"index":0,"message":{"role":"assistant","tool_calls":{"id":0,"type":"function","function":{"description":null,"name":"tools","parameters":{"format":"celsius","location":"New York"}}}},"logprobs":null,"finish_reason":"eos_token"}],"usage":{"prompt_tokens":157,"completion_tokens":20,"total_tokens":177}}
-
-```
-
-<details>
-  <summary>Tools used in example above</summary>
+Grammars are supported in the `/generate` endpoint, while tools are supported in the `/chat/completions` endpoint. Here's an example of how to use the client to send a request with a tool parameter.
 
 ```python
-  tools = [
-      {
-          "type": "function",
-          "function": {
-              "name": "get_current_weather",
-              "description": "Get the current weather",
-              "parameters": {
-                  "type": "object",
-                  "properties": {
-                      "location": {
-                          "type": "string",
-                          "description": "The city and state, e.g. San Francisco, CA",
-                      },
-                      "format": {
-                          "type": "string",
-                          "enum": ["celsius", "fahrenheit"],
-                          "description": "The temperature unit to use. Infer this from the users location.",
-                      },
-                  },
-                  "required": ["location", "format"],
-              },
-          },
-      },
-      {
-          "type": "function",
-          "function": {
-              "name": "get_n_day_weather_forecast",
-              "description": "Get an N-day weather forecast",
-              "parameters": {
-                  "type": "object",
-                  "properties": {
-                      "location": {
-                          "type": "string",
-                          "description": "The city and state, e.g. San Francisco, CA",
-                      },
-                      "format": {
-                          "type": "string",
-                          "enum": ["celsius", "fahrenheit"],
-                          "description": "The temperature unit to use. Infer this from the users location.",
-                      },
-                      "num_days": {
-                          "type": "integer",
-                          "description": "The number of days to forecast",
-                      },
-                  },
-                  "required": ["location", "format", "num_days"],
-              },
-          },
-      }
-  ]
-```
+from huggingface_hub import InferenceClient
 
-</details>
+client = InferenceClient("http://localhost:3000")
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_weather",
+            "description": "Get the current weather",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA",
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "The temperature unit to use. Infer this from the users location.",
+                    },
+                },
+                "required": ["location", "format"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_n_day_weather_forecast",
+            "description": "Get an N-day weather forecast",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA",
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "The temperature unit to use. Infer this from the users location.",
+                    },
+                    "num_days": {
+                        "type": "integer",
+                        "description": "The number of days to forecast",
+                    },
+                },
+                "required": ["location", "format", "num_days"],
+            },
+        },
+    },
+]
+
+chat = client.chat_completion(
+    messages=[
+        {
+            "role": "system",
+            "content": "You're a helpful assistant! Answer the users question best you can.",
+        },
+        {
+            "role": "user",
+            "content": "What is the weather like in Brooklyn, New York?",
+        },
+    ],
+    tools=tools,
+    seed=42,
+    max_tokens=100,
+)
+
+print(chat.choices[0].message.tool_calls)
+# [ChatCompletionOutputToolCall(function=ChatCompletionOutputFunctionDefinition(arguments={'format': 'fahrenheit', 'location': 'Brooklyn, New York', 'num_days': 7}, name='get_n_day_weather_forecast', description=None), id=0, type='function')]
+
+```
 
 ### OpenAI integration
 
