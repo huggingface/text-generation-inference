@@ -541,7 +541,7 @@ impl ChatCompletion {
                 index: 0,
                 message: Message {
                     role: "assistant".into(),
-                    content: output,
+                    content: output.map(|content| vec![content.into()].into()),
                     name: None,
                     tool_calls,
                 },
@@ -896,52 +896,99 @@ pub(crate) struct ImageUrl {
     pub url: String,
 }
 
-#[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
-pub(crate) struct Content {
-    pub r#type: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub image_url: Option<ImageUrl>,
+#[derive(Clone, Deserialize, Serialize, Debug)]
+enum ContentChunk {
+    Text(String),
+    ImageUrl(String),
+}
+
+#[derive(Clone, Deserialize, Debug)]
+struct ContentChunks(Vec<ContentChunk>);
+
+// Convert in and out of ContentChunk
+impl From<String> for ContentChunk {
+    fn from(s: String) -> Self {
+        ContentChunk::Text(s)
+    }
+}
+
+impl From<&str> for ContentChunk {
+    fn from(s: &str) -> Self {
+        s.to_string().into()
+    }
+}
+
+// Convert in and out of ContentChunks
+impl From<Vec<ContentChunk>> for ContentChunks {
+    fn from(chunks: Vec<ContentChunk>) -> Self {
+        Self(chunks)
+    }
+}
+
+impl From<&str> for ContentChunks {
+    fn from(s: &str) -> Self {
+        vec![s.into()].into()
+    }
+}
+
+impl From<String> for ContentChunks {
+    fn from(s: String) -> Self {
+        vec![s.into()].into()
+    }
+}
+
+impl Serialize for ContentChunks {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let formatted = self
+            .0
+            .iter()
+            .map(|chunk| match chunk {
+                ContentChunk::Text(s) => s.clone(),
+                ContentChunk::ImageUrl(s) => format!("![]({})", s),
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        serializer.serialize_str(&formatted)
+    }
 }
 
 mod message_content_serde {
     use super::*;
-    use serde::de;
-    use serde::Deserializer;
+    use serde::de::{Deserialize, Deserializer, Error};
     use serde_json::Value;
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<ContentChunks>, D::Error>
     where
         D: Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
-        match value {
-            Value::String(s) => Ok(Some(s)),
-            Value::Array(arr) => {
-                let results: Result<Vec<String>, _> = arr
-                    .into_iter()
-                    .map(|v| {
-                        let content: Content =
-                            serde_json::from_value(v).map_err(de::Error::custom)?;
-                        match content.r#type.as_str() {
-                            "text" => Ok(content.text.unwrap_or_default()),
-                            "image_url" => {
-                                if let Some(url) = content.image_url {
-                                    Ok(format!("![]({})", url.url))
-                                } else {
-                                    Ok(String::new())
-                                }
-                            }
-                            _ => Err(de::Error::custom("invalid content type")),
-                        }
-                    })
-                    .collect();
 
-                results.map(|strings| Some(strings.join("")))
-            }
+        match value {
+            Value::String(s) => Ok(Some(vec![s.into()].into())),
+            Value::Array(arr) => arr
+                .into_iter()
+                .map(|v| match v {
+                    Value::String(s) => Ok(ContentChunk::Text(s)),
+                    Value::Object(map) => match map
+                        .get("image_url")
+                        .and_then(|x| x.get("url").and_then(|u| u.as_str()))
+                    {
+                        Some(url) => Ok(ContentChunk::ImageUrl(url.to_string())),
+                        None => map
+                            .get("text")
+                            .and_then(|t| t.as_str())
+                            .map(|text| Ok(ContentChunk::Text(text.to_string())))
+                            .map_or_else(
+                                || Err(Error::custom("Expected a string or an object")),
+                                |x| x,
+                            ),
+                    },
+                    _ => Err(Error::custom("Expected a string or an object")),
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(|chunks| Some(chunks.into())),
             Value::Null => Ok(None),
-            _ => Err(de::Error::custom("invalid token format")),
+            _ => Err(Error::custom("Invalid content format")),
         }
     }
 }
@@ -953,7 +1000,7 @@ pub(crate) struct Message {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "My name is David and I")]
     #[serde(deserialize_with = "message_content_serde::deserialize")]
-    pub content: Option<String>,
+    pub content: Option<ContentChunks>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     pub name: Option<String>,

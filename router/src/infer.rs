@@ -362,15 +362,20 @@ impl ChatTemplate {
         if self.use_default_tool_template {
             if let Some(last_message) = messages.last_mut() {
                 if let Some((GrammarType::Json(tools), tool_prompt)) = grammar_with_prompt {
-                    last_message.content = Some(format!(
-                        "{}\n---\n{}\n{}",
-                        last_message.content.as_deref().unwrap_or_default(),
-                        tool_prompt,
-                        tools
-                    ));
+                    let last_message_content =
+                        last_message.content.clone().unwrap_or_else(|| "".into());
+                    last_message.content = Some(
+                        format!(
+                            "{:?}\n---\n{}\n{}",
+                            last_message_content, tool_prompt, tools
+                        )
+                        .into(),
+                    );
                 }
             }
         }
+
+        println!("{:?}", messages);
 
         self.template
             .render(ChatTemplateInputs {
@@ -976,25 +981,25 @@ mod tests {
             messages: vec![
                 Message {
                     role: "user".to_string(),
-                    content: Some("Hi!".to_string()),
+                    content: Some("Hi!".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "assistant".to_string(),
-                    content: Some("Hello how can I help?".to_string()),
+                    content: Some("Hello how can I help?".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "user".to_string(),
-                    content: Some("What is Deep Learning?".to_string()),
+                    content: Some("What is Deep Learning?".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "assistant".to_string(),
-                    content: Some("magic!".to_string()),
+                    content: Some("magic!".into()),
                     name: None,
                     tool_calls: None,
                 },
@@ -1046,31 +1051,31 @@ mod tests {
             messages: vec![
                 Message {
                     role: "user".to_string(),
-                    content: Some("Hi!".to_string()),
+                    content: Some("Hi!".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "user".to_string(),
-                    content: Some("Hi again!".to_string()),
+                    content: Some("Hi again!".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "assistant".to_string(),
-                    content: Some("Hello how can I help?".to_string()),
+                    content: Some("Hello how can I help?".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "user".to_string(),
-                    content: Some("What is Deep Learning?".to_string()),
+                    content: Some("What is Deep Learning?".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "assistant".to_string(),
-                    content: Some("magic!".to_string()),
+                    content: Some("magic!".into()),
                     name: None,
                     tool_calls: None,
                 },
@@ -1127,25 +1132,25 @@ mod tests {
             messages: vec![
                 Message {
                     role: "user".to_string(),
-                    content: Some("Hi!".to_string()),
+                    content: Some("Hi!".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "assistant".to_string(),
-                    content: Some("Hello how can I help?".to_string()),
+                    content: Some("Hello how can I help?".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "user".to_string(),
-                    content: Some("What is Deep Learning?".to_string()),
+                    content: Some("What is Deep Learning?".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "assistant".to_string(),
-                    content: Some("magic!".to_string()),
+                    content: Some("magic!".into()),
                     name: None,
                     tool_calls: None,
                 },
@@ -1186,25 +1191,25 @@ mod tests {
             messages: vec![
                 Message {
                     role: "user".to_string(),
-                    content: Some("Hi!".to_string()),
+                    content: Some("Hi!".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "assistant".to_string(),
-                    content: Some("Hello how can I help?".to_string()),
+                    content: Some("Hello how can I help?".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "user".to_string(),
-                    content: Some("What is Deep Learning?".to_string()),
+                    content: Some("What is Deep Learning?".into()),
                     name: None,
                     tool_calls: None,
                 },
                 Message {
                     role: "assistant".to_string(),
-                    content: Some("magic!".to_string()),
+                    content: Some("magic!".into()),
                     name: None,
                     tool_calls: None,
                 },
@@ -1231,29 +1236,28 @@ mod tests {
         let example_chat = vec![
             Message {
                 role: "user".to_string(),
-                content: Some("Hello, how are you?".to_string()),
+                content: Some("Hello, how are you?".into()),
                 name: None,
                 tool_calls: None,
             },
             Message {
                 role: "assistant".to_string(),
-                content: Some("I'm doing great. How can I help you today?".to_string()),
+                content: Some("I'm doing great. How can I help you today?".into()),
                 name: None,
                 tool_calls: None,
             },
             Message {
                 role: "user".to_string(),
-                content: Some("I'd like to show off how chat templating works!".to_string()),
+                content: Some("I'd like to show off how chat templating works!".into()),
                 name: None,
                 tool_calls: None,
             },
         ];
 
-        let example_chat_with_system = vec![Message {
+        let example_chat_with_system = [Message {
             role: "system".to_string(),
             content: Some(
-                "You are a friendly chatbot who always responds in the style of a pirate"
-                    .to_string(),
+                "You are a friendly chatbot who always responds in the style of a pirate".into(),
             ),
             name: None,
             tool_calls: None,
@@ -1373,7 +1377,7 @@ mod tests {
         {
             let mut env = Environment::new();
             env.add_function("raise_exception", raise_exception);
-            let tmpl = env.template_from_str(&chat_template);
+            let tmpl = env.template_from_str(chat_template);
             let result = tmpl.unwrap().render(input).unwrap();
             assert_eq!(result, target);
         }
@@ -1398,13 +1402,13 @@ mod tests {
                     messages: vec![
                         Message {
                             role: "system".to_string(),
-                            content: Some("You are a friendly chatbot who always responds in the style of a pirate".to_string()),
+                            content: Some("You are a friendly chatbot who always responds in the style of a pirate".into()),
                             name: None,
                             tool_calls: None,
                         },
                         Message {
                             role: "user".to_string(),
-                            content: Some("How many helicopters can a human eat in one sitting?".to_string()),
+                            content: Some("How many helicopters can a human eat in one sitting?".into()),
                             name: None,
                             tool_calls: None,
                         },
