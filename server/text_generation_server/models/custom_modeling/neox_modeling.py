@@ -60,9 +60,6 @@ if (
     except ImportError:
         pass
 
-if not CUSTOM_KERNELS_ENABLED:
-    logger.warning("We're not using custom kernels.")
-
 
 def make_causal_mask(
     input_ids_shape: torch.Size, device: torch.device, past_key_values_length: int
