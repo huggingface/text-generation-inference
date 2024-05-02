@@ -33,8 +33,9 @@ tracer = trace.get_tracer(__name__)
 # Will be set in init
 SLIDING_WINDOW: Optional[int] = None
 SLIDING_WINDOW_BLOCKS: Optional[int] = None
+from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
 
-MEM_POOL = torch.cuda.graph_pool_handle()
+MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
 
 def set_sliding_window(sliding_window: int, sliding_window_blocks: int):
@@ -120,6 +121,11 @@ class FlashMistralBatch(FlashCausalLMBatch):
             requests_idx_mapping[r.id] = i
 
             tokenized_input = tokenized_input[-r.truncate :]
+            if (
+                tokenized_input[0] == tokenizer.bos_token_id
+                and tokenized_input[1] == tokenizer.bos_token_id
+            ):
+                tokenized_input = tokenized_input[1:]
 
             input_length = len(tokenized_input)
             input_lengths.append(input_length)
@@ -316,6 +322,9 @@ class BaseFlashMistral(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
+        elif IS_XPU_SYSTEM:
+            device = torch.device(f"xpu:{rank}")
+            dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashMistral is only available on GPU")
 
@@ -511,33 +520,18 @@ class BaseFlashMistral(FlashCausalLM):
         cuda_graph = self.cuda_graphs.get(padded_bs, None)
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
-
-            if cu_seqlen_prefill is None:
-                logits, speculative_logits = self.compiled_model(
-                    input_ids=input_ids,
-                    position_ids=position_ids,
-                    cu_seqlen_prefill=cu_seqlen_prefill,
-                    kv_cache=kv_cache,
-                    block_tables=block_tables,
-                    slots=slots,
-                    input_lengths=input_lengths,
-                    max_s=max_s,
-                    prefill_cache_indices=batch.prefill_cache_indices,
-                    lm_head_indices=lm_head_indices,
-                )
-            else:
-                logits, speculative_logits = self.model.forward(
-                    input_ids=input_ids,
-                    position_ids=position_ids,
-                    cu_seqlen_prefill=cu_seqlen_prefill,
-                    kv_cache=kv_cache,
-                    block_tables=block_tables,
-                    slots=slots,
-                    input_lengths=input_lengths,
-                    max_s=max_s,
-                    prefill_cache_indices=batch.prefill_cache_indices,
-                    lm_head_indices=lm_head_indices,
-                )
+            logits, speculative_logits = self.model.forward(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                cu_seqlen_prefill=cu_seqlen_prefill,
+                kv_cache=kv_cache,
+                block_tables=block_tables,
+                slots=slots,
+                input_lengths=input_lengths,
+                max_s=max_s,
+                prefill_cache_indices=batch.prefill_cache_indices,
+                lm_head_indices=lm_head_indices,
+            )
             if batch.prefill_cache_indices is not None:
                 batch.prefill_cache_indices = None
             return logits, speculative_logits

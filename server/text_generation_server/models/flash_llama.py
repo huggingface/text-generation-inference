@@ -18,6 +18,8 @@ from text_generation_server.utils import (
 
 tracer = trace.get_tracer(__name__)
 
+from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+
 
 class FlashLlama(FlashCausalLM):
     def __init__(
@@ -32,6 +34,9 @@ class FlashLlama(FlashCausalLM):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16 if dtype is None else dtype
+        elif IS_XPU_SYSTEM:
+            device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashLlama is only available on GPU")

@@ -25,6 +25,10 @@
     title: Non-core Model Serving
   - local: basic_tutorials/safety
     title: Safety
+  - local: basic_tutorials/using_guidance
+    title: Using Guidance, JSON, tools
+  - local: basic_tutorials/visual_language_models
+    title: Visual Language Models
   title: Tutorials
 - sections:
   - local: conceptual/streaming
@@ -42,5 +46,6 @@
   - local: conceptual/speculation
     title: Speculation (Medusa, ngram)
   - local: conceptual/guidance
-    title: Guidance, JSON, tools (using outlines)
+    title: How Guidance Works (via outlines)
+
   title: Conceptual Guides

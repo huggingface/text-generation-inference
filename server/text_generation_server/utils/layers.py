@@ -8,6 +8,8 @@ from typing import List, Tuple, Optional
 from loguru import logger
 from functools import lru_cache
 
+from text_generation_server.utils.speculate import get_speculate
+
 HAS_BITS_AND_BYTES = True
 try:
     import bitsandbytes as bnb
@@ -18,7 +20,14 @@ except ImportError:
 from accelerate import init_empty_weights
 
 from text_generation_server.utils.gptq.quant_linear import QuantLinear
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import (
+    IS_CUDA_SYSTEM,
+    IS_ROCM_SYSTEM,
+    IS_XPU_SYSTEM,
+)
+
+if IS_XPU_SYSTEM:
+    import intel_extension_for_pytorch as ipex
 
 HAS_AWQ = True
 try:
@@ -497,7 +506,7 @@ class MedusaModel(torch.nn.Module):
         self.heads = torch.nn.ModuleList(
             [
                 MedusaHead(config, medusa_config, prefix=f"{i}", weights=weights)
-                for i in range(medusa_config["medusa_num_heads"])
+                for i in range(get_speculate())
             ]
         )
 
@@ -594,7 +603,7 @@ class MedusaHeadV2(nn.Module):
                     )
                 routing[k] = filename
 
-        self.n_medusa_heads = medusa_config["medusa_num_heads"]
+        self.n_medusa_heads = get_speculate()
 
         assert medusa_config["medusa_num_layers"] == 1
         self.linear = TensorParallelColumnLinear.load_multi(
@@ -872,7 +881,15 @@ try:
 
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
-            if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
+            if IS_XPU_SYSTEM:
+                res_out = hidden_states
+                out = ipex.llm.functional.add_layer_norm(
+                    residual, hidden_states, self.weight, self.bias, self.eps, True
+                )
+                if residual is not None:
+                    res_out = residual
+                return out, res_out
+            elif hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
@@ -918,7 +935,20 @@ try:
             return cls(weight, eps)
 
         def forward(self, hidden_states, residual=None):
-            if hidden_states.shape[-1] > 8192:
+            if IS_XPU_SYSTEM:
+                residual_out = hidden_states
+                out = ipex.llm.functional.add_rms_norm(
+                    residual,
+                    hidden_states,
+                    self.weight,
+                    None,
+                    self.variance_epsilon,
+                    True,
+                )
+                if residual is not None:
+                    residual_out = residual
+                return out, residual_out
+            elif hidden_states.shape[-1] > 8192:
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
@@ -988,7 +1018,7 @@ try:
         from flash_attn.layers.rotary import RotaryEmbedding
         import rotary_emb
     elif IS_ROCM_SYSTEM:
-        from vllm._C import ops
+        from vllm import pos_encoding_ops
 
     def _create_inv_freq(dim, base, device):
         inv_freq = 1.0 / (
@@ -1044,6 +1074,10 @@ try:
 
                 # Inplace operation, updating query and key.
                 ops.rotary_embedding(query, key, head_size, cos, sin, True)
+            elif IS_XPU_SYSTEM:
+                ipex.llm.functional.rotary_embedding(
+                    query, key, sin, cos, query.size(-1), True
+                )
             else:
                 raise ValueError(
                     "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
@@ -1163,6 +1197,7 @@ try:
 
             cos = torch.index_select(self._cos_cached, 0, position_ids)
             sin = torch.index_select(self._sin_cached, 0, position_ids)
+
             # Note: this unsqueeze is not necessary on RoCm + VLLM ROPE implementation, but we leave it as is to avoid yet an other controlflow.
             return cos.unsqueeze(1), sin.unsqueeze(1)
 

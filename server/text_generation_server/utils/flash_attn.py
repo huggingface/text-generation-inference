@@ -2,8 +2,13 @@ import os
 import torch
 
 from loguru import logger
+import math
 
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import (
+    IS_CUDA_SYSTEM,
+    IS_ROCM_SYSTEM,
+    IS_XPU_SYSTEM,
+)
 from text_generation_server.utils.flash_attn_triton import triton_attention
 
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
@@ -112,6 +117,28 @@ def attention(
 ):
     if window_size_left <= 0 and window_size_left != -1:
         raise ValueError("`window_size_left` must be > 0 or -1")
+
+    if IS_XPU_SYSTEM:
+        if window_size_left != -1:
+            raise ValueError(
+                f"XPU version of Flash Attention does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
+            )
+        return ipex.llm.functional.varlen_attention(
+            q,
+            k,
+            v,
+            out,
+            cu_seqlens,
+            cu_seqlens,
+            max_s,
+            max_s,
+            0.0,
+            softmax_scale,
+            False,
+            True,
+            False,
+            None,
+        )
 
     if IS_CUDA_SYSTEM and HAS_FLASH_ATTN_V2_CUDA:
         return flash_attn_2_cuda.varlen_fwd(

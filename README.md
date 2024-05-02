@@ -64,6 +64,7 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
 - [Inferentia](https://github.com/huggingface/optimum-neuron/tree/main/text-generation-inference)
 - [Intel GPU](https://github.com/huggingface/text-generation-inference/pull/1475)
 - [Gaudi](https://github.com/huggingface/tgi-gaudi)
+- [Google TPU](https://huggingface.co/docs/optimum-tpu/howto/serving)
 
 
 ## Get Started

@@ -884,12 +884,75 @@ pub(crate) struct ToolCall {
     pub function: FunctionDefinition,
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
+pub(crate) struct Text {
+    #[serde(default)]
+    pub text: String,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
+pub(crate) struct ImageUrl {
+    #[serde(default)]
+    pub url: String,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
+pub(crate) struct Content {
+    pub r#type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<ImageUrl>,
+}
+
+mod message_content_serde {
+    use super::*;
+    use serde::de;
+    use serde::Deserializer;
+    use serde_json::Value;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        match value {
+            Value::String(s) => Ok(Some(s)),
+            Value::Array(arr) => {
+                let results: Result<Vec<String>, _> = arr
+                    .into_iter()
+                    .map(|v| {
+                        let content: Content =
+                            serde_json::from_value(v).map_err(de::Error::custom)?;
+                        match content.r#type.as_str() {
+                            "text" => Ok(content.text.unwrap_or_default()),
+                            "image_url" => {
+                                if let Some(url) = content.image_url {
+                                    Ok(format!("![]({})", url.url))
+                                } else {
+                                    Ok(String::new())
+                                }
+                            }
+                            _ => Err(de::Error::custom("invalid content type")),
+                        }
+                    })
+                    .collect();
+
+                results.map(|strings| Some(strings.join("")))
+            }
+            Value::Null => Ok(None),
+            _ => Err(de::Error::custom("invalid token format")),
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, ToSchema, Serialize, Debug)]
 pub(crate) struct Message {
     #[schema(example = "user")]
     pub role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "My name is David and I")]
+    #[serde(deserialize_with = "message_content_serde::deserialize")]
     pub content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
