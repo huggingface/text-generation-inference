@@ -770,7 +770,9 @@ class FlashCausalLM(Model):
             if IS_ROCM_SYSTEM and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
             
+            logger.info("calling self.generate_token(batch)")
             _, batch, _ = self.generate_token(batch)
+            logger.info("end it")
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
                 f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
@@ -824,18 +826,20 @@ class FlashCausalLM(Model):
         else:
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
-        if IS_ROCM_SYSTEM and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
-            if os.environ.get("PYTORCH_TUNABLEOP_TUNING", "1"):
-                torch.cuda.tunable.tuning_enable(True)
+        # if IS_ROCM_SYSTEM and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
+        #     if os.environ.get("PYTORCH_TUNABLEOP_TUNING", "1"):
+        #         torch.cuda.tunable.tuning_enable(True)
+        #         logger.info("enable tuning here")
 
-            logger.info("PyTorch TunableOp (https://github.com/pytorch/pytorch/tree/v2.3.0/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes.")
-            total_seqlens = list(range(2))
-            for seqlen in total_seqlens:
-                logger.info(f"Warming up TunableOp for seqlen={seqlen}")
-                self.tunableop_warmup(seqlen, max_s, max_bt)
-                torch.cuda.tunable.write_file()
-            torch.cuda.tunable.tuning_enable(False)
+        logger.info("PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes.")
+        for seqlen in range(1, 3):
+            logger.info(f"Warming up TunableOp for seqlen={seqlen}")
+            self.tunableop_warmup(seqlen, max_s, max_bt)
+            logger.info("call write file")
+            torch.cuda.tunable.write_file()
+        torch.cuda.tunable.tuning_enable(False)
 
+        logger.info("finished tunable op")
         return int(num_blocks * BLOCK_SIZE)
 
     def tunableop_warmup(self, seqlen: int, max_s: int, max_bt: int):
@@ -843,10 +847,10 @@ class FlashCausalLM(Model):
         position_ids = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
         slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
 
-        # TODO: is this correct?
         input_lengths = (
             torch.ones(seqlen, dtype=torch.int32, device=self.device) * max_s
         )
+        bs = 1
         block_tables = (
             torch.arange(max_bt, dtype=torch.int32, device=self.device)
             .repeat(bs)
@@ -854,6 +858,7 @@ class FlashCausalLM(Model):
         )
         kv_cache = get_cache_manager().kv_cache
 
+        logger.info("call self.model.forward")
         self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
