@@ -536,6 +536,8 @@ class Seq2SeqLM(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        self.model_id = model_id
+        
         if use_medusa:
             raise RuntimeError("Medusa decoding is not enabled for AutoModel")
 

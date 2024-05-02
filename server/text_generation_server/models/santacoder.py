@@ -23,6 +23,8 @@ class SantaCoder(CausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        self.model_id = model_id
+        
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype

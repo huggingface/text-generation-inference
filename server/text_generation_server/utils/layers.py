@@ -1018,7 +1018,7 @@ try:
         from flash_attn.layers.rotary import RotaryEmbedding
         import rotary_emb
     elif IS_ROCM_SYSTEM:
-        from vllm import pos_encoding_ops
+        from vllm._C import ops
 
     def _create_inv_freq(dim, base, device):
         inv_freq = 1.0 / (
@@ -1339,6 +1339,5 @@ try:
                 freqs = torch.outer(t, self.inv_freq.to(device=t.device))
                 self._cos_cached = (torch.cos(freqs) * self.mscale).to(dtype)
                 self._sin_cached = (torch.sin(freqs) * self.mscale).to(dtype)
-
-except ImportError:
-    pass
+except ImportError as e:
+    logger.warning(f"ImportError in layers.py, beware that this may cause issues later on: {e}")
