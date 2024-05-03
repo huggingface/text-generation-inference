@@ -1564,6 +1564,7 @@ pub async fn run(
         max_batch_size,
         validation_workers,
         max_client_batch_size,
+        router: env!("CARGO_PKG_NAME"),
         version: env!("CARGO_PKG_VERSION"),
         sha: option_env!("VERGEN_GIT_SHA"),
         docker_label: option_env!("DOCKER_LABEL"),
