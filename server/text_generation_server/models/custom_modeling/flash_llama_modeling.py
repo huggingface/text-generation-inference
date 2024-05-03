@@ -25,7 +25,7 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import IS_ROCM_SYSTEM
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
@@ -206,15 +206,14 @@ class FlashLlamaAttention(torch.nn.Module):
 class LlamaMLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
-        self.act_func = config.hidden_act
-        act = config.hidden_act
+        self.hidden_act = config.hidden_act
         self.act = (
-            ACT2FN[act]
-            if "gelu" not in act
+            ACT2FN[self.hidden_act]
+            if "gelu" not in self.hidden_act
             else lambda x: torch.nn.functional.gelu(
                 x,
                 approximate=(
-                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                    "tanh" if self.hidden_act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
                 ),
             )
         )
@@ -245,7 +244,7 @@ class LlamaMLP(nn.Module):
         )
 
     def forward(self, hidden_states):
-        if IS_ROCM_SYSTEM and self.act_func == "silu" and hidden_states.shape[0] == 1:
+        if IS_ROCM_SYSTEM and self.hidden_act == "silu" and hidden_states.shape[0] == 1:
             out = torch.empty(
                 hidden_states.shape[0],
                 self.intermediate_size,
