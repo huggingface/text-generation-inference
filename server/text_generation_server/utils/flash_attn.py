@@ -35,7 +35,7 @@ if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
     is_sm94 = major == 9 and minor == 4
 
     if IS_ROCM_SYSTEM:
-        if os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() == "true":
+        if os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() == "true" or os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "0") == "1":
             ROCM_USE_FLASH_ATTN_V2_TRITON = True
             logger.info("ROCm: using Flash Attention 2 Triton implementation.")
         else:
