@@ -159,6 +159,8 @@ pub struct Info {
     #[schema(example = "32")]
     pub max_client_batch_size: usize,
     /// Router Info
+    #[schema(example = "text-generation-router")]
+    pub router: &'static str,
     #[schema(example = "0.5.0")]
     pub version: &'static str,
     #[schema(nullable = true, example = "null")]
