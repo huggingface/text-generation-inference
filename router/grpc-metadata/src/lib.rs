@@ -2,7 +2,7 @@
 //! Inspired by: https://github.com/open-telemetry/opentelemetry-rust gRPC examples
 
 use opentelemetry::global;
-use opentelemetry::propagation::{Extractor, Injector};
+use opentelemetry::propagation::Injector;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// Inject context in the metadata of a gRPC request.
