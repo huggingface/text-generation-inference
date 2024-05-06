@@ -20,6 +20,7 @@ limitations under the License.
 
 - [Running TGI on Gaudi](#running-tgi-on-gaudi)
 - [Adjusting TGI parameters](#adjusting-tgi-parameters)
+- [Running TGI with FP8 precision](#running-tgi-with-fp8-precision)
 - [Currently supported configurations](#currently-supported-configurations)
 - [Environment variables](#environment-variables)
 - [Profiler](#profiler)
@@ -74,8 +75,8 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 ## Adjusting TGI parameters
 
 Maximum sequence length is controlled by two arguments:
-- `--max-input-length` is the maximum possible input prompt length. Default value is `1024`.
-- `--max-total-tokens` is the maximum possible total length of the sequence (input and output). Default value is `2048`.
+- `--max-input-length` is the maximum possible input prompt length. Default value is `4095`.
+- `--max-total-tokens` is the maximum possible total length of the sequence (input and output). Default value is `4096`.
 
 Maximum batch size is controlled by two arguments:
 - For prefill operation, please set `--max-prefill-total-tokens` as `bs * max-input-length`, where `bs` is your expected maximum prefill batch size.
@@ -91,23 +92,33 @@ Except those already mentioned, there are other parameters that need to be prope
 
 For more information and documentation about Text Generation Inference, checkout [the README](https://github.com/huggingface/text-generation-inference#text-generation-inference) of the original repo.
 
+## Running TGI with FP8 precision
+
+TGI supports FP8 precision runs within the limits provided by [Habana Quantization Toolkit](https://docs.habana.ai/en/latest/PyTorch/Inference_on_PyTorch/Inference_Using_FP8.html). Models with FP8 can be ran by properly setting QUANT_CONFIG environment variable. Detailed instruction on how to use that variable can be found in [Optimum Habana FP8 guide](https://github.com/huggingface/optimum-habana/tree/main/examples/text-generation#running-with-fp8). Summarising that instruction in TGI cases:
+
+1. Measure quantization statistics of requested model by using [Optimum Habana measurement script](https://github.com/huggingface/optimum-habana/tree/main/examples/text-generation#running-with-fp8:~:text=use_deepspeed%20%2D%2Dworld_size%208-,run_lm_eval.py,-%5C%0A%2Do%20acc_70b_bs1_measure.txt)
+2. Run requested model in TGI with proper QUANT_CONFIG setting - e.g. `QUANT_CONFIG=./quantization_config/maxabs_quant.json`
+
+> [!NOTE]
+> Only models pointed in [supported configurations](#currently-supported-configurations) are guaranteed to work with FP8
+
+Additional hints to quantize model for TGI when using `run_lm_eval.py`:
+* use `--limit_hpu_graphs` flag to save memory
+* try to model your use case situation by adjusting `--batch_size` , `--max_new_tokens 512` and `--max_input_tokens 512`; in case of memory issues, lower those values
+* use dataset/tasks suitable for your use case (see `--help` for defining tasks/datasets)
+
 ## Currently supported configurations
 
 Not all features of TGI are currently supported as this is still a work in progress.
-Currently supported and validated configurations (other configurations are not guaranted to work or ensure reasonable performance ):
-* LLaMA 70b:
-    * Num cards: 8
-    * Decode batch size: 128
-    * Dtype: bfloat16
-    * Max input tokens: 1024
-    * Max total tokens: 2048
+Currently supported and validated configurations (other configurations are not guaranted to work or ensure reasonable performance):
 
-* LLaMA 7b:
-    * Num cards: 1
-    * Decode batch size: 16
-    * Dtype: bfloat16
-    * Max input tokens: 1024
-    * Max total tokens: 2048
+<div align="left">
+
+| Model| Cards| Decode batch size| Dtype| Max input tokens |Max total tokens|
+|:----:|:----:|:----------------:|:----:|:----------------:|:--------------:|
+| LLaMA 70b | 8     | 128 | bfloat16/FP8 | 1024 | 2048 |
+| LLaMA 7b  | 1/8   | 16  | bfloat16/FP8 | 1024 | 2048 |
+</div>
 
 Other sequence lengths can be used with proportionally decreased/increased batch size (the higher sequence length, the lower batch size).
 Support for other models from Optimum Habana will be added successively.
