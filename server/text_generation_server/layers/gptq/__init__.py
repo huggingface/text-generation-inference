@@ -1,7 +1,7 @@
 import os
 import torch
 from text_generation_server.utils.import_utils import (
-    IS_ROCM_SYSTEM,
+    SYSTEM,
 )
 
 try:
@@ -10,7 +10,7 @@ except Exception:
     major = 1
 
 HAS_EXLLAMA = False
-CAN_EXLLAMA = major >= 8 or IS_ROCM_SYSTEM
+CAN_EXLLAMA = major >= 8 or SYSTEM == "rocm"
 V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
 if os.getenv("DISABLE_EXLLAMA") == "True":
     HAS_EXLLAMA = False

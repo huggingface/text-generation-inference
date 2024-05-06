@@ -1,4 +1,5 @@
 import torch
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 class FastLinear(torch.nn.Module):
@@ -126,7 +127,7 @@ def get_linear(weight, bias, quantize):
             raise NotImplementedError(
                 f"The passed weight is not `awq` compatible, loader needs to be updated."
             )
-        if IS_ROCM_SYSTEM:
+        if SYSTEM == "rocm":
             raise NotImplementedError(
                 "AWQ GEMM kernel can't be used on ROCm systems, please use `--quantize gptq` instead "
                 "to use Exllama/GPTQ kernels for AWQ inference."

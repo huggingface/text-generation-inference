@@ -2,9 +2,7 @@ import torch
 from torch import nn
 from accelerate import init_empty_weights
 from text_generation_server.utils.import_utils import (
-    IS_CUDA_SYSTEM,
-    IS_ROCM_SYSTEM,
-    IS_XPU_SYSTEM,
+    SYSTEM,
 )
 
 
@@ -35,19 +33,60 @@ def load_layer_norm_no_bias(cls, prefix, weights, eps):
 torch.nn.LayerNorm.load = load_layer_norm
 torch.nn.LayerNorm.load_no_bias = load_layer_norm_no_bias
 
-if IS_CUDA_SYSTEM:
+if SYSTEM == "cuda":
     import dropout_layer_norm
-elif IS_ROCM_SYSTEM:
+
+    class FastLayerNorm(nn.LayerNorm):
+        def forward(self, hidden_states, residual=None):
+            if hidden_states.shape[-1] > 8192:
+                if residual is not None:
+                    hidden_states += residual
+                residual = hidden_states
+
+                return super(FastLayerNorm, self).forward(hidden_states), residual
+            else:
+                (
+                    normed_hidden_states,
+                    residual,
+                    *rest,
+                ) = dropout_layer_norm.dropout_add_ln_fwd(
+                    hidden_states,
+                    residual,
+                    self.weight,
+                    self.bias,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0.0,
+                    self.eps,
+                    1.0,
+                    0,
+                    None,
+                    False,
+                    False,
+                )
+                if residual is None:
+                    residual = hidden_states
+
+                return normed_hidden_states, residual
+
+elif SYSTEM == "rocm":
     from vllm import layernorm_ops
-elif IS_XPU_SYSTEM:
+
+    class FastLayerNorm(nn.LayerNorm):
+        def forward(self, hidden_states, residual=None):
+            if residual is not None:
+                hidden_states += residual
+            residual = hidden_states
+
+            return super(FastLayerNorm, self).forward(hidden_states), residual
+
+elif SYSTEM == "xpu":
     import intel_extension_for_pytorch as ipex
-else:
-    dropout_layer_norm = None
 
-
-class FastLayerNorm(nn.LayerNorm):
-    def forward(self, hidden_states, residual=None):
-        if IS_XPU_SYSTEM:
+    class FastLayerNorm(nn.LayerNorm):
+        def forward(self, hidden_states, residual=None):
             res_out = hidden_states
             out = ipex.llm.functional.add_layer_norm(
                 residual, hidden_states, self.weight, self.bias, self.eps, True
@@ -55,7 +94,19 @@ class FastLayerNorm(nn.LayerNorm):
             if residual is not None:
                 res_out = residual
             return out, res_out
-        elif hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
+
+
+class FastLayerNorm(nn.LayerNorm):
+    def forward(self, hidden_states, residual=None):
+        if SYSTEM == "xpu":
+            res_out = hidden_states
+            out = ipex.llm.functional.add_layer_norm(
+                residual, hidden_states, self.weight, self.bias, self.eps, True
+            )
+            if residual is not None:
+                res_out = residual
+            return out, res_out
+        elif hidden_states.shape[-1] > 8192 or SYSTEM == "rocm":
             if residual is not None:
                 hidden_states += residual
             residual = hidden_states
@@ -102,7 +153,7 @@ class FastRMSNorm(nn.Module):
         return cls(weight, eps)
 
     def forward(self, hidden_states, residual=None):
-        if IS_XPU_SYSTEM:
+        if SYSTEM == "xpu":
             residual_out = hidden_states
             out = ipex.llm.functional.add_rms_norm(
                 residual,
@@ -131,7 +182,7 @@ class FastRMSNorm(nn.Module):
                 hidden_states = hidden_states.to(self.weight.dtype)
 
             return self.weight * hidden_states, residual
-        elif IS_CUDA_SYSTEM:
+        elif SYSTEM == "cuda":
             # faster post attention rms norm
             (
                 normed_hidden_states,
@@ -158,7 +209,7 @@ class FastRMSNorm(nn.Module):
                 res = hidden_states
 
             return normed_hidden_states, res
-        elif IS_ROCM_SYSTEM:
+        elif SYSTEM == "rocm":
             # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
             if residual is not None:
                 hidden_states += residual

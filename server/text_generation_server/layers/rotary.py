@@ -1,15 +1,12 @@
 import torch
 from torch import nn
 
-from text_generation_server.utils.import_utils import (
-    IS_CUDA_SYSTEM,
-    IS_ROCM_SYSTEM,
-)
+from text_generation_server.utils.import_utils import SYSTEM
 
-if IS_CUDA_SYSTEM:
+if SYSTEM == "cuda":
     from flash_attn.layers.rotary import RotaryEmbedding
     import rotary_emb
-elif IS_ROCM_SYSTEM:
+elif SYSTEM == "rocm":
     from vllm import pos_encoding_ops
 
 
@@ -50,7 +47,7 @@ class PositionRotaryEmbedding(nn.Module):
         sin: torch.Tensor,
     ):
         # Such controlflows may add some overhead.
-        if IS_CUDA_SYSTEM:
+        if SYSTEM == "cuda":
             rotary_dim = cos.shape[-1]
             q1 = query[..., :rotary_dim]
             q2 = query[..., rotary_dim : 2 * rotary_dim]
@@ -61,7 +58,7 @@ class PositionRotaryEmbedding(nn.Module):
             k2 = key[..., rotary_dim : 2 * rotary_dim]
 
             rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
-        elif IS_ROCM_SYSTEM:
+        elif SYSTEM == "rocm":
             # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
             # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773
 
@@ -69,7 +66,7 @@ class PositionRotaryEmbedding(nn.Module):
 
             # Inplace operation, updating query and key.
             pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, True)
-        elif IS_XPU_SYSTEM:
+        elif SYSTEM == "xpu":
             ipex.llm.functional.rotary_embedding(
                 query, key, sin, cos, query.size(-1), True
             )
@@ -223,7 +220,7 @@ class PositionRotaryEmbedding(nn.Module):
         """
         Return cos and sin for the asked position ids
         """
-        if IS_ROCM_SYSTEM:
+        if SYSTEM == "rocm":
             # For RoCm, we always use float cos/sin to avoid a cast.
             # For NVIDIA, for some reason, the flash-attn rotary kernel requires cos/sin and query/key to be of same dtype: https://github.com/Dao-AILab/flash-attention/blob/017716451d446e464dde9aca3a3c1ed2209caaa9/csrc/rotary/rotary.cpp#L26
             # But later on goes and cast cos/sin to float anyway: https://github.com/Dao-AILab/flash-attention/blob/017716451d446e464dde9aca3a3c1ed2209caaa9/csrc/rotary/rotary_cuda.cu#L29, which looks suboptimal.
