@@ -31,6 +31,7 @@ class IDEFICSSharded(IdeficsCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -39,7 +40,7 @@ class IDEFICSSharded(IdeficsCausalLM):
             device = torch.device(f"cuda:{rank}")
             # 9b seems to work correctly enough in float16, but 80b seems
             # to be really saturating for f16.
-            dtype = torch.bfloat16 if dtype is None else dtype
+            dtype = torch.float16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
             dtype = torch.float32 if dtype is None else dtype
@@ -51,6 +52,7 @@ class IDEFICSSharded(IdeficsCausalLM):
             trust_remote_code=trust_remote_code,
         )
         config.quantize = quantize
+        config.use_medusa = use_medusa
         config.vision_config.quantize = quantize
 
         tokenizer = LlamaTokenizerFast.from_pretrained(

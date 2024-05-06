@@ -5,14 +5,14 @@ body:
     id: system-info
     attributes:
       label: System Info
-      description: | 
+      description: |
         Please share your system info with us (`text-generation-launcher --env` if installed locally).
-        The full command line used that causes issues: 
+        The full command line used that causes issues:
         OS version:
         Rust version (if self-compiling, `cargo version`):
         Model being used (`curl 127.0.0.1:8080/info | jq`):
           If local model please explicit the kind of model and/or equivalents.
-        Hardware used (GPUs, how many, on which cloud) (`nvidia-smi`): 
+        Hardware used (GPUs, how many, on which cloud) (`nvidia-smi`):
         Deployment specificities (Kubernetes, EKS, AKS, any particular deployments):
         The current version being used:
 
@@ -52,11 +52,11 @@ body:
 
       placeholder: |
         Steps to reproduce the behavior:
-          
+
           1.
           2.
           3.
-          
+
 
   - type: textarea
     id: expected-behavior

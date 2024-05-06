@@ -3,6 +3,7 @@ include Makefile-flash-att-v2
 include Makefile-vllm
 include Makefile-awq
 include Makefile-eetq
+include Makefile-selective-scan
 
 unit-tests:
 	pytest -s -vv -m "not private" tests
@@ -18,8 +19,8 @@ gen-server:
 
 install: gen-server
 	pip install pip --upgrade
-	pip install -r requirements_cuda.txt
-	pip install -e ".[bnb, accelerate, quantize, peft]"
+	pip install -r requirements.txt
+	pip install -e "."
 
 run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded
@@ -32,4 +33,4 @@ update-lock:
 	poetry lock --no-update
 
 export-requirements:
-	poetry export -f requirements.txt --without-hashes --output requirements.txt
+	poetry export -o requirements.txt --without-hashes

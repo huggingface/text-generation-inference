@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package generate.v1;
+package generate.v2;
 
 service TextGenerationService {
     /// Model Info
@@ -32,6 +32,7 @@ message InfoResponse {
     string dtype = 2;
     string device_type = 3;
     optional uint32 window_size = 4;
+    uint32 speculate = 5;
 }
 
 /// Empty request
@@ -50,6 +51,12 @@ message ClearCacheRequest {
 /// Empty response
 message ClearCacheResponse {}
 
+enum GrammarType {
+    GRAMMAR_TYPE_NONE = 0;
+    GRAMMAR_TYPE_JSON = 1;
+    GRAMMAR_TYPE_REGEX = 2;
+}
+
 message NextTokenChooserParameters {
     /// exponential scaling output probability distribution
     float temperature = 1;
@@ -65,8 +72,14 @@ message NextTokenChooserParameters {
     uint64 seed = 6;
     /// repetition penalty
     float repetition_penalty = 7;
+    /// frequency penalty
+    float frequency_penalty = 9;
     /// token watermarking using "A Watermark for Large Language Models"
     bool watermark = 8;
+    /// grammar (applied if not empty)
+    string grammar = 10;
+    /// grammar type
+    GrammarType grammar_type = 11;
 }
 
 message StoppingCriteriaParameters {
@@ -135,43 +148,27 @@ message GeneratedText {
     optional uint64 seed = 4;
 }
 
-message PrefillTokens {
-    /// Prefill Token IDs
+message Tokens {
+    /// Token IDs
     repeated uint32 ids = 1;
-    /// Prefill Logprobs
+    /// Logprobs
     repeated float logprobs = 2;
-    /// Prefill tokens
+    /// tokens
     repeated string texts = 3;
-}
-
-message TopTokens {
-    /// Top Token IDs
-    repeated uint32 ids = 1;
-    /// Top Logprobs
-    repeated float logprobs = 2;
-    /// Top Token Texts
-    repeated string texts = 3;
-    /// If the tokens are special
-    repeated bool is_special = 6;
+    /// special
+    repeated bool is_special = 4;
 }
 
 message Generation {
     /// Request ID
     uint64 request_id = 1;
     /// Prefill tokens (optional)
-    PrefillTokens prefill_tokens = 2;
-    /// Token ID
-    uint32 token_id = 3;
-    /// Logprob
-    float token_logprob = 4;
-    /// Text
-    string token_text = 5;
-    /// Is it a special token
-    bool token_is_special = 6;
+    Tokens prefill_tokens = 2;
+    Tokens tokens = 3;
     /// Complete generated text
-    optional GeneratedText generated_text = 7;
+    optional GeneratedText generated_text = 4;
     /// Top tokens
-    TopTokens top_tokens = 8;
+    repeated Tokens top_tokens = 5;
 }
 
 message FilterBatchRequest {
@@ -197,6 +194,12 @@ message PrefillResponse {
     repeated Generation generations = 1;
     /// Next batch (cached)
     optional CachedBatch batch = 2;
+    /// Forward elapsed time in nanoseconds
+    uint64 forward_ns = 3;
+    /// Decode elapsed time in nanoseconds
+    uint64 decode_ns = 4;
+    /// Total elapsed time in nanoseconds
+    uint64 total_ns = 5;
 }
 
 message DecodeRequest {
@@ -209,14 +212,24 @@ message DecodeResponse {
     repeated Generation generations = 1;
     /// Next batch (cached)
     optional CachedBatch batch = 2;
+    /// Forward elapsed time in nanoseconds
+    uint64 forward_ns = 3;
+    /// Decode elapsed time in nanoseconds
+    uint64 decode_ns = 4;
+    /// Total elapsed time in nanoseconds
+    uint64 total_ns = 5;
+    /// Concatenate elapsed time in nanoseconds
+    optional uint64 concat_ns = 6;
 }
 
 message WarmupRequest {
     /// Batch to warmup on
     repeated Batch batches = 1;
+    uint32 max_input_length = 2;
+    uint32 max_prefill_tokens = 3;
+    uint32 max_total_tokens = 4;
 }
 
-/// Empty response
 message WarmupResponse {
     /// Maximum number of tokens supported by the model
     optional uint32 max_supported_total_tokens = 1;

@@ -2,6 +2,7 @@
 
 Inspired by https://github.com/karpathy/minGPT/blob/master/mingpt/model.py
 """
+
 import math
 import os
 import warnings
@@ -20,7 +21,7 @@ from text_generation_server.utils.layers import (
     TensorParallelEmbedding,
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
 )
 
@@ -28,7 +29,6 @@ EPS = 1e-5
 
 
 def load_col(config, prefix, weights, bias):
-    assert bias == False, NotImplementedError
     assert config.quantize != "gptq", NotImplementedError
     slice_ = weights._get_slice(f"{prefix}.weight")
     rank = weights.process_group.rank()
@@ -45,7 +45,36 @@ def load_col(config, prefix, weights, bias):
     if weight.dtype != torch.int32:
         weight = weight.to(dtype=weights.dtype)
     weight = weight.to(device=weights.device)
-    bias = None
+
+    if bias:
+        bias_slice_ = weights._get_slice(f"{prefix}.bias")
+        bias_rank = weights.process_group.rank()
+        bias_size = weights.process_group.size()
+
+        bias_h = bias_slice_.get_shape()
+        bias_h = bias_h[0]
+        bias_block_size = bias_h // bias_size
+
+        bias_q_part = bias_slice_[
+            bias_rank * bias_block_size : (bias_rank + 1) * bias_block_size
+        ]
+        bias_k_part = bias_slice_[
+            bias_h
+            + bias_rank * bias_block_size : bias_h
+            + (bias_rank + 1) * bias_block_size
+        ]
+        bias_v_part = bias_slice_[
+            2 * bias_h
+            + bias_rank * bias_block_size : 2 * bias_h
+            + (bias_rank + 1) * bias_block_size
+        ]
+
+        bias = torch.cat([bias_q_part, bias_k_part, bias_v_part], dim=0)
+        if bias.dtype != torch.int32:
+            bias = bias.to(dtype=weights.dtype)
+        bias = bias.to(device=weights.device)
+    else:
+        bias = None
     linear = get_linear(weight, bias, config.quantize)
     return TensorParallelColumnLinear(linear)
 
@@ -330,7 +359,16 @@ class MultiheadAttention(nn.Module):
             config, prefix=f"{prefix}.Wqkv", weights=weights, bias=not config.no_bias
         )
         if self.qk_ln:
-            raise NotImplementedError("qk_ln is not supported")
+            bias = not config.no_bias
+            hidden_size = config.d_model
+            head_dim = hidden_size // self.n_heads
+
+            self.q_ln = LPLayerNorm(
+                d_model, bias=bias, prefix=f"{prefix}.q_ln", weights=weights
+            )
+            self.k_ln = LPLayerNorm(
+                self.n_heads * head_dim, prefix=f"{prefix}.k_ln", weights=weights
+            )
         if self.attn_impl == "flash":
             self.attn_fn = flash_attn_fn
         elif self.attn_impl == "triton":
@@ -581,12 +619,20 @@ class MPTBlock(nn.Module):
                 f"""Not implemented attn {config.attn_config["attn_type"]}"""
             )
         resid_pdrop = config.resid_pdrop
-        self.norm_1 = nn.LayerNorm.load_no_bias(
-            prefix=f"{prefix}.norm_1", weights=weights, eps=EPS
-        )
-        self.norm_2 = nn.LayerNorm.load_no_bias(
-            prefix=f"{prefix}.norm_2", weights=weights, eps=EPS
-        )
+        if config.no_bias:
+            self.norm_1 = nn.LayerNorm.load_no_bias(
+                prefix=f"{prefix}.norm_1", weights=weights, eps=EPS
+            )
+            self.norm_2 = nn.LayerNorm.load_no_bias(
+                prefix=f"{prefix}.norm_2", weights=weights, eps=EPS
+            )
+        else:
+            self.norm_1 = nn.LayerNorm.load(
+                prefix=f"{prefix}.norm_1", weights=weights, eps=EPS
+            )
+            self.norm_2 = nn.LayerNorm.load(
+                prefix=f"{prefix}.norm_2", weights=weights, eps=EPS
+            )
         self.attn = MultiheadAttention(config, prefix=f"{prefix}.attn", weights=weights)
         self.ffn = MPTMLP(config, prefix=f"{prefix}.ffn", weights=weights)
         self.resid_attn_dropout = nn.Dropout(resid_pdrop)
@@ -635,6 +681,9 @@ class LPLayerNorm(torch.nn.LayerNorm):
         elementwise_affine=True,
         device=None,
         dtype=None,
+        bias: Optional[bool] = True,
+        prefix=None,
+        weights=None,
     ):
         super().__init__(
             normalized_shape=normalized_shape,
@@ -642,7 +691,13 @@ class LPLayerNorm(torch.nn.LayerNorm):
             elementwise_affine=elementwise_affine,
             device=device,
             dtype=dtype,
+            bias=bias,
         )
+        if weights is not None:
+            self.weight = nn.Parameter(weights.get_sharded(f"{prefix}.weight", dim=0))
+            if bias:
+                self.bias = nn.Parameter(weights.get_sharded(f"{prefix}.bias", dim=0))
+            self.normalized_shape = self.weight.shape
 
     def forward(self, x):
         module_device = x.device
@@ -755,20 +810,23 @@ class MPTModel(MPTPreTrainedModel):
             )
 
         self.wte = TensorParallelEmbedding("transformer.wte", weights)
+
         if not self.alibi:
-            # self.wpe = torch.nn.Embedding(
-            #     config.max_seq_len, config.d_model, device=config.init_device
-            # )
-            raise RuntimeError("no alibi no supported")
+            self.wpe = TensorParallelEmbedding("transformer.wpe", weights)
         self.blocks = nn.ModuleList(
             [
                 MPTBlock(config, prefix=f"transformer.blocks.{i}", weights=weights)
                 for i in range(config.n_layers)
             ]
         )
-        self.norm_f = nn.LayerNorm.load_no_bias(
-            prefix="transformer.norm_f", weights=weights, eps=EPS
-        )
+        if config.no_bias:
+            self.norm_f = nn.LayerNorm.load_no_bias(
+                prefix="transformer.norm_f", weights=weights, eps=EPS
+            )
+        else:
+            self.norm_f = nn.LayerNorm.load(
+                prefix="transformer.norm_f", weights=weights, eps=EPS
+            )
         self.is_causal = not self.prefix_lm
         self._attn_bias_initialized = False
         self.attn_bias = None
@@ -787,8 +845,9 @@ class MPTModel(MPTPreTrainedModel):
                     if config.verbose:
                         warnings.warn(f"Removing bias ({module.bias}) from {module}.")
                     module.register_parameter("bias", None)
-        if config.verbose and config.verbose > 2:
-            print(self)
+        if hasattr(self.config, "verbose"):
+            if config.verbose and config.verbose > 2:
+                print(self)
         if "verbose" not in self.config.init_config:
             self.config.init_config["verbose"] = self.config.verbose
         if self.config.init_config["verbose"] > 1:
@@ -1031,7 +1090,7 @@ class MPTForCausalLM(MPTPreTrainedModel):
         if not config.tie_word_embeddings:
             raise ValueError("MPTForCausalLM only supports tied word embeddings")
         self.transformer = MPTModel(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config, prefix="transformer.wte", weights=weights
         )
         self.logit_scale = None
@@ -1074,7 +1133,7 @@ class MPTForCausalLM(MPTPreTrainedModel):
             output_hidden_states=output_hidden_states,
             use_cache=use_cache,
         )
-        logits = self.lm_head(outputs.last_hidden_state)
+        logits, speculative_logits = self.lm_head(outputs.last_hidden_state)
         if self.logit_scale is not None:
             if self.logit_scale == 0:
                 warnings.warn(
@@ -1088,12 +1147,15 @@ class MPTForCausalLM(MPTPreTrainedModel):
             loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)), labels.to(logits.device).view(-1)
             )
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
+        return (
+            CausalLMOutputWithPast(
+                loss=loss,
+                logits=logits,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+            ),
+            speculative_logits,
         )
 
     def prepare_inputs_for_generation(

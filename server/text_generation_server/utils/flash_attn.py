@@ -23,10 +23,15 @@ try:
     try:
         import flash_attn_2_cuda
     except ImportError:
+        architecture_suffix = ""
+        if IS_CUDA_SYSTEM:
+            architecture_suffix = "-cuda"
+        elif IS_ROCM_SYSTEM:
+            architecture_suffix = "-rocm"
         raise ImportError(
             "Flash Attention V2 is not installed.\n"
             "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
-            "or install flash attention v2 with `cd server && make install install-flash-attention-v2`"
+            f"or install flash attention v2 with `cd server && make install install-flash-attention-v2{architecture_suffix}`"
         )
     if not (is_sm8x or is_sm90):
         raise ImportError(
@@ -51,7 +56,9 @@ except ImportError as e:
         ) from e
     elif IS_ROCM_SYSTEM:
         for idx in range(torch.cuda.device_count()):
-            if "MI210" not in torch.cuda.get_device_name(idx) and "MI250" not in torch.cuda.get_device_name(idx):
+            if "MI210" not in torch.cuda.get_device_name(
+                idx
+            ) and "MI250" not in torch.cuda.get_device_name(idx):
                 raise ImportError(
                     f"AMD GPU {torch.cuda.get_device_name(idx)} does not support flash-attention"
                 )
@@ -70,6 +77,9 @@ def attention(
     softmax_scale,
     window_size_left=-1,
 ):
+    if window_size_left <= 0 and window_size_left != -1:
+        raise ValueError("`window_size_left` must be > 0 or -1")
+
     if HAS_FLASH_ATTN_V2_CUDA:
         return flash_attn_2_cuda.varlen_fwd(
             q,
@@ -78,6 +88,9 @@ def attention(
             out,
             cu_seqlens,
             cu_seqlens,
+            None,
+            None,
+            None,
             max_s,
             max_s,
             0.0,
@@ -91,8 +104,10 @@ def attention(
         )
     elif HAS_FLASH_ATTN_V2_ROCM:
         if window_size_left != -1:
-            raise ValueError(f"RoCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left}).")
-        
+            raise ValueError(
+                f"RoCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
+            )
+
         # RoCm flash API does not take the window_size_left and window_size_right arguments.
         return flash_attn_2_cuda.varlen_fwd(
             q,

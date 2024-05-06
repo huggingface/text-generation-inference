@@ -1,5 +1,5 @@
 import { get_options, run } from "./common.js";
- 
+
 const reference_latency_ms = 22;
 const host = __ENV.HOST || '127.0.0.1:8000';
 const max_new_tokens = 50;

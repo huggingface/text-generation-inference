@@ -107,7 +107,7 @@ def test_seq2seq_lm_batch_type(default_seq2seq_lm):
 @pytest.mark.skip("seq2seq model not enabled on HPU yet")
 def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch):
     sequence_length = len(default_seq2seq_lm_batch.input_ids[0])
-    generations, next_batch = default_seq2seq_lm.generate_token(
+    generations, next_batch, _ = default_seq2seq_lm.generate_token(
         default_seq2seq_lm_batch
     )
 
@@ -155,8 +155,20 @@ def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch)
     )
     assert all([generation.generated_text is None for generation in generations])
     assert all([len(generation.prefill_tokens) == 1 for generation in generations])
-    assert all([generation.token_id.item() == 259 for generation in generations])
-    assert all([generation.token_text == " " for generation in generations])
+    assert all(
+        [
+            token_id.item() == 259
+            for generation in generations
+            for token_id in generation.tokens.token_ids
+        ]
+    )
+    assert all(
+        [
+            token_text == " "
+            for generation in generations
+            for token_text in generation.tokens.texts
+        ]
+    )
     assert generations[0].request_id == 0
 
 
@@ -166,10 +178,10 @@ def test_seq2seq_lm_generate_token_completion(
 ):
     next_batch = default_seq2seq_lm_batch
     for _ in range(6):
-        generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
@@ -185,10 +197,10 @@ def test_seq2seq_lm_generate_token_completion_multi(
     next_batch = default_multi_requests_seq2seq_lm_batch
 
     for i in range(4):
-        generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 2
@@ -201,10 +213,10 @@ def test_seq2seq_lm_generate_token_completion_multi(
 
     next_batch = next_batch.filter([next_batch.requests[0].id])
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
     assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
@@ -223,11 +235,11 @@ def test_batch_concatenate(
     default_multi_requests_seq2seq_lm_batch,
 ):
     next_batch_0 = default_seq2seq_lm_batch
-    _, next_batch_0 = default_seq2seq_lm.generate_token(next_batch_0)
-    _, next_batch_0 = default_seq2seq_lm.generate_token(next_batch_0)
+    _, next_batch_0, _ = default_seq2seq_lm.generate_token(next_batch_0)
+    _, next_batch_0, _ = default_seq2seq_lm.generate_token(next_batch_0)
 
     next_batch_1 = default_multi_requests_seq2seq_lm_batch
-    _, next_batch_1 = default_seq2seq_lm.generate_token(next_batch_1)
+    _, next_batch_1, _ = default_seq2seq_lm.generate_token(next_batch_1)
 
     # Copy hidden state because it is removed from the concatenated branches
     next_batch_0_encoder_last_hidden_state = next_batch_0.encoder_last_hidden_state
@@ -319,10 +331,10 @@ def test_batch_concatenate(
         )
 
     for _ in range(3):
-        generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 3
@@ -337,7 +349,7 @@ def test_batch_concatenate(
         [next_batch.requests[0].id, next_batch.requests[1].id]
     )
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 2
@@ -347,7 +359,7 @@ def test_batch_concatenate(
 
     next_batch = next_batch.filter([next_batch.requests[1].id])
 
-    generations, next_batch = default_seq2seq_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1

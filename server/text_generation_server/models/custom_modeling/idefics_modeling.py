@@ -51,7 +51,7 @@ from text_generation_server.utils.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
     PositionRotaryEmbedding,
     FastLinear,
 )
@@ -61,6 +61,7 @@ if IS_CUDA_SYSTEM:
     import dropout_layer_norm
 elif IS_ROCM_SYSTEM:
     from vllm import layernorm_ops
+
 
 @dataclass
 class BaseModelOutputWithPastImage(BaseModelOutputWithPast):
@@ -122,10 +123,10 @@ def expand_inputs_for_generation(
             raise ValueError(
                 "If `is_encoder_decoder` is True, make sure that `encoder_outputs` is defined."
             )
-        encoder_outputs[
-            "last_hidden_state"
-        ] = encoder_outputs.last_hidden_state.index_select(
-            0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
+        encoder_outputs["last_hidden_state"] = (
+            encoder_outputs.last_hidden_state.index_select(
+                0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
+            )
         )
         model_kwargs["encoder_outputs"] = encoder_outputs
     return input_ids, model_kwargs
@@ -271,9 +272,7 @@ class IdeficsDecoupledTensorParallelLinear(nn.Module):
         weights,
     ) -> None:
         super().__init__()
-        self.fc = TensorParallelHead.load(
-            config=config, prefix="lm_head", weights=weights
-        )
+        self.fc = SpeculativeHead.load(config=config, prefix="lm_head", weights=weights)
         self.additional_fc = FastLinear.load(
             config=config,
             prefix="lm_head.additional_fc",
@@ -282,11 +281,11 @@ class IdeficsDecoupledTensorParallelLinear(nn.Module):
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        output = self.fc(input)
+        output, speculative_logits = self.fc(input)
         additional_features = self.additional_fc(input)
         output = torch.cat((output, additional_features), -1)
 
-        return output
+        return output, speculative_logits
 
     def extra_repr(self) -> str:
         """Overwriting `nn.Linear.extra_repr` to include new parameters."""
@@ -431,7 +430,9 @@ class IdeficsRMSNorm(nn.Module):
 
             return out
         else:
-            raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
+            raise ValueError(
+                "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
+            )
 
 
 # this was adapted from LlamaMLP
@@ -613,8 +614,13 @@ class IdeficsAttention(nn.Module):
 
             query_shape = query_states.shape
             key_shape = key_states.shape
-            self.rotary_emb(query_states.view(-1, *query_shape[2:]), key_states.reshape(-1, *key_shape[2:]), cos, sin)
-            
+            self.rotary_emb(
+                query_states.view(-1, *query_shape[2:]),
+                key_states.reshape(-1, *key_shape[2:]),
+                cos,
+                sin,
+            )
+
             query_states = query_states.view(query_shape)
             key_states = key_states.view(key_shape)
 
@@ -1495,17 +1501,20 @@ class IdeficsForVisionText2Text(IdeficsPreTrainedModel):
         )
 
         hidden_states = outputs[0]
-        logits = self.lm_head(hidden_states)
+        logits, speculative_logits = self.lm_head(hidden_states)
 
         loss = None
 
-        return CausalLMOutputWithPastImage(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-            image_hidden_states=outputs.image_hidden_states,
+        return (
+            CausalLMOutputWithPastImage(
+                loss=loss,
+                logits=logits,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+                image_hidden_states=outputs.image_hidden_states,
+            ),
+            speculative_logits,
         )
 
     def prepare_inputs_for_generation(self, input_ids, past=None, **kwargs):

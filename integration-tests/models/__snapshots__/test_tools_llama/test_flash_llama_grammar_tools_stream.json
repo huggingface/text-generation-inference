@@ -1,0 +1,27 @@
+{
+  "choices": [
+    {
+      "delta": {
+        "content": null,
+        "role": "assistant",
+        "tool_calls": {
+          "function": {
+            "arguments": "</s>",
+            "name": null
+          },
+          "id": "",
+          "index": 0,
+          "type": "function"
+        }
+      },
+      "finish_reason": "eos_token",
+      "index": 0,
+      "logprobs": null
+    }
+  ],
+  "created": 1710795499,
+  "id": "",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "object": "text_completion",
+  "system_fingerprint": "2.0.0-native"
+}

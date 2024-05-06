@@ -14,18 +14,17 @@ async def flash_mistral(flash_mistral_handle):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_mistral(flash_mistral, response_snapshot):
     response = await flash_mistral.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
     )
 
     assert response.details.generated_tokens == 10
+    assert response.generated_text == ": Let n = 10 - 1"
     assert response == response_snapshot
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_mistral_all_params(flash_mistral, response_snapshot):
     response = await flash_mistral.generate(
         "Test request",
@@ -48,13 +47,15 @@ async def test_flash_mistral_all_params(flash_mistral, response_snapshot):
 
 
 @pytest.mark.asyncio
-@pytest.mark.private
 async def test_flash_mistral_load(flash_mistral, generate_load, response_snapshot):
     responses = await generate_load(
         flash_mistral, "Test request", max_new_tokens=10, n=4
     )
 
     assert len(responses) == 4
-    assert all([r.generated_text == responses[0].generated_text for r in responses])
+    assert all(
+        [r.generated_text == responses[0].generated_text for r in responses]
+    ), f"{[r.generated_text  for r in responses]}"
+    assert responses[0].generated_text == ": Let n = 10 - 1"
 
     assert responses == response_snapshot

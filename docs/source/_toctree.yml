@@ -7,6 +7,8 @@
     title: Installation
   - local: supported_models
     title: Supported Models and Hardware
+  - local: messages_api
+    title: Messages API
   title: Getting started
 - sections:
   - local: basic_tutorials/consuming_tgi
@@ -21,6 +23,8 @@
     title: All TGI CLI  options
   - local: basic_tutorials/non_core_models
     title: Non-core Model Serving
+  - local: basic_tutorials/safety
+    title: Safety
   title: Tutorials
 - sections:
   - local: conceptual/streaming
@@ -35,4 +39,8 @@
     title: Safetensors
   - local: conceptual/flash_attention
     title: Flash Attention
+  - local: conceptual/speculation
+    title: Speculation (Medusa, ngram)
+  - local: conceptual/guidance
+    title: Guidance, JSON, tools (using outlines)
   title: Conceptual Guides

@@ -1,13 +1,14 @@
 /// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
 
 /// Single shard Client
-use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
-use crate::pb::generate::v1::*;
+use crate::pb::generate::v2::text_generation_service_client::TextGenerationServiceClient;
+use crate::pb::generate::v2::*;
 use crate::Result;
 use std::env;
 use rand::{distributions::Uniform, Rng};
 use grpc_metadata::InjectTelemetryContext;
 use std::cmp;
+use std::time::Duration;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
 
@@ -108,7 +109,7 @@ impl Client {
         max_input_length: u32,
         max_prefill_tokens: u32,
         max_total_tokens: u32,
-        max_batch_total_tokens: Option<u32>,
+        max_batch_size: Option<usize>,
     ) -> Result<Option<u32>> {
         let warmup_enabled: bool = env::var("WARMUP_ENABLED").ok().map_or(true, |value| value.to_lowercase() == "true");
         if !warmup_enabled {
@@ -141,17 +142,9 @@ impl Client {
             }
         }
 
+        // if max_batch_size is None, create two batches
+        let num_batches = max_batch_size.unwrap_or(2).min(2);
         let mut id_counter: u64 = 0;
-        let num_batches = match max_batch_total_tokens {
-            Some(val) => {
-                if val == max_total_tokens {
-                    1
-                } else {
-                    2
-                }
-            }
-            None => 2, // If max_batch_total_tokens is None, create two batches
-        };
         for shape in shapes.iter() {
             // create two batches in order to trigger concatenate operation
             // in case decode bs=1 create one batch
@@ -166,7 +159,12 @@ impl Client {
                 );
                 num_batches
             ];
-            let request = tonic::Request::new(WarmupRequest { batches }).inject_context();
+            let request = tonic::Request::new(WarmupRequest {
+                batches,
+                max_input_length,
+                max_prefill_tokens,
+                max_total_tokens,
+            }).inject_context();
             let _response = self.stub.warmup(request).await?.into_inner();
         }
 
@@ -187,7 +185,12 @@ impl Client {
                 );
                 num_batches
             ];
-            let request = tonic::Request::new(WarmupRequest { batches }).inject_context();
+            let request = tonic::Request::new(WarmupRequest {
+                batches,
+                max_input_length,
+                max_prefill_tokens,
+                max_total_tokens,
+            }).inject_context();
             let _response = self.stub.warmup(request).await?.into_inner();
         }
         Ok(None) // No support for maximum total tokens
@@ -216,7 +219,10 @@ impl Client {
                     do_sample: false,
                     seed: 0,
                     repetition_penalty: 1.0,
+                    frequency_penalty: 0.0,
                     watermark: false,
+                    grammar: String::new(),
+                    grammar_type: GrammarType::None as i32,
                 })
             } else {
                 Some(NextTokenChooserParameters {
@@ -227,7 +233,10 @@ impl Client {
                     do_sample: true,
                     seed: 0,
                     repetition_penalty: 1.2,
+                    frequency_penalty: 0.1,
                     watermark: false,
+                    grammar: String::new(),
+                    grammar_type: GrammarType::None as i32,
                 })
             };
             requests.push(Request {
@@ -294,10 +303,14 @@ impl Client {
     pub async fn prefill(
         &mut self,
         batch: Batch,
-    ) -> Result<(Vec<Generation>, Option<CachedBatch>)> {
+    ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
         let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
-        Ok((response.generations, response.batch))
+        Ok((
+            response.generations,
+            response.batch,
+            PrefillTimings::new(response.forward_ns, response.decode_ns, response.total_ns),
+        ))
     }
 
     /// Generate one token for each request in the given cached batches
@@ -308,9 +321,52 @@ impl Client {
     pub async fn decode(
         &mut self,
         batches: Vec<CachedBatch>,
-    ) -> Result<(Vec<Generation>, Option<CachedBatch>)> {
+    ) -> Result<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)> {
         let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
         let response = self.stub.decode(request).await?.into_inner();
-        Ok((response.generations, response.batch))
+        Ok((
+            response.generations,
+            response.batch,
+            DecodeTimings::new(
+                response.concat_ns,
+                response.forward_ns,
+                response.decode_ns,
+                response.total_ns,
+            ),
+        ))
+    }
+}
+
+pub struct PrefillTimings {
+    pub forward: Duration,
+    pub decode: Duration,
+    pub total: Duration,
+}
+
+impl PrefillTimings {
+    fn new(forward_ns: u64, decode_ns: u64, total_ns: u64) -> Self {
+        Self {
+            forward: Duration::from_nanos(forward_ns),
+            decode: Duration::from_nanos(decode_ns),
+            total: Duration::from_nanos(total_ns),
+        }
+    }
+}
+
+pub struct DecodeTimings {
+    pub concat: Option<Duration>,
+    pub forward: Duration,
+    pub decode: Duration,
+    pub total: Duration,
+}
+
+impl DecodeTimings {
+    fn new(concat_ns: Option<u64>, forward_ns: u64, decode_ns: u64, total_ns: u64) -> Self {
+        Self {
+            concat: concat_ns.map(Duration::from_nanos),
+            forward: Duration::from_nanos(forward_ns),
+            decode: Duration::from_nanos(decode_ns),
+            total: Duration::from_nanos(total_ns),
+        }
     }
 }

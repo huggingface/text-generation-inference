@@ -44,7 +44,8 @@ impl Queue {
         max_input_length: u32,
         max_total_tokens: u32,
         block_size: u32,
-        window_size: Option<u32>
+        window_size: Option<u32>,
+        speculate: u32,
     ) -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = mpsc::unbounded_channel();
@@ -56,6 +57,7 @@ impl Queue {
             max_total_tokens,
             block_size,
             window_size,
+            speculate,
             queue_receiver,
         ));
 
@@ -77,6 +79,7 @@ impl Queue {
     pub(crate) async fn next_batch(
         &self,
         min_size: Option<usize>,
+        max_size: Option<usize>,
         prefill_token_budget: u32,
         token_budget: u32,
     ) -> Option<NextBatch> {
@@ -87,6 +90,7 @@ impl Queue {
         self.queue_sender
             .send(QueueCommand::NextBatch {
                 min_size,
+                max_size,
                 prefill_token_budget,
                 token_budget,
                 response_sender,
@@ -106,6 +110,7 @@ async fn queue_task(
     max_total_tokens: u32,
     block_size: u32,
     window_size: Option<u32>,
+    speculate: u32,
     mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
 ) {
     let mut state = State::new(
@@ -113,7 +118,8 @@ async fn queue_task(
         max_input_length,
         max_total_tokens,
         block_size,
-        window_size
+        window_size,
+        speculate
     );
 
     while let Some(cmd) = receiver.recv().await {
@@ -124,12 +130,14 @@ async fn queue_task(
             }
             QueueCommand::NextBatch {
                 min_size,
+                max_size,
                 prefill_token_budget,
                 token_budget,
                 response_sender,
                 span,
             } => span.in_scope(|| {
-                let next_batch = state.next_batch(min_size, prefill_token_budget, token_budget);
+                let next_batch =
+                    state.next_batch(min_size, max_size, prefill_token_budget, token_budget);
                 response_sender.send(next_batch).unwrap();
                 metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
             }),
@@ -256,6 +264,9 @@ struct State {
 
     /// Sliding window
     window_size: Option<u32>,
+
+    /// Speculation amount
+    speculate: u32,
 }
 
 impl State {
@@ -265,6 +276,7 @@ impl State {
         max_total_tokens: u32,
         block_size: u32,
         window_size: Option<u32>,
+        speculate: u32,
     ) -> Self {
         let default_threshold: u64 = 120;
         let threshold: u64 = match env::var("QUEUE_THRESHOLD_MS") {
@@ -281,6 +293,7 @@ impl State {
             max_total_tokens,
             block_size,
             window_size,
+            speculate,
         }
     }
 
@@ -299,16 +312,19 @@ impl State {
     fn next_batch(
         &mut self,
         min_size: Option<usize>,
+        max_size: Option<usize>,
         prefill_token_budget: u32,
         token_budget: u32,
     ) -> Option<NextBatch> {
         if self.entries.is_empty() {
+            tracing::debug!("No queue");
             return None;
         }
 
         // Check if we have enough entries
         if let Some(min_size) = min_size {
             if self.entries.len() < min_size {
+                tracing::debug!("Not enough entries");
                 return None;
             }
         }
@@ -332,6 +348,7 @@ impl State {
             // was dropped by the client)
             if entry.response_tx.is_closed() {
                 metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+                tracing::debug!("Dropping entry");
                 continue;
             }
 
@@ -365,14 +382,16 @@ impl State {
             }
 
             if prefill_tokens > prefill_token_budget
-                || (prefill_tokens + decode_tokens) > token_budget
+                || (prefill_tokens + decode_tokens + self.speculate) > token_budget
             {
                 // Entry is over budget
                 // Add it back to the front
+                tracing::debug!("Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget} || {prefill_tokens} + {decode_tokens} + {} > {token_budget}", self.speculate);
                 self.entries.push(IdentifiableEntry(id, entry));
                 break;
             }
 
+            tracing::debug!("Accepting entry");
             // Create a new span to link the batch back to this entry
             let entry_batch_span = info_span!(parent: &entry.span, "infer");
             // Add relationships
@@ -394,10 +413,16 @@ impl State {
             entry.batch_time = Some(Instant::now());
             // Insert in batch_entries IntMap
             batch_entries.insert(id, entry);
+
+            // Check if max_size
+            if Some(batch_requests.len()) == max_size {
+                break;
+            }
         }
 
         // Empty batch
         if batch_requests.is_empty() {
+            tracing::debug!("Filterered out all entries");
             return None;
         }
 
@@ -442,6 +467,7 @@ enum QueueCommand {
     Append(Box<Entry>, Span),
     NextBatch {
         min_size: Option<usize>,
+        max_size: Option<usize>,
         prefill_token_budget: u32,
         token_budget: u32,
         response_sender: oneshot::Sender<Option<NextBatch>>,
@@ -452,18 +478,20 @@ enum QueueCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
+    use text_generation_client::{
+        GrammarType as ProtoGrammarType, NextTokenChooserParameters, StoppingCriteriaParameters,
+    };
     use tracing::info_span;
 
     fn default_queue() -> Queue {
         Queue::new(
-            true, 1, 2, 1, None
+            true, 1, 2, 1, None, 0
         )
     }
 
     fn default_state() -> State {
         State::new(
-            true, 1, 2, 1, None
+            true, 1, 2, 1, None, 0
         )
     }
 
@@ -475,7 +503,7 @@ mod tests {
 
         let entry = Entry {
             request: ValidGenerateRequest {
-                inputs: "".to_string(),
+                inputs: String::new(),
                 input_length: 0,
                 truncate: 0,
                 decoder_input_details: false,
@@ -487,7 +515,10 @@ mod tests {
                     do_sample: false,
                     seed: 0,
                     repetition_penalty: 0.0,
+                    frequency_penalty: 0.0,
                     watermark: false,
+                    grammar: String::new(),
+                    grammar_type: ProtoGrammarType::None as i32,
                 },
                 stopping_parameters: StoppingCriteriaParameters {
                     ignore_eos_token: false,
@@ -525,8 +556,8 @@ mod tests {
     fn test_next_batch_empty() {
         let mut state = default_state();
 
-        assert!(state.next_batch(None, 1, 1).is_none());
-        assert!(state.next_batch(Some(1), 1, 1).is_none());
+        assert!(state.next_batch(None, None, 1, 1).is_none());
+        assert!(state.next_batch(Some(1), None, 1, 1).is_none());
     }
 
     #[test]
@@ -537,7 +568,7 @@ mod tests {
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, 2, 4).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 2, 4).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -553,12 +584,32 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        assert!(state.next_batch(Some(2), 2, 2).is_none());
+        assert!(state.next_batch(Some(2), None, 2, 2).is_none());
 
         assert_eq!(state.next_id, 3);
         assert_eq!(state.entries.len(), 1);
         let IdentifiableEntry(id, _) = state.entries.pop().unwrap();
         assert_eq!(id, 2);
+    }
+
+    #[test]
+    fn test_next_batch_max_size() {
+        let mut state = default_state();
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        state.append(entry1);
+        state.append(entry2);
+
+        let (entries, batch, _) = state.next_batch(None, Some(1), 2, 2).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries.contains_key(&0));
+        assert!(entries.get(&0).unwrap().batch_time.is_some());
+        assert_eq!(batch.id, 0);
+        assert_eq!(batch.size, 1);
+
+        assert_eq!(state.next_id, 2);
+        assert_eq!(state.entries.len(), 1);
+        assert_eq!(state.next_batch_id, 1);
     }
 
     #[test]
@@ -569,7 +620,7 @@ mod tests {
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, 1, 2).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 1, 2).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -582,7 +633,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        let (entries, batch, _) = state.next_batch(None, 3, 6).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 3, 6).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -605,8 +656,8 @@ mod tests {
     async fn test_queue_next_batch_empty() {
         let queue = default_queue();
 
-        assert!(queue.next_batch(None, 1, 1).await.is_none());
-        assert!(queue.next_batch(Some(1), 1, 1).await.is_none());
+        assert!(queue.next_batch(None, None, 1, 1).await.is_none());
+        assert!(queue.next_batch(Some(1), None, 1, 1).await.is_none());
     }
 
     #[tokio::test]
@@ -617,7 +668,7 @@ mod tests {
         queue.append(entry1);
         queue.append(entry2);
 
-        let (entries, batch, _) = queue.next_batch(None, 2, 4).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, None, 2, 4).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -630,16 +681,32 @@ mod tests {
         queue.append(entry3);
 
         // Not enough requests pending
-        assert!(queue.next_batch(Some(2), 2, 2).await.is_none());
+        assert!(queue.next_batch(Some(2), None, 2, 2).await.is_none());
         // Not enough token budget
-        assert!(queue.next_batch(Some(1), 0, 0).await.is_none());
+        assert!(queue.next_batch(Some(1), None, 0, 0).await.is_none());
         // Ok
-        let (entries2, batch2, _) = queue.next_batch(Some(1), 1, 2).await.unwrap();
+        let (entries2, batch2, _) = queue.next_batch(Some(1), None, 2, 4).await.unwrap();
         assert_eq!(entries2.len(), 1);
         assert!(entries2.contains_key(&2));
         assert!(entries2.get(&2).unwrap().batch_time.is_some());
         assert_eq!(batch2.id, 1);
         assert_eq!(batch2.size, 1);
+    }
+
+    #[tokio::test]
+    async fn test_queue_next_batch_max_size() {
+        let queue = default_queue();
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        queue.append(entry1);
+        queue.append(entry2);
+
+        let (entries, batch, _) = queue.next_batch(None, Some(1), 2, 2).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries.contains_key(&0));
+        assert!(entries.get(&0).unwrap().batch_time.is_some());
+        assert_eq!(batch.id, 0);
+        assert_eq!(batch.size, 1);
     }
 
     #[tokio::test]
@@ -650,7 +717,7 @@ mod tests {
         queue.append(entry1);
         queue.append(entry2);
 
-        let (entries, batch, _) = queue.next_batch(None, 1, 2).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, None, 1, 2).await.unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -659,11 +726,30 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         queue.append(entry3);
 
-        let (entries, batch, _) = queue.next_batch(None, 2, 4).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, None, 3, 6).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
         assert_eq!(batch.id, 1);
+        assert_eq!(batch.size, 2);
+    }
+
+    #[tokio::test]
+    async fn test_queue_next_batch_token_speculate() {
+        let queue = Queue::new(true, 1, 2, 1, None, 2);
+        let (entry1, _guard1) = default_entry();
+        let (entry2, _guard2) = default_entry();
+        queue.append(entry1);
+        queue.append(entry2);
+
+        // Budget of 1 is not enough
+        assert!(queue.next_batch(None, None, 1, 1).await.is_none());
+
+        let (entries, batch, _) = queue.next_batch(None, None, 6, 6).await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries.contains_key(&0));
+        assert!(entries.contains_key(&1));
+        assert_eq!(batch.id, 0);
         assert_eq!(batch.size, 2);
     }
 
@@ -673,6 +759,6 @@ mod tests {
         let (entry, _) = default_entry();
         queue.append(entry);
 
-        assert!(queue.next_batch(None, 1, 1).await.is_none());
+        assert!(queue.next_batch(None, None, 1, 1).await.is_none());
     }
 }

@@ -112,6 +112,7 @@ def is_url(string):
     result = urlparse(string)
     return all([result.scheme, result.netloc])
 
+
 def is_image(string):
     """Checks if the passed string contains a valid url and nothing else. e.g. if space is included it's immediately
     invalidated the url"""
@@ -132,6 +133,7 @@ class IdeficsProcessor(ProcessorMixin):
             An instance of [`LlamaTokenizerFast`]. The tokenizer is a required input.
         image_size (`int`, *optional*, defaults to 224): Image size (assuming a square image)
     """
+
     attributes = ["image_processor", "tokenizer"]
     image_processor_class = "IdeficsImageProcessor"
     tokenizer_class = "LlamaTokenizerFast"
@@ -343,7 +345,6 @@ class IdeficsProcessor(ProcessorMixin):
                 print(f"{full_text=}")
 
             image_objects = self.image_processor(image_objects, transform=transform)
-
 
             text_encoding = self.tokenizer(
                 text=full_text,

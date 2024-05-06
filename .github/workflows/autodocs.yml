@@ -6,15 +6,15 @@ on:
 jobs:
   update_docs:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    
+
     - name: Install Launcher
       id: install-launcher
       run: cargo install --git https://github.com/${{ github.repository }} --branch ${{ github.head_ref }} text-generation-launcher
-    
+
     - name: Check launcher Docs are up-to-date
       run: |
         echo text-generation-launcher --help

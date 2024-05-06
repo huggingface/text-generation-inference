@@ -12,9 +12,13 @@ class RW(CausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        if use_medusa:
+            raise RuntimeError("Medusa decoding is not enabled for AutoModel")
+
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype
@@ -36,9 +40,11 @@ class RW(CausalLM):
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map="auto"
-            if torch.cuda.is_available() and torch.cuda.device_count() > 1
-            else None,
+            device_map=(
+                "auto"
+                if torch.cuda.is_available() and torch.cuda.device_count() > 1
+                else None
+            ),
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )

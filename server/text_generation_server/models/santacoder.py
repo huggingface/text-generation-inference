@@ -15,9 +15,17 @@ class SantaCoder(CausalLM):
         self,
         model_id: str,
         revision: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
     ):
-        super().__init__(model_id=model_id, revision=revision, dtype=dtype)
+        super().__init__(
+            model_id=model_id,
+            revision=revision,
+            use_medusa=use_medusa,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
         self.tokenizer.add_special_tokens(
             {

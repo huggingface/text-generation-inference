@@ -27,24 +27,15 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.flash_attn import attention, HAS_FLASH_ATTN_V2_ROCM, HAS_FLASH_ATTN_V2_CUDA
 from text_generation_server.utils.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     PositionRotaryEmbedding,
-    TensorParallelHead,
+    SpeculativeHead,
     get_linear,
+    FastRMSNorm,
 )
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
-
-if IS_CUDA_SYSTEM:
-    import dropout_layer_norm
-elif IS_ROCM_SYSTEM:
-    from vllm import layernorm_ops
-
-if not HAS_FLASH_ATTN_V2_CUDA and not HAS_FLASH_ATTN_V2_ROCM:
-    raise ImportError("Mistral model requires flash attn v2")
 
 
 class MistralConfig(PretrainedConfig):
@@ -69,7 +60,7 @@ class MistralConfig(PretrainedConfig):
         pretraining_tp=1,
         tie_word_embeddings=False,
         rope_theta=10000.0,
-        sliding_window=4096,
+        sliding_window=None,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -99,75 +90,6 @@ class MistralConfig(PretrainedConfig):
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
-
-
-class MistralRMSNorm(nn.Module):
-    def __init__(self, prefix, weights, eps=1e-6):
-        """
-        LlamaRMSNorm is equivalent to T5LayerNorm
-        """
-        super().__init__()
-
-        weight = weights.get_tensor(f"{prefix}.weight")
-        self.weight = nn.Parameter(weight)
-        self.variance_epsilon = eps
-
-    def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 8192:
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
-
-            hidden_states = hidden_states.to(torch.float32)
-            variance = hidden_states.pow(2).mean(-1, keepdim=True)
-            hidden_states = hidden_states * torch.rsqrt(
-                variance + self.variance_epsilon
-            )
-
-            # convert into half-precision if necessary
-            if self.weight.dtype in [torch.float16, torch.bfloat16]:
-                hidden_states = hidden_states.to(self.weight.dtype)
-
-            return self.weight * hidden_states, residual
-        elif IS_CUDA_SYSTEM:
-            # faster post attention rms norm
-            normed_hidden_states, res, *rest = dropout_layer_norm.dropout_add_ln_fwd(
-                hidden_states,
-                residual,
-                self.weight,
-                None,
-                None,
-                None,
-                None,
-                None,
-                0.0,
-                self.variance_epsilon,
-                1.0,
-                0,
-                None,
-                False,
-                True,  # Activate RMSNorm
-            )
-            if res is None:
-                res = hidden_states
-
-            return normed_hidden_states, res
-        elif IS_ROCM_SYSTEM:
-            # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
-
-            out = torch.empty_like(hidden_states)
-            layernorm_ops.rms_norm(
-                out,
-                hidden_states,
-                self.weight.data,
-                self.variance_epsilon,
-            )
-            return out, residual
-        else:
-            raise ValueError("Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction.")
 
 
 def load_attention(config, prefix, weights):
@@ -218,7 +140,7 @@ class MistralAttention(torch.nn.Module):
     ):
         super().__init__()
         self.max_past = (
-            config.sliding_window if config.sliding_window is not None else 0
+            config.sliding_window if config.sliding_window is not None else -1
         )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
@@ -333,9 +255,9 @@ class MistralMLP(nn.Module):
             if "gelu" not in act
             else lambda x: torch.nn.functional.gelu(
                 x,
-                approximate="tanh"
-                if act in ["gelu_fast", "gelu_pytorch_tanh"]
-                else "none",
+                approximate=(
+                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                ),
             )
         )
         # Fuse gate and up proj
@@ -363,18 +285,17 @@ class MistralMLP(nn.Module):
 
 
 class MistralLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
         self.self_attn = MistralAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
         self.mlp = MistralMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
-        self.input_layernorm = MistralRMSNorm(
+        self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
         )
-        self.post_attention_layernorm = MistralRMSNorm(
+        self.post_attention_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.post_attention_layernorm",
             weights=weights,
             eps=config.rms_norm_eps,
@@ -421,27 +342,24 @@ class MistralLayer(nn.Module):
 
 
 class MistralModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
-        )
         self.layers = nn.ModuleList(
             [
                 MistralLayer(
-                    layer_id,
-                    config,
-                    weights,
+                    prefix=f"{prefix}.layers.{layer_id}",
+                    config=config,
+                    weights=weights,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
-        self.norm = MistralRMSNorm(
-            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
+        self.norm = FastRMSNorm.load(
+            prefix=f"{prefix}.norm", weights=weights, eps=config.rms_norm_eps
         )
 
         self.gradient_checkpointing = False
@@ -452,7 +370,7 @@ class MistralModel(torch.nn.Module):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -460,14 +378,14 @@ class MistralModel(torch.nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
-    ) -> torch.Tensor:
-        hidden_states = self.embed_tokens(input_ids)
-
+    ):
+        hidden_states = inputs_embeds
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
+            position_ids, true_max_s, hidden_states.dtype
         )
 
         residual = None
@@ -487,23 +405,35 @@ class MistralModel(torch.nn.Module):
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
-
         return hidden_states
 
 
 class FlashMistralForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
-        self.model = MistralModel(config, weights)
-        self.lm_head = TensorParallelHead.load(
+        self.embed_tokens = TensorParallelEmbedding(
+            prefix=(
+                "model.embed_tokens" if not prefix else f"{prefix}.model.embed_tokens"
+            ),
+            weights=weights,
+        )
+        self.model = MistralModel(
+            prefix="model" if not prefix else f"{prefix}.model",
+            config=config,
+            weights=weights,
+        )
+        self.lm_head = SpeculativeHead.load(
             config,
-            prefix="lm_head",
+            prefix="lm_head" if not prefix else f"{prefix}.lm_head",
             weights=weights,
         )
         self.max_past = config.sliding_window
-        if self.max_past is None:
-            raise ValueError("max_past cannot be None")
+        self.max_past_tensor = (
+            torch.tensor(config.sliding_window, device=weights.device)
+            if self.max_past is not None
+            else None
+        )
 
     def forward(
         self,
@@ -518,17 +448,18 @@ class FlashMistralForCausalLM(torch.nn.Module):
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        true_max_s = max_s
         if prefill_cache_indices is not None:
             # Slots also need to be sliced as it has the same size as the whole kv tensor
             slots = slots[prefill_cache_indices]
-        else:
+        elif self.max_past is not None:
             # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
             # kernel requires the true values
-            max_s = min(self.max_past, max_s)
-            input_lengths = torch.clamp(input_lengths, max=self.max_past)
+            input_lengths = torch.clamp(input_lengths, max=self.max_past_tensor)
 
+        inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
-            input_ids,
+            inputs_embeds,
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
@@ -536,6 +467,7 @@ class FlashMistralForCausalLM(torch.nn.Module):
             slots,
             input_lengths,
             max_s,
+            true_max_s,
             prefill_cache_indices,
         )
         if lm_head_indices is not None:

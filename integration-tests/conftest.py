@@ -16,7 +16,17 @@ from syrupy.extensions.json import JSONSnapshotExtension
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 
 from text_generation import AsyncClient
-from text_generation.types import Response, Details, InputToken, Token, BestOfSequence
+from text_generation.types import (
+    Response,
+    Details,
+    InputToken,
+    Token,
+    BestOfSequence,
+    Grammar,
+    ChatComplete,
+    ChatCompletionChunk,
+    ChatCompletionComplete,
+)
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
@@ -25,6 +35,7 @@ DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 
 class ResponseComparator(JSONSnapshotExtension):
     rtol = 0.2
+
     def serialize(
         self,
         data,
@@ -32,8 +43,16 @@ class ResponseComparator(JSONSnapshotExtension):
         exclude=None,
         matcher=None,
     ):
+        if (
+            isinstance(data, Response)
+            or isinstance(data, ChatComplete)
+            or isinstance(data, ChatCompletionChunk)
+            or isinstance(data, ChatCompletionComplete)
+        ):
+            data = data.model_dump()
+
         if isinstance(data, List):
-            data = [d.dict() for d in data]
+            data = [d.model_dump() for d in data]
 
         data = self._filter(
             data=data, depth=0, path=(), exclude=exclude, matcher=matcher
@@ -48,6 +67,15 @@ class ResponseComparator(JSONSnapshotExtension):
     ) -> bool:
         def convert_data(data):
             data = json.loads(data)
+            if isinstance(data, Dict) and "choices" in data:
+                choices = data["choices"]
+                if (
+                    isinstance(choices, List)
+                    and len(choices) >= 1
+                    and "delta" in choices[0]
+                ):
+                    return ChatCompletionChunk(**data)
+                return ChatComplete(**data)
 
             if isinstance(data, Dict):
                 return Response(**data)
@@ -69,7 +97,9 @@ class ResponseComparator(JSONSnapshotExtension):
                     prefill_token.id == other.id
                     and prefill_token.text == other.text
                     and (
-                        math.isclose(prefill_token.logprob, other.logprob, rel_tol=self.rtol)
+                        math.isclose(
+                            prefill_token.logprob, other.logprob, rel_tol=self.rtol
+                        )
                         if prefill_token.logprob is not None
                         else prefill_token.logprob == other.logprob
                     )
@@ -131,6 +161,16 @@ class ResponseComparator(JSONSnapshotExtension):
                 )
             )
 
+        def eq_chat_complete(response: ChatComplete, other: ChatComplete) -> bool:
+            return (
+                response.choices[0].message.content == other.choices[0].message.content
+            )
+
+        def eq_chat_complete_chunk(
+            response: ChatCompletionChunk, other: ChatCompletionChunk
+        ) -> bool:
+            return response.choices[0].delta.content == other.choices[0].delta.content
+
         def eq_response(response: Response, other: Response) -> bool:
             return response.generated_text == other.generated_text and eq_details(
                 response.details, other.details
@@ -144,6 +184,19 @@ class ResponseComparator(JSONSnapshotExtension):
         if not isinstance(snapshot_data, List):
             snapshot_data = [snapshot_data]
 
+        if isinstance(serialized_data[0], ChatComplete):
+            return len(snapshot_data) == len(serialized_data) and all(
+                [eq_chat_complete(r, o) for r, o in zip(serialized_data, snapshot_data)]
+            )
+
+        if isinstance(serialized_data[0], ChatCompletionChunk):
+            return len(snapshot_data) == len(serialized_data) and all(
+                [
+                    eq_chat_complete_chunk(r, o)
+                    for r, o in zip(serialized_data, snapshot_data)
+                ]
+            )
+
         return len(snapshot_data) == len(serialized_data) and all(
             [eq_response(r, o) for r, o in zip(serialized_data, snapshot_data)]
         )
@@ -152,6 +205,7 @@ class ResponseComparator(JSONSnapshotExtension):
 class GenerousResponseComparator(ResponseComparator):
     # Needed for GPTQ with exllama which has serious numerical fluctuations.
     rtol = 0.75
+
 
 class LauncherHandle:
     def __init__(self, port: int):
@@ -198,6 +252,7 @@ class ProcessLauncherHandle(LauncherHandle):
 def response_snapshot(snapshot):
     return snapshot.use_extension(ResponseComparator)
 
+
 @pytest.fixture
 def generous_response_snapshot(snapshot):
     return snapshot.use_extension(GenerousResponseComparator)
@@ -219,7 +274,11 @@ def launcher(event_loop):
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
         use_flash_attention: bool = True,
-        dtype: Optional[str] = None
+        disable_grammar_support: bool = False,
+        dtype: Optional[str] = None,
+        revision: Optional[str] = None,
+        max_input_length: Optional[int] = None,
+        max_total_tokens: Optional[int] = None,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -242,6 +301,8 @@ def launcher(event_loop):
 
         env = os.environ
 
+        if disable_grammar_support:
+            args.append("--disable-grammar-support")
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
         if quantize is not None:
@@ -250,8 +311,17 @@ def launcher(event_loop):
         if dtype is not None:
             args.append("--dtype")
             args.append(dtype)
+        if revision is not None:
+            args.append("--revision")
+            args.append(revision)
         if trust_remote_code:
             args.append("--trust-remote-code")
+        if max_input_length:
+            args.append("--max-input-length")
+            args.append(str(max_input_length))
+        if max_total_tokens:
+            args.append("--max-total-tokens")
+            args.append(str(max_total_tokens))
 
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
 
@@ -282,12 +352,18 @@ def launcher(event_loop):
         quantize: Optional[str] = None,
         trust_remote_code: bool = False,
         use_flash_attention: bool = True,
-        dtype: Optional[str] = None
+        disable_grammar_support: bool = False,
+        dtype: Optional[str] = None,
+        revision: Optional[str] = None,
+        max_input_length: Optional[int] = None,
+        max_total_tokens: Optional[int] = None,
     ):
         port = random.randint(8000, 10_000)
 
         args = ["--model-id", model_id, "--env"]
 
+        if disable_grammar_support:
+            args.append("--disable-grammar-support")
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
         if quantize is not None:
@@ -296,8 +372,17 @@ def launcher(event_loop):
         if dtype is not None:
             args.append("--dtype")
             args.append(dtype)
+        if revision is not None:
+            args.append("--revision")
+            args.append(revision)
         if trust_remote_code:
             args.append("--trust-remote-code")
+        if max_input_length:
+            args.append("--max-input-length")
+            args.append(str(max_input_length))
+        if max_total_tokens:
+            args.append("--max-total-tokens")
+            args.append(str(max_total_tokens))
 
         client = docker.from_env()
 
@@ -312,7 +397,9 @@ def launcher(event_loop):
 
         gpu_count = num_shard if num_shard is not None else 1
 
-        env = {"LOG_LEVEL": "info,text_generation_router=debug"}
+        env = {
+            "LOG_LEVEL": "info,text_generation_router=debug",
+        }
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
 
@@ -335,7 +422,7 @@ def launcher(event_loop):
             ],
             volumes=volumes,
             ports={"80/tcp": port},
-            shm_size="1G"
+            shm_size="1G",
         )
 
         yield ContainerLauncherHandle(client, container.name, port)
@@ -362,11 +449,22 @@ def launcher(event_loop):
 @pytest.fixture(scope="module")
 def generate_load():
     async def generate_load_inner(
-        client: AsyncClient, prompt: str, max_new_tokens: int, n: int
+        client: AsyncClient,
+        prompt: str,
+        max_new_tokens: int,
+        n: int,
+        seed: Optional[int] = None,
+        grammar: Optional[Grammar] = None,
+        stop_sequences: Optional[List[str]] = None,
     ) -> List[Response]:
         futures = [
             client.generate(
-                prompt, max_new_tokens=max_new_tokens, decoder_input_details=True
+                prompt,
+                max_new_tokens=max_new_tokens,
+                decoder_input_details=True,
+                seed=seed,
+                grammar=grammar,
+                stop_sequences=stop_sequences,
             )
             for _ in range(n)
         ]

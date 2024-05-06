@@ -9,7 +9,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.2.0"
+version = "2.0.0"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 homepage = "https://github.com/huggingface/text-generation-inference"
@@ -17,5 +17,7 @@ homepage = "https://github.com/huggingface/text-generation-inference"
 [profile.release]
 debug = 1
 incremental = true
-lto = "off"
+lto = "fat"
+opt-level = 3
+codegen-units = 1
 panic = "abort"

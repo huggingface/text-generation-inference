@@ -10,6 +10,7 @@ from pathlib import Path
 from loguru import logger
 from typing import Optional
 from enum import Enum
+from huggingface_hub import hf_hub_download
 
 
 app = typer.Typer()
@@ -18,6 +19,9 @@ app = typer.Typer()
 class Quantization(str, Enum):
     bitsandbytes = "bitsandbytes"
     gptq = "gptq"
+    awq = "awq"
+    eetq = "eetq"
+    fp8 = "fp8"
 
 
 class Dtype(str, Enum):
@@ -31,6 +35,7 @@ def serve(
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: Optional[Quantization] = None,
+    speculate: Optional[int] = None,
     dtype: Optional[Dtype] = None,
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
@@ -39,9 +44,15 @@ def serve(
     otlp_endpoint: Optional[str] = None,
 ):
     if sharded:
-        assert os.getenv("WORLD_SIZE", None) is not None, "WORLD_SIZE must be set when sharded is True"
-        assert os.getenv("MASTER_ADDR", None) is not None, "MASTER_ADDR must be set when sharded is True"
-        assert os.getenv("MASTER_PORT", None) is not None, "MASTER_PORT must be set when sharded is True"
+        assert (
+            os.getenv("WORLD_SIZE", None) is not None
+        ), "WORLD_SIZE must be set when sharded is True"
+        assert (
+            os.getenv("MASTER_ADDR", None) is not None
+        ), "MASTER_ADDR must be set when sharded is True"
+        assert (
+            os.getenv("MASTER_PORT", None) is not None
+        ), "MASTER_PORT must be set when sharded is True"
 
     # Remove default handler
     logger.remove()
@@ -75,7 +86,11 @@ def serve(
         logger.info("CLI SHARDED = {}".format(num_shard))
         import subprocess
 
-        cmd = f"deepspeed --num_nodes 1 --num_gpus {num_shard} --no_local_rank {tgi_file} --model_id {model_id} --revision {revision} --sharded {sharded} --dtype {dtype} --uds_path {uds_path}"
+        cmd = f"deepspeed --num_nodes 1 --num_gpus {num_shard} --no_local_rank {tgi_file}"
+        cmd += f" --model_id {model_id} --revision {revision} --sharded {sharded}"
+        cmd += f" --dtype {dtype} --trust_remote_code {trust_remote_code} --uds_path {uds_path}"
+        if speculate is not None:
+            cmd += f"--speculate {speculate}"
         logger.info("CLI server start deepspeed ={} ".format(cmd))
         sys.stdout.flush()
         sys.stderr.flush()
@@ -119,7 +134,15 @@ def serve(
                 logger.error(f"{cmd}  exited with status = {proc.returncode}")
                 return proc.returncode
     else:
-        server.serve(model_id, revision, dtype, uds_path, sharded)
+        server.serve(
+            model_id,
+            revision,
+            sharded,
+            speculate,
+            dtype,
+            trust_remote_code,
+            uds_path
+        )
 
 
 @app.command()
@@ -153,7 +176,7 @@ def download_weights(
         logger.info("Files are already present on the host. " "Skipping download.")
         return
     # Local files not found
-    except (utils.LocalEntryNotFoundError, FileNotFoundError):
+    except (utils.LocalEntryNotFoundError, FileNotFoundError, utils.EntryNotFoundError):
         pass
 
     is_local_model = (Path(model_id).exists() and Path(model_id).is_dir()) or os.getenv(
@@ -161,6 +184,50 @@ def download_weights(
     ) is not None
 
     if not is_local_model:
+        try:
+            adapter_config_filename = hf_hub_download(
+                model_id, revision=revision, filename="adapter_config.json"
+            )
+            utils.download_and_unload_peft(
+                model_id, revision, trust_remote_code=trust_remote_code
+            )
+            is_local_model = True
+            utils.weight_files(model_id, revision, extension)
+            return
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+            pass
+
+        try:
+            import json
+
+            medusa_head = hf_hub_download(
+                model_id, revision=revision, filename="medusa_lm_head.safetensors"
+            )
+            medusa_config = hf_hub_download(
+                model_id, revision=revision, filename="config.json"
+            )
+            with open(medusa_config, "r") as f:
+                config = json.load(f)
+
+            model_id = config["base_model_name_or_path"]
+            revision = "main"
+            try:
+                utils.weight_files(model_id, revision, extension)
+                logger.info(
+                    f"Files for parent {model_id} are already present on the host. "
+                    "Skipping download."
+                )
+                return
+            # Local files not found
+            except (
+                utils.LocalEntryNotFoundError,
+                FileNotFoundError,
+                utils.EntryNotFoundError,
+            ):
+                pass
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+            pass
+
         # Try to download weights from the hub
         try:
             filenames = utils.weight_hub_files(model_id, revision, extension)
@@ -174,7 +241,32 @@ def download_weights(
             if not extension == ".safetensors" or not auto_convert:
                 raise e
 
-    else:
+    elif (Path(model_id) / "medusa_lm_head.safetensors").exists():
+        # Try to load as a local Medusa model
+        try:
+            import json
+
+            medusa_head = Path(model_id) / "medusa_lm_head.safetensors"
+            medusa_config = Path(model_id) / "config.json"
+            with open(medusa_config, "r") as f:
+                config = json.load(f)
+
+            model_id = config["base_model_name_or_path"]
+            revision = "main"
+            try:
+                utils.weight_files(model_id, revision, extension)
+                logger.info(
+                    f"Files for parent {model_id} are already present on the host. "
+                    "Skipping download."
+                )
+                return
+            # Local files not found
+            except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+                pass
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+            pass
+
+    elif (Path(model_id) / "adapter_config.json").exists():
         # Try to load as a local PEFT model
         try:
             utils.download_and_unload_peft(
@@ -204,6 +296,13 @@ def download_weights(
         local_pt_files = utils.download_weights(pt_filenames, model_id, revision)
 
     if auto_convert:
+        if not trust_remote_code:
+            logger.warning(
+                f"🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
+                f"Pickle files are unsafe and can essentially contain remote code execution!"
+                f"Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
+            )
+
         logger.warning(
             f"No safetensors weights found for model {model_id} at revision {revision}. "
             f"Converting PyTorch weights to safetensors."
