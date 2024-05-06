@@ -29,7 +29,7 @@ if torch.version.hip is not None:
     empty_cache = torch.cuda.empty_cache
     synchronize = torch.cuda.synchronize
     get_free_memory = get_cuda_free_memory
-elif torch.version.cuda is not None:
+elif torch.version.cuda is not None and torch.cuda.is_available():
     SYSTEM = "cuda"
     empty_cache = torch.cuda.empty_cache
     synchronize = torch.cuda.synchronize
