@@ -136,7 +136,7 @@ def get_model(
         model_id, revision=revision, trust_remote_code=trust_remote_code
     )
 
-    use_medusa = None
+    speculator = None
     if "medusa_num_heads" in config_dict:
         medusa_model_id = model_id
         medusa_revision = revision
@@ -166,11 +166,50 @@ def get_model(
                 revision=medusa_revision,
                 filename="medusa_lm_head.safetensors",
             )
-            use_medusa = Path(medusa_config).parent
+            speculator = Path(medusa_config).parent
         else:
-            use_medusa = Path(medusa_model_id)
+            speculator = Path(medusa_model_id)
 
         method = "medusa"
+    elif config_dict["model_type"] == "mlp_speculator":
+        # TODO make this not hardcoded.
+        mlp_model_id = model_id
+        mlp_revision = revision
+        model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+        revision = "main"
+        speculate_mlp = config_dict["n_predict"]
+        if speculate is not None:
+            if speculate > speculate_mlp:
+                raise RuntimeError(
+                    f"Speculate is set to `{speculate}` but this mlp_speculator models only has `{speculate_mlp}` heads, please make them match"
+                )
+            else:
+                set_speculate(speculate)
+        else:
+            set_speculate(speculate_mlp)
+
+        config_dict, _ = PretrainedConfig.get_config_dict(
+            model_id, revision=revision, trust_remote_code=trust_remote_code
+        )
+        is_local = Path(mlp_model_id).exists()
+        if not is_local:
+            mlp_speculator_config = hf_hub_download(
+                mlp_model_id, revision=mlp_revision, filename="config.json"
+            )
+            hf_hub_download(
+                mlp_model_id,
+                revision=mlp_revision,
+                filename="model-00001-of-00002.safetensors",
+            )
+            hf_hub_download(
+                mlp_model_id,
+                revision=mlp_revision,
+                filename="model-00002-of-00002.safetensors",
+            )
+            speculator = Path(mlp_speculator_config).parent
+        else:
+            speculator = Path(mlp_model_id)
+        method = "mlp_speculator"
     else:
         method = "n-gram"
 
@@ -202,7 +241,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -212,7 +251,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -227,7 +266,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -240,7 +279,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -250,7 +289,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -259,7 +298,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -270,7 +309,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -279,7 +318,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -288,7 +327,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -299,7 +338,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -308,7 +347,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -323,7 +362,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -334,7 +373,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -345,7 +384,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -355,7 +394,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -366,7 +405,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -377,7 +416,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -388,7 +427,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -399,7 +438,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -410,7 +449,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -424,7 +463,7 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
-                    use_medusa=use_medusa,
+                    speculator=speculator,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
@@ -435,7 +474,7 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
-                    use_medusa=use_medusa,
+                    speculator=speculator,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
@@ -444,7 +483,7 @@ def get_model(
                     model_id,
                     revision,
                     quantize=quantize,
-                    use_medusa=use_medusa,
+                    speculator=speculator,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
                 )
@@ -458,7 +497,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -469,7 +508,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -483,7 +522,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -494,7 +533,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -520,7 +559,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -544,7 +583,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -554,7 +593,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -564,7 +603,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -574,7 +613,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -586,7 +625,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -599,7 +638,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -623,7 +662,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -632,7 +671,7 @@ def get_model(
             model_id,
             revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -644,7 +683,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
@@ -653,7 +692,7 @@ def get_model(
                 model_id,
                 revision,
                 quantize=quantize,
-                use_medusa=use_medusa,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
