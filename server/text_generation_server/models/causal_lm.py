@@ -1114,6 +1114,8 @@ class CausalLM(Model):
 
         # if decode bs is 1 warmup ends here
         if len(batches) == 0:
+            while decode_batch is not None:
+                _, decode_batch, _ = self.generate_token([decode_batch])
             return
 
         # prefill
