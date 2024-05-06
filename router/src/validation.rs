@@ -6,7 +6,7 @@ use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput}
 use crate::{GenerateParameters, GenerateRequest, GrammarType};
 use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
-use std::env;
+use std::{cmp, env};
 use serde_json::Value;
 use std::io::Cursor;
 use text_generation_client::{
@@ -131,7 +131,10 @@ impl Validation {
             let input_length = if self.skip_tokenizer_in_tgi {
                 inputs.chars().filter(|&c| c == ',').count() + 1
             } else {
-                truncate.unwrap_or(self.max_input_length)
+                cmp::max(
+                    encoding.len(),
+                    truncate.unwrap_or(self.max_input_length)
+                )
             };
 
             // Get total tokens
