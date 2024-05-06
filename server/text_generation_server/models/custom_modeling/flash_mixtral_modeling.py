@@ -34,7 +34,7 @@ from typing import Optional, List, Tuple
 from loguru import logger
 
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     FastLinear,
     FastRMSNorm,
     TensorParallelRowLinear,

@@ -8,7 +8,7 @@ from typing import Optional, Tuple, Any
 from transformers.configuration_utils import PretrainedConfig
 import torch.nn.functional as F
 
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     SpeculativeHead,
     TensorParallelEmbedding,
     FastRMSNorm,

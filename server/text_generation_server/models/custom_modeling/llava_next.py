@@ -27,7 +27,7 @@ from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
     load_vision_model,
 )
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
 )
