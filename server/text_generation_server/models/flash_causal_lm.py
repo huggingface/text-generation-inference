@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
+from text_generation_server.models import Model
+from text_generation_server.utils.tokens import batch_top_tokens
+from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.models.types import (
     Batch,
     Tokens,
