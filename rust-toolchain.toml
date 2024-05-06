@@ -1,6 +1,5 @@
 [toolchain]
-# Released on: 28 December, 2023
-# Branched from master on: 10 November, 2023
-# https://releases.rs/docs/1.75.0/
-channel = "1.75.0"
+# Released on: 02 May, 2024
+# https://releases.rs/docs/1.78.0/
+channel = "1.78.0"
 components = ["rustfmt", "clippy"]

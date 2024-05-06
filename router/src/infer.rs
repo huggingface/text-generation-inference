@@ -1249,7 +1249,7 @@ mod tests {
             },
         ];
 
-        let example_chat_with_system = vec![Message {
+        let example_chat_with_system = [Message {
             role: "system".to_string(),
             content: Some(
                 "You are a friendly chatbot who always responds in the style of a pirate"
@@ -1373,7 +1373,7 @@ mod tests {
         {
             let mut env = Environment::new();
             env.add_function("raise_exception", raise_exception);
-            let tmpl = env.template_from_str(&chat_template);
+            let tmpl = env.template_from_str(chat_template);
             let result = tmpl.unwrap().render(input).unwrap();
             assert_eq!(result, target);
         }

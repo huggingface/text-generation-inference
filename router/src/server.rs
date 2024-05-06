@@ -696,7 +696,7 @@ async fn completions(
                             model: model_id.clone(),
                             system_fingerprint: system_fingerprint.clone(),
                         })
-                        .map_or_else(|_e| Event::default(), |data| data)
+                        .unwrap_or_else(|_e| Event::default())
                 };
 
                 let (header_tx, header_rx) = oneshot::channel();
@@ -1122,13 +1122,10 @@ async fn chat_completions(
                     logprobs,
                     stream_token.details.map(|d| d.finish_reason.to_string()),
                 ))
-                .map_or_else(
-                    |e| {
-                        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
-                        Event::default()
-                    },
-                    |data| data,
-                )
+                .unwrap_or_else(|e| {
+                    println!("Failed to serialize ChatCompletionChunk: {:?}", e);
+                    Event::default()
+                })
         };
 
         let (headers, response_stream) = generate_stream_internal(
