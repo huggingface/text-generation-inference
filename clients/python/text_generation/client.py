@@ -171,6 +171,7 @@ class Client:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
+        tool_prompt: Optional[str] = None,
         tool_choice: Optional[str] = None,
         stop: Optional[List[str]] = None,
     ):
@@ -211,6 +212,8 @@ class Client:
                 higher are kept for generation
             tools (`List[Tool]`):
                 List of tools to use
+            tool_prompt (`str`):
+                A prompt to be appended before the tools
             tool_choice (`str`):
                 The tool to use
             stop (`List[str]`):
@@ -233,6 +236,7 @@ class Client:
             temperature=temperature,
             top_p=top_p,
             tools=tools,
+            tool_prompt=tool_prompt,
             tool_choice=tool_choice,
             stop=stop,
         )
@@ -648,6 +652,7 @@ class AsyncClient:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
+        tool_prompt: Optional[str] = None,
         tool_choice: Optional[str] = None,
         stop: Optional[List[str]] = None,
     ) -> Union[ChatComplete, AsyncIterator[ChatCompletionChunk]]:
@@ -688,6 +693,8 @@ class AsyncClient:
                 higher are kept for generation
             tools (`List[Tool]`):
                 List of tools to use
+            tool_prompt (`str`):
+                A prompt to be appended before the tools
             tool_choice (`str`):
                 The tool to use
             stop (`List[str]`):
@@ -710,6 +717,7 @@ class AsyncClient:
             temperature=temperature,
             top_p=top_p,
             tools=tools,
+            tool_prompt=tool_prompt,
             tool_choice=tool_choice,
             stop=stop,
         )
