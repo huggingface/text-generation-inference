@@ -46,30 +46,6 @@ class Tool(BaseModel):
     function: dict
 
 
-class ChatCompletionComplete(BaseModel):
-    # Index of the chat completion
-    index: int
-    # Message associated with the chat completion
-    message: Message
-    # Log probabilities for the chat completion
-    logprobs: Optional[Any]
-    # Reason for completion
-    finish_reason: str
-    # Usage details of the chat completion
-    usage: Optional[Any] = None
-
-
-class CompletionComplete(BaseModel):
-    # Index of the chat completion
-    index: int
-    # Message associated with the chat completion
-    text: str
-    # Log probabilities for the chat completion
-    logprobs: Optional[Any]
-    # Reason for completion
-    finish_reason: str
-
-
 class Function(BaseModel):
     name: Optional[str]
     arguments: str
@@ -95,24 +71,41 @@ class Choice(BaseModel):
     finish_reason: Optional[str] = None
 
 
-class ChatCompletionChunk(BaseModel):
-    id: str
-    object: str
-    created: int
+class CompletionRequest(BaseModel):
+    # Model identifier
     model: str
-    system_fingerprint: str
-    choices: List[Choice]
+    # Prompt
+    prompt: str
+    # The parameter for repetition penalty. 1.0 means no penalty.
+    # See [this paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+    repetition_penalty: Optional[float] = None
+    # The parameter for frequency penalty. 1.0 means no penalty
+    # Penalize new tokens based on their existing frequency in the text so far,
+    # decreasing the model's likelihood to repeat the same line verbatim.
+    frequency_penalty: Optional[float] = None
+    # Maximum number of tokens to generate
+    max_tokens: Optional[int] = None
+    # Flag to indicate streaming response
+    stream: bool = False
+    # Random sampling seed
+    seed: Optional[int] = None
+    # Sampling temperature
+    temperature: Optional[float] = None
+    # Top-p value for nucleus sampling
+    top_p: Optional[float] = None
+    # Stop generating tokens if a member of `stop` is generated
+    stop: Optional[List[str]] = None
 
 
-class ChatComplete(BaseModel):
-    # Chat completion details
-    id: str
-    object: str
-    created: int
-    model: str
-    system_fingerprint: str
-    choices: List[ChatCompletionComplete]
-    usage: Any
+class CompletionComplete(BaseModel):
+    # Index of the chat completion
+    index: int
+    # Message associated with the chat completion
+    text: str
+    # Log probabilities for the chat completion
+    logprobs: Optional[Any]
+    # Reason for completion
+    finish_reason: str
 
 
 class Completion(BaseModel):
@@ -163,6 +156,41 @@ class ChatRequest(BaseModel):
     tool_prompt: Optional[str] = None
     # Choice of tool to be used
     tool_choice: Optional[str] = None
+    # Stop generating tokens if a member of `stop` is generated
+    stop: Optional[List[str]] = None
+
+
+class ChatCompletionComplete(BaseModel):
+    # Index of the chat completion
+    index: int
+    # Message associated with the chat completion
+    message: Message
+    # Log probabilities for the chat completion
+    logprobs: Optional[Any]
+    # Reason for completion
+    finish_reason: str
+    # Usage details of the chat completion
+    usage: Optional[Any] = None
+
+
+class ChatComplete(BaseModel):
+    # Chat completion details
+    id: str
+    object: str
+    created: int
+    model: str
+    system_fingerprint: str
+    choices: List[ChatCompletionComplete]
+    usage: Any
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str
+    object: str
+    created: int
+    model: str
+    system_fingerprint: str
+    choices: List[Choice]
 
 
 class Parameters(BaseModel):
