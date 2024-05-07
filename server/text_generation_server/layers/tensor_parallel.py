@@ -1,7 +1,7 @@
 import torch
 from torch.nn import functional as F
 from typing import List
-from text_generation_server.layers.linear import get_linear
+from text_generation_server.layers.linear import get_linear, FastLinear
 
 
 class SuperLayer(torch.nn.Module):

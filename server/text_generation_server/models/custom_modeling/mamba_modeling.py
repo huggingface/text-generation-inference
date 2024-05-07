@@ -11,9 +11,9 @@ import torch.nn.functional as F
 from text_generation_server.layers import (
     SpeculativeHead,
     TensorParallelEmbedding,
-    FastRMSNorm,
     FastLinear,
 )
+from text_generation_server.layers.layernorm import FastRMSNorm
 
 from einops import rearrange
 from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
