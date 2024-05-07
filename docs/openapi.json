@@ -1121,6 +1121,15 @@
             "description": "An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the\ntokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.",
             "example": 0.95,
             "nullable": true
+          },
+          "stop": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to 4 sequences where the API will stop generating further tokens.",
+            "example": "null",
+            "nullable": true
           }
         }
       },
