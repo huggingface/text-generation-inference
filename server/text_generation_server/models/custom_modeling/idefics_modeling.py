@@ -52,9 +52,9 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     TensorParallelRowLinear,
     SpeculativeHead,
-    PositionRotaryEmbedding,
     FastLinear,
 )
+from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "cuda":

@@ -34,9 +34,13 @@ from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     SpeculativeHead,
-    FastLayerNorm,
-    PositionRotaryEmbedding,
     get_linear,
+)
+from text_generation_server.layers.layernorm import (
+    FastLayerNorm,
+)
+from text_generation_server.layers.rotary import (
+    PositionRotaryEmbedding,
 )
 
 

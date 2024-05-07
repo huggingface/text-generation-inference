@@ -48,6 +48,33 @@ FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
 FLASH_ATTENTION = True
 
+from text_generation_server.models.flash_rw import FlashRWSharded
+from text_generation_server.models.flash_neox import FlashNeoXSharded
+from text_generation_server.models.flash_llama import (
+    FlashLlama,
+)
+from text_generation_server.models.flash_qwen2 import (
+    FlashQwen2,
+)
+from text_generation_server.models.flash_cohere import (
+    FlashCohere,
+)
+from text_generation_server.models.flash_gemma import (
+    FlashGemma,
+)
+from text_generation_server.models.flash_santacoder import (
+    FlashSantacoderSharded,
+)
+from text_generation_server.models.idefics import IDEFICSSharded
+from text_generation_server.models.llava_next import LlavaNext
+from text_generation_server.models.idefics2 import Idefics2
+from text_generation_server.models.flash_mistral import FlashMistral
+from text_generation_server.models.flash_mixtral import FlashMixtral
+from text_generation_server.models.flash_phi import FlashPhi
+from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
+from text_generation_server.models.flash_dbrx import FlashDbrx
+from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
+
 try:
     from text_generation_server.models.flash_rw import FlashRWSharded
     from text_generation_server.models.flash_neox import FlashNeoXSharded

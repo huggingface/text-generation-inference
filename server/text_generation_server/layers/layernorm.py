@@ -80,7 +80,7 @@ elif SYSTEM == "rocm":
                 hidden_states += residual
             residual = hidden_states
 
-            return super(FastLayerNorm, self).forward(hidden_states), residual
+            return super().forward(hidden_states), residual
 
 elif SYSTEM == "xpu":
     import intel_extension_for_pytorch as ipex
@@ -94,50 +94,6 @@ elif SYSTEM == "xpu":
             if residual is not None:
                 res_out = residual
             return out, res_out
-
-
-class FastLayerNorm(nn.LayerNorm):
-    def forward(self, hidden_states, residual=None):
-        if SYSTEM == "xpu":
-            res_out = hidden_states
-            out = ipex.llm.functional.add_layer_norm(
-                residual, hidden_states, self.weight, self.bias, self.eps, True
-            )
-            if residual is not None:
-                res_out = residual
-            return out, res_out
-        elif hidden_states.shape[-1] > 8192 or SYSTEM == "rocm":
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
-
-            return super(FastLayerNorm, self).forward(hidden_states), residual
-        else:
-            (
-                normed_hidden_states,
-                residual,
-                *rest,
-            ) = dropout_layer_norm.dropout_add_ln_fwd(
-                hidden_states,
-                residual,
-                self.weight,
-                self.bias,
-                None,
-                None,
-                None,
-                None,
-                0.0,
-                self.eps,
-                1.0,
-                0,
-                None,
-                False,
-                False,
-            )
-            if residual is None:
-                residual = hidden_states
-
-            return normed_hidden_states, residual
 
 
 class FastRMSNorm(nn.Module):

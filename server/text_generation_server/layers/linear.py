@@ -1,4 +1,5 @@
 import torch
+from torch.nn import functional as F
 from text_generation_server.utils.import_utils import SYSTEM
 
 
@@ -97,7 +98,7 @@ def get_linear(weight, bias, quantize):
 
         if use_exllama:
             try:
-                from text_generation_server.utils.gptq.quant_linear import (
+                from text_generation_server.layers.gptq import (
                     ExllamaQuantLinear,
                 )
             except ImportError:
@@ -109,7 +110,7 @@ def get_linear(weight, bias, quantize):
                 qweight, qzeros, scales, g_idx, bias, bits, groupsize
             )
         else:
-            from text_generation_server.utils.gptq.quant_linear import QuantLinear
+            from text_generation_server.layers.gptq.quant_linear import QuantLinear
 
             linear = QuantLinear(
                 qweight,
@@ -133,7 +134,7 @@ def get_linear(weight, bias, quantize):
                 "to use Exllama/GPTQ kernels for AWQ inference."
             )
         try:
-            from text_generation_server.utils.awq.quantize.qmodule import WQLinear
+            from text_generation_server.layers.awq.quantize.qmodule import WQLinear
 
             linear = WQLinear(
                 w_bit=bits,

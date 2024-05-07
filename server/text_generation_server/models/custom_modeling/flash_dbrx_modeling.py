@@ -241,7 +241,7 @@ def _load_gqa(config, prefix: str, weights):
             log_once(
                 logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
             )
-            from text_generation_server.layers.awq import (
+            from text_generation_server.layers.awq.conveersion_utils import (
                 fast_awq_to_gptq,
             )
 

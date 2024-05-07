@@ -3,6 +3,10 @@ from torch import nn
 from typing import Tuple, Optional
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.layers.linear import FastLinear
+from text_generation_server.layers.tensor_parallel import (
+    TensorParallelHead,
+    TensorParallelColumnLinear,
+)
 
 
 class ResBlock(torch.nn.Module):

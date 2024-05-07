@@ -11,8 +11,10 @@ from text_generation_server.layers import (
     TensorParallelColumnLinear,
     SpeculativeHead,
     TensorParallelEmbedding,
-    FastLayerNorm,
     get_linear,
+)
+from text_generation_server.layers.layernorm import (
+    FastLayerNorm,
 )
 
 
@@ -80,7 +82,7 @@ def _load_multi_mqa_gptq(
             g_idx = g_idx.to(device=weights.device)
         elif quant_method == "awq":
             g_idx = None
-            from text_generation_server.layers.awq import (
+            from text_generation_server.layers.awq.conversion_utils import (
                 fast_awq_to_gptq,
             )
 
