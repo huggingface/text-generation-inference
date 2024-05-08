@@ -1,9 +1,10 @@
 import torch
+import os
 
 from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional
 from pathlib import Path
 
@@ -166,9 +167,15 @@ def get_model(
                 revision=medusa_revision,
                 filename="medusa_lm_head.safetensors",
             )
-            speculator = Path(medusa_config).parent
+            speculator = {
+                "path": Path(medusa_config).parent,
+                "model_paths": ["medusa_lm_head.safetensors"],
+            }
         else:
-            speculator = Path(medusa_model_id)
+            speculator = {
+                "path": Path(medusa_model_id),
+                "model_paths": ["medusa_lm_head.safetensors"],
+            }
 
         method = "medusa"
     elif config_dict["model_type"] == "mlp_speculator":
@@ -192,23 +199,36 @@ def get_model(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         is_local = Path(mlp_model_id).exists()
+        extension = ".safetensors"
         if not is_local:
             mlp_speculator_config = hf_hub_download(
                 mlp_model_id, revision=mlp_revision, filename="config.json"
             )
-            hf_hub_download(
-                mlp_model_id,
-                revision=mlp_revision,
-                filename="model-00001-of-00002.safetensors",
-            )
-            hf_hub_download(
-                mlp_model_id,
-                revision=mlp_revision,
-                filename="model-00002-of-00002.safetensors",
-            )
-            speculator = Path(mlp_speculator_config).parent
+            api = HfApi()
+            info = api.model_info(mlp_model_id, revision=mlp_revision)
+            filenames = [
+                s.rfilename
+                for s in info.siblings
+                if s.rfilename.endswith(extension)
+                and len(s.rfilename.split("/")) == 1
+                and "arguments" not in s.rfilename
+                and "args" not in s.rfilename
+                and "training" not in s.rfilename
+            ]
+            for filename in filenames:
+                hf_hub_download(
+                    mlp_model_id,
+                    revision=mlp_revision,
+                    filename=filename,
+                )
+            speculator = {
+                "path": Path(mlp_speculator_config).parent,
+                "model_paths": filenames,
+            }
         else:
             speculator = Path(mlp_model_id)
+            filenames = [p for p in os.listdir(speculator) if p.endswith(extension)]
+            speculator = {"path": speculator, "model_paths": filenames}
         method = "mlp_speculator"
     else:
         method = "n-gram"
