@@ -121,6 +121,22 @@ impl Idefics2 {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
+pub struct Paligemma {}
+
+impl Paligemma {
+    pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
+        // TODO: improve to calculate based on height and width
+        // 224 = 256 image tokens
+        // 448 = 1024 image tokens
+        // 896 = 4096 image tokens
+       
+        256
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "model_type")]
+#[serde(rename_all = "snake_case")]
 pub enum Config {
     LlavaNext(LlavaNext),
     ClipVisionModel(ClipVisionModel),
@@ -139,6 +155,7 @@ pub enum Config {
     Phi3,
     Llama,
     Baichuan,
+    Paligemma(Paligemma),
     Gemma,
     Cohere,
     Drbx,

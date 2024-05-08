@@ -75,6 +75,7 @@ try:
     from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
     from text_generation_server.models.flash_dbrx import FlashDbrx
+    from text_generation_server.models.flash_pali_gemma import FlashPaliGemma
     from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
 
 except ImportError as e:
@@ -432,6 +433,16 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
+
+    if model_type == "paligemma":
+        return FlashPaliGemma(
+            model_id,
+            revision,
+            quantize=quantize,
+            use_medusa=use_medusa,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
     if model_type == "cohere":
         if FLASH_ATTENTION:
