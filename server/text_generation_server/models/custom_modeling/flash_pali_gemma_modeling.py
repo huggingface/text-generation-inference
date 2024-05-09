@@ -165,10 +165,22 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
             image_outputs = self.vision_tower(pixel_values)
             selected_image_feature = image_outputs.last_hidden_state
             image_features = self.multi_modal_projector(selected_image_feature)
-            # TODO: make sure to handle the specialized attention mask correctly
+            image_features = image_features / (self.config.hidden_size**0.5)
             inputs_embeds = self._merge_input_ids_with_image_features(
                 image_features, inputs_embeds, input_ids
             )
+
+        if input_ids.size(0) != 3000:
+            import ipdb
+
+            ipdb.set_trace()
+
+            ## TODO: remove this
+            ## load in values from reference
+            # tensor = torch.load("../../new-model-addition-palma/inputs_embeds.npz")
+            # inputs_embeds = torch.tensor(
+            #     tensor, device=inputs_embeds.device, dtype=inputs_embeds.dtype
+            # ).squeeze()
 
         hidden_states = self.language_model.model(
             inputs_embeds=inputs_embeds,

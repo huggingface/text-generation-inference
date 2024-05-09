@@ -48,10 +48,6 @@ class SiglipVisionEmbeddings(nn.Module):
         self.position_embedding = TensorParallelEmbedding(
             prefix=f"{prefix}.position_embedding", weights=weights
         )
-        # TODO: remove this hack! figure out why off by one
-        self.position_embedding.weight = torch.nn.Parameter(
-            self.position_embedding.weight[:256, :]
-        )
         self.register_buffer(
             "position_ids",
             torch.arange(self.num_positions, device=weights.device).expand((1, -1)),
@@ -288,7 +284,7 @@ class SiglipEncoderLayer(nn.Module):
 class SiglipMultiheadAttentionPoolingHead(nn.Module):
     """Multihead Attention Pooling."""
 
-    def __init__(self, config: SiglipVisionConfig):
+    def __init__(self, prefix, config: SiglipVisionConfig, weights):
         super().__init__()
 
         self.probe = nn.Parameter(torch.randn(1, 1, config.hidden_size))
@@ -296,7 +292,7 @@ class SiglipMultiheadAttentionPoolingHead(nn.Module):
             config.hidden_size, config.num_attention_heads, batch_first=True
         )
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.mlp = SiglipMLP(config)
+        self.mlp = SiglipMLP(prefix, config, weights)
 
     def forward(self, hidden_state):
         batch_size = hidden_state.shape[0]
