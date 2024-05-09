@@ -122,18 +122,18 @@ class SiglipAttention(nn.Module):
         self.embed_dim = self.embed_dim // weights.process_group.size()
         self.scale = self.head_dim**-0.5
         self.dropout = config.attention_dropout
-        self.qkv = TensorParallelColumnLinear.load_multi(
-            config,
-            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-            dim=0,
-            weights=weights,
-            bias=True,
+
+        self.k_proj = TensorParallelColumnLinear.load(
+            config, prefix=f"{prefix}.k_proj", weights=weights, bias=True
+        )
+        self.v_proj = TensorParallelColumnLinear.load(
+            config, prefix=f"{prefix}.v_proj", weights=weights, bias=True
+        )
+        self.q_proj = TensorParallelColumnLinear.load(
+            config, prefix=f"{prefix}.q_proj", weights=weights, bias=True
         )
         self.out_proj = TensorParallelRowLinear.load(
-            config,
-            prefix=f"{prefix}.out_proj",
-            weights=weights,
-            bias=True,
+            config, prefix=f"{prefix}.out_proj", weights=weights, bias=True
         )
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
@@ -152,18 +152,10 @@ class SiglipAttention(nn.Module):
         """Input shape: Batch x Time x Channel"""
 
         bsz, tgt_len, _ = hidden_states.size()
-        qkv = self.qkv(hidden_states)
-        query_states, key_states, value_states = qkv.split(
-            [
-                self.head_size * self.num_heads,
-            ]
-            * 3,
-            dim=2,
-        )
-        key_states = self._shape(key_states, -1, bsz)
-        value_states = self._shape(value_states, -1, bsz)
-
-        proj_shape = (bsz * self.num_heads, -1, self.head_size)
+        query_states = self.q_proj(hidden_states)
+        key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
+        value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
+        proj_shape = (bsz * self.num_heads, -1, self.head_dim)
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
         key_states = key_states.view(*proj_shape)
         value_states = value_states.view(*proj_shape)
@@ -196,7 +188,7 @@ class SiglipAttention(nn.Module):
         attn_weights = nn.functional.dropout(
             attn_weights, p=self.dropout, training=self.training
         )
-        attn_output = torch.bmm(attn_weights, value_states)
+        attn_output = torch.matmul(attn_weights, value_states)
 
         if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_size):
             raise ValueError(
@@ -277,7 +269,6 @@ class SiglipEncoderLayer(nn.Module):
         hidden_states = residual + hidden_states
         if output_attentions:
             return hidden_states, attn_weights
-        print(hidden_states[0, 0, :5].tolist())
         return hidden_states, None
 
 

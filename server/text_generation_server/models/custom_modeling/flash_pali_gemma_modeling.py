@@ -29,29 +29,6 @@ from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
 )
 
 
-class PaliGemmaConfig(PretrainedConfig):
-    model_type = "paligemma"
-
-    def from_pretrained(pretrained_model_name_or_path, **kwargs):
-        vision_config = VisionConfig(
-            hidden_size=1152,
-            intermediate_size=4304,
-            model_type="siglip_vision_model",
-            num_attention_heads=16,
-            num_hidden_layers=27,
-            num_image_tokens=256,
-            patch_size=14,
-            projection_dim=2048,
-            projector_hidden_act="gelu_fast",
-            vision_use_head=False,
-            vocab_size=257152,
-        )
-
-        return GemmaConfig.from_pretrained(
-            pretrained_model_name_or_path, vision_config=vision_config, **kwargs
-        )
-
-
 class VisionConfig(PretrainedConfig):
     def __init__(
         self,
@@ -95,6 +72,80 @@ class VisionConfig(PretrainedConfig):
         super().__init__(**kwargs)
 
 
+class PaliGemmaConfig(PretrainedConfig):
+    model_type = "paligemma"
+
+    def __init__(
+        self,
+        text_config: GemmaConfig,
+        vision_config: VisionConfig,
+        vocab_size: int = 257152,
+        image_token_index: int = 256000,
+        **kwargs,
+    ):
+        self.text_config = text_config
+        self.vision_config = vision_config
+
+        self.vocab_size = vocab_size
+        self.image_token_index = image_token_index
+
+        self.intermediate_size = text_config.intermediate_size
+        self.num_hidden_layers = text_config.num_hidden_layers
+        self.num_key_value_heads = text_config.num_key_value_heads
+        self.num_attention_heads = text_config.num_attention_heads
+
+        super().__init__(**kwargs)
+
+    def from_pretrained(pretrained_model_name_or_path, **kwargs):
+        vision_config = VisionConfig(
+            hidden_size=1152,
+            intermediate_size=4304,
+            model_type="siglip_vision_model",
+            num_attention_heads=16,
+            num_hidden_layers=27,
+            num_image_tokens=256,
+            patch_size=14,
+            projection_dim=2048,
+            projector_hidden_act="gelu_fast",
+            vision_use_head=False,
+            vocab_size=257152,
+        )
+
+        text_config = GemmaConfig.from_pretrained(
+            pretrained_model_name_or_path,
+            attention_bias=False,
+            attention_dropout=0.0,
+            bos_token_id=2,
+            eos_token_id=1,
+            head_dim=256,
+            hidden_act="gelu_pytorch_tanh",
+            hidden_activation=None,
+            hidden_size=2048,
+            initializer_range=0.02,
+            intermediate_size=16384,
+            max_position_embeddings=8192,
+            model_type="gemma",
+            num_attention_heads=8,
+            num_hidden_layers=18,
+            num_image_tokens=256,
+            num_key_value_heads=1,
+            pad_token_id=0,
+            rms_norm_eps=1e-06,
+            rope_theta=10000.0,
+            torch_dtype="float32",
+            transformers_version="4.40.0.dev0",
+            use_cache=True,
+            vocab_size=257216,
+            **kwargs,
+        )
+
+        return PaliGemmaConfig(
+            text_config=text_config,
+            vision_config=vision_config,
+            **kwargs,
+        )
+
+
 class FlashPaliGemmaForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
@@ -116,8 +167,8 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
         self.config = config
 
         self.language_model = load_text_model(
-            prefix=prefix,
-            config=config,
+            prefix="language_model" if not prefix else f"{prefix}.language_model",
+            config=config.text_config,
             weights=weights,
         ).to(weights.device, weights.dtype)
         self.pad_token_id = (
@@ -165,22 +216,18 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
             image_outputs = self.vision_tower(pixel_values)
             selected_image_feature = image_outputs.last_hidden_state
             image_features = self.multi_modal_projector(selected_image_feature)
-            image_features = image_features / (self.config.hidden_size**0.5)
-            inputs_embeds = self._merge_input_ids_with_image_features(
+            # NOTE: image_features returns the exact values as transformers
+
+            # TODO: correctly merge inputs_embeds with image_features
+            merged_inputs_embeds = self._merge_input_ids_with_image_features(
                 image_features, inputs_embeds, input_ids
             )
 
         if input_ids.size(0) != 3000:
-            import ipdb
+            # import ipdb
 
-            ipdb.set_trace()
-
-            ## TODO: remove this
-            ## load in values from reference
-            # tensor = torch.load("../../new-model-addition-palma/inputs_embeds.npz")
-            # inputs_embeds = torch.tensor(
-            #     tensor, device=inputs_embeds.device, dtype=inputs_embeds.dtype
-            # ).squeeze()
+            # ipdb.set_trace()
+            pass
 
         hidden_states = self.language_model.model(
             inputs_embeds=inputs_embeds,

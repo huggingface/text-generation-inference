@@ -99,12 +99,6 @@ class BaseFlashGemma(FlashCausalLM):
         config.quantize = quantize
         config.speculator = speculator
 
-        if is_vlm:
-            config.intermediate_size = config.text_config.get("intermediate_size")
-            config.num_attention_heads = config.text_config.get("num_attention_heads")
-            config.num_hidden_layers = config.text_config.get("num_hidden_layers")
-            config.num_key_value_heads = config.text_config.get("num_key_value_heads")
-
         torch.distributed.barrier(group=self.process_group)
 
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
@@ -116,14 +110,9 @@ class BaseFlashGemma(FlashCausalLM):
 
         torch.distributed.barrier(group=self.process_group)
 
-        if is_vlm:
-            num_layers = config.num_hidden_layers
-            num_kv_heads = config.num_key_value_heads
-            head_size = config.intermediate_size
-        else:
-            num_layers = len(model.model.layers)
-            num_kv_heads = model.model.num_key_value_heads
-            head_size = model.model.head_size
+        num_layers = config.num_hidden_layers
+        num_kv_heads = config.num_key_value_heads
+        head_size = config.intermediate_size
 
         super().__init__(
             model=model,

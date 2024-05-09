@@ -23,9 +23,7 @@ class FlashPaliGemma(PaliVlmCausalLM):
         trust_remote_code: bool = False,
     ):
         self.processor = AutoProcessor.from_pretrained(
-            # TODO: load in the correct processor based on the model_id
             "google/siglip-base-patch16-224",
-            # "google/siglip-so400m-patch14-384",
             revision=revision,
             trust_remote_code=trust_remote_code,
         )
@@ -39,7 +37,6 @@ class FlashPaliGemma(PaliVlmCausalLM):
             use_medusa=use_medusa,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
-            prefix="language_model",
         )
 
     def get_layer_config(self, model) -> Tuple[int, int, int]:

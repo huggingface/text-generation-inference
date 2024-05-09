@@ -366,10 +366,6 @@ class FlashGemmaModel(torch.nn.Module):
         self.embed_tokens = TensorParallelEmbedding(
             prefix=pvalue,
             weights=weights,
-            # limit embed_tokens.weight size to the config.vocab_size
-        )
-        self.embed_tokens.weight = torch.nn.Parameter(
-            self.embed_tokens.weight[: config.vocab_size, : config.hidden_size]
         )
 
         # TODO: double check why this is needed
