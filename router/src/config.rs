@@ -129,7 +129,7 @@ impl Paligemma {
         // 224 = 256 image tokens
         // 448 = 1024 image tokens
         // 896 = 4096 image tokens
-       
+
         256
     }
 }

@@ -90,41 +90,20 @@ class BaseFlashGemma(FlashCausalLM):
             from_slow=False,
         )
 
-        config = GemmaConfig.from_pretrained(
+        config = config_cls.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
 
-        is_vlm = hasattr(config, "vision_config") and hasattr(config, "text_config")
-
-        if is_vlm:
-            config.vision_config = VisionConfig(
-                hidden_size=1152,
-                intermediate_size=4304,
-                model_type="siglip_vision_model",
-                num_attention_heads=16,
-                num_hidden_layers=27,
-                num_image_tokens=256,
-                patch_size=14,
-                projection_dim=2048,
-                projector_hidden_act="gelu_fast",
-                vision_use_head=False,
-                vocab_size=257152,
-                quantize=quantize,
-            )
+        is_vlm = hasattr(config, "vision_config")
 
         config.quantize = quantize
         config.speculator = speculator
 
         if is_vlm:
-            config.num_hidden_layers = config.text_config.get("num_hidden_layers")
             config.intermediate_size = config.text_config.get("intermediate_size")
-            config.model_type = config.text_config.get("model_type")
             config.num_attention_heads = config.text_config.get("num_attention_heads")
             config.num_hidden_layers = config.text_config.get("num_hidden_layers")
-            config.num_image_tokens = config.text_config.get("num_image_tokens")
             config.num_key_value_heads = config.text_config.get("num_key_value_heads")
-            config.torch_dtype = config.text_config.get("torch_dtype")
-            config.vocab_size = config.text_config.get("vocab_size")
 
         torch.distributed.barrier(group=self.process_group)
 

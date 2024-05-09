@@ -17,6 +17,12 @@ def load_text_model(prefix, config, weights, name=None):
         )
 
         return FlashGemmaForCausalLM(prefix, config, weights)
+    elif config.model_type == "paligemma":
+        from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
+            FlashGemmaForCausalLM,
+        )
+
+        return FlashGemmaForCausalLM(prefix, config, weights)
     else:
         raise RuntimeError(f"Unsupported model type {config.model_type}")
 

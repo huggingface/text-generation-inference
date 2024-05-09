@@ -63,6 +63,8 @@ class GemmaConfig(PretrainedConfig):
         rope_scaling=None,
         attention_bias=False,
         attention_dropout=0.0,
+        quantize: Optional[str] = None,
+        use_medusa: Optional[str] = None,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -86,6 +88,8 @@ class GemmaConfig(PretrainedConfig):
         self.rope_scaling = rope_scaling
         self.attention_bias = attention_bias
         self.attention_dropout = attention_dropout
+        self.quantize = quantize
+        self.use_medusa = use_medusa
 
         super().__init__(
             pad_token_id=pad_token_id,
@@ -407,7 +411,7 @@ class FlashGemmaModel(torch.nn.Module):
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
-        
+
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
@@ -459,7 +463,7 @@ class FlashGemmaForCausalLM(torch.nn.Module):
         max_s: int,
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        inputs_embeds = self.embed_tokens(input_ids)
+        inputs_embeds = self.model.embed_tokens(input_ids)
         hidden_states = self.model(
             inputs_embeds,
             position_ids,

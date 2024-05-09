@@ -29,124 +29,11 @@ from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
 )
 
 
-# TODO: prefer using the following config classes
-# * instead of the hack inside of the gemma modeling file
-class VisionConfig(PretrainedConfig):
-    def __init__(
-        self,
-        hidden_size: int,
-        intermediate_size: int,
-        model_type: str,
-        num_attention_heads: int,
-        num_hidden_layers: int,
-        num_image_tokens: int,
-        patch_size: int,
-        projection_dim: int,
-        projector_hidden_act: str,
-        vision_use_head: bool,
-        vocab_size: int,
-        quantize: Optional[str] = None,
-    ):
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.model_type = model_type
-        self.num_attention_heads = num_attention_heads
-        self.num_hidden_layers = num_hidden_layers
-        self.num_image_tokens = num_image_tokens
-        self.patch_size = patch_size
-        self.projection_dim = projection_dim
-        self.projector_hidden_act = projector_hidden_act
-        self.vision_use_head = vision_use_head
-        self.vocab_size = vocab_size
-        self.quantize = quantize
-
-
-class PaliTextConfig(PretrainedConfig):
-    def __init__(
-        self,
-        hidden_size: int,
-        intermediate_size: int,
-        model_type: str,
-        num_attention_heads: int,
-        num_hidden_layers: int,
-        num_image_tokens: int,
-        num_key_value_heads: int,
-        torch_dtype: str,
-        vocab_size: int,
-    ):
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.model_type = model_type
-        self.num_attention_heads = num_attention_heads
-        self.num_hidden_layers = num_hidden_layers
-        self.num_image_tokens = num_image_tokens
-        self.num_key_value_heads = num_key_value_heads
-        self.torch_dtype = torch_dtype
-        self.vocab_size = vocab_size
-
-
 class PaliGemmaConfig(PretrainedConfig):
-    def __init__(
-        self,
-        vocab_size=257216,
-        hidden_size=2048,
-        intermediate_size=24576,
-        num_hidden_layers=28,
-        num_attention_heads=16,
-        num_key_value_heads=16,
-        head_dim=256,
-        hidden_act="gelu_pytorch_tanh",
-        max_position_embeddings=8192,
-        initializer_range=0.02,
-        rms_norm_eps=1e-6,
-        use_cache=True,
-        pad_token_id=0,
-        bos_token_id=2,
-        eos_token_id=1,
-        tie_word_embeddings=True,
-        rope_theta=10000.0,
-        rope_scaling=None,
-        attention_bias=False,
-        attention_dropout=0.0,
-        text_config=None,
-        vision_config=None,
-        **kwargs,
-    ):
-        self.vocab_size = vocab_size
-        self.max_position_embeddings = max_position_embeddings
-        self.hidden_size = hidden_size
-        self.head_dim = head_dim
-        self.intermediate_size = intermediate_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
+    model_type = "paligemma"
 
-        # for backward compatibility
-        if num_key_value_heads is None:
-            num_key_value_heads = num_attention_heads
-
-        self.num_key_value_heads = num_key_value_heads
-        self.hidden_act = hidden_act
-        self.initializer_range = initializer_range
-        self.rms_norm_eps = rms_norm_eps
-        self.use_cache = use_cache
-        self.rope_theta = rope_theta
-        self.rope_scaling = rope_scaling
-        self.attention_bias = attention_bias
-        self.attention_dropout = attention_dropout
-
-        self.text_config = GemmaConfig(
-            hidden_size=2048,
-            intermediate_size=16384,
-            model_type="gemma",
-            num_attention_heads=8,
-            num_hidden_layers=18,
-            num_image_tokens=256,
-            num_key_value_heads=1,
-            torch_dtype="float32",
-            vocab_size=257216,
-        )
-
-        self.vision_config = VisionConfig(
+    def from_pretrained(pretrained_model_name_or_path, **kwargs):
+        vision_config = VisionConfig(
             hidden_size=1152,
             intermediate_size=4304,
             model_type="siglip_vision_model",
@@ -160,20 +47,58 @@ class PaliGemmaConfig(PretrainedConfig):
             vocab_size=257152,
         )
 
-        super().__init__(
-            pad_token_id=pad_token_id,
-            bos_token_id=bos_token_id,
-            eos_token_id=eos_token_id,
-            tie_word_embeddings=tie_word_embeddings,
-            **kwargs,
+        return GemmaConfig.from_pretrained(
+            pretrained_model_name_or_path, vision_config=vision_config, **kwargs
         )
+
+
+class VisionConfig(PretrainedConfig):
+    def __init__(
+        self,
+        hidden_size: int = 1152,
+        intermediate_size: int = 4304,
+        model_type: str = "siglip_vision_model",
+        num_attention_heads: int = 16,
+        num_hidden_layers: int = 27,
+        num_image_tokens: int = 256,
+        patch_size: int = 14,
+        projection_dim: int = 2048,
+        projector_hidden_act: str = "gelu_fast",
+        vision_use_head: bool = False,
+        vocab_size: int = 257152,
+        quantize: Optional[str] = None,
+        image_size: int = 224,
+        layer_norm_eps: float = 1e-06,
+        attention_dropout: float = 0.0,
+        hidden_act: str = "gelu_pytorch_tanh",
+        num_channels: int = 3,
+        **kwargs,
+    ):
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.model_type = model_type
+        self.num_attention_heads = num_attention_heads
+        self.num_hidden_layers = num_hidden_layers
+        self.num_image_tokens = num_image_tokens
+        self.patch_size = patch_size
+        self.projection_dim = projection_dim
+        self.projector_hidden_act = projector_hidden_act
+        self.vision_use_head = vision_use_head
+        self.vocab_size = vocab_size
+        self.quantize = quantize
+        self.image_size = image_size
+        self.layer_norm_eps = layer_norm_eps
+        self.attention_dropout = attention_dropout
+        self.hidden_act = hidden_act
+        self.num_channels = num_channels
+
+        super().__init__(**kwargs)
 
 
 class FlashPaliGemmaForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         config.vision_config.quantize = config.quantize
-
         self.vision_tower = load_vision_model(
             prefix="vision_tower" if not prefix else f"{prefix}.vision_tower",
             config=config.vision_config,
@@ -255,7 +180,6 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
             input_lengths=input_lengths,
             max_s=max_s,
         )
-
 
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

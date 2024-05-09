@@ -14,7 +14,10 @@ from typing import List, Optional
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model
-from text_generation_server.models.vlm_causal_lm import VlmCausalLMBatch, PaliVlmCausalLMBatch
+from text_generation_server.models.vlm_causal_lm import (
+    VlmCausalLMBatch,
+    PaliVlmCausalLMBatch,
+)
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch

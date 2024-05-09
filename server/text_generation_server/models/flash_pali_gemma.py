@@ -6,7 +6,6 @@ from text_generation_server.models.vlm_causal_lm import PaliVlmCausalLM
 from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
     FlashPaliGemmaForConditionalGeneration,
     PaliGemmaConfig,
-    PaliTextConfig,
 )
 from transformers import AutoProcessor
 
@@ -32,7 +31,7 @@ class FlashPaliGemma(PaliVlmCausalLM):
         )
 
         super().__init__(
-            config_cls=PaliTextConfig,
+            config_cls=PaliGemmaConfig,
             model_cls=FlashPaliGemmaForConditionalGeneration,
             model_id=model_id,
             revision=revision,

@@ -83,8 +83,7 @@ def image_text_replacement(image_input, config, image_id) -> str:
         logger.info(f"Found {num_features} in image of resolution {height}x{width}")
         return "<image>" * num_features
 
-    # TODO: double check correct naming for model_type
-    elif config.model_type == "gemma":
+    elif config.model_type == "paligemma":
         # TODO: use correct number of features
         return "<image>" * 256
     else:
