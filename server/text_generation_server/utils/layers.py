@@ -366,7 +366,7 @@ class FastLinearROCm(nn.Module):
         weight = self.weight
         bias = self.bias
 
-        if IS_ROCM_SYSTEM and inp.numel() // inp.size(-1) == 1:
+        if False and IS_ROCM_SYSTEM and inp.numel() // inp.size(-1) == 1:
             batched = False
 
             if inp.dim() == 3:
