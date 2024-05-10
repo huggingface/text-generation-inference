@@ -39,6 +39,9 @@ from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
 
+# TODO: used for debugging; to avoid breaking during warmup
+count = 0
+
 
 class GemmaConfig(PretrainedConfig):
     def __init__(
@@ -103,7 +106,7 @@ class GemmaConfig(PretrainedConfig):
 class GemmaFastRMSNorm(FastRMSNorm):
     @classmethod
     def load(cls, prefix, weights, eps=1e-6):
-        weight = weights.get_tensor(f"{prefix}.weight") + 1
+        weight = weights.get_tensor(f"{prefix}.weight")
         return cls(weight, eps)
 
     # perform the multiplication in full precision and downcast after
@@ -114,7 +117,7 @@ class GemmaFastRMSNorm(FastRMSNorm):
         hidden_states = hidden_states.to(torch.float32)
         variance = hidden_states.pow(2).mean(-1, keepdim=True)
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        hidden_states = hidden_states * self.weight
+        hidden_states = hidden_states * (self.weight.float() + 1.0)
         return hidden_states.to(self.weight.dtype), residual
 
 
@@ -211,6 +214,7 @@ class FlashGemmaAttention(torch.nn.Module):
         input_lengths,
         max_s,
     ):
+        global count
         qkv = self.query_key_value(hidden_states)
         query, kv = qkv.split(
             [
@@ -221,7 +225,11 @@ class FlashGemmaAttention(torch.nn.Module):
         )
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
+        if count > 0:
+            import ipdb
 
+            ipdb.set_trace()
+            # looks good prior to attention
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
         paged_attention.reshape_and_cache(
@@ -256,7 +264,10 @@ class FlashGemmaAttention(torch.nn.Module):
                 input_lengths,
                 max_s,
             )
+        if count > 0:
+            import ipdb
 
+            ipdb.set_trace()
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
 
@@ -413,6 +424,7 @@ class FlashGemmaModel(torch.nn.Module):
         input_lengths: torch.Tensor,
         max_s: int,
     ) -> torch.Tensor:
+        global count
         hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward
@@ -437,7 +449,7 @@ class FlashGemmaModel(torch.nn.Module):
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
-
+        count += 1  # for debugging; to avoid breaking during warmup
         return hidden_states
 
 

@@ -203,7 +203,9 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
             image_features = self.multi_modal_projector(image_outputs.last_hidden_state)
 
             # TODO: now we scale them? maybe we can do this up or downstream
-            scaled_image_features = image_features / (self.config.hidden_size**0.5)
+            scaled_image_features = image_features / (
+                self.config.text_config.hidden_size**0.5
+            )
 
             # mask where image or padding tokens
             mask = input_ids == self.config.image_token_index | (input_ids == 2)
@@ -213,15 +215,12 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
                 -1, scaled_image_features.shape[-1]
             )
 
-        if input_ids.size(0) != 3000:
-            # import ipdb
-
-            # ipdb.set_trace()
-            pass
-
         # NOTE: scale back up since we dont normalize inside the model like transformers
         # TODO: simplify all the rescaling
-        inputs_embeds = inputs_embeds * (self.config.hidden_size**0.5)
+        normalizer = torch.tensor(
+            self.config.text_config.hidden_size**0.5, dtype=inputs_embeds.dtype
+        )
+        inputs_embeds = inputs_embeds * normalizer
 
         hidden_states = self.language_model.model(
             inputs_embeds=inputs_embeds,
