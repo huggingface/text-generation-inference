@@ -367,8 +367,15 @@ class FlashGemmaModel(torch.nn.Module):
             prefix=pvalue,
             weights=weights,
         )
+        self.embed_tokens.weight = torch.nn.Parameter(
+            self.embed_tokens.weight[: config.vocab_size, : config.hidden_size]
+        )
 
-        # TODO: double check why this is needed
+        # TODO: avoid making a copy of the embedding matrix. added for debugging
+        self.unscaled_embed_tokens = torch.nn.Parameter(
+            self.embed_tokens.weight.clone()
+        )
+
         self.embed_tokens.weight *= embed_norm
 
         self.layers = nn.ModuleList(

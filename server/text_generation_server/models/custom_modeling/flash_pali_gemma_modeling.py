@@ -206,7 +206,9 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
         past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
         pixel_attention_mask=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        inputs_embeds = self.language_model.model.embed_tokens(input_ids)
+        inputs_embeds = torch.nn.functional.embedding(
+            input_ids, self.language_model.model.unscaled_embed_tokens
+        )
 
         if pixel_values is not None:
             pixel_values = pixel_values.to(inputs_embeds.device, inputs_embeds.dtype)
