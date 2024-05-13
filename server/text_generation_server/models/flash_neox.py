@@ -14,7 +14,7 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
-from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 
 tracer = trace.get_tracer(__name__)
 
@@ -33,7 +33,7 @@ class FlashNeoXSharded(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
-        elif IS_XPU_SYSTEM:
+        elif SYSTEM == "xpu":
             device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:

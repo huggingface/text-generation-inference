@@ -33,7 +33,7 @@ tracer = trace.get_tracer(__name__)
 # Will be set in init
 SLIDING_WINDOW: Optional[int] = None
 SLIDING_WINDOW_BLOCKS: Optional[int] = None
-from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
@@ -322,7 +322,7 @@ class BaseFlashMistral(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
-        elif IS_XPU_SYSTEM:
+        elif SYSTEM == "xpu":
             device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:

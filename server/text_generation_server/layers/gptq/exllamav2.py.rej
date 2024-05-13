@@ -1,0 +1,10 @@
+diff a/server/text_generation_server/layers/gptq/exllamav2.py b/server/text_generation_server/layers/gptq/exllamav2.py	(rejected hunks)
+@@ -119,6 +119,8 @@ def ext_make_q_matrix(w: dict, temp_dq, key: str = None):
+                 none_tensor,
+                 temp_dq,
+             )
++    else:
++        RuntimeError("Cannot create handle")
+ 
+ 
+ DEVICE = None

@@ -171,7 +171,7 @@ class Weights:
                 log_once(
                     logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
                 )
-                from text_generation_server.utils.awq.conversion_utils import (
+                from text_generation_server.layers.awq.conversion_utils import (
                     fast_awq_to_gptq,
                 )
 
@@ -227,7 +227,7 @@ class Weights:
 
             bits, groupsize, desc_act, quant_method = self._get_gptq_params()
 
-            from text_generation_server.utils.layers import HAS_EXLLAMA
+            from text_generation_server.layers.gptq import HAS_EXLLAMA
 
             use_exllama = (
                 bits == 4 and HAS_EXLLAMA and quantize == "gptq" and not desc_act
@@ -242,7 +242,7 @@ class Weights:
                 log_once(
                     logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
                 )
-                from text_generation_server.utils.awq.conversion_utils import (
+                from text_generation_server.layers.awq.conversion_utils import (
                     fast_awq_to_gptq,
                 )
 
@@ -321,7 +321,7 @@ class Weights:
                         # it would require to reorder input activations that are split unto several GPUs
                         use_exllama = False
 
-            from text_generation_server.utils.layers import HAS_EXLLAMA, CAN_EXLLAMA
+            from text_generation_server.layers.gptq import HAS_EXLLAMA, CAN_EXLLAMA
 
             if use_exllama:
                 if not HAS_EXLLAMA:
@@ -348,7 +348,7 @@ class Weights:
                 log_once(
                     logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
                 )
-                from text_generation_server.utils.awq.conversion_utils import (
+                from text_generation_server.layers.awq.conversion_utils import (
                     fast_awq_to_gptq,
                 )
 

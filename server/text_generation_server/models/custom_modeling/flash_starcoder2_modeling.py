@@ -27,15 +27,19 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    PositionRotaryEmbedding,
     SpeculativeHead,
     get_linear,
-    FastRMSNorm,
+)
+from text_generation_server.layers.layernorm import (
     FastLayerNorm,
+    FastRMSNorm,
+)
+from text_generation_server.layers.rotary import (
+    PositionRotaryEmbedding,
 )
 
 
