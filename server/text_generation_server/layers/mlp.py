@@ -1,10 +1,12 @@
 import torch
+import math
 from torch import nn
 from torch.nn import functional as F
 from typing import Optional, Tuple
 from text_generation_server.layers import TensorParallelEmbedding, FastLinear
 from text_generation_server.layers.tensor_parallel import TensorParallelHead
 from text_generation_server.utils.speculate import get_speculate
+
 
 class MLPSpeculatorLayerNorm(nn.Module):
     """
@@ -140,7 +142,7 @@ class MLPSpeculatorHead(nn.Module):
         self.mlp_speculator = mlp_speculator
 
     def forward(
-        self, input: torch.Tensor, input_ids: torch.Tensor
+        self, input: torch.Tensor
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         logits = self.lm_head(input)
         # If we have too many tokens, we skip speculative logits
@@ -172,4 +174,3 @@ class MLPSpeculatorHead(nn.Module):
         mlp_speculator = MLPSpeculatorModel(config, "speculator", weights)
         lm_head = TensorParallelHead.load(config, prefix, weights)
         return MLPSpeculatorHead(lm_head, mlp_speculator)
-

@@ -419,6 +419,5 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
-            # input_ids = input_ids[lm_head_indices]
-        logits, speculative_logits = self.lm_head(hidden_states, input_ids)
+        logits, speculative_logits = self.lm_head(hidden_states)
         return logits, speculative_logits
