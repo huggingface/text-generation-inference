@@ -28,7 +28,7 @@ from transformers.utils import (
     ModelOutput,
     logging,
 )
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
     TensorParallelEmbedding,

@@ -6,15 +6,20 @@ from torch import nn
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 
-from text_generation_server.utils import flash_attn, paged_attention
-from text_generation_server.utils.layers import (
-    FastLayerNorm,
-    PositionRotaryEmbedding,
-    SpeculativeHead,
+from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.utils.flash_attn import attention
+from text_generation_server.layers import (
+    TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    TensorParallelRowLinear,
+    SpeculativeHead,
     get_linear,
+)
+from text_generation_server.layers.layernorm import (
+    FastLayerNorm,
+)
+from text_generation_server.layers.rotary import (
+    PositionRotaryEmbedding,
 )
 
 

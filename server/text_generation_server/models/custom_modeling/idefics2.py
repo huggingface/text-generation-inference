@@ -29,7 +29,7 @@ from text_generation_server.models.custom_modeling.vlm import (
 )
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
