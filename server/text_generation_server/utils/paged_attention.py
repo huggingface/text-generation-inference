@@ -1,13 +1,9 @@
 import torch
-from text_generation_server.utils.import_utils import (
-    IS_CUDA_SYSTEM,
-    IS_ROCM_SYSTEM,
-    IS_XPU_SYSTEM,
-)
+from text_generation_server.utils.import_utils import SYSTEM
 
 _PARTITION_SIZE = 512
 
-if IS_XPU_SYSTEM:
+if SYSTEM == "xpu":
     import intel_extension_for_pytorch as ipex
 
 
@@ -18,17 +14,17 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if IS_CUDA_SYSTEM:
+    if SYSTEM == "cuda":
         from vllm._C import cache_ops
 
         cache_ops.reshape_and_cache(
             key, value, key_cache, value_cache, slots, "auto", 1.0
         )
-    elif IS_ROCM_SYSTEM:
+    elif SYSTEM == "rocm":
         from vllm import cache_ops
 
         cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
-    elif IS_XPU_SYSTEM:
+    elif SYSTEM == "xpu":
         ipex.llm.modules.PagedAttention.reshape_and_cache(
             key, value, key_cache, value_cache, slots
         )
@@ -68,7 +64,7 @@ def attention(
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
-    if IS_XPU_SYSTEM:
+    if SYSTEM == "xpu":
         query = query.contiguous()
         return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
             out,
@@ -91,7 +87,7 @@ def attention(
     # to parallelize.
     use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
     if use_v1:
-        if IS_CUDA_SYSTEM:
+        if SYSTEM == "cuda":
             from vllm._C import ops
 
             ops.paged_attention_v1(
@@ -109,7 +105,7 @@ def attention(
                 "auto",
                 1.0,
             )
-        elif IS_ROCM_SYSTEM:
+        elif SYSTEM == "rocm":
             from vllm import attention_ops
 
             attention_ops.paged_attention_v1(
@@ -143,7 +139,7 @@ def attention(
         )
         max_logits = torch.empty_like(exp_sums)
 
-        if IS_CUDA_SYSTEM:
+        if SYSTEM == "cuda":
             from vllm._C import ops
 
             ops.paged_attention_v2(
@@ -164,7 +160,7 @@ def attention(
                 "auto",
                 1.0,
             )
-        elif IS_ROCM_SYSTEM:
+        elif SYSTEM == "rocm":
             from vllm import attention_ops
 
             attention_ops.paged_attention_v2(

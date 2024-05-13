@@ -41,7 +41,7 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
 )
