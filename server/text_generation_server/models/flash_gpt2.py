@@ -87,7 +87,7 @@ class FlashGPT2(FlashCausalLM):
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),
-            num_kv_heads=model.model.num_key_value_heads,
+            num_kv_heads=model.model.num_heads,
             head_size=model.model.head_size,
             dtype=dtype,
             device=device,
