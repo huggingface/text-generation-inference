@@ -193,7 +193,7 @@ class LlamaMLP(nn.Module):
             )
         )
         # Fuse gate and up proj
-        bias = config.mlp_bias
+        bias = getattr(config, "mlp_bias", False)
         if config.model_type == "phi3":
             self.gate_up_proj = TensorParallelColumnLinear.load_gate_up(
                 config,
