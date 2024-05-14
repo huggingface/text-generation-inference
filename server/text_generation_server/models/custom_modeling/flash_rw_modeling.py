@@ -6,12 +6,14 @@ from torch import nn
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.utils import flash_attn, paged_attention
 from text_generation_server.utils.layers import (
-    TensorParallelRowLinear,
+    FastLayerNorm,
+    PositionRotaryEmbedding,
+    SpeculativeHead,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    SpeculativeHead,
+    TensorParallelRowLinear,
     get_linear,
 )
 from text_generation_server.layers.layernorm import (
@@ -478,6 +480,7 @@ class FlashRWLayer(nn.Module):
             mlp_output = self.mlp(hidden_states)
 
             return mlp_output, residual
+
 
 class FlashRWLayerNorm(nn.Module):
     def __init__(self, config, prefix, weights):
