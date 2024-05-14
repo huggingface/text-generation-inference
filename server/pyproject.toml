@@ -22,7 +22,7 @@ opentelemetry-instrumentation-grpc = "^0.36b0"
 hf-transfer = "^0.1.2"
 sentencepiece = "^0.1.97"
 peft = "^0.10"
-optimum-habana = "1.11.0"
+optimum-habana = "1.11.1"
 transformers = "4.38.2"
 accelerate = "0.27.2"
 outlines= { version = "^0.0.36", optional = true }

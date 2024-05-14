@@ -1800,25 +1800,26 @@ tests = ["Pillow", "accelerate", "diffusers (>=0.17.0)", "einops", "invisible-wa
 
 [[package]]
 name = "optimum-habana"
-version = "1.11.0"
+version = "1.11.1"
 description = "Optimum Habana is the interface between the Hugging Face Transformers and Diffusers libraries and Habana's Gaudi processor (HPU). It provides a set of tools enabling easy model loading, training and inference on single- and multi-HPU settings for different downstream tasks."
 optional = false
 python-versions = "*"
 files = [
-    {file = "optimum-habana-1.11.0.tar.gz", hash = "sha256:d7c7caea5daf17c0d520c52797d8a663432de6aa9ee8b35f6304d1646f225826"},
-    {file = "optimum_habana-1.11.0-py3-none-any.whl", hash = "sha256:7e94b40d339ac42f754d6e0c9f7df513ebd1afd63307ec2f05e677adfbe347c4"},
+    {file = "optimum_habana-1.11.1-py3-none-any.whl", hash = "sha256:2b4f2a801ebd7f235bde91f3e351893efcc586afef3b0c867eb3c4c8c4c26bec"},
+    {file = "optimum_habana-1.11.1.tar.gz", hash = "sha256:c70dbd6d69ce11c8bb78292913304616600d051d94237c8310c3bdbf73ca7017"},
 ]
 
 [package.dependencies]
 accelerate = "<0.28.0"
 diffusers = ">=0.26.0,<0.27.0"
 optimum = "*"
+pytest = "<8.0.0"
 torch = "*"
 transformers = ">=4.38.0,<4.39.0"
 
 [package.extras]
 quality = ["hf-doc-builder", "ruff"]
-tests = ["GitPython", "datasets", "optuna", "parameterized", "psutil", "pytest (<8.0.0)", "safetensors", "sentencepiece"]
+tests = ["GitPython", "datasets", "optuna", "parameterized", "psutil", "safetensors", "sentencepiece"]
 
 [[package]]
 name = "outlines"
@@ -3612,4 +3613,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "d7b7c690db90064982f33b8855d22434ea5496b4da886e9df9d28fcc3f990f3b"
+content-hash = "f54475fbf8d56bf0ff0b26fbc12afb160648dd03aaefbd8ae636b920964d39f0"
