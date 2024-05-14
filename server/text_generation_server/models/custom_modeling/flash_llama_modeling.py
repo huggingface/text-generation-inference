@@ -244,7 +244,7 @@ class LlamaMLP(nn.Module):
         )
 
     def forward(self, hidden_states):
-        if False and IS_ROCM_SYSTEM and self.hidden_act == "silu" and hidden_states.shape[0] == 1:
+        if IS_ROCM_SYSTEM and self.hidden_act == "silu" and hidden_states.shape[0] == 1:
             out = torch.empty(
                 hidden_states.shape[0],
                 self.intermediate_size,
