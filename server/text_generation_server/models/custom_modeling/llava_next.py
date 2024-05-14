@@ -135,7 +135,7 @@ class LlavaNextForConditionalGeneration(nn.Module):
         self.vocab_size = config.text_config.vocab_size
         self.config = config
         config.text_config.quantize = config.quantize
-        config.text_config.use_medusa = config.use_medusa
+        config.text_config.speculator = config.speculator
         self.language_model = load_text_model(
             prefix="language_model" if not prefix else f"{prefix}.language_model",
             config=config.text_config,
