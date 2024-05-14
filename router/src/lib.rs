@@ -882,7 +882,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
 pub(crate) struct ToolCall {
-    pub id: u32,
+    pub id: String,
     pub r#type: String,
     pub function: FunctionDefinition,
 }
@@ -955,13 +955,15 @@ pub(crate) struct Message {
     pub role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "My name is David and I")]
-    #[serde(deserialize_with = "message_content_serde::deserialize")]
+    #[serde(default, deserialize_with = "message_content_serde::deserialize")]
     pub content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCall>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(example = "\"get_weather\"")]
     pub tool_call_id: Option<String>,
 }
 
