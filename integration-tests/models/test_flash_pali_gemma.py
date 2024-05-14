@@ -7,7 +7,7 @@ import base64
 @pytest.fixture(scope="module")
 def flash_pali_gemma_handle(launcher):
     with launcher(
-        "Tinkering/test-bvhf",
+        "gv-hf/paligemma-3b-mix-224",
         num_shard=1,
         max_input_length=4000,
         max_total_tokens=4096,
@@ -31,7 +31,8 @@ def get_cow_beach():
 @pytest.mark.private
 async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot):
     cow = get_cow_beach()
-    inputs = f"Where is the cow standing?\n![]({cow})"
+    inputs = f"![]({cow})Where is the cow standing?\n"
     response = await flash_pali_gemma.generate(inputs, max_new_tokens=20)
 
-    assert response.generated_text == "\nbeach"
+    assert response.generated_text == "beach"
+    assert response == response_snapshot
