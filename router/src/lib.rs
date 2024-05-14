@@ -546,7 +546,7 @@ impl ChatCompletion {
                     content: output,
                     name: None,
                     tool_calls,
-                    tool_call_id:None
+                    tool_call_id: None,
                 },
                 logprobs: return_logprobs
                     .then(|| ChatCompletionLogprobs::from((details.tokens, details.top_tokens))),
