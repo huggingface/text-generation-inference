@@ -18,25 +18,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional, Tuple
+
 import torch
 import torch.distributed
-
 from torch import nn
 from transformers.activations import ACT2FN
-from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.layers import (
-    TensorParallelRowLinear,
+    SpeculativeHead,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    SpeculativeHead,
-    get_linear,
+    TensorParallelRowLinear,
 )
+from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
-from text_generation_server.layers.layernorm import (
-    FastRMSNorm,
-)
+from text_generation_server.utils import flash_attn, paged_attention
 
 
 def load_attention(config, prefix, weights):
