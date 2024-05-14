@@ -49,10 +49,6 @@ class FlashGemma(FlashCausalLM):
         config = AutoConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
-        import ipdb
-
-        ipdb.set_trace()
-        config = config.text_config
         config.quantize = quantize
         config.speculator = speculator
 
