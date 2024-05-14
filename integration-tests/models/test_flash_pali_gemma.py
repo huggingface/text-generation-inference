@@ -34,6 +34,4 @@ async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot):
     inputs = f"Where is the cow standing?\n![]({cow})"
     response = await flash_pali_gemma.generate(inputs, max_new_tokens=20)
 
-    # TODO: update this! this is incorrect and just to show the current state of the test
-    assert response.generated_text == " - HDS"
-    # assert response.generated_text == "\nbeach"
+    assert response.generated_text == "\nbeach"
