@@ -207,6 +207,7 @@ class FlashCausalLMBatch(Batch):
             # Paged attention
             # Remove one as the first token des not have a past
             speculative_length = get_speculate()
+            speculative_length = 0 if speculative_length is None else speculative_length
             total_tokens = input_length + max_new_tokens - 1 + speculative_length
             needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
             blocks += needed_blocks
@@ -1100,6 +1101,8 @@ class FlashCausalLM(Model):
             # Append next token to all tokens
             next_token_texts = []
             left = 0
+
+            logger.info(f"Accepted ids {n_accepted_ids}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):

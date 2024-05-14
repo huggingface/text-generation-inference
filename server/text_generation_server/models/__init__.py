@@ -1,9 +1,10 @@
 import torch
+import os
 
 from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional
 from pathlib import Path
 
@@ -40,8 +41,9 @@ def get_model(
     config_dict, _ = PretrainedConfig.get_config_dict(
         model_id, revision=revision, trust_remote_code=trust_remote_code
     )
+    model_type = config_dict.get("model_type", None)
 
-    use_medusa = None
+    speculator = None
     if "medusa_num_heads" in config_dict:
         medusa_model_id = model_id
         medusa_revision = revision
@@ -61,6 +63,8 @@ def get_model(
         config_dict, _ = PretrainedConfig.get_config_dict(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
+        # Reload model type from parent.
+        model_type = config_dict.get("model_type", None)
         is_local = Path(medusa_model_id).exists()
         if not is_local:
             medusa_config = hf_hub_download(
@@ -71,11 +75,70 @@ def get_model(
                 revision=medusa_revision,
                 filename="medusa_lm_head.safetensors",
             )
-            use_medusa = Path(medusa_config).parent
+            speculator = {
+                "path": Path(medusa_config).parent,
+                "model_paths": ["medusa_lm_head.safetensors"],
+            }
         else:
-            use_medusa = Path(medusa_model_id)
+            speculator = {
+                "path": Path(medusa_model_id),
+                "model_paths": ["medusa_lm_head.safetensors"],
+            }
 
         method = "medusa"
+    elif model_type == "mlp_speculator":
+        mlp_model_id = model_id
+        mlp_revision = revision
+        model_id = config_dict["base_model_name_or_path"]
+        revision = "main"
+        speculate_mlp = config_dict["n_predict"]
+        if speculate is not None:
+            if speculate > speculate_mlp:
+                raise RuntimeError(
+                    f"Speculate is set to `{speculate}` but this mlp_speculator models only has `{speculate_mlp}` heads, please make them match"
+                )
+            else:
+                set_speculate(speculate)
+        else:
+            set_speculate(speculate_mlp)
+
+        config_dict, _ = PretrainedConfig.get_config_dict(
+            model_id, revision=revision, trust_remote_code=trust_remote_code
+        )
+        # Reload model type from parent.
+        model_type = config_dict.get("model_type", None)
+        is_local = Path(mlp_model_id).exists()
+        extension = ".safetensors"
+        if not is_local:
+            mlp_speculator_config = hf_hub_download(
+                mlp_model_id, revision=mlp_revision, filename="config.json"
+            )
+            api = HfApi()
+            info = api.model_info(mlp_model_id, revision=mlp_revision)
+            filenames = [
+                s.rfilename
+                for s in info.siblings
+                if s.rfilename.endswith(extension)
+                and len(s.rfilename.split("/")) == 1
+                and "arguments" not in s.rfilename
+                and "args" not in s.rfilename
+                and "training" not in s.rfilename
+            ]
+            for filename in filenames:
+                hf_hub_download(
+                    mlp_model_id,
+                    revision=mlp_revision,
+                    filename=filename,
+                )
+            speculator = {
+                "path": Path(mlp_speculator_config).parent,
+                "model_paths": filenames,
+            }
+        else:
+            speculator = Path(mlp_model_id)
+            filenames = [p for p in os.listdir(speculator) if p.endswith(extension)]
+            speculator = {"path": speculator, "model_paths": filenames}
+        method = "mlp_speculator"
     else:
         method = "n-gram"
 
@@ -92,7 +155,7 @@ def get_model(
         return BLOOM(
             model_id,
             revision,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
@@ -101,7 +164,7 @@ def get_model(
         return CausalLM(
             model_id,
             revision,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )

@@ -30,7 +30,7 @@ class FlashQwen2(BaseFlashMistral):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        use_medusa: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -53,7 +53,7 @@ class FlashQwen2(BaseFlashMistral):
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
-        config.use_medusa = use_medusa
+        config.speculator = speculator
 
         # Set context windows
         if config.sliding_window is not None:

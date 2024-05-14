@@ -598,12 +598,12 @@ class CausalLM(Model):
         self,
         model_id: str,
         revision: Optional[str] = None,
-        use_medusa: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        if use_medusa:
-            raise RuntimeError("Medusa decoding is not enabled for AutoModel")
+        if speculator:
+            raise RuntimeError("Speculator decoding is not enabled for AutoModel")
 
         # Create tokenizer
         tokenizer = AutoTokenizer.from_pretrained(
