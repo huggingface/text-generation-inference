@@ -166,7 +166,7 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
         self.vocab_size = config.vocab_size
         self.config = config
 
-        self.language_model = load_text_model(
+        self.text_model = load_text_model(
             prefix="language_model" if not prefix else f"{prefix}.language_model",
             config=config.text_config,
             weights=weights,
@@ -191,9 +191,7 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
         past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
         pixel_attention_mask=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        inputs_embeds = torch.nn.functional.embedding(
-            input_ids, self.language_model.model.unscaled_embed_tokens
-        )
+        inputs_embeds = self.text_model.embed_tokens(input_ids)
 
         if pixel_values is not None and len(pixel_values) > 0:
             # TODO: avoid these casts upstream
@@ -211,16 +209,13 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
             mask = input_ids == self.config.image_token_index | (input_ids == 2)
 
             # insert image features into input embeddings
+            # normalizer = torch.tensor(
+            #     self.config.text_config.hidden_size**0.5, dtype=inputs_embeds.dtype
+            # )
+            # inputs_embeds = inputs_embeds * normalizer
             inputs_embeds[mask] = scaled_image_features.view(
                 -1, scaled_image_features.shape[-1]
             )
-
-        # NOTE: scale back up since we dont normalize inside the model like transformers
-        # TODO: simplify all the rescaling
-        normalizer = torch.tensor(
-            self.config.text_config.hidden_size**0.5, dtype=inputs_embeds.dtype
-        )
-        inputs_embeds = inputs_embeds * normalizer
 
         hidden_states = self.language_model.model(
             inputs_embeds=inputs_embeds,
@@ -232,10 +227,6 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
             input_lengths=input_lengths,
             max_s=max_s,
         )
-
-        if input_ids.size(0) != 3000:
-            # import ipdb; ipdb.set_trace()
-            pass
 
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
