@@ -173,7 +173,10 @@ class VlmCausalLMBatch(FlashMistralBatch):
             image_id = 0
             for chunk in chunks:
                 if chunk["type"] == "text":
-                    full_text += "<bos>" + chunk["content"] + "\n"
+                    if config.model_type == "paligemma":
+                        full_text += "<bos>" + chunk["content"] + "\n"
+                    else:
+                        full_text += chunk["content"]
                 elif chunk["type"] == "image":
                     image = chunk["content"]
                     # Should never receive URLs anymore, processing should be done
