@@ -76,7 +76,7 @@ There are two main ways to use guidance; you can either use the `/generate` endp
 
 Under the hood tools are a special case of grammars that allows the model to choose one or none of the provided tools.
 
-Please refer to [using guidance](../basic_tutorial/using_guidance) for more examples and details on how to use guidance in Python, JavaScript, and cURL.
+Please refer to [using guidance](../basic_tutorials/using_guidance) for more examples and details on how to use guidance in Python, JavaScript, and cURL.
 
 ### Getting the most out of guidance
 
