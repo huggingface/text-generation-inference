@@ -3,8 +3,7 @@ import torch.distributed
 
 from opentelemetry import trace
 from typing import Optional
-from transformers.models.gemma import GemmaTokenizerFast
-from transformers import AutoConfig
+from transformers import AutoConfig, AutoTokenizer
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
@@ -36,14 +35,12 @@ class FlashGemma(FlashCausalLM):
         else:
             raise NotImplementedError("FlashGemma is only available on GPU")
 
-        tokenizer = GemmaTokenizerFast.from_pretrained(
+        tokenizer = AutoTokenizer.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
             truncation_side="left",
             trust_remote_code=trust_remote_code,
-            use_fast=True,
-            from_slow=False,
         )
 
         config = AutoConfig.from_pretrained(
@@ -61,7 +58,7 @@ class FlashGemma(FlashCausalLM):
 
         # TODO hardcoded
         prefix = "language_model"
-        model = FlashGemmaForCausalLM(prefix, config, weights)
+        model = FlashGemmaForCausalLM(prefix, config, weights, causal=True)
 
         torch.distributed.barrier(group=self.process_group)
         super(FlashGemma, self).__init__(

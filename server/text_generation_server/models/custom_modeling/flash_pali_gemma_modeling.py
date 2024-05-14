@@ -19,134 +19,14 @@ from torch import nn
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils.layers import TensorParallelColumnLinear
+from text_generation_server.layers.tensor_parallel import TensorParallelColumnLinear
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
     load_vision_model,
 )
-from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
-    GemmaConfig,
-)
 
 
-class VisionConfig(PretrainedConfig):
-    def __init__(
-        self,
-        hidden_size: int = 1152,
-        intermediate_size: int = 4304,
-        model_type: str = "siglip_vision_model",
-        num_attention_heads: int = 16,
-        num_hidden_layers: int = 27,
-        num_image_tokens: int = 256,
-        patch_size: int = 14,
-        projection_dim: int = 2048,
-        projector_hidden_act: str = "gelu_fast",
-        vision_use_head: bool = False,
-        vocab_size: int = 257152,
-        quantize: Optional[str] = None,
-        image_size: int = 224,
-        layer_norm_eps: float = 1e-06,
-        attention_dropout: float = 0.0,
-        hidden_act: str = "gelu_pytorch_tanh",
-        num_channels: int = 3,
-        **kwargs,
-    ):
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.model_type = model_type
-        self.num_attention_heads = num_attention_heads
-        self.num_hidden_layers = num_hidden_layers
-        self.num_image_tokens = num_image_tokens
-        self.patch_size = patch_size
-        self.projection_dim = projection_dim
-        self.projector_hidden_act = projector_hidden_act
-        self.vision_use_head = vision_use_head
-        self.vocab_size = vocab_size
-        self.quantize = quantize
-        self.image_size = image_size
-        self.layer_norm_eps = layer_norm_eps
-        self.attention_dropout = attention_dropout
-        self.hidden_act = hidden_act
-        self.num_channels = num_channels
-
-        super().__init__(**kwargs)
-
-
-class PaliGemmaConfig(PretrainedConfig):
-    model_type = "paligemma"
-
-    def __init__(
-        self,
-        text_config: GemmaConfig,
-        vision_config: VisionConfig,
-        vocab_size: int = 257152,
-        image_token_index: int = 256000,
-        **kwargs,
-    ):
-        self.text_config = text_config
-        self.vision_config = vision_config
-
-        self.vocab_size = vocab_size
-        self.image_token_index = image_token_index
-
-        self.intermediate_size = text_config.intermediate_size
-        self.num_hidden_layers = text_config.num_hidden_layers
-        self.num_key_value_heads = text_config.num_key_value_heads
-        self.num_attention_heads = text_config.num_attention_heads
-
-        super().__init__(**kwargs)
-
-    def from_pretrained(pretrained_model_name_or_path, **kwargs):
-        vision_config = VisionConfig(
-            hidden_size=1152,
-            intermediate_size=4304,
-            model_type="siglip_vision_model",
-            num_attention_heads=16,
-            num_hidden_layers=27,
-            num_image_tokens=256,
-            patch_size=14,
-            projection_dim=2048,
-            projector_hidden_act="gelu_fast",
-            vision_use_head=False,
-            vocab_size=257152,
-        )
-
-        text_config = GemmaConfig.from_pretrained(
-            pretrained_model_name_or_path,
-            attention_bias=False,
-            attention_dropout=0.0,
-            bos_token_id=2,
-            eos_token_id=1,
-            head_dim=256,
-            hidden_act="gelu_pytorch_tanh",
-            hidden_activation=None,
-            hidden_size=2048,
-            initializer_range=0.02,
-            intermediate_size=16384,
-            max_position_embeddings=8192,
-            model_type="gemma",
-            num_attention_heads=8,
-            num_hidden_layers=18,
-            num_image_tokens=256,
-            num_key_value_heads=1,
-            pad_token_id=0,
-            rms_norm_eps=1e-06,
-            rope_theta=10000.0,
-            torch_dtype="float32",
-            transformers_version="4.40.0.dev0",
-            use_cache=True,
-            vocab_size=257216,
-            **kwargs,
-        )
-
-        return PaliGemmaConfig(
-            text_config=text_config,
-            vision_config=vision_config,
-            **kwargs,
-        )
-
-
-class FlashPaliGemmaForConditionalGeneration(nn.Module):
+class PaliGemmaForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         config.vision_config.quantize = config.quantize
@@ -166,6 +46,9 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
         self.vocab_size = config.vocab_size
         self.config = config
 
+        text_config = config.text_config
+        text_config.speculator = config.speculator
+        text_config.quantize = config.quantize
         self.text_model = load_text_model(
             prefix="language_model" if not prefix else f"{prefix}.language_model",
             config=config.text_config,
@@ -188,36 +71,28 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
-        past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
-        pixel_attention_mask=None,
+        # Unused here
+        pixel_attention_mask: Optional[torch.BoolTensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.text_model.embed_tokens(input_ids)
+        # TODO This is odd but apparently pali gemma position ids start at 1.
+        if cu_seqlen_prefill is not None:
+            max_s += 1
+            position_ids += 1
 
-        if pixel_values is not None and len(pixel_values) > 0:
-            # TODO: avoid these casts upstream
-            pixel_values = pixel_values.to(inputs_embeds.device, inputs_embeds.dtype)
-
+        if pixel_values is not None:
+            pixel_values = pixel_values.to(dtype=inputs_embeds.dtype)
             image_outputs = self.vision_tower(pixel_values)
             image_features = self.multi_modal_projector(image_outputs.last_hidden_state)
 
-            # TODO: now we scale them? maybe we can do this up or downstream
-            scaled_image_features = image_features / (
-                self.config.text_config.hidden_size**0.5
-            )
-
             # mask where image or padding tokens
-            mask = input_ids == self.config.image_token_index | (input_ids == 2)
+            mask = input_ids == self.config.image_token_index
 
             # insert image features into input embeddings
-            # normalizer = torch.tensor(
-            #     self.config.text_config.hidden_size**0.5, dtype=inputs_embeds.dtype
-            # )
-            # inputs_embeds = inputs_embeds * normalizer
-            inputs_embeds[mask] = scaled_image_features.view(
-                -1, scaled_image_features.shape[-1]
-            )
+            inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
 
-        hidden_states = self.language_model.model(
+        hidden_states = self.text_model.model(
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
@@ -230,6 +105,6 @@ class FlashPaliGemmaForConditionalGeneration(nn.Module):
 
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
-        logits, speculative_logits = self.language_model.lm_head(hidden_states)
+        logits, speculative_logits = self.text_model.lm_head(hidden_states)
 
         return logits, speculative_logits

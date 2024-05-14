@@ -16,7 +16,7 @@ def load_text_model(prefix, config, weights, name=None):
             FlashGemmaForCausalLM,
         )
 
-        return FlashGemmaForCausalLM(prefix, config, weights)
+        return FlashGemmaForCausalLM(prefix, config, weights, causal=False)
     elif config.model_type == "paligemma":
         from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
             FlashGemmaForCausalLM,

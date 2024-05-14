@@ -116,6 +116,7 @@ if HAS_FLASH_ATTN_V2_CUDA:
         max_s,
         softmax_scale,
         window_size_left=-1,
+        causal=True,
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
@@ -134,7 +135,7 @@ if HAS_FLASH_ATTN_V2_CUDA:
             0.0,
             softmax_scale,
             False,
-            True,
+            causal,
             window_size_left,
             0,
             False,

@@ -16,7 +16,7 @@ from transformers.modeling_outputs import (
 )
 from transformers import SiglipConfig, SiglipTextConfig, SiglipVisionConfig
 
-from text_generation_server.utils.layers import (
+from text_generation_server.layers.tensor_parallel import (
     TensorParallelEmbedding,
     TensorParallelColumnLinear,
     TensorParallelRowLinear,

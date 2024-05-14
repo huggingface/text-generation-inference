@@ -83,8 +83,7 @@ def image_text_replacement(image_input, config, image_id) -> str:
         return "<image>" * num_features
 
     elif config.model_type == "paligemma":
-        # TODO: use correct number of features
-        return "<image>" * 256
+        return "<image>" * config.text_config.num_image_tokens
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -174,7 +173,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
             image_id = 0
             for chunk in chunks:
                 if chunk["type"] == "text":
-                    full_text += chunk["content"]
+                    full_text += "<bos>" + chunk["content"] + "\n"
                 elif chunk["type"] == "image":
                     image = chunk["content"]
                     # Should never receive URLs anymore, processing should be done
@@ -198,7 +197,10 @@ class VlmCausalLMBatch(FlashMistralBatch):
             max_truncation = max(max_truncation, r.truncate)
 
         batch_tokenized_inputs = tokenizer(
-            batch_inputs, truncation=True, max_length=max_truncation
+            batch_inputs,
+            truncation=True,
+            max_length=max_truncation,
+            add_special_tokens=False,
         )["input_ids"]
         if image_inputs:
             image_input = image_inputs[0]
@@ -376,142 +378,3 @@ class VlmCausalLM(BaseFlashMistral):
         )
         logits = cuda_graph["logits"][:bs]
         return logits, speculative_logits
-
-
-class PaliVlmCausalLMBatch(FlashCausalLMBatch):
-    pixel_values: Optional[List[torch.Tensor]]
-    pixel_attention_mask: Optional[List[torch.Tensor]]
-    image_sizes: Optional[List[Tuple[int, int]]]
-
-    @classmethod
-    @tracer.start_as_current_span("concatenate")
-    def concatenate(cls, batches):
-        batch = super(PaliVlmCausalLMBatch, cls).concatenate(batches)
-        batch.pixel_values = None
-        batch.pixel_attention_mask = None
-        batch.image_sizes = None
-        return batch
-
-    @tracer.start_as_current_span("filter")
-    def filter(self, request_ids: List[int]):
-        batch = super().filter(request_ids)
-        batch.pixel_values = None
-        batch.pixel_attention_mask = None
-        batch.image_sizes = None
-        return batch
-
-    @classmethod
-    def batch_tokenized_inputs(cls, requests, tokenizer, processor, config):
-        batch_inputs = []
-        image_inputs = []
-        text_inputs = []
-        image_text_replacements = []
-        max_truncation = 0
-        for r in requests:
-            chunks = split(r.inputs)
-            full_text = ""
-            image_id = 0
-            for chunk in chunks:
-                if chunk["type"] == "text":
-                    full_text += chunk["content"]
-                    text_inputs.append(chunk["content"])
-                elif chunk["type"] == "image":
-                    image = chunk["content"]
-                    # Should never receive URLs anymore, processing should be done
-                    # On the rust layer.
-                    # This avoid making n queries per TP
-                    # if image.startswith("https://") or image.startswith("http://"):
-                    #     image = processor.image_processor.fetch_images(image)
-                    if image.startswith("data:"):
-                        image = load_data_uri(image)
-                    else:
-                        raise RuntimeError(
-                            "Cannot process input image not starting with data:"
-                        )
-                    image_input = processor.image_processor(image, return_tensors="pt")
-                    text_replacement = image_text_replacement(
-                        image_input, config, image_id
-                    )
-                    full_text += text_replacement
-                    image_text_replacements.append(text_replacement)
-                    image_inputs.append(image_input)
-                else:
-                    raise RuntimeError(f"Invalid chunk type {chunk['type']}")
-
-            batch_inputs.append(full_text)
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs,
-            truncation=True,
-            max_length=max_truncation,
-            add_special_tokens=False,
-        )["input_ids"]
-
-        image_token = tokenizer.get_added_vocab()["<image>"]
-
-        # find the index of the first non-image token
-        for batch in batch_tokenized_inputs:
-            first_non_image = 0
-            for i, token in enumerate(batch):
-                if token != image_token:
-                    first_non_image = i
-                    break
-
-        # manually add the bos to the left of the text
-        batch_tokenized_inputs = [
-            batch[:first_non_image] + [tokenizer.bos_token_id] + batch[first_non_image:]
-            for batch in batch_tokenized_inputs
-        ]
-
-        if image_inputs:
-            image_input = image_inputs[0]
-            new_image_inputs = {
-                "pixel_values": torch.cat(
-                    [img["pixel_values"] for img in image_inputs], dim=0
-                ),
-            }
-            if "pixel_attention_mask" in image_input:
-                new_image_inputs["pixel_attention_mask"] = torch.cat(
-                    [img["pixel_attention_mask"] for img in image_inputs], dim=0
-                )
-            if "image_sizes" in image_input:
-                new_image_inputs["image_sizes"] = torch.cat(
-                    [img["image_sizes"] for img in image_inputs], dim=0
-                )
-            image_inputs = new_image_inputs
-        else:
-            image_inputs = None
-        return batch_tokenized_inputs, image_inputs
-
-    @classmethod
-    def from_pb_processor(
-        cls,
-        pb: generate_pb2.Batch,
-        tokenizer: PreTrainedTokenizerBase,
-        processor,
-        config,
-        dtype: torch.dtype,
-        device: torch.device,
-    ) -> "PaliVlmCausalLMBatch":
-        batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
-            pb.requests, tokenizer, processor, config
-        )
-        batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
-        if image_inputs is not None:
-            batch.pixel_values = image_inputs["pixel_values"].to(device=device)
-            if "pixel_attention_mask" in image_inputs:
-                batch.pixel_attention_mask = image_inputs["pixel_attention_mask"].to(
-                    device=device
-                )
-            else:
-                batch.pixel_attention_mask = None
-            if "image_sizes" in image_inputs:
-                batch.image_sizes = image_inputs["image_sizes"].to(device=device)
-            else:
-                batch.image_sizes = None
-        else:
-            batch.pixel_values = None
-            batch.pixel_attention_mask = None
-            batch.image_sizes = None
-        return batch

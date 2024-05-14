@@ -100,7 +100,6 @@ impl LlavaNext {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
 pub struct ClipVisionModel {
     image_size: usize,
@@ -108,7 +107,6 @@ pub struct ClipVisionModel {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
 pub struct Idefics2 {}
 
@@ -119,18 +117,20 @@ impl Idefics2 {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
-pub struct Paligemma {}
+pub struct PaliTextConfig {
+    num_image_tokens: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Paligemma {
+    text_config: PaliTextConfig,
+}
 
 impl Paligemma {
     pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
-        // TODO: improve to calculate based on height and width
-        // 224 = 256 image tokens
-        // 448 = 1024 image tokens
-        // 896 = 4096 image tokens
-
-        256
+        self.text_config.num_image_tokens
     }
 }
 
