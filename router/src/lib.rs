@@ -546,6 +546,7 @@ impl ChatCompletion {
                     content: output,
                     name: None,
                     tool_calls,
+                    tool_call_id:None
                 },
                 logprobs: return_logprobs
                     .then(|| ChatCompletionLogprobs::from((details.tokens, details.top_tokens))),
@@ -961,6 +962,7 @@ pub(crate) struct Message {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCall>>,
+    pub tool_call_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
