@@ -18,6 +18,7 @@ vllm-rocm:
 
 build-vllm-rocm: vllm-rocm
 	cd vllm && git fetch && git checkout ca6913b3c2ffacdcb7d15e914dc34adbc6c89479
+	cd vllm && patch /opt/rocm/include/hip/amd_detail/amd_hip_bf16.h ./rocm_patch/rocm_bf16.patch
 	cd vllm && PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py install
 
 install-vllm-rocm: build-vllm-rocm
