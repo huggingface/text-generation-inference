@@ -6,12 +6,14 @@ from torch import nn
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.utils import flash_attn, paged_attention
 from text_generation_server.utils.layers import (
-    TensorParallelRowLinear,
+    FastLayerNorm,
+    PositionRotaryEmbedding,
+    SpeculativeHead,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    SpeculativeHead,
+    TensorParallelRowLinear,
     get_linear,
 )
 from text_generation_server.layers.layernorm import (
@@ -138,7 +140,10 @@ class FlashRWAttention(torch.nn.Module):
         self.rope_theta = config.rope_theta
 
         self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config, dim=self.head_size, base=self.rope_theta, device=weights.device
+            config=config,
+            dim=self.head_size,
+            base=self.rope_theta,
+            device=weights.device,
         )
         self.softmax_scale = self.head_size ** (-0.5)
 
@@ -476,6 +481,7 @@ class FlashRWLayer(nn.Module):
 
             return mlp_output, residual
 
+
 class FlashRWLayerNorm(nn.Module):
     def __init__(self, config, prefix, weights):
         super().__init__()
@@ -558,7 +564,7 @@ class FlashRWLargeLayer(nn.Module):
     def __init__(self, layer_id, config, weights):
         super().__init__()
         prefix = f"transformer.h.{layer_id}"
-        
+
         self.ln_layer = FlashRWLayerNorm(config, prefix, weights)
 
         self.self_attention = FlashRWLargeAttention(
