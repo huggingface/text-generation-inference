@@ -9,6 +9,7 @@ The following models are optimized and can be served with TGI, which uses custom
 - [BLOOM](https://huggingface.co/bigscience/bloom)
 - [FLAN-T5](https://huggingface.co/google/flan-t5-xxl)
 - [Galactica](https://huggingface.co/facebook/galactica-120b)
+- [GPT-2](https://huggingface.co/openai-community/gpt2)
 - [GPT-Neox](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - [Llama](https://github.com/facebookresearch/llama)
 - [OPT](https://huggingface.co/facebook/opt-66b)

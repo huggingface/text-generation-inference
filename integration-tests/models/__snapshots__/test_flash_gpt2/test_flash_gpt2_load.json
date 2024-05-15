@@ -1,0 +1,398 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2061,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 318,
+          "logprob": -3.1835938,
+          "text": " is"
+        },
+        {
+          "id": 2769,
+          "logprob": -9.171875,
+          "text": " deep"
+        },
+        {
+          "id": 4673,
+          "logprob": -1.6425781,
+          "text": " learning"
+        },
+        {
+          "id": 30,
+          "logprob": -0.7314453,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 198,
+          "logprob": -0.68603516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 198,
+          "logprob": -0.005672455,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 29744,
+          "logprob": -0.3251953,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4673,
+          "logprob": -0.08294678,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 318,
+          "logprob": -0.5854492,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 257,
+          "logprob": -0.9423828,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 649,
+          "logprob": -2.0800781,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 2214,
+          "logprob": -1.8369141,
+          "special": false,
+          "text": " field"
+        },
+        {
+          "id": 286,
+          "logprob": -1.0683594,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 2267,
+          "logprob": -0.9711914,
+          "special": false,
+          "text": " research"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new field of research"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2061,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 318,
+          "logprob": -3.1660156,
+          "text": " is"
+        },
+        {
+          "id": 2769,
+          "logprob": -9.1796875,
+          "text": " deep"
+        },
+        {
+          "id": 4673,
+          "logprob": -1.6376953,
+          "text": " learning"
+        },
+        {
+          "id": 30,
+          "logprob": -0.72216797,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 198,
+          "logprob": -0.7089844,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 198,
+          "logprob": -0.0054779053,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 29744,
+          "logprob": -0.3190918,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4673,
+          "logprob": -0.08319092,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 318,
+          "logprob": -0.5839844,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 257,
+          "logprob": -0.9506836,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 649,
+          "logprob": -2.0878906,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 2214,
+          "logprob": -1.8496094,
+          "special": false,
+          "text": " field"
+        },
+        {
+          "id": 286,
+          "logprob": -1.0673828,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 2267,
+          "logprob": -0.9370117,
+          "special": false,
+          "text": " research"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new field of research"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2061,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 318,
+          "logprob": -3.1660156,
+          "text": " is"
+        },
+        {
+          "id": 2769,
+          "logprob": -9.1796875,
+          "text": " deep"
+        },
+        {
+          "id": 4673,
+          "logprob": -1.6376953,
+          "text": " learning"
+        },
+        {
+          "id": 30,
+          "logprob": -0.72216797,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 198,
+          "logprob": -0.7089844,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 198,
+          "logprob": -0.0054779053,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 29744,
+          "logprob": -0.3190918,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4673,
+          "logprob": -0.08319092,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 318,
+          "logprob": -0.5839844,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 257,
+          "logprob": -0.9506836,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 649,
+          "logprob": -2.0878906,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 2214,
+          "logprob": -1.8496094,
+          "special": false,
+          "text": " field"
+        },
+        {
+          "id": 286,
+          "logprob": -1.0673828,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 2267,
+          "logprob": -0.9370117,
+          "special": false,
+          "text": " research"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new field of research"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2061,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 318,
+          "logprob": -3.1660156,
+          "text": " is"
+        },
+        {
+          "id": 2769,
+          "logprob": -9.1796875,
+          "text": " deep"
+        },
+        {
+          "id": 4673,
+          "logprob": -1.6376953,
+          "text": " learning"
+        },
+        {
+          "id": 30,
+          "logprob": -0.72216797,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 198,
+          "logprob": -0.7089844,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 198,
+          "logprob": -0.0054779053,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 29744,
+          "logprob": -0.3190918,
+          "special": false,
+          "text": "Deep"
+        },
+        {
+          "id": 4673,
+          "logprob": -0.08319092,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 318,
+          "logprob": -0.5839844,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 257,
+          "logprob": -0.9506836,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 649,
+          "logprob": -2.0878906,
+          "special": false,
+          "text": " new"
+        },
+        {
+          "id": 2214,
+          "logprob": -1.8496094,
+          "special": false,
+          "text": " field"
+        },
+        {
+          "id": 286,
+          "logprob": -1.0673828,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 2267,
+          "logprob": -0.9370117,
+          "special": false,
+          "text": " research"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\nDeep learning is a new field of research"
+  }
+]
