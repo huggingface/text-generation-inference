@@ -132,6 +132,7 @@ pub enum Config {
     Santacoder,
     Bloom,
     Mpt,
+    Gpt2,
     GptNeox,
     Phi,
     #[serde(rename = "phi-msft")]
