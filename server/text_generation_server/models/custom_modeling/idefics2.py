@@ -29,7 +29,7 @@ from text_generation_server.models.custom_modeling.vlm import (
 )
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
@@ -683,9 +683,9 @@ class Idefics2ForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         config.vision_config.quantize = config.quantize
-        config.vision_config.use_medusa = config.use_medusa
+        config.vision_config.speculator = config.speculator
         config.text_config.quantize = config.quantize
-        config.text_config.use_medusa = config.use_medusa
+        config.text_config.speculator = config.speculator
 
         vision_config = config.vision_config
         self.text_model = load_text_model(

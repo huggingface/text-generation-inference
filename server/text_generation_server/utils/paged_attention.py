@@ -1,22 +1,17 @@
 import torch
-from text_generation_server.utils.import_utils import (
-    IS_CUDA_SYSTEM,
-    IS_ROCM_SYSTEM,
-    IS_XPU_SYSTEM,
-)
+from text_generation_server.utils.import_utils import SYSTEM
 
 _PARTITION_SIZE = 512
 
-# TODO: check is this is OK with XPU or we should guard it
-try:
-    from vllm._C import cache_ops
-    from vllm._C import ops
-except Exception as e:
-    raise ImportError(f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}")
-
-
-if IS_XPU_SYSTEM:
+if SYSTEM == "xpu":
     import intel_extension_for_pytorch as ipex
+else:
+    try:
+        from vllm._C import cache_ops
+        from vllm._C import ops
+    except Exception as e:
+        raise ImportError(f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}")
+
 
 def reshape_and_cache(
     key: torch.Tensor,
@@ -25,7 +20,7 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if IS_XPU_SYSTEM:
+    if SYSTEM == "xpu":
         ipex.llm.modules.PagedAttention.reshape_and_cache(
             key, value, key_cache, value_cache, slots
         )
@@ -67,7 +62,7 @@ def attention(
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
-    if IS_XPU_SYSTEM:
+    if SYSTEM == "xpu":
         query = query.contiguous()
         return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
             out,

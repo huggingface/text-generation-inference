@@ -119,7 +119,11 @@ impl Validation {
         // If we have a fast tokenizer
         if let Some((encoding, inputs)) = self.tokenize(inputs.clone(), truncate).await? {
             // Create response channel
-            let input_length = encoding.len();
+            let input_length = if let Some(truncate) = truncate {
+                std::cmp::min(encoding.len(), truncate)
+            } else {
+                encoding.len()
+            };
 
             // Get total tokens
             let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {

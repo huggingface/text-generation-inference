@@ -40,7 +40,7 @@ from transformers.modeling_outputs import (
 from transformers.modeling_utils import PreTrainedModel
 from transformers import GPTNeoXConfig
 from loguru import logger
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
@@ -59,9 +59,6 @@ if (
         CUSTOM_KERNELS_ENABLED = True
     except ImportError:
         pass
-
-if not CUSTOM_KERNELS_ENABLED:
-    logger.warning("We're not using custom kernels.")
 
 
 def make_causal_mask(

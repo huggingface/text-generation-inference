@@ -16,6 +16,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
+use thiserror::Error;
 use tracing_subscriber::EnvFilter;
 
 mod env_runtime;
@@ -819,25 +820,25 @@ fn find_num_shards(
     Ok(num_shard)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 enum LauncherError {
+    #[error("Invalid argument: {0}")]
     ArgumentValidation(String),
+    #[error("not enough cuda devices: {0}")]
     NotEnoughCUDADevices(String),
+    #[error("Download error")]
     DownloadError,
+    #[error("Shard cannot start")]
     ShardCannotStart,
+    #[error("Shard disconnected")]
     ShardDisconnected,
+    #[error("Shard failed")]
     ShardFailed,
+    #[error("Webserver failed")]
     WebserverFailed,
+    #[error("Webserver cannot start")]
     WebserverCannotStart,
 }
-
-impl core::fmt::Display for LauncherError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl std::error::Error for LauncherError {}
 
 fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
     // Enter download tracing span

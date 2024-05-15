@@ -52,16 +52,17 @@ from text_generation_server.utils.layers import (
     TensorParallelEmbedding,
     TensorParallelRowLinear,
     SpeculativeHead,
-    PositionRotaryEmbedding,
     FastLinear,
 )
-from text_generation_server.utils.import_utils import IS_CUDA_SYSTEM, IS_ROCM_SYSTEM
+from text_generation_server.layers.rotary import PositionRotaryEmbedding
+from text_generation_server.utils.import_utils import SYSTEM
 
-if IS_CUDA_SYSTEM:
+if SYSTEM == "cuda":
     import dropout_layer_norm
-elif IS_ROCM_SYSTEM:
+elif SYSTEM == "rocm":
     from vllm._C import ops
-
+else:
+    raise RuntimeError(f"Unsupported system {SYSTEM}")
 
 @dataclass
 class BaseModelOutputWithPastImage(BaseModelOutputWithPast):
@@ -373,7 +374,7 @@ class IdeficsRMSNorm(nn.Module):
                 hidden_states = hidden_states.to(self.weight.dtype)
 
             return self.weight * hidden_states
-        elif IS_CUDA_SYSTEM:
+        elif SYSTEM == "cuda":
             # faster post attention rms norm
             unwrap = False
             if len(hidden_states.shape) > 2:
@@ -405,7 +406,7 @@ class IdeficsRMSNorm(nn.Module):
                 normed_hidden_states = normed_hidden_states.view(*shape)
 
             return normed_hidden_states
-        elif IS_ROCM_SYSTEM:
+        elif SYSTEM == "rocm":
             # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
             if residual is not None:
                 hidden_states += residual

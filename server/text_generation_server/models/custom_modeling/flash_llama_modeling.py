@@ -17,27 +17,30 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from typing import List, Optional, Tuple
+
 import torch
 import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils.import_utils import IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    PositionRotaryEmbedding,
     SpeculativeHead,
-    get_linear,
+)
+from text_generation_server.layers.rotary import PositionRotaryEmbedding
+from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
 
-if IS_ROCM_SYSTEM:
+if SYSTEM == "rocm":
     try:
         from vllm import _custom_C
     except Exception as e:
@@ -46,21 +49,27 @@ if IS_ROCM_SYSTEM:
 
 def load_attention(config, prefix, weights):
     if config.num_attention_heads != config.num_key_value_heads:
-        return _load_gqa(config, prefix, weights)
+        return TensorParallelColumnLinear.load_multi(
+            config,
+            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+            dim=0,
+            weights=weights,
+            bias=bias,
+        )
     else:
         if config.model_type == "baichuan":
             return TensorParallelColumnLinear.load_qkv(
                 config,
                 prefix=f"{prefix}.W_pack",
                 weights=weights,
-                bias=False,
+                bias=bias,
             )
         elif config.model_type == "phi3":
             return TensorParallelColumnLinear.load_qkv(
                 config,
                 prefix=f"{prefix}.qkv_proj",
                 weights=weights,
-                bias=False,
+                bias=bias,
             )
         else:
             return TensorParallelColumnLinear.load_multi(
@@ -68,34 +77,8 @@ def load_attention(config, prefix, weights):
                 prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
                 dim=0,
                 weights=weights,
-                bias=False,
+                bias=bias,
             )
-
-
-def _load_gqa(config, prefix: str, weights):
-    assert config.hidden_size % config.num_attention_heads == 0
-    assert config.num_attention_heads % weights.process_group.size() == 0
-
-    weight = weights.get_multi_weights_col(
-        prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
-        dim=0,
-    )
-
-    if config.quantize not in ["gptq", "awq"]:
-        weight = weight.to(dtype=weights.dtype).to(device=weights.device)
-
-        head_size = config.hidden_size // config.num_attention_heads
-        num_heads = config.num_attention_heads // weights.process_group.size()
-        num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.shape) == [
-            (num_heads + 2 * num_key_value_heads) * head_size,
-            config.hidden_size,
-        ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
-
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=None, quantize=config.quantize)
-    )
 
 
 class FlashLlamaAttention(torch.nn.Module):
@@ -218,12 +201,13 @@ class LlamaMLP(nn.Module):
             )
         )
         # Fuse gate and up proj
+        bias = getattr(config, "mlp_bias", False)
         if config.model_type == "phi3":
             self.gate_up_proj = TensorParallelColumnLinear.load_gate_up(
                 config,
                 prefix=f"{prefix}.gate_up_proj",
                 weights=weights,
-                bias=False,
+                bias=bias,
             )
         else:
             self.gate_up_proj = TensorParallelColumnLinear.load_multi(
@@ -231,13 +215,13 @@ class LlamaMLP(nn.Module):
                 prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
                 weights=weights,
                 dim=0,
-                bias=False,
+                bias=bias,
             )
         self.down_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.down_proj",
             weights=weights,
-            bias=False,
+            bias=bias,
         )
         self.intermediate_size = (
             config.intermediate_size // weights.process_group.size()
@@ -399,9 +383,14 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             weights=weights,
         )
         self.model = FlashLlamaModel(prefix, config, weights)
+        if config.tie_word_embeddings:
+            suffix = "model.embed_tokens"
+        else:
+            suffix = "lm_head"
+
         self.lm_head = SpeculativeHead.load(
             config,
-            prefix="lm_head" if not prefix else f"{prefix}.lm_head",
+            prefix=suffix if not prefix else f"{prefix}.suffix",
             weights=weights,
         )
 

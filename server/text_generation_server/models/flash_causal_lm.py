@@ -13,7 +13,7 @@ from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
 
-from text_generation_server.utils.import_utils import IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.speculate import get_speculate
@@ -33,12 +33,13 @@ from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
-tracer = trace.get_tracer(__name__)
 from text_generation_server.utils.import_utils import (
-    IS_CUDA_SYSTEM,
-    IS_ROCM_SYSTEM,
-    IS_XPU_SYSTEM,
+    empty_cache,
+    synchronize,
+    get_free_memory,
 )
+
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -775,7 +776,7 @@ class FlashCausalLM(Model):
             max_bt = batch.max_blocks
             max_s = max_bt * get_cache_manager().block_size
 
-            if IS_ROCM_SYSTEM and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
+            if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
             _, batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
@@ -784,10 +785,7 @@ class FlashCausalLM(Model):
                 f"You need to decrease `--max-batch-prefill-tokens`"
             ) from e
 
-        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
-            torch.cuda.synchronize(self.device)
-        elif IS_XPU_SYSTEM:
-            torch.xpu.synchronize(self.device)
+        synchronize(self.device)
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
@@ -795,20 +793,7 @@ class FlashCausalLM(Model):
         cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
-        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
-            total_free_memory, _ = torch.cuda.mem_get_info(self.device)
-            total_gpu_memory = torch.cuda.get_device_properties(
-                self.device
-            ).total_memory
-
-            free_memory = max(
-                0, total_free_memory - (1 - MEMORY_FRACTION) * total_gpu_memory
-            )
-        elif IS_XPU_SYSTEM:
-            total_gpu_memory = torch.xpu.get_device_properties(self.device).total_memory
-            free_memory = int(total_gpu_memory * 0.5)
-        else:
-            raise NotImplementedError("FlashModel is only available on GPU")
+        free_memory = get_free_memory(self.device, MEMORY_FRACTION)
 
         num_blocks = (
             # Leave 5% for some wiggle room
@@ -830,7 +815,7 @@ class FlashCausalLM(Model):
             self.device,
         )
 
-        if IS_ROCM_SYSTEM and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
+        if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
             if os.environ.get("PYTORCH_TUNABLEOP_TUNING", "1"):
                 torch.cuda.tunable.tuning_enable(True)
 
@@ -1166,6 +1151,8 @@ class FlashCausalLM(Model):
             # Append next token to all tokens
             next_token_texts = []
             left = 0
+
+            logger.info(f"Accepted ids {n_accepted_ids}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):

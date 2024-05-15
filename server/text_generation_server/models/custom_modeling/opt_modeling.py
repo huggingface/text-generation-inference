@@ -27,7 +27,7 @@ from transformers.modeling_outputs import (
 )
 from transformers.modeling_utils import PreTrainedModel
 from transformers import OPTConfig
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     FastLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
