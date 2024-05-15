@@ -48,6 +48,7 @@ if SYSTEM == "rocm":
 
 
 def load_attention(config, prefix, weights):
+    bias = config.attention_bias
     if config.num_attention_heads != config.num_key_value_heads:
         return TensorParallelColumnLinear.load_multi(
             config,

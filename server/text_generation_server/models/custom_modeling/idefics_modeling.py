@@ -47,7 +47,7 @@ from text_generation_server.models.custom_modeling.idefics_vision import (
 from text_generation_server.models.custom_modeling.idefics_perceiver import (
     IdeficsPerceiverResampler,
 )
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,

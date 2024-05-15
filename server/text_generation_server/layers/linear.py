@@ -41,9 +41,9 @@ class FastLinearROCm(torch.nn.Module):
         bias,
     ) -> None:
         super().__init__()
-        self.weight = nn.Parameter(weight)
+        self.weight = torch.nn.Parameter(weight)
         if bias is not None:
-            self.bias = nn.Parameter(bias)
+            self.bias = torch.nn.Parameter(bias)
         else:
             self.bias = None
 

@@ -5,12 +5,15 @@ from loguru import logger
 import math
 
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.flash_attn_triton import triton_attention
 
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
     raise ImportError("`USE_FLASH_ATTENTION` is false.")
 HAS_FLASH_ATTN = False
 HAS_FLASH_ATTN_V2_CUDA = False
 HAS_FLASH_ATTN_V2_ROCM = False
+ROCM_USE_FLASH_ATTN_V2_CK = False
+ROCM_USE_FLASH_ATTN_V2_TRITON = False
 
 if SYSTEM == "xpu":
     import intel_extension_for_pytorch as ipex
