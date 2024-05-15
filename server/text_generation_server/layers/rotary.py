@@ -8,7 +8,7 @@ if SYSTEM == "cuda":
     from flash_attn.layers.rotary import RotaryEmbedding
     import rotary_emb
 elif SYSTEM == "rocm":
-    from vllm import pos_encoding_ops
+    from vllm._C import ops
 
 
 def _create_inv_freq(dim, base, device):
@@ -66,7 +66,7 @@ class PositionRotaryEmbedding(nn.Module):
             head_size = query.shape[-1]
 
             # Inplace operation, updating query and key.
-            pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, True)
+            ops.rotary_embedding(query, key, head_size, cos, sin, True)
         elif SYSTEM == "xpu":
             ipex.llm.functional.rotary_embedding(
                 query, key, sin, cos, query.size(-1), True
