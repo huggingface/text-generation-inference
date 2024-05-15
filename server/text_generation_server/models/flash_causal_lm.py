@@ -1101,7 +1101,7 @@ class FlashCausalLM(Model):
             next_token_texts = []
             left = 0
 
-            logger.info(f"Accepted ids {n_accepted_ids}")
+            logger.debug(f"Accepted ids {n_accepted_ids}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):
