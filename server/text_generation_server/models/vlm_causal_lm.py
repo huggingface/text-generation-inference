@@ -203,7 +203,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
             batch_inputs,
             truncation=True,
             max_length=max_truncation,
-            add_special_tokens=False,
+            add_special_tokens=not config.model_type == "paligemma",
         )["input_ids"]
         if image_inputs:
             image_input = image_inputs[0]
