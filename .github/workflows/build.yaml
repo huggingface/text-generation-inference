@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
-      EC2_AMI_ID: ami-0471c7c76be300c9f
+      EC2_AMI_ID: ami-0789b6925c11b1fb2
       EC2_INSTANCE_TYPE: g5.12xlarge
       EC2_SUBNET_ID: subnet-931b34f5,subnet-ecb993cd,subnet-943dc2d8,subnet-45371f1a,subnet-ee93e0df,subnet-fddc3dfc
       EC2_SECURITY_GROUP: sg-030175c435ac141d6
@@ -130,6 +130,8 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
