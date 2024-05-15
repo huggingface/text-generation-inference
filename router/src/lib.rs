@@ -8,7 +8,8 @@ mod validation;
 
 use infer::{Infer, InferError, InferStreamResponse};
 use queue::{Entry, Queue};
-use serde::{Deserialize, Serialize};
+use regex::Regex;
+use serde::{Deserialize, Deserializer, Serialize};
 use tokio::sync::OwnedSemaphorePermit;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use utoipa::ToSchema;
@@ -896,16 +897,12 @@ pub(crate) struct ImageUrl {
     pub url: String,
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 enum ContentChunk {
     Text(String),
     ImageUrl(String),
 }
 
-#[derive(Clone, Deserialize, Debug)]
-struct ContentChunks(Vec<ContentChunk>);
-
-// Convert in and out of ContentChunk
 impl From<String> for ContentChunk {
     fn from(s: String) -> Self {
         ContentChunk::Text(s)
@@ -918,7 +915,29 @@ impl From<&str> for ContentChunk {
     }
 }
 
-// Convert in and out of ContentChunks
+impl<'de> Deserialize<'de> for ContentChunk {
+    fn deserialize<D>(deserializer: D) -> Result<ContentChunk, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(tag = "type")]
+        enum ContentType {
+            #[serde(rename = "text")]
+            Text { text: String },
+            #[serde(rename = "image_url")]
+            ImageUrl { image_url: ImageUrl },
+        }
+        match ContentType::deserialize(deserializer)? {
+            ContentType::Text { text } => Ok(ContentChunk::Text(text)),
+            ContentType::ImageUrl { image_url } => Ok(ContentChunk::ImageUrl(image_url.url)),
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Debug, PartialEq)]
+struct ContentChunks(Vec<ContentChunk>);
+
 impl From<Vec<ContentChunk>> for ContentChunks {
     fn from(chunks: Vec<ContentChunk>) -> Self {
         Self(chunks)
@@ -947,48 +966,63 @@ impl Serialize for ContentChunks {
                 ContentChunk::ImageUrl(s) => format!("![]({})", s),
             })
             .collect::<Vec<_>>()
-            .join(" ");
+            .join("");
         serializer.serialize_str(&formatted)
     }
 }
 
+fn parse_markdown_to_chunks(s: &str) -> Result<Vec<ContentChunk>, serde_json::Error> {
+    let mut chunks = Vec::new();
+    let re = Regex::new(r"!\[([^\]]*)\]\(([^)]+)\)").unwrap();
+
+    let mut last_index = 0;
+    for cap in re.captures_iter(s) {
+        if let Some(m) = cap.get(0) {
+            if m.start() > last_index {
+                chunks.push(ContentChunk::Text(s[last_index..m.start()].to_string()));
+            }
+            let _alt_text = cap.get(1).map(|m| m.as_str().to_string());
+            let url = cap.get(2).map(|m| m.as_str().to_string()).unwrap();
+            chunks.push(ContentChunk::ImageUrl(url));
+            last_index = m.end();
+        }
+    }
+
+    if last_index < s.len() {
+        chunks.push(ContentChunk::Text(s[last_index..].to_string()));
+    }
+
+    Ok(chunks)
+}
+
 mod message_content_serde {
     use super::*;
-    use serde::de::{Deserialize, Deserializer, Error};
+    use serde::{de::Error, Deserialize, Deserializer};
     use serde_json::Value;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<ContentChunks>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let value = Value::deserialize(deserializer)?;
-
-        match value {
-            Value::String(s) => Ok(Some(vec![s.into()].into())),
+        match Value::deserialize(deserializer)? {
+            Value::String(s) => {
+                let chunks = parse_markdown_to_chunks(&s).map_err(Error::custom)?;
+                Ok(Some(chunks.into()))
+            }
             Value::Array(arr) => arr
                 .into_iter()
                 .map(|v| match v {
                     Value::String(s) => Ok(ContentChunk::Text(s)),
-                    Value::Object(map) => match map
-                        .get("image_url")
-                        .and_then(|x| x.get("url").and_then(|u| u.as_str()))
-                    {
-                        Some(url) => Ok(ContentChunk::ImageUrl(url.to_string())),
-                        None => map
-                            .get("text")
-                            .and_then(|t| t.as_str())
-                            .map(|text| Ok(ContentChunk::Text(text.to_string())))
-                            .map_or_else(
-                                || Err(Error::custom("Expected a string or an object")),
-                                |x| x,
-                            ),
-                    },
-                    _ => Err(Error::custom("Expected a string or an object")),
+                    Value::Object(map) => serde_json::from_value(Value::Object(map))
+                        .map_err(|e| Error::custom(e.to_string())),
+                    _ => Err(Error::custom("Expected string or object")),
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .map(|chunks| Some(chunks.into())),
             Value::Null => Ok(None),
-            _ => Err(Error::custom("Invalid content format")),
+            _ => Err(Error::custom(
+                "Expected string or array of text/image_url objects",
+            )),
         }
     }
 }
@@ -1169,6 +1203,7 @@ pub(crate) struct ErrorResponse {
 mod tests {
     use super::*;
 
+    use serde_json::json;
     use tokenizers::Tokenizer;
 
     pub(crate) async fn get_tokenizer() -> Tokenizer {
@@ -1235,5 +1270,59 @@ mod tests {
             Some("<｜begin▁of▁sentence｜>".to_string())
         );
         assert_eq!(config.eos_token, Some("<｜end▁of▁sentence｜>".to_string()));
+    }
+
+    #[test]
+    fn test_message_content_chunks_serde() {
+        let content = json!("Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");
+        let chunks = message_content_serde::deserialize(content)
+            .expect("Failed to deserialize")
+            .unwrap();
+
+        assert_eq!(
+            chunks,
+            ContentChunks(vec![
+                ContentChunk::Text("Whats in this image?".to_string()),
+                ContentChunk::ImageUrl("https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string())
+            ])
+        );
+
+        let flattened = serde_json::to_string(&chunks).unwrap();
+
+        assert_eq!(
+            flattened,
+            r#""Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)""#
+        );
+    }
+
+    #[test]
+    fn test_typed_message_content_chunks_serde() {
+        let content = json!([
+            {"type": "text", "text": "Whats in this image?"},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"
+                },
+            },
+        ]);
+        let chunks: ContentChunks = message_content_serde::deserialize(content)
+            .expect("Failed to deserialize")
+            .unwrap();
+
+        assert_eq!(
+            chunks,
+            ContentChunks(vec![
+                ContentChunk::Text("Whats in this image?".to_string()),
+                ContentChunk::ImageUrl("https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string())
+            ])
+        );
+
+        let flattened = serde_json::to_string(&chunks).unwrap();
+
+        assert_eq!(
+            flattened,
+            r#""Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)""#
+        );
     }
 }

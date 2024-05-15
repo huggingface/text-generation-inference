@@ -29,6 +29,7 @@ from text_generation.types import (
     ChatCompletionComplete,
     Completion,
 )
+from huggingface_hub import AsyncInferenceClient
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
@@ -225,6 +226,7 @@ class GenerousResponseComparator(ResponseComparator):
 class LauncherHandle:
     def __init__(self, port: int):
         self.client = AsyncClient(f"http://localhost:{port}")
+        self.inference_client = AsyncInferenceClient(f"http://localhost:{port}")
 
     def _inner_health(self):
         raise NotImplementedError

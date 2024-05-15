@@ -1,0 +1,25 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": " The image you've provided features an anthropomorphic rabbit in spacesuit attire. This rabbit is depicted with human-like posture and movement, standing on a rocky terrain with a vast, reddish-brown landscape in the background. The spacesuit is detailed with mission patches, circuitry, and a helmet that covers the rabbit's face and ear, with an illuminated red light on the chest area.\n\nThe artwork style is that of a",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      }
+    }
+  ],
+  "created": 1715786475,
+  "id": "",
+  "model": "llava-hf/llava-v1.6-mistral-7b-hf",
+  "object": "text_completion",
+  "system_fingerprint": "2.0.2-native",
+  "usage": {
+    "completion_tokens": 100,
+    "prompt_tokens": 2943,
+    "total_tokens": 3043
+  }
+}

@@ -375,8 +375,6 @@ impl ChatTemplate {
             }
         }
 
-        println!("{:?}", messages);
-
         self.template
             .render(ChatTemplateInputs {
                 messages,
