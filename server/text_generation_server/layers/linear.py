@@ -34,7 +34,7 @@ class FastLinear(torch.nn.Module):
         return F.linear(input, self.weight, self.bias)
 
 
-class FastLinearROCm(nn.Module):
+class FastLinearROCm(torch.nn.Module):
     def __init__(
         self,
         weight,
@@ -60,7 +60,7 @@ class FastLinearROCm(nn.Module):
         weight = self.weight
         bias = self.bias
 
-        if IS_ROCM_SYSTEM and inp.numel() // inp.size(-1) == 1:
+        if SYSTEM == "rocm" and inp.numel() // inp.size(-1) == 1:
             batched = False
 
             if inp.dim() == 3:

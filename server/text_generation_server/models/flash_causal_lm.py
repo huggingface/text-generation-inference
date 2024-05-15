@@ -759,10 +759,8 @@ class FlashCausalLM(Model):
 
     def warmup(self, batch: FlashCausalLMBatch):
         # The warmup batch is the biggest batch we could ever receive
-        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
-            torch.cuda.empty_cache()
-        elif IS_XPU_SYSTEM:
-            torch.xpu.empty_cache()
+        empty_cache()
+        
         try:
             cache_manager = set_cache_manager(
                 batch.blocks,

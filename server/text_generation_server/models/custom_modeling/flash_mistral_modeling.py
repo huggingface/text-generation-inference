@@ -26,7 +26,7 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils.import_utils import IS_ROCM_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -41,7 +41,7 @@ from text_generation_server.layers.layernorm import (
 )
 
 
-if IS_ROCM_SYSTEM:
+if SYSTEM == "rocm":
     try:
         from vllm import _custom_C
     except Exception as e:
@@ -289,7 +289,7 @@ class MistralMLP(nn.Module):
         )
 
     def forward(self, hidden_states):
-        if IS_ROCM_SYSTEM and self.hidden_act == "silu" and hidden_states.shape[0] == 1:
+        if SYSTEM == "rocm" and self.hidden_act == "silu" and hidden_states.shape[0] == 1:
             out = torch.empty(
                 hidden_states.shape[0],
                 self.intermediate_size,
