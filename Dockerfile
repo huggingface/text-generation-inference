@@ -96,6 +96,7 @@ WORKDIR /usr/src
 COPY server/Makefile-flash-att Makefile
 
 # Build specific version of flash attention
+ENV TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0+PTX"
 RUN make build-flash-attention
 
 # Build Flash Attention v2 CUDA kernels
@@ -107,6 +108,7 @@ COPY server/Makefile-flash-att-v2 Makefile
 
 # Build specific version of flash attention v2
 RUN make build-flash-attention-v2-cuda
+RUN TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;9.0+PTX" make build-flash-attention
 
 # Build Transformers exllama kernels
 FROM kernel-builder as exllama-kernels-builder
@@ -181,7 +183,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         ca-certificates \
         make \
         curl \
-        build-essential \
+        git \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
