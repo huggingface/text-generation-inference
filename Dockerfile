@@ -181,7 +181,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         ca-certificates \
         make \
         curl \
-        git \
+        build-essential \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
