@@ -34,14 +34,14 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             prefix="vision_tower" if not prefix else f"{prefix}.vision_tower",
             config=config.vision_config,
             weights=weights,
-        ).to(weights.device, weights.dtype)
+        )
 
         self.multi_modal_projector = TensorParallelColumnLinear.load(
             config,
             prefix="multi_modal_projector.linear",
             weights=weights,
             bias=True,
-        ).to(weights.device, weights.dtype)
+        )
 
         self.vocab_size = config.vocab_size
         self.config = config
@@ -53,7 +53,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             prefix="language_model" if not prefix else f"{prefix}.language_model",
             config=config.text_config,
             weights=weights,
-        ).to(weights.device, weights.dtype)
+        )
         self.pad_token_id = (
             config.pad_token_id if config.pad_token_id is not None else -1
         )

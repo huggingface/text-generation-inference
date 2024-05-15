@@ -99,8 +99,13 @@ class GemmaConfig(PretrainedConfig):
 class GemmaFastRMSNorm(FastRMSNorm):
     @classmethod
     def load(cls, prefix, weights, eps=1e-6):
+        dtype = weights.dtype
+        weights.dtype = torch.float32
         weight = weights.get_tensor(f"{prefix}.weight") + 1
-        return cls(weight, eps)
+        weights.dtype = dtype
+        new = cls(weight, eps)
+        new.dtype = dtype
+        return new
 
     # perform the multiplication in full precision and downcast after
     def forward(self, hidden_states, residual=None):
@@ -111,7 +116,7 @@ class GemmaFastRMSNorm(FastRMSNorm):
         variance = hidden_states.pow(2).mean(-1, keepdim=True)
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
         hidden_states = hidden_states * self.weight
-        return hidden_states.to(self.weight.dtype), residual
+        return hidden_states.to(self.dtype), residual
 
 
 def load_attention(config, prefix, weights):
