@@ -114,6 +114,13 @@ ARG BUILD_CAFFE2="0" \
 
 RUN cd pytorch && python tools/amd_build/build_amd.py && python setup.py install
 
+ARG GITHUB_TOKEN
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget && \
+    rm -rf /var/lib/apt/lists/* && \
+    wget --header "Authorization: token ${GITHUB_TOKEN}" https://raw.githubusercontent.com/fxmarty/patched_hipruntime/main/libamdhip64.so.6.2.41130
+
+ENV LD_PRELOAD="/libamdhip64.so.6.2.41130"
+
 # Set as recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
 # Disabled for now as it is currently not stable with ROCm 6.1.
 # ENV HIP_FORCE_DEV_KERNARG=1
