@@ -7,8 +7,9 @@ import base64
 @pytest.fixture(scope="module")
 def flash_pali_gemma_handle(launcher):
     with launcher(
-        "gv-hf/paligemma-3b-mix-224",
+        "google/paligemma-3b-pt-224",
         num_shard=1,
+        revision="float16",
         max_input_length=4000,
         max_total_tokens=4096,
     ) as handle:

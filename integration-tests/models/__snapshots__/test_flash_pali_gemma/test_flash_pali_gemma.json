@@ -8,13 +8,13 @@
     "tokens": [
       {
         "id": 54901,
-        "logprob": -0.61621094,
+        "logprob": -0.72753906,
         "special": false,
         "text": "beach"
       },
       {
         "id": 1,
-        "logprob": -0.11273193,
+        "logprob": -0.011009216,
         "special": true,
         "text": "<eos>"
       }
