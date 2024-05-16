@@ -813,30 +813,33 @@ class FlashCausalLM(Model):
             self.device,
         )
 
-        if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
-            if os.environ.get("PYTORCH_TUNABLEOP_TUNING", "1"):
-                torch.cuda.tunable.tuning_enable(True)
+        if SYSTEM == "rocm":
+            if os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
+                if os.environ.get("PYTORCH_TUNABLEOP_TUNING", "1"):
+                    torch.cuda.tunable.tuning_enable(True)
 
-            if os.environ.get("PYTORCH_TUNABLEOP_SEQLENS", False):
-                tuning_sequences = [int(val) for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")]
+                if os.environ.get("PYTORCH_TUNABLEOP_SEQLENS", False):
+                    tuning_sequences = [int(val) for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")]
+                else:
+                    tuning_sequences = [1, 2, 4, 8, 16, 32]
+                
+                tunableop_filepath = os.path.join("/data", f"tunableop_{self.model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv")
+
+                logger.info(f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])} (typical decoding lengths). The picked GEMMs are saved in the file {tunableop_filepath}.")
+
+                if os.path.isfile(tunableop_filepath):
+                    logger.info(f"The file {tunableop_filepath} already exists and will be reused.")
+                    torch.cuda.tunable.read_file(tunableop_filepath)
+                
+                os.makedirs("/data", exist_ok=True)
+                
+                for seqlen in tuning_sequences:
+                    logger.info(f"Warming up TunableOp for seqlen={seqlen}")
+                    self.tunableop_warmup(seqlen)
+                    torch.cuda.tunable.write_file(tunableop_filepath)
+                torch.cuda.tunable.tuning_enable(False)
             else:
-                tuning_sequences = list(range(1, 8))
-            
-            tunableop_filepath = os.path.join("/data", f"tunableop_{self.model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv")
-
-            logger.info(f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])} (typical decoding lengths). The picked GEMMs are saved in the file {tunableop_filepath}.")
-
-            if os.path.isfile(tunableop_filepath):
-                logger.info(f"The file {tunableop_filepath} already exists and will be reused.")
-                torch.cuda.tunable.read_file(tunableop_filepath)
-            
-            os.makedirs("/data", exist_ok=True)
-            
-            for seqlen in tuning_sequences:
-                logger.info(f"Warming up TunableOp for seqlen={seqlen}")
-                self.tunableop_warmup(seqlen)
-                torch.cuda.tunable.write_file(tunableop_filepath)
-            torch.cuda.tunable.tuning_enable(False)
+                logger.info("PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp.")
         
         if CUDA_GRAPHS:
             try:

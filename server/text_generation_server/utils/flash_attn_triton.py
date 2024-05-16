@@ -292,6 +292,16 @@ def _attn_fwd_inner(
             num_stages=1,
             num_warps=4,
         ),
+        triton.Config(
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 64,
+                "waves_per_eu": 1,
+                "PRE_LOAD_V": False,
+            },
+            num_stages=1,
+            num_warps=4,
+        ),
     ],
     key=["IS_CAUSAL", "dropout_p", "BLOCK_DMODEL"],
 )

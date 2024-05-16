@@ -117,13 +117,15 @@ RUN cd pytorch && python tools/amd_build/build_amd.py && python setup.py install
 ARG GITHUB_TOKEN
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget && \
     rm -rf /var/lib/apt/lists/* && \
-    wget --header "Authorization: token ${GITHUB_TOKEN}" https://raw.githubusercontent.com/fxmarty/patched_hipruntime/main/libamdhip64.so.6.2.41130
+    wget --header "Authorization: token ${GITHUB_TOKEN}" https://raw.githubusercontent.com/fxmarty/patched_hipruntime/main/libamdhip64.so.6
 
-ENV LD_PRELOAD="/libamdhip64.so.6.2.41130"
+ENV LD_PRELOAD="/libamdhip64.so.6"
 
 # Set as recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
-# Disabled for now as it is currently not stable with ROCm 6.1.
-# ENV HIP_FORCE_DEV_KERNARG=1
+ENV HIP_FORCE_DEV_KERNARG=1
+
+# On MI300, performances for flash with Triton FA is very competitive (actually better than CK)
+ENV ROCM_USE_FLASH_ATTN_V2_TRITON=1
 
 FROM base AS kernel-builder
 
