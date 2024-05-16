@@ -99,8 +99,13 @@ class GemmaConfig(PretrainedConfig):
 class GemmaFastRMSNorm(FastRMSNorm):
     @classmethod
     def load(cls, prefix, weights, eps=1e-6):
+        dtype = weights.dtype
+        weights.dtype = torch.float32
         weight = weights.get_tensor(f"{prefix}.weight") + 1
-        return cls(weight, eps)
+        weights.dtype = dtype
+        new = cls(weight, eps)
+        new.dtype = dtype
+        return new
 
     # perform the multiplication in full precision and downcast after
     def forward(self, hidden_states, residual=None):
@@ -111,7 +116,7 @@ class GemmaFastRMSNorm(FastRMSNorm):
         variance = hidden_states.pow(2).mean(-1, keepdim=True)
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
         hidden_states = hidden_states * self.weight
-        return hidden_states.to(self.weight.dtype), residual
+        return hidden_states.to(self.dtype), residual
 
 
 def load_attention(config, prefix, weights):
@@ -153,15 +158,11 @@ def _load_gqa(config, prefix: str, weights):
 
 
 class FlashGemmaAttention(torch.nn.Module):
-    def __init__(
-        self,
-        prefix: str,
-        config,
-        weights,
-    ):
+    def __init__(self, prefix: str, config, weights, causal: bool):
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.head_size = config.head_dim
+        self.causal = causal
 
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
@@ -238,6 +239,7 @@ class FlashGemmaAttention(torch.nn.Module):
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
+                causal=self.causal,
             )
         # Decode
         else:
@@ -295,11 +297,10 @@ class GemmaMLP(nn.Module):
 
 
 class FlashGemmaLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix, config, weights, causal: bool):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
         self.self_attn = FlashGemmaAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
+            prefix=f"{prefix}.self_attn", config=config, weights=weights, causal=causal
         )
         self.mlp = GemmaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
@@ -351,30 +352,25 @@ class FlashGemmaLayer(nn.Module):
 
 
 class FlashGemmaModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights, causal: bool):
         super().__init__()
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        embed_norm = config.hidden_size**0.5
-        self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
-        )
-        self.embed_tokens.weight *= embed_norm
-
         self.layers = nn.ModuleList(
             [
                 FlashGemmaLayer(
-                    layer_id,
-                    config,
-                    weights,
+                    prefix=f"{prefix}.layers.{layer_id}",
+                    config=config,
+                    weights=weights,
+                    causal=causal,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
         self.norm = GemmaFastRMSNorm.load(
-            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
+            prefix=f"{prefix}.norm", weights=weights, eps=config.rms_norm_eps
         )
 
         self.gradient_checkpointing = False
@@ -385,7 +381,7 @@ class FlashGemmaModel(torch.nn.Module):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -394,7 +390,7 @@ class FlashGemmaModel(torch.nn.Module):
         input_lengths: torch.Tensor,
         max_s: int,
     ) -> torch.Tensor:
-        hidden_states = self.embed_tokens(input_ids)
+        hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
@@ -423,13 +419,30 @@ class FlashGemmaModel(torch.nn.Module):
 
 
 class FlashGemmaForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights, causal: bool):
         super().__init__()
 
-        self.model = FlashGemmaModel(config, weights)
+        embed_norm = config.hidden_size**0.5
+        if prefix is None:
+            prefix = "model"
+        else:
+            prefix = f"{prefix}.model"
+
+        self.embed_tokens = TensorParallelEmbedding(
+            prefix=f"{prefix}.embed_tokens", weights=weights
+        )
+        self.embed_tokens.weight *= embed_norm
+
+        self.model = FlashGemmaModel(
+            prefix=prefix, config=config, weights=weights, causal=causal
+        )
         self.lm_head = SpeculativeHead.load(
-            config,
-            prefix="model.embed_tokens" if config.tie_word_embeddings else "lm_head",
+            prefix=(
+                f"{prefix}.embed_tokens"
+                if config.tie_word_embeddings
+                else f"{prefix}.lm_head"
+            ),
+            config=config,
             weights=weights,
         )
 
@@ -445,8 +458,9 @@ class FlashGemmaForCausalLM(torch.nn.Module):
         max_s: int,
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        input_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
-            input_ids,
+            input_embeds,
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
