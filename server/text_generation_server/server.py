@@ -35,9 +35,6 @@ class SignalHandler:
         self.KEEP_PROCESSING = False
 
 
-signal_handler = SignalHandler()
-
-
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     def __init__(
         self,
@@ -251,7 +248,7 @@ def serve(
         await server.start()
 
         logger.info("Server started at {}".format(local_url))
-
+        signal_handler = SignalHandler()
         while signal_handler.KEEP_PROCESSING:
             await asyncio.sleep(0.5)
 
