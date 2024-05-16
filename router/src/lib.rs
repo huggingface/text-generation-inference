@@ -1236,15 +1236,12 @@ mod tests {
 
     #[test]
     fn test_chat_simple_string() {
-        let json = json!(
-
-            {
+        let json = json!({
             "model": "",
-            "messages": [
-                {"role": "user",
+            "messages": [{
+                "role": "user",
                 "content": "What is Deep Learning?"
-                }
-        ]
+            }]
         });
         let request: ChatRequest = serde_json::from_str(json.to_string().as_str()).unwrap();
 
@@ -1262,24 +1259,15 @@ mod tests {
 
     #[test]
     fn test_chat_request() {
-        let json = json!(
-
-            {
+        let json = json!({
             "model": "",
-            "messages": [
-                {"role": "user",
+            "messages": [{
+                "role": "user",
                 "content": [
                     {"type": "text", "text": "Whats in this image?"},
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"
-                },
-            },
+                    {"type": "image_url", "image_url": {"url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"}},
                 ]
-
-                }
-        ]
+            }]
         });
         let request: ChatRequest = serde_json::from_str(json.to_string().as_str()).unwrap();
 
@@ -1293,6 +1281,52 @@ mod tests {
                 ],
                 name: None
             }
+        );
+    }
+
+    #[test]
+    fn text_message_convert() {
+        let message = Message{
+                role: "user".to_string(),
+                content: vec![
+                    MessageChunk::Text(Text { text: "Whats in this image?".to_string() }),
+                    MessageChunk::ImageUrl(ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } })
+                ],
+                name: None
+            };
+        let textmsg: TextMessage = message.into();
+        assert_eq!(textmsg.content, "Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");
+    }
+    #[test]
+    fn openai_output() {
+        let message = OutputMessage::ChatMessage(TextMessage {
+            role: "assistant".to_string(),
+            content: "This is the answer".to_string(),
+        });
+        let serialized = serde_json::to_string(&message).unwrap();
+        assert_eq!(
+            serialized,
+            r#"{"role":"assistant","content":"This is the answer"}"#
+        );
+
+        let message = OutputMessage::ToolCall(ToolCallMessage {
+            role: "assistant".to_string(),
+            tool_calls: vec![ToolCall {
+                id: "0".to_string(),
+                r#type: "function".to_string(),
+                function: FunctionDefinition {
+                    description: None,
+                    name: "myfn".to_string(),
+                    arguments: json!({
+                        "format": "csv"
+                    }),
+                },
+            }],
+        });
+        let serialized = serde_json::to_string(&message).unwrap();
+        assert_eq!(
+            serialized,
+            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
         );
     }
 }
