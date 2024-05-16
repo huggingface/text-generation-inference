@@ -12,7 +12,7 @@ First, on your server machine, TGI needs to be launched as usual. TGI exposes [m
 
 In the rest of this tutorial, we assume that TGI was launched through Docker with `--network host`.
 
-On the server where TGI is hosted, a Prometheus server needs to be installed and launched. To do so, please follow [Prometheus installation instructions](https://prometheus.io/download/#prometheus). For example, at the time of writting on a Linux machine:
+On the server where TGI is hosted, a Prometheus server needs to be installed and launched. To do so, please follow [Prometheus installation instructions](https://prometheus.io/download/#prometheus). For example, at the time of writing on a Linux machine:
 
 ```
 wget https://github.com/prometheus/prometheus/releases/download/v2.52.0/prometheus-2.52.0.linux-amd64.tar.gz
@@ -31,7 +31,7 @@ We suggest to try `curl 0.0.0.0:80/generate -X POST -d '{"inputs":"hey chatbot, 
 
 Once Prometheus is configured, Prometheus server can be launched on the same machine where TGI is launched:
 ```
-./prometheus
+./prometheus --config.file="prometheus.yml"
 ```
 
 In this guide, Prometheus monitoring data will be consumed on a local computer. Hence, we need to forward Prometheus port (by default 9090) to the local computer. To do so, we can for example:
