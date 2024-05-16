@@ -999,7 +999,6 @@ pub struct ToolCallMessage {
     #[schema(example = "assistant")]
     role: String,
     tool_calls: Vec<ToolCall>,
-    tool_call_id: String,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
