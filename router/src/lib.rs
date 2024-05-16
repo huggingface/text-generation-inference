@@ -535,10 +535,9 @@ impl ChatCompletion {
         tool_calls: Option<Vec<ToolCall>>,
     ) -> Self {
         let message = match (output, tool_calls) {
-            (Some(output), None) => OutputMessage::ChatMessage(Message {
+            (Some(content), None) => OutputMessage::ChatMessage(TextMessage {
                 role: "assistant".into(),
-                content: vec![MessageChunk::Text(Text { text: output })],
-                name: None,
+                content,
             }),
             (None, Some(tool_calls)) => OutputMessage::ToolCall(ToolCallMessage {
                 role: "assistant".to_string(),
@@ -546,18 +545,16 @@ impl ChatCompletion {
             }),
             (Some(output), Some(_)) => {
                 warn!("Received both chat and tool call");
-                OutputMessage::ChatMessage(Message {
+                OutputMessage::ChatMessage(TextMessage {
                     role: "assistant".into(),
-                    content: vec![MessageChunk::Text(Text { text: output })],
-                    name: None,
+                    content: output,
                 })
             }
             (None, None) => {
                 warn!("Didn't receive an answer");
-                OutputMessage::ChatMessage(Message {
+                OutputMessage::ChatMessage(TextMessage {
                     role: "assistant".into(),
-                    content: vec![],
-                    name: None,
+                    content: "".to_string(),
                 })
             }
         };
@@ -1004,7 +1001,7 @@ pub struct ToolCallMessage {
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
 #[serde(untagged)]
 pub(crate) enum OutputMessage {
-    ChatMessage(Message),
+    ChatMessage(TextMessage),
     ToolCall(ToolCallMessage),
 }
 
