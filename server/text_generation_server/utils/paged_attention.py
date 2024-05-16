@@ -10,7 +10,9 @@ else:
         from vllm._C import cache_ops
         from vllm._C import ops
     except Exception as e:
-        raise ImportError(f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}")
+        raise ImportError(
+            f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
+        )
 
 
 def reshape_and_cache(

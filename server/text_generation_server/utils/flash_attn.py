@@ -64,12 +64,17 @@ if SYSTEM in {"cuda", "rocm"}:
     is_sm94 = major == 9 and minor == 4
 
     if SYSTEM == "rocm":
-        if os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() == "true" or os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "0") == "1":
+        if (
+            os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() == "true"
+            or os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "0") == "1"
+        ):
             ROCM_USE_FLASH_ATTN_V2_TRITON = True
             logger.info("ROCm: using Flash Attention 2 Triton implementation.")
         else:
             ROCM_USE_FLASH_ATTN_V2_CK = True
-            logger.info("ROCm: using Flash Attention 2 Composable Kernel implementation.")
+            logger.info(
+                "ROCm: using Flash Attention 2 Composable Kernel implementation."
+            )
 
     try:
         try:
@@ -158,6 +163,7 @@ if HAS_FLASH_ATTN_V2_CUDA:
         )
 
 elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_CK:
+
     def attention(
         q,
         k,
@@ -192,8 +198,9 @@ elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_CK:
             False,
             None,
         )
+
 elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_TRITON:
-    
+
     def attention(
         q,
         k,
@@ -217,6 +224,7 @@ elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_TRITON:
             softmax_scale,
         )
         return output
+
 elif HAS_FLASH_ATTN:
 
     def attention(

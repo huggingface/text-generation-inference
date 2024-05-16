@@ -8,6 +8,7 @@ if SYSTEM == "rocm":
     except Exception as e:
         raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
+
 class FastLinear(torch.nn.Module):
     def __init__(
         self,

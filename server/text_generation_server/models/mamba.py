@@ -413,7 +413,7 @@ class Mamba(Model):
         trust_remote_code: bool = False,
     ):
         self.model_id = model_id
-        
+
         self.process_group, _rank, world_size = initialize_torch_distributed()
         if world_size > 1:
             raise RuntimeError("Mamba does not support Tensor Parallelism (TP)")

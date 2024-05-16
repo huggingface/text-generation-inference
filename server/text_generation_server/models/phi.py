@@ -27,7 +27,7 @@ class Phi(CausalLM):
         trust_remote_code: bool = False,
     ):
         self.model_id = model_id
-        
+
         self.process_group, _rank, _world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device("cuda")

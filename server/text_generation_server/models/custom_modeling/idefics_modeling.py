@@ -64,6 +64,7 @@ elif SYSTEM == "rocm":
 else:
     raise RuntimeError(f"Unsupported system {SYSTEM}")
 
+
 @dataclass
 class BaseModelOutputWithPastImage(BaseModelOutputWithPast):
     image_hidden_states: Optional[torch.FloatTensor] = None

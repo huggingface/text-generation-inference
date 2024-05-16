@@ -187,6 +187,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             total_ns=time.time_ns() - start,
         )
 
+
 def serve(
     model_id: str,
     revision: Optional[str],

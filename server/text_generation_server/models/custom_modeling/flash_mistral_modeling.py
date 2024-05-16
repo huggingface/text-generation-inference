@@ -266,7 +266,9 @@ class MistralMLP(nn.Module):
             else lambda x: torch.nn.functional.gelu(
                 x,
                 approximate=(
-                    "tanh" if self.hidden_act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                    "tanh"
+                    if self.hidden_act in ["gelu_fast", "gelu_pytorch_tanh"]
+                    else "none"
                 ),
             )
         )
@@ -289,7 +291,11 @@ class MistralMLP(nn.Module):
         )
 
     def forward(self, hidden_states):
-        if SYSTEM == "rocm" and self.hidden_act == "silu" and hidden_states.shape[0] == 1:
+        if (
+            SYSTEM == "rocm"
+            and self.hidden_act == "silu"
+            and hidden_states.shape[0] == 1
+        ):
             out = torch.empty(
                 hidden_states.shape[0],
                 self.intermediate_size,
