@@ -14,7 +14,10 @@ from typing import List, Optional
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model
-from text_generation_server.models.vlm_causal_lm import VlmCausalLMBatch
+from text_generation_server.models.pali_gemma import PaliGemmaBatch
+from text_generation_server.models.vlm_causal_lm import (
+    VlmCausalLMBatch,
+)
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
@@ -98,6 +101,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         if self.model.batch_type in {
             IdeficsCausalLMBatch,
             VlmCausalLMBatch,
+            PaliGemmaBatch,
         }:  # Hack, i would rather use kwargs in the `from_pb` call
             batch = self.model.batch_type.from_pb_processor(
                 request.batch,
@@ -122,6 +126,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         if self.model.batch_type in {
             IdeficsCausalLMBatch,
             VlmCausalLMBatch,
+            PaliGemmaBatch,
         }:  # Hack, i would rather use kwargs in the `from_pb` call
             batch = self.model.batch_type.from_pb_processor(
                 request.batch,

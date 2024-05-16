@@ -15,6 +15,7 @@ from text_generation_server.models.flash_mistral import (
     BaseFlashMistral,
     FlashMistralBatch,
 )
+from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch
 from text_generation_server.models.cache_manager import (
     get_cache_manager,
 )
@@ -80,6 +81,9 @@ def image_text_replacement(image_input, config, image_id) -> str:
 
         logger.info(f"Found {num_features} in image of resolution {height}x{width}")
         return "<image>" * num_features
+
+    elif config.model_type == "paligemma":
+        return "<image>" * config.text_config.num_image_tokens
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -193,7 +197,10 @@ class VlmCausalLMBatch(FlashMistralBatch):
             max_truncation = max(max_truncation, r.truncate)
 
         batch_tokenized_inputs = tokenizer(
-            batch_inputs, truncation=True, max_length=max_truncation
+            batch_inputs,
+            truncation=True,
+            max_length=max_truncation,
+            add_special_tokens=not config.model_type == "paligemma",
         )["input_ids"]
         if image_inputs:
             image_input = image_inputs[0]

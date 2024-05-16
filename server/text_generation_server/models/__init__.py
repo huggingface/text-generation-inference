@@ -65,6 +65,9 @@ try:
     from text_generation_server.models.flash_gemma import (
         FlashGemma,
     )
+    from text_generation_server.models.pali_gemma import (
+        PaliGemma,
+    )
     from text_generation_server.models.flash_santacoder import (
         FlashSantacoderSharded,
     )
@@ -667,6 +670,18 @@ def get_model(
     if model_type == "idefics2":
         if FLASH_ATTENTION:
             return Idefics2(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == "paligemma":
+        if FLASH_ATTENTION:
+            return PaliGemma(
                 model_id,
                 revision,
                 quantize=quantize,

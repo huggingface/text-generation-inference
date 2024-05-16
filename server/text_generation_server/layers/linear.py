@@ -10,9 +10,9 @@ class FastLinear(torch.nn.Module):
         bias,
     ) -> None:
         super().__init__()
-        self.weight = torch.nn.Parameter(weight)
+        self.weight = torch.nn.Parameter(weight, requires_grad=False)
         if bias is not None:
-            self.bias = torch.nn.Parameter(bias)
+            self.bias = torch.nn.Parameter(bias, requires_grad=False)
         else:
             self.bias = None
 
