@@ -51,6 +51,7 @@ FLASH_ATTENTION = True
 
 try:
     from text_generation_server.models.flash_rw import FlashRWSharded
+    from text_generation_server.models.flash_gpt2 import FlashGPT2
     from text_generation_server.models.flash_neox import FlashNeoXSharded
     from text_generation_server.models.flash_llama import (
         FlashLlama,
@@ -63,6 +64,9 @@ try:
     )
     from text_generation_server.models.flash_gemma import (
         FlashGemma,
+    )
+    from text_generation_server.models.pali_gemma import (
+        PaliGemma,
     )
     from text_generation_server.models.flash_santacoder import (
         FlashSantacoderSharded,
@@ -83,6 +87,7 @@ except ImportError as e:
     HAS_FLASH_ATTN_V2_CUDA = False
 
 if FLASH_ATTENTION:
+    __all__.append(FlashGPT2)
     __all__.append(FlashNeoXSharded)
     __all__.append(FlashRWSharded)
     __all__.append(FlashSantacoderSharded)
@@ -325,7 +330,27 @@ def get_model(
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
-
+    elif model_type == "gpt2":
+        if FLASH_ATTENTION:
+            return FlashGPT2(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-2"))
+        else:
+            return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
     elif model_type == "gpt_neox":
         if FLASH_ATTENTION:
             return FlashNeoXSharded(
@@ -645,6 +670,18 @@ def get_model(
     if model_type == "idefics2":
         if FLASH_ATTENTION:
             return Idefics2(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == "paligemma":
+        if FLASH_ATTENTION:
+            return PaliGemma(
                 model_id,
                 revision,
                 quantize=quantize,

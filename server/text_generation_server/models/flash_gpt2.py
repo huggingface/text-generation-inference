@@ -2,12 +2,13 @@ import torch
 import torch.distributed
 
 from opentelemetry import trace
+from transformers import AutoConfig, AutoTokenizer, GenerationConfig
+from transformers.models.gpt2 import GPT2Tokenizer
 from typing import Optional
-from transformers import AutoConfig, AutoTokenizer
 
 from text_generation_server.models import FlashCausalLM
-from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
-    FlashGemmaForCausalLM,
+from text_generation_server.models.custom_modeling.flash_gpt2_modeling import (
+    FlashGPT2ForCausalLM,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -17,8 +18,10 @@ from text_generation_server.utils import (
 
 tracer = trace.get_tracer(__name__)
 
+from text_generation_server.utils.import_utils import SYSTEM
 
-class FlashGemma(FlashCausalLM):
+
+class FlashGPT2(FlashCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -28,14 +31,15 @@ class FlashGemma(FlashCausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        self.model_id = model_id
-        
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.bfloat16 if dtype is None else dtype
+            dtype = torch.float16 if dtype is None else dtype
+        elif SYSTEM == "xpu":
+            device = torch.device(f"xpu:{rank}")
+            dtype = torch.float16 if dtype is None else dtype
         else:
-            raise NotImplementedError("FlashGemma is only available on GPU")
+            raise NotImplementedError("FlashGPT2 is only available on GPU")
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
@@ -58,16 +62,14 @@ class FlashGemma(FlashCausalLM):
         if config.quantize in ["gptq", "awq"]:
             weights._set_gptq_params(model_id, revision)
 
-        # TODO hardcoded
-        prefix = "language_model"
-        model = FlashGemmaForCausalLM(prefix, config, weights, causal=True)
-
+        prefix = ""
+        model = FlashGPT2ForCausalLM(prefix, config, weights)
         torch.distributed.barrier(group=self.process_group)
-        super(FlashGemma, self).__init__(
+        super(FlashGPT2, self).__init__(
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),
-            num_kv_heads=model.model.num_key_value_heads,
+            num_kv_heads=model.model.num_heads,
             head_size=model.model.head_size,
             dtype=dtype,
             device=device,

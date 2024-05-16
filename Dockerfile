@@ -43,7 +43,7 @@ ARG PYTORCH_VERSION=2.3.0
 ARG PYTHON_VERSION=3.10
 # Keep in sync with `server/pyproject.toml
 ARG CUDA_VERSION=12.1
-ARG MAMBA_VERSION=23.3.1-1
+ARG MAMBA_VERSION=24.3.0-0
 ARG CUDA_CHANNEL=nvidia
 ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
@@ -181,6 +181,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         ca-certificates \
         make \
         curl \
+        git \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed

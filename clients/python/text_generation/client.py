@@ -1,10 +1,12 @@
 import json
 import requests
+import warnings
 
 from aiohttp import ClientSession, ClientTimeout
 from pydantic import ValidationError
 from typing import Dict, Optional, List, AsyncIterator, Iterator, Union
 
+from text_generation import DEPRECATION_WARNING
 from text_generation.types import (
     StreamResponse,
     Response,
@@ -18,6 +20,9 @@ from text_generation.types import (
     Tool,
 )
 from text_generation.errors import parse_error
+
+# emit deprecation warnings
+warnings.simplefilter("always", DeprecationWarning)
 
 
 class Client:
@@ -59,6 +64,7 @@ class Client:
             timeout (`int`):
                 Timeout in seconds
         """
+        warnings.warn(DEPRECATION_WARNING, DeprecationWarning)
         self.base_url = base_url
         self.headers = headers
         self.cookies = cookies
@@ -449,6 +455,7 @@ class AsyncClient:
             timeout (`int`):
                 Timeout in seconds
         """
+        warnings.warn(DEPRECATION_WARNING, DeprecationWarning)
         self.base_url = base_url
         self.headers = headers
         self.cookies = cookies

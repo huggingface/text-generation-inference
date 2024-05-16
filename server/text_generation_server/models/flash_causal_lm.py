@@ -135,6 +135,17 @@ class FlashCausalLMBatch(Batch):
         device: torch.device,
     ) -> "FlashCausalLMBatch":
         batch_tokenized_inputs = cls.batch_tokenized_inputs(pb.requests, tokenizer)
+        return cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
+
+    @classmethod
+    def from_tokenized(
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        batch_tokenized_inputs,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "FlashCausalLMBatch":
         position_ids = []
         speculative_ids = []
         cu_seqlen_prefill = [0]
@@ -209,6 +220,7 @@ class FlashCausalLMBatch(Batch):
             # Paged attention
             # Remove one as the first token des not have a past
             speculative_length = get_speculate()
+            speculative_length = 0 if speculative_length is None else speculative_length
             total_tokens = input_length + max_new_tokens - 1 + speculative_length
             needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
             blocks += needed_blocks
@@ -760,7 +772,7 @@ class FlashCausalLM(Model):
     def warmup(self, batch: FlashCausalLMBatch):
         # The warmup batch is the biggest batch we could ever receive
         empty_cache()
-        
+
         try:
             cache_manager = set_cache_manager(
                 batch.blocks,

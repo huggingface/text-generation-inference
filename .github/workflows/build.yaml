@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
-      EC2_AMI_ID: ami-03cfed9ea28f4b002
+      EC2_AMI_ID: ami-0789b6925c11b1fb2
       EC2_INSTANCE_TYPE: g5.12xlarge
       EC2_SUBNET_ID: subnet-931b34f5,subnet-ecb993cd,subnet-943dc2d8,subnet-45371f1a,subnet-ee93e0df,subnet-fddc3dfc
       EC2_SECURITY_GROUP: sg-030175c435ac141d6
