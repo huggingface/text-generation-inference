@@ -990,7 +990,6 @@ async fn chat_completions(
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     metrics::increment_counter!("tgi_request_count");
-
     let ChatRequest {
         logprobs,
         max_tokens,
@@ -1162,7 +1161,7 @@ async fn chat_completions(
                     )
                 })?;
             let tool_calls = vec![ToolCall {
-                id: 0,
+                id: "0".to_string(),
                 r#type: "function".to_string(),
                 function: FunctionDefinition {
                     description: None,
