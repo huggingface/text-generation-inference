@@ -4,7 +4,8 @@ members = [
     "router",
     "router/client",
     "router/grpc-metadata",
-    "launcher"
+    "launcher",
+    "tgi"
 ]
 resolver = "2"
 
