@@ -589,7 +589,7 @@ pub(crate) struct CompletionCompleteChunk {
     pub system_fingerprint: String,
 }
 
-#[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
     pub object: String,
@@ -601,7 +601,7 @@ pub(crate) struct ChatCompletionChunk {
     pub choices: Vec<ChatCompletionChoice>,
 }
 
-#[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChoice {
     pub index: u32,
     pub delta: ChatCompletionDelta,
@@ -616,7 +616,8 @@ pub struct ToolCallDelta {
     tool_calls: DeltaToolCall,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema)]
+#[serde(untagged)]
 enum ChatCompletionDelta {
     Chat(TextMessage),
     Tool(ToolCallDelta),
