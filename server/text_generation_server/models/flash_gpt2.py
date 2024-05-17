@@ -15,10 +15,9 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
+from text_generation_server.utils.import_utils import SYSTEM
 
 tracer = trace.get_tracer(__name__)
-
-from text_generation_server.utils.import_utils import SYSTEM
 
 
 class FlashGPT2(FlashCausalLM):

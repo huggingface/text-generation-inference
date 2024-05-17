@@ -72,7 +72,7 @@ if SYSTEM == "cuda":
                 return normed_hidden_states, residual
 
 elif SYSTEM == "rocm":
-    from vllm import layernorm_ops
+    from vllm._C import ops
 
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
@@ -172,7 +172,7 @@ class FastRMSNorm(nn.Module):
             residual = hidden_states
 
             out = torch.empty_like(hidden_states)
-            layernorm_ops.rms_norm(
+            ops.rms_norm(
                 out,
                 hidden_states,
                 self.weight.data,

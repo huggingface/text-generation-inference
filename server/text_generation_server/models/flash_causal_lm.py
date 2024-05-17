@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
+
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.speculate import get_speculate
@@ -28,6 +31,7 @@ from text_generation_server.models.cache_manager import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
+import text_generation_server.models.globals as tgi_globals
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
@@ -783,6 +787,9 @@ class FlashCausalLM(Model):
             )
             max_bt = batch.max_blocks
             max_s = max_bt * get_cache_manager().block_size
+
+            if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
+                torch.cuda.tunable.tuning_enable(False)
             _, batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
@@ -820,6 +827,49 @@ class FlashCausalLM(Model):
             self.device,
         )
 
+        if SYSTEM == "rocm":
+            if (
+                os.environ.get("PYTORCH_TUNABLEOP_ENABLED") is None
+                or os.environ.get("PYTORCH_TUNABLEOP_ENABLED") == "1"
+            ):
+                if os.environ.get("PYTORCH_TUNABLEOP_TUNING") != "0":
+                    torch.cuda.tunable.tuning_enable(True)
+
+                if os.environ.get("PYTORCH_TUNABLEOP_SEQLENS") is not None:
+                    tuning_sequences = [
+                        int(val)
+                        for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")
+                    ]
+                else:
+                    tuning_sequences = CUDA_GRAPHS
+
+                tunableop_filepath = os.path.join(
+                    HUGGINGFACE_HUB_CACHE,
+                    f"tunableop_{tgi_globals.MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                )
+
+                logger.info(
+                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`."
+                )
+
+                if os.path.isfile(tunableop_filepath):
+                    logger.info(
+                        f"The file {tunableop_filepath} already exists and will be reused."
+                    )
+                    torch.cuda.tunable.read_file(tunableop_filepath)
+
+                os.makedirs(HUGGINGFACE_HUB_CACHE, exist_ok=True)
+
+                for seqlen in tuning_sequences:
+                    logger.info(f"Warming up TunableOp for seqlen={seqlen}")
+                    self.tunableop_warmup(seqlen)
+                    torch.cuda.tunable.write_file(tunableop_filepath)
+                torch.cuda.tunable.tuning_enable(False)
+            else:
+                logger.info(
+                    "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp."
+                )
+
         if CUDA_GRAPHS:
             try:
                 logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
@@ -833,6 +883,27 @@ class FlashCausalLM(Model):
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
         return int(num_blocks * BLOCK_SIZE)
+
+    def tunableop_warmup(self, seqlen: int):
+        input_ids = torch.zeros(seqlen, dtype=torch.int64, device=self.device)
+        position_ids = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
+        slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
+        kv_cache = get_cache_manager().kv_cache
+
+        # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=torch.tensor(
+                [0, seqlen], device=self.device, dtype=torch.int32
+            ),
+            kv_cache=get_cache_manager().kv_cache,
+            block_tables=None,
+            input_lengths=None,
+            slots=slots,
+            max_s=seqlen,
+            lm_head_indices=None,
+        )
 
     def forward(
         self, batch: FlashCausalLMBatch
@@ -1112,8 +1183,6 @@ class FlashCausalLM(Model):
             # Append next token to all tokens
             next_token_texts = []
             left = 0
-
-            logger.debug(f"Accepted ids {n_accepted_ids}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):

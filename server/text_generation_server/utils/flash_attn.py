@@ -2,14 +2,18 @@ import os
 import torch
 
 from loguru import logger
+import math
 
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.flash_attn_triton import triton_attention
 
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
     raise ImportError("`USE_FLASH_ATTENTION` is false.")
-HAS_FLASH_ATTN = True
+HAS_FLASH_ATTN = False
 HAS_FLASH_ATTN_V2_CUDA = False
 HAS_FLASH_ATTN_V2_ROCM = False
+ROCM_USE_FLASH_ATTN_V2_CK = False
+ROCM_USE_FLASH_ATTN_V2_TRITON = False
 
 if SYSTEM == "xpu":
     import intel_extension_for_pytorch as ipex
@@ -57,10 +61,21 @@ if SYSTEM in {"cuda", "rocm"}:
     is_sm75 = major == 7 and minor == 5
     is_sm8x = major == 8 and minor >= 0
     is_sm90 = major == 9 and minor == 0
+    is_sm94 = major == 9 and minor == 4
 
-    HAS_FLASH_ATTN = False
-    HAS_FLASH_ATTN_V2_CUDA = False
-    HAS_FLASH_ATTN_V2_ROCM = False
+    if SYSTEM == "rocm":
+        if (
+            os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() == "true"
+            or os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "0") == "1"
+        ):
+            ROCM_USE_FLASH_ATTN_V2_TRITON = True
+            logger.info("ROCm: using Flash Attention 2 Triton implementation.")
+        else:
+            ROCM_USE_FLASH_ATTN_V2_CK = True
+            logger.info(
+                "ROCm: using Flash Attention 2 Composable Kernel implementation."
+            )
+
     try:
         try:
             import flash_attn_2_cuda
@@ -71,9 +86,14 @@ if SYSTEM in {"cuda", "rocm"}:
                 "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
                 f"or install flash attention v2 with `cd server && make install install-flash-attention-v2{architecture_suffix}`"
             )
-        if not (is_sm8x or is_sm90):
+        if SYSTEM == "cuda" and not (is_sm8x or is_sm90):
             raise ImportError(
                 f"GPU with CUDA capability {major} {minor} is not supported for "
+                "Flash Attention V2"
+            )
+        elif SYSTEM == "rocm" and not (is_sm8x or is_sm90 or is_sm94):
+            raise ImportError(
+                f"AMD GPU with compute capability {major} {minor} is not supported for "
                 "Flash Attention V2"
             )
         HAS_FLASH_ATTN_V2_CUDA = SYSTEM == "cuda"
@@ -142,7 +162,7 @@ if HAS_FLASH_ATTN_V2_CUDA:
             None,
         )
 
-elif HAS_FLASH_ATTN_V2_ROCM:
+elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_CK:
 
     def attention(
         q,
@@ -153,6 +173,7 @@ elif HAS_FLASH_ATTN_V2_ROCM:
         max_s,
         softmax_scale,
         window_size_left=-1,
+        causal=True,
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
@@ -174,10 +195,37 @@ elif HAS_FLASH_ATTN_V2_ROCM:
             0.0,
             softmax_scale,
             False,
-            True,
+            causal,
             False,
             None,
         )
+
+elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_TRITON:
+
+    def attention(
+        q,
+        k,
+        v,
+        out,
+        cu_seqlens,
+        max_s,
+        softmax_scale,
+        window_size_left=-1,
+        causal=True,
+    ):
+        output, _ = triton_attention(
+            q,
+            k,
+            v,
+            out,
+            cu_seqlens,
+            cu_seqlens,
+            max_s,
+            max_s,
+            causal,
+            softmax_scale,
+        )
+        return output
 
 elif HAS_FLASH_ATTN:
 

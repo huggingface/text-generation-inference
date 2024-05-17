@@ -69,7 +69,7 @@ class CohereRotary(PositionRotaryEmbedding):
 
             rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
         elif SYSTEM == "rocm":
-            from vllm import pos_encoding_ops
+            from vllm._C import ops
 
             # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
             # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773
@@ -77,7 +77,7 @@ class CohereRotary(PositionRotaryEmbedding):
             head_size = query.shape[-1]
 
             # Inplace operation, updating query and key.
-            pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, False)
+            ops.rotary_embedding(query, key, head_size, cos, sin, False)
         else:
             raise ValueError(
                 "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."

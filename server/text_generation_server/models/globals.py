@@ -15,3 +15,12 @@ else:
     cuda_graphs = None
 
 CUDA_GRAPHS = cuda_graphs
+
+# This is overridden at model loading.
+global MODEL_ID
+MODEL_ID = None
+
+
+def set_model_id(model_id: str):
+    global MODEL_ID
+    MODEL_ID = model_id
