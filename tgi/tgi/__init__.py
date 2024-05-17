@@ -4,11 +4,17 @@ from tgi import rust_launcher, rust_sleep, fully_packaged
 import asyncio
 from dataclasses import dataclass, asdict
 import sys
+from text_generation_server.cli import app
 
 # add the rust_launcher coroutine to the __all__ list
 __doc__ = tgi.__doc__
 if hasattr(tgi, "__all__"):
     __all__ = tgi.__all__
+
+
+# wrap the app from text_generation_server.cli in a function
+def text_generation_server_cli_main():
+    app()
 
 
 @dataclass

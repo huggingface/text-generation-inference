@@ -13,3 +13,21 @@ classifiers = [
 dynamic = ["version"]
 [tool.maturin]
 features = ["pyo3/extension-module"]
+
+# TODO: Compile protos before installing text_generation_server
+
+# pip install grpcio-tools==1.51.1 mypy-protobuf==3.4.0 'types-protobuf>=3.20.4' --no-cache-dir
+# mkdir text_generation_server/pb || true
+# python -m grpc_tools.protoc -I../proto --python_out=text_generation_server/pb \
+#     --grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/generate.proto
+# find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
+# touch text_generation_server/pb/__init__.py
+
+# NOTE: currently we comment out server/text_generation_server/pb/.gitignore
+# which includes the generated python files. These then get included in the
+# package. This is not ideal, but works for now.
+python-packages = ["tgi", "text_generation_server"]
+
+
+[project.scripts]
+text-generation-server = "tgi:text_generation_server_cli_main"
