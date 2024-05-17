@@ -309,6 +309,7 @@ class FlashMQAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
+                None,
                 input_lengths,
                 max_s,
             )

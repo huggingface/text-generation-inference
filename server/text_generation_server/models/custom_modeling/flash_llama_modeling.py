@@ -33,6 +33,7 @@ from text_generation_server.layers.attention import (
     attention,
     reshape_and_cache,
 )
+from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -172,7 +173,8 @@ class FlashLlamaAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        cu_seqlen_q,
+        cu_seqlen_k,
         max_s,
         adapter_data,
     ):
@@ -192,10 +194,10 @@ class FlashLlamaAttention(torch.nn.Module):
         reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
 
         # output tensor
-        attn_output = torch.empty_like(query)
 
         # Prefill
         if cu_seqlen_prefill is not None:
+            attn_output = torch.empty_like(query)
             # flash attention
             attention(
                 query,
@@ -208,15 +210,16 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention(
-                attn_output,
+            attn_output = paged_attention(
+                None,
                 query,
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                cu_seqlen_q,
+                cu_seqlen_k,
                 max_s,
             )
 
@@ -353,7 +356,8 @@ class FlashLlamaLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        cu_seqlen_q,
+        cu_seqlen_k,
         max_s,
         adapter_data,
     ):
@@ -368,7 +372,8 @@ class FlashLlamaLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            cu_seqlen_q,
+            cu_seqlen_k,
             max_s,
             adapter_data,
         )
@@ -438,6 +443,23 @@ class FlashLlamaModel(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
             position_ids, max_s, hidden_states.dtype
         )
+        if cu_seqlen_prefill is None and FLASH_DECODING:
+            cu_seqlen_q = torch.arange(
+                input_lengths.shape[0] + 1,
+                device=inputs_embeds.device,
+                dtype=torch.int32,
+            )
+            cu_seqlen_k = torch.cat(
+                [
+                    torch.zeros(
+                        (1,), device=input_lengths.device, dtype=input_lengths.dtype
+                    ),
+                    input_lengths.cumsum(dim=-1),
+                ]
+            ).to(dtype=torch.int32)
+        else:
+            cu_seqlen_q = None
+            cu_seqlen_k = input_lengths
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -450,7 +472,8 @@ class FlashLlamaModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                cu_seqlen_q,
+                cu_seqlen_k,
                 max_s,
                 adapter_data,
             )

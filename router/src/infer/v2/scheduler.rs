@@ -39,8 +39,25 @@ impl SchedulerV2 {
         speculate: u32,
         generation_health: Arc<AtomicBool>,
     ) -> Self {
+<<<<<<< HEAD:router/src/infer/v2/scheduler.rs
         let queue = Queue::new(requires_padding, 16, window_size, speculate);
         let batching_task_notifier = Arc::new(Notify::new());
+=======
+        // Infer shared state
+        let flashdecoding = if let Ok(flashdecoding) = std::env::var("FLASH_DECODING") {
+            matches!(flashdecoding.to_lowercase().as_str(), "1" | "true")
+        } else {
+            false
+        };
+        let block_size = if flashdecoding { 256 } else { 16 };
+        let block_size = std::env::var("BLOCK_SIZE")
+            .map(|b| b.parse().unwrap_or(block_size))
+            .unwrap_or(block_size);
+        let queue = Queue::new(requires_padding, block_size, window_size, speculate);
+        let shared = Arc::new(Shared {
+            batching_task: Notify::new(),
+        });
+>>>>>>> Using flash decoding:router/src/infer.rs
 
         // Spawn batching background task that contains all the inference logic
         tokio::spawn(batching_task(

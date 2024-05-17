@@ -6,6 +6,9 @@ from typing import Dict
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 # This is overridden by the cli
 cuda_graphs = os.getenv("CUDA_GRAPHS")
+FLASH_DECODING = os.getenv("FLASH_DECODING") in {"1", "true", "True"}
+if FLASH_DECODING:
+    logger.info("Using FLASH_DECODING")
 if cuda_graphs is not None:
     try:
         cuda_graphs = [int(item) for item in cuda_graphs.split(",")]

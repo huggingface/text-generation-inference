@@ -67,7 +67,7 @@ elif is_ipex_available():
         synchronize = noop
         get_free_memory = get_cpu_free_memory
 else:
-    SYSTEM = "cpu"
+    SYSTEM = "ipex"
 
     empty_cache = noop
     synchronize = noop

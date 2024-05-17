@@ -46,7 +46,7 @@ from text_generation_server.utils.import_utils import (
 
 tracer = trace.get_tracer(__name__)
 
-BLOCK_SIZE: int = 16
+BLOCK_SIZE: int = 256 if os.getenv("FLASH_DECODING", "").lower() in {"1", "true"} else 16
 
 # Will be set in init
 SLIDING_WINDOW: Optional[int] = None
