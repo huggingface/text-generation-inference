@@ -93,7 +93,7 @@
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 1000
               }
             ]
           },
@@ -103,7 +103,7 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 9,
+        "w": 8,
         "x": 0,
         "y": 0
       },
@@ -132,10 +132,36 @@
             "uid": "${DS_PROMETHEUS_EKS API INFERENCE PROD}"
           },
           "editorMode": "code",
-          "expr": "((histogram_quantile(0.5, sum by (le) (rate(tgi_request_queue_duration_bucket{container=\"$service\"}[10m]))) * 1000) + histogram_quantile(0.5, sum by (le) (rate(tgi_batch_inference_duration_bucket{method=\"prefill\", container=\"$service\"}[10m]))))>0 ",
+          "expr": "(histogram_quantile(0.5, sum by (le) (rate(tgi_request_queue_duration_bucket{container=\"$service\"}[10m]))) * 1000) > 0",
+          "hide": true,
           "instant": false,
+          "legendFormat": "__auto",
           "range": true,
-          "refId": "A"
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS_EKS API INFERENCE PROD}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.5, sum by (le) (rate(tgi_batch_inference_duration_bucket{method=\"prefill\", container=\"$service\"}[10m]))) * 1000) > 0",
+          "hide": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "name": "Expression",
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$B + $C",
+          "hide": false,
+          "refId": "D",
+          "type": "math"
         }
       ],
       "title": "Time to first token",
