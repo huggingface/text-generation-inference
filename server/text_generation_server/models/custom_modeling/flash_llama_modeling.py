@@ -230,11 +230,15 @@ class LlamaMLP(nn.Module):
             config.intermediate_size // weights.process_group.size()
         )
 
+        # TODO: This is a hotfix to be removed & properly refactored.
+        self.quantize = config.quantize
+
     def forward(self, hidden_states):
         if (
             SYSTEM == "rocm"
             and self.hidden_act == "silu"
             and hidden_states.shape[0] == 1
+            and not self.quantize
         ):
             out = torch.empty(
                 hidden_states.shape[0],
