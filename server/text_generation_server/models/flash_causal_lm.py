@@ -827,7 +827,7 @@ class FlashCausalLM(Model):
             self.device,
         )
 
-        if SYSTEM == "rocm":
+        if SYSTEM == "rocm" and self.speculate is None or self.speculate == 0:
             if (
                 os.environ.get("PYTORCH_TUNABLEOP_ENABLED") is None
                 or os.environ.get("PYTORCH_TUNABLEOP_ENABLED") == "1"
@@ -875,7 +875,11 @@ class FlashCausalLM(Model):
                 logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
                 # Warmup cuda graphs
                 for bs in CUDA_GRAPHS:
-                    if self.speculate is None or self.speculate + 1 <= bs:
+                    if (
+                        self.speculate is None
+                        or self.speculate == 0
+                        or self.speculate + 1 <= bs
+                    ):
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except torch.cuda.OutOfMemoryError:
                 logger.exception(f"Decode cuda graph warmup failed")
