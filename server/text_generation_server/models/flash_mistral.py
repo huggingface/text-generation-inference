@@ -391,6 +391,28 @@ class BaseFlashMistral(FlashCausalLM):
     def batch_type(self) -> Type[FlashMistralBatch]:
         return FlashMistralBatch
 
+    def tunableop_warmup(self, seqlen: int):
+        input_ids = torch.zeros(seqlen, dtype=torch.int64, device=self.device)
+        position_ids = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
+        slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
+        kv_cache = get_cache_manager().kv_cache
+
+        # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=torch.tensor(
+                [0, seqlen], device=self.device, dtype=torch.int32
+            ),
+            kv_cache=get_cache_manager().kv_cache,
+            block_tables=None,
+            input_lengths=None,
+            slots=slots,
+            max_s=seqlen,
+            lm_head_indices=None,
+            prefill_cache_indices=None,
+        )
+
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
         input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
         position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)

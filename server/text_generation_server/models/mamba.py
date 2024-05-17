@@ -522,6 +522,30 @@ class Mamba(Model):
         }
         self.cuda_graphs[batch_size] = graph_dict
 
+    def tunableop_warmup(self, seqlen: int):
+        input_ids = torch.zeros((batch_size, 1), dtype=torch.int64, device=self.device)
+        n_blocks = len(self.model.blocks)
+
+        d_state = self.model.config.d_state
+        d_conv = self.model.config.d_conv
+        # Inner takes the expand multiplication
+        d_inner = self.model.config.d_inner
+
+        # Important seqlen_offset to go through the update mecanism with the state
+        seqlen_offset = 1
+        inference_params = new_inference_params(
+            n_blocks=n_blocks,
+            batch_size=seqlen,
+            d_state=d_state,
+            d_conv=d_conv,
+            d_inner=d_inner,
+            seqlen_offset=seqlen_offset,
+            device=self.device,
+            dtype=self.dtype,
+        )
+
+        self.model.forward(input_ids=input_ids, inference_params=inference_params)
+
     def forward(
         self, input_ids: torch.Tensor, inference_params: Any
     ) -> Tuple[torch.Tensor, torch.Tensor]:
