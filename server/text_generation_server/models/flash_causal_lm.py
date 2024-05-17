@@ -13,6 +13,7 @@ from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
 
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
@@ -836,10 +837,10 @@ class FlashCausalLM(Model):
                         for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")
                     ]
                 else:
-                    tuning_sequences = [1, 2, 4, 8, 16, 32]
+                    tuning_sequences = CUDA_GRAPHS
 
                 tunableop_filepath = os.path.join(
-                    "/data",
+                    HUGGINGFACE_HUB_CACHE,
                     f"tunableop_{self.model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
@@ -853,7 +854,7 @@ class FlashCausalLM(Model):
                     )
                     torch.cuda.tunable.read_file(tunableop_filepath)
 
-                os.makedirs("/data", exist_ok=True)
+                os.makedirs(HUGGINGFACE_HUB_CACHE, exist_ok=True)
 
                 for seqlen in tuning_sequences:
                     logger.info(f"Warming up TunableOp for seqlen={seqlen}")

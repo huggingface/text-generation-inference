@@ -173,6 +173,7 @@ elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_CK:
         max_s,
         softmax_scale,
         window_size_left=-1,
+        causal=True,
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
@@ -194,7 +195,7 @@ elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_CK:
             0.0,
             softmax_scale,
             False,
-            True,
+            causal,
             False,
             None,
         )
@@ -210,6 +211,7 @@ elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_TRITON:
         max_s,
         softmax_scale,
         window_size_left=-1,
+        causal=True,
     ):
         output, _ = triton_attention(
             q,
@@ -220,7 +222,7 @@ elif HAS_FLASH_ATTN_V2_ROCM and ROCM_USE_FLASH_ATTN_V2_TRITON:
             cu_seqlens,
             max_s,
             max_s,
-            True,
+            causal,
             softmax_scale,
         )
         return output
