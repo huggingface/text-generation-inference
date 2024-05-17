@@ -27,7 +27,6 @@ from text_generation_server.utils import (
     HeterogeneousNextTokenChooser,
     StoppingCriteria,
 )
-from text_generation_server.models import CausalLM
 
 tracer = trace.get_tracer(__name__)
 

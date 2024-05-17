@@ -15,7 +15,6 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
-from text_generation_server.models import CausalLM
 from text_generation_server.utils.import_utils import SYSTEM
 
 tracer = trace.get_tracer(__name__)
