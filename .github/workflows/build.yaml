@@ -290,6 +290,9 @@ jobs:
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
       security-events: write
+    outputs:
+      # env is not available in the later `container:`, but previous job outputs are.
+      short_sha: ${{ env.GITHUB_SHA_SHORT }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -405,7 +408,7 @@ jobs:
       - stop-runner
     runs-on: [self-hosted, docker-gpu, amd-gpu, multi-gpu, mi300]
     container:
-      image: registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}-rocm
+      image: registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ needs.build-and-push-image-rocm.outputs.short_sha }}-rocm
       options: --device /dev/kfd --device /dev/dri --env ROCR_VISIBLE_DEVICES --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/cache
     env:
       DOCKER_VOLUME: /cache
