@@ -36,7 +36,7 @@ COPY launcher launcher
 RUN cargo build --release
 
 # Text Generation Inference base image for RoCm
-FROM rocm/dev-ubuntu-22.04:5.7 as base
+FROM rocm/dev-ubuntu-22.04:6.1.1_hip_update as base
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
@@ -50,13 +50,24 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     # Needed to build VLLM & flash.
     rocthrust-dev \
     hipsparse-dev \
-    hipblas-dev && \
+    hipblas-dev \
+    hipblaslt-dev \
+    rocblas-dev \
+    hiprand-dev \
+    rocrand-dev \
+    miopen-hip-dev \
+    hipfft-dev \
+    hipcub-dev \
+    hipsolver-dev \
+    rccl-dev \
+    cmake \
+    python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Keep in sync with `server/pyproject.toml
 ARG MAMBA_VERSION=23.1.0-1
-ARG PYTORCH_VERSION='2.2.0.dev0'
-ARG ROCM_VERSION='5.7'
+ARG PYTORCH_VERSION='2.3.0'
+ARG ROCM_VERSION='6.0.2'
 ARG PYTHON_VERSION='3.10.10'
 # Automatically set by buildx
 ARG TARGETPLATFORM
@@ -75,12 +86,43 @@ RUN chmod +x ~/mambaforge.sh && \
     mamba init && \
     rm ~/mambaforge.sh
 
-# Install PyTorch 2.2 RC compiled against RoCm 5.7, as VLLM can not be compiled with RoCm 5.6.
-RUN pip install torch --index-url https://download.pytorch.org/whl/test/rocm5.7/
+# Install flash-attention, torch dependencies
+RUN pip install numpy einops ninja --no-cache-dir
+
+RUN conda install intel::mkl-static intel::mkl-include
+RUN pip uninstall -y triton && \
+    git clone --depth 1 --single-branch https://github.com/ROCm/triton.git && \
+    cd triton/python && \
+    pip install .
+
+RUN git clone --depth 1 --recursive --single-branch --branch 2.3-patched https://github.com/fxmarty/pytorch.git pytorch && cd pytorch && pip install -r requirements.txt --no-cache-dir
+
+ARG _GLIBCXX_USE_CXX11_ABI="1"
+ARG CMAKE_PREFIX_PATH="/opt/conda"
+ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
+ARG BUILD_CAFFE2="0" \
+    BUILD_CAFFE2_OPS="0" \
+    USE_CUDA="0" \
+    USE_ROCM="1" \
+    BUILD_TEST="0" \
+    USE_FBGEMM="0" \
+    USE_NNPACK="0" \
+    USE_QNNPACK="0" \
+    USE_XNNPACK="0" \
+    USE_FLASH_ATTENTION="1" \
+    USE_MEM_EFF_ATTENTION="0"
+
+RUN cd pytorch && python tools/amd_build/build_amd.py && python setup.py install
+
+# Set as recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
+ENV HIP_FORCE_DEV_KERNARG=1
+
+# On MI300, performances for flash with Triton FA is very competitive (actually better than CK)
+ENV ROCM_USE_FLASH_ATTN_V2_TRITON=1
 
 FROM base AS kernel-builder
 
-# Build vllm kernels
+# # Build vllm kernels
 FROM kernel-builder AS vllm-builder
 WORKDIR /usr/src
 
@@ -102,21 +144,21 @@ RUN make build-flash-attention-v2-rocm
 FROM kernel-builder as custom-kernels-builder
 WORKDIR /usr/src
 COPY server/custom_kernels/ .
-RUN PYTORCH_ROCM_ARCH=gfx90a python setup.py build
+RUN python setup.py build
 
 # Build exllama kernels
 FROM kernel-builder as exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
 
-RUN PYTORCH_ROCM_ARCH="gfx90a" python setup.py build
+RUN python setup.py build
 
 # Build exllama v2 kernels
 FROM kernel-builder as exllamav2-kernels-builder
 WORKDIR /usr/src
 COPY server/exllamav2_kernels/ .
 
-RUN PYTORCH_ROCM_ARCH="gfx90a" python setup.py build
+RUN python setup.py build
 
 FROM base as base-copy
 
@@ -140,9 +182,6 @@ COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 
 # Copy build artifacts from exllamav2 kernels builder
 COPY --from=exllamav2-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 
-# Install flash-attention dependencies
-RUN pip install einops --no-cache-dir
-
 # Install server
 COPY proto proto
 COPY server server
@@ -160,7 +199,8 @@ COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bi
 COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 # AWS Sagemaker compatible image
-FROM base-copy as sagemaker
+FROM base as sagemaker
+
 COPY sagemaker-entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh
 
@@ -169,5 +209,8 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base-copy
 
-ENTRYPOINT ["text-generation-launcher"]
+COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
+RUN chmod +x /tgi-entrypoint.sh
+
+ENTRYPOINT ["/tgi-entrypoint.sh"]
 CMD ["--json-output"]

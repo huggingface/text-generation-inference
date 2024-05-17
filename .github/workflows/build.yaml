@@ -290,6 +290,9 @@ jobs:
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
       security-events: write
+    outputs:
+      # env is not available in the later `container:`, but previous job outputs are.
+      short_sha: ${{ env.GITHUB_SHA_SHORT }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -392,3 +395,37 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-runner.outputs.label }}
           ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
+
+  integration-tests-rocm:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    needs:
+      - start-runner
+      - build-and-push-image
+      - integration-tests
+      - build-and-push-image-rocm
+      - stop-runner
+    runs-on: [self-hosted, docker-gpu, amd-gpu, multi-gpu, mi300]
+    container:
+      image: registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ needs.build-and-push-image-rocm.outputs.short_sha }}-rocm
+      options: --device /dev/kfd --device /dev/dri --env ROCR_VISIBLE_DEVICES --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/cache
+    env:
+      DOCKER_VOLUME: /cache
+    steps:
+      - name: ROCM-SMI
+        run: |
+          rocm-smi
+      - name: ROCM-INFO
+        run: |
+          rocminfo  | grep "Agent" -A 14
+      - name: Show ROCR environment
+        run: |
+          echo "ROCR: $ROCR_VISIBLE_DEVICES"
+      - name: Install
+        run: |
+          make install-integration-tests
+      - name: Run tests
+        run: |
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          pytest -s -vv integration-tests

@@ -3,8 +3,16 @@
     title: Text Generation Inference
   - local: quicktour
     title: Quick Tour
+  - local: installation_nvidia
+    title: Using TGI with Nvidia GPUs
+  - local: installation_amd
+    title: Using TGI with AMD GPUs
+  - local: installation_gaudi
+    title: Using TGI with Intel Gaudi
+  - local: installation_inferentia
+    title: Using TGI with AWS Inferentia
   - local: installation
-    title: Installation
+    title: Installation from source
   - local: supported_models
     title: Supported Models and Hardware
   - local: messages_api

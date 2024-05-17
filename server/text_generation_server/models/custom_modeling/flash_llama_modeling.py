@@ -22,10 +22,12 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.distributed
+
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -37,6 +39,12 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+
+if SYSTEM == "rocm":
+    try:
+        from vllm import _custom_C
+    except Exception as e:
+        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
 
 def load_attention(config, prefix, weights):
@@ -182,14 +190,16 @@ class FlashLlamaAttention(torch.nn.Module):
 class LlamaMLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
-        act = config.hidden_act
+        self.hidden_act = config.hidden_act
         self.act = (
-            ACT2FN[act]
-            if "gelu" not in act
+            ACT2FN[self.hidden_act]
+            if "gelu" not in self.hidden_act
             else lambda x: torch.nn.functional.gelu(
                 x,
                 approximate=(
-                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                    "tanh"
+                    if self.hidden_act in ["gelu_fast", "gelu_pytorch_tanh"]
+                    else "none"
                 ),
             )
         )
@@ -221,9 +231,23 @@ class LlamaMLP(nn.Module):
         )
 
     def forward(self, hidden_states):
-        gate_up_states = self.gate_up_proj(hidden_states)
-        gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-        return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
+        if (
+            SYSTEM == "rocm"
+            and self.hidden_act == "silu"
+            and hidden_states.shape[0] == 1
+        ):
+            out = torch.empty(
+                hidden_states.shape[0],
+                self.intermediate_size,
+                dtype=hidden_states.dtype,
+                device="cuda",
+            )
+            _custom_C.LLMM_Silu(self.gate_up_proj.linear.weight, hidden_states, out, 8)
+            return self.down_proj(out)
+        else:
+            gate_up_states = self.gate_up_proj(hidden_states)
+            gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
+            return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
 
 
 class FlashLlamaLayer(nn.Module):
