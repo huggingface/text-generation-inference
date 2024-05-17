@@ -23,7 +23,7 @@ TGI's docker image for AMD GPUs integrates [PyTorch's TunableOp](https://github.
 
 Experimentally, on MI300X, we noticed a 6-8% latency improvement when using TunableOp on top of ROCm 6.1 and PyTorch 2.3.
 
-TunableOp is disabled by default as the warmup may take 1-2 minutes. To enable TunableOp, please pass `--env PYTORCH_TUNABLEOP_ENABLED="1"` when launcher TGI's docker container.
+TunableOp is enabled by default, the warmup may take 1-2 minutes. In case you would like to disable TunableOp, please pass `--env PYTORCH_TUNABLEOP_ENABLED="0"` when launcher TGI's docker container.
 
 ## Flash attention implementation
 
