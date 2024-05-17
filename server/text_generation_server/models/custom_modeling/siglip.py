@@ -64,45 +64,6 @@ class SiglipVisionEmbeddings(nn.Module):
         return embeddings
 
 
-class SiglipTextEmbeddings(nn.Module):
-    def __init__(self, config: SiglipTextConfig):
-        super().__init__()
-        embed_dim = config.hidden_size
-
-        self.token_embedding = nn.Embedding(config.vocab_size, embed_dim)
-        self.position_embedding = nn.Embedding(
-            config.max_position_embeddings, embed_dim
-        )
-
-        # position_ids (1, len position emb) is contiguous in memory and exported when serialized
-        self.register_buffer(
-            "position_ids",
-            torch.arange(config.max_position_embeddings).expand((1, -1)),
-            persistent=False,
-        )
-
-    def forward(
-        self,
-        input_ids: Optional[torch.LongTensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-    ) -> torch.Tensor:
-        seq_length = (
-            input_ids.shape[-1] if input_ids is not None else inputs_embeds.shape[-2]
-        )
-
-        if position_ids is None:
-            position_ids = self.position_ids[:, :seq_length]
-
-        if inputs_embeds is None:
-            inputs_embeds = self.token_embedding(input_ids)
-
-        position_embeddings = self.position_embedding(position_ids)
-        embeddings = inputs_embeds + position_embeddings
-
-        return embeddings
-
-
 class SiglipAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
@@ -147,7 +108,6 @@ class SiglipAttention(nn.Module):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
-        output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
@@ -243,32 +203,18 @@ class SiglipEncoderLayer(nn.Module):
         self,
         hidden_states: torch.Tensor,
         attention_mask: torch.Tensor,
-        output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.FloatTensor]:
-        """
-        Args:
-            hidden_states (`torch.FloatTensor`):
-                Input to the layer of shape `(batch, seq_len, embed_dim)`.
-            attention_mask (`torch.FloatTensor`):
-                Attention mask of shape `(batch, 1, q_len, k_v_seq_len)` where padding elements are indicated by very large negative values.
-            output_attentions (`bool`, *optional*, defaults to `False`):
-                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
-                returned tensors for more detail.
-        """
         residual = hidden_states
         hidden_states = self.layer_norm1(hidden_states)
         hidden_states, attn_weights = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
-            output_attentions=output_attentions,
         )
         hidden_states = residual + hidden_states
         residual = hidden_states
         hidden_states = self.layer_norm2(hidden_states)
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
-        if output_attentions:
-            return hidden_states, attn_weights
         return hidden_states, None
 
 
@@ -406,58 +352,6 @@ def default_flax_embed_init(tensor):
 from transformers import PreTrainedModel
 
 
-class SiglipPreTrainedModel(PreTrainedModel):
-    """
-    An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
-    models.
-    """
-
-    config_class = SiglipConfig
-    base_model_prefix = "siglip"
-    supports_gradient_checkpointing = True
-
-    def _init_weights(self, module):
-        """Initialize the weights"""
-        if isinstance(module, SiglipVisionEmbeddings):
-            width = (
-                self.config.vision_config.hidden_size
-                if isinstance(self.config, SiglipConfig)
-                else self.config.hidden_size
-            )
-            nn.init.normal_(module.position_embedding.weight, std=1 / np.sqrt(width))
-        elif isinstance(module, nn.Embedding):
-            default_flax_embed_init(module.weight)
-        elif isinstance(module, SiglipAttention):
-            nn.init.xavier_uniform_(module.q_proj.weight)
-            nn.init.xavier_uniform_(module.k_proj.weight)
-            nn.init.xavier_uniform_(module.v_proj.weight)
-            nn.init.xavier_uniform_(module.out_proj.weight)
-            nn.init.zeros_(module.q_proj.bias)
-            nn.init.zeros_(module.k_proj.bias)
-            nn.init.zeros_(module.v_proj.bias)
-            nn.init.zeros_(module.out_proj.bias)
-        elif isinstance(module, SiglipMLP):
-            nn.init.xavier_uniform_(module.fc1.weight)
-            nn.init.xavier_uniform_(module.fc2.weight)
-            nn.init.normal_(module.fc1.bias, std=1e-6)
-            nn.init.normal_(module.fc2.bias, std=1e-6)
-        elif isinstance(module, SiglipMultiheadAttentionPoolingHead):
-            nn.init.xavier_uniform_(module.probe.data)
-            nn.init.xavier_uniform_(module.attention.in_proj_weight.data)
-            nn.init.zeros_(module.attention.in_proj_bias.data)
-        elif isinstance(module, SiglipModel):
-            logit_scale_init = torch.log(torch.tensor(1.0))
-            module.logit_scale.data.fill_(logit_scale_init)
-            module.logit_bias.data.zero_()
-        elif isinstance(module, (nn.Linear, nn.Conv2d)):
-            lecun_normal_(module.weight)
-            if module.bias is not None:
-                nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-
-
 class SiglipEncoder(nn.Module):
     """
     Transformer encoder consisting of `config.num_hidden_layers` self attention layers. Each layer is a
@@ -483,36 +377,13 @@ class SiglipEncoder(nn.Module):
         self,
         inputs_embeds,
         attention_mask: Optional[torch.Tensor] = None,
-        output_attentions: Optional[torch.Tensor] = None,
     ):
-        r"""
-        Args:
-            inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
-                Optionally, instead of passing `input_ids` you can choose to directly pass an embedded representation.
-                This is useful if you want more control over how to convert `input_ids` indices into associated vectors
-                than the model's internal embedding lookup matrix.
-            attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Mask to avoid performing attention on padding token indices. Mask values selected in `[0, 1]`:
-
-                - 1 for tokens that are **not masked**,
-                - 0 for tokens that are **masked**.
-
-                [What are attention masks?](../glossary#attention-mask)
-            causal_attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Causal mask for the text model. Mask values selected in `[0, 1]`:
-
-                - 1 for tokens that are **not masked**,
-                - 0 for tokens that are **masked**.
-
-                [What are attention masks?](../glossary#attention-mask)
-        """
 
         hidden_states = inputs_embeds
         for idx, encoder_layer in enumerate(self.layers):
             hidden_states, _ = encoder_layer(
                 hidden_states,
                 attention_mask,
-                output_attentions=output_attentions,
             )
 
         return hidden_states
