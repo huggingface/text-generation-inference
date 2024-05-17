@@ -412,7 +412,6 @@ class Mamba(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-
         self.process_group, _rank, world_size = initialize_torch_distributed()
         if world_size > 1:
             raise RuntimeError("Mamba does not support Tensor Parallelism (TP)")
@@ -476,7 +475,7 @@ class Mamba(Model):
                 except Exception:
                     logger.exception(f"Decode cuda graph warmup failed")
         else:
-            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS='{CUDA_GRAPHS}').")
+            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
         return None
 

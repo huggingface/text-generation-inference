@@ -10,7 +10,6 @@ from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_llama_modeling import (
     FlashLlamaForCausalLM,
 )
-
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,

@@ -318,7 +318,6 @@ class BaseFlashMistral(FlashCausalLM):
         trust_remote_code: bool = False,
         tokenizer_class=AutoTokenizer,
     ):
-
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")

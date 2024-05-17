@@ -21,7 +21,6 @@ from text_generation_server.utils import (
     Weights,
 )
 
-
 # CREDIT: Papers with code => https://github.com/paperswithcode/galai/blob/main/galai/utils.py
 
 # we split individual characters inside special tokens like [START_DNA]
@@ -172,7 +171,6 @@ class GalacticaSharded(CausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")

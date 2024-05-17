@@ -17,7 +17,6 @@ from text_generation_server.models.types import (
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
 
-
 tracer = trace.get_tracer(__name__)
 
 
