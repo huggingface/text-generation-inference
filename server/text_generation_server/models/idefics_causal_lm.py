@@ -22,7 +22,6 @@ from text_generation_server.models.types import (
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
 from text_generation_server.models.vlm_causal_lm import split
-
 import re
 
 IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
@@ -577,6 +576,7 @@ class IdeficsCausalLM(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+
         from text_generation_server.models.custom_modeling.idefics_modeling import (
             IdeficsForVisionText2Text,
         )

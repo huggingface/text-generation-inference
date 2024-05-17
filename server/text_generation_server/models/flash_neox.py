@@ -15,6 +15,7 @@ from text_generation_server.utils import (
     Weights,
 )
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.models import CausalLM
 
 tracer = trace.get_tracer(__name__)
 
@@ -29,7 +30,6 @@ class FlashNeoXSharded(FlashCausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        self.model_id = model_id
 
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():

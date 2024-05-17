@@ -17,6 +17,7 @@ from text_generation_server.models.types import (
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
 
+
 tracer = trace.get_tracer(__name__)
 
 
@@ -536,7 +537,7 @@ class Seq2SeqLM(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        self.model_id = model_id
+
         if speculator:
             raise RuntimeError("Speculator decoding is not enabled for AutoModel")
 

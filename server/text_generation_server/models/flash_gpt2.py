@@ -15,10 +15,10 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
+from text_generation_server.models import CausalLM
+from text_generation_server.utils.import_utils import SYSTEM
 
 tracer = trace.get_tracer(__name__)
-
-from text_generation_server.utils.import_utils import SYSTEM
 
 
 class FlashGPT2(FlashCausalLM):
@@ -31,6 +31,7 @@ class FlashGPT2(FlashCausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")

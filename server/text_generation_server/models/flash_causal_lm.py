@@ -31,6 +31,7 @@ from text_generation_server.models.cache_manager import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
+import text_generation_server.models.globals as tgi_globals
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
@@ -827,11 +828,14 @@ class FlashCausalLM(Model):
         )
 
         if SYSTEM == "rocm":
-            if os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
-                if os.environ.get("PYTORCH_TUNABLEOP_TUNING", "1"):
+            if (
+                os.environ.get("PYTORCH_TUNABLEOP_ENABLED") is None
+                or os.environ.get("PYTORCH_TUNABLEOP_ENABLED") == "1"
+            ):
+                if os.environ.get("PYTORCH_TUNABLEOP_TUNING") != "0":
                     torch.cuda.tunable.tuning_enable(True)
 
-                if os.environ.get("PYTORCH_TUNABLEOP_SEQLENS", False):
+                if os.environ.get("PYTORCH_TUNABLEOP_SEQLENS") is not None:
                     tuning_sequences = [
                         int(val)
                         for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")
@@ -841,11 +845,11 @@ class FlashCausalLM(Model):
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
-                    f"tunableop_{self.model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                    f"tunableop_{tgi_globals.MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
                 logger.info(
-                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])} (typical decoding lengths). The picked GEMMs are saved in the file {tunableop_filepath}."
+                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`."
                 )
 
                 if os.path.isfile(tunableop_filepath):

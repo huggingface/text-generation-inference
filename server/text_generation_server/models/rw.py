@@ -16,6 +16,7 @@ class RW(CausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+
         if speculator:
             raise RuntimeError("Medusa decoding is not enabled for AutoModel")
 
