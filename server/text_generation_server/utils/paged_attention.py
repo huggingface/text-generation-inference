@@ -85,53 +85,93 @@ def attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
-    use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
-    if use_v1:
-        ops.paged_attention_v1(
-            out,
+    if FLASH_DECODING:
+        cu_seqlen_q = torch.arange(
+            input_lengths.shape[0] + 1, device=query.device, dtype=torch.int32
+        )
+        cu_seqlen_k = torch.cat(
+            [
+                torch.zeros(
+                    (1,), device=input_lengths.device, dtype=input_lengths.dtype
+                ),
+                input_lengths.cumsum(dim=-1),
+            ]
+        ).to(dtype=torch.int32)
+        max_q = 1
+        max_k = max_s
+        import flash_attn_2_cuda
+
+        flash_attn_2_cuda.varlen_fwd(
             query,
             key_cache,
             value_cache,
-            kv_head_mapping,
-            softmax_scale,
-            block_tables,
-            input_lengths,
-            block_size,
-            max_s,
+            out,
+            cu_seqlen_q,
+            cu_seqlen_k,
             None,
-            "auto",
-            1.0,
+            block_tables,
+            None,
+            max_q,
+            max_k,
+            0.0,
+            softmax_scale,
+            False,
+            True,
+            -1,
+            0,
+            False,
+            None,
         )
     else:
-        # Run PagedAttention V2.
-        assert _PARTITION_SIZE % block_size == 0
-        tmp_output = torch.empty(
-            size=(num_seqs, num_heads, max_num_partitions, head_size),
-            dtype=out.dtype,
-            device=out.device,
-        )
-        exp_sums = torch.empty(
-            size=(num_seqs, num_heads, max_num_partitions),
-            dtype=torch.float32,
-            device=out.device,
-        )
-        max_logits = torch.empty_like(exp_sums)
+        from vllm._C import ops
 
-        ops.paged_attention_v2(
-            out,
-            exp_sums,
-            max_logits,
-            tmp_output,
-            query,
-            key_cache,
-            value_cache,
-            kv_head_mapping,
-            softmax_scale,
-            block_tables,
-            input_lengths,
-            block_size,
-            max_s,
-            None,
-            "auto",
-            1.0,
-        )
+        use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
+        if use_v1:
+            ops.paged_attention_v1(
+                out,
+                query,
+                key_cache,
+                value_cache,
+                kv_head_mapping,
+                softmax_scale,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
+                None,
+                "auto",
+                1.0,
+            )
+        else:
+            # Run PagedAttention V2.
+            assert _PARTITION_SIZE % block_size == 0
+            tmp_output = torch.empty(
+                size=(num_seqs, num_heads, max_num_partitions, head_size),
+                dtype=out.dtype,
+                device=out.device,
+            )
+            exp_sums = torch.empty(
+                size=(num_seqs, num_heads, max_num_partitions),
+                dtype=torch.float32,
+                device=out.device,
+            )
+            max_logits = torch.empty_like(exp_sums)
+
+            ops.paged_attention_v2(
+                out,
+                exp_sums,
+                max_logits,
+                tmp_output,
+                query,
+                key_cache,
+                value_cache,
+                kv_head_mapping,
+                softmax_scale,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
+                None,
+                "auto",
+                1.0,
+            )
