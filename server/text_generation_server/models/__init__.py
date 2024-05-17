@@ -79,12 +79,15 @@ try:
     from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
     from text_generation_server.models.flash_dbrx import FlashDbrx
-    from text_generation_server.utils.flash_attn import HAS_FLASH_ATTN_V2_CUDA
-
+    from text_generation_server.utils.flash_attn import (
+        HAS_FLASH_ATTN_V2_CUDA,
+        HAS_FLASH_ATTN_V2_ROCM,
+    )
 except ImportError as e:
     logger.warning(f"Could not import Flash Attention enabled models: {e}")
     FLASH_ATTENTION = False
     HAS_FLASH_ATTN_V2_CUDA = False
+    HAS_FLASH_ATTN_V2_ROCM = False
 
 if FLASH_ATTENTION:
     __all__.append(FlashGPT2)
@@ -539,8 +542,10 @@ def get_model(
     if model_type == "mistral":
         sliding_window = config_dict.get("sliding_window", -1)
         if (
-            (sliding_window is None or sliding_window == -1) and FLASH_ATTENTION
-        ) or HAS_FLASH_ATTN_V2_CUDA:
+            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
+            or HAS_FLASH_ATTN_V2_CUDA
+            or HAS_FLASH_ATTN_V2_ROCM
+        ):
             return FlashMistral(
                 model_id,
                 revision,
@@ -564,8 +569,10 @@ def get_model(
     if model_type == "mixtral":
         sliding_window = config_dict.get("sliding_window", -1)
         if (
-            (sliding_window is None or sliding_window == -1) and FLASH_ATTENTION
-        ) or HAS_FLASH_ATTN_V2_CUDA:
+            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
+            or HAS_FLASH_ATTN_V2_CUDA
+            or HAS_FLASH_ATTN_V2_ROCM
+        ):
             return FlashMixtral(
                 model_id,
                 revision,
@@ -589,8 +596,10 @@ def get_model(
     if model_type == "starcoder2":
         sliding_window = config_dict.get("sliding_window", -1)
         if (
-            (sliding_window is None or sliding_window == -1) and FLASH_ATTENTION
-        ) or HAS_FLASH_ATTN_V2_CUDA:
+            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
+            or HAS_FLASH_ATTN_V2_CUDA
+            or HAS_FLASH_ATTN_V2_ROCM
+        ):
             return FlashStarcoder2(
                 model_id,
                 revision,
@@ -615,8 +624,10 @@ def get_model(
     if model_type == "qwen2":
         sliding_window = config_dict.get("sliding_window", -1)
         if (
-            (sliding_window is None or sliding_window == -1) and FLASH_ATTENTION
-        ) or HAS_FLASH_ATTN_V2_CUDA:
+            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
+            or HAS_FLASH_ATTN_V2_CUDA
+            or HAS_FLASH_ATTN_V2_ROCM
+        ):
             return FlashQwen2(
                 model_id,
                 revision,

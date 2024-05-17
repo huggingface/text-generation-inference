@@ -397,6 +397,9 @@ class BaseFlashMistral(FlashCausalLM):
         slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
         kv_cache = get_cache_manager().kv_cache
 
+        # Dummy value, some models (starcoder2) don't accept `None`.
+        input_lengths = torch.ones(seqlen, dtype=torch.int32, device=self.device)
+
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
             input_ids=input_ids,
@@ -406,7 +409,7 @@ class BaseFlashMistral(FlashCausalLM):
             ),
             kv_cache=get_cache_manager().kv_cache,
             block_tables=None,
-            input_lengths=None,
+            input_lengths=input_lengths,
             slots=slots,
             max_s=seqlen,
             lm_head_indices=None,
