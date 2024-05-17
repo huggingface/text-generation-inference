@@ -537,7 +537,6 @@ class Seq2SeqLM(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-
         if speculator:
             raise RuntimeError("Speculator decoding is not enabled for AutoModel")
 

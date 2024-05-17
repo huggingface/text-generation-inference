@@ -26,7 +26,6 @@ class OPTSharded(CausalLM):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
