@@ -31,3 +31,5 @@ python-packages = ["tgi", "text_generation_server"]
 
 [project.scripts]
 text-generation-server = "tgi:text_generation_server_cli_main"
+text-generation-router = "tgi:text_generation_router_cli_main"
+text-generation-launcher = "tgi:text_generation_launcher_cli_main"

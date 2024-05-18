@@ -1260,8 +1260,64 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
     Ok(exit_status)
 }
 
+pub fn internal_main_args() -> Result<(), LauncherError> {
+    let args: Vec<String> = std::env::args()
+        // skips the first arg if it's python
+        .skip_while(|a| a.contains("python"))
+        .collect();
+    let args = Args::parse_from(args);
+
+    internal_main(
+        args.model_id,
+        args.revision,
+        args.validation_workers,
+        args.sharded,
+        args.num_shard,
+        args.quantize,
+        args.speculate,
+        args.dtype,
+        args.trust_remote_code,
+        args.max_concurrent_requests,
+        args.max_best_of,
+        args.max_stop_sequences,
+        args.max_top_n_tokens,
+        args.max_input_tokens,
+        args.max_input_length,
+        args.max_total_tokens,
+        args.waiting_served_ratio,
+        args.max_batch_prefill_tokens,
+        args.max_batch_total_tokens,
+        args.max_waiting_tokens,
+        args.max_batch_size,
+        args.cuda_graphs,
+        args.hostname,
+        args.port,
+        args.shard_uds_path,
+        args.master_addr,
+        args.master_port,
+        args.huggingface_hub_cache,
+        args.weights_cache_override,
+        args.disable_custom_kernels,
+        args.cuda_memory_fraction,
+        args.rope_scaling,
+        args.rope_factor,
+        args.json_output,
+        args.otlp_endpoint,
+        args.cors_allow_origin,
+        args.watermark_gamma,
+        args.watermark_delta,
+        args.ngrok,
+        args.ngrok_authtoken,
+        args.ngrok_edge,
+        args.tokenizer_config_path,
+        args.disable_grammar_support,
+        args.env,
+        args.max_client_batch_size,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
-pub fn launcher_main(
+pub fn internal_main(
     model_id: String,
     revision: Option<String>,
     validation_workers: usize,
@@ -1635,391 +1691,6 @@ pub fn launcher_main(
 
     // Graceful termination
     terminate("webserver", webserver, Duration::from_secs(90)).unwrap();
-    shutdown_shards(shutdown, &shutdown_receiver);
-
-    exit_code
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn launcher_main_without_server(
-    model_id: String,
-    revision: Option<String>,
-    validation_workers: usize,
-    sharded: Option<bool>,
-    num_shard: Option<usize>,
-    quantize: Option<Quantization>,
-    speculate: Option<usize>,
-    dtype: Option<Dtype>,
-    trust_remote_code: bool,
-    max_concurrent_requests: usize,
-    max_best_of: usize,
-    max_stop_sequences: usize,
-    max_top_n_tokens: u32,
-    max_input_tokens: Option<usize>,
-    max_input_length: Option<usize>,
-    max_total_tokens: Option<usize>,
-    waiting_served_ratio: f32,
-    max_batch_prefill_tokens: Option<u32>,
-    max_batch_total_tokens: Option<u32>,
-    max_waiting_tokens: usize,
-    max_batch_size: Option<usize>,
-    cuda_graphs: Option<Vec<usize>>,
-    hostname: String,
-    port: u16,
-    shard_uds_path: String,
-    master_addr: String,
-    master_port: usize,
-    huggingface_hub_cache: Option<String>,
-    weights_cache_override: Option<String>,
-    disable_custom_kernels: bool,
-    cuda_memory_fraction: f32,
-    rope_scaling: Option<RopeScaling>,
-    rope_factor: Option<f32>,
-    json_output: bool,
-    otlp_endpoint: Option<String>,
-    cors_allow_origin: Vec<String>,
-    watermark_gamma: Option<f32>,
-    watermark_delta: Option<f32>,
-    ngrok: bool,
-    ngrok_authtoken: Option<String>,
-    ngrok_edge: Option<String>,
-    tokenizer_config_path: Option<String>,
-    disable_grammar_support: bool,
-    env: bool,
-    max_client_batch_size: usize,
-    webserver_callback: Box<dyn FnOnce() -> Result<(), LauncherError>>,
-) -> Result<(), LauncherError> {
-    let args = Args {
-        model_id,
-        revision,
-        validation_workers,
-        sharded,
-        num_shard,
-        quantize,
-        speculate,
-        dtype,
-        trust_remote_code,
-        max_concurrent_requests,
-        max_best_of,
-        max_stop_sequences,
-        max_top_n_tokens,
-        max_input_tokens,
-        max_input_length,
-        max_total_tokens,
-        waiting_served_ratio,
-        max_batch_prefill_tokens,
-        max_batch_total_tokens,
-        max_waiting_tokens,
-        max_batch_size,
-        cuda_graphs,
-        hostname,
-        port,
-        shard_uds_path,
-        master_addr,
-        master_port,
-        huggingface_hub_cache,
-        weights_cache_override,
-        disable_custom_kernels,
-        cuda_memory_fraction,
-        rope_scaling,
-        rope_factor,
-        json_output,
-        otlp_endpoint,
-        cors_allow_origin,
-        watermark_gamma,
-        watermark_delta,
-        ngrok,
-        ngrok_authtoken,
-        ngrok_edge,
-        tokenizer_config_path,
-        disable_grammar_support,
-        env,
-        max_client_batch_size,
-    };
-
-    // Filter events with LOG_LEVEL
-    let env_filter =
-        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
-
-    if args.json_output {
-        tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
-            .json()
-            .init();
-    } else {
-        tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
-            .compact()
-            .init();
-    }
-
-    if args.env {
-        let env_runtime = env_runtime::Env::new();
-        tracing::info!("{}", env_runtime);
-    }
-
-    tracing::info!("{:#?}", args);
-
-    let get_max_position_embeddings = || -> Result<usize, Box<dyn std::error::Error>> {
-        let model_id = args.model_id.clone();
-        let mut path = std::path::Path::new(&args.model_id).to_path_buf();
-        let filename = if !path.exists() {
-            // Assume it's a hub id
-            let api = Api::new()?;
-            let repo = if let Some(ref revision) = args.revision {
-                api.repo(Repo::with_revision(
-                    model_id,
-                    RepoType::Model,
-                    revision.to_string(),
-                ))
-            } else {
-                api.model(model_id)
-            };
-            repo.get("config.json")?
-        } else {
-            path.push("config.json");
-            path
-        };
-
-        let content = std::fs::read_to_string(filename)?;
-        let config: Config = serde_json::from_str(&content)?;
-
-        // Quantization usually means you're even more RAM constrained.
-        let max_default = 4096;
-
-        let max_position_embeddings = match (config.max_position_embeddings, config.max_seq_len) {
-            (Some(max_position_embeddings), _) | (None, Some(max_position_embeddings)) => {
-                if max_position_embeddings > max_default {
-                    let max = max_position_embeddings;
-                    if args.max_input_tokens.is_none()
-                        && args.max_total_tokens.is_none()
-                        && args.max_batch_prefill_tokens.is_none()
-                    {
-                        tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
-                    }
-                    max_default
-                } else {
-                    max_position_embeddings
-                }
-            }
-            _ => {
-                return Err(Box::new(LauncherError::ArgumentValidation(
-                    "no max defined".to_string(),
-                )));
-            }
-        };
-        Ok(max_position_embeddings)
-    };
-    let max_position_embeddings: usize = get_max_position_embeddings().unwrap_or(4096);
-
-    let max_input_tokens = {
-        match (args.max_input_tokens, args.max_input_length) {
-            (Some(max_input_tokens), Some(max_input_length)) => {
-                return Err(LauncherError::ArgumentValidation(
-                    format!("Both `max_input_tokens` ({max_input_tokens}) and `max_input_length` ({max_input_length}) are set. Please define only `max_input_tokens` as `max_input_length is deprecated for naming consistency.",
-                )));
-            }
-            (Some(max_input_tokens), None) | (None, Some(max_input_tokens)) => max_input_tokens,
-            (None, None) => {
-                let value = max_position_embeddings - 1;
-                tracing::info!("Default `max_input_tokens` to {value}");
-                value
-            }
-        }
-    };
-    let max_total_tokens = {
-        match args.max_total_tokens {
-            Some(max_total_tokens) => max_total_tokens,
-            None => {
-                let value = max_position_embeddings;
-                tracing::info!("Default `max_total_tokens` to {value}");
-                value
-            }
-        }
-    };
-    let max_batch_prefill_tokens = {
-        match args.max_batch_prefill_tokens {
-            Some(max_batch_prefill_tokens) => max_batch_prefill_tokens,
-            None => {
-                let value: u32 = if let Some(max_batch_size) = args.max_batch_size {
-                    max_batch_size * max_input_tokens
-                } else {
-                    // Adding some edge in order to account for potential block_size alignement
-                    // issue.
-                    max_input_tokens + 50
-                } as u32;
-                tracing::info!("Default `max_batch_prefill_tokens` to {value}");
-                value
-            }
-        }
-    };
-
-    // Validate args
-    if max_input_tokens >= max_total_tokens {
-        return Err(LauncherError::ArgumentValidation(
-            "`max_input_tokens must be < `max_total_tokens`".to_string(),
-        ));
-    }
-    if max_input_tokens as u32 > max_batch_prefill_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {} and {}",
-            max_batch_prefill_tokens, max_input_tokens
-        )));
-    }
-
-    let cuda_graphs = match (&args.cuda_graphs, &args.quantize) {
-        (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
-        #[allow(deprecated)]
-        (
-            None,
-            Some(
-                Quantization::Bitsandbytes
-                | Quantization::BitsandbytesNF4
-                | Quantization::BitsandbytesFP4,
-            ),
-        ) => {
-            tracing::info!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
-            vec![]
-        }
-        _ => {
-            let cuda_graphs = vec![1, 2, 4, 8, 16, 32];
-            tracing::info!("Using default cuda graphs {cuda_graphs:?}");
-            cuda_graphs
-        }
-    };
-
-    if args.validation_workers == 0 {
-        return Err(LauncherError::ArgumentValidation(
-            "`validation_workers` must be > 0".to_string(),
-        ));
-    }
-    if args.trust_remote_code {
-        tracing::warn!(
-            "`trust_remote_code` is set. Trusting that model `{}` do not contain malicious code.",
-            args.model_id
-        );
-    }
-
-    let num_shard = find_num_shards(args.sharded, args.num_shard)?;
-    if num_shard > 1 {
-        tracing::info!("Sharding model on {num_shard} processes");
-    }
-
-    if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
-        if max_batch_prefill_tokens > *max_batch_total_tokens {
-            return Err(LauncherError::ArgumentValidation(format!(
-                "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-                max_batch_prefill_tokens, max_batch_total_tokens
-            )));
-        }
-        if max_total_tokens as u32 > *max_batch_total_tokens {
-            return Err(LauncherError::ArgumentValidation(format!(
-                "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-                max_total_tokens, max_batch_total_tokens
-            )));
-        }
-    }
-
-    if args.ngrok {
-        if args.ngrok_authtoken.is_none() {
-            return Err(LauncherError::ArgumentValidation(
-                "`ngrok-authtoken` must be set when using ngrok tunneling".to_string(),
-            ));
-        }
-
-        if args.ngrok_edge.is_none() {
-            return Err(LauncherError::ArgumentValidation(
-                "`ngrok-edge` must be set when using ngrok tunneling".to_string(),
-            ));
-        }
-    }
-
-    // Signal handler
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-    ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
-    })
-    .expect("Error setting Ctrl-C handler");
-
-    // Download and convert model weights
-    download_convert_model(&args, running.clone())?;
-
-    if !running.load(Ordering::SeqCst) {
-        // Launcher was asked to stop
-        return Ok(());
-    }
-
-    // Shared shutdown bool
-    let shutdown = Arc::new(AtomicBool::new(false));
-    // Shared shutdown channel
-    // When shutting down, the main thread will wait for all senders to be dropped
-    let (shutdown_sender, shutdown_receiver) = mpsc::channel();
-
-    // Shared channel to track shard status
-    let (status_sender, status_receiver) = mpsc::channel();
-
-    spawn_shards(
-        num_shard,
-        &args,
-        cuda_graphs,
-        max_total_tokens,
-        shutdown.clone(),
-        &shutdown_receiver,
-        shutdown_sender,
-        &status_receiver,
-        status_sender,
-        running.clone(),
-    )?;
-
-    // We might have received a termination signal
-    if !running.load(Ordering::SeqCst) {
-        shutdown_shards(shutdown, &shutdown_receiver);
-        return Ok(());
-    }
-
-    // let mut webserver = spawn_webserver(
-    //     num_shard,
-    //     args,
-    //     max_input_tokens,
-    //     max_total_tokens,
-    //     max_batch_prefill_tokens,
-    //     shutdown.clone(),
-    //     &shutdown_receiver,
-    // )
-    // .map_err(|err| {
-    //     shutdown_shards(shutdown.clone(), &shutdown_receiver);
-    //     err
-    // })?;
-
-    webserver_callback()?;
-
-    println!("Webserver started");
-
-    // Default exit code
-    let mut exit_code = Ok(());
-
-    while running.load(Ordering::SeqCst) {
-        if let Ok(ShardStatus::Failed(rank)) = status_receiver.try_recv() {
-            tracing::error!("Shard {rank} crashed");
-            exit_code = Err(LauncherError::ShardFailed);
-            break;
-        };
-
-        // match webserver.try_wait().unwrap() {
-        //     Some(_) => {
-        //         tracing::error!("Webserver Crashed");
-        //         shutdown_shards(shutdown, &shutdown_receiver);
-        //         return Err(LauncherError::WebserverFailed);
-        //     }
-        //     None => {
-        //         sleep(Duration::from_millis(100));
-        //     }
-        // };
-    }
-
-    // Graceful termination
-    // terminate("webserver", webserver, Duration::from_secs(90)).unwrap();
     shutdown_shards(shutdown, &shutdown_receiver);
 
     exit_code

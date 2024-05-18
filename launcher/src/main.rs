@@ -1,53 +1,5 @@
-use clap::Parser;
-use text_generation_launcher::{launcher_main, Args, LauncherError};
+use text_generation_launcher::{internal_main_args, LauncherError};
 
 fn main() -> Result<(), LauncherError> {
-    let args = Args::parse();
-    launcher_main(
-        args.model_id,
-        args.revision,
-        args.validation_workers,
-        args.sharded,
-        args.num_shard,
-        args.quantize,
-        args.speculate,
-        args.dtype,
-        args.trust_remote_code,
-        args.max_concurrent_requests,
-        args.max_best_of,
-        args.max_stop_sequences,
-        args.max_top_n_tokens,
-        args.max_input_tokens,
-        args.max_input_length,
-        args.max_total_tokens,
-        args.waiting_served_ratio,
-        args.max_batch_prefill_tokens,
-        args.max_batch_total_tokens,
-        args.max_waiting_tokens,
-        args.max_batch_size,
-        args.cuda_graphs,
-        args.hostname,
-        args.port,
-        args.shard_uds_path,
-        args.master_addr,
-        args.master_port,
-        args.huggingface_hub_cache,
-        args.weights_cache_override,
-        args.disable_custom_kernels,
-        args.cuda_memory_fraction,
-        args.rope_scaling,
-        args.rope_factor,
-        args.json_output,
-        args.otlp_endpoint,
-        args.cors_allow_origin,
-        args.watermark_gamma,
-        args.watermark_delta,
-        args.ngrok,
-        args.ngrok_authtoken,
-        args.ngrok_edge,
-        args.tokenizer_config_path,
-        args.disable_grammar_support,
-        args.env,
-        args.max_client_batch_size,
-    )
+    internal_main_args()
 }

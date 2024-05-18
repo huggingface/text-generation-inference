@@ -1,9 +1,8 @@
 from .tgi import *
 import threading
-from tgi import rust_launcher, rust_sleep, fully_packaged
+from tgi import rust_router, rust_launcher, rust_launcher_cli
 import asyncio
 from dataclasses import dataclass, asdict
-import sys
 from text_generation_server.cli import app
 
 # add the rust_launcher coroutine to the __all__ list
@@ -15,6 +14,14 @@ if hasattr(tgi, "__all__"):
 # wrap the app from text_generation_server.cli in a function
 def text_generation_server_cli_main():
     app()
+
+
+def text_generation_router_cli_main():
+    rust_router()
+
+
+def text_generation_launcher_cli_main():
+    rust_launcher_cli()
 
 
 @dataclass
@@ -81,7 +88,7 @@ class TGI(object):
         print(args)
         args = Args(**args)
         try:
-            await fully_packaged(
+            await rust_launcher(
                 args.model_id,
                 args.revision,
                 args.validation_workers,
