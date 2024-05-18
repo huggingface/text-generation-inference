@@ -5,6 +5,8 @@ members = [
     "router/client",
     "router/grpc-metadata",
     "launcher",
+]
+exclude = [
     "tgi"
 ]
 resolver = "2"

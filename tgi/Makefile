@@ -12,6 +12,6 @@ remove-comment-gitignore:
 library-install:
 	pip install -e .
 
-install: build comment-gitignore library-install remove-comment-gitignore
+install: comment-gitignore build library-install remove-comment-gitignore
 
 quick-install: build library-install
