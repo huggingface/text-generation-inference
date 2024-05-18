@@ -40,7 +40,6 @@ def _weight_hub_files_from_model_info(
         and "arguments" not in s.rfilename
         and "args" not in s.rfilename
         and "training" not in s.rfilename
-        and "medusa_lm_head" not in s.rfilename
     ]
 
 
@@ -57,7 +56,6 @@ def _weight_files_from_dir(d: Path, extension: str) -> List[str]:
         and "args" not in f
         and "adapter" not in f
         and "training" not in f
-        and "medusa_lm_head" not in f
     ]
     return filenames
 
