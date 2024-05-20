@@ -68,7 +68,7 @@ Once the Grafana server is launched, the Grafana interface is available at http:
 
 Once logged in, the Prometheus data source for Grafana needs to be configured, in the option `Add your first data source`. There, a Prometheus data source needs to be added with the Ngrok address we got earlier, that exposes Prometheus port (example: https://d661-4-223-164-145.ngrok-free.app).
 
-Once Prometheus data source is configured, we can finally create our dashboard! From home, go to `Create your first dashboard` and then `Import dashboard`. There, we will use the recommended dashboard template [tgi_grafana.json](https://github.com/huggingface/text-generation-inference/blob/main/assets/grafana.json) for a dashboard ready to be used, but you may configure your own dashboard as you like.
+Once Prometheus data source is configured, we can finally create our dashboard! From home, go to `Create your first dashboard` and then `Import dashboard`. There, we will use the recommended dashboard template [tgi_grafana.json](https://github.com/huggingface/text-generation-inference/blob/main/assets/tgi_grafana.json) for a dashboard ready to be used, but you may configure your own dashboard as you like.
 
 Community contributed dashboard templates are also available, for example [here](https://grafana.com/grafana/dashboards/19831-text-generation-inference-dashboard/) or [here](https://grafana.com/grafana/dashboards/20246-text-generation-inference/).
 
