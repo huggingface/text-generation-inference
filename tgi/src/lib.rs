@@ -192,7 +192,7 @@ fn rust_launcher_cli(_py: Python<'_>) -> PyResult<String> {
 }
 
 #[pymodule]
-fn tgi(_py: Python, m: &PyModule) -> PyResult<()> {
+fn _tgi(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rust_sleep, m)?)?;
     m.add_function(wrap_pyfunction!(rust_router, m)?)?;
     m.add_function(wrap_pyfunction!(rust_launcher, m)?)?;

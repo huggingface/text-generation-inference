@@ -1,27 +1,25 @@
-from .tgi import *
 import threading
-from tgi import rust_router, rust_launcher, rust_launcher_cli
+from tgi import _tgi
 import asyncio
 from dataclasses import dataclass, asdict
 from text_generation_server.cli import app
 
 # add the rust_launcher coroutine to the __all__ list
-__doc__ = tgi.__doc__
-if hasattr(tgi, "__all__"):
-    __all__ = tgi.__all__
+__doc__ = _tgi.__doc__
+if hasattr(_tgi, "__all__"):
+    __all__ = _tgi.__all__
 
 
-# wrap the app from text_generation_server.cli in a function
 def text_generation_server_cli_main():
     app()
 
 
 def text_generation_router_cli_main():
-    rust_router()
+    _tgi.rust_router()
 
 
 def text_generation_launcher_cli_main():
-    rust_launcher_cli()
+    _tgi.rust_launcher_cli()
 
 
 @dataclass
@@ -88,7 +86,7 @@ class TGI(object):
         print(args)
         args = Args(**args)
         try:
-            await rust_launcher(
+            await _tgi.rust_launcher(
                 args.model_id,
                 args.revision,
                 args.validation_workers,

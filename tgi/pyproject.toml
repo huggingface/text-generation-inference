@@ -3,25 +3,70 @@ requires = ["maturin>=1.5,<2.0"]
 build-backend = "maturin"
 
 [project]
+dependencies = [
+  "backoff==2.2.1",
+  "certifi==2024.2.2",
+  "charset-normalizer==3.3.2",
+  "click==8.1.7",
+  "colorama==0.4.6",
+  "deprecated==1.2.14",
+  "einops==0.6.1",
+  "filelock==3.14.0",
+  "fsspec==2024.3.1",
+  "googleapis-common-protos==1.63.0",
+  "grpc-interceptor==0.15.4",
+  "grpcio-reflection==1.62.2",
+  "grpcio-status==1.62.2",
+  "grpcio==1.63.0",
+  "hf-transfer==0.1.6",
+  "huggingface-hub==0.23.0",
+  "idna==3.7",
+  "loguru==0.6.0",
+  "numpy==1.26.4",
+  "opentelemetry-api==1.15.0",
+  "opentelemetry-exporter-otlp-proto-grpc==1.15.0",
+  "opentelemetry-exporter-otlp-proto-http==1.15.0",
+  "opentelemetry-exporter-otlp==1.15.0",
+  "opentelemetry-instrumentation-grpc==0.36b0",
+  "opentelemetry-instrumentation==0.36b0",
+  "opentelemetry-proto==1.15.0",
+  "opentelemetry-sdk==1.15.0",
+  "opentelemetry-semantic-conventions==0.36b0",
+  "packaging==24.0",
+  "pillow==10.3.0",
+  "prometheus-client==0.20.0",
+  "protobuf==4.25.3",
+  "py-cpuinfo==9.0.0",
+  "pyyaml==6.0.1",
+  "regex==2024.5.10",
+  "requests==2.31.0",
+  "safetensors==0.4.3",
+  "scipy==1.13.0",
+  "sentencepiece==0.1.99",
+  "setuptools==69.5.1",
+  "tokenizers==0.19.1",
+  "tqdm==4.66.4",
+  "transformers @ git+https://github.com/huggingface/transformers.git@b8aee2e918d7ba2d5e9e80162ae26b4806873307",
+  "typer==0.6.1",
+  "typing-extensions==4.11.0",
+  "urllib3==2.2.1",
+  "win32-setctime==1.1.0",
+  "wrapt==1.16.0",
+  "torch==2.1.0",
+  "peft==0.10.0",
+  "outlines==0.0.34",
+]
 name = "tgi"
 requires-python = ">=3.8"
 classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
 [tool.maturin]
 features = ["pyo3/extension-module"]
-
-# TODO: Compile protos before installing text_generation_server
-
-# pip install grpcio-tools==1.51.1 mypy-protobuf==3.4.0 'types-protobuf>=3.20.4' --no-cache-dir
-# mkdir text_generation_server/pb || true
-# python -m grpc_tools.protoc -I../proto --python_out=text_generation_server/pb \
-#     --grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/generate.proto
-# find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
-# touch text_generation_server/pb/__init__.py
+module-name = "tgi._tgi"
 
 # NOTE: currently we comment out server/text_generation_server/pb/.gitignore
 # which includes the generated python files. These then get included in the

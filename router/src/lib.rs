@@ -242,8 +242,6 @@ pub async fn internal_main_args() -> Result<(), RouterError> {
         .skip_while(|a| a.contains("python"))
         .collect();
     let args = Args::parse_from(args);
-
-    println!("{:?}", args);
     let out = internal_main(
         args.max_concurrent_requests,
         args.max_best_of,
@@ -309,10 +307,7 @@ pub async fn internal_main(
     max_client_batch_size: usize,
 ) -> Result<(), RouterError> {
     // Launch Tokio runtime
-    if otlp_endpoint.is_some() {
-        // Initialize if OpenTelemetry is enabled
-        init_logging(otlp_endpoint, json_output);
-    }
+    init_logging(otlp_endpoint, json_output);
 
     // Validate args
     if max_input_tokens >= max_total_tokens {
