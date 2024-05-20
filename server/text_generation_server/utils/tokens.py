@@ -418,6 +418,18 @@ class HeterogeneousNextTokenChooser:
             )
         return self
 
+    def advance_grammar_single_with_past_state(
+        self, grammar_state_index: int, next_id: torch.Tensor, past_state: int
+    ):
+        if self.grammar_processor is not None:
+            next_id = next_id.item()
+            self.fsm_grammar_states[grammar_state_index] = (
+                self.grammar_processor.advance_at_index(
+                    next_id, past_state, grammar_state_index,
+                )
+            )
+        return self
+
     def filter(self, indices):
         if self.watermark_processor is not None:
             self.watermark_processor = self.watermark_processor.filter(indices)

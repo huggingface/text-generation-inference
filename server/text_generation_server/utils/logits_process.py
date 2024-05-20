@@ -542,7 +542,7 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
         mask = torch.full_like(logits, -math.inf)
         for i in range(logits.shape[0]):
             fsm = self.fsms[i]
-            if fsm_grammar_states[i] == -1 or fsm is None:
+            if fsm is None:
                 continue
             allowed_tokens = fsm.allowed_token_ids(fsm_grammar_states[i])
             mask[i, allowed_tokens] = 0
