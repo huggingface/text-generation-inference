@@ -117,8 +117,9 @@ RUN cd pytorch && python tools/amd_build/build_amd.py && python setup.py install
 # Set as recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
 ENV HIP_FORCE_DEV_KERNARG=1
 
-# On MI300, performances for flash with Triton FA is very competitive (actually better than CK)
-ENV ROCM_USE_FLASH_ATTN_V2_TRITON=1
+# On MI250 and MI300, performances for flash with Triton FA are slightly better than CK.
+# However, Triton requires a tunning for each prompt length, which is prohibitive.
+ENV ROCM_USE_FLASH_ATTN_V2_TRITON=0
 
 FROM base AS kernel-builder
 
