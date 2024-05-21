@@ -1253,6 +1253,16 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
 }
 
 fn main() -> Result<(), LauncherError> {
+    match Command::new("ldconfig").spawn() {
+        Ok(_) => {}
+        Err(err) => {
+            tracing::warn!(
+                "Unable to refresh ldconfig cache. Skipping (useless in most cases). Details {:?}",
+                err
+            )
+        }
+    }
+
     // Pattern match configuration
     let args: Args = Args::parse();
 
