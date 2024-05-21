@@ -173,5 +173,4 @@ jobs:
       - name: Upload to Hugging Face Hub
         run: |
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-          huggingface-cli login
           huggingface-cli upload flash-attention/dist/* --repo drbh/flash-attention-pre-compile
