@@ -2,9 +2,13 @@
 name: Build wheels and deploy
 
 on:
-  create:
+  push:
+    branches:
+      - main
     tags:
-      - v*
+      - '*'
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   setup_release:
