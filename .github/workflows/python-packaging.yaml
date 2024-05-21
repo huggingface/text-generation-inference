@@ -166,11 +166,7 @@ jobs:
         run: |
           ls flash-attention/dist
 
-      - name: Install Hugging Face CLI
-        run: |
-          pip install huggingface_hub
-
-      - name: Upload to Hugging Face Hub
-        run: |
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-          huggingface-cli upload drbh/flash-attention-pre-compile flash-attention/dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flash-attention-wheels
+          path: flash-attention/dist/${{ env.wheel_name }}
