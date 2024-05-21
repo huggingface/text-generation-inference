@@ -597,7 +597,7 @@ async fn completions(
     let span = tracing::Span::current();
     metrics::increment_counter!("tgi_request_count");
 
-	let CompletionRequest {
+    let CompletionRequest {
         max_tokens,
         seed,
         stop,
@@ -642,13 +642,13 @@ async fn completions(
     }
 
     let generate_requests: Vec<GenerateRequest> = req
-    	.prompt
+        .prompt
         .iter()
         .map(|prompt| GenerateRequest {
             inputs: prompt.to_string(),
             parameters: GenerateParameters {
                 best_of: None,
-                temperature: temperature,
+                temperature,
                 repetition_penalty: req.repetition_penalty,
                 frequency_penalty: req.frequency_penalty,
                 top_k: None,
