@@ -2,8 +2,9 @@ use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=../../proto/generate.proto");
-    // TODO: avoid this when building python library?
-    if false {
+    // conditionally compile proto files (avoid when bundling python package)
+    let skip_build = std::env::var("SKIP_BUILD").is_ok();
+    if skip_build {
         fs::create_dir("src/pb").unwrap_or(());
 
         let mut config = prost_build::Config::new();
