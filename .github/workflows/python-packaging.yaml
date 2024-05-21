@@ -161,12 +161,10 @@ jobs:
           ls dist/*whl |xargs -I {} mv {} dist/${wheel_name}
           # Save the wheel name to the GitHub environment
           echo "wheel_name=${wheel_name}" >> $GITHUB_ENV
-          # Move back to the root directory before logging the built wheels
-          cd ..
 
       - name: Log Built Wheels
         run: |
-          ls
+          ls flash-attention/dist
 
       # - name: Get the tag version
       #   id: extract_branch
