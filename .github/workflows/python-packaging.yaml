@@ -166,25 +166,12 @@ jobs:
         run: |
           ls flash-attention/dist
 
-      # - name: Get the tag version
-      #   id: extract_branch
-      #   run: echo ::set-output name=branch::${GITHUB_REF#refs/tags/}
+      - name: Install Hugging Face CLI
+        run: |
+          pip install huggingface_hub
 
-      # - name: Get Release with tag
-      #   id: get_current_release
-      #   uses: joutvhu/get-release@v1
-      #   with:
-      #     tag_name: ${{ steps.extract_branch.outputs.branch }}
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # - name: Upload Release Asset
-      #   id: upload_release_asset
-      #   uses: actions/upload-release-asset@v1
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   with:
-      #     upload_url: ${{ steps.get_current_release.outputs.upload_url }}
-      #     asset_path: ./dist/${{env.wheel_name}}
-      #     asset_name: ${{env.wheel_name}}
-      #     asset_content_type: application/*
+      - name: Upload to Hugging Face Hub
+        run: |
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          huggingface-cli login
+          huggingface-cli upload flash-attention/dist/* --repo drbh/flash-attention-pre-compile
