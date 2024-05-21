@@ -1,13 +1,9 @@
 import subprocess
 import argparse
+import ast
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--check", action="store_true")
-
-    args = parser.parse_args()
-
+def check_cli(check: bool):
     output = subprocess.check_output(["text-generation-launcher", "--help"]).decode(
         "utf-8"
     )
@@ -41,7 +37,7 @@ def main():
     block = []
 
     filename = "docs/source/basic_tutorials/launcher.md"
-    if args.check:
+    if check:
         with open(filename, "r") as f:
             doc = f.read()
             if doc != final_doc:
@@ -58,6 +54,35 @@ def main():
     else:
         with open(filename, "w") as f:
             f.write(final_doc)
+
+
+def check_supported_models(check: bool):
+    filename = "server/text_generation_server/models/__init__.py"
+    with open(filename, "r") as f:
+        tree = ast.parse(f.read())
+
+    enum_def = [
+        x for x in tree.body if isinstance(x, ast.ClassDef) and x.name == "ModelType"
+    ][0]
+    _locals = {}
+    _globals = {}
+    exec(f"import enum\n{ast.unparse(enum_def)}", _globals, _locals)
+    ModelType = _locals["ModelType"]
+    for data in ModelType:
+        print(data.name)
+        print(f"   type: {data.value['type']}")
+        print(f"   name: {data.value['name']}")
+        print(f"   url: {data.value['url']}")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true")
+
+    args = parser.parse_args()
+
+    # check_cli(args.check)
+    check_supported_models(args.check)
 
 
 if __name__ == "__main__":
