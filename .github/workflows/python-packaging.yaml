@@ -166,27 +166,27 @@ jobs:
 
       - name: Log Built Wheels
         run: |
-          ls dist
+          ls
 
-      - name: Get the tag version
-        id: extract_branch
-        run: echo ::set-output name=branch::${GITHUB_REF#refs/tags/}
+      # - name: Get the tag version
+      #   id: extract_branch
+      #   run: echo ::set-output name=branch::${GITHUB_REF#refs/tags/}
 
-      - name: Get Release with tag
-        id: get_current_release
-        uses: joutvhu/get-release@v1
-        with:
-          tag_name: ${{ steps.extract_branch.outputs.branch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Get Release with tag
+      #   id: get_current_release
+      #   uses: joutvhu/get-release@v1
+      #   with:
+      #     tag_name: ${{ steps.extract_branch.outputs.branch }}
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Release Asset
-        id: upload_release_asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.get_current_release.outputs.upload_url }}
-          asset_path: ./dist/${{env.wheel_name}}
-          asset_name: ${{env.wheel_name}}
-          asset_content_type: application/*
+      # - name: Upload Release Asset
+      #   id: upload_release_asset
+      #   uses: actions/upload-release-asset@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     upload_url: ${{ steps.get_current_release.outputs.upload_url }}
+      #     asset_path: ./dist/${{env.wheel_name}}
+      #     asset_name: ${{env.wheel_name}}
+      #     asset_content_type: application/*
