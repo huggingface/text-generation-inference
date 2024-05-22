@@ -58,3 +58,4 @@ vergen = { version = "8.2.5", features = ["build", "git", "gitcl"] }
 default = ["ngrok"]
 ngrok = ["dep:ngrok"]
 google = []
+kserve = []
