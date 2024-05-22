@@ -121,7 +121,7 @@ def check_supported_models(check: bool):
         with open(filename, "r") as f:
             doc = f.read()
             if doc != final_doc:
-                tmp = "launcher.md"
+                tmp = "supported.md"
                 with open(tmp, "w") as g:
                     g.write(final_doc)
                 diff = subprocess.run(
