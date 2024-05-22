@@ -111,10 +111,10 @@ class MedusaHeadV2(nn.Module):
         from safetensors import safe_open
         import json
 
-        speculator = config.speculator
+        speculator_path = config.speculator["path"]
 
-        medusa_config = str(Path(speculator) / "config.json")
-        filename = str(Path(speculator) / "medusa_lm_head.safetensors")
+        medusa_config = str(Path(speculator_path) / "config.json")
+        filename = str(Path(speculator_path) / "medusa_lm_head.safetensors")
 
         with open(medusa_config, "r") as f:
             medusa_config = json.load(f)
