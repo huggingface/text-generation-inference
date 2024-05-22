@@ -45,4 +45,4 @@ If you wish to serve a supported model that already exists on a local folder, ju
 
 ```bash
 text-generation-launcher --model-id <PATH-TO-LOCAL-BLOOM>
-``````
+```
