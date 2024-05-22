@@ -13,11 +13,7 @@ jobs:
 
     - name: Install Launcher
       id: install-launcher
-      env:
-        REF: ${{ github.head_ref }}
-        REPO: ${{ github.repository }}
-      run: cargo install --git "https://github.com/$REPO" --branch "$REF" text-generation-launcher
-
+      run: cargo install --path launcher/
     - name: Check launcher Docs are up-to-date
       run: |
         echo text-generation-launcher --help
