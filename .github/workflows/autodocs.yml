@@ -14,7 +14,8 @@ jobs:
     - name: Install Launcher
       id: install-launcher
       run: cargo install --path launcher/
-
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Check launcher Docs are up-to-date
       run: |
         echo text-generation-launcher --help
