@@ -39,6 +39,8 @@
     title: Visual Language Models
   - local: basic_tutorials/monitoring
     title: Monitoring TGI with Prometheus and Grafana
+  - local: basic_tutorials/train_medusa
+    title: Train Medusa
   title: Tutorials
 - sections:
   - local: conceptual/streaming
