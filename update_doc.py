@@ -142,7 +142,7 @@ def main():
 
     args = parser.parse_args()
 
-    # check_cli(args.check)
+    check_cli(args.check)
     check_supported_models(args.check)
 
 
