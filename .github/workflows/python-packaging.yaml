@@ -153,7 +153,12 @@ jobs:
           cd flash-attention
           git checkout 3a9bfd076f98746c73362328958dbc68d145fbec
           # Build the wheel with limited jobs to prevent OOM issues on the GitHub runner
-          MAX_JOBS=2 FLASH_ATTENTION_FORCE_BUILD="TRUE" FLASH_ATTENTION_FORCE_CXX11_ABI=${{ matrix.cxx11_abi }} python setup.py bdist_wheel --dist-dir=dist
+          MAX_JOBS=2 FLASH_ATTENTION_FORCE_BUILD="TRUE" FLASH_ATTENTION_FORCE_CXX11_ABI=${{ matrix.cxx11_abi }} python setup.py bdist_wheel --dist-dir=../dist
+          # Build kernels inside the repository
+          cd csrc/rotary
+          MAX_JOBS=2 python setup.py bdist_wheel --dist-dir=../../../dist
+          cd ../layer_norm
+          MAX_JOBS=2 python setup.py bdist_wheel --dist-dir=../../../dist
           # Generate a custom name for the wheel to include CUDA and Torch versions
           tmpname=cu${MATRIX_CUDA_VERSION}torch${MATRIX_TORCH_VERSION}cxx11abi${{ matrix.cxx11_abi }}
           wheel_name=$(ls dist/*whl | xargs -n 1 basename | sed "s/-/+$tmpname-/2")
@@ -164,9 +169,9 @@ jobs:
 
       - name: Log Built Wheels
         run: |
-          ls flash-attention/dist
+          ls dist
 
       - uses: actions/upload-artifact@v4
         with:
           name: flash-attention-wheels
-          path: flash-attention/dist/${{ env.wheel_name }}
+          path: dist
