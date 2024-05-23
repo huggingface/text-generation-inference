@@ -9,6 +9,8 @@ if SYSTEM == "cuda":
     import rotary_emb
 elif SYSTEM == "rocm":
     from vllm._C import ops
+elif SYSTEM == "xpu":
+    import intel_extension_for_pytorch as ipex
 
 
 def _create_inv_freq(dim, base, device):
