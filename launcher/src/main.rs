@@ -22,9 +22,27 @@ use tracing_subscriber::EnvFilter;
 mod env_runtime;
 
 #[derive(Deserialize)]
+struct RawConfig {
+    max_position_embeddings: Option<usize>,
+    n_positions: Option<usize>,
+    max_seq_len: Option<usize>,
+}
+
+#[derive(Deserialize)]
 struct Config {
     max_position_embeddings: Option<usize>,
-    max_seq_len: Option<usize>,
+}
+
+impl From<RawConfig> for Config {
+    fn from(other: RawConfig) -> Self {
+        let max_position_embeddings = other
+            .max_position_embeddings
+            .or(other.max_seq_len)
+            .or(other.n_positions);
+        Config {
+            max_position_embeddings,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -1309,33 +1327,30 @@ fn main() -> Result<(), LauncherError> {
         };
 
         let content = std::fs::read_to_string(filename)?;
-        let config: Config = serde_json::from_str(&content)?;
+        let config: RawConfig = serde_json::from_str(&content)?;
+        let config: Config = config.into();
 
         // Quantization usually means you're even more RAM constrained.
         let max_default = 4096;
 
-        let max_position_embeddings = match (config.max_position_embeddings, config.max_seq_len) {
-            (Some(max_position_embeddings), _) | (None, Some(max_position_embeddings)) => {
-                if max_position_embeddings > max_default {
-                    let max = max_position_embeddings;
-                    if args.max_input_tokens.is_none()
-                        && args.max_total_tokens.is_none()
-                        && args.max_batch_prefill_tokens.is_none()
-                    {
-                        tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
-                    }
-                    max_default
-                } else {
-                    max_position_embeddings
+        if let Some(max_position_embeddings) = config.max_position_embeddings {
+            if max_position_embeddings > max_default {
+                let max = max_position_embeddings;
+                if args.max_input_tokens.is_none()
+                    && args.max_total_tokens.is_none()
+                    && args.max_batch_prefill_tokens.is_none()
+                {
+                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
                 }
+                Ok(max_default)
+            } else {
+                Ok(max_position_embeddings)
             }
-            _ => {
-                return Err(Box::new(LauncherError::ArgumentValidation(
-                    "no max defined".to_string(),
-                )));
-            }
-        };
-        Ok(max_position_embeddings)
+        } else {
+            Err(Box::new(LauncherError::ArgumentValidation(
+                "no max defined".to_string(),
+            )))
+        }
     };
     let max_position_embeddings: usize = get_max_position_embeddings().unwrap_or(4096);
 

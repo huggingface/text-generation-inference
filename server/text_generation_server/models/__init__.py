@@ -472,14 +472,26 @@ def get_model(
         )
     elif model_type == GPT2:
         if FLASH_ATTENTION:
-            return FlashGPT2(
-                model_id,
-                revision,
-                quantize=quantize,
-                speculator=speculator,
-                dtype=dtype,
-                trust_remote_code=trust_remote_code,
-            )
+            try:
+                return FlashGPT2(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    speculator=speculator,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+                )
+            except RuntimeError as e:
+                # Lots of legacy models with various weight names.
+                logger.warning(f"Couldn't load flash gpt2 variant: {e}")
+                return CausalLM(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    speculator=speculator,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+                )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-2"))
         else:
