@@ -9,6 +9,7 @@ use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
 
+#[cfg(feature = "kserve")]
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct OutputChunk {
     name: String,
@@ -17,42 +18,51 @@ pub struct OutputChunk {
     data: Vec<u8>,
 }
 
+#[cfg(feature = "kserve")]
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct InferenceOutput {
     id: String,
     outputs: Vec<OutputChunk>,
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct InferenceRequest {
+#[cfg(feature = "kserve")]
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct InferenceRequest {
     pub id: String,
+    #[serde(default = "default_parameters")]
+    pub parameters: GenerateParameters,
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
 }
 
+#[cfg(feature = "kserve")]
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct Input {
+pub(crate) struct Input {
     pub name: String,
     pub shape: Vec<usize>,
     pub datatype: String,
     pub data: Vec<u8>,
 }
 
+#[cfg(feature = "kserve")]
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct Output {
+pub(crate) struct Output {
     pub name: String,
 }
 
+#[cfg(feature = "kserve")]
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct LiveReponse {
     pub live: bool,
 }
 
+#[cfg(feature = "kserve")]
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReadyResponse {
     pub live: bool,
 }
 
+#[cfg(feature = "kserve")]
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MetadataServerResponse {
     pub name: String,
