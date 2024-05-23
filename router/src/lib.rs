@@ -10,6 +10,40 @@ use utoipa::ToSchema;
 use validation::Validation;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct OutputChunk {
+    name: String,
+    shape: Vec<usize>,
+    datatype: String,
+    data: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct InferenceOutput {
+    id: String,
+    outputs: Vec<OutputChunk>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct InferenceRequest {
+    pub id: String,
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<Output>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct Input {
+    pub name: String,
+    pub shape: Vec<usize>,
+    pub datatype: String,
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct Output {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct LiveReponse {
     pub live: bool,
 }
