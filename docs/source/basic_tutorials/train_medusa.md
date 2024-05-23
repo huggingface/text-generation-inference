@@ -133,7 +133,7 @@ WANDB_MODE=offline torchrun --nproc_per_node=4 medusa/train/train_legacy.py \
     --data_path zephyr_self_distill.json \
     --bf16 True \
     --output_dir zephyr_out \
-    --num_train_epochs 2 \
+    --num_train_epochs 5 \
     --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 4 \
