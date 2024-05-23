@@ -24,6 +24,7 @@ try:
 
     VLM_BATCH_TYPES = {PaliGemmaBatch, VlmCausalLMBatch, IdeficsCausalLMBatch}
 except (ImportError, NotImplementedError):
+    # These imports can fail on CPU/Non flash.
     VLM_BATCH_TYPES = set()
 
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
