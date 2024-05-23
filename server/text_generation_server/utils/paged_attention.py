@@ -1,3 +1,4 @@
+from loguru import logger
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
 
@@ -21,6 +22,8 @@ def reshape_and_cache(
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
     slots: torch.Tensor,
+    kv_cache_dtype: str = "auto",
+    kv_scale: int = 1.0,
 ):
     if SYSTEM == "xpu":
         ipex.llm.modules.PagedAttention.reshape_and_cache(
@@ -28,7 +31,7 @@ def reshape_and_cache(
         )
     else:
         cache_ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
+            key, value, key_cache, value_cache, slots, kv_cache_dtype, kv_scale
         )
 
 
@@ -42,6 +45,8 @@ def attention(
     block_tables: torch.Tensor,
     input_lengths: torch.Tensor,
     max_s: int,
+    kv_cache_dtype: str = "auto",
+    kv_scale: int = 1.0,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -99,8 +104,8 @@ def attention(
             block_size,
             max_s,
             None,
-            "auto",
-            1.0,
+            kv_cache_dtype,
+            kv_scale,
         )
     else:
         # Run PagedAttention V2.
@@ -132,6 +137,6 @@ def attention(
             block_size,
             max_s,
             None,
-            "auto",
-            1.0,
+            kv_cache_dtype,
+            kv_scale,
         )

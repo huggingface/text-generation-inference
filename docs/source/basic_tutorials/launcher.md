@@ -86,6 +86,23 @@ Options:
           [possible values: float16, bfloat16]
 
 ```
+## KV_CACHE_DTYPE
+```shell
+      --kv-cache-dtype <KV_CACHE_DTYPE>
+          Data type for kv cache storage. If "auto", will use model data type. FP8_E5M2 (without scaling) is only supported on cuda version greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead supported for common inference criteria
+          
+          [env: KV_CACHE_DTYPE=]
+          [default: auto]
+
+```
+## QUANTIZATION_PARAM_PATH
+```shell
+      --quantization-param-path <QUANTIZATION_PARAM_PATH>
+          Path to the JSON file containing the KV cache scaling factors. This should generally be supplied, when KV cache dtype is FP8. Otherwise, KV cache scaling factors default to 1.0, which may cause accuracy issues. FP8_E5M2 (without scaling) is only supported on cuda version greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead supported for common inference criteria
+          
+          [env: QUANTIZATION_PARAM_PATH=]
+
+```
 ## TRUST_REMOTE_CODE
 ```shell
       --trust-remote-code

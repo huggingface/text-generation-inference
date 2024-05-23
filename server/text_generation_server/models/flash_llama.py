@@ -29,6 +29,8 @@ class FlashLlama(FlashCausalLM):
         quantize: Optional[str] = None,
         speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
+        kv_cache_dtype: Optional[str] = "auto",
+        quantization_param_path: Optional[str] = None,
         trust_remote_code: bool = False,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
@@ -72,6 +74,7 @@ class FlashLlama(FlashCausalLM):
         )
         config.quantize = quantize
         config.speculator = speculator
+        config.kv_cache_dtype = kv_cache_dtype
 
         torch.distributed.barrier(group=self.process_group)
 
@@ -91,6 +94,8 @@ class FlashLlama(FlashCausalLM):
             head_size=model.model.head_size,
             dtype=dtype,
             device=device,
+            kv_cache_dtype=kv_cache_dtype,
+            quantization_param_path=quantization_param_path,
             rank=rank,
             world_size=world_size,
         )

@@ -260,6 +260,8 @@ def get_model(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[str],
+    kv_cache_dtype: Optional[str],
+    quantization_param_path: Optional[str],
     trust_remote_code: bool,
 ) -> Model:
     if dtype is None:
@@ -272,6 +274,9 @@ def get_model(
         dtype = torch.bfloat16
     else:
         raise RuntimeError(f"Unknown dtype {dtype}")
+    
+    if kv_cache_dtype not in {"auto", "fp8"}:
+        raise RuntimeError(f"Unknown kv_cache_dtype {kv_cache_dtype}")
 
     if speculate is not None:
         set_speculate(speculate)
@@ -563,6 +568,8 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                quantization_param_path=quantization_param_path,
                 trust_remote_code=trust_remote_code,
             )
         elif sharded:

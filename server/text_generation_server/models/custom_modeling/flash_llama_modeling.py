@@ -25,7 +25,6 @@ import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-from typing import Optional, List, Tuple
 
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils import paged_attention, flash_attn
@@ -39,6 +38,8 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+from text_generation_server.utils.weights_utils import kv_cache_scales_loader
+from loguru import logger
 
 if SYSTEM == "rocm":
     try:
@@ -126,6 +127,16 @@ class FlashLlamaAttention(torch.nn.Module):
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
         ).repeat_interleave(self.num_groups)
 
+        # This will be overwritten by model initialization if we are using it.
+        # N.B. currently we only support per tensor scalar scaling factors
+        # & only applicable to ROCm (AMD GPU).
+        # The scaling factor convention we are assuming is
+        # quantized_value * scaling_factor ~= true_value
+        # which is consistent with the practice of setting
+        # scaling_factor = tensor_amax / FPtype_max
+        self.kv_scale = 1.0
+        self.kv_cache_dtype = "auto"
+
     def forward(
         self,
         hidden_states,
@@ -152,7 +163,13 @@ class FlashLlamaAttention(torch.nn.Module):
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
         paged_attention.reshape_and_cache(
-            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
+            kv[:, 0],
+            kv[:, 1],
+            kv_cache[0],
+            kv_cache[1],
+            slots,
+            self.kv_cache_dtype,
+            self.kv_scale,
         )
 
         # output tensor
@@ -182,6 +199,8 @@ class FlashLlamaAttention(torch.nn.Module):
                 block_tables,
                 input_lengths,
                 max_s,
+                self.kv_cache_dtype,
+                self.kv_scale,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -387,6 +406,10 @@ class FlashLlamaForCausalLM(torch.nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
 
+        process_group = weights.process_group
+        self.tp_rank = process_group.rank()
+        self.tp_world_size = process_group.size()
+
         self.embed_tokens = TensorParallelEmbedding(
             prefix=(
                 "model.embed_tokens" if not prefix else f"{prefix}.model.embed_tokens"
@@ -404,6 +427,10 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             prefix=suffix if not prefix else f"{prefix}.suffix",
             weights=weights,
         )
+        self.config = config
+
+        for layer_idx in range(config.num_hidden_layers):
+            self.model.layers[layer_idx].self_attn.kv_cache_dtype = config.kv_cache_dtype
 
     def forward(
         self,
@@ -435,3 +462,33 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             hidden_states = hidden_states[lm_head_indices]
         logits, speculative_logits = self.lm_head(hidden_states)
         return logits, speculative_logits
+
+    # If this function is called, it should always initialize KV cache scale
+    # factors (or else raise an exception). Thus, handled exceptions should
+    # make sure to leave KV cache scale factors in a known good (dummy) state
+    def load_kv_cache_scales(self, quantization_param_path: str) -> None:
+        for layer_idx, scaling_factor in kv_cache_scales_loader(
+            quantization_param_path,
+            self.tp_rank,
+            self.tp_world_size,
+            self.config.num_hidden_layers,
+            self.config.__class__.model_type,
+        ):
+            layer_self_attn = self.model.layers[layer_idx].self_attn
+
+            if SYSTEM == "rocm":
+                # The scaling factor convention we are assuming is
+                # quantized_value * scaling_factor ~= true_value
+                # which is consistent with the practice of setting
+                # scaling_factor = tensor_amax / FPtype_max
+                scaling_factor *= 2
+
+            if hasattr(layer_self_attn, "kv_scale"):
+                layer_self_attn.kv_scale = scaling_factor
+                logger.info(
+                    f"Loaded KV cache scaling factor for layer {layer_idx}: {scaling_factor}"
+                )
+            else:
+                raise RuntimeError(
+                    "Self attention has no KV cache scaling " "factor attribute!"
+                )

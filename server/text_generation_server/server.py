@@ -193,6 +193,8 @@ def serve(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[str],
+    kv_cache_dtype: Optional[str],
+    quantization_param_path: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
 ):
@@ -203,6 +205,8 @@ def serve(
         quantize: Optional[str] = None,
         speculate: Optional[int] = None,
         dtype: Optional[str] = None,
+        kv_cache_dtype: Optional[str] = "auto",
+        quantization_param_path: Optional[str] = None,
         trust_remote_code: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
@@ -224,6 +228,8 @@ def serve(
                 quantize,
                 speculate,
                 dtype,
+                kv_cache_dtype,
+                quantization_param_path,
                 trust_remote_code,
             )
         except Exception:
@@ -256,6 +262,6 @@ def serve(
     set_model_id(model_id)
     asyncio.run(
         serve_inner(
-            model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code
+            model_id, revision, sharded, quantize, speculate, dtype, kv_cache_dtype, quantization_param_path, trust_remote_code
         )
     )

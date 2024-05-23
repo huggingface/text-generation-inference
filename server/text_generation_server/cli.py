@@ -35,6 +35,8 @@ def serve(
     quantize: Optional[Quantization] = None,
     speculate: Optional[int] = None,
     dtype: Optional[Dtype] = None,
+    kv_cache_dtype: str = "auto",
+    quantization_param_path: Optional[str] = None,
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
@@ -94,6 +96,8 @@ def serve(
         quantize,
         speculate,
         dtype,
+        kv_cache_dtype,
+        quantization_param_path,
         trust_remote_code,
         uds_path,
     )
