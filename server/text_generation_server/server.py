@@ -21,6 +21,18 @@ from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 from text_generation_server.models.globals import set_model_id
 
+try:
+    from text_generation_server.models.pali_gemma import PaliGemmaBatch
+    from text_generation_server.models.vlm_causal_lm import (
+        VlmCausalLMBatch,
+    )
+    from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
+
+    VLM_BATCH_TYPES = {PaliGemmaBatch, VlmCausalLMBatch, IdeficsCausalLMBatch}
+except (ImportError, NotImplementedError):
+    # These imports can fail on CPU/Non flash.
+    VLM_BATCH_TYPES = set()
+
 
 class SignalHandler:
     KEEP_PROCESSING = True
@@ -91,9 +103,22 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
     async def Prefill(self, request, context):
         start = time.time_ns()
-        batch = self.model.batch_type.from_pb(
-            request.batch, self.model.tokenizer, self.model.dtype, self.model.device
-        )
+        if (
+            self.model.batch_type in VLM_BATCH_TYPES
+        ):  # Hack, i would rather use kwargs in the `from_pb` call
+            batch = self.model.batch_type.from_pb_processor(
+                request.batch,
+                self.model.tokenizer,
+                self.model.processor,
+                self.model.model.config,
+                self.model.dtype,
+                self.model.device,
+            )
+        else:
+            batch = self.model.batch_type.from_pb(
+                request.batch, self.model.tokenizer, self.model.dtype, self.model.device
+            )
+     
         generations, next_batch, timings = self.model.generate_token([batch])
         self.cache.set(next_batch)
 
