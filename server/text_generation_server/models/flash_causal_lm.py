@@ -17,6 +17,7 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
+from text_generation_server.utils.dist import RANK
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.models.types import (
     Batch,
@@ -1186,6 +1187,10 @@ class FlashCausalLM(Model):
             # Append next token to all tokens
             next_token_texts = []
             left = 0
+
+            if n_accepted_ids > 1:
+                if RANK == 0:
+                    logger.debug(f"Speculated ids {n_accepted_ids - 1}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):

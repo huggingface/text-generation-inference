@@ -17,7 +17,7 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
 use thiserror::Error;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
 
@@ -452,6 +452,7 @@ fn shard_manager(
     max_total_tokens: usize,
     max_batch_size: Option<usize>,
     otlp_endpoint: Option<String>,
+    log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
     _shutdown_sender: mpsc::Sender<()>,
@@ -474,7 +475,7 @@ fn shard_manager(
         "--uds-path".to_string(),
         uds_path,
         "--logger-level".to_string(),
-        "INFO".to_string(),
+        log_level.to_string().to_uppercase(),
         "--json-output".to_string(),
     ];
 
@@ -752,13 +753,13 @@ struct PythonLogMessage {
 impl PythonLogMessage {
     fn trace(&self) {
         match self.record.level.name {
-            PythonLogLevelEnum::Trace => tracing::trace!("{}", self.text),
-            PythonLogLevelEnum::Debug => tracing::debug!("{}", self.text),
-            PythonLogLevelEnum::Info => tracing::info!("{}", self.text),
-            PythonLogLevelEnum::Success => tracing::info!("{}", self.text),
-            PythonLogLevelEnum::Warning => tracing::warn!("{}", self.text),
-            PythonLogLevelEnum::Error => tracing::error!("{}", self.text),
-            PythonLogLevelEnum::Critical => tracing::error!("{}", self.text),
+            PythonLogLevelEnum::Trace => tracing::trace!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Debug => tracing::debug!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Info => tracing::info!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Success => tracing::info!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Warning => tracing::warn!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Error => tracing::error!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Critical => tracing::error!("{}", self.text.trim_end()),
         }
     }
 }
@@ -978,6 +979,7 @@ fn spawn_shards(
     args: &Args,
     cuda_graphs: Vec<usize>,
     max_total_tokens: usize,
+    max_log_level: LevelFilter,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
     shutdown_sender: mpsc::Sender<()>,
@@ -1035,6 +1037,7 @@ fn spawn_shards(
                 max_total_tokens,
                 max_batch_size,
                 otlp_endpoint,
+                max_log_level,
                 status_sender,
                 shutdown,
                 shutdown_sender,
@@ -1265,8 +1268,22 @@ fn main() -> Result<(), LauncherError> {
     let args: Args = Args::parse();
 
     // Filter events with LOG_LEVEL
-    let env_filter =
-        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
+    let varname = "LOG_LEVEL";
+    let env_filter = if let Ok(log_level) = std::env::var(varname) {
+        // Override to avoid simple logs to be spammed with tokio level informations
+        let log_level = match &log_level[..] {
+            "warn" => "text_generation_launcher=warn,text_generation_router=warn",
+            "info" => "text_generation_launcher=info,text_generation_router=info",
+            "debug" => "text_generation_launcher=debug,text_generation_router=debug",
+            log_level => log_level,
+        };
+        EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .parse_lossy(log_level)
+    } else {
+        EnvFilter::new("info")
+    };
+    let max_log_level = env_filter.max_level_hint().unwrap_or(LevelFilter::INFO);
 
     if args.json_output {
         tracing_subscriber::fmt()
@@ -1491,6 +1508,7 @@ fn main() -> Result<(), LauncherError> {
         &args,
         cuda_graphs,
         max_total_tokens,
+        max_log_level,
         shutdown.clone(),
         &shutdown_receiver,
         shutdown_sender,
