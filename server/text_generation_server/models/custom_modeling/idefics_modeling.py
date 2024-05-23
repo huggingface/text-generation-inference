@@ -62,7 +62,7 @@ if SYSTEM == "cuda":
 elif SYSTEM == "rocm":
     from vllm._C import ops
 else:
-    raise RuntimeError(f"Unsupported system {SYSTEM}")
+    dropout_layer_norm = None
 
 
 @dataclass
