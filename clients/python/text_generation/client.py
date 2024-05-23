@@ -13,6 +13,9 @@ from text_generation.types import (
     Request,
     Parameters,
     Grammar,
+    CompletionRequest,
+    Completion,
+    CompletionComplete,
     ChatRequest,
     ChatCompletionChunk,
     ChatComplete,
@@ -70,6 +73,94 @@ class Client:
         self.cookies = cookies
         self.timeout = timeout
 
+    def completion(
+        self,
+        prompt: str,
+        frequency_penalty: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        repetition_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        stream: bool = False,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        stop: Optional[List[str]] = None,
+    ):
+        """
+        Given a prompt, generate a response synchronously
+
+        Args:
+            prompt (`str`):
+                Prompt
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 0.0 means no penalty
+                Penalize new tokens based on their existing frequency in the text so far,
+                decreasing the model's likelihood to repeat the same line verbatim.
+            max_tokens (`int`):
+                Maximum number of generated tokens
+            repetition_penalty (`float`):
+                The parameter for frequency penalty. 0.0 means no penalty. See [this
+                paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            seed (`int`):
+                Random sampling seed
+            stream (`bool`):
+                Stream the response
+            temperature (`float`):
+                The value used to module the logits distribution.
+            top_p (`float`):
+                If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
+                higher are kept for generation
+            stop (`List[str]`):
+                Stop generating tokens if a member of `stop` is generated
+        """
+        request = CompletionRequest(
+            model="tgi",
+            prompt=prompt,
+            frequency_penalty=frequency_penalty,
+            max_tokens=max_tokens,
+            repetition_penalty=repetition_penalty,
+            seed=seed,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            stop=stop,
+        )
+        if not stream:
+            resp = requests.post(
+                f"{self.base_url}/v1/completions",
+                json=request.dict(),
+                headers=self.headers,
+                cookies=self.cookies,
+                timeout=self.timeout,
+            )
+            payload = resp.json()
+            if resp.status_code != 200:
+                raise parse_error(resp.status_code, payload)
+            return Completion(**payload)
+        else:
+            return self._completion_stream_response(request)
+
+    def _completion_stream_response(self, request):
+        resp = requests.post(
+            f"{self.base_url}/v1/completions",
+            json=request.dict(),
+            headers=self.headers,
+            cookies=self.cookies,
+            timeout=self.timeout,
+            stream=True,
+        )
+        # iterate and print stream
+        for byte_payload in resp.iter_lines():
+            if byte_payload == b"\n":
+                continue
+            payload = byte_payload.decode("utf-8")
+            if payload.startswith("data:"):
+                json_payload = json.loads(payload.lstrip("data:").rstrip("\n"))
+                try:
+                    response = CompletionComplete(**json_payload)
+                    yield response
+                except ValidationError:
+                    raise parse_error(resp.status, json_payload)
+
     def chat(
         self,
         messages: List[Message],
@@ -88,6 +179,7 @@ class Client:
         tools: Optional[List[Tool]] = None,
         tool_prompt: Optional[str] = None,
         tool_choice: Optional[str] = None,
+        stop: Optional[List[str]] = None,
     ):
         """
         Given a list of messages, generate a response asynchronously
@@ -130,6 +222,8 @@ class Client:
                 A prompt to be appended before the tools
             tool_choice (`str`):
                 The tool to use
+            stop (`List[str]`):
+                Stop generating tokens if a member of `stop` is generated
 
         """
         request = ChatRequest(
@@ -150,6 +244,7 @@ class Client:
             tools=tools,
             tool_prompt=tool_prompt,
             tool_choice=tool_choice,
+            stop=stop,
         )
         if not stream:
             resp = requests.post(
@@ -461,6 +556,93 @@ class AsyncClient:
         self.cookies = cookies
         self.timeout = ClientTimeout(timeout)
 
+    async def completion(
+        self,
+        prompt: str,
+        frequency_penalty: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        repetition_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        stream: bool = False,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        stop: Optional[List[str]] = None,
+    ) -> Union[Completion, AsyncIterator[CompletionComplete]]:
+        """
+        Given a prompt, generate a response asynchronously
+
+        Args:
+            prompt (`str`):
+                Prompt
+            frequency_penalty (`float`):
+                The parameter for frequency penalty. 0.0 means no penalty
+                Penalize new tokens based on their existing frequency in the text so far,
+                decreasing the model's likelihood to repeat the same line verbatim.
+            max_tokens (`int`):
+                Maximum number of generated tokens
+            repetition_penalty (`float`):
+                The parameter for frequency penalty. 0.0 means no penalty. See [this
+                paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            seed (`int`):
+                Random sampling seed
+            stream (`bool`):
+                Stream the response
+            temperature (`float`):
+                The value used to module the logits distribution.
+            top_p (`float`):
+                If set to < 1, only the smallest set of most probable tokens with probabilities that add up to `top_p` or
+                higher are kept for generation
+            stop (`List[str]`):
+                Stop generating tokens if a member of `stop` is generated
+        """
+        request = CompletionRequest(
+            model="tgi",
+            prompt=prompt,
+            frequency_penalty=frequency_penalty,
+            max_tokens=max_tokens,
+            repetition_penalty=repetition_penalty,
+            seed=seed,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            stop=stop,
+        )
+        if not stream:
+            return await self._completion_single_response(request)
+        else:
+            return self._completion_stream_response(request)
+
+    async def _completion_single_response(self, request):
+        async with ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        ) as session:
+            async with session.post(
+                f"{self.base_url}/v1/completions", json=request.dict()
+            ) as resp:
+                payload = await resp.json()
+                if resp.status != 200:
+                    raise parse_error(resp.status, payload)
+                return Completion(**payload)
+
+    async def _completion_stream_response(self, request):
+        async with ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        ) as session:
+            async with session.post(
+                f"{self.base_url}/v1/completions", json=request.dict()
+            ) as resp:
+                async for byte_payload in resp.content:
+                    if byte_payload == b"\n":
+                        continue
+                    payload = byte_payload.decode("utf-8")
+                    if payload.startswith("data:"):
+                        json_payload = json.loads(payload.lstrip("data:").rstrip("\n"))
+                        try:
+                            response = CompletionComplete(**json_payload)
+                            yield response
+                        except ValidationError:
+                            raise parse_error(resp.status, json_payload)
+
     async def chat(
         self,
         messages: List[Message],
@@ -479,6 +661,7 @@ class AsyncClient:
         tools: Optional[List[Tool]] = None,
         tool_prompt: Optional[str] = None,
         tool_choice: Optional[str] = None,
+        stop: Optional[List[str]] = None,
     ) -> Union[ChatComplete, AsyncIterator[ChatCompletionChunk]]:
         """
         Given a list of messages, generate a response asynchronously
@@ -521,6 +704,8 @@ class AsyncClient:
                 A prompt to be appended before the tools
             tool_choice (`str`):
                 The tool to use
+            stop (`List[str]`):
+                Stop generating tokens if a member of `stop` is generated
 
         """
         request = ChatRequest(
@@ -541,6 +726,7 @@ class AsyncClient:
             tools=tools,
             tool_prompt=tool_prompt,
             tool_choice=tool_choice,
+            stop=stop,
         )
         if not stream:
             return await self._chat_single_response(request)
