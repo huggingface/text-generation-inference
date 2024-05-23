@@ -402,6 +402,11 @@ pub struct CompletionRequest {
     #[serde(default)]
     #[schema(example = "1.0")]
     pub frequency_penalty: Option<f32>,
+
+    /// Up to 4 sequences where the API will stop generating further tokens.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub stop: Option<Vec<String>>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]

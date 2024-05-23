@@ -597,9 +597,22 @@ async fn completions(
     let span = tracing::Span::current();
     metrics::increment_counter!("tgi_request_count");
 
-    let stream = req.stream;
-    let max_new_tokens = req.max_tokens.or(Some(100));
-    let seed = req.seed;
+    let CompletionRequest {
+        max_tokens,
+        seed,
+        stop,
+        stream,
+        temperature,
+        ..
+    } = req;
+
+    let max_new_tokens = max_tokens.or(Some(100));
+    let stop = stop.unwrap_or_default();
+    // enable greedy only when temperature is 0
+    let (do_sample, temperature) = match temperature {
+        Some(temperature) if temperature == 0.0 => (false, None),
+        other => (true, other),
+    };
 
     // if suffix is present throw an error
     if req.suffix.is_some() {
@@ -635,16 +648,16 @@ async fn completions(
             inputs: prompt.to_string(),
             parameters: GenerateParameters {
                 best_of: None,
-                temperature: req.temperature,
+                temperature,
                 repetition_penalty: req.repetition_penalty,
                 frequency_penalty: req.frequency_penalty,
                 top_k: None,
                 top_p: req.top_p,
                 typical_p: None,
-                do_sample: true,
+                do_sample,
                 max_new_tokens,
                 return_full_text: None,
-                stop: Vec::new(),
+                stop: stop.clone(),
                 truncate: None,
                 watermark: false,
                 details: true,
