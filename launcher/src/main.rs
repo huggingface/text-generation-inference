@@ -35,8 +35,13 @@ struct Config {
 
 impl From<RawConfig> for Config {
     fn from(other: RawConfig) -> Self {
-        let max_position_embeddings = other.max_position_embeddings.or(other.max_seq_len).or(other.n_positions);
-        Config { max_position_embeddings }
+        let max_position_embeddings = other
+            .max_position_embeddings
+            .or(other.max_seq_len)
+            .or(other.n_positions);
+        Config {
+            max_position_embeddings,
+        }
     }
 }
 
