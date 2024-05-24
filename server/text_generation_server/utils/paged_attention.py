@@ -46,7 +46,8 @@ def attention(
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
-    input_lengths: torch.Tensor,
+    cu_seqlen_q: torch.Tensor,
+    cu_seqlen_k: torch.Tensor,
     max_s: int,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
@@ -92,17 +93,6 @@ def attention(
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
     if FLASH_DECODING:
-        cu_seqlen_q = torch.arange(
-            input_lengths.shape[0] + 1, device=query.device, dtype=torch.int32
-        )
-        cu_seqlen_k = torch.cat(
-            [
-                torch.zeros(
-                    (1,), device=input_lengths.device, dtype=input_lengths.dtype
-                ),
-                input_lengths.cumsum(dim=-1),
-            ]
-        ).to(dtype=torch.int32)
         max_q = 1
         max_k = max_s
         import flash_attn_2_cuda

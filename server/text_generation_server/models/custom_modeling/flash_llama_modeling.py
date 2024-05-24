@@ -129,7 +129,8 @@ class FlashLlamaAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        cu_seqlen_q,
+        cu_seqlen_k,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -174,7 +175,8 @@ class FlashLlamaAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                cu_seqlen_q,
+                cu_seqlen_k,
                 max_s,
             )
 
@@ -275,7 +277,8 @@ class FlashLlamaLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        cu_seqlen_q,
+        cu_seqlen_k,
         max_s,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -289,7 +292,8 @@ class FlashLlamaLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            cu_seqlen_q,
+            cu_seqlen_k,
             max_s,
         )
 
@@ -356,6 +360,23 @@ class FlashLlamaModel(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
             position_ids, max_s, hidden_states.dtype
         )
+        if cu_seqlen_prefill is None:
+            cu_seqlen_q = torch.arange(
+                input_lengths.shape[0] + 1,
+                device=inputs_embeds.device,
+                dtype=torch.int32,
+            )
+            cu_seqlen_k = torch.cat(
+                [
+                    torch.zeros(
+                        (1,), device=input_lengths.device, dtype=input_lengths.dtype
+                    ),
+                    input_lengths.cumsum(dim=-1),
+                ]
+            ).to(dtype=torch.int32)
+        else:
+            cu_seqlen_q = None
+            cu_seqlen_k = input_lengths
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -368,7 +389,8 @@ class FlashLlamaModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                cu_seqlen_q,
+                cu_seqlen_k,
                 max_s,
             )
 
