@@ -423,7 +423,7 @@ class FlashGemmaForCausalLM(torch.nn.Module):
         super().__init__()
 
         embed_norm = config.hidden_size**0.5
-        if prefix is None:
+        if not prefix:
             prefix = "model"
         else:
             prefix = f"{prefix}.model"
