@@ -57,7 +57,7 @@ class FlashGemma(FlashCausalLM):
             weights._set_gptq_params(model_id, revision)
 
         # TODO hardcoded
-        prefix = "language_model"
+        prefix = ""
         model = FlashGemmaForCausalLM(prefix, config, weights, causal=True)
 
         torch.distributed.barrier(group=self.process_group)
