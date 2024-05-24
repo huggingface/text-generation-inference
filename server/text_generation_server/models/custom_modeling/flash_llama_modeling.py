@@ -145,13 +145,14 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        # output tensor
-        attn_output = torch.empty_like(query)
-
         paged_attention.reshape_and_cache(
             kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
+        # output tensor
+        attn_output = torch.empty_like(query)
+
+        # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             flash_attn.attention(
