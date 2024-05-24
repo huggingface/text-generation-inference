@@ -5,7 +5,8 @@ from typing import Optional, List, Tuple
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING
 
-BLOCK_SIZE: int = 256 if FLASH_DECODING else 16
+# BLOCK_SIZE: int = 256 if FLASH_DECODING else 16
+BLOCK_SIZE: int = 16
 # Will be set in warmup
 CACHE_MANAGER: Optional["CacheManager"] = None
 
@@ -33,18 +34,21 @@ class CacheManager:
 
         if FLASH_DECODING:
             self.kv_cache = [
-                (
-                    torch.empty(
-                        (num_blocks, self.block_size, num_heads, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.empty(
-                        (num_blocks, self.block_size, num_heads, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
+                torch.empty(
+                    (num_blocks, 2, self.block_size, num_heads, head_size),
+                    dtype=dtype,
+                    device=device,
                 )
+                # torch.empty(
+                #     (num_blocks, self.block_size, num_heads, head_size),
+                #     dtype=dtype,
+                #     device=device,
+                # ),
+                # torch.empty(
+                #     (num_blocks, self.block_size, num_heads, head_size),
+                #     dtype=dtype,
+                #     device=device,
+                # ),
                 for _ in range(num_layers)
             ]
         else:

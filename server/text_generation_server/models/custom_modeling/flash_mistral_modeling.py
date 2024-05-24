@@ -214,6 +214,8 @@ class MistralAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
+        attn_output = torch.empty_like(query)
+
         if prefill_cache_indices is not None:
             kv_to_cache = kv[prefill_cache_indices]
         else:
@@ -222,10 +224,6 @@ class MistralAttention(torch.nn.Module):
         paged_attention.reshape_and_cache(
             kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
-
-        # output tensor
-        attn_output = torch.empty_like(query)
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
