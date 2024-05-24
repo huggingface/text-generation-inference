@@ -28,9 +28,14 @@ def reshape_and_cache(
             key, value, key_cache, value_cache, slots
         )
     else:
-        cache_ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
-        )
+        if FLASH_DECODING:
+            shape = key_cache.shape
+            key_cache.view(-1, shape[-2], shape[-1])[slots] = key
+            value_cache.view(-1, shape[-2], shape[-1])[slots] = value
+        else:
+            cache_ops.reshape_and_cache(
+                key, value, key_cache, value_cache, slots, "auto", 1.0
+            )
 
 
 def attention(
