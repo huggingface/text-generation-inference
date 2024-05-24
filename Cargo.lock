@@ -310,9 +310,9 @@ dependencies = [
 
 [[package]]
 name = "base64"
-version = "0.22.1"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
@@ -3552,7 +3552,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "2.0.2"
+version = "2.0.4"
 dependencies = [
  "average",
  "clap",
@@ -3573,7 +3573,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "2.0.2"
+version = "2.0.4"
 dependencies = [
  "futures",
  "grpc-metadata",
@@ -3590,7 +3590,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "2.0.2"
+version = "2.0.4"
 dependencies = [
  "clap",
  "ctrlc",
@@ -3609,7 +3609,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "2.0.2"
+version = "2.0.4"
 dependencies = [
  "async-stream",
  "axum",
