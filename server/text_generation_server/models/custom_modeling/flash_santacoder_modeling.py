@@ -78,7 +78,7 @@ def _load_multi_mqa_gptq(
             quant_method,
         ) = weights._get_gptq_params()
         if quant_method == "gptq":
-            g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
+            g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx", to_dtype=False)
             g_idx = g_idx.to(device=weights.device)
         elif quant_method == "awq":
             g_idx = None

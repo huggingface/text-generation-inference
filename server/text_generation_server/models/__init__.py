@@ -263,9 +263,13 @@ def get_model(
     trust_remote_code: bool,
 ) -> Model:
     if dtype is None:
-        # Keep it as default for now and let
-        # every model resolve their own default dtype.
-        dtype = None
+        if quantize in ["awq", "gptq"]:
+            # These quantizers only work with float16 params.
+            dtype = torch.float16
+        else:
+            # Keep it as default for now and let
+            # every model resolve their own default dtype.
+            dtype = None
     elif dtype == "float16":
         dtype = torch.float16
     elif dtype == "bfloat16":

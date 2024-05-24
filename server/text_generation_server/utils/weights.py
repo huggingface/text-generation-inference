@@ -71,19 +71,19 @@ class Weights:
     def get_shape(self, tensor_name: str):
         return self._get_slice(tensor_name).get_shape()
 
-    def get_tensor(self, tensor_name: str, to_device=True):
+    def get_tensor(
+        self, tensor_name: str, to_device: bool = True, to_dtype: bool = True
+    ):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         tensor = f.get_tensor(tensor_name)
-        # Special case for gptq which shouldn't convert
-        # u4 which are disguised as int32
-        if tensor.dtype not in [torch.int32, torch.int64]:
+        if to_dtype:
             tensor = tensor.to(dtype=self.dtype)
         if to_device:
             tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_partial_sharded(self, tensor_name: str, dim: int):
+    def get_partial_sharded(self, tensor_name: str, dim: int, to_dtype: bool = True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
@@ -101,14 +101,12 @@ class Weights:
             tensor = slice_[:, start:stop]
         else:
             raise NotImplementedError("Let's make that generic when needed")
-        # Special case for gptq which shouldn't convert
-        # u4 which are disguised as int32
-        if tensor.dtype != torch.int32:
+        if to_dtype:
             tensor = tensor.to(dtype=self.dtype)
         tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_sharded(self, tensor_name: str, dim: int):
+    def get_sharded(self, tensor_name: str, dim: int, to_dtype: bool = True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
@@ -117,7 +115,7 @@ class Weights:
         assert (
             size % world_size == 0
         ), f"The choosen size {size} is not compatible with sharding on {world_size} shards"
-        return self.get_partial_sharded(tensor_name, dim)
+        return self.get_partial_sharded(tensor_name, dim, to_dtype=to_dtype)
 
     def _get_qweight(self, name: str):
         slice_ = self._get_slice(name)
@@ -163,10 +161,9 @@ class Weights:
 
             qzeros = self._get_qweight(f"{prefix}.qzeros")
             scales = self._get_qweight(f"{prefix}.scales")
-            scales = scales.to(dtype=self.dtype)
 
             if quantize == "gptq" and quant_method == "gptq":
-                g_idx = self.get_tensor(f"{prefix}.g_idx")
+                g_idx = self.get_tensor(f"{prefix}.g_idx", to_dtype=False)
             elif quantize == "gptq" and quant_method == "awq":
                 log_once(
                     logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
@@ -211,7 +208,11 @@ class Weights:
         if quantize in ["gptq", "awq"]:
             try:
                 qweight = torch.cat(
-                    [self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1
+                    [
+                        self.get_sharded(f"{p}.qweight", dim=1, to_dtype=False)
+                        for p in prefixes
+                    ],
+                    dim=1,
                 )
             except RuntimeError:
                 raise RuntimeError(
@@ -219,10 +220,18 @@ class Weights:
                 )
 
             qzeros = torch.cat(
-                [self.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1
+                [
+                    self.get_sharded(f"{p}.qzeros", dim=1, to_dtype=False)
+                    for p in prefixes
+                ],
+                dim=1,
             )
             scales = torch.cat(
-                [self.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1
+                [
+                    self.get_sharded(f"{p}.scales", dim=1, to_dtype=False)
+                    for p in prefixes
+                ],
+                dim=1,
             )
 
             bits, groupsize, desc_act, quant_method = self._get_gptq_params()
@@ -234,7 +243,7 @@ class Weights:
             )
 
             if quantize == "gptq" and quant_method == "gptq":
-                w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
+                w = [self.get_tensor(f"{p}.g_idx", to_dtype=False) for p in prefixes]
                 for w2 in w[1:]:
                     torch.testing.assert_close(w2, w[0])
                 g_idx = w[0]
@@ -265,22 +274,6 @@ class Weights:
             weight = torch.cat(w, dim=dim)
         return weight
 
-    def get_tensor_shard(self, var, dim):
-        world_size = self.process_group.size()
-        rank = self.process_group.rank()
-        block_size = var.size()[dim] // world_size
-        start = rank * block_size
-        stop = (rank + 1) * block_size
-        if dim == 0:
-            tensor = var[start:stop]
-        elif dim == 1:
-            tensor = var[:, start:stop]
-        else:
-            raise NotImplementedError("Let's make that generic when needed")
-        tensor = tensor.to(dtype=self.dtype)
-        tensor = tensor.to(device=self.device)
-        return tensor
-
     def get_multi_weights_row(self, prefix: str, quantize: str):
         if quantize == "gptq":
             use_exllama = True
@@ -294,14 +287,14 @@ class Weights:
                 use_exllama = False
 
             try:
-                qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
+                qweight = self.get_sharded(f"{prefix}.qweight", dim=0, to_dtype=False)
             except RuntimeError:
                 raise RuntimeError(
                     "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
                 )
 
             if quant_method == "gptq":
-                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
+                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0, to_dtype=False)
             elif quant_method == "awq":
                 g_idx = None
 
@@ -335,11 +328,11 @@ class Weights:
                     log_once(logger.info, f"Using exllama kernels v{HAS_EXLLAMA}")
 
             if use_exllama and groupsize != -1:
-                qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
-                scales = self.get_sharded(f"{prefix}.scales", dim=0)
+                qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0, to_dtype=False)
+                scales = self.get_sharded(f"{prefix}.scales", dim=0, to_dtype=False)
             else:
-                qzeros = self.get_tensor(f"{prefix}.qzeros")
-                scales = self.get_tensor(f"{prefix}.scales")
+                qzeros = self.get_tensor(f"{prefix}.qzeros", to_dtype=False)
+                scales = self.get_tensor(f"{prefix}.scales", to_dtype=False)
 
             if use_exllama and g_idx is not None:
                 g_idx = g_idx - g_idx[0]
@@ -368,14 +361,14 @@ class Weights:
             bits, groupsize, _, _ = self._get_gptq_params()
 
             try:
-                qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
+                qweight = self.get_sharded(f"{prefix}.qweight", dim=0, to_dtype=False)
             except RuntimeError:
                 raise RuntimeError(
                     "Cannot load `awq` weight, make sure the model is already quantized"
                 )
 
-            qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0)
-            scales = self.get_sharded(f"{prefix}.scales", dim=0)
+            qzeros = self.get_sharded(f"{prefix}.qzeros", dim=0, to_dtype=False)
+            scales = self.get_sharded(f"{prefix}.scales", dim=0, to_dtype=False)
             g_idx = None
             use_exllama = False
 
@@ -386,8 +379,8 @@ class Weights:
 
     def _get_gptq_params(self) -> Tuple[int, int, int, str]:
         try:
-            bits = self.get_tensor("gptq_bits").item()
-            groupsize = self.get_tensor("gptq_groupsize").item()
+            bits = self.get_tensor("gptq_bits", to_dtype=False).item()
+            groupsize = self.get_tensor("gptq_groupsize", to_dtype=False).item()
             desc_act = False
             quant_method = "gptq"
         except (SafetensorError, RuntimeError) as e:
