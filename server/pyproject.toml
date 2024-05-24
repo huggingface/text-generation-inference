@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "text-generation-server"
-version = "2.0.2"
+version = "2.0.5-dev0"
 description = "Text Generation Inference Python gRPC Server"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
 
@@ -26,8 +26,7 @@ hf-transfer = "^0.1.2"
 sentencepiece = "^0.1.97"
 tokenizers = "^0.19.1"
 huggingface-hub = "^0.23"
-# transformers = "^4.40"
-transformers = { git = "https://github.com/huggingface/transformers.git", rev="b8aee2e" }
+transformers = "^4.41"
 einops = "^0.6.1"
 texttable = { version = "^1.6.7", optional = true }
 datasets = { version = "^2.14.0", optional = true }
