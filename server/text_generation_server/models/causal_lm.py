@@ -662,9 +662,14 @@ class CausalLM(Model):
             "return_dict": True,
         }
 
-        if model.config.model_type == "llama":
+        if model.config.model_type in ["llama", "mistral"]:
             kwargs["attn_softmax_bf16"] = True
             kwargs["trim_logits"] = True
+
+            if os.getenv("USE_FLASH_ATTENTION", "false").lower() == "true":
+                kwargs["use_flash_attention"] = True
+            if os.getenv("FLASH_ATTENTION_RECOMPUTE", "false").lower() == "true":
+                kwargs["flash_attention_recompute"] = True
 
         self.speculate = get_speculate()
 
