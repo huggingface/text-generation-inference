@@ -80,6 +80,20 @@ impl HubTokenizerConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct HubProcessorConfig {
+    pub chat_template: Option<ChatTemplateVersions>,
+    pub image_seq_len: usize,
+    pub processor_class: Option<String>,
+}
+
+impl HubProcessorConfig {
+    pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Option<Self> {
+        let content = std::fs::read_to_string(filename).ok()?;
+        serde_json::from_str(&content).ok()
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
 #[serde(tag = "type", content = "value")]
 pub(crate) enum GrammarType {
