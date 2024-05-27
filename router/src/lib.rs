@@ -10,64 +10,61 @@ use utoipa::ToSchema;
 use validation::Validation;
 
 #[cfg(feature = "kserve")]
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct OutputChunk {
-    name: String,
-    shape: Vec<usize>,
-    datatype: String,
-    data: Vec<u8>,
-}
+mod kserve {
+    use super::*;
 
-#[cfg(feature = "kserve")]
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct InferenceOutput {
-    id: String,
-    outputs: Vec<OutputChunk>,
-}
+    #[derive(Debug, Serialize, Deserialize, ToSchema)]
+    pub struct OutputChunk {
+        pub name: String,
+        pub shape: Vec<usize>,
+        pub datatype: String,
+        pub data: Vec<u8>,
+    }
 
-#[cfg(feature = "kserve")]
-#[derive(Debug, Deserialize, ToSchema)]
-pub(crate) struct InferenceRequest {
-    pub id: String,
-    #[serde(default = "default_parameters")]
-    pub parameters: GenerateParameters,
-    pub inputs: Vec<Input>,
-    pub outputs: Vec<Output>,
-}
+    #[derive(Debug, Serialize, Deserialize, ToSchema)]
+    pub struct InferenceOutput {
+        pub id: String,
+        pub outputs: Vec<OutputChunk>,
+    }
 
-#[cfg(feature = "kserve")]
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub(crate) struct Input {
-    pub name: String,
-    pub shape: Vec<usize>,
-    pub datatype: String,
-    pub data: Vec<u8>,
-}
+    #[derive(Debug, Deserialize, ToSchema)]
+    pub(crate) struct InferenceRequest {
+        pub id: String,
+        #[serde(default = "default_parameters")]
+        pub parameters: GenerateParameters,
+        pub inputs: Vec<Input>,
+        pub outputs: Vec<Output>,
+    }
 
-#[cfg(feature = "kserve")]
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub(crate) struct Output {
-    pub name: String,
-}
+    #[derive(Debug, Serialize, Deserialize, ToSchema)]
+    pub(crate) struct Input {
+        pub name: String,
+        pub shape: Vec<usize>,
+        pub datatype: String,
+        pub data: Vec<u8>,
+    }
 
-#[cfg(feature = "kserve")]
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct LiveReponse {
-    pub live: bool,
-}
+    #[derive(Debug, Serialize, Deserialize, ToSchema)]
+    pub(crate) struct Output {
+        pub name: String,
+    }
 
-#[cfg(feature = "kserve")]
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ReadyResponse {
-    pub live: bool,
-}
+    #[derive(Debug, Serialize, Deserialize, ToSchema)]
+    pub struct LiveReponse {
+        pub live: bool,
+    }
 
-#[cfg(feature = "kserve")]
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct MetadataServerResponse {
-    pub name: String,
-    pub version: String,
-    pub extensions: Vec<String>,
+    #[derive(Debug, Serialize, Deserialize, ToSchema)]
+    pub struct ReadyResponse {
+        pub live: bool,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, ToSchema)]
+    pub struct MetadataServerResponse {
+        pub name: String,
+        pub version: String,
+        pub extensions: Vec<String>,
+    }
 }
 
 /// Type alias for generation responses
