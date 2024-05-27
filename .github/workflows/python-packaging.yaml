@@ -164,6 +164,7 @@ jobs:
           git clone https://github.com/Narsil/vllm.git
           cd vllm
           git checkout b5dfc61db88a81069e45b44f7cc99bd9e62a60fa
+          export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
           python setup.py bdist_wheel --dist-dir=../dist
           # Generate a custom name for the wheel to include CUDA and Torch versions
           tmpname=cu${MATRIX_CUDA_VERSION}torch${MATRIX_TORCH_VERSION}cxx11abi${{ matrix.cxx11_abi }}
