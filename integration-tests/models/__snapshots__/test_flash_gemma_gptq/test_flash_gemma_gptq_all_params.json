@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2,
+        "logprob": null,
+        "text": "<bos>"
+      },
+      {
+        "id": 2015,
+        "logprob": -9.65625,
+        "text": "Test"
+      },
+      {
+        "id": 3853,
+        "logprob": -10.3671875,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 604,
+        "logprob": -0.36938477,
+        "special": false,
+        "text": " for"
+      },
+      {
+        "id": 235248,
+        "logprob": -1.8046875,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 235274,
+        "logprob": -0.46240234,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 235284,
+        "logprob": -1.7460938,
+        "special": false,
+        "text": "2"
+      },
+      {
+        "id": 235265,
+        "logprob": -1.9443359,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 235284,
+        "logprob": -1.4550781,
+        "special": false,
+        "text": "2"
+      },
+      {
+        "id": 235308,
+        "logprob": -1.0205078,
+        "special": false,
+        "text": "5"
+      },
+      {
+        "id": 235290,
+        "logprob": -1.0283203,
+        "special": false,
+        "text": "-"
+      },
+      {
+        "id": 235274,
+        "logprob": -1.2783203,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 235284,
+        "logprob": 0.0,
+        "special": false,
+        "text": "2"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request for 12.25-12"
+}
