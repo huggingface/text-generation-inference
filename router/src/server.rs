@@ -5,9 +5,9 @@ use crate::infer::{InferError, InferResponse, InferStreamResponse, ToolGrammar};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
-    GenerateResponse, GrammarType, HubModelInfo, HubTokenizerConfig, Infer, Info, Message,
-    PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse, Usage,
-    Validation,
+    GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig, Infer,
+    Info, Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token,
+    TokenizeResponse, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -1395,6 +1395,7 @@ pub async fn run(
     ngrok_authtoken: Option<String>,
     ngrok_edge: Option<String>,
     tokenizer_config: HubTokenizerConfig,
+    processor_config: HubProcessorConfig,
     messages_api_enabled: bool,
     grammar_support: bool,
     max_client_batch_size: usize,
@@ -1495,6 +1496,7 @@ pub async fn run(
         shard_info.speculate,
         generation_health,
         tokenizer_config,
+        processor_config,
     );
 
     // Duration buckets

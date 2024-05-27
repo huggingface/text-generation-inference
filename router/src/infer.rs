@@ -2,7 +2,8 @@
 use crate::validation::{Validation, ValidationError};
 use crate::{
     ChatTemplateInputs, ChatTemplateVersions, Entry, GenerateRequest, GenerateStreamResponse,
-    HubTokenizerConfig, Message, MessageChunk, PrefillToken, Queue, Text, TextMessage, Token,
+    HubProcessorConfig, HubTokenizerConfig, Message, MessageChunk, PrefillToken, Queue, Text,
+    TextMessage, Token,
 };
 use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
 use futures::future::try_join_all;
@@ -67,6 +68,7 @@ impl Infer {
         speculate: u32,
         generation_health: Arc<AtomicBool>,
         tokenizer_config: HubTokenizerConfig,
+        processor_config: HubProcessorConfig,
     ) -> Self {
         // Infer shared state
         let queue = Queue::new(requires_padding, 16, window_size, speculate);
@@ -89,6 +91,7 @@ impl Infer {
 
         let chat_template = tokenizer_config
             .chat_template
+            .or(processor_config.chat_template)
             .and_then(|t| match t {
                 ChatTemplateVersions::Single(template) => Some(template),
                 ChatTemplateVersions::Multiple(templates) => templates
@@ -98,7 +101,10 @@ impl Infer {
             })
             .map(|t| {
                 // .strip() is not supported in minijinja
-                let t = t.replace(".strip()", " | trim");
+                // .capitalize() is not supported in minijinja but we can use | capitalize
+                let t = t
+                    .replace(".strip()", " | trim")
+                    .replace(".capitalize()", " | capitalize");
                 ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token)
             });
 
