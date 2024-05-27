@@ -1,0 +1,358 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2,
+          "logprob": null,
+          "text": "<bos>"
+        },
+        {
+          "id": 2015,
+          "logprob": -9.6484375,
+          "text": "Test"
+        },
+        {
+          "id": 3853,
+          "logprob": -10.359375,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 604,
+          "logprob": -2.4277344,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 573,
+          "logprob": -2.4394531,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 2412,
+          "logprob": -2.8613281,
+          "special": false,
+          "text": " following"
+        },
+        {
+          "id": 235292,
+          "logprob": -2.1523438,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 109,
+          "logprob": -0.76220703,
+          "special": false,
+          "text": "\n\n"
+        },
+        {
+          "id": 235287,
+          "logprob": -1.3642578,
+          "special": false,
+          "text": "*"
+        },
+        {
+          "id": 235248,
+          "logprob": -2.0175781,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 199,
+          "logprob": -1.4238281,
+          "special": false,
+          "text": "<strong>"
+        },
+        {
+          "id": 1232,
+          "logprob": -4.328125,
+          "special": false,
+          "text": "Name"
+        },
+        {
+          "id": 208,
+          "logprob": -0.8881836,
+          "special": false,
+          "text": "</strong>"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " for the following:\n\n* <strong>Name</strong>"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2,
+          "logprob": null,
+          "text": "<bos>"
+        },
+        {
+          "id": 2015,
+          "logprob": -9.6484375,
+          "text": "Test"
+        },
+        {
+          "id": 3853,
+          "logprob": -10.34375,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 604,
+          "logprob": -2.4238281,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 573,
+          "logprob": -2.4453125,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 2412,
+          "logprob": -2.859375,
+          "special": false,
+          "text": " following"
+        },
+        {
+          "id": 235292,
+          "logprob": -2.1445312,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 109,
+          "logprob": -0.7631836,
+          "special": false,
+          "text": "\n\n"
+        },
+        {
+          "id": 235287,
+          "logprob": -1.3642578,
+          "special": false,
+          "text": "*"
+        },
+        {
+          "id": 235248,
+          "logprob": -1.9960938,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 199,
+          "logprob": -1.4179688,
+          "special": false,
+          "text": "<strong>"
+        },
+        {
+          "id": 1232,
+          "logprob": -4.3359375,
+          "special": false,
+          "text": "Name"
+        },
+        {
+          "id": 208,
+          "logprob": -0.8847656,
+          "special": false,
+          "text": "</strong>"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " for the following:\n\n* <strong>Name</strong>"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2,
+          "logprob": null,
+          "text": "<bos>"
+        },
+        {
+          "id": 2015,
+          "logprob": -9.640625,
+          "text": "Test"
+        },
+        {
+          "id": 3853,
+          "logprob": -10.3671875,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 604,
+          "logprob": -2.4257812,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 573,
+          "logprob": -2.4453125,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 2412,
+          "logprob": -2.8789062,
+          "special": false,
+          "text": " following"
+        },
+        {
+          "id": 235292,
+          "logprob": -2.1367188,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 109,
+          "logprob": -0.76171875,
+          "special": false,
+          "text": "\n\n"
+        },
+        {
+          "id": 235287,
+          "logprob": -1.3515625,
+          "special": false,
+          "text": "*"
+        },
+        {
+          "id": 235248,
+          "logprob": -1.9873047,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 199,
+          "logprob": -1.4169922,
+          "special": false,
+          "text": "<strong>"
+        },
+        {
+          "id": 1232,
+          "logprob": -4.3320312,
+          "special": false,
+          "text": "Name"
+        },
+        {
+          "id": 208,
+          "logprob": -0.8930664,
+          "special": false,
+          "text": "</strong>"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " for the following:\n\n* <strong>Name</strong>"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2,
+          "logprob": null,
+          "text": "<bos>"
+        },
+        {
+          "id": 2015,
+          "logprob": -9.6484375,
+          "text": "Test"
+        },
+        {
+          "id": 3853,
+          "logprob": -10.359375,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 604,
+          "logprob": -2.4179688,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 573,
+          "logprob": -2.4492188,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 2412,
+          "logprob": -2.8574219,
+          "special": false,
+          "text": " following"
+        },
+        {
+          "id": 235292,
+          "logprob": -2.1445312,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 109,
+          "logprob": -0.7519531,
+          "special": false,
+          "text": "\n\n"
+        },
+        {
+          "id": 235287,
+          "logprob": -1.3623047,
+          "special": false,
+          "text": "*"
+        },
+        {
+          "id": 235248,
+          "logprob": -1.9707031,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 199,
+          "logprob": -1.4267578,
+          "special": false,
+          "text": "<strong>"
+        },
+        {
+          "id": 1232,
+          "logprob": -4.3359375,
+          "special": false,
+          "text": "Name"
+        },
+        {
+          "id": 208,
+          "logprob": -0.88427734,
+          "special": false,
+          "text": "</strong>"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " for the following:\n\n* <strong>Name</strong>"
+  }
+]
