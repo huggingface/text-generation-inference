@@ -6,7 +6,7 @@ Guidance is a feature that allows users to constrain the generation of a large l
 
 ## How is it used?
 
-Guidance can be in many ways and the community is always finding new ways to use it. Here are some examples of how you can use guidance:
+Guidance can be implemented in many ways and the community is always finding new ways to use it. Here are some examples of how you can use guidance:
 
 Technically, guidance can be used to generate:
 
