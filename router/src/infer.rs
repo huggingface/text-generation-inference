@@ -101,7 +101,10 @@ impl Infer {
             })
             .map(|t| {
                 // .strip() is not supported in minijinja
-                let t = t.replace(".strip()", " | trim");
+                // .capitalize() is not supported in minijinja but we can use | capitalize
+                let t = t
+                    .replace(".strip()", " | trim")
+                    .replace(".capitalize()", " | capitalize");
                 ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token)
             });
 
