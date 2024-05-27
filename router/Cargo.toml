@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 async-stream = "0.3.5"
-axum = { version = "0.7.4", features = ["json"] }
+axum = { version = "0.7", features = ["json"] }
 axum-tracing-opentelemetry = "0.16"
 text-generation-client = { path = "client" }
 clap = { version = "4.4.5", features = ["derive", "env"] }

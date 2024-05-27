@@ -1392,8 +1392,8 @@ pub async fn run(
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
     ngrok: bool,
-    ngrok_authtoken: Option<String>,
-    ngrok_edge: Option<String>,
+    _ngrok_authtoken: Option<String>,
+    _ngrok_edge: Option<String>,
     tokenizer_config: HubTokenizerConfig,
     processor_config: HubProcessorConfig,
     messages_api_enabled: bool,
@@ -1666,6 +1666,7 @@ pub async fn run(
     if ngrok {
         #[cfg(feature = "ngrok")]
         {
+            panic!("ngrok feature is not functional with axum=0.7 and hyper=1, waiting on https://github.com/ngrok/ngrok-rust/pull/137/files to re-enable.");
             // use ngrok::config::TunnelBuilder;
 
             // let _ = addr;
