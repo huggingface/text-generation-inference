@@ -1667,47 +1667,8 @@ pub async fn run(
         #[cfg(feature = "ngrok")]
         {
             panic!("ngrok feature is not functional with axum=0.7 and hyper=1, waiting on https://github.com/ngrok/ngrok-rust/pull/137/files to re-enable.");
-            // use ngrok::config::TunnelBuilder;
-
-            // let _ = addr;
-
-            // let authtoken =
-            //     ngrok_authtoken.expect("`ngrok-authtoken` must be set when using ngrok tunneling");
-
-            // let edge = ngrok_edge.expect("`ngrok-edge` must be set when using ngrok tunneling");
-
-            // let tunnel = ngrok::Session::builder()
-            //     .authtoken(authtoken)
-            //     .connect()
-            //     .await
-            //     .unwrap()
-            //     .labeled_tunnel()
-            //     .label("edge", edge);
-
-            // let listener = tunnel.listen().await.unwrap();
-            // let router = Router::new()
-            //                 .route("/health", get(health))
-            //                 .route("/metrics", get(metrics))
-            //                 .layer(Extension(health_ext))
-            //                 .layer(Extension(prom_handle))
-            //                 .into_make_service();
-
-            // // Run prom metrics and health locally too
-            // let tokio_listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-            // axum::serve(tokio_listener, router)
-            //     .with_graceful_shutdown(shutdown_signal())
-            //     .await?;
-
-            // axum::serve(listener, app)
-            //     .with_graceful_shutdown(shutdown_signal())
-            //     .await?;
 
             // Run server
-            // axum::Server::builder(listener)
-            //     .serve(app.into_make_service())
-            //     //Wait until all requests are finished to shut down
-            //     .with_graceful_shutdown(shutdown_signal())
-            //     .await?;
         }
         #[cfg(not(feature = "ngrok"))]
         {
