@@ -1333,7 +1333,8 @@ async fn tokenize(
             .iter()
             .zip(encoding.get_offsets())
             .map(|(&id, &(start, stop))| {
-                let text: String = input.chars().skip(start).take(stop - start).collect();
+                let text: String =
+                    String::from_utf8_lossy(&input.as_bytes()[start..stop]).to_string();
                 SimpleToken {
                     id,
                     text,
