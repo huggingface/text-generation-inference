@@ -7,8 +7,8 @@ use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGr
 use crate::health::Health;
 #[cfg(feature = "kserve")]
 use crate::kserve::{
-    InferenceOutput, InferenceRequest, LiveReponse, MetadataServerResponse, OutputChunk,
-    ReadyResponse,
+    kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
+    kserve_model_metadata, kserve_model_metadata_ready,
 };
 use crate::validation::ValidationError;
 use crate::{
@@ -26,8 +26,6 @@ use crate::{
 use crate::{FunctionDefinition, ToolCall, ToolType};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
-#[cfg(feature = "kserve")]
-use axum::extract::Path;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
@@ -180,7 +178,7 @@ async fn generate(
     generate_internal(infer, ComputeType(compute_type), Json(req), span).await
 }
 
-async fn generate_internal(
+pub(crate) async fn generate_internal(
     infer: Extension<Infer>,
     ComputeType(compute_type): ComputeType,
     Json(req): Json<GenerateRequest>,
@@ -1377,192 +1375,6 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
     prom_handle.render()
 }
 
-#[cfg(feature = "kserve")]
-#[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/v2/health/live",
-    responses(
-        (status = 200, description = "Service is live", body = LiveReponse),
-        (status = 404, description = "Service not found", body = ErrorResponse,
-            example = json!({"error": "No response"}))
-    )
-)]
-async fn kserve_health_live() -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let data = LiveReponse { live: true };
-    Ok((HeaderMap::new(), Json(data)).into_response())
-}
-
-#[cfg(feature = "kserve")]
-#[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/v2/health/ready",
-    responses(
-        (status = 200, description = "Service is ready", body = ReadyResponse),
-        (status = 404, description = "Service not found", body = ErrorResponse,
-            example = json!({"error": "No response"}))
-    )
-)]
-async fn kserve_health_ready() -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let data = ReadyResponse { live: true };
-    Ok((HeaderMap::new(), Json(data)).into_response())
-}
-
-#[cfg(feature = "kserve")]
-#[utoipa::path(
-    get,
-    tag = "Text Generation Inference",
-    path = "/v2",
-    responses(
-        (status = 200, description = "Metadata retrieved", body = MetadataServerResponse),
-        (status = 404, description = "Service not found", body = ErrorResponse,
-            example = json!({"error": "No response"}))
-    )
-)]
-async fn kerve_server_metadata() -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let data = MetadataServerResponse {
-        name: "text-generation-inference".to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        extensions: vec![
-            "health".to_string(),
-            "models".to_string(),
-            "metrics".to_string(),
-        ],
-    };
-    Ok((HeaderMap::new(), Json(data)).into_response())
-}
-
-#[cfg(feature = "kserve")]
-#[utoipa::path(
-    get,
-    tag = "Text Generation Inference",
-    path = "/v2/models/{model_name}/versions/{model_version}",
-    responses(
-        (status = 200, description = "Model version metadata retrieved", body = MetadataServerResponse),
-        (status = 404, description = "Model or version not found", body = ErrorResponse,
-            example = json!({"error": "No response"}))
-    )
-)]
-async fn kserve_model_metadata(
-    Path((model_name, model_version)): Path<(String, String)>,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let data = MetadataServerResponse {
-        name: model_name,
-        version: model_version,
-        extensions: vec!["infer".to_string(), "ready".to_string()],
-    };
-    Ok((HeaderMap::new(), Json(data)).into_response())
-}
-
-#[cfg(feature = "kserve")]
-#[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/v2/models/{model_name}/versions/{model_version}/infer",
-    request_body = Json<InferenceRequest>,
-    responses(
-        (status = 200, description = "Inference executed successfully", body = InferenceOutput),
-        (status = 404, description = "Model or version not found", body = ErrorResponse,
-            example = json!({"error": "No response"}))
-    )
-)]
-async fn kserve_model_infer(
-    infer: Extension<Infer>,
-    Extension(compute_type): Extension<ComputeType>,
-    Json(payload): Json<InferenceRequest>,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let id = payload.id.clone();
-    let str_inputs = payload
-        .inputs
-        .iter()
-        .map(|input| {
-            std::str::from_utf8(&input.data).map_err(|e| {
-                (
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    Json(ErrorResponse {
-                        error: e.to_string(),
-                        error_type: "utf8".to_string(),
-                    }),
-                )
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    if str_inputs.len() != payload.outputs.len() {
-        return Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse {
-                error: "Inputs and outputs length mismatch".to_string(),
-                error_type: "length mismatch".to_string(),
-            }),
-        ));
-    }
-
-    let output_chunks = str_inputs
-        .iter()
-        .zip(&payload.outputs)
-        .map(|(str_input, output)| {
-            let generate_request = GenerateRequest {
-                inputs: str_input.to_string(),
-                parameters: payload.parameters.clone(),
-            };
-            let infer = infer.clone();
-            let compute_type = compute_type.clone();
-            let span = tracing::Span::current();
-            async move {
-                generate_internal(infer, compute_type, Json(generate_request), span)
-                    .await
-                    .map(|(_, Json(generation))| {
-                        let generation_as_bytes = generation.generated_text.as_bytes().to_vec();
-                        OutputChunk {
-                            name: output.name.clone(),
-                            shape: vec![1, generation_as_bytes.len()],
-                            datatype: "BYTES".to_string(),
-                            data: generation_as_bytes,
-                        }
-                    })
-                    .map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorResponse {
-                                error: "Incomplete generation".into(),
-                                error_type: "Incomplete generation".into(),
-                            }),
-                        )
-                    })
-            }
-        })
-        .collect::<FuturesUnordered<_>>()
-        .try_collect::<Vec<_>>()
-        .await?;
-
-    let inference_output = InferenceOutput {
-        id: id.clone(),
-        outputs: output_chunks,
-    };
-
-    Ok((HeaderMap::new(), Json(inference_output)).into_response())
-}
-
-#[cfg(feature = "kserve")]
-#[utoipa::path(
-    get,
-    tag = "Text Generation Inference",
-    path = "/v2/models/{model_name}/versions/{model_version}/ready",
-    responses(
-        (status = 200, description = "Model version is ready", body = ReadyResponse),
-        (status = 404, description = "Model or version not found", body = ErrorResponse,
-            example = json!({"error": "No response"}))
-    )
-)]
-async fn kserve_model_metadata_ready(
-    Path((_model_name, _model_version)): Path<(String, String)>,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let data = ReadyResponse { live: true };
-    Ok((HeaderMap::new(), Json(data)).into_response())
-}
-
 #[derive(Clone, Debug)]
 pub(crate) struct ComputeType(String);
 
@@ -1903,50 +1715,58 @@ pub async fn run(
         docker_label: option_env!("DOCKER_LABEL"),
     };
 
-    // Define VertextApiDoc conditionally only if the "google" feature is enabled
-    let doc = {
-        #[cfg(feature = "google")]
-        {
-            use crate::VertexInstance;
+    #[allow(unused_mut)] // mut is needed for conditional compilation
+    let mut doc = ApiDoc::openapi();
 
-            #[derive(OpenApi)]
-            #[openapi(
-                paths(vertex_compatibility),
-                components(schemas(VertexInstance, VertexRequest, VertexResponse))
-            )]
-            struct VertextApiDoc;
+    #[cfg(feature = "google")]
+    {
+        use crate::VertexInstance;
 
-            let mut doc = ApiDoc::openapi();
-            doc.merge(VertextApiDoc::openapi());
-            doc
-        }
-        #[cfg(not(feature = "google"))]
-        {
-            // Define KServeApiDoc conditionally only if the "kserve" feature is enabled
-            #[cfg(feature = "kserve")]
-            {
-                #[derive(OpenApi)]
-                #[openapi(
-                    paths(
-                        kserve_model_infer,
-                        kserve_health_live,
-                        kserve_health_ready,
-                        kerve_server_metadata,
-                        kserve_model_metadata,
-                        kserve_model_metadata_ready,
-                    ),
-                    components(schemas(LiveReponse, ReadyResponse, MetadataServerResponse,))
-                )]
-                struct KServeApiDoc;
+        #[derive(OpenApi)]
+        #[openapi(
+            paths(vertex_compatibility),
+            components(schemas(VertexInstance, VertexRequest, VertexResponse))
+        )]
+        struct VertexApiDoc;
 
-                let mut doc = ApiDoc::openapi();
-                doc.merge(KServeApiDoc::openapi());
-                doc
-            }
-            #[cfg(not(feature = "kserve"))]
-            ApiDoc::openapi()
-        }
-    };
+        doc.merge(VertexApiDoc::openapi());
+    }
+
+    #[cfg(feature = "kserve")]
+    {
+        use crate::kserve::{
+            InferenceOutput, InferenceRequest, LiveResponse, MetadataServerResponse, OutputChunk,
+            ReadyResponse,
+        };
+        use crate::kserve::{
+            __path_kerve_server_metadata, __path_kserve_health_live, __path_kserve_health_ready,
+            __path_kserve_model_infer, __path_kserve_model_metadata,
+            __path_kserve_model_metadata_ready,
+        };
+
+        #[derive(OpenApi)]
+        #[openapi(
+            paths(
+                kserve_model_infer,
+                kserve_health_live,
+                kserve_health_ready,
+                kerve_server_metadata,
+                kserve_model_metadata,
+                kserve_model_metadata_ready,
+            ),
+            components(schemas(
+                InferenceOutput,
+                InferenceRequest,
+                LiveResponse,
+                MetadataServerResponse,
+                OutputChunk,
+                ReadyResponse,
+            ))
+        )]
+        struct KServeApiDoc;
+
+        doc.merge(KServeApiDoc::openapi());
+    }
 
     // Configure Swagger UI
     let swagger_ui = SwaggerUi::new("/docs").url("/api-doc/openapi.json", doc);

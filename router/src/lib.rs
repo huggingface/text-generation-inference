@@ -4,68 +4,15 @@ mod infer;
 pub mod server;
 mod validation;
 
+#[cfg(feature = "kserve")]
+mod kserve;
+
+use infer::{Infer, InferError, InferStreamResponse};
+use queue::{Entry, Queue};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
-
-#[cfg(feature = "kserve")]
-mod kserve {
-    use super::*;
-
-    #[derive(Debug, Serialize, Deserialize, ToSchema)]
-    pub struct OutputChunk {
-        pub name: String,
-        pub shape: Vec<usize>,
-        pub datatype: String,
-        pub data: Vec<u8>,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, ToSchema)]
-    pub struct InferenceOutput {
-        pub id: String,
-        pub outputs: Vec<OutputChunk>,
-    }
-
-    #[derive(Debug, Deserialize, ToSchema)]
-    pub(crate) struct InferenceRequest {
-        pub id: String,
-        #[serde(default = "default_parameters")]
-        pub parameters: GenerateParameters,
-        pub inputs: Vec<Input>,
-        pub outputs: Vec<Output>,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, ToSchema)]
-    pub(crate) struct Input {
-        pub name: String,
-        pub shape: Vec<usize>,
-        pub datatype: String,
-        pub data: Vec<u8>,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, ToSchema)]
-    pub(crate) struct Output {
-        pub name: String,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, ToSchema)]
-    pub struct LiveReponse {
-        pub live: bool,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, ToSchema)]
-    pub struct ReadyResponse {
-        pub live: bool,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, ToSchema)]
-    pub struct MetadataServerResponse {
-        pub name: String,
-        pub version: String,
-        pub extensions: Vec<String>,
-    }
-}
 
 /// Type alias for generation responses
 pub(crate) type GenerateStreamResponse = (
