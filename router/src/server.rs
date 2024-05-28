@@ -1686,12 +1686,6 @@ pub async fn run(
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
-
-        // axum::Server::bind(&addr)
-        //     .serve(app.into_make_service())
-        //     // Wait until all requests are finished to shut down
-        //     .with_graceful_shutdown(shutdown_signal())
-        //     .await?;
     }
     Ok(())
 }
