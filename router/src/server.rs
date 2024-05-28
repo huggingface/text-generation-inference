@@ -1392,8 +1392,8 @@ pub async fn run(
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
     ngrok: bool,
-    ngrok_authtoken: Option<String>,
-    ngrok_edge: Option<String>,
+    _ngrok_authtoken: Option<String>,
+    _ngrok_edge: Option<String>,
     tokenizer_config: HubTokenizerConfig,
     processor_config: HubProcessorConfig,
     messages_api_enabled: bool,
@@ -1666,46 +1666,9 @@ pub async fn run(
     if ngrok {
         #[cfg(feature = "ngrok")]
         {
-            use ngrok::config::TunnelBuilder;
-
-            let _ = addr;
-
-            let authtoken =
-                ngrok_authtoken.expect("`ngrok-authtoken` must be set when using ngrok tunneling");
-
-            let edge = ngrok_edge.expect("`ngrok-edge` must be set when using ngrok tunneling");
-
-            let tunnel = ngrok::Session::builder()
-                .authtoken(authtoken)
-                .connect()
-                .await
-                .unwrap()
-                .labeled_tunnel()
-                .label("edge", edge);
-
-            let listener = tunnel.listen().await.unwrap();
-
-            // Run prom metrics and health locally too
-            tokio::spawn(
-                axum::Server::bind(&addr)
-                    .serve(
-                        Router::new()
-                            .route("/health", get(health))
-                            .route("/metrics", get(metrics))
-                            .layer(Extension(health_ext))
-                            .layer(Extension(prom_handle))
-                            .into_make_service(),
-                    )
-                    //Wait until all requests are finished to shut down
-                    .with_graceful_shutdown(shutdown_signal()),
-            );
+            panic!("ngrok feature is not functional with axum=0.7 and hyper=1, waiting on https://github.com/ngrok/ngrok-rust/pull/137/files to re-enable.");
 
             // Run server
-            axum::Server::builder(listener)
-                .serve(app.into_make_service())
-                //Wait until all requests are finished to shut down
-                .with_graceful_shutdown(shutdown_signal())
-                .await?;
         }
         #[cfg(not(feature = "ngrok"))]
         {
@@ -1718,9 +1681,9 @@ pub async fn run(
         }
     } else {
         // Run server
-        axum::Server::bind(&addr)
-            .serve(app.into_make_service())
-            // Wait until all requests are finished to shut down
+
+        let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+        axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
     }

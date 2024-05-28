@@ -16,8 +16,8 @@ path = "src/main.rs"
 
 [dependencies]
 async-stream = "0.3.5"
-axum = { version = "0.6.20", features = ["json"] }
-axum-tracing-opentelemetry = "0.14.1"
+axum = { version = "0.7", features = ["json"] }
+axum-tracing-opentelemetry = "0.16"
 text-generation-client = { path = "client" }
 clap = { version = "4.4.5", features = ["derive", "env"] }
 futures = "0.3.28"
@@ -36,12 +36,12 @@ thiserror = "1.0.48"
 tokenizers = { workspace = true}
 tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tokio-stream = "0.1.14"
-tower-http = { version = "0.4.4", features = ["cors"] }
+tower-http = { version = "0.5.1", features = ["cors"] }
 tracing = "0.1.37"
 tracing-opentelemetry = "0.21.0"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
-utoipa = { version = "3.5.0", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "3.1.5", features = ["axum"] }
+utoipa = { version = "4.2.0", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "6.0.0", features = ["axum"] }
 ngrok = { version = "0.13.1", features = ["axum"], optional = true }
 init-tracing-opentelemetry = { version = "0.14.1", features = ["opentelemetry-otlp"] }
 minijinja = { git = "https://github.com/mitsuhiko/minijinja.git", rev = "5cd4efb" }
