@@ -19,6 +19,7 @@ class Quantization(str, Enum):
     gptq = "gptq"
     awq = "awq"
     eetq = "eetq"
+    exl2 = "exl2"
     fp8 = "fp8"
 
 

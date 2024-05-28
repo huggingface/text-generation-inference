@@ -55,6 +55,10 @@ enum Quantization {
     /// Should be a drop-in replacement to bitsandbytes with much better performance.
     /// Kernels are from <https://github.com/NetEase-FuXi/EETQ.git>
     Eetq,
+    /// Variable bit quantization. Requires a specific EXL2 quantized model:
+    /// <https://hf.co/models?search=exl2>. Requires exllama2 kernels and does
+    /// not support tensor parallelism (num_shard > 1).
+    Exl2,
     /// 4 bit quantization. Requires a specific GTPQ quantized model: <https://hf.co/models?search=gptq>.
     /// text-generation-inference will use exllama (faster) kernels wherever possible, and use
     /// triton kernel (wider support) when it's not.
@@ -94,6 +98,9 @@ impl std::fmt::Display for Quantization {
             }
             Quantization::BitsandbytesFP4 => {
                 write!(f, "bitsandbytes-fp4")
+            }
+            Quantization::Exl2 => {
+                write!(f, "exl2")
             }
             Quantization::Gptq => {
                 write!(f, "gptq")
@@ -1461,6 +1468,11 @@ fn main() -> Result<(), LauncherError> {
 
     let num_shard = find_num_shards(args.sharded, args.num_shard)?;
     if num_shard > 1 {
+        if matches!(args.quantize, Some(Quantization::Exl2)) {
+            return Err(LauncherError::ArgumentValidation(
+                "Sharding is currently not supported with `exl2` quantization".into(),
+            ));
+        }
         tracing::info!("Sharding model on {num_shard} processes");
     }
 

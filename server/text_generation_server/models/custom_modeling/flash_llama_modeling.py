@@ -395,7 +395,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
 
         self.lm_head = SpeculativeHead.load(
             config,
-            prefix=suffix if not prefix else f"{prefix}.suffix",
+            prefix=suffix if not prefix else f"{prefix}.{suffix}",
             weights=weights,
         )
 

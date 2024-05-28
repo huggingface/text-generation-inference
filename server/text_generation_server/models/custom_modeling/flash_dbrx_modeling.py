@@ -21,6 +21,7 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
 from loguru import logger
+from text_generation_server.layers.gptq import GPTQWeight
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM != "xpu":
@@ -256,7 +257,15 @@ def _load_gqa(config, prefix: str, weights):
         else:
             g_idx = None
 
-        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
+        weight = GPTQWeight(
+            qweight=qweight,
+            qzeros=qzeros,
+            scales=scales,
+            g_idx=g_idx,
+            bits=bits,
+            groupsize=groupsize,
+            use_exllama=use_exllama,
+        )
     else:
         qkv_slice = weights._get_slice(f"{prefix}.Wqkv.weight")
         q = qkv_slice[q_start:q_stop]
