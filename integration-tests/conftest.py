@@ -7,9 +7,10 @@ import os
 import docker
 import json
 import math
+import shutil
+import tempfile
 import time
 import random
-import re
 
 from docker.errors import NotFound
 from typing import Optional, List, Dict
@@ -347,19 +348,22 @@ def launcher(event_loop):
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
 
-        with subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
-        ) as process:
-            yield ProcessLauncherHandle(process, port)
+        with tempfile.TemporaryFile("w+") as tmp:
+            # We'll output stdout/stderr to a temporary file. Using a pipe
+            # cause the process to block until stdout is read.
+            with subprocess.Popen(
+                args,
+                stdout=tmp,
+                stderr=subprocess.STDOUT,
+                env=env,
+            ) as process:
+                yield ProcessLauncherHandle(process, port)
 
-            process.terminate()
-            process.wait(60)
+                process.terminate()
+                process.wait(60)
 
-            launcher_output = process.stdout.read().decode("utf-8")
-            print(launcher_output, file=sys.stderr)
-
-            process.stdout.close()
-            process.stderr.close()
+                tmp.seek(0)
+                shutil.copyfileobj(tmp, sys.stderr)
 
         if not use_flash_attention:
             del env["USE_FLASH_ATTENTION"]
