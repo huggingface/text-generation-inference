@@ -1,0 +1,84 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2323,
+        "logprob": null,
+        "text": "Test"
+      },
+      {
+        "id": 1715,
+        "logprob": -11.453125,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -1.9980469,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 578,
+        "logprob": -0.15795898,
+        "special": false,
+        "text": " The"
+      },
+      {
+        "id": 3622,
+        "logprob": -1.0458984,
+        "special": false,
+        "text": " server"
+      },
+      {
+        "id": 31680,
+        "logprob": -1.3623047,
+        "special": false,
+        "text": " responds"
+      },
+      {
+        "id": 449,
+        "logprob": 0.0,
+        "special": false,
+        "text": " with"
+      },
+      {
+        "id": 264,
+        "logprob": 0.0,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 330,
+        "logprob": -0.5678711,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 1049,
+        "logprob": -0.12322998,
+        "special": false,
+        "text": "200"
+      },
+      {
+        "id": 10619,
+        "logprob": 0.0,
+        "special": false,
+        "text": " OK"
+      },
+      {
+        "id": 1,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\""
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request. The server responds with a \"200 OK\""
+}

@@ -5,6 +5,7 @@ from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
+from text_generation_server.layers.gptq import GPTQWeight
 from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -90,8 +91,15 @@ def _load_multi_mqa_gptq(
 
         from text_generation_server.layers.gptq import HAS_EXLLAMA
 
-        use_exllama = HAS_EXLLAMA
-        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
+        weight = GPTQWeight(
+            qweight=qweight,
+            qzeros=qzeros,
+            scales=scales,
+            g_idx=g_idx,
+            bits=bits,
+            groupsize=groupsize,
+            use_exllama=HAS_EXLLAMA,
+        )
 
         if bias:
             slice_ = weights._get_slice(f"{prefix}.c_attn.bias")

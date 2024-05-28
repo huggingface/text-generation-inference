@@ -38,6 +38,7 @@ DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 
 class ResponseComparator(JSONSnapshotExtension):
     rtol = 0.2
+    ignore_logprob = False
 
     def serialize(
         self,
@@ -95,7 +96,10 @@ class ResponseComparator(JSONSnapshotExtension):
             return (
                 token.id == other.id
                 and token.text == other.text
-                and math.isclose(token.logprob, other.logprob, rel_tol=self.rtol)
+                and (
+                    self.ignore_logprob
+                    or math.isclose(token.logprob, other.logprob, rel_tol=self.rtol)
+                )
                 and token.special == other.special
             )
 
@@ -105,8 +109,11 @@ class ResponseComparator(JSONSnapshotExtension):
                     prefill_token.id == other.id
                     and prefill_token.text == other.text
                     and (
-                        math.isclose(
-                            prefill_token.logprob, other.logprob, rel_tol=self.rtol
+                        self.ignore_logprob
+                        or math.isclose(
+                            prefill_token.logprob,
+                            other.logprob,
+                            rel_tol=self.rtol,
                         )
                         if prefill_token.logprob is not None
                         else prefill_token.logprob == other.logprob
@@ -223,6 +230,10 @@ class GenerousResponseComparator(ResponseComparator):
     rtol = 0.75
 
 
+class IgnoreLogProbResponseComparator(ResponseComparator):
+    ignore_logprob = True
+
+
 class LauncherHandle:
     def __init__(self, port: int):
         self.client = AsyncClient(f"http://localhost:{port}")
@@ -272,6 +283,11 @@ def response_snapshot(snapshot):
 @pytest.fixture
 def generous_response_snapshot(snapshot):
     return snapshot.use_extension(GenerousResponseComparator)
+
+
+@pytest.fixture
+def ignore_logprob_response_snapshot(snapshot):
+    return snapshot.use_extension(IgnoreLogProbResponseComparator)
 
 
 @pytest.fixture(scope="module")

@@ -263,7 +263,7 @@ def get_model(
     trust_remote_code: bool,
 ) -> Model:
     if dtype is None:
-        if quantize in ["awq", "gptq"]:
+        if quantize in ["awq", "exl2", "gptq"]:
             # These quantizers only work with float16 params.
             dtype = torch.float16
         else:
@@ -402,11 +402,16 @@ def get_model(
     quantization_config = config_dict.get("quantization_config", None)
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
-        if method in {"gptq", "awq"}:
+        if method in {"gptq", "awq", "exl2"}:
             logger.info(f"Auto selecting quantization method {method}")
             quantize = method
         else:
             logger.info(f"Unknown quantization method {method}")
+
+    if quantize == "exl2" and sharded:
+        raise RuntimeError(
+            "Sharding is currently not supported with `exl2` quantization"
+        )
 
     if model_type == MAMBA:
         return Mamba(
@@ -881,6 +886,8 @@ def get_model(
         raise NotImplementedError("4bit quantization is not supported for AutoModel")
     elif quantize == "eetq":
         raise NotImplementedError("Eetq quantization is not supported for AutoModel")
+    elif quantize == "exl2":
+        raise NotImplementedError("exl2 quantization is not supported for AutoModel")
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
         return CausalLM(
             model_id,

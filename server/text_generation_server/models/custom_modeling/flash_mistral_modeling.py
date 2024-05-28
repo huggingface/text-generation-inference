@@ -102,45 +102,6 @@ class MistralConfig(PretrainedConfig):
         )
 
 
-def load_attention(config, prefix, weights):
-    if config.num_attention_heads != config.num_key_value_heads:
-        return _load_gqa(config, prefix, weights)
-    else:
-        return TensorParallelColumnLinear.load_multi(
-            config,
-            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-            dim=0,
-            weights=weights,
-            bias=False,
-        )
-
-
-def _load_gqa(config, prefix: str, weights):
-    assert config.hidden_size % config.num_attention_heads == 0
-    assert config.num_attention_heads % weights.process_group.size() == 0
-
-    weight = weights.get_multi_weights_col(
-        prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
-        dim=0,
-    )
-
-    if config.quantize not in ["gptq", "awq"]:
-        weight = weight.to(dtype=weights.dtype).to(device=weights.device)
-
-        head_size = config.hidden_size // config.num_attention_heads
-        num_heads = config.num_attention_heads // weights.process_group.size()
-        num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.shape) == [
-            (num_heads + 2 * num_key_value_heads) * head_size,
-            config.hidden_size,
-        ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
-
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=None, quantize=config.quantize)
-    )
-
-
 class MistralAttention(torch.nn.Module):
     def __init__(
         self,
@@ -175,7 +136,13 @@ class MistralAttention(torch.nn.Module):
             config.num_key_value_heads // weights.process_group.size()
         )
 
-        self.query_key_value = load_attention(config, prefix, weights)
+        self.query_key_value = TensorParallelColumnLinear.load_multi(
+            config,
+            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+            dim=0,
+            weights=weights,
+            bias=False,
+        )
 
         self.o_proj = TensorParallelRowLinear.load(
             config,

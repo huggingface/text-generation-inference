@@ -89,7 +89,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
-        if self.quantize == "gptq":
+        if self.quantize in {"exl2", "gptq"}:
             try:
                 # When using GPTQ, Exllama kernels need some global kernels
                 # For which we have the finale shapes only after the model has loaded

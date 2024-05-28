@@ -1,6 +1,9 @@
+from typing import Optional
 import torch
 from torch.nn import functional as F
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.layers.exl2 import Exl2Weight
+from text_generation_server.layers.gptq import GPTQWeight
 
 if SYSTEM == "rocm":
     try:
@@ -151,15 +154,23 @@ def get_linear(weight, bias, quantize):
             bias,
             quant_type="nf4",
         )
+    elif quantize == "exl2":
+        if not isinstance(weight, Exl2Weight):
+            raise NotImplementedError(
+                f"The passed weight is not `exl2` compatible, loader needs to be updated."
+            )
+
+        from text_generation_server.layers.gptq import ExllamaQuantLinear
+
+        linear = ExllamaQuantLinear(weight, bias)
+
     elif quantize == "gptq":
-        try:
-            qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama = weight
-        except Exception:
+        if not isinstance(weight, GPTQWeight):
             raise NotImplementedError(
                 f"The passed weight is not `gptq` compatible, loader needs to be updated."
             )
 
-        if use_exllama:
+        if weight.use_exllama:
             try:
                 from text_generation_server.layers.gptq import (
                     ExllamaQuantLinear,
@@ -169,25 +180,21 @@ def get_linear(weight, bias, quantize):
                     f"Exllama gptq kernels are not installed. Install them `cd server/exllama_kernels && python setup.py install && cd ../exllamav2_kernels && python setup.py install`"
                 )
 
-            linear = ExllamaQuantLinear(
-                qweight, qzeros, scales, g_idx, bias, bits, groupsize
-            )
+            linear = ExllamaQuantLinear(weight, bias)
         else:
             from text_generation_server.layers.gptq.quant_linear import QuantLinear
 
             linear = QuantLinear(
-                qweight,
-                qzeros,
-                scales,
-                g_idx,
+                weight.qweight,
+                weight.qzeros,
+                weight.scales,
+                weight.g_idx,
                 bias,
-                bits,
-                groupsize,
+                weight.bits,
+                weight.groupsize,
             )
     elif quantize == "awq":
-        try:
-            qweight, qzeros, scales, _, bits, groupsize, _ = weight
-        except Exception:
+        if not isinstance(weight, GPTQWeight):
             raise NotImplementedError(
                 f"The passed weight is not `awq` compatible, loader needs to be updated."
             )
@@ -200,11 +207,11 @@ def get_linear(weight, bias, quantize):
             from text_generation_server.layers.awq.quantize.qmodule import WQLinear
 
             linear = WQLinear(
-                w_bit=bits,
-                group_size=groupsize,
-                qweight=qweight,
-                qzeros=qzeros,
-                scales=scales,
+                w_bit=weight.bits,
+                group_size=weight.groupsize,
+                qweight=weight.qweight,
+                qzeros=weight.qzeros,
+                scales=weight.scales,
                 bias=bias is not None,
             )
         except ImportError:
