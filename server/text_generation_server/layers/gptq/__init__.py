@@ -1,8 +1,30 @@
+from dataclasses import dataclass
 import os
+from typing import Optional
 import torch
 from text_generation_server.utils.import_utils import (
     SYSTEM,
 )
+
+
+@dataclass
+class GPTQWeight:
+    qweight: torch.Tensor
+    qzeros: torch.Tensor
+    scales: torch.Tensor
+    g_idx: Optional[torch.Tensor]
+    bits: int
+    groupsize: int
+    use_exllama: bool
+
+    def __post_init__(self):
+        if self.scales.dtype == torch.float:
+            self.scales = self.scales.half()
+
+    @property
+    def device(self) -> torch.device:
+        return self.qweight.device
+
 
 try:
     major, _minor = torch.cuda.get_device_capability()
