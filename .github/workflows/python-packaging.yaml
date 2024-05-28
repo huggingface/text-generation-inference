@@ -178,6 +178,10 @@ jobs:
         run: |
           ls dist
 
+      - name: Install Hugging Face CLI
+        run: |
+          pip install huggingface_hub
+
       - name: Upload to Hugging Face Hub
         run: |
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_PRECOMPILE_TOKEN }}
