@@ -8,6 +8,15 @@ on:
     tags:
       - "*"
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - edited
+      - converted_to_draft
+      - review_requested
+      - review_request_removed
   workflow_dispatch:
 
 jobs:
