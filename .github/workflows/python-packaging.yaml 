@@ -1,14 +1,17 @@
 # based on https://github.com/Dao-AILab/flash-attention/blob/main/.github/workflows/publish.yml
 name: Build wheels
 
+# on:
+#   push:
+#     branches:
+#       - main
+#     tags:
+#       - "*"
+#   pull_request:
+#   workflow_dispatch:
+
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "*"
   pull_request:
-  workflow_dispatch:
 
 jobs:
   build_wheels:
