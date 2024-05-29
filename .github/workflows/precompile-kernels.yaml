@@ -165,12 +165,14 @@ jobs:
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
           python setup.py bdist_wheel --dist-dir=../dist
           # Generate a custom name for the wheel to include CUDA and Torch versions
+          cd ../dist
           tmpname=cu${MATRIX_CUDA_VERSION}torch${MATRIX_TORCH_VERSION}cxx11abi${{ matrix.cxx11_abi }}
-          wheel_name=$(ls dist/*whl | xargs -n 1 basename | sed "s/-/+$tmpname-/2")
-          # Rename the wheel with the custom name
-          ls dist/*whl |xargs -I {} mv {} dist/${wheel_name}
+          for wheel in *.whl; do
+            new_wheel_name=$(echo "$wheel" | sed "s/-/+$tmpname-/2")
+            mv "$wheel" "$new_wheel_name"
+          done
           # Save the wheel name to the GitHub environment
-          echo "wheel_name=${wheel_name}" >> $GITHUB_ENV
+          echo "wheel_name=$(ls *+$tmpname-*.whl)" >> $GITHUB_ENV
 
       - name: Log Built Wheels
         run: |
@@ -183,4 +185,4 @@ jobs:
       - name: Upload to Hugging Face Hub
         run: |
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_PRECOMPILE_TOKEN }}
-          huggingface-cli upload drbh/flash-attention-pre-compile flash-attention/dist/*
+          huggingface-cli upload drbh/flash-attention-pre-compile dist/*
