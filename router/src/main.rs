@@ -84,6 +84,9 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), RouterError> {
+    // TODO: remove (just used to force source rebuild)
+    println!("Starting text-generation-inference router");
+
     // Get args
     let args = Args::parse();
     // Pattern match configuration
