@@ -1124,6 +1124,12 @@ class CausalLM(Model):
         return generations, batch if not stopped else None, (forward_ns, decode_ns)
 
     def warmup(self, batches: List[CausalLMBatch]) -> None:
+        def get_unfinished_requests(requests: List[CausalLMRequest]) -> List[int]:
+            return [
+                request.data.id for request in requests
+                if request.stopping_criteria.current_tokens < request.stopping_criteria.max_new_tokens
+            ]
+
         # prefill
         _, prefill_batch, _ = self.generate_token([batches.pop(0)])
         # decode
@@ -1131,18 +1137,22 @@ class CausalLM(Model):
         # shifts
         self.shifting_warmup(decode_batch)
 
-        # if decode bs is 1 warmup ends here
-        if len(batches) == 0:
-            while decode_batch is not None:
-                _, decode_batch, _ = self.generate_token([decode_batch])
-            return
+        while len(batches) > 0:
+            # prefill
+            _, prefill_batch, _ = self.generate_token([batches.pop(0)])
+            # concatenate and decode
+            _, decode_batch, _ = self.generate_token([decode_batch, prefill_batch])
+            # filter finished requests
+            request_ids = get_unfinished_requests(decode_batch.requests)
+            if len(request_ids) < len(decode_batch.requests):
+                decode_batch = decode_batch.filter(request_ids)
 
-        # prefill
-        _, prefill_batch, _ = self.generate_token([batches.pop(0)])
-        # concatenate and decode
-        _, decode_batch, _ = self.generate_token([decode_batch, prefill_batch])
-        # decodes
         while decode_batch is not None:
+            # filter finished requests
+            request_ids = get_unfinished_requests(decode_batch.requests)
+            if len(request_ids) < len(decode_batch.requests):
+                decode_batch = decode_batch.filter(request_ids)
+            # decode
             _, decode_batch, _ = self.generate_token([decode_batch])
 
     def shifting_warmup(self, batch: CausalLMBatch) -> None:
