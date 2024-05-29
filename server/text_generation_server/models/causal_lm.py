@@ -46,6 +46,7 @@ from text_generation_server.utils import (
     StoppingCriteria,
     make_tokenizer_optional,
     is_tokenizer_transparent,
+    pad_next_token_chooser_parameters,
 )
 from text_generation_server.utils.debug import dbg_trace
 from text_generation_server.utils.speculate import get_speculate
@@ -399,10 +400,9 @@ class CausalLMBatch(Batch):
         parameters = [r.data.parameters for r in flat_requests]
         # append the dummy parameters for dummy requests
         batch_size = batches[dst_batch_idx].batch_size
-        parameters.extend(
-            [generate_pb2.NextTokenChooserParameters()] * (batch_size - len(flat_requests))
-        )
+        parameters = pad_next_token_chooser_parameters(parameters, batch_size)
 
+        # update past grammar states
         fsm_grammar_states = [0] * batch_size
         for batch in batches:
             for i, req in enumerate(batch.requests):
@@ -465,9 +465,7 @@ class CausalLMBatch(Batch):
         dummy_inputs = ["?"] * missing_inputs
         parameters = [r.parameters for r in pb.requests]
         # append the dummy parameters for dummy request
-        parameters.extend(
-            [generate_pb2.NextTokenChooserParameters()] * missing_inputs
-        )
+        parameters = pad_next_token_chooser_parameters(parameters, new_bs)
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             pb=parameters,

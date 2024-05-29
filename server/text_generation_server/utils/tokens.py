@@ -504,6 +504,30 @@ class HeterogeneousNextTokenChooser:
         )
 
 
+def pad_next_token_chooser_parameters(
+    parameters: List[generate_pb2.NextTokenChooserParameters],
+    expected_size: int,
+) -> List[generate_pb2.NextTokenChooserParameters]:
+    # disable all logits processors to minimize padding overhead
+    empty_parameters = generate_pb2.NextTokenChooserParameters(
+        temperature=1.0,
+        top_k=0,
+        top_p=1.0,
+        typical_p=1.0,
+        do_sample=False,
+        seed=0,
+        repetition_penalty=1.0,
+        frequency_penalty=0.0,
+        watermark=False,
+        grammar="",
+        grammar_type=0,
+    )
+    parameters.extend(
+        [empty_parameters] * (expected_size - len(parameters))
+    )
+    return parameters
+
+
 class Sampling:
     def __init__(self, seed: int, device: str = "cpu"):
         self.generator = torch.Generator("cpu")

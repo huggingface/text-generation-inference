@@ -22,7 +22,8 @@ from text_generation_server.utils.tokens import (
     Sampling,
     Greedy,
     make_tokenizer_optional,
-    is_tokenizer_transparent
+    is_tokenizer_transparent,
+    pad_next_token_chooser_parameters,
 )
 
 __all__ = [
