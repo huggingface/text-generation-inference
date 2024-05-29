@@ -2,18 +2,17 @@ import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING
 
+major, minor = torch.cuda.get_device_capability()
+is_sm75 = major == 7 and minor == 5
 _PARTITION_SIZE = 512
 
-if SYSTEM == "xpu":
-    import intel_extension_for_pytorch as ipex
-else:
-    try:
-        from vllm._C import cache_ops
-        from vllm._C import ops
-    except Exception as e:
-        raise ImportError(
-            f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
-        )
+try:
+    from vllm._C import cache_ops
+    from vllm._C import ops
+except Exception as e:
+    raise ImportError(
+        f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
+    )
 
 
 def reshape_and_cache(
@@ -23,22 +22,17 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if SYSTEM == "xpu":
-        ipex.llm.modules.PagedAttention.reshape_and_cache(
-            key, value, key_cache, value_cache, slots
-        )
+    if FLASH_DECODING:
+        shape = key_cache.shape
+        key_cache.view(-1, shape[-2], shape[-1])[slots] = key
+        value_cache.view(-1, shape[-2], shape[-1])[slots] = value
     else:
-        if FLASH_DECODING:
-            shape = key_cache.shape
-            key_cache.view(-1, shape[-2], shape[-1])[slots] = key
-            value_cache.view(-1, shape[-2], shape[-1])[slots] = value
-        else:
-            cache_ops.reshape_and_cache(
-                key, value, key_cache, value_cache, slots, "auto", 1.0
-            )
+        cache_ops.reshape_and_cache(
+            key, value, key_cache, value_cache, slots, "auto", 1.0
+        )
 
 
-def attention(
+def paged_attention(
     out: torch.Tensor,
     query: torch.Tensor,
     key_cache: torch.Tensor,
@@ -72,21 +66,6 @@ def attention(
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
     input_lengths = cu_seqlen_k
-    if SYSTEM == "xpu":
-        query = query.contiguous()
-        return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
-            out,
-            query,
-            key_cache,
-            value_cache,
-            kv_head_mapping,
-            softmax_scale,
-            block_tables,
-            input_lengths,
-            block_size,
-            max_s,
-            None,
-        )
 
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
@@ -174,3 +153,132 @@ def attention(
                 "auto",
                 1.0,
             )
+
+
+try:
+    import flash_attn_2_cuda
+
+    V2 = True
+except ImportError:
+    try:
+        import flash_attn_cuda
+
+        V2 = False
+    except ImportError as e:
+        if major >= 8:
+            architecture_suffix = f"-{SYSTEM}"
+            raise ImportError(
+                "Flash Attention V2 is not installed.\n"
+                "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
+                f"or install flash attention v2 with `cd server && make install install-flash-attention-v2{architecture_suffix}`"
+            )
+        elif is_sm75:
+            raise ImportError(
+                "Flash Attention is not installed.\n"
+                "Use the official Docker image (ghcr.io/huggingface/text-generation-inference:latest) "
+                "or install flash attention with `cd server && make install install-flash-attention`"
+            ) from e
+        else:
+            raise ImportError(
+                f"GPU with CUDA capability {major} {minor} is not supported"
+            ) from e
+
+
+SUPPORTS_WINDOWING = V2
+if V2:
+
+    def attention(
+        q,
+        k,
+        v,
+        out,
+        cu_seqlens,
+        max_s,
+        softmax_scale,
+        window_size_left=-1,
+        causal=True,
+    ):
+        if window_size_left <= 0 and window_size_left != -1:
+            raise ValueError("`window_size_left` must be > 0 or -1")
+        return flash_attn_2_cuda.varlen_fwd(
+            q,
+            k,
+            v,
+            out,
+            cu_seqlens,
+            cu_seqlens,
+            None,
+            None,
+            None,
+            max_s,
+            max_s,
+            0.0,
+            softmax_scale,
+            False,
+            causal,
+            window_size_left,
+            0,
+            False,
+            None,
+        )
+
+else:
+
+    def attention(
+        q,
+        k,
+        v,
+        out,
+        cu_seqlens,
+        max_s,
+        softmax_scale,
+        window_size_left=-1,
+    ):
+        if window_size_left != -1:
+            raise NotImplementedError(
+                "window_size_left is only available with flash attn v2"
+            )
+
+        # Flash attention v1 requires q, k and v to have the same number of heads
+        if k.shape[1] != q.shape[1]:
+            # MQA expand
+            if k.shape[1] == 1:
+                k = k.expand(-1, q.shape[1], -1)
+            # Grouped attention reshape
+            else:
+                original_shape = k.shape
+                k = (
+                    k.unsqueeze(2)
+                    .expand(-1, -1, q.shape[1] // k.shape[1], -1)
+                    .reshape(original_shape[0], -1, original_shape[2])
+                )
+        if v.shape[1] != q.shape[1]:
+            # MQA expand
+            if v.shape[1] == 1:
+                v = v.expand(-1, q.shape[1], -1)
+            # Grouped attention reshape
+            else:
+                original_shape = v.shape
+                v = (
+                    v.unsqueeze(2)
+                    .expand(-1, -1, q.shape[1] // v.shape[1], -1)
+                    .reshape(original_shape[0], -1, original_shape[2])
+                )
+
+        return flash_attn_cuda.fwd(
+            q,
+            k,
+            v,
+            out,
+            cu_seqlens,
+            cu_seqlens,
+            max_s,
+            max_s,
+            0.0,
+            softmax_scale,
+            False,
+            True,
+            False,
+            0,
+            None,
+        )

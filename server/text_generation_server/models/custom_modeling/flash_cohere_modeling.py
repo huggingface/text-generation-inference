@@ -25,7 +25,7 @@ from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import paged_attention, attention
 from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers import (
@@ -291,7 +291,7 @@ class FlashCohereAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 query,
                 key,
                 value,
@@ -302,7 +302,7 @@ class FlashCohereAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],

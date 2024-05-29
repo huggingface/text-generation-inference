@@ -26,7 +26,11 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -229,7 +233,7 @@ class Starcoder2Attention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        paged_attention.reshape_and_cache(
+        reshape_and_cache(
             kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
@@ -239,7 +243,7 @@ class Starcoder2Attention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
@@ -251,7 +255,7 @@ class Starcoder2Attention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],
