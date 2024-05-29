@@ -71,6 +71,7 @@ def attention(
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
+    input_lengths = cu_seqlen_k
     if SYSTEM == "xpu":
         query = query.contiguous()
         return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
