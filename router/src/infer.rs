@@ -71,7 +71,13 @@ impl Infer {
         processor_config: HubProcessorConfig,
     ) -> Self {
         // Infer shared state
-        let queue = Queue::new(requires_padding, 16, window_size, speculate);
+        let flashdecoding = if let Ok(flashdecoding) = std::env::var("FLASH_DECODING") {
+            matches!(flashdecoding.to_lowercase().as_str(), "1" | "true")
+        } else {
+            false
+        };
+        let block_size = if flashdecoding { 256 } else { 32 };
+        let queue = Queue::new(requires_padding, block_size, window_size, speculate);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });
