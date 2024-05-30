@@ -714,7 +714,7 @@ pub enum ValidationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Idefics2, LlavaNext, PaliTextConfig, Paligemma, TextConfig, VisionConfig};
+    use crate::config::{PaliTextConfig, Paligemma};
     use crate::default_parameters;
     use crate::tests::get_tokenizer;
 
