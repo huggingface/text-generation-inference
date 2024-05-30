@@ -77,6 +77,9 @@ impl Infer {
             false
         };
         let block_size = if flashdecoding { 256 } else { 32 };
+        let block_size = std::env::var("BLOCK_SIZE")
+            .map(|b| b.parse().unwrap_or(block_size))
+            .unwrap_or(block_size);
         let queue = Queue::new(requires_padding, block_size, window_size, speculate);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
