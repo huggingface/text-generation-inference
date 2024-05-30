@@ -78,6 +78,14 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
 
+    # TODO: determine if this api makes sense
+    lora_adapter_ids = os.getenv("LORA_ADAPTERS", None)
+
+    # split on comma and strip whitespace
+    lora_adapter_ids = (
+        [x.strip() for x in lora_adapter_ids.split(",")] if lora_adapter_ids else []
+    )
+
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = None if dtype is None else dtype.value
@@ -92,6 +100,7 @@ def serve(
         )
     server.serve(
         model_id,
+        lora_adapter_ids,
         revision,
         sharded,
         quantize,

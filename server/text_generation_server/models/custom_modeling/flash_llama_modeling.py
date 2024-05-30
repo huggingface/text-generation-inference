@@ -88,9 +88,11 @@ def load_attention(config, prefix, weights):
 class FlashLlamaAttention(torch.nn.Module):
     def __init__(
         self,
+        index: int,
         prefix: str,
         config,
         weights,
+        all_adapter_weights,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -122,6 +124,29 @@ class FlashLlamaAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.index = index
+        self.adapter_weights = {}
+        for adapter_id, adapter_weights in all_adapter_weights.items():
+            filtered_keys = list(
+                filter(
+                    lambda x: x.startswith(
+                        f"base_model.model.model.layers.{index}.self_attn"
+                    ),
+                    adapter_weights.keys(),
+                )
+            )
+            self.adapter_weights[adapter_id] = {
+                key: torch.tensor(
+                    adapter_weights[key],
+                    device=weights.device,
+                    dtype=weights.dtype,
+                ).T
+                for key in filtered_keys
+            }
+
+        self.index_to_key = {
+            i: key for i, key in enumerate(self.adapter_weights.keys())
+        }
 
         self.o_proj = TensorParallelRowLinear.load(
             config,
@@ -134,6 +159,23 @@ class FlashLlamaAttention(torch.nn.Module):
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
         ).repeat_interleave(self.num_groups)
 
+    def get_adapter_weights(self, lora_index):
+        adapter_id = self.index_to_key[lora_index]
+        q_proj_lora_a = self.adapter_weights[adapter_id][
+            f"base_model.model.model.layers.{self.index}.self_attn.q_proj.lora_A.weight"
+        ]
+        q_proj_lora_b = self.adapter_weights[adapter_id][
+            f"base_model.model.model.layers.{self.index}.self_attn.q_proj.lora_B.weight"
+        ]
+
+        v_proj_lora_a = self.adapter_weights[adapter_id][
+            f"base_model.model.model.layers.{self.index}.self_attn.v_proj.lora_A.weight"
+        ]
+        v_proj_lora_b = self.adapter_weights[adapter_id][
+            f"base_model.model.model.layers.{self.index}.self_attn.v_proj.lora_B.weight"
+        ]
+        return q_proj_lora_a, q_proj_lora_b, v_proj_lora_a, v_proj_lora_b
+
     def forward(
         self,
         hidden_states,
@@ -145,6 +187,8 @@ class FlashLlamaAttention(torch.nn.Module):
         slots,
         input_lengths,
         max_s,
+        batch_lora_adapter_mask,
+        lora_indices,
     ):
         qkv = self.query_key_value(hidden_states)
         query, kv = qkv.split(
@@ -156,6 +200,40 @@ class FlashLlamaAttention(torch.nn.Module):
         )
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
+
+        q_proj_lora_a, q_proj_lora_b, v_proj_lora_a, v_proj_lora_b = (
+            self.get_adapter_weights(
+                # TODO: dont just assume the first adapter
+                lora_indices[0].item()
+            )
+        )
+
+        query_adapted = torch.matmul(
+            hidden_states,
+            torch.matmul(
+                q_proj_lora_a,
+                q_proj_lora_b,
+            ),
+        )
+
+        value_adapted = torch.matmul(
+            hidden_states,
+            torch.matmul(
+                v_proj_lora_a,
+                v_proj_lora_b,
+            ),
+        )
+
+        batch_size = query.size(0)
+
+        # TODO: improve this to avoid unnecessary work
+        # mask across batch and within lora adapters
+        query[batch_lora_adapter_mask] += query_adapted.view(
+            batch_size, self.num_heads, self.head_size
+        )[batch_lora_adapter_mask]
+        kv[batch_lora_adapter_mask, 1] += value_adapted.view(
+            batch_size, self.num_key_value_heads, self.head_size
+        )[batch_lora_adapter_mask]
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
@@ -261,10 +339,14 @@ class LlamaMLP(nn.Module):
 
 
 class FlashLlamaLayer(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, index, prefix, config, weights, all_adapter_weights):
         super().__init__()
         self.self_attn = FlashLlamaAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
+            index=index,
+            prefix=f"{prefix}.self_attn",
+            config=config,
+            weights=weights,
+            all_adapter_weights=all_adapter_weights,
         )
         self.mlp = LlamaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
@@ -289,6 +371,8 @@ class FlashLlamaLayer(nn.Module):
         slots,
         input_lengths,
         max_s,
+        batch_lora_adapter_mask,
+        lora_indices,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -303,6 +387,8 @@ class FlashLlamaLayer(nn.Module):
             slots,
             input_lengths,
             max_s,
+            batch_lora_adapter_mask,
+            lora_indices,
         )
 
         # faster post attention rms norm
@@ -316,7 +402,7 @@ class FlashLlamaLayer(nn.Module):
 
 
 class FlashLlamaModel(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix, config, weights, all_adapter_weights):
         super().__init__()
 
         process_group = weights.process_group
@@ -325,6 +411,7 @@ class FlashLlamaModel(torch.nn.Module):
         self.layers = nn.ModuleList(
             [
                 FlashLlamaLayer(
+                    index=layer_id,
                     prefix=(
                         f"model.layers.{layer_id}"
                         if not prefix
@@ -332,6 +419,7 @@ class FlashLlamaModel(torch.nn.Module):
                     ),
                     config=config,
                     weights=weights,
+                    all_adapter_weights=all_adapter_weights,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
@@ -360,6 +448,8 @@ class FlashLlamaModel(torch.nn.Module):
         max_s: int,
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        batch_lora_adapter_mask: Optional[List[str]],
+        lora_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -382,6 +472,8 @@ class FlashLlamaModel(torch.nn.Module):
                 slots,
                 input_lengths,
                 max_s,
+                batch_lora_adapter_mask,
+                lora_indices,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -390,7 +482,7 @@ class FlashLlamaModel(torch.nn.Module):
 
 
 class FlashLlamaForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix, config, weights, all_adapter_weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
@@ -399,7 +491,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             ),
             weights=weights,
         )
-        self.model = FlashLlamaModel(prefix, config, weights)
+        self.model = FlashLlamaModel(prefix, config, weights, all_adapter_weights)
         if config.tie_word_embeddings:
             suffix = "model.embed_tokens"
         else:
@@ -423,6 +515,8 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
+        batch_lora_adapter_mask: Optional[List[str]] = None,
+        lora_indices: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
@@ -436,6 +530,8 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             max_s,
             true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,
+            batch_lora_adapter_mask=batch_lora_adapter_mask,
+            lora_indices=lora_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

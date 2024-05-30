@@ -192,6 +192,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
 def serve(
     model_id: str,
+    lora_adapter_ids: Optional[List[str]],
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
@@ -203,6 +204,7 @@ def serve(
 ):
     async def serve_inner(
         model_id: str,
+        lora_adapter_ids: Optional[List[str]],
         revision: Optional[str],
         sharded: bool = False,
         quantize: Optional[str] = None,
@@ -224,6 +226,7 @@ def serve(
         try:
             model = get_model(
                 model_id,
+                lora_adapter_ids,
                 revision,
                 sharded,
                 quantize,
@@ -262,6 +265,13 @@ def serve(
     set_model_id(model_id)
     asyncio.run(
         serve_inner(
-            model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code
+            model_id,
+            lora_adapter_ids,
+            revision,
+            sharded,
+            quantize,
+            speculate,
+            dtype,
+            trust_remote_code,
         )
     )

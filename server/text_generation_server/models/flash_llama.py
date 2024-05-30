@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.distributed
 
@@ -13,7 +14,9 @@ from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
     Weights,
+    hub,
 )
+from text_generation_server.utils.weights import load_adaptor_weights
 
 tracer = trace.get_tracer(__name__)
 
@@ -29,6 +32,7 @@ class FlashLlama(FlashCausalLM):
         speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
+        lora_adapter_ids: Optional[list] = [],
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -71,7 +75,7 @@ class FlashLlama(FlashCausalLM):
             weights._set_gptq_params(model_id, revision)
 
         prefix = ""
-        model = FlashLlamaForCausalLM(prefix, config, weights)
+        model = FlashLlamaForCausalLM(prefix, config, weights, all_adapter_weights)
         torch.distributed.barrier(group=self.process_group)
         super(FlashLlama, self).__init__(
             model=model,

@@ -298,6 +298,11 @@ pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
     pub grammar: Option<GrammarType>,
+
+    /// Lora adapter id
+    #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub adapter_id: Option<String>,
 }
 
 fn default_max_new_tokens() -> Option<u32> {
@@ -324,6 +329,7 @@ fn default_parameters() -> GenerateParameters {
         seed: None,
         top_n_tokens: None,
         grammar: None,
+        adapter_id: None,
     }
 }
 
