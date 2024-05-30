@@ -76,7 +76,7 @@ impl Infer {
         } else {
             false
         };
-        let block_size = if flashdecoding { 256 } else { 32 };
+        let block_size = if flashdecoding { 256 } else { 16 };
         let block_size = std::env::var("BLOCK_SIZE")
             .map(|b| b.parse().unwrap_or(block_size))
             .unwrap_or(block_size);
