@@ -11,7 +11,7 @@ model=teknium/OpenHermes-2.5-Mistral-7B
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.0.3 \
+    ghcr.io/huggingface/text-generation-inference:2.0.4 \
     --model-id $model
 ```
 
@@ -88,7 +88,7 @@ curl 127.0.0.1:8080/generate \
 To see all possible deploy flags and options, you can use the `--help` flag. It's possible to configure the number of shards, quantization, generation parameters, and more.
 
 ```bash
-docker run ghcr.io/huggingface/text-generation-inference:2.0.3 --help
+docker run ghcr.io/huggingface/text-generation-inference:2.0.4 --help
 ```
 
 </Tip>
