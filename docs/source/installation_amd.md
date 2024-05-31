@@ -11,7 +11,7 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 docker run --rm -it --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
     --device=/dev/kfd --device=/dev/dri --group-add video \
     --ipc=host --shm-size 256g --net host -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.0.3-rocm \
+    ghcr.io/huggingface/text-generation-inference:2.0.4-rocm \
     --model-id $model
 ```
 
