@@ -1,55 +1,48 @@
+from io import BytesIO
+from PIL import Image
 import torch
 import torch.distributed
 from opentelemetry import trace
-from typing import Optional, Tuple
+from typing import Iterable, Optional, Tuple
 from text_generation_server.models.vlm_causal_lm import (
     VlmCausalLM,
     VlmCausalLMBatch,
     image_text_replacement,
-    load_data_uri,
-    split,
 )
 from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
     PaliGemmaForConditionalGeneration,
 )
-from transformers import AutoProcessor, AutoConfig, AutoImageProcessor
+from transformers import AutoProcessor, AutoConfig
+
+from text_generation_server.pb.generate_pb2 import Request
 
 tracer = trace.get_tracer(__name__)
 
 
 class PaliGemmaBatch(VlmCausalLMBatch):
     @classmethod
-    def batch_tokenized_inputs(cls, requests, tokenizer, processor, config):
+    def batch_tokenized_inputs(
+        cls, requests: Iterable[Request], tokenizer, processor, config
+    ):
         batch_inputs = []
         image_inputs = []
         max_truncation = 0
         for r in requests:
-            chunks = split(r.inputs)
             full_text = ""
             image_id = 0
-            for chunk in chunks:
-                if chunk["type"] == "text":
-                    full_text += "<bos>" + chunk["content"] + "\n"
-                elif chunk["type"] == "image":
-                    image = chunk["content"]
-                    # Should never receive URLs anymore, processing should be done
-                    # On the rust layer.
-                    # This avoid making n queries per TP
-                    # if image.startswith("https://") or image.startswith("http://"):
-                    #     image = processor.image_processor.fetch_images(image)
-                    if image.startswith("data:"):
-                        image = load_data_uri(image)
-                    else:
-                        raise RuntimeError(
-                            "Cannot process input image not starting with data:"
-                        )
+            for chunk in r.input_chunks.chunks:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    full_text += "<bos>" + chunk.text + "\n"
+                elif chunk_type == "image":
+                    image = Image.open(BytesIO(chunk.image.data))
                     # TODO do_convert_RGB should be on by default ?
                     image = image.convert("RGB")
                     image_input = processor.image_processor(image, return_tensors="pt")
                     full_text += image_text_replacement(image_input, config, image_id)
                     image_inputs.append(image_input)
                 else:
-                    raise RuntimeError(f"Invalid chunk type {chunk['type']}")
+                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
             batch_inputs.append(full_text)
             max_truncation = max(max_truncation, r.truncate)

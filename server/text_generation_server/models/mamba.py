@@ -27,6 +27,7 @@ from text_generation_server.models.types import (
     Generation,
     GeneratedText,
 )
+from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.tokens import batch_top_tokens, Sampling
 from dataclasses import dataclass
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
@@ -139,7 +140,7 @@ class MambaBatch(Batch):
         max_decode_tokens = 0
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
-            inputs.append(r.inputs)
+            inputs.append(concat_text_chunks(r.input_chunks.chunks))
             next_token_choosers.append(
                 NextTokenChooser.from_pb(r.parameters, device, tokenizer)
             )

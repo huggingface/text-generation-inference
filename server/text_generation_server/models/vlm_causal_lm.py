@@ -1,12 +1,9 @@
-import re
 import torch
-import math
 from PIL import Image
 from io import BytesIO
-import base64
 
 from opentelemetry import trace
-from typing import Optional, Tuple, List, Type, Dict
+from typing import Iterable, Optional, Tuple, List, Type, Dict
 
 from transformers import PreTrainedTokenizerBase
 from transformers.image_processing_utils import select_best_resolution
@@ -17,25 +14,6 @@ from text_generation_server.models.flash_mistral import (
 )
 
 tracer = trace.get_tracer(__name__)
-
-IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
-
-
-def split(string) -> List[Dict[str, str]]:
-    parts = []
-    cursor = 0
-    for pattern in IMAGES.finditer(string):
-        start = pattern.start()
-        if start != cursor:
-            parts.append({"type": "text", "content": string[cursor:start]})
-
-        parts.append({"type": "image", "content": pattern.group(1)})
-        cursor = pattern.end()
-
-    if cursor != len(string):
-        parts.append({"type": "text", "content": string[cursor:]})
-
-    return parts
 
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
@@ -129,13 +107,6 @@ def get_number_of_features(height: int, width: int, config) -> int:
     return unpadded_features + newline_features + base_features
 
 
-def load_data_uri(image_uri: str) -> Image.Image:
-    image_uri = image_uri.split(",")[-1]
-    content = base64.b64decode(image_uri)
-    image = Image.open(BytesIO(content))
-    return image
-
-
 class VlmCausalLMBatch(FlashCausalLMBatch):
     pixel_values: Optional[List[torch.Tensor]]
     pixel_attention_mask: Optional[List[torch.Tensor]]
@@ -159,35 +130,26 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         return batch
 
     @classmethod
-    def batch_tokenized_inputs(cls, requests, tokenizer, processor, config):
+    def batch_tokenized_inputs(
+        cls, requests: Iterable[generate_pb2.Request], tokenizer, processor, config
+    ):
         batch_inputs = []
         image_inputs = []
         max_truncation = 0
         for r in requests:
-            chunks = split(r.inputs)
             full_text = ""
             image_id = 0
-            for chunk in chunks:
-                if chunk["type"] == "text":
-                    full_text += chunk["content"]
-                elif chunk["type"] == "image":
-                    image = chunk["content"]
-                    # Should never receive URLs anymore, processing should be done
-                    # On the rust layer.
-                    # This avoid making n queries per TP
-                    # if image.startswith("https://") or image.startswith("http://"):
-                    #     image = processor.image_processor.fetch_images(image)
-                    if image.startswith("data:"):
-                        image = load_data_uri(image)
-                    else:
-                        raise RuntimeError(
-                            "Cannot process input image not starting with data:"
-                        )
+            for chunk in r.input_chunks.chunks:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    full_text += chunk.text
+                elif chunk_type == "image":
+                    image = Image.open(BytesIO(chunk.image.data))
                     image_input = processor.image_processor(image, return_tensors="pt")
                     full_text += image_text_replacement(image_input, config, image_id)
                     image_inputs.append(image_input)
                 else:
-                    raise RuntimeError(f"Invalid chunk type {chunk['type']}")
+                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
             batch_inputs.append(full_text)
             max_truncation = max(max_truncation, r.truncate)
