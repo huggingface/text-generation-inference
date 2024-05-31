@@ -66,7 +66,7 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_cuda.txt && \
+    pip install -r requirements_intel.txt && \
     pip install ".[accelerate, peft, outlines]" --no-cache-dir
 
 ENV CCL_ROOT=/opt/intel/oneapi/ccl/latest
