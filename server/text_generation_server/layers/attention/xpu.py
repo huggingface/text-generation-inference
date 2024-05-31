@@ -59,8 +59,7 @@ def paged_attention(
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
-    cu_seqlen_q: torch.Tensor,
-    cu_seqlen_k: torch.Tensor,
+    input_lengths: torch.Tensor,
     max_s: int,
 ):
     query = query.contiguous()
@@ -73,7 +72,7 @@ def paged_attention(
         kv_head_mapping,
         softmax_scale,
         block_tables,
-        cu_seqlen_q,
+        input_lengths,
         block_size,
         max_s,
         None,

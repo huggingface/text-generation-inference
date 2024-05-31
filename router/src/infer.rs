@@ -70,17 +70,7 @@ impl Infer {
         tokenizer_config: HubTokenizerConfig,
         processor_config: HubProcessorConfig,
     ) -> Self {
-        // Infer shared state
-        let flashdecoding = if let Ok(flashdecoding) = std::env::var("FLASH_DECODING") {
-            matches!(flashdecoding.to_lowercase().as_str(), "1" | "true")
-        } else {
-            false
-        };
-        let block_size = if flashdecoding { 256 } else { 16 };
-        let block_size = std::env::var("BLOCK_SIZE")
-            .map(|b| b.parse().unwrap_or(block_size))
-            .unwrap_or(block_size);
-        let queue = Queue::new(requires_padding, block_size, window_size, speculate);
+        let queue = Queue::new(requires_padding, 16, window_size, speculate);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });

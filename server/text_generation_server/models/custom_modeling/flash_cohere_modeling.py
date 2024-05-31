@@ -30,7 +30,6 @@ from text_generation_server.layers.attention import (
     attention,
     reshape_and_cache,
 )
-from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -260,9 +259,8 @@ class FlashCohereAttention(torch.nn.Module):
         cu_seqlen_prefill,
         kv_cache,
         block_tables,
-        cu_seqlen_q,
-        cu_seqlen_k,
         slots,
+        input_lengths,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -314,8 +312,7 @@ class FlashCohereAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                cu_seqlen_q,
-                cu_seqlen_k,
+                input_lengths,
                 max_s,
             )
 
@@ -389,9 +386,8 @@ class FlashCohereLayer(nn.Module):
         cu_seqlen_prefill,
         kv_cache,
         block_tables,
-        cu_seqlen_q,
-        cu_seqlen_k,
         slots,
+        input_lengths,
         max_s,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -404,9 +400,8 @@ class FlashCohereLayer(nn.Module):
             cu_seqlen_prefill,
             kv_cache,
             block_tables,
-            cu_seqlen_q,
-            cu_seqlen_k,
             slots,
+            input_lengths,
             max_s,
         )
 
@@ -469,24 +464,6 @@ class FlashCohereModel(torch.nn.Module):
         )
 
         residual = None
-        if cu_seqlen_prefill is None and FLASH_DECODING:
-            cu_seqlen_q = torch.arange(
-                input_lengths.shape[0] + 1,
-                device=input_ids.device,
-                dtype=torch.int32,
-            )
-            cu_seqlen_k = torch.cat(
-                [
-                    torch.zeros(
-                        (1,), device=input_lengths.device, dtype=input_lengths.dtype
-                    ),
-                    input_lengths.cumsum(dim=-1),
-                ]
-            ).to(dtype=torch.int32)
-        else:
-            cu_seqlen_q = None
-            cu_seqlen_k = input_lengths
-
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -496,9 +473,8 @@ class FlashCohereModel(torch.nn.Module):
                 cu_seqlen_prefill,
                 kv_cache[i],
                 block_tables,
-                cu_seqlen_q,
-                cu_seqlen_k,
                 slots,
+                input_lengths,
                 max_s,
             )
 

@@ -3,9 +3,8 @@ import torch
 
 from typing import Optional, List, Tuple
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.models.globals import FLASH_DECODING
 
-BLOCK_SIZE: int = 256 if FLASH_DECODING else 16
+BLOCK_SIZE: int = 16
 # Will be set in warmup
 CACHE_MANAGER: Optional["CacheManager"] = None
 
@@ -31,38 +30,21 @@ class CacheManager:
         else:
             x = self.block_size // element_size
 
-        if FLASH_DECODING:
-            self.kv_cache = [
-                (
-                    torch.empty(
-                        (num_blocks, self.block_size, num_heads, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.empty(
-                        (num_blocks, self.block_size, num_heads, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                )
-                for _ in range(num_layers)
-            ]
-        else:
-            self.kv_cache = [
-                (
-                    torch.empty(
-                        (num_blocks, num_heads, head_size // x, self.block_size, x),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.empty(
-                        (num_blocks, num_heads, head_size, self.block_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                )
-                for _ in range(num_layers)
-            ]
+        self.kv_cache = [
+            (
+                torch.empty(
+                    (num_blocks, num_heads, head_size // x, self.block_size, x),
+                    dtype=dtype,
+                    device=device,
+                ),
+                torch.empty(
+                    (num_blocks, num_heads, head_size, self.block_size),
+                    dtype=dtype,
+                    device=device,
+                ),
+            )
+            for _ in range(num_layers)
+        ]
         self.free_block_mask = torch.ones(num_blocks, dtype=torch.int32, device="cpu")
         self.slots = torch.arange(
             0, num_blocks * self.block_size, dtype=torch.int64

@@ -28,8 +28,8 @@ from typing import Optional, List, Tuple
 
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
-    attention,
     paged_attention,
+    attention,
     reshape_and_cache,
 )
 from text_generation_server.layers import (
@@ -220,7 +220,6 @@ class MistralAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                None,
                 input_lengths,
                 max_s,
             )
