@@ -125,7 +125,7 @@ Options:
 ## MAX_TOP_N_TOKENS
 ```shell
       --max-top-n-tokens <MAX_TOP_N_TOKENS>
-          This is the maximum allowed value for clients to set `top_n_tokens`. `top_n_tokens is used to return information about the the `n` most likely tokens at each generation step, instead of just the sampled token. This information can be used for downstream tasks like for classification or ranking
+          This is the maximum allowed value for clients to set `top_n_tokens`. `top_n_tokens` is used to return information about the the `n` most likely tokens at each generation step, instead of just the sampled token. This information can be used for downstream tasks like for classification or ranking
           
           [env: MAX_TOP_N_TOKENS=]
           [default: 5]
