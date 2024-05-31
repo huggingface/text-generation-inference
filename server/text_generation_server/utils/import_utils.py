@@ -41,7 +41,7 @@ elif is_xpu_available():
     synchronize = torch.xpu.synchronize
     get_free_memory = get_xpu_free_memory
 else:
-    SYSTEM = "ipex"
+    SYSTEM = "cpu"
 
     def noop(*args, **kwargs):
         pass
