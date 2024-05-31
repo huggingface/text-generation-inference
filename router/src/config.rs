@@ -99,6 +99,44 @@ impl LlavaNext {
     }
 }
 
+pub trait VLMConfig {
+    fn tokenizer_input(&self, height: usize, width: usize) -> String;
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Idefics;
+
+impl VLMConfig for Idefics {
+    fn tokenizer_input(&self, _height: usize, _width: usize) -> String {
+        "<image>".to_string()
+    }
+}
+
+impl VLMConfig for Idefics2 {
+    fn tokenizer_input(&self, height: usize, width: usize) -> String {
+        let slots = self.get_number_of_features(height, width);
+        let mut tokens = String::new();
+        tokens.push_str("<fake_token_around_image>");
+        tokens.push_str(&"<image>".repeat(slots));
+        tokens.push_str("<fake_token_around_image>");
+        tokens
+    }
+}
+
+impl VLMConfig for Paligemma {
+    fn tokenizer_input(&self, height: usize, width: usize) -> String {
+        let slots = self.get_number_of_features(height, width);
+        "<image>".repeat(slots)
+    }
+}
+
+impl VLMConfig for LlavaNext {
+    fn tokenizer_input(&self, height: usize, width: usize) -> String {
+        let slots = self.get_number_of_features(height, width);
+        "<image>".repeat(slots)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ClipVisionModel {
@@ -141,7 +179,7 @@ pub enum Config {
     LlavaNext(LlavaNext),
     ClipVisionModel(ClipVisionModel),
     Mistral,
-    Idefics,
+    Idefics(Idefics),
     Idefics2(Idefics2),
     Ssm,
     GptBigcode,
@@ -166,6 +204,18 @@ pub enum Config {
     Qwen2,
     Opt,
     T5,
+}
+
+impl Config {
+    pub fn vision_config(&self) -> Option<&dyn VLMConfig> {
+        match self {
+            Config::Idefics(config) => Some(config),
+            Config::Idefics2(config) => Some(config),
+            Config::LlavaNext(config) => Some(config),
+            Config::Paligemma(config) => Some(config),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
