@@ -1,4 +1,5 @@
-import torch
+from io import BytesIO
+from PIL import Image
 import torch
 import time
 
@@ -21,11 +22,6 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
-from text_generation_server.models.vlm_causal_lm import split
-
-import re
-
-IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
 
 
 tracer = trace.get_tracer(__name__)
@@ -109,7 +105,7 @@ class IdeficsCausalLMBatch(Batch):
         max_decode_tokens = 0
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
-            inputs.append(r.inputs)
+            inputs.append(r.input_chunks.chunks)
             next_token_choosers.append(
                 NextTokenChooser.from_pb(r.parameters, device, tokenizer)
             )
@@ -128,8 +124,15 @@ class IdeficsCausalLMBatch(Batch):
         for inp in inputs:
             # Each input is encoded into a list, where each element of this input list is either a string or a URL
             prompt = []
-            for chunk in split(inp):
-                prompt.append(chunk["content"])
+            for chunk in inp:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    prompt.append(chunk.text)
+                elif chunk_type == "image":
+                    image = Image.open(BytesIO(chunk.image.data))
+                    prompt.append(image)
+                else:
+                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
             prompts.append(prompt)
 
         # The processor replaces the call to tokenizer, and

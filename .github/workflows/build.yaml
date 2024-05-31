@@ -30,7 +30,7 @@ jobs:
       cancel-in-progress: true
     runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     strategy:
-      matrix: 
+      matrix:
         include:
           - name: "cuda"
             label: ""
