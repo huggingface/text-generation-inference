@@ -159,6 +159,7 @@ def paged_attention(
                 "auto",
                 1.0,
             )
+    return out
 
 
 try:
