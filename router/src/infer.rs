@@ -70,7 +70,6 @@ impl Infer {
         tokenizer_config: HubTokenizerConfig,
         processor_config: HubProcessorConfig,
     ) -> Self {
-        // Infer shared state
         let queue = Queue::new(requires_padding, 16, window_size, speculate);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),

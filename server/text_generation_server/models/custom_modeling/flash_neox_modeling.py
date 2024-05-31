@@ -27,8 +27,11 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.models.gpt_neox import GPTNeoXConfig
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.flash_attn import attention
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -146,9 +149,7 @@ class FlashNeoxAttention(torch.nn.Module):
         # Inplace rotary
         self.rotary_emb(qkv[:, 0], qkv[:, 1], cos, sin)
 
-        paged_attention.reshape_and_cache(
-            qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots
-        )
+        reshape_and_cache(qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots)
 
         # output tensor
         attn_output = torch.empty_like(qkv[:, 0])
@@ -156,7 +157,7 @@ class FlashNeoxAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],
@@ -167,7 +168,7 @@ class FlashNeoxAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 qkv[:, 0],
                 kv_cache[0],

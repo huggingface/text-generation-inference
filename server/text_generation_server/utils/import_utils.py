@@ -1,4 +1,5 @@
 import torch
+from loguru import logger
 
 
 def is_xpu_available():
@@ -48,3 +49,4 @@ else:
     empty_cache = noop
     synchronize = noop
     get_free_memory = noop
+logger.info(f"Detected system {SYSTEM}")

@@ -1,11 +1,11 @@
-flash_att_v2_commit_cuda := 23e8fa5a263d1c7122bc46a86ef32030ee7130f9
+flash_att_v2_commit_cuda := v2.5.8
 flash_att_v2_commit_rocm := 2554f490101742ccdc56620a938f847f61754be6
 
 
 flash-attention-v2-cuda:
   # Clone flash attention
 	pip install -U packaging ninja  --no-cache-dir
-	git clone https://github.com/HazyResearch/flash-attention.git flash-attention-v2
+	git clone https://github.com/Dao-AILab/flash-attention.git flash-attention-v2
 
 build-flash-attention-v2-cuda: flash-attention-v2-cuda
 	cd flash-attention-v2 && git fetch && git checkout $(flash_att_v2_commit_cuda)

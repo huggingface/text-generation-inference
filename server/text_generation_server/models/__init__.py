@@ -80,15 +80,11 @@ try:
     from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
     from text_generation_server.models.flash_dbrx import FlashDbrx
-    from text_generation_server.utils.flash_attn import (
-        HAS_FLASH_ATTN_V2_CUDA,
-        HAS_FLASH_ATTN_V2_ROCM,
-    )
+    from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
     logger.warning(f"Could not import Flash Attention enabled models: {e}")
+    SUPPORTS_WINDOWING = False
     FLASH_ATTENTION = False
-    HAS_FLASH_ATTN_V2_CUDA = False
-    HAS_FLASH_ATTN_V2_ROCM = False
 
 if FLASH_ATTENTION:
     __all__.append(FlashGPT2)
@@ -262,6 +258,7 @@ def get_model(
     dtype: Optional[str],
     trust_remote_code: bool,
 ) -> Model:
+    global FLASH_ATTENTION
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq"]:
             # These quantizers only work with float16 params.
@@ -412,6 +409,12 @@ def get_model(
         raise RuntimeError(
             "Sharding is currently not supported with `exl2` quantization"
         )
+    sliding_window = config_dict.get("sliding_window", -1)
+    if sliding_window != -1 and not SUPPORTS_WINDOWING:
+        logger.warning(
+            f"Flash attention is available, but doesn't support windowing which is required by model {model_id}"
+        )
+        FLASH_ATTENTION = False
 
     if model_type == MAMBA:
         return Mamba(
@@ -699,11 +702,7 @@ def get_model(
 
     if model_type == MISTRAL:
         sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
-            or HAS_FLASH_ATTN_V2_CUDA
-            or HAS_FLASH_ATTN_V2_ROCM
-        ):
+        if FLASH_ATTENTION:
             return FlashMistral(
                 model_id,
                 revision,
@@ -726,11 +725,7 @@ def get_model(
 
     if model_type == MIXTRAL:
         sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
-            or HAS_FLASH_ATTN_V2_CUDA
-            or HAS_FLASH_ATTN_V2_ROCM
-        ):
+        if FLASH_ATTENTION:
             return FlashMixtral(
                 model_id,
                 revision,
@@ -753,11 +748,7 @@ def get_model(
 
     if model_type == STARCODER2:
         sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
-            or HAS_FLASH_ATTN_V2_CUDA
-            or HAS_FLASH_ATTN_V2_ROCM
-        ):
+        if FLASH_ATTENTION:
             return FlashStarcoder2(
                 model_id,
                 revision,
@@ -781,11 +772,7 @@ def get_model(
 
     if model_type == QWEN2:
         sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
-            or HAS_FLASH_ATTN_V2_CUDA
-            or HAS_FLASH_ATTN_V2_ROCM
-        ):
+        if (sliding_window is None or sliding_window != -1) and SUPPORTS_WINDOWING:
             return FlashQwen2(
                 model_id,
                 revision,

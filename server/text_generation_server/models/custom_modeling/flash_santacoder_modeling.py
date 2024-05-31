@@ -6,7 +6,11 @@ from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
 from text_generation_server.layers.gptq import GPTQWeight
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -276,7 +280,7 @@ class FlashMQAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         key_value = key_value.view(-1, 2, 1, self.head_size)
 
-        paged_attention.reshape_and_cache(
+        reshape_and_cache(
             key_value[:, 0], key_value[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
@@ -286,7 +290,7 @@ class FlashMQAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 query,
                 torch.select(key_value, dim=1, index=0),
                 torch.select(key_value, dim=1, index=1),
@@ -297,7 +301,7 @@ class FlashMQAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],
