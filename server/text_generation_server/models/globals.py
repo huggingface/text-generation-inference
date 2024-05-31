@@ -1,5 +1,6 @@
 import torch
 import os
+from loguru import logger
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 # This is overridden by the cli
