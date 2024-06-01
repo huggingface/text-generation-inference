@@ -52,7 +52,8 @@ if SYSTEM == "rocm":
 
 
 def load_attention(config, prefix, weights):
-    bias = config.attention_bias
+    # Only defined in granite.
+    bias = getattr(config, "attention_bias", False)
 
     # if specific model type, load the correct attention
     if config.model_type == "phi3":
