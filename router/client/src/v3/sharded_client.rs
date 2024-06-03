@@ -2,7 +2,7 @@
 use crate::{v3, Health, ShardInfo};
 use crate::{ClientError, Result};
 
-use crate::v3::InfoResponse;
+use crate::v3::{Chunk, InfoResponse, Input};
 use async_trait::async_trait;
 use futures::future::join_all;
 use tonic::transport::Uri;
@@ -217,6 +217,9 @@ impl Health for ShardedClient {
         let liveness_request = Request {
             id: u64::MAX,
             inputs: "liveness".to_string(),
+            input_chunks: Some(Input {
+                chunks: vec![Chunk::Text("liveness".into()).into()],
+            }),
             truncate: 10,
             prefill_logprobs: false,
             parameters: Some(NextTokenChooserParameters {

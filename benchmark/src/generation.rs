@@ -1,9 +1,9 @@
 use std::time::{Duration, Instant};
-use text_generation_client::v2::{
+use text_generation_client::v3::{
     Batch, CachedBatch, NextTokenChooserParameters, Request, ShardedClient,
     StoppingCriteriaParameters,
 };
-use text_generation_client::ClientError;
+use text_generation_client::{Chunk, ClientError, Input};
 use tokenizers::{Tokenizer, TruncationDirection};
 use tokio::sync::{broadcast, mpsc};
 

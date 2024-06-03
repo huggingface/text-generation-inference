@@ -5,9 +5,9 @@ mod client;
 mod sharded_client;
 
 pub use client::Client;
-pub use pb::generate::v3::HealthResponse;
 pub use pb::generate::v3::{
-    Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarType, InfoResponse,
-    NextTokenChooserParameters, Request, StoppingCriteriaParameters, Tokens,
+    input_chunk::Chunk, Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarType,
+    HealthResponse, Image, InfoResponse, Input, InputChunk, NextTokenChooserParameters, Request,
+    StoppingCriteriaParameters, Tokens,
 };
 pub use sharded_client::ShardedClient;

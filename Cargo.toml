@@ -22,7 +22,7 @@ hf-hub = { version = "0.3.1", features = ["tokio"] }
 [profile.release]
 debug = 1
 incremental = true
-lto = "fat"
-opt-level = 3
-codegen-units = 1
+#lto = "fat"
+#opt-level = 3
+#codegen-units = 1
 panic = "abort"

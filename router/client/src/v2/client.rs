@@ -1,7 +1,8 @@
 /// Single shard Client
 use crate::v2::pb;
-use crate::Result;
+use crate::{ClientError, Result};
 
+use crate::WARMUP_IMAGE_BASE64;
 use grpc_metadata::InjectTelemetryContext;
 use pb::generate::v2::text_generation_service_client::TextGenerationServiceClient;
 use pb::generate::v2::*;
@@ -9,8 +10,6 @@ use std::cmp::min;
 use std::time::Duration;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
-
-static WARMUP_IMAGE_BASE64 :&str = "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAABg2lDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV/TSotUROxQxCFDdbKLijjWKhShQqgVWnUwufQLmrQkKS6OgmvBwY/FqoOLs64OroIg+AHi7OCk6CIl/i8ptIjx4Lgf7+497t4BQqvKNDOQADTdMjKppJjLr4rBVwQQwhAERGVm1uckKQ3P8XUPH1/v4jzL+9yfY0AtmAzwicQJVjcs4g3imU2rznmfOMLKskp8Tjxh0AWJH7muuPzGueSwwDMjRjYzTxwhFks9rPQwKxsa8TRxTNV0yhdyLquctzhr1Qbr3JO/MFzQV5a5TnMUKSxiCRJEKGiggiosxGnVSTGRof2kh3/E8UvkUshVASPHAmrQIDt+8D/43a1ZnJp0k8JJoO/Ftj/GgOAu0G7a9vexbbdPAP8zcKV3/bUWMPtJerOrxY6AwW3g4rqrKXvA5Q4QfarLhuxIfppCsQi8n9E35YHhW6B/ze2ts4/TByBLXaVvgINDYLxE2ese7w719vbvmU5/PycecohsjayNAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH6AQIEQMnlTSSjwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAASSURBVDjLY2AYBaNgFIyCoQsABMQAAeRw1DoAAAAASUVORK5CYII=";
 
 /// Text Generation Inference gRPC client
 #[derive(Debug, Clone)]
@@ -46,7 +45,9 @@ impl Client {
     #[instrument(skip(self))]
     pub async fn service_discovery(&mut self) -> Result<Vec<String>> {
         let request = tonic::Request::new(ServiceDiscoveryRequest {}).inject_context();
-        let response = self.stub.service_discovery(request).await?;
+        let response = self.stub.service_discovery(request).await.map_err(|_| {
+            ClientError::Connection("Server does not support v2 interface".to_string())
+        })?;
         let urls = response
             .into_inner()
             .urls
@@ -117,22 +118,6 @@ impl Client {
         while n_tokens < max_prefill_tokens {
             let truncate = min(max_input_length, max_prefill_tokens - n_tokens);
 
-            let mut input_chunks = Vec::new();
-            input_chunks
-                .push(Chunk::Text("_test ".to_string().repeat(max_input_length as usize)).into());
-            if n_tokens == 0 {
-                input_chunks.push(
-                    Chunk::Image(Image {
-                        // Safe unwrap, because we control the data.
-                        data: STANDARD.decode(WARMUP_IMAGE_BASE64).unwrap(),
-                        mimetype: "image/jpeg;base64".to_string(),
-                    })
-                    .into(),
-                );
-            }
-
-            // Send stringly-typed inputs for compatibility for backends that haven't
-            // been updated to support chunks.
             let mut inputs = String::new();
             inputs.push_str(&"_test ".to_string().repeat(max_input_length as usize));
             if n_tokens == 0 {
@@ -145,9 +130,6 @@ impl Client {
 
             requests.push(Request {
                 id: 0,
-                input_chunks: Some(Input {
-                    chunks: input_chunks,
-                }),
                 inputs,
                 // We truncate the input on the server side to be sure that it has the correct size
                 truncate,

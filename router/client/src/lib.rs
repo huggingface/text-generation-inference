@@ -4,9 +4,12 @@ pub mod v2;
 pub mod v3;
 
 use async_trait::async_trait;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use thiserror::Error;
 use tonic::transport;
 use tonic::Status;
+
+pub use v3::{Chunk, Image, Input, InputChunk};
 
 #[async_trait]
 pub trait Health {
@@ -47,11 +50,11 @@ impl From<Status> for ClientError {
 
 impl From<transport::Error> for ClientError {
     fn from(err: transport::Error) -> Self {
-        Self::Connection(err.to_string())
+        let err = Self::Connection(err.to_string());
+        tracing::error!("{err}");
+        err
     }
 }
-
-pub type Result<T> = std::result::Result<T, ClientError>;
 
 // Small convenience re-wrapping of `Chunk`.
 impl From<Chunk> for InputChunk {
@@ -82,3 +85,7 @@ impl ChunksToString for Vec<InputChunk> {
         output
     }
 }
+
+static WARMUP_IMAGE_BASE64 :&str = "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAABg2lDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV/TSotUROxQxCFDdbKLijjWKhShQqgVWnUwufQLmrQkKS6OgmvBwY/FqoOLs64OroIg+AHi7OCk6CIl/i8ptIjx4Lgf7+497t4BQqvKNDOQADTdMjKppJjLr4rBVwQQwhAERGVm1uckKQ3P8XUPH1/v4jzL+9yfY0AtmAzwicQJVjcs4g3imU2rznmfOMLKskp8Tjxh0AWJH7muuPzGueSwwDMjRjYzTxwhFks9rPQwKxsa8TRxTNV0yhdyLquctzhr1Qbr3JO/MFzQV5a5TnMUKSxiCRJEKGiggiosxGnVSTGRof2kh3/E8UvkUshVASPHAmrQIDt+8D/43a1ZnJp0k8JJoO/Ftj/GgOAu0G7a9vexbbdPAP8zcKV3/bUWMPtJerOrxY6AwW3g4rqrKXvA5Q4QfarLhuxIfppCsQi8n9E35YHhW6B/ze2ts4/TByBLXaVvgINDYLxE2ese7w719vbvmU5/PycecohsjayNAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH6AQIEQMnlTSSjwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAASSURBVDjLY2AYBaNgFIyCoQsABMQAAeRw1DoAAAAASUVORK5CYII=";
+
+pub type Result<T> = std::result::Result<T, ClientError>;

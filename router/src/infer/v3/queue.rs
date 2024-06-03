@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 use text_generation_client::v3::{
     Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
+use text_generation_client::{ChunksToString, Input};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
@@ -280,7 +281,10 @@ impl State {
             batch_requests.push(Request {
                 id,
                 prefill_logprobs: entry.request.decoder_input_details,
-                inputs: entry.request.inputs.clone(),
+                inputs: entry.request.inputs.chunks_to_string(),
+                input_chunks: Some(Input {
+                    chunks: entry.request.inputs.clone(),
+                }),
                 truncate: entry.request.truncate,
                 parameters: Some(NextTokenChooserParameters::from(
                     entry.request.parameters.clone(),
@@ -406,7 +410,7 @@ mod tests {
 
         let entry = Entry {
             request: ValidGenerateRequest {
-                inputs: String::new(),
+                inputs: vec![],
                 input_length: 0,
                 truncate: 0,
                 decoder_input_details: false,

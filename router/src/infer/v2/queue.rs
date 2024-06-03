@@ -5,12 +5,10 @@ use crate::validation::{
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use std::collections::VecDeque;
-use text_generation_client::ChunksToString;
-use text_generation_client::Input;
-use text_generation_client::{Batch, Request};
 use text_generation_client::v2::{
     Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
+use text_generation_client::ChunksToString;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
@@ -283,9 +281,6 @@ impl State {
             batch_requests.push(Request {
                 id,
                 prefill_logprobs: entry.request.decoder_input_details,
-                input_chunks: Some(Input {
-                    chunks: entry.request.inputs.clone(),
-                }),
                 inputs: entry.request.inputs.chunks_to_string(),
                 truncate: entry.request.truncate,
                 parameters: Some(NextTokenChooserParameters::from(
@@ -309,7 +304,7 @@ impl State {
 
         // Empty batch
         if batch_requests.is_empty() {
-            tracing::debug!("Filterered out all entries");
+            tracing::debug!("Filtered out all entries");
             return None;
         }
 
