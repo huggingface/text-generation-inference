@@ -7,7 +7,6 @@ from text_generation_server.utils.import_utils import (
 )
 
 
-
 @dataclass
 class GPTQWeight:
     qweight: torch.Tensor
