@@ -154,6 +154,8 @@ class Weights:
         already alternating Q,K,V within the main tensor
         """
         if quantize in ["gptq", "awq"]:
+            from text_generation_server.layers.gptq import GPTQWeight
+
             try:
                 qweight = self._get_qweight(f"{prefix}.qweight")
             except RuntimeError:
@@ -331,6 +333,8 @@ class Weights:
 
     def get_multi_weights_row(self, prefix: str, quantize: str):
         if quantize == "exl2":
+            from text_generation_server.layers.exl2 import Exl2Weight
+
             try:
                 q_weight = self.get_tensor(f"{prefix}.q_weight")
             except RuntimeError:
@@ -390,7 +394,11 @@ class Weights:
                         # it would require to reorder input activations that are split unto several GPUs
                         use_exllama = False
 
-            from text_generation_server.layers.gptq import HAS_EXLLAMA, CAN_EXLLAMA
+            from text_generation_server.layers.gptq import (
+                HAS_EXLLAMA,
+                CAN_EXLLAMA,
+                GPTQWeight,
+            )
 
             if use_exllama:
                 if not HAS_EXLLAMA:
@@ -442,6 +450,8 @@ class Weights:
                 use_exllama=use_exllama,
             )
         elif quantize == "awq":
+            from text_generation_server.layers.gptq import GPTQWeight
+
             bits, groupsize, _, _ = self._get_gptq_params()
 
             try:
