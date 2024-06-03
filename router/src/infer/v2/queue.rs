@@ -1,5 +1,4 @@
-use crate::infer::InferError;
-use crate::infer::InferStreamResponse;
+use crate::infer::v2::{InferError, InferStreamResponse};
 use crate::validation::{
     ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
 };

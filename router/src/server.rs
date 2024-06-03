@@ -1,11 +1,11 @@
 /// HTTP Server logic
 use crate::config::Config;
-use crate::health::HealthCheck;
-use crate::infer::{InferError, InferResponse, InferStreamResponse, ToolGrammar};
+use crate::infer::HealthCheck;
+use crate::infer::v2::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
-    GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig, Infer,
+    GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig,
     Info, Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token,
     TokenizeResponse, Usage, Validation,
 };
@@ -34,7 +34,7 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use text_generation_client::{v2::ShardedClient, ShardInfo};
+use text_generation_client::{v2::ShardedClient, ShardInfo, ClientError};
 use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
@@ -44,6 +44,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+use thiserror::Error;
 
 /// Generate tokens if `stream == false` or a stream of token if `stream == true`
 #[utoipa::path(
@@ -1374,21 +1375,20 @@ pub(crate) struct ComputeType(String);
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
+    master_shard_uds_path: String,
     model_info: HubModelInfo,
-    shard_info: ShardInfo,
     compat_return_full_text: bool,
     max_concurrent_requests: usize,
     max_best_of: usize,
     max_stop_sequences: usize,
     max_top_n_tokens: u32,
-    max_input_length: usize,
+    max_input_tokens: usize,
     max_total_tokens: usize,
     waiting_served_ratio: f32,
     max_batch_prefill_tokens: u32,
-    max_batch_total_tokens: u32,
+    max_batch_total_tokens: Option<u32>,
     max_waiting_tokens: usize,
     max_batch_size: Option<usize>,
-    client: ShardedClient,
     tokenizer: Option<Tokenizer>,
     config: Option<Config>,
     validation_workers: usize,
@@ -1402,7 +1402,7 @@ pub async fn run(
     messages_api_enabled: bool,
     grammar_support: bool,
     max_client_batch_size: usize,
-) -> Result<(), axum::BoxError> {
+) -> Result<(), WebServerError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
     #[openapi(
@@ -1471,6 +1471,58 @@ pub async fn run(
     )]
     struct ApiDoc;
 
+    // Instantiate sharded client from the master unix socket
+    let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
+        .await
+        .map_err(WebServerError::Connection)?;
+    // Clear the cache; useful if the webserver rebooted
+    sharded_client
+        .clear_cache(None)
+        .await
+        .map_err(WebServerError::Cache)?;
+    // Get info from the shard
+    let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
+
+    // Warmup model
+    tracing::info!("Warming up model");
+    let max_batch_total_tokens = match sharded_client
+        .warmup(
+            max_input_tokens as u32,
+            max_batch_prefill_tokens,
+            max_total_tokens as u32,
+            max_batch_size,
+        )
+        .await
+        .map_err(WebServerError::Warmup)?
+    {
+        // Older models do not support automatic max-batch-total-tokens
+        None => {
+            let max_batch_total_tokens = max_batch_total_tokens
+                .unwrap_or(16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)));
+            tracing::warn!("Model does not support automatic max batch total tokens");
+            max_batch_total_tokens
+        }
+        // Flash attention models return their max supported total tokens
+        Some(max_supported_batch_total_tokens) => {
+            // Warn if user added his own max-batch-total-tokens as we will ignore it
+            if max_batch_total_tokens.is_some() {
+                tracing::warn!(
+                    "`--max-batch-total-tokens` is deprecated for Flash \
+                        Attention models."
+                );
+                tracing::warn!(
+                    "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
+                );
+            }
+            if max_total_tokens as u32 > max_supported_batch_total_tokens {
+                return Err(WebServerError::NotEnoughMemory(max_total_tokens))
+            }
+
+            max_supported_batch_total_tokens
+        }
+    };
+    tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
+
     // Create state
     let validation = Validation::new(
         validation_workers,
@@ -1479,14 +1531,14 @@ pub async fn run(
         max_best_of,
         max_stop_sequences,
         max_top_n_tokens,
-        max_input_length,
+        max_input_tokens,
         max_total_tokens,
         grammar_support,
     );
     let generation_health = Arc::new(AtomicBool::new(false));
-    let health_ext = HealthCheck::new(Arc::new(client.clone()), generation_health.clone());
+    let health_ext = HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
     let infer = Infer::new(
-        client,
+        sharded_client,
         validation,
         waiting_served_ratio,
         max_batch_prefill_tokens,
@@ -1516,7 +1568,7 @@ pub async fn run(
     // Input Length buckets
     let input_length_matcher = Matcher::Full(String::from("tgi_request_input_length"));
     let input_length_buckets: Vec<f64> = (0..100)
-        .map(|x| (max_input_length as f64 / 100.0) * (x + 1) as f64)
+        .map(|x| (max_input_tokens as f64 / 100.0) * (x + 1) as f64)
         .collect();
     // Generated tokens buckets
     let generated_tokens_matcher = Matcher::Full(String::from("tgi_request_generated_tokens"));
@@ -1570,7 +1622,7 @@ pub async fn run(
         max_concurrent_requests,
         max_best_of,
         max_stop_sequences,
-        max_input_length,
+        max_input_tokens,
         max_total_tokens,
         waiting_served_ratio,
         max_batch_total_tokens,
@@ -1666,6 +1718,8 @@ pub async fn run(
         .layer(OtelAxumLayer::default())
         .layer(cors_layer);
 
+    tracing::info!("Connected");
+
     if ngrok {
         #[cfg(feature = "ngrok")]
         {
@@ -1688,7 +1742,7 @@ pub async fn run(
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
-            .await?;
+            .await.map_err(|err| WebServerError::Axum(Box::new(err)))?;
     }
     Ok(())
 }
@@ -1752,4 +1806,20 @@ impl From<InferError> for Event {
             })
             .unwrap()
     }
+}
+
+#[derive(Debug, Error)]
+pub enum WebServerError {
+    #[error("Unable to connect to the Python model shards: {0}")]
+    Connection(ClientError),
+    #[error("Unable to clear the Python model shards cache: {0}")]
+    Cache(ClientError),
+    #[error("Unable to get the Python model shards info: {0}")]
+    Info(ClientError),
+    #[error("Unable to warmup the Python model shards: {0}")]
+    Warmup(ClientError),
+    #[error("Not enough memory to handle `max_total_tokens={0}`")]
+    NotEnoughMemory(usize),
+    #[error("Axum error: {0}")]
+    Axum(#[from] axum::BoxError)
 }

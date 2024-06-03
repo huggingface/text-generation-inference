@@ -1,9 +1,11 @@
 /// Batching and inference logic
+
+use crate::infer::v3::{Queue, Entry};
 use crate::validation::{Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, ChatTemplateVersions, Entry, FinishReason, GenerateRequest,
-    GenerateStreamResponse, HubProcessorConfig, HubTokenizerConfig, Message, MessageChunk,
-    PrefillToken, Queue, Text, TextMessage, Token,
+    ChatTemplateInputs, ChatTemplateVersions, FinishReason, GenerateRequest,
+    HubProcessorConfig, HubTokenizerConfig, Message, MessageChunk,
+    PrefillToken, Text, TextMessage, Token,
 };
 use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
 use futures::future::try_join_all;
@@ -15,11 +17,11 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use text_generation_client::v2::{Batch, CachedBatch, Generation, ShardedClient};
-use text_generation_client::{v2, ClientError};
+use text_generation_client::v3::{Batch, CachedBatch, Generation, ShardedClient};
+use text_generation_client::{v3, ClientError};
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
+use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
@@ -878,6 +880,13 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     });
 }
 
+/// Type alias for generation responses
+pub(crate) type GenerateStreamResponse = (
+    OwnedSemaphorePermit,
+    u32, // input_length
+    UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
+);
+
 #[derive(Debug)]
 pub(crate) struct GeneratedText {
     pub(crate) text: String,
@@ -886,13 +895,13 @@ pub(crate) struct GeneratedText {
     pub(crate) seed: Option<u64>,
 }
 
-impl From<v2::GeneratedText> for GeneratedText {
-    fn from(value: v2::GeneratedText) -> Self {
-        let v2_finish_reason = v2::FinishReason::try_from(value.finish_reason).unwrap();
-        let finish_reason = match v2_finish_reason {
-            v2::FinishReason::Length => FinishReason::Length,
-            v2::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
-            v2::FinishReason::StopSequence => FinishReason::StopSequence,
+impl From<v3::GeneratedText> for GeneratedText {
+    fn from(value: v3::GeneratedText) -> Self {
+        let v3_finish_reason = v3::FinishReason::try_from(value.finish_reason).unwrap();
+        let finish_reason = match v3_finish_reason {
+            v3::FinishReason::Length => FinishReason::Length,
+            v3::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
+            v3::FinishReason::StopSequence => FinishReason::StopSequence,
         };
 
         Self {
@@ -1606,7 +1615,7 @@ mod tests {
                 target: "<｜begin▁of▁sentence｜>You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer\n### Instruction:\nHello, how are you?\n### Response:\nI'm doing great. How can I help you today?\n<|EOT|>\n### Instruction:\nI'd like to show off how chat templating works!\n",
             },
             // NOT INCLUDED
-            // - meetkai/functionary-medium-v2.2
+            // - meetkai/functionary-medium-v3.2
             // - fireworks-ai/firefunction-v1
             // https://github
             ChatTemplateTestItem {
