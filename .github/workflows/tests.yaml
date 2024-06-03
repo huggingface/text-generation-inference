@@ -24,7 +24,7 @@ jobs:
 
     env:
       SCCACHE_GHA_ENABLED: "on"
-      RUSTC_WRAPPER: /usr/local/bin/sccache
+      RUSTC_WRAPPER: ${{ contains(matrix.runner, 'intel') && 'Prod Runner' || '/usr/local/bin/sccache' }}
       SCCACHE: 0.3.3
 
     steps:
