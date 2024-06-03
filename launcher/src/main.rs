@@ -236,7 +236,7 @@ struct Args {
     max_stop_sequences: usize,
 
     /// This is the maximum allowed value for clients to set `top_n_tokens`.
-    /// `top_n_tokens is used to return information about the the `n` most likely
+    /// `top_n_tokens` is used to return information about the the `n` most likely
     /// tokens at each generation step, instead of just the sampled token. This
     /// information can be used for downstream tasks like for classification or
     /// ranking.

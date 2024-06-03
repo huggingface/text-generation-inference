@@ -28,7 +28,11 @@ from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -48,7 +52,8 @@ if SYSTEM == "rocm":
 
 
 def load_attention(config, prefix, weights):
-    bias = config.attention_bias
+    # Only defined in granite.
+    bias = getattr(config, "attention_bias", False)
 
     # if specific model type, load the correct attention
     if config.model_type == "phi3":
@@ -145,9 +150,7 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        paged_attention.reshape_and_cache(
-            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
-        )
+        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
 
         # output tensor
         attn_output = torch.empty_like(query)
@@ -155,7 +158,7 @@ class FlashLlamaAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
@@ -166,7 +169,7 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],
