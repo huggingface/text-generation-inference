@@ -17,7 +17,10 @@ concurrency:
 
 jobs:
   run_tests:
-    runs-on: [ubuntu-latest, intel-pvc-tgi]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, intel-pvc-tgi]
 
     env:
       SCCACHE_GHA_ENABLED: "on"
@@ -42,18 +45,18 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
       - name: Clean unused files
-        if: runner.name != 'intel-pvc-tgi'
+        if: matrix.runner != 'intel-pvc-tgi'
         run: |
           sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
           sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Install sccache
-        if: runner.name != 'intel-pvc-tgi'
+        if: matrix.runner != 'intel-pvc-tgi'
         run: |
           curl -fsSL https://github.com/mozilla/sccache/releases/download/v$SCCACHE/sccache-v$SCCACHE-x86_64-unknown-linux-musl.tar.gz | tar -xzv --strip-components=1 -C /usr/local/bin sccache-v$SCCACHE-x86_64-unknown-linux-musl/sccache
           chmod +x /usr/local/bin/sccache
       - name: configure sccache
         uses: actions/github-script@v6
-        if: runner.name != 'intel-pvc-tgi'
+        if: matrix.runner != 'intel-pvc-tgi'
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
@@ -62,7 +65,7 @@ jobs:
             core.exportVariable('SCCACHE_GHA_CACHE_FROM', 'sccache-${{runner.os}}-main,sccache-${{runner.os}}-');
       - name: cargo registry cache
         uses: actions/cache@v3
-        if: runner.name != 'intel-pvc-tgi'
+        if: matrix.runner != 'intel-pvc-tgi'
         with:
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
@@ -88,6 +91,6 @@ jobs:
         run: |
           cargo test
       - name: sccache stats
-        if: runner.name != 'intel-pvc-tgi'
+        if: matrix.runner != 'intel-pvc-tgi'
         run: |
           /usr/local/bin/sccache --show-stats
