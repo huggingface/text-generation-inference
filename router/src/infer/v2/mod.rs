@@ -1,5 +1,5 @@
-mod infer;
+mod batcher;
 mod queue;
 
-pub(crate) use infer::{Infer, InferError, InferStreamResponse, InferResponse, ToolGrammar};
-pub(crate) use queue::{Entry, Queue};
+pub(crate) use batcher::batching_task;
+pub(crate) use queue::Queue;

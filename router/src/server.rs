@@ -1,7 +1,8 @@
 /// HTTP Server logic
+
 use crate::config::Config;
 use crate::infer::HealthCheck;
-use crate::infer::v2::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
+use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
@@ -34,7 +35,7 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use text_generation_client::{v2::ShardedClient, ShardInfo, ClientError};
+use text_generation_client::{v2::ShardedClient, ClientError};
 use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
@@ -372,7 +373,7 @@ async fn generate_stream(
     Json(req): Json<GenerateRequest>,
 ) -> (
     HeaderMap,
-    Sse<impl Stream<Item = Result<Event, Infallible>>>,
+    Sse<impl Stream<Item=Result<Event, Infallible>>>,
 ) {
     let span = tracing::Span::current();
     let on_message_callback = |stream_token: StreamResponse| {
@@ -391,7 +392,7 @@ async fn generate_stream_internal(
     Json(req): Json<GenerateRequest>,
     on_message_callback: impl Fn(StreamResponse) -> Event,
     span: tracing::Span,
-) -> (HeaderMap, impl Stream<Item = Result<Event, Infallible>>) {
+) -> (HeaderMap, impl Stream<Item=Result<Event, Infallible>>) {
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
 
@@ -559,38 +560,38 @@ async fn generate_stream_internal(
 
 /// Generate tokens
 #[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/v1/completions",
-    request_body = CompletionRequest,
-    responses(
-    (status = 200, description = "Generated Chat Completion",
-    content(
-    ("application/json" = Completion),
-    ("text/event-stream" = CompletionCompleteChunk),
-    )),
-    (status = 424, description = "Generation Error", body = ErrorResponse,
-    example = json ! ({"error": "Request failed during generation"})),
-    (status = 429, description = "Model is overloaded", body = ErrorResponse,
-    example = json ! ({"error": "Model is overloaded"})),
-    (status = 422, description = "Input validation error", body = ErrorResponse,
-    example = json ! ({"error": "Input validation error"})),
-    (status = 500, description = "Incomplete generation", body = ErrorResponse,
-    example = json ! ({"error": "Incomplete generation"})),
-    )
-    )]
+post,
+tag = "Text Generation Inference",
+path = "/v1/completions",
+request_body = CompletionRequest,
+responses(
+(status = 200, description = "Generated Chat Completion",
+content(
+("application/json" = Completion),
+("text/event-stream" = CompletionCompleteChunk),
+)),
+(status = 424, description = "Generation Error", body = ErrorResponse,
+example = json ! ({"error": "Request failed during generation"})),
+(status = 429, description = "Model is overloaded", body = ErrorResponse,
+example = json ! ({"error": "Model is overloaded"})),
+(status = 422, description = "Input validation error", body = ErrorResponse,
+example = json ! ({"error": "Input validation error"})),
+(status = 500, description = "Incomplete generation", body = ErrorResponse,
+example = json ! ({"error": "Incomplete generation"})),
+)
+)]
 #[instrument(
-    skip_all,
-    fields(
-    // parameters = ? req.parameters,
-    total_time,
-    validation_time,
-    queue_time,
-    inference_time,
-    time_per_token,
-    seed,
-    )
-    )]
+skip_all,
+fields(
+// parameters = ? req.parameters,
+total_time,
+validation_time,
+queue_time,
+inference_time,
+time_per_token,
+seed,
+)
+)]
 async fn completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
@@ -726,7 +727,7 @@ async fn completions(
                         on_message_callback,
                         span_clone.clone(),
                     )
-                    .await;
+                        .await;
 
                     // send and dont wait for response
                     let _ = header_tx.send(header_map);
@@ -833,7 +834,7 @@ async fn completions(
                     Json(generate_request),
                     span_clone,
                 )
-                .await;
+                    .await;
                 result.map(|(headers, generation)| (index, headers, generation))
             };
             responses.push(response_future);
@@ -964,38 +965,38 @@ async fn completions(
 
 /// Generate tokens
 #[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/v1/chat/completions",
-    request_body = ChatRequest,
-    responses(
-    (status = 200, description = "Generated Chat Completion",
-    content(
-    ("application/json" = ChatCompletion),
-    ("text/event-stream" = ChatCompletionChunk),
-    )),
-    (status = 424, description = "Generation Error", body = ErrorResponse,
-    example = json ! ({"error": "Request failed during generation"})),
-    (status = 429, description = "Model is overloaded", body = ErrorResponse,
-    example = json ! ({"error": "Model is overloaded"})),
-    (status = 422, description = "Input validation error", body = ErrorResponse,
-    example = json ! ({"error": "Input validation error"})),
-    (status = 500, description = "Incomplete generation", body = ErrorResponse,
-    example = json ! ({"error": "Incomplete generation"})),
-    )
-    )]
+post,
+tag = "Text Generation Inference",
+path = "/v1/chat/completions",
+request_body = ChatRequest,
+responses(
+(status = 200, description = "Generated Chat Completion",
+content(
+("application/json" = ChatCompletion),
+("text/event-stream" = ChatCompletionChunk),
+)),
+(status = 424, description = "Generation Error", body = ErrorResponse,
+example = json ! ({"error": "Request failed during generation"})),
+(status = 429, description = "Model is overloaded", body = ErrorResponse,
+example = json ! ({"error": "Model is overloaded"})),
+(status = 422, description = "Input validation error", body = ErrorResponse,
+example = json ! ({"error": "Input validation error"})),
+(status = 500, description = "Incomplete generation", body = ErrorResponse,
+example = json ! ({"error": "Incomplete generation"})),
+)
+)]
 #[instrument(
-    skip_all,
-    fields(
-    // parameters = ? req.parameters,
-    total_time,
-    validation_time,
-    queue_time,
-    inference_time,
-    time_per_token,
-    seed,
-    )
-    )]
+skip_all,
+fields(
+// parameters = ? req.parameters,
+total_time,
+validation_time,
+queue_time,
+inference_time,
+time_per_token,
+seed,
+)
+)]
 async fn chat_completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
@@ -1150,7 +1151,7 @@ async fn chat_completions(
             on_message_callback,
             span,
         )
-        .await;
+            .await;
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
@@ -1220,32 +1221,32 @@ async fn chat_completions(
 
 /// Generate tokens from Vertex request
 #[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/vertex",
-    request_body = VertexRequest,
-    responses(
-    (status = 200, description = "Generated Text", body = VertexResponse),
-    (status = 424, description = "Generation Error", body = ErrorResponse,
-    example = json ! ({"error": "Request failed during generation"})),
-    (status = 429, description = "Model is overloaded", body = ErrorResponse,
-    example = json ! ({"error": "Model is overloaded"})),
-    (status = 422, description = "Input validation error", body = ErrorResponse,
-    example = json ! ({"error": "Input validation error"})),
-    (status = 500, description = "Incomplete generation", body = ErrorResponse,
-    example = json ! ({"error": "Incomplete generation"})),
-    )
-    )]
+post,
+tag = "Text Generation Inference",
+path = "/vertex",
+request_body = VertexRequest,
+responses(
+(status = 200, description = "Generated Text", body = VertexResponse),
+(status = 424, description = "Generation Error", body = ErrorResponse,
+example = json ! ({"error": "Request failed during generation"})),
+(status = 429, description = "Model is overloaded", body = ErrorResponse,
+example = json ! ({"error": "Model is overloaded"})),
+(status = 422, description = "Input validation error", body = ErrorResponse,
+example = json ! ({"error": "Input validation error"})),
+(status = 500, description = "Incomplete generation", body = ErrorResponse,
+example = json ! ({"error": "Incomplete generation"})),
+)
+)]
 #[instrument(
-    skip_all,
-    fields(
-        total_time,
-        validation_time,
-        queue_time,
-        inference_time,
-        time_per_token,
-        seed,
-    )
+skip_all,
+fields(
+total_time,
+validation_time,
+queue_time,
+inference_time,
+time_per_token,
+seed,
+)
 )]
 async fn vertex_compatibility(
     Extension(infer): Extension<Infer>,
@@ -1290,17 +1291,17 @@ async fn vertex_compatibility(
                     Json(generate_request),
                     span.clone(),
                 )
-                .await
-                .map(|(_, Json(generation))| generation.generated_text)
-                .map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: "Incomplete generation".into(),
-                            error_type: "Incomplete generation".into(),
-                        }),
-                    )
-                })
+                    .await
+                    .map(|(_, Json(generation))| generation.generated_text)
+                    .map_err(|_| {
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(ErrorResponse {
+                                error: "Incomplete generation".into(),
+                                error_type: "Incomplete generation".into(),
+                            }),
+                        )
+                    })
             }
         })
         .collect::<FuturesUnordered<_>>()
@@ -1313,16 +1314,16 @@ async fn vertex_compatibility(
 
 /// Tokenize inputs
 #[utoipa::path(
-    post,
-    tag = "Text Generation Inference",
-    path = "/tokenize",
-    request_body = GenerateRequest,
-    responses(
-    (status = 200, description = "Tokenized ids", body = TokenizeResponse),
-    (status = 404, description = "No tokenizer found", body = ErrorResponse,
-    example = json ! ({"error": "No fast tokenizer available"})),
-    )
-    )]
+post,
+tag = "Text Generation Inference",
+path = "/tokenize",
+request_body = GenerateRequest,
+responses(
+(status = 200, description = "Tokenized ids", body = TokenizeResponse),
+(status = 404, description = "No tokenizer found", body = ErrorResponse,
+example = json ! ({"error": "No fast tokenizer available"})),
+)
+)]
 #[instrument(skip_all)]
 async fn tokenize(
     Extension(infer): Extension<Infer>,
@@ -1471,88 +1472,99 @@ pub async fn run(
     )]
     struct ApiDoc;
 
-    // Instantiate sharded client from the master unix socket
-    let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
-        .await
-        .map_err(WebServerError::Connection)?;
-    // Clear the cache; useful if the webserver rebooted
-    sharded_client
-        .clear_cache(None)
-        .await
-        .map_err(WebServerError::Cache)?;
-    // Get info from the shard
-    let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
-
-    // Warmup model
-    tracing::info!("Warming up model");
-    let max_batch_total_tokens = match sharded_client
-        .warmup(
-            max_input_tokens as u32,
-            max_batch_prefill_tokens,
-            max_total_tokens as u32,
-            max_batch_size,
-        )
-        .await
-        .map_err(WebServerError::Warmup)?
-    {
-        // Older models do not support automatic max-batch-total-tokens
-        None => {
-            let max_batch_total_tokens = max_batch_total_tokens
-                .unwrap_or(16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)));
-            tracing::warn!("Model does not support automatic max batch total tokens");
-            max_batch_total_tokens
-        }
-        // Flash attention models return their max supported total tokens
-        Some(max_supported_batch_total_tokens) => {
-            // Warn if user added his own max-batch-total-tokens as we will ignore it
-            if max_batch_total_tokens.is_some() {
-                tracing::warn!(
+    // Open connection, get model info and warmup
+    let (infer, health_ext, shard_info, max_batch_total_tokens) = {
+        // Helper function to check both v2 and v3
+        let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
+            match max_supported_batch_total_tokens {
+                // Older models do not support automatic max-batch-total-tokens
+                None => {
+                    let max_batch_total_tokens = max_batch_total_tokens
+                        .unwrap_or(16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)));
+                    tracing::warn!("Model does not support automatic max batch total tokens");
+                    Ok(max_batch_total_tokens)
+                }
+                // Flash attention models return their max supported total tokens
+                Some(max_supported_batch_total_tokens) => {
+                    // Warn if user added his own max-batch-total-tokens as we will ignore it
+                    if max_batch_total_tokens.is_some() {
+                        tracing::warn!(
                     "`--max-batch-total-tokens` is deprecated for Flash \
                         Attention models."
                 );
-                tracing::warn!(
+                        tracing::warn!(
                     "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
                 );
-            }
-            if max_total_tokens as u32 > max_supported_batch_total_tokens {
-                return Err(WebServerError::NotEnoughMemory(max_total_tokens))
-            }
+                    }
+                    if max_total_tokens as u32 > max_supported_batch_total_tokens {
+                        return Err(WebServerError::NotEnoughMemory(max_total_tokens));
+                    }
 
-            max_supported_batch_total_tokens
-        }
+                    Ok(max_supported_batch_total_tokens)
+                }
+            }
+        };
+
+        // Create state
+        let validation = Validation::new(
+            validation_workers,
+            tokenizer,
+            config,
+            max_best_of,
+            max_stop_sequences,
+            max_top_n_tokens,
+            max_input_tokens,
+            max_total_tokens,
+            grammar_support,
+        );
+        let generation_health = Arc::new(AtomicBool::new(false));
+
+        // Try to open a v3 client
+        // Instantiate sharded client from the master unix socket
+        let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
+            .await
+            .map_err(WebServerError::Connection)?;
+        // Clear the cache; useful if the webserver rebooted
+        sharded_client
+            .clear_cache(None)
+            .await
+            .map_err(WebServerError::Cache)?;
+        // Get info from the shard
+        let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
+
+        // Warmup model
+        tracing::info!("Warming up model");
+        let max_batch_total_tokens = check_max_batch_total_tokens(sharded_client
+            .warmup(
+                max_input_tokens as u32,
+                max_batch_prefill_tokens,
+                max_total_tokens as u32,
+                max_batch_size,
+            )
+            .await
+            .map_err(WebServerError::Warmup)?)?;
+        tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
+
+        let health_ext = HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
+        let infer = Infer::new(
+            sharded_client,
+            validation,
+            waiting_served_ratio,
+            max_batch_prefill_tokens,
+            max_batch_total_tokens,
+            max_waiting_tokens,
+            max_batch_size,
+            max_concurrent_requests,
+            shard_info.requires_padding,
+            shard_info.window_size,
+            shard_info.speculate,
+            generation_health,
+            tokenizer_config,
+            processor_config,
+        );
+
+        (infer, health_ext, shard_info, max_batch_total_tokens)
     };
-    tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
-
-    // Create state
-    let validation = Validation::new(
-        validation_workers,
-        tokenizer,
-        config,
-        max_best_of,
-        max_stop_sequences,
-        max_top_n_tokens,
-        max_input_tokens,
-        max_total_tokens,
-        grammar_support,
-    );
-    let generation_health = Arc::new(AtomicBool::new(false));
-    let health_ext = HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
-    let infer = Infer::new(
-        sharded_client,
-        validation,
-        waiting_served_ratio,
-        max_batch_prefill_tokens,
-        max_batch_total_tokens,
-        max_waiting_tokens,
-        max_batch_size,
-        max_concurrent_requests,
-        shard_info.requires_padding,
-        shard_info.window_size,
-        shard_info.speculate,
-        generation_health,
-        tokenizer_config,
-        processor_config,
-    );
 
     // Duration buckets
     let duration_matcher = Matcher::Suffix(String::from("duration"));
@@ -1645,8 +1657,8 @@ pub async fn run(
 
             #[derive(OpenApi)]
             #[openapi(
-                paths(vertex_compatibility),
-                components(schemas(VertexInstance, VertexRequest, VertexResponse))
+            paths(vertex_compatibility),
+            components(schemas(VertexInstance, VertexRequest, VertexResponse))
             )]
             struct VertextApiDoc;
 
@@ -1756,7 +1768,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(unix)]
-    let terminate = async {
+        let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -1764,7 +1776,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+        let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},
@@ -1821,5 +1833,5 @@ pub enum WebServerError {
     #[error("Not enough memory to handle `max_total_tokens={0}`")]
     NotEnoughMemory(usize),
     #[error("Axum error: {0}")]
-    Axum(#[from] axum::BoxError)
+    Axum(#[from] axum::BoxError),
 }
