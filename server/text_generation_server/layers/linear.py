@@ -196,6 +196,8 @@ def get_linear(weight, bias, quantize):
                 weight.groupsize,
             )
     elif quantize == "awq":
+        from text_generation_server.layers.gptq import GPTQWeight
+
         if not isinstance(weight, GPTQWeight):
             raise NotImplementedError(
                 f"The passed weight is not `awq` compatible, loader needs to be updated."
