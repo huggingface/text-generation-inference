@@ -1,24 +1,31 @@
 //! Text Generation gRPC client library
 
-mod client;
-#[allow(clippy::derive_partial_eq_without_eq)]
-mod pb;
-mod sharded_client;
+pub mod v2;
+pub mod v3;
 
-use base64::{engine::general_purpose::STANDARD, Engine};
-pub use client::Client;
-pub use pb::generate::v2::input_chunk::Chunk;
-pub use pb::generate::v2::HealthResponse;
-pub use pb::generate::v2::Image;
-pub use pb::generate::v2::InfoResponse as ShardInfo;
-pub use pb::generate::v2::{
-    Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarType, Input, InputChunk,
-    NextTokenChooserParameters, Request, StoppingCriteriaParameters, Tokens,
-};
-pub use sharded_client::ShardedClient;
+use async_trait::async_trait;
 use thiserror::Error;
 use tonic::transport;
 use tonic::Status;
+
+#[async_trait]
+pub trait Health {
+    /// Check if a generate server is healthy by asking it to allocate a tensor on device
+    async fn device_health(&self) -> Result<()>;
+
+    /// Check if a generate server is healthy by doing a forward pass.
+    /// EXPENSIVE
+    async fn model_health(&self) -> Result<()>;
+}
+
+#[derive(Debug)]
+pub struct ShardInfo {
+    pub requires_padding: bool,
+    pub dtype: String,
+    pub device_type: String,
+    pub window_size: Option<u32>,
+    pub speculate: u32,
+}
 
 #[derive(Error, Debug, Clone)]
 pub enum ClientError {

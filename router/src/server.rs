@@ -1,6 +1,6 @@
-use crate::config::Config;
 /// HTTP Server logic
-use crate::health::Health;
+use crate::config::Config;
+use crate::health::HealthCheck;
 use crate::infer::{InferError, InferResponse, InferStreamResponse, ToolGrammar};
 use crate::validation::ValidationError;
 use crate::{
@@ -34,7 +34,7 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use text_generation_client::{ShardInfo, ShardedClient};
+use text_generation_client::{v2::ShardedClient, ShardInfo};
 use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
@@ -115,7 +115,9 @@ example = json ! ({"error": "unhealthy", "error_type": "healthcheck"})),
 )]
 #[instrument(skip(health))]
 /// Health check method
-async fn health(mut health: Extension<Health>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+async fn health(
+    mut health: Extension<HealthCheck>,
+) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
     match health.check().await {
         true => Ok(()),
         false => Err((
@@ -1482,7 +1484,7 @@ pub async fn run(
         grammar_support,
     );
     let generation_health = Arc::new(AtomicBool::new(false));
-    let health_ext = Health::new(client.clone(), generation_health.clone());
+    let health_ext = HealthCheck::new(Arc::new(client.clone()), generation_health.clone());
     let infer = Infer::new(
         client,
         validation,
@@ -1717,17 +1719,6 @@ async fn shutdown_signal() {
 
     tracing::info!("signal received, starting graceful shutdown");
     opentelemetry::global::shutdown_tracer_provider();
-}
-
-impl From<i32> for FinishReason {
-    fn from(finish_reason: i32) -> Self {
-        let finish_reason = text_generation_client::FinishReason::try_from(finish_reason).unwrap();
-        match finish_reason {
-            text_generation_client::FinishReason::Length => FinishReason::Length,
-            text_generation_client::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
-            text_generation_client::FinishReason::StopSequence => FinishReason::StopSequence,
-        }
-    }
 }
 
 /// Convert to Axum supported formats

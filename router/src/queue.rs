@@ -1,12 +1,17 @@
 use crate::infer::InferError;
 use crate::infer::InferStreamResponse;
-use crate::validation::ValidGenerateRequest;
+use crate::validation::{
+    ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
+};
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use std::collections::VecDeque;
 use text_generation_client::ChunksToString;
 use text_generation_client::Input;
 use text_generation_client::{Batch, Request};
+use text_generation_client::v2::{
+    Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
@@ -285,8 +290,12 @@ impl State {
                 }),
                 inputs: entry.request.inputs.chunks_to_string(),
                 truncate: entry.request.truncate,
-                parameters: Some(entry.request.parameters.clone()),
-                stopping_parameters: Some(entry.request.stopping_parameters.clone()),
+                parameters: Some(NextTokenChooserParameters::from(
+                    entry.request.parameters.clone(),
+                )),
+                stopping_parameters: Some(StoppingCriteriaParameters::from(
+                    entry.request.stopping_parameters.clone(),
+                )),
                 top_n_tokens: entry.request.top_n_tokens,
             });
             // Set batch_time
@@ -353,6 +362,43 @@ enum QueueCommand {
         response_sender: oneshot::Sender<Option<NextBatch>>,
         span: Span,
     },
+}
+
+impl From<ValidParameters> for NextTokenChooserParameters {
+    fn from(value: ValidParameters) -> Self {
+        let (grammar, grammar_type) = match value.grammar {
+            None => (String::new(), GrammarType::None),
+
+            Some(grammar) => match grammar {
+                ValidGrammar::Json(grammar_string) => (grammar_string, GrammarType::Json),
+                ValidGrammar::Regex(grammar_string) => (grammar_string, GrammarType::Regex),
+            },
+        };
+
+        Self {
+            temperature: value.temperature,
+            top_k: value.top_k,
+            top_p: value.top_p,
+            typical_p: value.typical_p,
+            do_sample: value.do_sample,
+            seed: value.seed,
+            repetition_penalty: value.repetition_penalty,
+            frequency_penalty: value.frequency_penalty,
+            watermark: value.watermark,
+            grammar,
+            grammar_type: grammar_type.into(),
+        }
+    }
+}
+
+impl From<ValidStoppingParameters> for StoppingCriteriaParameters {
+    fn from(value: ValidStoppingParameters) -> Self {
+        Self {
+            max_new_tokens: value.max_new_tokens,
+            stop_sequences: value.stop_sequences,
+            ignore_eos_token: value.ignore_eos_token,
+        }
+    }
 }
 
 #[cfg(test)]

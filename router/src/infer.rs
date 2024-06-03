@@ -1,9 +1,9 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, ChatTemplateVersions, Entry, GenerateRequest, GenerateStreamResponse,
-    HubProcessorConfig, HubTokenizerConfig, Message, MessageChunk, PrefillToken, Queue, Text,
-    TextMessage, Token,
+    ChatTemplateInputs, ChatTemplateVersions, Entry, FinishReason, GenerateRequest,
+    GenerateStreamResponse, HubProcessorConfig, HubTokenizerConfig, Message, MessageChunk,
+    PrefillToken, Queue, Text, TextMessage, Token,
 };
 use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
 use futures::future::try_join_all;
@@ -15,9 +15,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use text_generation_client::{
-    Batch, CachedBatch, ClientError, GeneratedText, Generation, ShardedClient, Tokens,
-};
+use text_generation_client::v2::{Batch, CachedBatch, Generation, ShardedClient};
+use text_generation_client::{v2, ClientError};
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify, Semaphore, TryAcquireError};
@@ -232,16 +231,8 @@ impl Infer {
         while let Some(response) = stream.next().await {
             match response? {
                 // Add prefill tokens
-                InferStreamResponse::Prefill(tokens) => {
-                    // Create Token objects
-                    // We do that here instead of in the Python code as Rust for loops are faster
-                    result_prefill = tokens
-                        .ids
-                        .into_iter()
-                        .zip(tokens.logprobs.into_iter())
-                        .zip(tokens.texts.into_iter())
-                        .map(|((id, logprob), text)| PrefillToken { id, text, logprob })
-                        .collect();
+                InferStreamResponse::Prefill(prefill_tokens) => {
+                    result_prefill = prefill_tokens;
                 }
                 // Push last token
                 InferStreamResponse::Intermediate { token, top_tokens } => {
@@ -792,6 +783,16 @@ fn send_responses(
     let mut stopped = false;
 
     if let Some(prefill_tokens) = generation.prefill_tokens {
+        // Create Token objects
+        // We do that here instead of in the Python code as Rust for loops are faster
+        let prefill_tokens = prefill_tokens
+            .ids
+            .into_iter()
+            .zip(prefill_tokens.logprobs.into_iter())
+            .zip(prefill_tokens.texts.into_iter())
+            .map(|((id, logprob), text)| PrefillToken { id, text, logprob })
+            .collect();
+
         // Send message
         entry
             .response_tx
@@ -842,7 +843,7 @@ fn send_responses(
                 entry.response_tx.send(Ok(InferStreamResponse::End {
                     token,
                     top_tokens,
-                    generated_text: generated_text.clone(),
+                    generated_text: GeneratedText::from(generated_text.clone()),
                     queued: entry.queue_time,
                     start: entry.batch_time.unwrap(),
                 }))?;
@@ -878,9 +879,35 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
 }
 
 #[derive(Debug)]
+pub(crate) struct GeneratedText {
+    pub(crate) text: String,
+    pub(crate) generated_tokens: u32,
+    pub(crate) finish_reason: FinishReason,
+    pub(crate) seed: Option<u64>,
+}
+
+impl From<v2::GeneratedText> for GeneratedText {
+    fn from(value: v2::GeneratedText) -> Self {
+        let v2_finish_reason = v2::FinishReason::try_from(value.finish_reason).unwrap();
+        let finish_reason = match v2_finish_reason {
+            v2::FinishReason::Length => FinishReason::Length,
+            v2::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
+            v2::FinishReason::StopSequence => FinishReason::StopSequence,
+        };
+
+        Self {
+            text: value.text,
+            generated_tokens: value.generated_tokens,
+            finish_reason,
+            seed: value.seed,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub(crate) enum InferStreamResponse {
     // Optional first message
-    Prefill(Tokens),
+    Prefill(Vec<PrefillToken>),
     // Intermediate messages
     Intermediate {
         token: Token,
@@ -1355,11 +1382,11 @@ mod tests {
                 chat_template: "{% for message in messages %}\n{% if message['role'] == 'user' %}\n{{ '<|user|>\\n' + message['content'] + eos_token }}\n{% elif message['role'] == 'system' %}\n{{ '<|system|>\\n' + message['content'] + eos_token }}\n{% elif message['role'] == 'assistant' %}\n{{ '<|assistant|>\\n'  + message['content'] + eos_token }}\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n{% endif %}\n{% endfor %}",
                 input: ChatTemplateInputs {
                     messages: vec![
-                        TextMessage{
+                        TextMessage {
                             role: "system".to_string(),
                             content: "You are a friendly chatbot who always responds in the style of a pirate".to_string(),
                         },
-                        TextMessage{
+                        TextMessage {
                             role: "user".to_string(),
                             content: "How many helicopters can a human eat in one sitting?".to_string(),
                         },

@@ -12,7 +12,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
-use text_generation_client::{ClientError, ShardedClient};
+use text_generation_client::{v2::ShardedClient, ClientError};
 use text_generation_router::config::Config;
 use text_generation_router::{server, HubModelInfo, HubProcessorConfig, HubTokenizerConfig};
 use thiserror::Error;
