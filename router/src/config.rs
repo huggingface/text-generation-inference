@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
 pub struct LlavaNext {
-    text_config: TextConfig,
-    vision_config: VisionConfig,
-    image_grid_pinpoints: Vec<(usize, usize)>,
+    pub(crate) text_config: TextConfig,
+    pub(crate) vision_config: VisionConfig,
+    pub(crate) image_grid_pinpoints: Vec<(usize, usize)>,
 }
 
 fn get_anyres_image_grid_shape(
@@ -119,13 +119,13 @@ impl Idefics2 {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PaliTextConfig {
-    num_image_tokens: usize,
+    pub(crate) num_image_tokens: usize,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Paligemma {
-    text_config: PaliTextConfig,
+    pub(crate) text_config: PaliTextConfig,
 }
 
 impl Paligemma {
@@ -175,8 +175,8 @@ pub struct TextConfig {}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct VisionConfig {
-    image_size: usize,
-    patch_size: usize,
+    pub(crate) image_size: usize,
+    pub(crate) patch_size: usize,
 }
 
 #[cfg(test)]

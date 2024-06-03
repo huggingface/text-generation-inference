@@ -15,6 +15,7 @@ authors = ["Olivier Dehaene"]
 homepage = "https://github.com/huggingface/text-generation-inference"
 
 [workspace.dependencies]
+base64 = "0.22.0"
 tokenizers = { version = "0.19.1", features = ["http"] }
 hf-hub = { version = "0.3.1", features = ["tokio"] }
 

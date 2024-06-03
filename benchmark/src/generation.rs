@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 use text_generation_client::{
-    Batch, CachedBatch, ClientError, NextTokenChooserParameters, Request, ShardedClient,
-    StoppingCriteriaParameters,
+    Batch, CachedBatch, Chunk, ClientError, Input, NextTokenChooserParameters, Request,
+    ShardedClient, StoppingCriteriaParameters,
 };
 use tokenizers::{Tokenizer, TruncationDirection};
 use tokio::sync::{broadcast, mpsc};
@@ -142,6 +142,9 @@ async fn prefill(
         .map(|id| Request {
             id: id.into(),
             prefill_logprobs: false,
+            input_chunks: Some(Input {
+                chunks: vec![Chunk::Text(sequence.clone()).into()],
+            }),
             inputs: sequence.clone(),
             truncate: sequence_length,
             parameters: Some(parameters.clone()),
