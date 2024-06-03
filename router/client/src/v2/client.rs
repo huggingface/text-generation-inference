@@ -1,10 +1,10 @@
 /// Single shard Client
-use crate::pb::generate::v2::text_generation_service_client::TextGenerationServiceClient;
-use crate::pb::generate::v2::*;
-use crate::{Chunk, Result};
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
+use crate::v2::pb;
+use crate::Result;
+
 use grpc_metadata::InjectTelemetryContext;
+use pb::generate::v2::text_generation_service_client::TextGenerationServiceClient;
+use pb::generate::v2::*;
 use std::cmp::min;
 use std::time::Duration;
 use tonic::transport::{Channel, Uri};
