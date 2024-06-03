@@ -57,5 +57,5 @@ elif CAN_EXLLAMA:
 
     except ImportError:
         pass
-if SYSTEM != "xpu":
-    from text_generation_server.layers.gptq.quant_linear import QuantLinear
+
+from text_generation_server.layers.gptq.quant_linear import QuantLinear
