@@ -1,9 +1,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use text_generation_client::GrammarType as ProtoGrammarType;
 use text_generation_client::{
-    Batch, NextTokenChooserParameters, Request, ShardedClient, StoppingCriteriaParameters,
+    Batch, Input, NextTokenChooserParameters, Request, ShardedClient, StoppingCriteriaParameters,
 };
+use text_generation_client::{Chunk, GrammarType as ProtoGrammarType};
 
 // Note: Request ids and batch ids cannot collide.
 const LIVENESS_ID: u64 = u64::MAX;
@@ -33,6 +33,9 @@ impl Health {
             // Dummy batch of 1 token and 1 generated token
             let liveness_request = Request {
                 id: LIVENESS_ID,
+                input_chunks: Some(Input {
+                    chunks: vec![Chunk::Text("liveness".into()).into()],
+                }),
                 inputs: "liveness".to_string(),
                 truncate: 10,
                 prefill_logprobs: false,

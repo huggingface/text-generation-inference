@@ -4,6 +4,8 @@ use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use std::collections::VecDeque;
+use text_generation_client::ChunksToString;
+use text_generation_client::Input;
 use text_generation_client::{Batch, Request};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
@@ -278,7 +280,10 @@ impl State {
             batch_requests.push(Request {
                 id,
                 prefill_logprobs: entry.request.decoder_input_details,
-                inputs: entry.request.inputs.clone(),
+                input_chunks: Some(Input {
+                    chunks: entry.request.inputs.clone(),
+                }),
+                inputs: entry.request.inputs.chunks_to_string(),
                 truncate: entry.request.truncate,
                 parameters: Some(entry.request.parameters.clone()),
                 stopping_parameters: Some(entry.request.stopping_parameters.clone()),
@@ -366,7 +371,7 @@ mod tests {
 
         let entry = Entry {
             request: ValidGenerateRequest {
-                inputs: String::new(),
+                inputs: vec![],
                 input_length: 0,
                 truncate: 0,
                 decoder_input_details: false,
