@@ -3554,6 +3554,7 @@ dependencies = [
 name = "text-generation-client"
 version = "2.0.5-dev0"
 dependencies = [
+ "base64 0.22.1",
  "futures",
  "grpc-metadata",
  "prost 0.12.6",
