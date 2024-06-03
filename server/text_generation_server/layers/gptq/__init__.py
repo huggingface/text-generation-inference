@@ -6,7 +6,6 @@ from text_generation_server.utils.import_utils import (
     SYSTEM,
 )
 
-raise RuntimeError("No")
 
 
 @dataclass
