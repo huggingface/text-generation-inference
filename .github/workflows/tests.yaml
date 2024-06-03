@@ -22,11 +22,6 @@ jobs:
         runner: [ubuntu-latest, intel-pvc-tgi]
     runs-on: ${{ matrix.runner }}
 
-    env:
-      SCCACHE_GHA_ENABLED: "on"
-      RUSTC_WRAPPER: "${{ contains(matrix.runner, 'intel') && '' || '/usr/local/bin/sccache' }}"
-      SCCACHE: 0.3.3
-
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -43,6 +38,12 @@ jobs:
           components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
+      - name: Set Rust caching env vars only on non-release runs
+        if: matrix.runner != 'intel-pvc-tgi'
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=/usr/local/bin/sccache" >> $GITHUB_ENV
+          echo "SCCACHE=0.3.3" >> $GITHUB_ENV
       - name: Clean unused files
         if: matrix.runner != 'intel-pvc-tgi'
         run: |
