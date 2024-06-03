@@ -46,6 +46,7 @@ use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use thiserror::Error;
+use crate::infer::v2::SchedulerV2;
 
 /// Generate tokens if `stream == false` or a stream of token if `stream == true`
 #[utoipa::path(
@@ -1472,8 +1473,10 @@ pub async fn run(
     )]
     struct ApiDoc;
 
+    // Create state
+
     // Open connection, get model info and warmup
-    let (infer, health_ext, shard_info, max_batch_total_tokens) = {
+    let (scheduler, health_ext, shard_info, max_batch_total_tokens) = {
         // Helper function to check both v2 and v3
         let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
             match max_supported_batch_total_tokens {
@@ -1505,18 +1508,7 @@ pub async fn run(
             }
         };
 
-        // Create state
-        let validation = Validation::new(
-            validation_workers,
-            tokenizer,
-            config,
-            max_best_of,
-            max_stop_sequences,
-            max_top_n_tokens,
-            max_input_tokens,
-            max_total_tokens,
-            grammar_support,
-        );
+
         let generation_health = Arc::new(AtomicBool::new(false));
 
         // Try to open a v3 client
@@ -1546,25 +1538,35 @@ pub async fn run(
         tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
 
         let health_ext = HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
-        let infer = Infer::new(
+        let scheduler = SchedulerV2::new(
             sharded_client,
-            validation,
             waiting_served_ratio,
             max_batch_prefill_tokens,
             max_batch_total_tokens,
             max_waiting_tokens,
             max_batch_size,
-            max_concurrent_requests,
             shard_info.requires_padding,
             shard_info.window_size,
             shard_info.speculate,
             generation_health,
-            tokenizer_config,
-            processor_config,
         );
 
-        (infer, health_ext, shard_info, max_batch_total_tokens)
+        (scheduler, health_ext, shard_info, max_batch_total_tokens)
     };
+
+    let validation = Validation::new(
+        validation_workers,
+        tokenizer,
+        config,
+        max_best_of,
+        max_stop_sequences,
+        max_top_n_tokens,
+        max_input_tokens,
+        max_total_tokens,
+        grammar_support,
+    );
+
+    let infer = Infer::new(Arc::new(scheduler), validation, max_concurrent_requests, tokenizer_config, processor_config);
 
     // Duration buckets
     let duration_matcher = Matcher::Suffix(String::from("duration"));

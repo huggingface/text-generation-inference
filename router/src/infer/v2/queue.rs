@@ -1,7 +1,5 @@
-use crate::infer::{Entry, InferQueue};
-use crate::validation::{
-    ValidGrammar, ValidParameters, ValidStoppingParameters,
-};
+use crate::infer::{InferError, InferStreamResponse};
+use crate::validation::{ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters};
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use std::collections::VecDeque;
@@ -15,24 +13,28 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
 
+/// Queue entry
+#[derive(Debug)]
+pub(crate) struct Entry {
+    /// Request
+    pub request: ValidGenerateRequest,
+    /// Response sender to communicate between the Infer struct and the batching_task
+    pub response_tx: mpsc::UnboundedSender<Result<InferStreamResponse, InferError>>,
+    /// Span that will live as long as entry
+    pub span: Span,
+    /// Temporary span used as a guard when logging inference, wait times...
+    pub temp_span: Option<Span>,
+    /// Instant when this entry was queued
+    pub queue_time: Instant,
+    /// Instant when this entry was added to a batch
+    pub batch_time: Option<Instant>,
+}
+
 /// Request Queue
 #[derive(Debug, Clone)]
 pub(crate) struct Queue {
     /// Channel to communicate with the background queue task
     queue_sender: mpsc::UnboundedSender<QueueCommand>,
-}
-
-
-impl InferQueue for Queue {
-    /// Append an entry to the queue
-    #[instrument(skip_all)]
-    fn append(&self, entry: Entry) {
-        // Send append command to the background task managing the state
-        // Unwrap is safe here
-        self.queue_sender
-            .send(QueueCommand::Append(Box::new(entry), Span::current()))
-            .unwrap();
-    }
 }
 
 impl Queue {
@@ -55,6 +57,15 @@ impl Queue {
         ));
 
         Self { queue_sender }
+    }
+
+    #[instrument(skip_all)]
+    pub(crate) fn append(&self, entry: Entry) {
+        // Send append command to the background task managing the state
+        // Unwrap is safe here
+        self.queue_sender
+            .send(QueueCommand::Append(Box::new(entry), Span::current()))
+            .unwrap();
     }
 
     // Get the next batch

@@ -1,5 +1,4 @@
-mod batcher;
+mod scheduler;
 mod queue;
 
-pub(crate) use batcher::batching_task;
-pub(crate) use queue::Queue;
+pub(crate) use scheduler::SchedulerV2;

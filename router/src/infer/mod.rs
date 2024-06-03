@@ -16,38 +16,18 @@ use minijinja::{Environment, ErrorKind, Template};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::sync::{
-    atomic::{AtomicBool},
     Arc,
 };
-use text_generation_client::v2::{ShardedClient};
 use thiserror::Error;
-use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit, Semaphore, TryAcquireError};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
-use tracing::{instrument, Span};
+use tracing::{instrument};
 
-/// Queue entry
-#[derive(Debug)]
-pub(crate) struct Entry {
-    /// Request
-    pub request: ValidGenerateRequest,
-    /// Response sender to communicate between the Infer struct and the batching_task
-    pub response_tx: mpsc::UnboundedSender<Result<InferStreamResponse, InferError>>,
-    /// Span that will live as long as entry
-    pub span: Span,
-    /// Temporary span used as a guard when logging inference, wait times...
-    pub temp_span: Option<Span>,
-    /// Instant when this entry was queued
-    pub queue_time: Instant,
-    /// Instant when this entry was added to a batch
-    pub batch_time: Option<Instant>,
-}
 
-pub(crate) trait InferQueue {
-    /// Append an entry to the queue
-    #[instrument(skip_all)]
-    fn append(&self, entry: Entry);
+pub(crate) trait Scheduler {
+    fn schedule(&self, request: ValidGenerateRequest, permit: OwnedSemaphorePermit) -> Result<GenerateStreamResponse, InferError>;
 }
 
 
@@ -56,10 +36,8 @@ pub(crate) trait InferQueue {
 pub struct Infer {
     /// Validation
     validation: Validation,
-    /// Request queue
-    queue: Arc<dyn InferQueue + Send + Sync>,
-    /// Notify batcher on queue appends
-    batching_task_notifier: Arc<Notify>,
+    /// Request scheduler
+    scheduler: Arc<dyn Scheduler + Send + Sync>,
     /// Chat template
     chat_template: Option<ChatTemplate>,
     /// Inference limit
@@ -71,37 +49,12 @@ pub struct Infer {
 impl Infer {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        client: ShardedClient,
+        scheduler: Arc<dyn Scheduler + Send + Sync>,
         validation: Validation,
-        waiting_served_ratio: f32,
-        max_batch_prefill_tokens: u32,
-        max_batch_total_tokens: u32,
-        max_waiting_tokens: usize,
-        max_batch_size: Option<usize>,
         max_concurrent_requests: usize,
-        requires_padding: bool,
-        window_size: Option<u32>,
-        speculate: u32,
-        generation_health: Arc<AtomicBool>,
         tokenizer_config: HubTokenizerConfig,
         processor_config: HubProcessorConfig,
     ) -> Self {
-        let queue = v2::Queue::new(requires_padding, 16, window_size, speculate);
-        let batching_task_notifier = Arc::new(Notify::new());
-
-        // Spawn batching background task that contains all the inference logic
-        tokio::spawn(v2::batching_task(
-            client,
-            waiting_served_ratio,
-            max_batch_prefill_tokens,
-            max_batch_total_tokens,
-            max_waiting_tokens,
-            max_batch_size,
-            queue.clone(),
-            batching_task_notifier.clone(),
-            generation_health,
-        ));
-
         let chat_template = tokenizer_config
             .chat_template
             .or(processor_config.chat_template)
@@ -126,8 +79,7 @@ impl Infer {
 
         Self {
             validation,
-            queue: Arc::new(queue),
-            batching_task_notifier,
+            scheduler,
             chat_template,
             limit_concurrent_requests: semaphore,
         }
@@ -157,30 +109,7 @@ impl Infer {
             err
         })?;
 
-        // MPSC channel to communicate with the background batching task
-        let (response_tx, response_rx) = mpsc::unbounded_channel();
-        let input_length = valid_request.input_length;
-
-        // Append the request to the queue
-        self.queue.append(Entry {
-            request: valid_request,
-            response_tx,
-            span: Span::current(),
-            temp_span: None,
-            queue_time: Instant::now(),
-            batch_time: None,
-        });
-
-        // Notify the background task that we have a new entry in the queue that needs
-        // to be batched
-        self.batching_task_notifier.notify_one();
-
-        // Return stream
-        Ok((
-            permit,
-            input_length,
-            UnboundedReceiverStream::new(response_rx),
-        ))
+        self.scheduler.schedule(valid_request, permit)
     }
 
     /// Tokenizer the input

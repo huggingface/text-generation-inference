@@ -1,7 +1,6 @@
 /// Batching and inference logic
 
-use crate::infer::Entry;
-use crate::infer::v2::{Queue};
+use crate::infer::v2::queue::{Queue, Entry};
 use crate::{FinishReason, PrefillToken, Token};
 use nohash_hasher::IntMap;
 use std::sync::{
@@ -11,10 +10,86 @@ use std::sync::{
 use text_generation_client::v2::{Batch, CachedBatch, Generation, ShardedClient};
 use text_generation_client::{ClientError};
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::Notify;
+use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit};
 use tokio::time::Instant;
-use tracing::{info_span, instrument, Instrument};
-use crate::infer::{GeneratedText, InferError, InferStreamResponse};
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tracing::{info_span, instrument, Instrument, Span};
+use crate::infer::{GeneratedText, GenerateStreamResponse, InferError, InferStreamResponse, Scheduler};
+use crate::validation::ValidGenerateRequest;
+
+pub(crate) struct SchedulerV2 {
+    /// Request queue
+    queue: Queue,
+    /// Notify batcher on queue appends
+    batching_task_notifier: Arc<Notify>,
+}
+
+impl SchedulerV2 {
+    pub(crate) fn new(
+        client: ShardedClient,
+        waiting_served_ratio: f32,
+        max_batch_prefill_tokens: u32,
+        max_batch_total_tokens: u32,
+        max_waiting_tokens: usize,
+        max_batch_size: Option<usize>,
+        requires_padding: bool,
+        window_size: Option<u32>,
+        speculate: u32,
+        generation_health: Arc<AtomicBool>,
+    ) -> Self {
+        let queue = Queue::new(requires_padding, 16, window_size, speculate);
+        let batching_task_notifier = Arc::new(Notify::new());
+
+        // Spawn batching background task that contains all the inference logic
+        tokio::spawn(batching_task(
+            client,
+            waiting_served_ratio,
+            max_batch_prefill_tokens,
+            max_batch_total_tokens,
+            max_waiting_tokens,
+            max_batch_size,
+            queue.clone(),
+            batching_task_notifier.clone(),
+            generation_health,
+        ));
+
+        Self {
+            queue,
+            batching_task_notifier
+        }
+    }
+}
+
+impl Scheduler for SchedulerV2 {
+    #[instrument(skip_all)]
+    fn schedule(&self, request: ValidGenerateRequest, permit: OwnedSemaphorePermit) -> Result<GenerateStreamResponse, InferError> {
+        // MPSC channel to communicate with the background batching task
+        let (response_tx, response_rx) = mpsc::unbounded_channel();
+        let input_length = request.input_length;
+
+        // Append the request to the queue
+        self.queue.append(Entry {
+            request,
+            response_tx,
+            span: Span::current(),
+            temp_span: None,
+            queue_time: Instant::now(),
+            batch_time: None,
+        });
+
+        // Notify the background task that we have a new entry in the queue that needs
+        // to be batched
+        self.batching_task_notifier.notify_one();
+
+        // Return stream
+        Ok((
+            permit,
+            input_length,
+            UnboundedReceiverStream::new(response_rx),
+        ))
+    }
+}
+
 
 /// Batching logic
 /// Will be launched in a background Tokio task
@@ -692,10 +767,10 @@ mod tests {
             content: "You are a friendly chatbot who always responds in the style of a pirate"
                 .to_string(),
         }]
-        .iter()
-        .chain(&example_chat)
-        .cloned()
-        .collect::<Vec<_>>();
+            .iter()
+            .chain(&example_chat)
+            .cloned()
+            .collect::<Vec<_>>();
 
         let test_default_templates = vec![
             ChatTemplateTestItem {
