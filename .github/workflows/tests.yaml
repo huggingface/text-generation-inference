@@ -17,10 +17,11 @@ concurrency:
 
 jobs:
   run_tests:
-    runs-on: ${{ matrix.runner }}
+    runs-on:
+      group: ${{ matrix.runner.group }}
     strategy:
       matrix:
-        runner: [ubuntu-latest, intel-pvc-tgi]
+        runner: [{os: ubuntu-latest}, {os: ubuntu-latest, group: intel-pvc-tgi}]
 
     env:
       SCCACHE_GHA_ENABLED: "on"
