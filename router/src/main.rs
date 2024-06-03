@@ -314,8 +314,6 @@ async fn main() -> Result<(), RouterError> {
         Some(pipeline_tag) => pipeline_tag.as_str() == "text-generation",
     };
 
-
-
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
         std::env::var("AIP_HTTP_PORT")

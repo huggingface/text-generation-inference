@@ -1,35 +1,34 @@
 mod health;
 pub(crate) mod v2;
-// pub(crate) mod v3;
+pub(crate) mod v3;
 
 pub(crate) use health::HealthCheck;
 
-use crate::validation::{Validation, ValidationError, ValidGenerateRequest};
+use crate::validation::{ValidGenerateRequest, Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, ChatTemplateVersions, FinishReason, GenerateRequest,
-    HubProcessorConfig, HubTokenizerConfig, Message, MessageChunk,
-    PrefillToken, Text, TextMessage, Token,
+    ChatTemplateInputs, ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig,
+    HubTokenizerConfig, Message, MessageChunk, PrefillToken, Text, TextMessage, Token,
 };
 use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
 use futures::future::try_join_all;
 use minijinja::{Environment, ErrorKind, Template};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
-use std::sync::{
-    Arc,
-};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
-use tracing::{instrument};
-
+use tracing::instrument;
 
 pub(crate) trait Scheduler {
-    fn schedule(&self, request: ValidGenerateRequest, permit: OwnedSemaphorePermit) -> Result<GenerateStreamResponse, InferError>;
+    fn schedule(
+        &self,
+        request: ValidGenerateRequest,
+        permit: OwnedSemaphorePermit,
+    ) -> Result<GenerateStreamResponse, InferError>;
 }
-
 
 /// Inference struct
 #[derive(Clone)]
@@ -43,8 +42,6 @@ pub struct Infer {
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
 }
-
-
 
 impl Infer {
     #[allow(clippy::too_many_arguments)]
@@ -462,8 +459,6 @@ pub(crate) struct GeneratedText {
     pub(crate) seed: Option<u64>,
 }
 
-
-
 #[derive(Debug)]
 pub(crate) enum InferStreamResponse {
     // Optional first message
@@ -525,4 +520,3 @@ impl InferError {
         }
     }
 }
-

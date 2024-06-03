@@ -1,5 +1,4 @@
-mod infer;
 mod queue;
+mod scheduler;
 
-pub(crate) use infer::{Infer, InferError, InferStreamResponse, InferResponse, ToolGrammar};
-pub(crate) use queue::{Entry, Queue};
+pub(crate) use scheduler::SchedulerV3;

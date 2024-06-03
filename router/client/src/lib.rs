@@ -47,9 +47,7 @@ impl From<Status> for ClientError {
 
 impl From<transport::Error> for ClientError {
     fn from(err: transport::Error) -> Self {
-        let err = Self::Connection(err.to_string());
-        tracing::error!("{err}");
-        err
+        Self::Connection(err.to_string())
     }
 }
 

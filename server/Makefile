@@ -12,8 +12,8 @@ gen-server:
 	# Compile protos
 	pip install grpcio-tools==1.51.1 mypy-protobuf==3.4.0 'types-protobuf>=3.20.4' --no-cache-dir
 	mkdir text_generation_server/pb || true
-	python -m grpc_tools.protoc -I../proto --python_out=text_generation_server/pb \
-		--grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/generate.proto
+	python -m grpc_tools.protoc -I../proto/v3 --python_out=text_generation_server/pb \
+		--grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/v3/generate.proto
 	find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
 	touch text_generation_server/pb/__init__.py
 

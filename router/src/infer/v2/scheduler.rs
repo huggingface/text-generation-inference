@@ -1,6 +1,9 @@
 /// Batching and inference logic
-
-use crate::infer::v2::queue::{Queue, Entry};
+use crate::infer::v2::queue::{Entry, Queue};
+use crate::infer::{
+    GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse, Scheduler,
+};
+use crate::validation::ValidGenerateRequest;
 use crate::{FinishReason, PrefillToken, Token};
 use nohash_hasher::IntMap;
 use std::sync::{
@@ -8,14 +11,12 @@ use std::sync::{
     Arc,
 };
 use text_generation_client::v2::{Batch, CachedBatch, Generation, ShardedClient};
-use text_generation_client::{ClientError};
+use text_generation_client::ClientError;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
-use crate::infer::{GeneratedText, GenerateStreamResponse, InferError, InferStreamResponse, Scheduler};
-use crate::validation::ValidGenerateRequest;
 
 pub(crate) struct SchedulerV2 {
     /// Request queue
@@ -25,6 +26,7 @@ pub(crate) struct SchedulerV2 {
 }
 
 impl SchedulerV2 {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         client: ShardedClient,
         waiting_served_ratio: f32,
@@ -55,14 +57,18 @@ impl SchedulerV2 {
 
         Self {
             queue,
-            batching_task_notifier
+            batching_task_notifier,
         }
     }
 }
 
 impl Scheduler for SchedulerV2 {
     #[instrument(skip_all)]
-    fn schedule(&self, request: ValidGenerateRequest, permit: OwnedSemaphorePermit) -> Result<GenerateStreamResponse, InferError> {
+    fn schedule(
+        &self,
+        request: ValidGenerateRequest,
+        permit: OwnedSemaphorePermit,
+    ) -> Result<GenerateStreamResponse, InferError> {
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
         let input_length = request.input_length;
@@ -89,7 +95,6 @@ impl Scheduler for SchedulerV2 {
         ))
     }
 }
-
 
 /// Batching logic
 /// Will be launched in a background Tokio task
@@ -381,8 +386,8 @@ fn send_responses(
         let prefill_tokens = prefill_tokens
             .ids
             .into_iter()
-            .zip(prefill_tokens.logprobs.into_iter())
-            .zip(prefill_tokens.texts.into_iter())
+            .zip(prefill_tokens.logprobs)
+            .zip(prefill_tokens.texts)
             .map(|((id, logprob), text)| PrefillToken { id, text, logprob })
             .collect();
 
@@ -473,7 +478,8 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
 
 impl From<text_generation_client::v2::GeneratedText> for GeneratedText {
     fn from(value: text_generation_client::v2::GeneratedText) -> Self {
-        let v2_finish_reason = text_generation_client::v2::FinishReason::try_from(value.finish_reason).unwrap();
+        let v2_finish_reason =
+            text_generation_client::v2::FinishReason::try_from(value.finish_reason).unwrap();
         let finish_reason = match v2_finish_reason {
             text_generation_client::v2::FinishReason::Length => FinishReason::Length,
             text_generation_client::v2::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
@@ -767,10 +773,10 @@ mod tests {
             content: "You are a friendly chatbot who always responds in the style of a pirate"
                 .to_string(),
         }]
-            .iter()
-            .chain(&example_chat)
-            .cloned()
-            .collect::<Vec<_>>();
+        .iter()
+        .chain(&example_chat)
+        .cloned()
+        .collect::<Vec<_>>();
 
         let test_default_templates = vec![
             ChatTemplateTestItem {

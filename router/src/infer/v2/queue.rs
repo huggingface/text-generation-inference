@@ -1,5 +1,7 @@
 use crate::infer::{InferError, InferStreamResponse};
-use crate::validation::{ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters};
+use crate::validation::{
+    ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
+};
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use std::collections::VecDeque;
@@ -400,9 +402,6 @@ impl From<ValidStoppingParameters> for StoppingCriteriaParameters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use text_generation_client::{
-        GrammarType as ProtoGrammarType, NextTokenChooserParameters, StoppingCriteriaParameters,
-    };
     use tracing::info_span;
 
     fn default_entry() -> (
@@ -417,7 +416,7 @@ mod tests {
                 input_length: 0,
                 truncate: 0,
                 decoder_input_details: false,
-                parameters: NextTokenChooserParameters {
+                parameters: ValidParameters {
                     temperature: 0.0,
                     top_k: 0,
                     top_p: 0.0,
@@ -427,10 +426,9 @@ mod tests {
                     repetition_penalty: 0.0,
                     frequency_penalty: 0.0,
                     watermark: false,
-                    grammar: String::new(),
-                    grammar_type: ProtoGrammarType::None as i32,
+                    grammar: None,
                 },
-                stopping_parameters: StoppingCriteriaParameters {
+                stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,
                     max_new_tokens: 1,
                     stop_sequences: vec![],

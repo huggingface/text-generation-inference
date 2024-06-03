@@ -1,14 +1,15 @@
 /// HTTP Server logic
-
 use crate::config::Config;
-use crate::infer::HealthCheck;
+use crate::infer::v2::SchedulerV2;
+use crate::infer::v3::SchedulerV3;
+use crate::infer::{HealthCheck, Scheduler};
 use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
-    GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig,
-    Info, Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token,
-    TokenizeResponse, Usage, Validation,
+    GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig, Info,
+    Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse,
+    Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -35,7 +36,8 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use text_generation_client::{v2::ShardedClient, ClientError};
+use text_generation_client::{v2, v3, ClientError, ShardInfo};
+use thiserror::Error;
 use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
@@ -45,8 +47,6 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use thiserror::Error;
-use crate::infer::v2::SchedulerV2;
 
 /// Generate tokens if `stream == false` or a stream of token if `stream == true`
 #[utoipa::path(
@@ -218,9 +218,7 @@ async fn generate_internal(
 
                         BestOfSequence {
                             generated_text: output_text,
-                            finish_reason: FinishReason::from(
-                                response.generated_text.finish_reason,
-                            ),
+                            finish_reason: response.generated_text.finish_reason,
                             generated_tokens: response.generated_text.generated_tokens,
                             prefill: response.prefill,
                             tokens: response.tokens,
@@ -232,7 +230,7 @@ async fn generate_internal(
             });
 
             Some(Details {
-                finish_reason: FinishReason::from(response.generated_text.finish_reason),
+                finish_reason: response.generated_text.finish_reason,
                 generated_tokens: response.generated_text.generated_tokens,
                 prefill: response.prefill,
                 tokens: response.tokens,
@@ -374,7 +372,7 @@ async fn generate_stream(
     Json(req): Json<GenerateRequest>,
 ) -> (
     HeaderMap,
-    Sse<impl Stream<Item=Result<Event, Infallible>>>,
+    Sse<impl Stream<Item = Result<Event, Infallible>>>,
 ) {
     let span = tracing::Span::current();
     let on_message_callback = |stream_token: StreamResponse| {
@@ -393,7 +391,7 @@ async fn generate_stream_internal(
     Json(req): Json<GenerateRequest>,
     on_message_callback: impl Fn(StreamResponse) -> Event,
     span: tracing::Span,
-) -> (HeaderMap, impl Stream<Item=Result<Event, Infallible>>) {
+) -> (HeaderMap, impl Stream<Item = Result<Event, Infallible>>) {
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
 
@@ -473,7 +471,7 @@ async fn generate_stream_internal(
                                         // Token details
                                         let details = match details {
                                             true => Some(StreamDetails {
-                                                finish_reason: FinishReason::from(generated_text.finish_reason),
+                                                finish_reason: generated_text.finish_reason,
                                                 generated_tokens: generated_text.generated_tokens,
                                                 seed: generated_text.seed,
                                             }),
@@ -728,7 +726,7 @@ async fn completions(
                         on_message_callback,
                         span_clone.clone(),
                     )
-                        .await;
+                    .await;
 
                     // send and dont wait for response
                     let _ = header_tx.send(header_map);
@@ -835,7 +833,7 @@ async fn completions(
                     Json(generate_request),
                     span_clone,
                 )
-                    .await;
+                .await;
                 result.map(|(headers, generation)| (index, headers, generation))
             };
             responses.push(response_future);
@@ -1152,7 +1150,7 @@ async fn chat_completions(
             on_message_callback,
             span,
         )
-            .await;
+        .await;
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
@@ -1239,15 +1237,15 @@ example = json ! ({"error": "Incomplete generation"})),
 )
 )]
 #[instrument(
-skip_all,
-fields(
-total_time,
-validation_time,
-queue_time,
-inference_time,
-time_per_token,
-seed,
-)
+    skip_all,
+    fields(
+        total_time,
+        validation_time,
+        queue_time,
+        inference_time,
+        time_per_token,
+        seed,
+    )
 )]
 async fn vertex_compatibility(
     Extension(infer): Extension<Infer>,
@@ -1292,17 +1290,17 @@ async fn vertex_compatibility(
                     Json(generate_request),
                     span.clone(),
                 )
-                    .await
-                    .map(|(_, Json(generation))| generation.generated_text)
-                    .map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorResponse {
-                                error: "Incomplete generation".into(),
-                                error_type: "Incomplete generation".into(),
-                            }),
-                        )
-                    })
+                .await
+                .map(|(_, Json(generation))| generation.generated_text)
+                .map_err(|_| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ErrorResponse {
+                            error: "Incomplete generation".into(),
+                            error_type: "Incomplete generation".into(),
+                        }),
+                    )
+                })
             }
         })
         .collect::<FuturesUnordered<_>>()
@@ -1476,14 +1474,20 @@ pub async fn run(
     // Create state
 
     // Open connection, get model info and warmup
-    let (scheduler, health_ext, shard_info, max_batch_total_tokens) = {
+    let (scheduler, health_ext, shard_info, max_batch_total_tokens): (
+        Arc<dyn Scheduler + Send + Sync>,
+        HealthCheck,
+        ShardInfo,
+        u32,
+    ) = {
         // Helper function to check both v2 and v3
         let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
             match max_supported_batch_total_tokens {
                 // Older models do not support automatic max-batch-total-tokens
                 None => {
-                    let max_batch_total_tokens = max_batch_total_tokens
-                        .unwrap_or(16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)));
+                    let max_batch_total_tokens = max_batch_total_tokens.unwrap_or(
+                        16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)),
+                    );
                     tracing::warn!("Model does not support automatic max batch total tokens");
                     Ok(max_batch_total_tokens)
                 }
@@ -1492,12 +1496,12 @@ pub async fn run(
                     // Warn if user added his own max-batch-total-tokens as we will ignore it
                     if max_batch_total_tokens.is_some() {
                         tracing::warn!(
-                    "`--max-batch-total-tokens` is deprecated for Flash \
+                            "`--max-batch-total-tokens` is deprecated for Flash \
                         Attention models."
-                );
+                        );
                         tracing::warn!(
-                    "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
-                );
+                            "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
+                        );
                     }
                     if max_total_tokens as u32 > max_supported_batch_total_tokens {
                         return Err(WebServerError::NotEnoughMemory(max_total_tokens));
@@ -1508,51 +1512,100 @@ pub async fn run(
             }
         };
 
-
         let generation_health = Arc::new(AtomicBool::new(false));
 
-        // Try to open a v3 client
-        // Instantiate sharded client from the master unix socket
-        let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
-            .await
-            .map_err(WebServerError::Connection)?;
-        // Clear the cache; useful if the webserver rebooted
-        sharded_client
-            .clear_cache(None)
-            .await
-            .map_err(WebServerError::Cache)?;
-        // Get info from the shard
-        let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
+        match v3::ShardedClient::connect_uds(master_shard_uds_path.clone()).await {
+            Ok(mut sharded_client) => {
+                // server is running on v3
+                // Clear the cache; useful if the webserver rebooted
+                sharded_client
+                    .clear_cache(None)
+                    .await
+                    .map_err(WebServerError::Cache)?;
+                // Get info from the shard
+                let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
 
-        // Warmup model
-        tracing::info!("Warming up model");
-        let max_batch_total_tokens = check_max_batch_total_tokens(sharded_client
-            .warmup(
-                max_input_tokens as u32,
-                max_batch_prefill_tokens,
-                max_total_tokens as u32,
-                max_batch_size,
-            )
-            .await
-            .map_err(WebServerError::Warmup)?)?;
-        tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
+                // Warmup model
+                tracing::info!("Warming up model");
+                let max_batch_total_tokens = check_max_batch_total_tokens(
+                    sharded_client
+                        .warmup(
+                            max_input_tokens as u32,
+                            max_batch_prefill_tokens,
+                            max_total_tokens as u32,
+                            max_batch_size,
+                        )
+                        .await
+                        .map_err(WebServerError::Warmup)?,
+                )?;
 
-        let health_ext = HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
-        let scheduler = SchedulerV2::new(
-            sharded_client,
-            waiting_served_ratio,
-            max_batch_prefill_tokens,
-            max_batch_total_tokens,
-            max_waiting_tokens,
-            max_batch_size,
-            shard_info.requires_padding,
-            shard_info.window_size,
-            shard_info.speculate,
-            generation_health,
-        );
+                let health_ext =
+                    HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
+                let scheduler = Arc::new(SchedulerV3::new(
+                    sharded_client,
+                    waiting_served_ratio,
+                    max_batch_prefill_tokens,
+                    max_batch_total_tokens,
+                    max_waiting_tokens,
+                    max_batch_size,
+                    shard_info.requires_padding,
+                    shard_info.window_size,
+                    shard_info.speculate,
+                    generation_health,
+                ));
+                tracing::info!("Using scheduler V3");
 
-        (scheduler, health_ext, shard_info, max_batch_total_tokens)
+                (scheduler, health_ext, shard_info, max_batch_total_tokens)
+            }
+            Err(_) => {
+                let mut sharded_client = v2::ShardedClient::connect_uds(master_shard_uds_path)
+                    .await
+                    .map_err(WebServerError::Connection)?;
+
+                // server is running on v2
+                // Clear the cache; useful if the webserver rebooted
+                sharded_client
+                    .clear_cache(None)
+                    .await
+                    .map_err(WebServerError::Cache)?;
+                // Get info from the shard
+                let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
+
+                // Warmup model
+                tracing::info!("Warming up model");
+                let max_batch_total_tokens = check_max_batch_total_tokens(
+                    sharded_client
+                        .warmup(
+                            max_input_tokens as u32,
+                            max_batch_prefill_tokens,
+                            max_total_tokens as u32,
+                            max_batch_size,
+                        )
+                        .await
+                        .map_err(WebServerError::Warmup)?,
+                )?;
+
+                let health_ext =
+                    HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
+                let scheduler = Arc::new(SchedulerV2::new(
+                    sharded_client,
+                    waiting_served_ratio,
+                    max_batch_prefill_tokens,
+                    max_batch_total_tokens,
+                    max_waiting_tokens,
+                    max_batch_size,
+                    shard_info.requires_padding,
+                    shard_info.window_size,
+                    shard_info.speculate,
+                    generation_health,
+                ));
+                tracing::info!("Using scheduler V2");
+
+                (scheduler, health_ext, shard_info, max_batch_total_tokens)
+            }
+        }
     };
+    tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
 
     let validation = Validation::new(
         validation_workers,
@@ -1566,7 +1619,13 @@ pub async fn run(
         grammar_support,
     );
 
-    let infer = Infer::new(Arc::new(scheduler), validation, max_concurrent_requests, tokenizer_config, processor_config);
+    let infer = Infer::new(
+        scheduler,
+        validation,
+        max_concurrent_requests,
+        tokenizer_config,
+        processor_config,
+    );
 
     // Duration buckets
     let duration_matcher = Matcher::Suffix(String::from("duration"));
@@ -1659,8 +1718,8 @@ pub async fn run(
 
             #[derive(OpenApi)]
             #[openapi(
-            paths(vertex_compatibility),
-            components(schemas(VertexInstance, VertexRequest, VertexResponse))
+                paths(vertex_compatibility),
+                components(schemas(VertexInstance, VertexRequest, VertexResponse))
             )]
             struct VertextApiDoc;
 
@@ -1756,7 +1815,8 @@ pub async fn run(
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
-            .await.map_err(|err| WebServerError::Axum(Box::new(err)))?;
+            .await
+            .map_err(|err| WebServerError::Axum(Box::new(err)))?;
     }
     Ok(())
 }
@@ -1770,7 +1830,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(unix)]
-        let terminate = async {
+    let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -1778,7 +1838,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(not(unix))]
-        let terminate = std::future::pending::<()>();
+    let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},

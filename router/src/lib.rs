@@ -1,5 +1,4 @@
 /// Text Generation Inference Webserver
-
 pub mod config;
 mod infer;
 pub mod server;
