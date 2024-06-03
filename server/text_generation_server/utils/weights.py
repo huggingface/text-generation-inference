@@ -7,8 +7,6 @@ import torch
 from loguru import logger
 from huggingface_hub import hf_hub_download
 import json
-from text_generation_server.layers.exl2 import Exl2Weight
-from text_generation_server.layers.gptq import GPTQWeight
 from text_generation_server.utils.log import log_once
 
 
@@ -221,6 +219,8 @@ class Weights:
 
     def get_weights_col(self, prefix: str, quantize: str):
         if quantize == "exl2":
+            from text_generation_server.layers.exl2 import Exl2Weight
+
             try:
                 q_weight = self.get_tensor(f"{prefix}.q_weight")
             except RuntimeError:
@@ -247,6 +247,8 @@ class Weights:
         if quantize == "exl2":
             raise ValueError("get_multi_weights_col is not supported for exl2")
         elif quantize in ["gptq", "awq"]:
+            from text_generation_server.layers.gptq import GPTQWeight
+
             try:
                 qweight = torch.cat(
                     [self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1
