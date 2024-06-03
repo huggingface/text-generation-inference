@@ -7,7 +7,7 @@ flash-attention:
 
 build-flash-attention: flash-attention
 	cd flash-attention && git fetch && git checkout $(flash_att_commit)
-	cd flash-attention && python setup.py build
+	cd flash-attention && MAX_JOBS=8 python setup.py build
 	cd flash-attention/csrc/rotary && python setup.py build
 	cd flash-attention/csrc/layer_norm && python setup.py build
 
