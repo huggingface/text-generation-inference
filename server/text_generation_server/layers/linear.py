@@ -2,8 +2,6 @@ from typing import Optional
 import torch
 from torch.nn import functional as F
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.layers.exl2 import Exl2Weight
-from text_generation_server.layers.gptq import GPTQWeight
 
 if SYSTEM == "rocm":
     try:
@@ -155,6 +153,8 @@ def get_linear(weight, bias, quantize):
             quant_type="nf4",
         )
     elif quantize == "exl2":
+        from text_generation_server.layers.exl2 import Exl2Weight
+
         if not isinstance(weight, Exl2Weight):
             raise NotImplementedError(
                 f"The passed weight is not `exl2` compatible, loader needs to be updated."
@@ -165,6 +165,8 @@ def get_linear(weight, bias, quantize):
         linear = ExllamaQuantLinear(weight, bias)
 
     elif quantize == "gptq":
+        from text_generation_server.layers.gptq import GPTQWeight
+
         if not isinstance(weight, GPTQWeight):
             raise NotImplementedError(
                 f"The passed weight is not `gptq` compatible, loader needs to be updated."

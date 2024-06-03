@@ -5,7 +5,6 @@ from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
-from text_generation_server.layers.gptq import GPTQWeight
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
@@ -39,6 +38,8 @@ def load_multi_mqa(
 def _load_multi_mqa_gptq(
     config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
 ):
+    from text_generation_server.layers.gptq import GPTQWeight
+
     if any("c_attn" in k for k in weights.routing.keys()) and not config.transpose:
         world_size = weights.process_group.size()
         rank = weights.process_group.rank()
