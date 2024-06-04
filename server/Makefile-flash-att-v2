@@ -5,9 +5,8 @@ build-flash-attention-v2-cuda:
 	pip install -U packaging wheel
 	pip install flash-attn==$(flash_att_v2_commit_cuda)
 
-install-flash-attention-v2-cuda:
-	pip install -U packaging wheel
-	pip install flash-attn==$(flash_att_v2_commit_cuda)
+install-flash-attention-v2-cuda: build-flash-attention-v2-cuda
+	echo "Flash v2 installed"
 
 build-flash-attention-v2-rocm:
 	if [ ! -d 'flash-attention-v2' ]; then \
@@ -18,7 +17,5 @@ build-flash-attention-v2-rocm:
 	fi
 
 install-flash-attention-v2-rocm: build-flash-attention-v2-rocm
-	if [ ! -d 'flash-attention-v2' ]; then \
-		cd flash-attention-v2 &&  \
-		GPU_ARCHS="gfx90a;gfx942" PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py install; \
-	fi
+	cd flash-attention-v2 &&  \
+	GPU_ARCHS="gfx90a;gfx942" PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py install
