@@ -1,25 +1,26 @@
-vllm-cuda:
-    # Clone vllm
-	pip install -U ninja packaging --no-cache-dir
-	git clone https://github.com/Narsil/vllm.git vllm
-
-build-vllm-cuda: vllm-cuda
-	cd vllm && git fetch && git checkout b5dfc61db88a81069e45b44f7cc99bd9e62a60fa
-	cd vllm && python setup.py build
-
+build-vllm-cuda:
+	if [ ! -d 'vllm' ]; then \
+		pip install -U ninja packaging --no-cache-dir && \
+		git clone https://github.com/Narsil/vllm.git vllm  &&\
+		cd vllm  && \
+		git fetch && git checkout b5dfc61db88a81069e45b44f7cc99bd9e62a60fa &&\
+		python setup.py build; \
+	fi
 install-vllm-cuda: build-vllm-cuda
-	pip uninstall vllm -y || true
-	cd vllm && python setup.py install
+	if [ ! -d 'vllm' ]; then \
+		cd vllm && pip install -e .; \
+	fi
 
-vllm-rocm:
-    # Clone vllm
-	pip install -U ninja packaging --no-cache-dir
-	git clone https://github.com/fxmarty/rocm-vllm.git vllm
-
-build-vllm-rocm: vllm-rocm
-	cd vllm && git fetch && git checkout ca6913b3c2ffacdcb7d15e914dc34adbc6c89479
-	cd vllm && PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py install
+build-vllm-rocm:
+	if [ ! -d 'vllm' ]; then \
+		pip install -U ninja packaging --no-cache-dir && \
+		git clone https://github.com/fxmarty/rocm-vllm.git vllm && \
+		cd vllm && git fetch && git checkout ca6913b3c2ffacdcb7d15e914dc34adbc6c89479 &&  \
+		PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build; \
+	fi
 
 install-vllm-rocm: build-vllm-rocm
-	pip uninstall vllm -y || true
-	cd vllm && python setup.py install
+	if [ ! -d 'vllm' ]; then \
+		cd vllm && \
+		PYTORCH_ROCM_ARCH="gfx90a;gfx942" pip install -e .; \
+	fi
