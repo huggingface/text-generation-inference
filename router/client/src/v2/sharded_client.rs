@@ -1,10 +1,17 @@
-use crate::client::{DecodeTimings, PrefillTimings};
 /// Multi shard Client
-use crate::{Batch, CachedBatch, Client, Generation, HealthResponse, ShardInfo};
+use crate::{v2, Health, ShardInfo};
 use crate::{ClientError, Result};
+
+use crate::v2::InfoResponse;
+use async_trait::async_trait;
 use futures::future::join_all;
 use tonic::transport::Uri;
 use tracing::instrument;
+use v2::client::{DecodeTimings, PrefillTimings};
+use v2::{
+    Batch, CachedBatch, Client, Generation, GrammarType, HealthResponse,
+    NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+};
 
 #[derive(Debug, Clone)]
 /// Text Generation Inference gRPC multi client
@@ -47,7 +54,7 @@ impl ShardedClient {
             .iter_mut()
             .map(|client| client.info())
             .collect();
-        join_all(futures).await.pop().unwrap()
+        join_all(futures).await.pop().unwrap().map(ShardInfo::from)
     }
 
     /// GRPC health check
@@ -183,5 +190,62 @@ impl ShardedClient {
             }
         }
         Ok((generations, next_batch, timings))
+    }
+}
+
+impl From<InfoResponse> for ShardInfo {
+    fn from(value: InfoResponse) -> Self {
+        Self {
+            requires_padding: value.requires_padding,
+            dtype: value.dtype,
+            device_type: value.device_type,
+            window_size: value.window_size,
+            speculate: value.speculate,
+        }
+    }
+}
+
+#[async_trait]
+impl Health for ShardedClient {
+    async fn device_health(&self) -> Result<()> {
+        self.clone().health().await?;
+        Ok(())
+    }
+
+    async fn model_health(&self) -> Result<()> {
+        // Dummy batch of 1 token and 1 generated token
+        let liveness_request = Request {
+            id: u64::MAX,
+            inputs: "liveness".to_string(),
+            truncate: 10,
+            prefill_logprobs: false,
+            parameters: Some(NextTokenChooserParameters {
+                temperature: 1.0,
+                top_k: 0,
+                top_p: 1.0,
+                typical_p: 1.0,
+                do_sample: false,
+                seed: 0,
+                repetition_penalty: 1.0,
+                frequency_penalty: 0.0,
+                watermark: false,
+                grammar: String::new(),
+                grammar_type: GrammarType::None as i32,
+            }),
+            stopping_parameters: Some(StoppingCriteriaParameters {
+                max_new_tokens: 1,
+                stop_sequences: vec![],
+                ignore_eos_token: false,
+            }),
+            top_n_tokens: 0,
+        };
+        let batch = Batch {
+            id: u64::MAX,
+            requests: vec![liveness_request],
+            size: 1,
+            max_tokens: 2,
+        };
+        self.clone().prefill(batch).await?;
+        Ok(())
     }
 }

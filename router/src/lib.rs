@@ -1,26 +1,13 @@
-pub mod config;
-mod health;
 /// Text Generation Inference Webserver
+pub mod config;
 mod infer;
-mod queue;
 pub mod server;
 mod validation;
 
-use infer::{Infer, InferError, InferStreamResponse};
-use queue::{Entry, Queue};
 use serde::{Deserialize, Serialize};
-use tokio::sync::OwnedSemaphorePermit;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
-
-/// Type alias for generation responses
-pub(crate) type GenerateStreamResponse = (
-    OwnedSemaphorePermit,
-    u32, // input_length
-    UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
-);
 
 #[derive(Clone, Deserialize, ToSchema)]
 pub(crate) struct VertexInstance {
@@ -158,7 +145,7 @@ pub struct Info {
     #[schema(example = "4")]
     pub max_stop_sequences: usize,
     #[schema(example = "1024")]
-    pub max_input_length: usize,
+    pub max_input_tokens: usize,
     #[schema(example = "2048")]
     pub max_total_tokens: usize,
     #[schema(example = "1.2")]
@@ -1087,7 +1074,7 @@ pub struct SimpleToken {
     stop: usize,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
 pub(crate) enum FinishReason {

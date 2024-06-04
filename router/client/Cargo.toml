@@ -6,6 +6,7 @@ authors.workspace = true
 homepage.workspace = true
 
 [dependencies]
+async-trait = "^0.1"
 base64 = { workspace = true }
 futures = "^0.3"
 grpc-metadata = { path = "../grpc-metadata" }

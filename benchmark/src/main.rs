@@ -4,7 +4,7 @@
 /// and: https://github.com/orhun/rust-tui-template
 use clap::Parser;
 use std::path::Path;
-use text_generation_client::ShardedClient;
+use text_generation_client::v3::ShardedClient;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;

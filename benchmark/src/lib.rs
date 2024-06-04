@@ -8,7 +8,7 @@ use crate::app::App;
 use crate::event::Event;
 use crossterm::ExecutableCommand;
 use std::io;
-use text_generation_client::{GrammarType, NextTokenChooserParameters, ShardedClient};
+use text_generation_client::v3::{GrammarType, NextTokenChooserParameters, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::sync::{broadcast, mpsc};
 use tui::backend::CrosstermBackend;

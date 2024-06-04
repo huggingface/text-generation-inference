@@ -1,12 +1,14 @@
-use crate::infer::InferError;
-use crate::infer::InferStreamResponse;
-use crate::validation::ValidGenerateRequest;
+use crate::infer::{InferError, InferStreamResponse};
+use crate::validation::{
+    ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
+};
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use std::collections::VecDeque;
+use text_generation_client::v2::{
+    Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+};
 use text_generation_client::ChunksToString;
-use text_generation_client::Input;
-use text_generation_client::{Batch, Request};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
@@ -57,7 +59,6 @@ impl Queue {
         Self { queue_sender }
     }
 
-    /// Append an entry to the queue
     #[instrument(skip_all)]
     pub(crate) fn append(&self, entry: Entry) {
         // Send append command to the background task managing the state
@@ -280,13 +281,14 @@ impl State {
             batch_requests.push(Request {
                 id,
                 prefill_logprobs: entry.request.decoder_input_details,
-                input_chunks: Some(Input {
-                    chunks: entry.request.inputs.clone(),
-                }),
                 inputs: entry.request.inputs.chunks_to_string(),
                 truncate: entry.request.truncate,
-                parameters: Some(entry.request.parameters.clone()),
-                stopping_parameters: Some(entry.request.stopping_parameters.clone()),
+                parameters: Some(NextTokenChooserParameters::from(
+                    entry.request.parameters.clone(),
+                )),
+                stopping_parameters: Some(StoppingCriteriaParameters::from(
+                    entry.request.stopping_parameters.clone(),
+                )),
                 top_n_tokens: entry.request.top_n_tokens,
             });
             // Set batch_time
@@ -302,7 +304,7 @@ impl State {
 
         // Empty batch
         if batch_requests.is_empty() {
-            tracing::debug!("Filterered out all entries");
+            tracing::debug!("Filtered out all entries");
             return None;
         }
 
@@ -355,12 +357,46 @@ enum QueueCommand {
     },
 }
 
+impl From<ValidParameters> for NextTokenChooserParameters {
+    fn from(value: ValidParameters) -> Self {
+        let (grammar, grammar_type) = match value.grammar {
+            None => (String::new(), GrammarType::None),
+
+            Some(grammar) => match grammar {
+                ValidGrammar::Json(grammar_string) => (grammar_string, GrammarType::Json),
+                ValidGrammar::Regex(grammar_string) => (grammar_string, GrammarType::Regex),
+            },
+        };
+
+        Self {
+            temperature: value.temperature,
+            top_k: value.top_k,
+            top_p: value.top_p,
+            typical_p: value.typical_p,
+            do_sample: value.do_sample,
+            seed: value.seed,
+            repetition_penalty: value.repetition_penalty,
+            frequency_penalty: value.frequency_penalty,
+            watermark: value.watermark,
+            grammar,
+            grammar_type: grammar_type.into(),
+        }
+    }
+}
+
+impl From<ValidStoppingParameters> for StoppingCriteriaParameters {
+    fn from(value: ValidStoppingParameters) -> Self {
+        Self {
+            max_new_tokens: value.max_new_tokens,
+            stop_sequences: value.stop_sequences,
+            ignore_eos_token: value.ignore_eos_token,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use text_generation_client::{
-        GrammarType as ProtoGrammarType, NextTokenChooserParameters, StoppingCriteriaParameters,
-    };
     use tracing::info_span;
 
     fn default_entry() -> (
@@ -375,7 +411,7 @@ mod tests {
                 input_length: 0,
                 truncate: 0,
                 decoder_input_details: false,
-                parameters: NextTokenChooserParameters {
+                parameters: ValidParameters {
                     temperature: 0.0,
                     top_k: 0,
                     top_p: 0.0,
@@ -385,10 +421,9 @@ mod tests {
                     repetition_penalty: 0.0,
                     frequency_penalty: 0.0,
                     watermark: false,
-                    grammar: String::new(),
-                    grammar_type: ProtoGrammarType::None as i32,
+                    grammar: None,
                 },
-                stopping_parameters: StoppingCriteriaParameters {
+                stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,
                     max_new_tokens: 1,
                     stop_sequences: vec![],
