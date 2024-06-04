@@ -1,20 +1,16 @@
-use crate::config::Config;
 /// Payload validation logic
+use crate::config::Config;
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{GenerateParameters, GenerateRequest, GrammarType};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use image::{io::Reader as ImageReader, ImageFormat};
 use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 use std::io::Cursor;
-use text_generation_client::{
-    Chunk, GrammarType as ProtoGrammarType, Image, InputChunk, NextTokenChooserParameters,
-    StoppingCriteriaParameters,
-};
+use text_generation_client::{Chunk, Image, InputChunk};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
-// use tokenizers::TruncationDirection;
-use base64::{engine::general_purpose::STANDARD, Engine};
-use image::{io::Reader as ImageReader, ImageFormat};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
@@ -173,10 +169,6 @@ impl Validation {
             // Validate MaxNewTokens
             if (input_length as u32 + max_new_tokens) > self.max_total_tokens as u32 {
                 input_length = input_length.saturating_sub(max_new_tokens as usize);
-                // return Err(ValidationError::MaxNewTokens(
-                //     self.max_total_tokens - self.max_input_length,
-                //     max_new_tokens,
-                // ));
             }
 
             Ok((
@@ -327,13 +319,13 @@ impl Validation {
         // compiler and use that to build the FSM here.
 
         // Validate grammar and unpack the grammar and type for the proto message
-        let (grammar, grammar_type) = match grammar {
+        let grammar = match grammar {
             Some(grammar) => {
                 // Ensure that grammar is not set if it's not supported
                 if self.disable_grammar_support {
                     return Err(ValidationError::Grammar);
                 }
-                match grammar {
+                let valid_grammar = match grammar {
                     GrammarType::Json(json) => {
                         let json = match json {
                             // if value is a string, we need to parse it again to make sure its
@@ -350,20 +342,20 @@ impl Validation {
                             .compile(&json)
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
 
-                        (
-                            // Serialize json to string
+                        // Serialize json to string
+                        ValidGrammar::Json(
                             serde_json::to_string(&json)
                                 .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?,
-                            ProtoGrammarType::Json.into(),
                         )
                     }
-                    GrammarType::Regex(regex) => (regex, ProtoGrammarType::Regex.into()),
-                }
+                    GrammarType::Regex(regex) => ValidGrammar::Regex(regex),
+                };
+                Some(valid_grammar)
             }
-            None => (String::new(), ProtoGrammarType::None.into()),
+            None => None,
         };
 
-        let parameters = NextTokenChooserParameters {
+        let parameters = ValidParameters {
             temperature,
             repetition_penalty,
             frequency_penalty,
@@ -374,9 +366,8 @@ impl Validation {
             seed,
             watermark,
             grammar,
-            grammar_type,
         };
-        let stopping_parameters = StoppingCriteriaParameters {
+        let stopping_parameters = ValidStoppingParameters {
             max_new_tokens,
             stop_sequences,
             ignore_eos_token: false,
@@ -458,6 +449,7 @@ fn format_from_mimetype(mimetype: &str) -> Option<ImageFormat> {
         _ => None,
     }
 }
+
 fn format_to_mimetype(format: ImageFormat) -> String {
     match format {
         ImageFormat::Png => "image/png",
@@ -637,13 +629,54 @@ type TokenizerRequest = (
 );
 
 #[derive(Debug, Clone)]
+pub(crate) enum ValidGrammar {
+    Json(String),
+    Regex(String),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ValidParameters {
+    /// / exponential scaling output probability distribution
+    pub temperature: f32,
+    /// / restricting to the k highest probability elements
+    pub top_k: u32,
+    /// / restricting to top tokens summing to prob_cut_off <= prob_cut_off
+    pub top_p: f32,
+    /// / restricting to top tokens summing to prob_cut_off <= prob_cut_off
+    pub typical_p: f32,
+    /// / apply sampling on the logits
+    pub do_sample: bool,
+    /// / random seed for sampling
+    pub seed: u64,
+    /// / repetition penalty
+    pub repetition_penalty: f32,
+    /// / frequency penalty
+    pub frequency_penalty: f32,
+    /// / token watermarking using "A Watermark for Large Language Models"
+    pub watermark: bool,
+    /// / grammar (applied if not empty)
+    pub grammar: Option<ValidGrammar>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ValidStoppingParameters {
+    /// / Maximum number of generated tokens
+    pub max_new_tokens: u32,
+    /// / Optional stopping sequences
+    pub stop_sequences: Vec<String>,
+    /// / Ignore end of sequence token
+    /// / used for benchmarking
+    pub ignore_eos_token: bool,
+}
+
+#[derive(Debug, Clone)]
 pub(crate) struct ValidGenerateRequest {
     pub inputs: Vec<InputChunk>,
     pub input_length: u32,
     pub truncate: u32,
     pub decoder_input_details: bool,
-    pub parameters: NextTokenChooserParameters,
-    pub stopping_parameters: StoppingCriteriaParameters,
+    pub parameters: ValidParameters,
+    pub stopping_parameters: ValidStoppingParameters,
     pub top_n_tokens: u32,
 }
 

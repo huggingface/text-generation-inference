@@ -12,7 +12,6 @@ use std::fs::File;
 use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
-use text_generation_client::{ClientError, ShardedClient};
 use text_generation_router::config::Config;
 use text_generation_router::{server, HubModelInfo, HubProcessorConfig, HubTokenizerConfig};
 use thiserror::Error;
@@ -315,59 +314,6 @@ async fn main() -> Result<(), RouterError> {
         Some(pipeline_tag) => pipeline_tag.as_str() == "text-generation",
     };
 
-    // Instantiate sharded client from the master unix socket
-    let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
-        .await
-        .map_err(RouterError::Connection)?;
-    // Clear the cache; useful if the webserver rebooted
-    sharded_client
-        .clear_cache(None)
-        .await
-        .map_err(RouterError::Cache)?;
-    // Get info from the shard
-    let shard_info = sharded_client.info().await.map_err(RouterError::Info)?;
-
-    // Warmup model
-    tracing::info!("Warming up model");
-    let max_supported_batch_total_tokens = match sharded_client
-        .warmup(
-            max_input_tokens as u32,
-            max_batch_prefill_tokens,
-            max_total_tokens as u32,
-            max_batch_size,
-        )
-        .await
-        .map_err(RouterError::Warmup)?
-    {
-        // Older models do not support automatic max-batch-total-tokens
-        None => {
-            let max_batch_total_tokens = max_batch_total_tokens
-                .unwrap_or(16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)));
-            tracing::warn!("Model does not support automatic max batch total tokens");
-            max_batch_total_tokens
-        }
-        // Flash attention models return their max supported total tokens
-        Some(max_supported_batch_total_tokens) => {
-            // Warn if user added his own max-batch-total-tokens as we will ignore it
-            if max_batch_total_tokens.is_some() {
-                tracing::warn!(
-                    "`--max-batch-total-tokens` is deprecated for Flash \
-                        Attention models."
-                );
-                tracing::warn!(
-                    "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
-                );
-            }
-            if max_total_tokens as u32 > max_supported_batch_total_tokens {
-                return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_supported_batch_total_tokens}")));
-            }
-
-            max_supported_batch_total_tokens
-        }
-    };
-    tracing::info!("Setting max batch total tokens to {max_supported_batch_total_tokens}");
-    tracing::info!("Connected");
-
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
         std::env::var("AIP_HTTP_PORT")
@@ -387,8 +333,8 @@ async fn main() -> Result<(), RouterError> {
 
     // Run server
     server::run(
+        master_shard_uds_path,
         model_info,
-        shard_info,
         compat_return_full_text,
         max_concurrent_requests,
         max_best_of,
@@ -398,10 +344,9 @@ async fn main() -> Result<(), RouterError> {
         max_total_tokens,
         waiting_served_ratio,
         max_batch_prefill_tokens,
-        max_supported_batch_total_tokens,
+        max_batch_total_tokens,
         max_waiting_tokens,
         max_batch_size,
-        sharded_client,
         tokenizer,
         config,
         validation_workers,
@@ -557,16 +502,8 @@ pub async fn get_tokenizer_config(api_repo: &ApiRepo) -> Option<HubTokenizerConf
 enum RouterError {
     #[error("Argument validation error: {0}")]
     ArgumentValidation(String),
-    #[error("Unable to connect to the Python model shards: {0}")]
-    Connection(ClientError),
-    #[error("Unable to clear the Python model shards cache: {0}")]
-    Cache(ClientError),
-    #[error("Unable to get the Python model shards info: {0}")]
-    Info(ClientError),
-    #[error("Unable to warmup the Python model shards: {0}")]
-    Warmup(ClientError),
+    #[error("WebServer error: {0}")]
+    WebServer(#[from] server::WebServerError),
     #[error("Tokio runtime failed to start: {0}")]
     Tokio(#[from] std::io::Error),
-    #[error("Axum webserver failed: {0}")]
-    Axum(#[from] axum::BoxError),
 }

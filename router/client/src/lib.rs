@@ -1,24 +1,34 @@
 //! Text Generation gRPC client library
 
-mod client;
-#[allow(clippy::derive_partial_eq_without_eq)]
-mod pb;
-mod sharded_client;
+pub mod v2;
+pub mod v3;
 
+use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD, Engine};
-pub use client::Client;
-pub use pb::generate::v2::input_chunk::Chunk;
-pub use pb::generate::v2::HealthResponse;
-pub use pb::generate::v2::Image;
-pub use pb::generate::v2::InfoResponse as ShardInfo;
-pub use pb::generate::v2::{
-    Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarType, Input, InputChunk,
-    NextTokenChooserParameters, Request, StoppingCriteriaParameters, Tokens,
-};
-pub use sharded_client::ShardedClient;
 use thiserror::Error;
 use tonic::transport;
 use tonic::Status;
+
+pub use v3::{Chunk, Image, Input, InputChunk};
+
+#[async_trait]
+pub trait Health {
+    /// Check if a generate server is healthy by asking it to allocate a tensor on device
+    async fn device_health(&self) -> Result<()>;
+
+    /// Check if a generate server is healthy by doing a forward pass.
+    /// EXPENSIVE
+    async fn model_health(&self) -> Result<()>;
+}
+
+#[derive(Debug)]
+pub struct ShardInfo {
+    pub requires_padding: bool,
+    pub dtype: String,
+    pub device_type: String,
+    pub window_size: Option<u32>,
+    pub speculate: u32,
+}
 
 #[derive(Error, Debug, Clone)]
 pub enum ClientError {
@@ -45,8 +55,6 @@ impl From<transport::Error> for ClientError {
         err
     }
 }
-
-pub type Result<T> = std::result::Result<T, ClientError>;
 
 // Small convenience re-wrapping of `Chunk`.
 impl From<Chunk> for InputChunk {
@@ -77,3 +85,7 @@ impl ChunksToString for Vec<InputChunk> {
         output
     }
 }
+
+static WARMUP_IMAGE_BASE64 :&str = "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAABg2lDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV/TSotUROxQxCFDdbKLijjWKhShQqgVWnUwufQLmrQkKS6OgmvBwY/FqoOLs64OroIg+AHi7OCk6CIl/i8ptIjx4Lgf7+497t4BQqvKNDOQADTdMjKppJjLr4rBVwQQwhAERGVm1uckKQ3P8XUPH1/v4jzL+9yfY0AtmAzwicQJVjcs4g3imU2rznmfOMLKskp8Tjxh0AWJH7muuPzGueSwwDMjRjYzTxwhFks9rPQwKxsa8TRxTNV0yhdyLquctzhr1Qbr3JO/MFzQV5a5TnMUKSxiCRJEKGiggiosxGnVSTGRof2kh3/E8UvkUshVASPHAmrQIDt+8D/43a1ZnJp0k8JJoO/Ftj/GgOAu0G7a9vexbbdPAP8zcKV3/bUWMPtJerOrxY6AwW3g4rqrKXvA5Q4QfarLhuxIfppCsQi8n9E35YHhW6B/ze2ts4/TByBLXaVvgINDYLxE2ese7w719vbvmU5/PycecohsjayNAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH6AQIEQMnlTSSjwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAASSURBVDjLY2AYBaNgFIyCoQsABMQAAeRw1DoAAAAASUVORK5CYII=";
+
+pub type Result<T> = std::result::Result<T, ClientError>;
