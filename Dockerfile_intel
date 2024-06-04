@@ -32,7 +32,7 @@ COPY proto proto
 COPY benchmark benchmark
 COPY router router
 COPY launcher launcher
-RUN cargo build --release
+RUN cargo build --profile release-opt
 
 
 # Text Generation Inference base image for Intel

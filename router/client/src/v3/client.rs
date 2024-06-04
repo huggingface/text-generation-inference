@@ -153,6 +153,9 @@ impl Client {
                 }),
                 // We truncate the input on the server side to be sure that it has the correct size
                 truncate,
+                // Blocks and slots will be set on the server side if we use paged attention
+                blocks: vec![],
+                slots: vec![],
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,
@@ -187,7 +190,8 @@ impl Client {
             id: 0,
             size: requests.len() as u32,
             requests,
-            max_tokens: 0,
+            max_tokens: max_input_length,
+            max_blocks: 0,
         };
 
         let request = tonic::Request::new(WarmupRequest {

@@ -33,7 +33,7 @@ COPY proto proto
 COPY benchmark benchmark
 COPY router router
 COPY launcher launcher
-RUN cargo build --release
+RUN cargo build --profile release-opt
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
