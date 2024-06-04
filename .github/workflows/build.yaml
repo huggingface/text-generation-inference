@@ -186,7 +186,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-rocm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    runs-on: ubuntu-latest
+    runs-on: intel-pvc-tgi
     permissions:
       contents: write
       packages: write
