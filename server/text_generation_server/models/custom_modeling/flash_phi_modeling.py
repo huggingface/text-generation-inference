@@ -238,7 +238,7 @@ class PhiMLP(nn.Module):
         )
 
         # llama weights are up_proj and down_proj and bias=False
-        self.up_proj = TensorParallelRowLinear.load(
+        self.up_proj = TensorParallelColumnLinear.load(
             config,
             prefix=f"{prefix}.fc1",
             weights=weights,
