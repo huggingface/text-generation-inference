@@ -20,6 +20,10 @@ tokenizers = { version = "0.19.1", features = ["http"] }
 hf-hub = { version = "0.3.1", features = ["tokio"] }
 
 [profile.release]
+incremental = true
+
+[profile.release-binary]
+inherits = "release"
 debug = 1
 incremental = true
 lto = "fat"

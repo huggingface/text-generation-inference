@@ -1,29 +1,24 @@
-flash_att_v2_commit_cuda := v2.5.8
+flash_att_v2_commit_cuda := v2.5.9.post1
 flash_att_v2_commit_rocm := 2554f490101742ccdc56620a938f847f61754be6
 
+build-flash-attention-v2-cuda:
+	pip install -U packaging wheel
+	pip install flash-attn==$(flash_att_v2_commit_cuda)
 
-flash-attention-v2-cuda:
-  # Clone flash attention
-	pip install -U packaging ninja  --no-cache-dir
-	git clone https://github.com/Dao-AILab/flash-attention.git flash-attention-v2
+install-flash-attention-v2-cuda:
+	pip install -U packaging wheel
+	pip install flash-attn==$(flash_att_v2_commit_cuda)
 
-build-flash-attention-v2-cuda: flash-attention-v2-cuda
-	cd flash-attention-v2 && git fetch && git checkout $(flash_att_v2_commit_cuda)
-	cd flash-attention-v2 && git submodule update --init --recursive
-	cd flash-attention-v2 && python setup.py build
-
-install-flash-attention-v2-cuda: build-flash-attention-v2-cuda
-	cd flash-attention-v2 && git submodule update --init --recursive && python setup.py install
-
-flash-attention-v2-rocm:
-  # Clone flash attention
-	pip install -U packaging ninja  --no-cache-dir
-	git clone https://github.com/ROCm/flash-attention.git flash-attention-v2
-
-build-flash-attention-v2-rocm: flash-attention-v2-rocm
-	cd flash-attention-v2 && git fetch && git checkout $(flash_att_v2_commit_rocm)
-	cd flash-attention-v2 && git submodule update --init --recursive
-	cd flash-attention-v2 && GPU_ARCHS="gfx90a;gfx942" PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build
+build-flash-attention-v2-rocm:
+	if [ ! -d 'flash-attention-v2' ]; then \
+		pip install -U packaging ninja  --no-cache-dir && \
+		git clone https://github.com/ROCm/flash-attention.git flash-attention-v2 && \
+		cd flash-attention-v2 && git fetch && git checkout $(flash_att_v2_commit_rocm) && \
+		git submodule update --init --recursive && GPU_ARCHS="gfx90a;gfx942" PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build; \
+	fi
 
 install-flash-attention-v2-rocm: build-flash-attention-v2-rocm
-	cd flash-attention-v2 && git submodule update --init --recursive && python setup.py install
+	if [ ! -d 'flash-attention-v2' ]; then \
+		cd flash-attention-v2 &&  \
+		GPU_ARCHS="gfx90a;gfx942" PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py install; \
+	fi

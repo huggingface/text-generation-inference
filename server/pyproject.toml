@@ -9,7 +9,7 @@ text-generation-server = 'text_generation_server.cli:app'
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-protobuf = "^4.21.7"
+protobuf = "^4.25.3"
 grpcio = "^1.51.1"
 grpcio-status = "^1.51.1"
 grpcio-reflection = "^1.51.1"
@@ -19,9 +19,9 @@ accelerate = { version = "^0.29.1", optional = true }
 bitsandbytes = { version = "^0.43.0", optional = true }
 safetensors = "^0.4"
 loguru = "^0.6.0"
-opentelemetry-api = "^1.15.0"
-opentelemetry-exporter-otlp = "^1.15.0"
-opentelemetry-instrumentation-grpc = "^0.36b0"
+opentelemetry-api = "^1.25.0"
+opentelemetry-exporter-otlp = "^1.25.0"
+opentelemetry-instrumentation-grpc = "^0.46b0"
 hf-transfer = "^0.1.2"
 sentencepiece = "^0.1.97"
 tokenizers = "^0.19.1"
@@ -34,7 +34,7 @@ peft = { version = "^0.10", optional = true }
 torch = { version = "^2.3.0", optional = true }
 scipy = "^1.11.1"
 pillow = "^10.0.0"
-outlines= { version = "^0.0.36", optional = true }
+outlines= { version = "^0.0.34", optional = true }
 prometheus-client = "^0.20.0"
 py-cpuinfo = "^9.0.0"
 
