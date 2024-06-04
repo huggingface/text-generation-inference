@@ -92,7 +92,8 @@ class FlashLlamaAttention(torch.nn.Module):
         prefix: str,
         config,
         weights,
-        all_adapter_weights,
+        lora_weights,
+        lora_configs,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -126,36 +127,24 @@ class FlashLlamaAttention(torch.nn.Module):
         self.query_key_value = load_attention(config, prefix, weights)
         self.index = index
         self.adapter_weights = {}
-        adapter_names = list(all_adapter_weights.keys())
+        adapter_names = list(lora_weights.keys())
 
-        self.lora_a_matrix = torch.empty(
-            (len(adapter_names), 2, 4096, 8),
-            device=weights.device,
-            dtype=weights.dtype,
-        )
-        self.lora_b_matrix = torch.empty(
-            (len(adapter_names), 2, 8, 4096),
-            device=weights.device,
-            dtype=weights.dtype,
-        )
-
-        self.pre_multiplied_lora_matrix = torch.empty(
-            (len(adapter_names), 2, 4096, 4096),
+        self.n_loras = len(adapter_names)
+        self.pre_multiplied_lora_matrices = torch.empty(
+            (self.n_loras, 2, self.hidden_size, self.hidden_size),
             device=weights.device,
             dtype=weights.dtype,
         )
 
         self.key_to_index = {}
-        self.index_to_key = {}
 
         lora_prefix = f"base_model.model.model.layers.{index}.self_attn"
         for adapter_index, adapter_name in enumerate(adapter_names):
-            self.lora_alpha = 16.0
-            self.lora_r = 8.0
+            self.lora_alpha = lora_configs[adapter_name].lora_alpha
+            self.lora_r = lora_configs[adapter_name].r
             self.lora_scale = self.lora_alpha / self.lora_r
             self.key_to_index[adapter_name] = adapter_index
-            self.index_to_key[adapter_index] = adapter_name
-            adapter_weights = all_adapter_weights[adapter_name]
+            adapter_weights = lora_weights[adapter_name]
             for target_index, target in enumerate(["q", "v"]):
                 adapter_weight_a = adapter_weights.get_tensor(
                     f"{lora_prefix}.{target}_proj.lora_A.weight"
@@ -168,7 +157,7 @@ class FlashLlamaAttention(torch.nn.Module):
                     adapter_weight_b.T,
                 ).contiguous()
 
-                self.pre_multiplied_lora_matrix[adapter_index, target_index, :, :] = (
+                self.pre_multiplied_lora_matrices[adapter_index, target_index, :, :] = (
                     pre_multiplied_lora_matrix
                 )
 
@@ -209,16 +198,26 @@ class FlashLlamaAttention(torch.nn.Module):
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
 
         batch_size = query.size(0)
-        query_adapted = (
-            torch.bmm(hidden_states.unsqueeze(0), self.pre_multiplied_lora_matrix[:, 0])
-            .squeeze(0)
-            .view(batch_size, self.num_heads, self.head_size)
-        )
 
-        value_adapted = (
-            torch.bmm(hidden_states.unsqueeze(0), self.pre_multiplied_lora_matrix[:, 1])
-            .squeeze(0)
-            .view(batch_size, self.num_key_value_heads, self.head_size)
+        # hidden states without LoRA
+        hs_wl = hidden_states[lora_indices == -1]
+
+        adapted_query_states = [hs_wl]
+        adapted_value_states = [hs_wl]
+
+        for ind in range(self.n_loras):
+            mask = lora_indices == ind
+            hs_sub = hidden_states[mask]
+            mat_q = torch.matmul(hs_sub, self.pre_multiplied_lora_matrices[ind, 0])
+            mat_v = torch.matmul(hs_sub, self.pre_multiplied_lora_matrices[ind, 1])
+            adapted_query_states.append(mat_q)
+            adapted_value_states.append(mat_v)
+
+        query_adapted = torch.cat(adapted_query_states, dim=0).view(
+            batch_size, self.num_heads, self.head_size
+        )
+        value_adapted = torch.cat(adapted_value_states, dim=0).view(
+            batch_size, self.num_key_value_heads, self.head_size
         )
 
         query[batch_lora_adapter_mask] += query_adapted[batch_lora_adapter_mask]
@@ -328,14 +327,15 @@ class LlamaMLP(nn.Module):
 
 
 class FlashLlamaLayer(nn.Module):
-    def __init__(self, index, prefix, config, weights, all_adapter_weights):
+    def __init__(self, index, prefix, config, weights, lora_weights, lora_configs):
         super().__init__()
         self.self_attn = FlashLlamaAttention(
             index=index,
             prefix=f"{prefix}.self_attn",
             config=config,
             weights=weights,
-            all_adapter_weights=all_adapter_weights,
+            lora_weights=lora_weights,
+            lora_configs=lora_configs,
         )
         self.mlp = LlamaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
@@ -391,7 +391,7 @@ class FlashLlamaLayer(nn.Module):
 
 
 class FlashLlamaModel(torch.nn.Module):
-    def __init__(self, prefix, config, weights, all_adapter_weights):
+    def __init__(self, prefix, config, weights, lora_weights, lora_configs):
         super().__init__()
 
         process_group = weights.process_group
@@ -408,7 +408,8 @@ class FlashLlamaModel(torch.nn.Module):
                     ),
                     config=config,
                     weights=weights,
-                    all_adapter_weights=all_adapter_weights,
+                    lora_weights=lora_weights,
+                    lora_configs=lora_configs,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
@@ -471,7 +472,7 @@ class FlashLlamaModel(torch.nn.Module):
 
 
 class FlashLlamaForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights, all_adapter_weights):
+    def __init__(self, prefix, config, weights, lora_weights, lora_configs):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
@@ -480,7 +481,9 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             ),
             weights=weights,
         )
-        self.model = FlashLlamaModel(prefix, config, weights, all_adapter_weights)
+        self.model = FlashLlamaModel(
+            prefix, config, weights, lora_weights, lora_configs
+        )
         if config.tie_word_embeddings:
             suffix = "model.embed_tokens"
         else:

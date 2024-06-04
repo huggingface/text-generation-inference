@@ -16,11 +16,11 @@ from text_generation_server.utils import (
     Weights,
     hub,
 )
-from text_generation_server.utils.weights import load_adaptor_weights
 
 tracer = trace.get_tracer(__name__)
 
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.lora import LoraConfig
 
 
 class FlashLlama(FlashCausalLM):
@@ -75,7 +75,9 @@ class FlashLlama(FlashCausalLM):
             weights._set_gptq_params(model_id, revision)
 
         prefix = ""
-        model = FlashLlamaForCausalLM(prefix, config, weights, all_adapter_weights)
+        model = FlashLlamaForCausalLM(
+            prefix, config, weights, lora_weights, lora_configs
+        )
         torch.distributed.barrier(group=self.process_group)
         super(FlashLlama, self).__init__(
             model=model,

@@ -86,6 +86,18 @@ def _adapter_weight_files_from_dir(d: Path, extension: str) -> List[str]:
     return filenames
 
 
+def _adapter_config_files_from_dir(d: Path) -> List[str]:
+    # os.walk: do not iterate, just scan for depth 1, not recursively
+    # see _weight_files_from_dir, that's also what is done there
+    root, _, files = next(os.walk(str(d)))
+    filenames = [
+        os.path.join(root, f)
+        for f in files
+        if f.endswith(".json") and "arguments" not in f and "args" not in f
+    ]
+    return filenames
+
+
 def _get_cached_revision_directory(
     model_id: str, revision: Optional[str]
 ) -> Optional[Path]:

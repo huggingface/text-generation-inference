@@ -10,27 +10,6 @@ import json
 from text_generation_server.utils.log import log_once
 
 
-# TODO: improve how the weights are loaded
-def load_adaptor_weights(model_id, local_path, extension=".safetensors"):
-    adapter_weights = {}
-    if local_path.exists() and local_path.is_dir():
-        local_files = list(local_path.glob(f"*{extension}"))
-        if not local_files:
-            raise FileNotFoundError(
-                f"No local weights found in {model_id} with extension {extension}"
-            )
-        for filename in local_files:
-            adapter_weights.update(load_file(filename))
-
-    # TODO: remove (no need to sort)
-    # sorted on the the layer number (index 4 in the key)
-    sorted_keys = sorted(
-        adapter_weights.keys(),
-        key=lambda x: int(x.split(".")[4]),
-    )
-    return (adapter_weights, sorted_keys)
-
-
 class Weights:
     def __init__(
         self,

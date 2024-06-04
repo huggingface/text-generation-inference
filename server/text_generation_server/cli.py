@@ -121,6 +121,7 @@ def download_weights(
     logger_level: str = "INFO",
     json_output: bool = False,
     trust_remote_code: bool = False,
+    merge_lora: bool = False,
 ):
     # Remove default handler
     logger.remove()
@@ -151,18 +152,25 @@ def download_weights(
     ) is not None
 
     if not is_local_model:
-        try:
-            adapter_config_filename = hf_hub_download(
-                model_id, revision=revision, filename="adapter_config.json"
-            )
-            utils.download_and_unload_peft(
+        # TODO: maybe reverse the default value of merge_lora?
+        # currently by default we don't merge the weights with the base model
+        if merge_lora:
+            try:
+                adapter_config_filename = hf_hub_download(
+                    model_id, revision=revision, filename="adapter_config.json"
+                )
+                utils.download_and_unload_peft(
+                    model_id, revision, trust_remote_code=trust_remote_code
+                )
+                is_local_model = True
+                utils.weight_files(model_id, revision, extension)
+                return
+            except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+                pass
+        else:
+            utils.peft.download_peft(
                 model_id, revision, trust_remote_code=trust_remote_code
             )
-            is_local_model = True
-            utils.weight_files(model_id, revision, extension)
-            return
-        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
-            pass
 
         try:
             import json

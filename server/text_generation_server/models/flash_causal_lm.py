@@ -1069,7 +1069,8 @@ class FlashCausalLM(Model):
         for i, r in enumerate(batch.requests):
             if r.adapter_id:
                 lora_index = self.model.get_lora_index(r.adapter_id)
-                lora_indices[i] = lora_index
+                input_length = batch.input_lengths[i]
+                lora_indices[i : i + input_length] = lora_index
                 batch_lora_adapter_mask[i] = True
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
