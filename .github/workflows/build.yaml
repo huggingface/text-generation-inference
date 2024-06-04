@@ -186,8 +186,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-rocm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    runs-on:
-      group: [amd-gpu, multi-gpu, mi250]
+    runs-on: [amd-gpu, multi-gpu, mi250]
     permissions:
       contents: write
       packages: write
