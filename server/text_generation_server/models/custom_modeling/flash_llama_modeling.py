@@ -126,27 +126,51 @@ class FlashLlamaAttention(torch.nn.Module):
         self.query_key_value = load_attention(config, prefix, weights)
         self.index = index
         self.adapter_weights = {}
-        for adapter_id, adapter_weights in all_adapter_weights.items():
-            filtered_keys = list(
-                filter(
-                    lambda x: x.startswith(
-                        f"base_model.model.model.layers.{index}.self_attn"
-                    ),
-                    adapter_weights.keys(),
-                )
-            )
-            self.adapter_weights[adapter_id] = {
-                key: torch.tensor(
-                    adapter_weights[key],
-                    device=weights.device,
-                    dtype=weights.dtype,
-                ).T
-                for key in filtered_keys
-            }
+        adapter_names = list(all_adapter_weights.keys())
 
-        self.index_to_key = {
-            i: key for i, key in enumerate(self.adapter_weights.keys())
-        }
+        self.lora_a_matrix = torch.empty(
+            (len(adapter_names), 2, 4096, 8),
+            device=weights.device,
+            dtype=weights.dtype,
+        )
+        self.lora_b_matrix = torch.empty(
+            (len(adapter_names), 2, 8, 4096),
+            device=weights.device,
+            dtype=weights.dtype,
+        )
+
+        self.pre_multiplied_lora_matrix = torch.empty(
+            (len(adapter_names), 2, 4096, 4096),
+            device=weights.device,
+            dtype=weights.dtype,
+        )
+
+        self.key_to_index = {}
+        self.index_to_key = {}
+
+        lora_prefix = f"base_model.model.model.layers.{index}.self_attn"
+        for adapter_index, adapter_name in enumerate(adapter_names):
+            self.lora_alpha = 16.0
+            self.lora_r = 8.0
+            self.lora_scale = self.lora_alpha / self.lora_r
+            self.key_to_index[adapter_name] = adapter_index
+            self.index_to_key[adapter_index] = adapter_name
+            adapter_weights = all_adapter_weights[adapter_name]
+            for target_index, target in enumerate(["q", "v"]):
+                adapter_weight_a = adapter_weights.get_tensor(
+                    f"{lora_prefix}.{target}_proj.lora_A.weight"
+                )
+                adapter_weight_b = adapter_weights.get_tensor(
+                    f"{lora_prefix}.{target}_proj.lora_B.weight"
+                )
+                pre_multiplied_lora_matrix = torch.matmul(
+                    adapter_weight_a.T * self.lora_scale,
+                    adapter_weight_b.T,
+                ).contiguous()
+
+                self.pre_multiplied_lora_matrix[adapter_index, target_index, :, :] = (
+                    pre_multiplied_lora_matrix
+                )
 
         self.o_proj = TensorParallelRowLinear.load(
             config,
@@ -158,23 +182,6 @@ class FlashLlamaAttention(torch.nn.Module):
         self.kv_head_mapping = torch.arange(
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
         ).repeat_interleave(self.num_groups)
-
-    def get_adapter_weights(self, lora_index):
-        adapter_id = self.index_to_key[lora_index]
-        q_proj_lora_a = self.adapter_weights[adapter_id][
-            f"base_model.model.model.layers.{self.index}.self_attn.q_proj.lora_A.weight"
-        ]
-        q_proj_lora_b = self.adapter_weights[adapter_id][
-            f"base_model.model.model.layers.{self.index}.self_attn.q_proj.lora_B.weight"
-        ]
-
-        v_proj_lora_a = self.adapter_weights[adapter_id][
-            f"base_model.model.model.layers.{self.index}.self_attn.v_proj.lora_A.weight"
-        ]
-        v_proj_lora_b = self.adapter_weights[adapter_id][
-            f"base_model.model.model.layers.{self.index}.self_attn.v_proj.lora_B.weight"
-        ]
-        return q_proj_lora_a, q_proj_lora_b, v_proj_lora_a, v_proj_lora_b
 
     def forward(
         self,
@@ -201,39 +208,42 @@ class FlashLlamaAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
 
-        q_proj_lora_a, q_proj_lora_b, v_proj_lora_a, v_proj_lora_b = (
-            self.get_adapter_weights(
-                # TODO: dont just assume the first adapter
-                lora_indices[0].item()
-            )
-        )
-
-        query_adapted = torch.matmul(
-            hidden_states,
-            torch.matmul(
-                q_proj_lora_a,
-                q_proj_lora_b,
-            ),
-        )
-
-        value_adapted = torch.matmul(
-            hidden_states,
-            torch.matmul(
-                v_proj_lora_a,
-                v_proj_lora_b,
-            ),
-        )
-
         batch_size = query.size(0)
+        if not torch.all(lora_indices, -1):
+            lora_mask = lora_indices[lora_indices != -1]
 
-        # TODO: improve this to avoid unnecessary work
-        # mask across batch and within lora adapters
-        query[batch_lora_adapter_mask] += query_adapted.view(
-            batch_size, self.num_heads, self.head_size
-        )[batch_lora_adapter_mask]
-        kv[batch_lora_adapter_mask, 1] += value_adapted.view(
-            batch_size, self.num_key_value_heads, self.head_size
-        )[batch_lora_adapter_mask]
+            q_pre_multiplied_batch = torch.ones(
+                (batch_size, 4096, 4096),
+                device=hidden_states.device,
+                dtype=hidden_states.dtype,
+            )
+
+            q_pre_multiplied_batch[lora_mask] = self.pre_multiplied_lora_matrix[
+                lora_mask, 0
+            ]
+
+            v_pre_multiplied_batch = torch.ones(
+                (batch_size, 4096, 4096),
+                device=hidden_states.device,
+                dtype=hidden_states.dtype,
+            )
+
+            v_pre_multiplied_batch[lora_mask] = self.pre_multiplied_lora_matrix[
+                lora_mask, 1
+            ]
+
+            query_adapted = (
+                torch.bmm(hidden_states.unsqueeze(1), q_pre_multiplied_batch)
+                .squeeze(1)
+                .view(batch_size, self.num_heads, self.head_size)
+            )
+            value_adapted = (
+                torch.bmm(hidden_states.unsqueeze(1), v_pre_multiplied_batch)
+                .squeeze(1)
+                .view(batch_size, self.num_key_value_heads, self.head_size)
+            )
+            query[batch_lora_adapter_mask] += query_adapted[batch_lora_adapter_mask]
+            kv[batch_lora_adapter_mask, 1] += value_adapted[batch_lora_adapter_mask]
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
@@ -502,6 +512,9 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             prefix=suffix if not prefix else f"{prefix}.{suffix}",
             weights=weights,
         )
+
+    def get_lora_index(self, adapter_id):
+        return self.model.layers[0].self_attn.key_to_index[adapter_id]
 
     def forward(
         self,

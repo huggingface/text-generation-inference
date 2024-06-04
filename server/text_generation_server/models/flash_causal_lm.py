@@ -1064,11 +1064,11 @@ class FlashCausalLM(Model):
             cuda_graph = None
 
         batch_lora_adapter_mask = torch.zeros(bs, dtype=torch.bool, device=self.device)
-        lora_indices = torch.zeros(bs, dtype=torch.int32, device=self.device)
+        lora_indices = torch.full((bs,), -1, dtype=torch.int32, device=self.device)
 
         for i, r in enumerate(batch.requests):
             if r.adapter_id:
-                lora_index = int(r.adapter_id)
+                lora_index = self.model.get_lora_index(r.adapter_id)
                 lora_indices[i] = lora_index
                 batch_lora_adapter_mask[i] = True
 
