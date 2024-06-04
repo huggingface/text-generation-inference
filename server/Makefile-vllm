@@ -11,10 +11,16 @@ install-vllm-cuda: build-vllm-cuda
 		cd vllm && pip install -e .; \
 	fi
 
-install-vllm-rocm:
+build-vllm-rocm:
 	if [ ! -d 'vllm' ]; then \
 		pip install -U ninja packaging --no-cache-dir && \
 		git clone https://github.com/fxmarty/rocm-vllm.git vllm && \
 		cd vllm && git fetch && git checkout ca6913b3c2ffacdcb7d15e914dc34adbc6c89479 &&  \
+		PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build; \
+	fi
+
+install-vllm-rocm: build-vllm-rocm
+	if [ ! -d 'vllm' ]; then \
+		cd vllm && \
 		PYTORCH_ROCM_ARCH="gfx90a;gfx942" pip install -e .; \
 	fi
