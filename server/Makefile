@@ -23,7 +23,7 @@ install-server: gen-server
 	pip install -e ".[bnb, accelerate, quantize, peft, outlines]"
 
 
-install: install-server install-cuda
+install: install-cuda
 	echo "Installed server"
 
 install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention

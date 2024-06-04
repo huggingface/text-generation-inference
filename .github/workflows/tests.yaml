@@ -68,7 +68,7 @@ jobs:
             ~/.cargo/git
       - name: Install
         run: |
-          make install
+          make install-cpu
       - name: Run server tests
         run: |
           pip install pytest

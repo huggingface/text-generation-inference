@@ -1,6 +1,9 @@
 install-server:
 	cd server && make install
 
+install-server-cpu:
+	cd server && make install-server
+
 install-router:
 	cd router && cargo install --path .
 
@@ -11,6 +14,9 @@ install-benchmark:
 	cd benchmark && cargo install --path .
 
 install: install-server install-router install-launcher
+
+
+install-cpu: install-server-cpu install-router install-launcher
 
 server-dev:
 	cd server && make run-dev
