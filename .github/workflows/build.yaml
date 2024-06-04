@@ -186,11 +186,8 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-rocm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    needs:
-      - start-runner
-      - build-and-push-image # Wait for the main docker image to be built
-      - integration-tests # Wait for the main integration-tests
-    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
+    runs-on:
+      group: [amd-gpu, multi-gpu, mi250]
     permissions:
       contents: write
       packages: write
