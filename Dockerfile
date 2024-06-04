@@ -1,4 +1,5 @@
 # Rust builder
+# Dummy.
 FROM lukemathwalker/cargo-chef:latest-rust-1.78 AS chef
 WORKDIR /usr/src
 
