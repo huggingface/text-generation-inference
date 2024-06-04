@@ -2,6 +2,7 @@ flash_att_v2_commit_cuda := v2.5.9.post1
 flash_att_v2_commit_rocm := 2554f490101742ccdc56620a938f847f61754be6
 
 install-flash-attention-v2-cuda:
+	pip install -U packaging
 	pip install flash-attn==$(flash_att_v2_commit_cuda)
 
 install-flash-attention-v2-rocm: build-flash-attention-v2-rocm
