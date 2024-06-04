@@ -27,6 +27,10 @@ router-dev:
 rust-tests: install-router install-launcher
 	cargo test
 
+install-integration-tests:
+	cd integration-tests && pip install -r requirements.txt
+	cd clients/python && pip install .
+
 integration-tests: install-integration-tests
 	pytest -s -vv -m "not private" integration-tests
 
