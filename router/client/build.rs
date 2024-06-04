@@ -13,7 +13,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .out_dir("src/pb")
         .include_file("mod.rs")
         .compile_with_config(config, &["../../proto/generate.proto"], &["../../proto"])
-        .unwrap_or_else(|e| panic!("protobuf compilation failed: {e}"));
+        .map_err(|e| match e.kind(){
+            std::io::ErrorKind::NotFound => {panic!("`protoc` not found, install libprotoc")},
+            std::io::ErrorKind::Other => {panic!("`protoc` version unsupported, upgrade protoc: https://github.com/protocolbuffers/protobuf/releases")},
+            e => {e}
+        }).unwrap_or_else(|e| panic!("protobuf compilation failed: {e}"));
 
     Ok(())
 }
