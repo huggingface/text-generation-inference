@@ -34,6 +34,7 @@ from text_generation.types import (
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
+DOCKER_DEVICES = os.getenv("DOCKER_DEVICES")
 
 
 class ResponseComparator(JSONSnapshotExtension):
@@ -453,16 +454,27 @@ def launcher(event_loop):
         if DOCKER_VOLUME:
             volumes = [f"{DOCKER_VOLUME}:/data"]
 
+        if DOCKER_DEVICES:
+            devices = DOCKER_DEVICES.split(",")
+            visible = os.getenv("ROCR_VISIBLE_DEVICES")
+            if visible:
+                env["ROCR_VISIBLE_DEVICES"] = visible
+            device_requests = []
+        else:
+            devices = []
+            device_requests = [
+                docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
+            ]
+
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
             name=container_name,
             environment=env,
             auto_remove=False,
+            devices=devices,
+            device_requests=device_requests,
             detach=True,
-            device_requests=[
-                docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
-            ],
             volumes=volumes,
             ports={"80/tcp": port},
             shm_size="1G",
