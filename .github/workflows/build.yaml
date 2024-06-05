@@ -131,11 +131,6 @@ jobs:
         uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-      - name: Prepare disks
-        run: |
-          sudo mkfs -t ext4 /dev/nvme1n1
-          sudo mkdir ${{ env.DOCKER_VOLUME }}
-          sudo mount /dev/nvme1n1 ${{ env.DOCKER_VOLUME }}
       - name: Install
         run: |
           make install-integration-tests
