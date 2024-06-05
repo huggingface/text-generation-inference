@@ -230,7 +230,7 @@ class VlmCausalLM(BaseFlashMistral):
             cu_seqlen_prefill = batch.cu_seqlen_prefill
             kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
-            slots = batch.slots_tensor[batch.slot_indices]
+            slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
             max_s = batch.max_seqlen
             lm_head_indices = batch.prefill_head_indices
@@ -269,7 +269,7 @@ class VlmCausalLM(BaseFlashMistral):
             cu_seqlen_prefill = batch.cu_seqlen_prefill
             kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
-            slots = batch.slots_tensor[batch.slot_indices]
+            slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
             max_s = batch.max_seqlen
             lm_head_indices = batch.prefill_head_indices
