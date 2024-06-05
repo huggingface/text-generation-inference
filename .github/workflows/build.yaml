@@ -116,7 +116,7 @@ jobs:
       cancel-in-progress: true
     needs:
       - build-and-push-image # Wait for the docker image to be built
-    runs-on: [self-hosted, nvidia-gpu , multi-gpu, a10, ci]
+    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     env:
       DOCKER_VOLUME: /cache
     steps:
@@ -152,7 +152,7 @@ jobs:
     needs:
       - build-and-push-image # Wait for the main docker image to be built
       - integration-tests # Wait for the main integration-tests
-    runs-on: [self-hosted, nvidia-gpu , multi-gpu, a10, ci]
+    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     permissions:
       contents: write
       packages: write
@@ -243,7 +243,7 @@ jobs:
     needs:
       - build-and-push-image # Wait for the main docker image to be built
       - integration-tests # Wait for the main integration-tests
-    runs-on: [self-hosted, nvidia-gpu , multi-gpu, a10, ci]
+    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     permissions:
       contents: write
       packages: write
