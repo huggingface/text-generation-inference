@@ -36,4 +36,4 @@ jobs:
           make install-integration-tests
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-a54ca37-intel
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-          pytest -s -vv integration-tests
+          python -m pytest -s -vv integration-tests
