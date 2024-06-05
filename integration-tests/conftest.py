@@ -436,6 +436,7 @@ def launcher(event_loop):
             container = client.containers.get(container_name)
             container.stop()
             container.wait()
+            client.containers.prune()
         except NotFound:
             pass
 
@@ -488,6 +489,7 @@ def launcher(event_loop):
         try:
             container.stop()
             container.wait()
+            client.containers.prune()
         except NotFound:
             pass
 
