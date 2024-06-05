@@ -130,6 +130,10 @@ message Request {
     bool prefill_logprobs = 6;
     /// Return most likely n tokens
     uint32 top_n_tokens = 7;
+    /// Paged attention blocks
+    repeated uint32 blocks = 9;
+    /// Paged attention slots
+    repeated uint32  slots = 10;
 }
 
 message Batch {
@@ -141,6 +145,8 @@ message Batch {
     uint32 size = 3;
     /// Maximum number of tokens this batch will grow to
     uint32 max_tokens = 4;
+    /// Maximum number of Paged Attention blocks
+    uint32 max_blocks = 5;
 }
 
 message CachedBatch {
