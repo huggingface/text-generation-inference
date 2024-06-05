@@ -183,7 +183,6 @@ class FlashCausalLMBatch(Batch):
 
         block_tables = []
         slots = []
-        cumulative_blocks = 0
 
         # Parse batch
         for i, (r, tokenized_input) in enumerate(
@@ -233,15 +232,13 @@ class FlashCausalLMBatch(Batch):
             if not r.blocks:
                 needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
                 request_blocks = [
-                    b
-                    for b in range(cumulative_blocks, cumulative_blocks + needed_blocks)
+                    b for b in range(num_blocks, num_blocks + needed_blocks)
                 ]
                 request_slots = [
                     s
                     for b in request_blocks
                     for s in range(b * BLOCK_SIZE, (b + 1) * BLOCK_SIZE)
                 ]
-                cumulative_blocks += needed_blocks
             else:
                 request_blocks = r.blocks
                 request_slots = r.slots
@@ -358,7 +355,7 @@ class FlashCausalLMBatch(Batch):
 
         slots = torch.tensor(slots, dtype=torch.int64, device=device)
         block_tables_tensor = torch.zeros(
-            (len(block_tables), max_blocks), dtype=torch.int64, device="cpu"
+            (len(block_tables), max_blocks), dtype=torch.int32, device="cpu"
         )
         for i, request_blocks in enumerate(block_tables):
             block_tables_tensor[i, : len(request_blocks)] = torch.tensor(request_blocks)

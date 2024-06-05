@@ -111,9 +111,9 @@ async fn block_allocator_task(
                     'slots: for block_id in blocks.repeat(repeats).iter() {
                         for s in (block_id * block_size)..((block_id + 1) * block_size) {
                             slots.push(s);
-                        }
-                        if slots.len() == tokens {
-                            break 'slots;
+                            if slots.len() == tokens {
+                                break 'slots;
+                            }
                         }
                     }
                     Some((blocks, slots))

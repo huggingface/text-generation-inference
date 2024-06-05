@@ -180,7 +180,7 @@ impl State {
         speculate: u32,
         max_batch_total_tokens: u32,
     ) -> Self {
-        let block_allocator = requires_padding
+        let block_allocator = (!requires_padding)
             .then(|| BlockAllocator::new(max_batch_total_tokens, block_size, window_size));
 
         Self {
