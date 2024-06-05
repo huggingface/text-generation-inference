@@ -32,6 +32,7 @@ class LoraConfig:
         task_type="CAUSAL_LM",
         use_dora=False,
         use_rslora=False,
+        config_path=None,
     ):
         self.alpha_pattern = alpha_pattern or {}
         self.auto_mapping = auto_mapping
@@ -57,12 +58,13 @@ class LoraConfig:
         self.task_type = task_type
         self.use_dora = use_dora
         self.use_rslora = use_rslora
+        self.config_path = config_path
 
     @classmethod
     def from_file(cls, filename):
         with open(filename, "r") as f:
             json_data = json.load(f)
-        return cls(**json_data)
+        return cls(**json_data, config_path=filename)
 
     # TODO: support fetching the model from the hub if it's not in the cache
     @classmethod

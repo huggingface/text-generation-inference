@@ -30,6 +30,9 @@ except (ImportError, NotImplementedError):
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 from text_generation_server.models.globals import set_model_id
+from text_generation_server.utils.adapter import (
+    AdapterParameters,
+)
 
 
 class SignalHandler:
@@ -235,6 +238,30 @@ def serve(
                 trust_remote_code,
                 max_input_tokens,
             )
+
+            # TODO: avoid hacky hardcoded adapter id
+            adapter_parameters = AdapterParameters(
+                adapter_ids=lora_adapter_ids,
+                weights=[
+                    # TODO: fill with actual weights
+                    torch.tensor([1.0], dtype=torch.float32)
+                ],
+                merge_strategy=0,
+                density=0.0,
+                majority_sign_method=0,
+            )
+            adapter_source = None
+            adapter_index = None
+            api_token = None
+
+            model.load_adapter(
+                adapter_parameters,
+                adapter_source,
+                adapter_index,
+                api_token,
+                False,
+            )
+
         except Exception:
             logger.exception("Error when initializing model")
             raise

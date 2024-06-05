@@ -107,8 +107,8 @@ message Request {
     bool prefill_logprobs = 6;
     /// Return most likely n tokens
     uint32 top_n_tokens = 7;
-    /// LORA adapter id
-    optional string adapter_id = 8;
+    /// LORA adapter index
+    optional uint32 adapter_index = 8;
 }
 
 message Batch {

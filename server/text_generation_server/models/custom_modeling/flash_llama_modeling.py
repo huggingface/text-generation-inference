@@ -38,6 +38,8 @@ from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     SpeculativeHead,
+    TensorParallelMultiAdapterLinear,
+    TensorParallelAdapterRowLinear,
 )
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
@@ -50,6 +52,16 @@ if SYSTEM == "rocm":
     except Exception as e:
         raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
+# Constants
+Q_PROJ = "q_proj"
+K_PROJ = "k_proj"
+V_PROJ = "v_proj"
+O_PROJ = "o_proj"
+
+GATE_PROJ = "gate_proj"
+UP_PROJ = "up_proj"
+DOWN_PROJ = "down_proj"
+
 
 def load_attention(config, prefix, weights):
     # Only defined in granite.
@@ -57,7 +69,7 @@ def load_attention(config, prefix, weights):
 
     # if specific model type, load the correct attention
     if config.model_type == "phi3":
-        return TensorParallelColumnLinear.load_qkv(
+        base_layer = TensorParallelColumnLinear.load_qkv(
             config,
             prefix=f"{prefix}.qkv_proj",
             weights=weights,
@@ -66,7 +78,7 @@ def load_attention(config, prefix, weights):
             num_key_value_heads=config.num_key_value_heads,
         )
     elif config.model_type == "baichuan":
-        return TensorParallelColumnLinear.load_qkv(
+        base_layer = TensorParallelColumnLinear.load_qkv(
             config,
             prefix=f"{prefix}.W_pack",
             weights=weights,
@@ -76,12 +88,25 @@ def load_attention(config, prefix, weights):
         )
 
     # otherwise, load the default attention based on the number of heads
-    return TensorParallelColumnLinear.load_multi(
+    base_layer = TensorParallelColumnLinear.load_multi(
         config,
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
         dim=0,
         weights=weights,
         bias=bias,
+    )
+
+    head_size = config.hidden_size // config.num_attention_heads
+    return TensorParallelMultiAdapterLinear.load(
+        base_layer,
+        layer_id,
+        [Q_PROJ, K_PROJ, V_PROJ],
+        sizes=[
+            head_size * config.num_attention_heads,
+            head_size * config.num_key_value_heads,
+            head_size * config.num_key_value_heads,
+        ],
+        process_group=weights.process_group,
     )
 
 
@@ -124,7 +149,7 @@ class FlashLlamaAttention(torch.nn.Module):
             config.num_key_value_heads // weights.process_group.size()
         )
 
-        self.query_key_value = load_attention(config, prefix, weights)
+        self.query_key_value = load_attention(config, prefix, weights, index)
         self.index = index
         self.adapter_weights = {}
         adapter_names = list(lora_weights.keys())
@@ -161,12 +186,20 @@ class FlashLlamaAttention(torch.nn.Module):
                     pre_multiplied_lora_matrix
                 )
 
-        self.o_proj = TensorParallelRowLinear.load(
+        o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
             bias=False,
         )
+
+        self.o_proj = TensorParallelAdapterRowLinear.load(
+            o_proj,
+            index,
+            O_PROJ,
+            process_group=weights.process_group,
+        )
+
         self.num_groups = self.num_heads // self.num_key_value_heads
         self.kv_head_mapping = torch.arange(
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
@@ -185,8 +218,9 @@ class FlashLlamaAttention(torch.nn.Module):
         max_s,
         batch_lora_adapter_mask,
         lora_indices,
+        adapter_data,
     ):
-        qkv = self.query_key_value(hidden_states)
+        qkv = self.query_key_value(hidden_states, adapter_data)
         query, kv = qkv.split(
             [
                 self.head_size * self.num_heads,
@@ -196,32 +230,6 @@ class FlashLlamaAttention(torch.nn.Module):
         )
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
-
-        batch_size = query.size(0)
-
-        # hidden states without LoRA
-        hs_wl = hidden_states[lora_indices == -1]
-
-        adapted_query_states = [hs_wl]
-        adapted_value_states = [hs_wl]
-
-        for ind in range(self.n_loras):
-            mask = lora_indices == ind
-            hs_sub = hidden_states[mask]
-            mat_q = torch.matmul(hs_sub, self.pre_multiplied_lora_matrices[ind, 0])
-            mat_v = torch.matmul(hs_sub, self.pre_multiplied_lora_matrices[ind, 1])
-            adapted_query_states.append(mat_q)
-            adapted_value_states.append(mat_v)
-
-        query_adapted = torch.cat(adapted_query_states, dim=0).view(
-            batch_size, self.num_heads, self.head_size
-        )
-        value_adapted = torch.cat(adapted_value_states, dim=0).view(
-            batch_size, self.num_key_value_heads, self.head_size
-        )
-
-        query[batch_lora_adapter_mask] += query_adapted[batch_lora_adapter_mask]
-        kv[batch_lora_adapter_mask, 1] += value_adapted[batch_lora_adapter_mask]
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
@@ -260,7 +268,7 @@ class FlashLlamaAttention(torch.nn.Module):
 
 
 class LlamaMLP(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix, config, weights, index):
         super().__init__()
         self.hidden_act = config.hidden_act
         self.act = (
@@ -278,26 +286,46 @@ class LlamaMLP(nn.Module):
         # Fuse gate and up proj
         bias = getattr(config, "mlp_bias", False)
         if config.model_type == "phi3":
-            self.gate_up_proj = TensorParallelColumnLinear.load_gate_up(
+            gate_up_proj = TensorParallelColumnLinear.load_gate_up(
                 config,
                 prefix=f"{prefix}.gate_up_proj",
                 weights=weights,
                 bias=bias,
             )
         else:
-            self.gate_up_proj = TensorParallelColumnLinear.load_multi(
+            gate_up_proj = TensorParallelColumnLinear.load_multi(
                 config,
                 prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
                 weights=weights,
                 dim=0,
                 bias=bias,
             )
-        self.down_proj = TensorParallelRowLinear.load(
+
+        self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
+            gate_up_proj,
+            index,
+            [GATE_PROJ, UP_PROJ],
+            sizes=[
+                config.intermediate_size,
+                config.intermediate_size,
+            ],
+            process_group=weights.process_group,
+        )
+
+        down_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.down_proj",
             weights=weights,
             bias=bias,
         )
+
+        self.down_proj = TensorParallelAdapterRowLinear.load(
+            down_proj,
+            index,
+            DOWN_PROJ,
+            process_group=weights.process_group,
+        )
+
         self.intermediate_size = (
             config.intermediate_size // weights.process_group.size()
         )
@@ -337,7 +365,9 @@ class FlashLlamaLayer(nn.Module):
             lora_weights=lora_weights,
             lora_configs=lora_configs,
         )
-        self.mlp = LlamaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
+        self.mlp = LlamaMLP(
+            prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
+        )
 
         self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
@@ -362,6 +392,7 @@ class FlashLlamaLayer(nn.Module):
         max_s,
         batch_lora_adapter_mask,
         lora_indices,
+        adapter_data,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -378,6 +409,7 @@ class FlashLlamaLayer(nn.Module):
             max_s,
             batch_lora_adapter_mask,
             lora_indices,
+            adapter_data,
         )
 
         # faster post attention rms norm
@@ -440,6 +472,7 @@ class FlashLlamaModel(torch.nn.Module):
         prefill_cache_indices: Optional[torch.Tensor],
         batch_lora_adapter_mask: Optional[List[str]],
         lora_indices: Optional[torch.Tensor],
+        adapter_data,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -464,6 +497,7 @@ class FlashLlamaModel(torch.nn.Module):
                 max_s,
                 batch_lora_adapter_mask,
                 lora_indices,
+                adapter_data,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -512,6 +546,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         batch_lora_adapter_mask: Optional[List[str]] = None,
         lora_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
@@ -527,6 +562,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             prefill_cache_indices=prefill_cache_indices,
             batch_lora_adapter_mask=batch_lora_adapter_mask,
             lora_indices=lora_indices,
+            adapter_data=adapter_data,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
