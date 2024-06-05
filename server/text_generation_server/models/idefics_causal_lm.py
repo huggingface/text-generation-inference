@@ -829,6 +829,7 @@ class IdeficsCausalLM(Model):
                     ),
                     generated_text,
                     top_tokens,
+                    new_input_length
                 )
 
                 generations.append(generation)

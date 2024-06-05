@@ -84,6 +84,7 @@ class Generation:
     generated_text: Optional[GeneratedText]
     # Optional for now, since it's not yet supported for every model.
     top_tokens: Optional[List[Tokens]]
+    current_length: int
 
     def to_pb(self) -> generate_pb2.Generation:
         return generate_pb2.Generation(
@@ -100,4 +101,5 @@ class Generation:
                 if self.top_tokens is not None
                 else None
             ),
+            current_length=self.current_length,
         )

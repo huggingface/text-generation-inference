@@ -801,6 +801,7 @@ class Seq2SeqLM(Model):
                     ),
                     generated_text,
                     top_tokens,
+                    new_decoder_input_length,
                 )
 
                 generations.append(generation)

@@ -17,6 +17,8 @@ service TextGenerationService {
     rpc Prefill (PrefillRequest) returns (PrefillResponse);
     /// Decode token for a list of prefilled batches
     rpc Decode (DecodeRequest) returns (DecodeResponse);
+    /// Update batch
+    rpc Update(UpdateRequest) returns (UpdateResponse);
     /// Health check
     rpc Health (HealthRequest) returns (HealthResponse);
 }
@@ -198,6 +200,8 @@ message Generation {
     optional GeneratedText generated_text = 4;
     /// Top tokens
     repeated Tokens top_tokens = 5;
+    /// Current length of the request: prompt tokens + number of generated tokens until this point
+    uint32 current_length = 6;
 }
 
 message FilterBatchRequest {
@@ -250,6 +254,26 @@ message DecodeResponse {
     /// Concatenate elapsed time in nanoseconds
     optional uint64 concat_ns = 6;
 }
+
+message ExtendedRequest {
+    /// Request ID
+    uint64 request_id = 1;
+    /// Paged attention blocks to add
+    repeated uint32 blocks = 2;
+    /// Paged attention slots to add
+    repeated uint32  slots = 3;
+}
+
+message UpdateRequest {
+    /// Batch ID
+    uint64  batch_id = 1;
+    /// Requests to update
+    repeated ExtendedRequest extend_requests = 2;
+    /// Requests to terminate
+    repeated uint64 terminated_request_ids = 3;
+}
+
+message UpdateResponse {}
 
 message WarmupRequest {
     /// Batch to warmup on

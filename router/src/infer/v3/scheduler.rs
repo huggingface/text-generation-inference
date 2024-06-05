@@ -88,6 +88,7 @@ impl Scheduler for SchedulerV3 {
             queue_time: Instant::now(),
             batch_time: None,
             block_allocation: None,
+            current_length: input_length,
         });
 
         // Notify the background task that we have a new entry in the queue that needs
@@ -287,6 +288,8 @@ async fn decode(
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
+            filter_update_allocations(client, entries).await;
+
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
 
@@ -355,8 +358,9 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
         // Get entry
         // We can `expect` here as the request id should always be in the entries
         let entry = entries
-            .get(&id)
+            .get_mut(&id)
             .expect("ID not found in entries. This is a bug.");
+        entry.current_length = generation.current_length;
 
         // Create and enter a span to link this function back to the entry
         let _span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
@@ -372,6 +376,35 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
             entries.remove(&id).expect("ID not found in entries. This is a bug.");
         }
     });
+}
+
+/// Check if block allocations need to be extended
+/// If we don't have enough blocks, request will be filtered with an OutOfPages finish reason
+#[instrument(skip_all)]
+async fn filter_update_allocations(client: &mut ShardedClient, entries: &mut IntMap<u64, Entry>) {
+    // let mut extend_entries = Vec::with_capacity(entries.len());
+    // let mut finish_entries = Vec::with_capacity(entries.len());
+
+    // for (request_id, entry) in entries.into_iter() {
+    //     tracing::info!("Allocation {}; Current Length: {}", entry.block_allocation.as_ref().unwrap().allocated_tokens, entry.current_length);
+    //
+    //     if let Some(block_allocation) = &mut entry.block_allocation {
+    //         tracing::info!("Allocation {:?}", block_allocation);
+    //
+    //         if entry.current_length > block_allocation.allocated_tokens {
+    //             // We need to add new blocks to this entry
+    //             let remaining_tokens = block_allocation.total_tokens - entry.current_length;
+    //             match block_allocation.extend(remaining_tokens).await {
+    //                 true => {
+    //
+    //                 },
+    //                 false => {
+    //
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 /// Send responses through the `entry` response channel

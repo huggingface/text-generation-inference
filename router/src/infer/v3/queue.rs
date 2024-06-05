@@ -33,6 +33,8 @@ pub(crate) struct Entry {
     pub batch_time: Option<Instant>,
     /// Block Allocation
     pub block_allocation: Option<BlockAllocation>,
+    /// Current length (in tokens) of the request (prompt tokens + generated_tokens)
+    pub current_length: u32
 }
 
 /// Request Queue
@@ -498,6 +500,7 @@ mod tests {
             queue_time: Instant::now(),
             batch_time: None,
             block_allocation: None,
+            current_length: 0,
         };
         (entry, receiver_tx)
     }
