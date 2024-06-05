@@ -136,6 +136,11 @@ class ModelType(enum.Enum):
         "name": "Phi 3",
         "url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
     }
+    PHI3SMALL = {
+        "type": "phi3small",
+        "name": "Phi 3 Small",
+        "url": "https://huggingface.co/microsoft/Phi-3-small-8k-instruct",
+    }
     GEMMA = {
         "type": "gemma",
         "name": "Gemma",
@@ -579,7 +584,12 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
+    elif (
+        model_type == LLAMA
+        or model_type == BAICHUAN
+        or model_type == PHI3
+        or model_type == PHI3SMALL
+    ):
         if FLASH_ATTENTION:
             return FlashLlama(
                 model_id,
