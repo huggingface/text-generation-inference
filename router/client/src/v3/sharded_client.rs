@@ -241,12 +241,16 @@ impl Health for ShardedClient {
                 ignore_eos_token: false,
             }),
             top_n_tokens: 0,
+            // Block 0 is reserved for health checks
+            blocks: vec![0],
+            slots: (0..16).collect(),
         };
         let batch = Batch {
             id: u64::MAX,
             requests: vec![liveness_request],
             size: 1,
             max_tokens: 2,
+            max_blocks: 1,
         };
         self.clone().prefill(batch).await?;
         Ok(())

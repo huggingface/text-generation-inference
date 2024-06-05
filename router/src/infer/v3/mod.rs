@@ -1,3 +1,4 @@
+mod block_allocator;
 mod queue;
 mod scheduler;
 

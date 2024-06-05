@@ -7,7 +7,6 @@ from opentelemetry import trace
 from transformers import AutoTokenizer, AutoConfig
 from typing import Optional
 
-from text_generation_server.models.cache_manager import BLOCK_SIZE
 from text_generation_server.models.flash_mistral import (
     BaseFlashMistral,
     set_sliding_window,
@@ -57,9 +56,7 @@ class FlashQwen2(BaseFlashMistral):
 
         # Set context windows
         if config.sliding_window is not None:
-            set_sliding_window(
-                config.sliding_window, math.ceil(config.sliding_window / BLOCK_SIZE)
-            )
+            set_sliding_window(config.sliding_window)
 
         torch.distributed.barrier(group=self.process_group)
 

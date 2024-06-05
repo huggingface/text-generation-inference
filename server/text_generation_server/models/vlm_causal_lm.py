@@ -11,13 +11,9 @@ from typing import Optional, Tuple, List, Type, Dict
 from transformers import PreTrainedTokenizerBase
 from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.pb import generate_pb2
+from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch
 from text_generation_server.models.flash_mistral import (
     BaseFlashMistral,
-    FlashMistralBatch,
-)
-from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch
-from text_generation_server.models.cache_manager import (
-    get_cache_manager,
 )
 
 tracer = trace.get_tracer(__name__)
@@ -140,7 +136,7 @@ def load_data_uri(image_uri: str) -> Image.Image:
     return image
 
 
-class VlmCausalLMBatch(FlashMistralBatch):
+class VlmCausalLMBatch(FlashCausalLMBatch):
     pixel_values: Optional[List[torch.Tensor]]
     pixel_attention_mask: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
@@ -268,7 +264,7 @@ class VlmCausalLM(BaseFlashMistral):
             input_ids = batch.input_ids
             position_ids = batch.position_ids
             cu_seqlen_prefill = batch.cu_seqlen_prefill
-            kv_cache = get_cache_manager().kv_cache
+            kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
@@ -307,7 +303,7 @@ class VlmCausalLM(BaseFlashMistral):
             input_ids = batch.input_ids
             position_ids = batch.position_ids
             cu_seqlen_prefill = batch.cu_seqlen_prefill
-            kv_cache = get_cache_manager().kv_cache
+            kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor

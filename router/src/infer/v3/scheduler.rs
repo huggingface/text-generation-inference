@@ -39,7 +39,13 @@ impl SchedulerV3 {
         speculate: u32,
         generation_health: Arc<AtomicBool>,
     ) -> Self {
-        let queue = Queue::new(requires_padding, 16, window_size, speculate);
+        let queue = Queue::new(
+            requires_padding,
+            16,
+            window_size,
+            speculate,
+            max_batch_total_tokens,
+        );
         let batching_task_notifier = Arc::new(Notify::new());
 
         // Spawn batching background task that contains all the inference logic
@@ -81,6 +87,7 @@ impl Scheduler for SchedulerV3 {
             temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
+            block_allocation: None,
         });
 
         // Notify the background task that we have a new entry in the queue that needs

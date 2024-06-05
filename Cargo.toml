@@ -26,7 +26,12 @@ incremental = true
 inherits = "release"
 debug = 1
 incremental = true
+panic = "abort"
+
+[profile.release-opt]
+inherits = "release"
+debug = 0
+incremental = false
 lto = "fat"
 opt-level = 3
 codegen-units = 1
-panic = "abort"
