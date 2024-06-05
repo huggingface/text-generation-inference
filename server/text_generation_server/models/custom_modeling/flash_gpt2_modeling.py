@@ -46,6 +46,10 @@ def load_qkv(config, prefix: str, weights, head_size, num_heads):
             prefix,
             weights,
         )
+    elif config.quantize == "marlin":
+        raise RuntimeError(
+            "GPT-2 models with marlin quantization are not yet supported"
+        )
     else:
         return _load_qkv(config, prefix, weights, head_size, num_heads)
 

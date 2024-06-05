@@ -260,7 +260,7 @@ def get_model(
 ) -> Model:
     global FLASH_ATTENTION
     if dtype is None:
-        if quantize in ["awq", "exl2", "gptq"]:
+        if quantize in ["awq", "exl2", "gptq", "marlin"]:
             # These quantizers only work with float16 params.
             dtype = torch.float16
         else:

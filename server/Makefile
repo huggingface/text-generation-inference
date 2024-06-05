@@ -3,6 +3,7 @@ include Makefile-flash-att-v2
 include Makefile-vllm
 include Makefile-awq
 include Makefile-eetq
+include Makefile-marlin
 include Makefile-selective-scan
 
 unit-tests:

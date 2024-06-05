@@ -222,6 +222,14 @@ def get_linear(weight, bias, quantize):
             raise NotImplementedError(
                 "You do not seem to have awq installed, either install it (cd server &&  make install-awq), or try using GPTQ `---quantize gptq` a conversion AWQ->GPTQ will happen on the fly"
             )
+    elif quantize == "marlin":
+        from text_generation_server.layers.marlin import MarlinLinear, MarlinWeight
+
+        if not isinstance(weight, MarlinWeight):
+            raise NotImplementedError(
+                f"The passed weight is not `marlin` compatible, loader needs to be updated."
+            )
+        linear = MarlinLinear(B=weight.B, s=weight.s, bias=bias)
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
