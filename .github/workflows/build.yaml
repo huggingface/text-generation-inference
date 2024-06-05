@@ -26,7 +26,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    runs-on:  intel-pvc-tgi
+    runs-on:  [amd-gpu, mi250]
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -34,7 +34,6 @@ jobs:
       - name: Run tests
         run: |
           make install-integration-tests
-          export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-a54ca37-intel
+          export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:2.0.4-rocm
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-          docker run $DOCKER_IMAGE --model-id  gpt2
           python -m pytest -s -vv integration-tests
