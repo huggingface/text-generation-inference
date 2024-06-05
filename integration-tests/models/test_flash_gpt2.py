@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_gpt2_handle(launcher):
-    with launcher("openai-community/gpt2", num_shard=2) as handle:
+    with launcher("openai-community/gpt2", num_shard=1) as handle:
         yield handle
 
 
