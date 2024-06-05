@@ -1,4 +1,4 @@
-from text_generation_server.utils.weights import GPTQWeight
+from text_generation_server.layers.gptq import GPTQWeight
 import torch
 from exllama_kernels import make_q4, q4_matmul, prepare_buffers, set_tuning_params
 
