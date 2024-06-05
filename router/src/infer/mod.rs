@@ -506,6 +506,8 @@ pub enum InferError {
     TemplateError(#[from] minijinja::Error),
     #[error("Tool error: {0}")]
     ToolError(String),
+    #[error("Request could not be re-allocated: out of pages")]
+    OutOfPages,
 }
 
 impl InferError {
@@ -517,6 +519,7 @@ impl InferError {
             InferError::IncompleteGeneration => "incomplete_generation",
             InferError::TemplateError(_) => "template_error",
             InferError::ToolError(_) => "tool_error",
+            InferError::OutOfPages => "out_of_pages",
         }
     }
 }

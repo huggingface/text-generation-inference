@@ -8,6 +8,12 @@ pub(crate) struct BlockAllocation {
     block_allocator: BlockAllocator,
 }
 
+impl BlockAllocation {
+    pub(crate) fn len(&self) -> usize {
+        self.slots.len()
+    }
+}
+
 impl Drop for BlockAllocation {
     fn drop(&mut self) {
         self.block_allocator.free(self.blocks.clone())
@@ -83,6 +89,8 @@ async fn block_allocator_task(
                 tokens,
                 response_sender,
             } => {
+                // let tokens = 16;
+
                 // Apply window size
                 let (required_blocks, repeats) = {
                     let (tokens, repeats) = match window_size {

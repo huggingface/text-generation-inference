@@ -214,7 +214,11 @@ class IdeficsCausalLMBatch(Batch):
         )
 
     @tracer.start_as_current_span("filter")
-    def filter(self, request_ids: List[int]) -> Optional["IdeficsCausalLMBatch"]:
+    def filter(
+        self, updated_requests: List[generate_pb2.UpdatedRequest]
+    ) -> Optional["IdeficsCausalLMBatch"]:
+        request_ids = [r.id for r in updated_requests]
+
         # It deletes requests from the batch. For instance when client lost connection
         if len(request_ids) == 0:
             raise ValueError("Batch must have at least one request")
@@ -829,7 +833,7 @@ class IdeficsCausalLM(Model):
                     ),
                     generated_text,
                     top_tokens,
-                    new_input_length
+                    new_input_length,
                 )
 
                 generations.append(generation)

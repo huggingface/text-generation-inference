@@ -195,7 +195,11 @@ class MambaBatch(Batch):
             max_tokens=max_tokens,
         )
 
-    def filter(self, request_ids: List[int]) -> Optional["MambaBatch"]:
+    def filter(
+        self, updated_requests: List[generate_pb2.UpdatedRequest]
+    ) -> Optional["MambaBatch"]:
+        request_ids = [r.id for r in updated_requests]
+
         if len(request_ids) == 0:
             raise ValueError("Batch must have at least one request")
         if len(request_ids) == len(self):
@@ -775,7 +779,7 @@ class Mamba(Model):
                     ),
                     generated_text,
                     top_tokens,
-                    new_input_length
+                    new_input_length,
                 )
 
                 generations.append(generation)

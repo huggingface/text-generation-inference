@@ -10,7 +10,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use text_generation_client::v3::{Batch, CachedBatch, Generation, ShardedClient};
+use text_generation_client::v3::{Batch, CachedBatch, Generation, ShardedClient, UpdatedRequest};
 use text_generation_client::ClientError;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit};
@@ -288,7 +288,7 @@ async fn decode(
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
-            filter_update_allocations(client, entries).await;
+            filter_update_allocations(entries).await;
 
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
@@ -323,7 +323,7 @@ async fn filter_batch(
     next_batch: Option<CachedBatch>,
     entries: &IntMap<u64, Entry>,
 ) -> Option<CachedBatch> {
-    let mut batch = next_batch?;
+    let batch = next_batch?;
 
     // No need to filter
     if batch.size as usize == entries.len() {
@@ -331,11 +331,7 @@ async fn filter_batch(
     }
 
     let id = batch.id;
-
-    // Retain only requests that are still in entries
-    batch.request_ids.retain(|id| entries.contains_key(id));
-
-    if batch.request_ids.is_empty() {
+    if entries.is_empty() {
         // All requests have been filtered out
         // Next batch is now empty
         // Clear it from the Python shards cache
@@ -344,8 +340,24 @@ async fn filter_batch(
         None
     } else {
         // Filter Python shard cache
+        let updated_requests = entries
+            .iter()
+            .map(|(request_id, entry)| {
+                let (blocks, slots) = entry
+                    .block_allocation
+                    .as_ref()
+                    .map(|alloc| (alloc.blocks.clone(), alloc.slots.clone()))
+                    .unwrap_or((Vec::new(), Vec::new()));
+                UpdatedRequest {
+                    id: *request_id,
+                    blocks,
+                    slots,
+                }
+            })
+            .collect();
+
         // We unwrap here as we need to panic since we cannot recover if this method fails
-        client.filter_batch(id, batch.request_ids).await.unwrap()
+        client.filter_batch(id, updated_requests).await.unwrap()
     }
 }
 
@@ -379,32 +391,36 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
 }
 
 /// Check if block allocations need to be extended
-/// If we don't have enough blocks, request will be filtered with an OutOfPages finish reason
+/// If we don't have enough blocks, request will be filtered with an OutOfPages error
 #[instrument(skip_all)]
-async fn filter_update_allocations(client: &mut ShardedClient, entries: &mut IntMap<u64, Entry>) {
-    // let mut extend_entries = Vec::with_capacity(entries.len());
-    // let mut finish_entries = Vec::with_capacity(entries.len());
+async fn filter_update_allocations(entries: &mut IntMap<u64, Entry>) {
+    entries.retain(|request_id, entry| {
+        if entry.block_allocation.is_none() {
+            return true;
+        }
 
-    // for (request_id, entry) in entries.into_iter() {
-    //     tracing::info!("Allocation {}; Current Length: {}", entry.block_allocation.as_ref().unwrap().allocated_tokens, entry.current_length);
-    //
-    //     if let Some(block_allocation) = &mut entry.block_allocation {
-    //         tracing::info!("Allocation {:?}", block_allocation);
-    //
-    //         if entry.current_length > block_allocation.allocated_tokens {
-    //             // We need to add new blocks to this entry
-    //             let remaining_tokens = block_allocation.total_tokens - entry.current_length;
-    //             match block_allocation.extend(remaining_tokens).await {
-    //                 true => {
-    //
-    //                 },
-    //                 false => {
-    //
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
+        // We can unwrap since we already validated above that block_allocation is not None
+        let mut block_allocation = entry.block_allocation.as_ref().unwrap();
+
+        // Nothing to update
+        if entry.current_length <= block_allocation.len() as u32 {
+            return true;
+        }
+
+        // Create and enter a span to link this function back to the entry
+        let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
+        let err = InferError::OutOfPages;
+        metrics::increment_counter!("tgi_request_failure", "err" => "out_of_pages");
+        tracing::error!("{err}");
+
+        // unwrap_or is valid here as we don't care if the receiver is gone.
+        entry
+            .response_tx
+            .send(Err(err))
+            .unwrap_or(());
+
+        false
+    });
 }
 
 /// Send responses through the `entry` response channel

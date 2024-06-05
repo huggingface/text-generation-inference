@@ -10,7 +10,7 @@ use tracing::instrument;
 use v3::client::{DecodeTimings, PrefillTimings};
 use v3::{
     Batch, CachedBatch, Client, Generation, GrammarType, HealthResponse,
-    NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+    NextTokenChooserParameters, Request, StoppingCriteriaParameters, UpdatedRequest,
 };
 
 #[derive(Debug, Clone)]
@@ -84,12 +84,12 @@ impl ShardedClient {
     pub async fn filter_batch(
         &mut self,
         batch_id: u64,
-        request_ids: Vec<u64>,
+        updated_requests: Vec<UpdatedRequest>,
     ) -> Result<Option<CachedBatch>> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.filter_batch(batch_id, request_ids.clone())))
+            .map(|client| Box::pin(client.filter_batch(batch_id, updated_requests.clone())))
             .collect();
         // all shards return the same message
         join_all(futures).await.pop().unwrap()

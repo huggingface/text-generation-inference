@@ -28,7 +28,7 @@ class Batch(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def filter(self, request_ids: List[int]) -> "Batch":
+    def filter(self, updated_requests: List[generate_pb2.UpdatedRequest]) -> "Batch":
         raise NotImplementedError
 
     @classmethod

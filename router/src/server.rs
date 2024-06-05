@@ -1859,6 +1859,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            InferError::OutOfPages => StatusCode::TOO_MANY_REQUESTS,
         };
 
         (

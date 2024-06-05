@@ -83,7 +83,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         batch = self.cache.pop(request.batch_id)
         if batch is None:
             raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
-        filtered_batch = batch.filter(request.request_ids)
+        filtered_batch = batch.filter(request.updated_requests)
         self.cache.set(filtered_batch)
 
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())

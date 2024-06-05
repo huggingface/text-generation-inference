@@ -34,7 +34,7 @@ pub(crate) struct Entry {
     /// Block Allocation
     pub block_allocation: Option<BlockAllocation>,
     /// Current length (in tokens) of the request (prompt tokens + generated_tokens)
-    pub current_length: u32
+    pub current_length: u32,
 }
 
 /// Request Queue

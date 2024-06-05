@@ -122,8 +122,10 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         return batch
 
     @tracer.start_as_current_span("filter")
-    def filter(self, request_ids: List[int]):
-        batch = super().filter(request_ids)
+    def filter(
+        self, updated_requests: List[generate_pb2.UpdatedRequest]
+    ) -> Optional["VlmCausalLMBatch"]:
+        batch = super().filter(updated_requests)
         batch.pixel_values = None
         batch.pixel_attention_mask = None
         batch.image_sizes = None
