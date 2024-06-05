@@ -165,18 +165,6 @@ jobs:
       - name: Install
         run: |
           make install-integration-tests
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        with:
-          authkey: ${{ secrets.TAILSCALE_SSH_AUTHKEY }}
-          debugEnabled: true
-          slackChannel: ${{ secrets.SLACK_CIFEEDBACK_CHANNEL }}
-          slackToken: ${{ secrets.SLACK_CIFEEDBACK_BOT_TOKEN }}
-          waitForSSH: true
-      - name: Wait for SSH
-        run : |
-          sleep 30s
-          while [ "$(last | grep '^runner.*still logged in$')" ]; do sleep 1m; done
       - name: Run tests
         run: |
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
