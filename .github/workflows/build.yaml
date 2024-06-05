@@ -118,7 +118,7 @@ jobs:
       - build-and-push-image # Wait for the docker image to be built
     runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     env:
-      DOCKER_VOLUME: /cache
+      DOCKER_VOLUME: /mnt/cache
     steps:
       - uses: actions/checkout@v2
       - name: Inject slug/short variables
