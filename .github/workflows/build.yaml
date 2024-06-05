@@ -39,5 +39,5 @@ jobs:
         run: |
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:2.0.4-rocm
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-          export DEVICES=/dev/kfd,/dev/dri
+          export DOCKER_DEVICES=/dev/kfd,/dev/dri
           python -m pytest -s -vv integration-tests/models/test_flash_gpt2.py
