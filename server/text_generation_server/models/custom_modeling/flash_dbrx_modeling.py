@@ -271,6 +271,11 @@ def _load_gqa(config, prefix: str, weights):
             groupsize=groupsize,
             use_exllama=use_exllama,
         )
+    elif config.quantize == "marlin":
+        # NOTE: at the time marlin support was added, the only model that
+        #       exists is LnL-AI/dbrx-base-converted-v2-4bit-gptq-marlin(-v2),
+        #       but it requires manual concatenation of weight files.
+        raise RuntimeError("dbrx models with marlin quantization are not yet supported")
     else:
         qkv_slice = weights._get_slice(f"{prefix}.Wqkv.weight")
         q = qkv_slice[q_start:q_stop]

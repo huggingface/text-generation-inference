@@ -21,6 +21,7 @@ class Quantization(str, Enum):
     eetq = "eetq"
     exl2 = "exl2"
     fp8 = "fp8"
+    marlin = "marlin"
 
 
 class Dtype(str, Enum):

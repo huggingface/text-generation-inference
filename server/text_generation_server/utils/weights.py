@@ -202,6 +202,12 @@ class Weights:
                 groupsize=groupsize,
                 use_exllama=False,
             )
+        elif quantize == "marlin":
+            from text_generation_server.layers.marlin import MarlinWeight
+
+            B = self._get_qweight(f"{prefix}.B", blocks)
+            s = self._get_qweight(f"{prefix}.s", blocks)
+            weight = MarlinWeight(B=B, s=s)
         else:
             slice_ = self._get_slice(f"{prefix}.weight")
             total_size = slice_.get_shape()[0]
@@ -316,9 +322,25 @@ class Weights:
                 groupsize=groupsize,
                 use_exllama=use_exllama,
             )
+        elif quantize == "marlin":
+            from text_generation_server.layers.marlin import MarlinWeight
+
+            try:
+                B = torch.cat(
+                    [self.get_sharded(f"{p}.B", dim=1) for p in prefixes], dim=1
+                )
+            except RuntimeError:
+                raise RuntimeError(
+                    f"Cannot load `{quantize}` weight, make sure the model is already quantized"
+                )
+            s = torch.cat([self.get_sharded(f"{p}.s", dim=1) for p in prefixes], dim=1)
+
+            weight = MarlinWeight(B=B, s=s)
+
         else:
             w = [self.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
             weight = torch.cat(w, dim=dim)
+
         return weight
 
     def get_tensor_shard(self, var, dim):
@@ -481,6 +503,19 @@ class Weights:
                 groupsize=groupsize,
                 use_exllama=use_exllama,
             )
+        elif quantize == "marlin":
+            from text_generation_server.layers.marlin import MarlinWeight
+
+            try:
+                B = self.get_sharded(f"{prefix}.B", dim=0)
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+                )
+
+            s = self.get_sharded(f"{prefix}.s", dim=0)
+            weight = MarlinWeight(B=B, s=s)
+
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight

@@ -1,0 +1,13 @@
+marlin_commit := 2f6d7c10e124b3c5fa29ff8d77d568bd7af3274c
+
+marlin:
+  # Clone marlin
+	pip install packaging
+	git clone https://github.com/IST-DASLab/marlin.git marlin
+
+build-marlin: marlin
+	cd marlin && git fetch && git checkout $(marlin_commit)
+	cd marlin && python setup.py build
+
+install-marlin: build-marlin
+	cd marlin && python setup.py install
