@@ -489,7 +489,6 @@ def launcher(event_loop):
         try:
             container.stop()
             container.wait()
-            client.containers.prune()
         except NotFound:
             pass
 
