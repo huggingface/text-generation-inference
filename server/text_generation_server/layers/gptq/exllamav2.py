@@ -145,6 +145,11 @@ def set_device(device):
 def create_exllama_buffers(max_total_tokens: int):
     global LAYERS, DEVICE
 
+    # No need to initialize scratch space if there are no layers
+    # that use ExLLamav2.
+    if len(LAYERS) == 0:
+        return
+
     # Find the size of the scratch space.
     scratch_bytes = max(
         layer.scratch_space_fixed(max_input_len=max_total_tokens, max_batch_size=1)
