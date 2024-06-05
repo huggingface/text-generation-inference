@@ -14,7 +14,7 @@ use text_generation_client::ChunksToString;
 use text_generation_client::Input;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{info_span, instrument, Span};
+use tracing::{info_span, instrument, Instrument, Span};
 
 /// Queue entry
 #[derive(Debug)]
@@ -136,9 +136,9 @@ async fn queue_task(
                 response_sender,
                 span,
             } => {
-                let _parent_span = span.enter();
                 let next_batch = state
                     .next_batch(min_size, max_size, prefill_token_budget, token_budget)
+                    .instrument(span)
                     .await;
                 response_sender.send(next_batch).unwrap();
                 metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
@@ -180,14 +180,8 @@ impl State {
         speculate: u32,
         max_batch_total_tokens: u32,
     ) -> Self {
-        let block_allocator = match requires_padding {
-            true => None,
-            false => Some(BlockAllocator::new(
-                max_batch_total_tokens,
-                block_size,
-                window_size,
-            )),
-        };
+        let block_allocator = requires_padding
+            .then(|| BlockAllocator::new(max_batch_total_tokens, block_size, window_size));
 
         Self {
             entries: VecDeque::with_capacity(128),
