@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 4321,
+        "logprob": -12.390625,
+        "text": "Test"
+      },
+      {
+        "id": 2009,
+        "logprob": -11.0625,
+        "text": "request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 5229,
+        "logprob": -1.2607422,
+        "special": false,
+        "text": " failed"
+      },
+      {
+        "id": 29901,
+        "logprob": 0.0,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 6527,
+        "logprob": -0.11450195,
+        "special": false,
+        "text": " Could"
+      },
+      {
+        "id": 451,
+        "logprob": 0.0,
+        "special": false,
+        "text": " not"
+      },
+      {
+        "id": 4511,
+        "logprob": -0.2286377,
+        "special": false,
+        "text": " connect"
+      },
+      {
+        "id": 304,
+        "logprob": 0.0,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 1923,
+        "logprob": -1.2568359,
+        "special": false,
+        "text": " server"
+      },
+      {
+        "id": 13,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 13,
+        "logprob": -0.15905762,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 29902,
+        "logprob": -0.21618652,
+        "special": false,
+        "text": "I"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request failed: Could not connect to server\n\nI"
+}

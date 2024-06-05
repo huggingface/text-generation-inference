@@ -29,6 +29,10 @@ def load_multi_mqa(
         return _load_multi_mqa_gptq(
             config, prefix, weights, bias, head_size, num_heads, hidden_size
         )
+    elif config.quantize == "marlin":
+        raise RuntimeError(
+            "santacoder models with marlin quantization are not yet supported"
+        )
     else:
         return _load_multi_mqa(
             config, prefix, weights, bias, head_size, num_heads, hidden_size

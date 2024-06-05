@@ -64,7 +64,7 @@ class TensorParallelHead(SuperLayer):
             should_gather = False
 
         # GPTQ,AWQ,EETQ don't quantize heads (nor embeddings)
-        if config.quantize in ["gptq", "awq", "eetq"]:
+        if config.quantize in ["gptq", "awq", "eetq", "marlin"]:
             quantize = None
         # See above, exl2 LM head can be quantized or not.
         elif config.quantize == "exl2" and not isinstance(weight, Exl2Weight):
