@@ -1,16 +1,27 @@
-use std::cmp::min;
+use std::cmp::{max, min};
+use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone)]
 pub(crate) struct BlockAllocation {
     pub blocks: Vec<u32>,
     pub slots: Vec<u32>,
+    prompt_tokens: u32,
+    decode_tokens: u32,
     block_allocator: BlockAllocator,
 }
 
 impl BlockAllocation {
     pub(crate) fn len(&self) -> usize {
         self.slots.len()
+    }
+
+    pub(crate) async fn extend(&mut self, current_length: u32) -> Result<(), AllocationError> {
+        let remaining_tokens = max(self.prompt_tokens + self.decode_tokens - current_length, 1);
+        self.block_allocator
+            .clone()
+            .extend(self, remaining_tokens)
+            .await
     }
 }
 
@@ -48,11 +59,16 @@ impl BlockAllocator {
         }
     }
 
-    pub(crate) async fn allocate(&self, tokens: u32) -> Option<BlockAllocation> {
+    pub(crate) async fn allocate(
+        &self,
+        prompt_tokens: u32,
+        decode_tokens: u32,
+    ) -> Result<BlockAllocation, AllocationError> {
         let (response_sender, response_receiver) = oneshot::channel();
         self.block_allocator
             .send(BlockAllocatorCommand::Allocate {
-                tokens,
+                prompt_tokens,
+                decode_tokens,
                 response_sender,
             })
             .unwrap();
@@ -63,8 +79,30 @@ impl BlockAllocator {
             .map(|(blocks, slots)| BlockAllocation {
                 blocks,
                 slots,
+                prompt_tokens,
+                decode_tokens,
                 block_allocator: self.clone(),
             })
+    }
+
+    pub(crate) async fn extend(
+        &self,
+        block_allocation: &mut BlockAllocation,
+        tokens: u32,
+    ) -> Result<(), AllocationError> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.block_allocator
+            .send(BlockAllocatorCommand::Allocate {
+                prompt_tokens: 0,
+                decode_tokens: tokens,
+                response_sender,
+            })
+            .unwrap();
+
+        let (blocks, slots) = response_receiver.await.unwrap()?;
+        block_allocation.blocks.extend(blocks);
+        block_allocation.slots.extend(slots);
+        Ok(())
     }
 
     pub(crate) fn free(&self, blocks: Vec<u32>) {
@@ -86,10 +124,12 @@ async fn block_allocator_task(
         match cmd {
             BlockAllocatorCommand::Free { blocks } => free_blocks.extend(blocks),
             BlockAllocatorCommand::Allocate {
-                tokens,
+                prompt_tokens,
+                decode_tokens,
                 response_sender,
             } => {
-                // let tokens = 16;
+                let decode_tokens = min(decode_tokens, block_size);
+                let tokens = prompt_tokens + decode_tokens;
 
                 // Apply window size
                 let (required_blocks, repeats) = {
@@ -106,9 +146,8 @@ async fn block_allocator_task(
                     (required_blocks, repeats)
                 };
 
-                let tokens = tokens as usize;
                 let allocation = if required_blocks > free_blocks.len() as u32 {
-                    None
+                    Err(AllocationError::NotEnoughPages)
                 } else {
                     let blocks =
                         free_blocks.split_off(free_blocks.len() - required_blocks as usize);
@@ -116,15 +155,12 @@ async fn block_allocator_task(
                         (required_blocks * block_size * repeats as u32) as usize,
                     );
 
-                    'slots: for block_id in blocks.repeat(repeats).iter() {
+                    for block_id in blocks.repeat(repeats).iter() {
                         for s in (block_id * block_size)..((block_id + 1) * block_size) {
                             slots.push(s);
-                            if slots.len() == tokens {
-                                break 'slots;
-                            }
                         }
                     }
-                    Some((blocks, slots))
+                    Ok((blocks, slots))
                 };
                 response_sender.send(allocation).unwrap();
             }
@@ -138,7 +174,15 @@ enum BlockAllocatorCommand {
         blocks: Vec<u32>,
     },
     Allocate {
-        tokens: u32,
-        response_sender: oneshot::Sender<Option<(Vec<u32>, Vec<u32>)>>,
+        prompt_tokens: u32,
+        decode_tokens: u32,
+        #[allow(clippy::type_complexity)]
+        response_sender: oneshot::Sender<Result<(Vec<u32>, Vec<u32>), AllocationError>>,
     },
+}
+
+#[derive(Error, Debug)]
+pub enum AllocationError {
+    #[error("Not enough pages")]
+    NotEnoughPages,
 }

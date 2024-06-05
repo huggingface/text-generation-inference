@@ -295,20 +295,20 @@ impl State {
                         break;
                     }
 
-                    let tokens = entry.request.input_length
-                        + entry.request.stopping_parameters.max_new_tokens
-                        + self.speculate
-                        - 1;
-
-                    match block_allocator.allocate(tokens).await {
-                        None => {
+                    let decode_tokens =
+                        entry.request.stopping_parameters.max_new_tokens + self.speculate - 1;
+                    match block_allocator
+                        .allocate(entry.request.input_length, decode_tokens)
+                        .await
+                    {
+                        Err(_) => {
                             // Entry is over budget
                             // Add it back to the front
                             tracing::debug!("Over budget: not enough free blocks");
                             self.entries.push_front((id, entry));
                             break 'entry_loop;
                         }
-                        Some(block_allocation) => {
+                        Ok(block_allocation) => {
                             tracing::debug!("Allocation: {block_allocation:?}");
                             max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
                             Some(block_allocation)

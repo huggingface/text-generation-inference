@@ -402,9 +402,6 @@ class FlashCausalLMBatch(Batch):
     ) -> Optional["FlashCausalLMBatch"]:
         if len(updated_requests) == 0:
             raise ValueError("Batch must have at least one request")
-        # We assume that if len(requests) == len(self) then the requests are the same
-        if len(updated_requests) == len(self):
-            return self
 
         device = self.input_ids.device
 

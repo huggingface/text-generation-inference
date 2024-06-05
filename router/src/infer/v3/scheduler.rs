@@ -247,7 +247,7 @@ async fn prefill(
             filter_send_generations(generations, entries);
 
             // Filter next batch and remove requests that were stopped
-            let next_batch = filter_batch(client, next_batch, entries).await;
+            let next_batch = filter_batch(client, next_batch, entries, false).await;
 
             metrics::histogram!("tgi_batch_forward_duration", timings.forward.as_secs_f64(), "method" => "prefill");
             metrics::histogram!("tgi_batch_decode_duration", timings.decode.as_secs_f64(), "method" => "prefill");
@@ -288,10 +288,10 @@ async fn decode(
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
 
-            filter_update_allocations(entries).await;
+            let updated = filter_update_allocations(entries).await;
 
             // Filter next batch and remove requests that were stopped
-            let next_batch = filter_batch(client, next_batch, entries).await;
+            let next_batch = filter_batch(client, next_batch, entries, updated).await;
 
             if let Some(concat_duration) = timings.concat {
                 metrics::histogram!("tgi_batch_concat_duration", concat_duration.as_secs_f64(), "method" => "decode");
@@ -322,11 +322,12 @@ async fn filter_batch(
     client: &mut ShardedClient,
     next_batch: Option<CachedBatch>,
     entries: &IntMap<u64, Entry>,
+    force_update: bool,
 ) -> Option<CachedBatch> {
     let batch = next_batch?;
 
     // No need to filter
-    if batch.size as usize == entries.len() {
+    if batch.size as usize == entries.len() && !force_update {
         return Some(batch);
     }
 
@@ -348,6 +349,7 @@ async fn filter_batch(
                     .as_ref()
                     .map(|alloc| (alloc.blocks.clone(), alloc.slots.clone()))
                     .unwrap_or((Vec::new(), Vec::new()));
+
                 UpdatedRequest {
                     id: *request_id,
                     blocks,
@@ -393,34 +395,58 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
 /// Check if block allocations need to be extended
 /// If we don't have enough blocks, request will be filtered with an OutOfPages error
 #[instrument(skip_all)]
-async fn filter_update_allocations(entries: &mut IntMap<u64, Entry>) {
-    entries.retain(|request_id, entry| {
-        if entry.block_allocation.is_none() {
-            return true;
+async fn filter_update_allocations(entries: &mut IntMap<u64, Entry>) -> bool {
+    let ids: Vec<u64> = entries
+        .iter()
+        .filter_map(|(id, entry)| {
+            entry
+                .block_allocation
+                .as_ref()
+                .map(|block_allocation| {
+                    if entry.current_length > block_allocation.len() as u32 {
+                        // We need to re-allocate
+                        Some(*id)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(None)
+        })
+        .collect();
+
+    for id in ids.iter() {
+        // Get entry
+        // We can `expect` here as the request id should always be in the entries
+        let extension = {
+            let entry = entries
+                .get_mut(id)
+                .expect("ID not found in entries. This is a bug.");
+            entry
+                .block_allocation
+                .as_mut()
+                .unwrap()
+                .extend(entry.current_length)
+                .await
+        };
+
+        if extension.is_err() {
+            let entry = entries
+                .remove(id)
+                .expect("ID not found in entries. This is a bug.");
+
+            // Create and enter a span to link this function back to the entry
+            let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
+            let err = InferError::OutOfPages;
+            metrics::increment_counter!("tgi_request_failure", "err" => "out_of_pages");
+            tracing::error!("{err}");
+
+            // unwrap_or is valid here as we don't care if the receiver is gone.
+            entry.response_tx.send(Err(err)).unwrap_or(());
         }
+    }
 
-        // We can unwrap since we already validated above that block_allocation is not None
-        let mut block_allocation = entry.block_allocation.as_ref().unwrap();
-
-        // Nothing to update
-        if entry.current_length <= block_allocation.len() as u32 {
-            return true;
-        }
-
-        // Create and enter a span to link this function back to the entry
-        let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
-        let err = InferError::OutOfPages;
-        metrics::increment_counter!("tgi_request_failure", "err" => "out_of_pages");
-        tracing::error!("{err}");
-
-        // unwrap_or is valid here as we don't care if the receiver is gone.
-        entry
-            .response_tx
-            .send(Err(err))
-            .unwrap_or(());
-
-        false
-    });
+    // If ids is not empty, we need to update
+    !ids.is_empty()
 }
 
 /// Send responses through the `entry` response channel
