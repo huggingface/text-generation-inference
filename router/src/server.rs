@@ -4,7 +4,6 @@ use crate::infer::v2::SchedulerV2;
 use crate::infer::v3::SchedulerV3;
 use crate::infer::{HealthCheck, Scheduler};
 use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
-use crate::health::Health;
 #[cfg(feature = "kserve")]
 use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,

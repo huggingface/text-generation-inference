@@ -7,19 +7,10 @@ mod validation;
 #[cfg(feature = "kserve")]
 mod kserve;
 
-use infer::{Infer, InferError, InferStreamResponse};
-use queue::{Entry, Queue};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
-
-/// Type alias for generation responses
-pub(crate) type GenerateStreamResponse = (
-    OwnedSemaphorePermit,
-    u32, // input_length
-    UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
-);
 
 #[derive(Clone, Deserialize, ToSchema)]
 pub(crate) struct VertexInstance {
