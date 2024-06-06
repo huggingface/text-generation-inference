@@ -239,28 +239,24 @@ def serve(
                 max_input_tokens,
             )
 
-            # TODO: avoid hacky hardcoded adapter id
-            adapter_parameters = AdapterParameters(
-                adapter_ids=lora_adapter_ids,
-                weights=[
-                    # TODO: fill with actual weights
-                    torch.tensor([1.0], dtype=torch.float32)
-                ],
-                merge_strategy=0,
-                density=0.0,
-                majority_sign_method=0,
-            )
-            adapter_source = None
-            adapter_index = 0
-            api_token = None
-
-            model.load_adapter(
-                adapter_parameters,
-                adapter_source,
-                adapter_index,
-                api_token,
-                False,
-            )
+            if len(lora_adapter_ids) > 0:
+                for index, adapter_id in enumerate(lora_adapter_ids):
+                    # TODO: avoid hacky hardcoded adapter id
+                    adapter_parameters = AdapterParameters(
+                        adapter_ids=[adapter_id],
+                        weights=[],
+                        merge_strategy=0,
+                        density=1.0,
+                        majority_sign_method=0,
+                    )
+                    adapter_index = index
+                    model.load_adapter(
+                        adapter_parameters,
+                        None,  # adapter_source
+                        adapter_index,
+                        None,  # api_token
+                        False,  # dynamic
+                    )
 
         except Exception:
             logger.exception("Error when initializing model")

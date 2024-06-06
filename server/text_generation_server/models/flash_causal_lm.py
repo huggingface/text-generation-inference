@@ -1205,8 +1205,13 @@ class FlashCausalLM(Model):
                     if prefill_logprobs
                     else speculative_logits
                 )
+            next_adapter_indices = batch.adapter_meta.adapter_indices.new_empty(
+                len(batch)
+            )
+
         else:
             next_token_logits = out
+            next_adapter_indices = batch.adapter_meta.adapter_indices
 
         speculate = get_speculate()
         (
@@ -1228,6 +1233,14 @@ class FlashCausalLM(Model):
         )
 
         if prefill:
+            # adjust segment lengths to account for all request lengths being 1 during decoding
+            adapter_segments, _ = find_segments(batch.adapter_meta.adapter_indices)
+            batch.adapter_meta.adapter_segments = torch.tensor(
+                adapter_segments,
+                dtype=torch.int32,
+                device=batch.adapter_meta.adapter_segments.device,
+            )
+
             if len(batch) > 1 and prefill_logprobs:
                 # We create the prefill_tokens_indices tensor that will be used to gather prefill logprobs
                 # When batch == 1, we will just use the batch.input_ids values directly
@@ -1297,6 +1310,7 @@ class FlashCausalLM(Model):
         batch.position_ids = next_position_ids + accepted_ids
         batch.input_lengths_tensor += accepted_ids
         batch.slot_indices += accepted_ids
+        batch.adapter_meta.adapter_indices = next_adapter_indices
 
         if prefill and prefill_logprobs:
             # Get prefill logprobs
