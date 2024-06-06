@@ -412,9 +412,8 @@ def get_model(
     sliding_window = config_dict.get("sliding_window", -1)
     if sliding_window != -1 and not SUPPORTS_WINDOWING:
         logger.warning(
-            f"Flash attention is available, but doesn't support windowing which is required by model {model_id} for best performance."
+            f"Flash attention is available, but doesn't support windowing which is required by model {model_id} for long contexts."
         )
-        # FLASH_ATTENTION = False
 
     if model_type == MAMBA:
         return Mamba(
