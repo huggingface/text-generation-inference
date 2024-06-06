@@ -202,7 +202,7 @@ impl Validation {
             decoder_input_details,
             top_n_tokens,
             grammar,
-            adapter_index,
+            adapter_id,
             ..
         } = request.parameters;
 
@@ -384,7 +384,7 @@ impl Validation {
             parameters,
             stopping_parameters,
             top_n_tokens,
-            adapter_index,
+            adapter_id,
         })
     }
 
@@ -680,7 +680,7 @@ pub(crate) struct ValidGenerateRequest {
     pub parameters: ValidParameters,
     pub stopping_parameters: ValidStoppingParameters,
     pub top_n_tokens: u32,
-    pub adapter_index: Option<u32>,
+    pub adapter_id: Option<String>,
 }
 
 #[derive(Error, Debug)]

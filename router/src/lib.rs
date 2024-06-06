@@ -302,7 +302,7 @@ pub(crate) struct GenerateParameters {
     /// Lora adapter id
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
-    pub adapter_index: Option<u32>,
+    pub adapter_id: Option<String>,
 }
 
 fn default_max_new_tokens() -> Option<u32> {
@@ -329,7 +329,7 @@ fn default_parameters() -> GenerateParameters {
         seed: None,
         top_n_tokens: None,
         grammar: None,
-        adapter_index: None,
+        adapter_id: None,
     }
 }
 

@@ -135,7 +135,7 @@ message Request {
     /// Paged attention slots
     repeated uint32  slots = 10;
     /// LORA adapter index
-    optional uint32 adapter_index = 11;
+    optional string adapter_id = 11;
 }
 
 message Batch {
