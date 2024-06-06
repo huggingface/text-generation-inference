@@ -449,6 +449,11 @@ struct Args {
     /// Control the maximum number of inputs that a client can send in a single request
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
+
+    /// Lora Adapters a list of adapter ids i.e. `repo/adapter1,repo/adapter2` to load during
+    /// startup that will be available to callers via the `adapter_id` field in a request.
+    #[clap(long, env)]
+    lora_adapters: Option<String>,
 }
 
 #[derive(Debug)]
@@ -482,6 +487,7 @@ fn shard_manager(
     max_total_tokens: usize,
     max_batch_size: Option<usize>,
     max_input_tokens: usize,
+    lora_adapters: Option<String>,
     otlp_endpoint: Option<String>,
     log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
@@ -610,6 +616,11 @@ fn shard_manager(
     ));
     if let Some(max_batch_size) = max_batch_size {
         envs.push(("MAX_BATCH_SIZE".into(), max_batch_size.to_string().into()));
+    }
+
+    // Lora Adapters
+    if let Some(lora_adapters) = lora_adapters {
+        envs.push(("LORA_ADAPTERS".into(), lora_adapters.into()));
     }
 
     // If huggingface_hub_cache is some, pass it to the shard
@@ -1048,6 +1059,7 @@ fn spawn_shards(
         let rope_scaling = args.rope_scaling;
         let rope_factor = args.rope_factor;
         let max_batch_size = args.max_batch_size;
+        let lora_adapters = args.lora_adapters.clone();
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -1073,6 +1085,7 @@ fn spawn_shards(
                 max_total_tokens,
                 max_batch_size,
                 max_input_tokens,
+                lora_adapters,
                 otlp_endpoint,
                 max_log_level,
                 status_sender,

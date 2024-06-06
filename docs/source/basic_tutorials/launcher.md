@@ -410,6 +410,14 @@ Options:
           [default: 4]
 
 ```
+## LORA_ADAPTERS
+```shell
+      --lora-adapters <LORA_ADAPTERS>
+          Lora Adapters a list of adapter ids i.e. `repo/adapter1,repo/adapter2` to load during startup that will be available to callers via the `adapter_id` field in a request
+          
+          [env: LORA_ADAPTERS=]
+
+```
 ## HELP
 ```shell
   -h, --help
