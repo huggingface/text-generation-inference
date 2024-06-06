@@ -15,9 +15,6 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 
-ARG GIT_SHA
-ARG DOCKER_LABEL
-
 RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
     unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
@@ -26,6 +23,9 @@ RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
 
 COPY --from=planner /usr/src/recipe.json recipe.json
 RUN cargo chef cook --profile release-opt --recipe-path recipe.json
+
+ARG GIT_SHA
+ARG DOCKER_LABEL
 
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
@@ -234,6 +234,14 @@ RUN cd server && \
     pip install -r requirements_cuda.txt && \
     pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir
 
+# Deps before the binaries
+# The binaries change on every build given we burn the SHA into them
+# The deps change less often.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        g++ \
+        && rm -rf /var/lib/apt/lists/*
+
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router
@@ -241,10 +249,6 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 # Install launcher
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential \
-        g++ \
-        && rm -rf /var/lib/apt/lists/*
 
 # AWS Sagemaker compatible image
 FROM base as sagemaker
