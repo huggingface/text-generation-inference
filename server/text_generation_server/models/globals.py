@@ -25,3 +25,14 @@ MODEL_ID = None
 def set_model_id(model_id: str):
     global MODEL_ID
     MODEL_ID = model_id
+
+
+# NOTE: eventually we should move this into the router and pass back the
+# index in all cases.
+global ADAPTER_TO_INDEX
+ADAPTER_TO_INDEX = None
+
+
+def set_adapter_to_index(adapter_to_index: dict):
+    global ADAPTER_TO_INDEX
+    ADAPTER_TO_INDEX = adapter_to_index

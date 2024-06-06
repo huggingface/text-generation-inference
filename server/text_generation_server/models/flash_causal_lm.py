@@ -233,8 +233,9 @@ class FlashCausalLMBatch(Batch):
             stopping_criterias.append(stopping_criteria)
             top_n_tokens.append(r.top_n_tokens)
 
-            adapter_indices_list.append(torch.full((input_length,), r.adapter_index))
-            adapter_set.add(r.adapter_index)
+            adapter_index = tgi_globals.ADAPTER_TO_INDEX.get(r.adapter_id, 0)
+            adapter_indices_list.append(torch.full((input_length,), adapter_index))
+            adapter_set.add(adapter_index)
 
             # Paged attention
             # Remove one as the first token des not have a past
@@ -498,7 +499,10 @@ class FlashCausalLMBatch(Batch):
 
             top_n_tokens.append(self.top_n_tokens[idx])
 
-            adapter_set.add(self.requests[idx].adapter_index)
+            adapter_index = tgi_globals.ADAPTER_TO_INDEX.get(
+                self.requests[idx].adapter_id, 0
+            )
+            adapter_set.add(adapter_index)
 
             remaining_tokens = (
                 stopping_criteria.max_new_tokens - stopping_criteria.current_tokens

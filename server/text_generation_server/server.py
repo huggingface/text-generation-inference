@@ -29,7 +29,7 @@ except (ImportError, NotImplementedError):
 
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
-from text_generation_server.models.globals import set_model_id
+from text_generation_server.models.globals import set_model_id, set_adapter_to_index
 from text_generation_server.utils.adapter import (
     AdapterParameters,
 )
@@ -216,6 +216,7 @@ def serve(
         trust_remote_code: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
+        adapter_to_index = {}
         if sharded:
             server_urls = [
                 unix_socket_template.format(uds_path, rank)
@@ -251,6 +252,7 @@ def serve(
                         majority_sign_method=0,
                     )
                     adapter_index = index
+                    adapter_to_index[adapter_id] = adapter_index
                     model.load_adapter(
                         adapter_parameters,
                         None,  # adapter_source
@@ -263,6 +265,7 @@ def serve(
             logger.exception("Error when initializing model")
             raise
 
+        set_adapter_to_index(adapter_to_index)
         server = aio.server(
             interceptors=[
                 ExceptionInterceptor(),
