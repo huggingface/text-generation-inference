@@ -907,8 +907,11 @@ class FlashCausalLM(Model):
                         int(val)
                         for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")
                     ]
-                else:
+                elif CUDA_GRAPHS is not None:
                     tuning_sequences = CUDA_GRAPHS
+                else:
+                    # For seqlen = 1, we dispatch to LLMM1 kernel.
+                    tuning_sequences = [2, 3, 4, 5, 6, 7]
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
