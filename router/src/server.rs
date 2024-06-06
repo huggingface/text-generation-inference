@@ -3,7 +3,7 @@
 use crate::config::Config;
 /// HTTP Server logic
 use crate::health::Health;
-use crate::infer::{InferError, InferResponse, InferStreamResponse};
+use crate::infer::{InferError, InferResponse, InferStreamResponse, ToolGrammar};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
@@ -17,7 +17,8 @@ use crate::{
     ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
     CompletionRequest, DeltaToolCall, Function, Tool, VertexRequest, VertexResponse,
 };
-use crate::{FunctionDefinition, FunctionRef, FunctionsMap, Properties, ToolCall, ToolType, Tools};
+use crate::{FunctionDefinition, ToolCall, ToolType};
+use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -25,20 +26,21 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{http, Json, Router};
 use axum_tracing_opentelemetry::middleware::OtelAxumLayer;
-use futures::stream::FuturesUnordered;
 use futures::stream::StreamExt;
+use futures::stream::{FuturesOrdered, FuturesUnordered};
 use futures::Stream;
 use futures::TryStreamExt;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use text_generation_client::{ShardInfo, ShardedClient};
 use tokenizers::Tokenizer;
+use tokio::select;
 use tokio::signal;
+use tokio::sync::oneshot;
 use tokio::time::Instant;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
@@ -164,6 +166,15 @@ async fn generate(
     Json(req): Json<GenerateRequest>,
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
+    generate_internal(infer, ComputeType(compute_type), Json(req), span).await
+}
+
+async fn generate_internal(
+    infer: Extension<Infer>,
+    ComputeType(compute_type): ComputeType,
+    Json(req): Json<GenerateRequest>,
+    span: tracing::Span,
+) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
 
@@ -362,12 +373,13 @@ async fn generate_stream(
     HeaderMap,
     Sse<impl Stream<Item = Result<Event, Infallible>>>,
 ) {
+    let span = tracing::Span::current();
     let on_message_callback = |stream_token: StreamResponse| {
         let event = Event::default();
         event.json_data(stream_token).unwrap()
     };
     let (headers, response_stream) =
-        generate_stream_internal(infer, compute_type, Json(req), on_message_callback).await;
+        generate_stream_internal(infer, compute_type, Json(req), on_message_callback, span).await;
     let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
     (headers, sse)
 }
@@ -377,8 +389,8 @@ async fn generate_stream_internal(
     ComputeType(compute_type): ComputeType,
     Json(req): Json<GenerateRequest>,
     on_message_callback: impl Fn(StreamResponse) -> Event,
+    span: tracing::Span,
 ) -> (HeaderMap, impl Stream<Item = Result<Event, Infallible>>) {
-    let span = tracing::Span::current();
     let start_time = Instant::now();
     metrics::increment_counter!("tgi_request_count");
 
@@ -551,7 +563,11 @@ async fn generate_stream_internal(
     path = "/v1/completions",
     request_body = CompletionRequest,
     responses(
-    (status = 200, description = "Generated Text", body = ChatCompletionChunk),
+    (status = 200, description = "Generated Chat Completion",
+    content(
+    ("application/json" = Completion),
+    ("text/event-stream" = CompletionCompleteChunk),
+    )),
     (status = 424, description = "Generation Error", body = ErrorResponse,
     example = json ! ({"error": "Request failed during generation"})),
     (status = 429, description = "Model is overloaded", body = ErrorResponse,
@@ -580,6 +596,7 @@ async fn completions(
     Extension(info): Extension<Info>,
     Json(req): Json<CompletionRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    let span = tracing::Span::current();
     metrics::increment_counter!("tgi_request_count");
 
     let stream = req.stream;
@@ -599,100 +616,299 @@ async fn completions(
         ));
     }
 
-    // build the request passing some parameters
-    let generate_request = GenerateRequest {
-        inputs: req.prompt.to_string(),
-        parameters: GenerateParameters {
-            best_of: None,
-            temperature: req.temperature,
-            repetition_penalty: req.repetition_penalty,
-            frequency_penalty: req.frequency_penalty,
-            top_k: None,
-            top_p: req.top_p,
-            typical_p: None,
-            do_sample: true,
-            max_new_tokens,
-            return_full_text: None,
-            stop: Vec::new(),
-            truncate: None,
-            watermark: false,
-            details: true,
-            decoder_input_details: !stream,
-            seed,
-            top_n_tokens: None,
-            grammar: None,
-        },
-    };
+    if req.prompt.len() > info.max_client_batch_size {
+        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: format!(
+                    "Number of prompts exceeds the maximum allowed batch size of {}",
+                    info.max_client_batch_size
+                ),
+                error_type: "batch size exceeded".to_string(),
+            }),
+        ));
+    }
+
+    let generate_requests: Vec<GenerateRequest> = req
+        .prompt
+        .iter()
+        .map(|prompt| GenerateRequest {
+            inputs: prompt.to_string(),
+            parameters: GenerateParameters {
+                best_of: None,
+                temperature: req.temperature,
+                repetition_penalty: req.repetition_penalty,
+                frequency_penalty: req.frequency_penalty,
+                top_k: None,
+                top_p: req.top_p,
+                typical_p: None,
+                do_sample: true,
+                max_new_tokens,
+                return_full_text: None,
+                stop: Vec::new(),
+                truncate: None,
+                watermark: false,
+                details: true,
+                decoder_input_details: !stream,
+                seed,
+                top_n_tokens: None,
+                grammar: None,
+            },
+        })
+        .collect();
+
+    let mut x_compute_type = None;
+    let mut x_compute_characters = 0u32;
+    let mut x_accel_buffering = None;
 
     if stream {
-        let on_message_callback = move |stream_token: StreamResponse| {
-            let event = Event::default();
+        let mut response_streams = FuturesOrdered::new();
+        for (index, generate_request) in generate_requests.into_iter().enumerate() {
+            let model_id = info.model_id.clone();
+            let system_fingerprint =
+                format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
+            let infer_clone = infer.clone();
+            let compute_type_clone = compute_type.clone();
+            let span_clone = span.clone();
 
-            let current_time = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-                .as_secs();
+            // Create a future for each generate_stream_internal call.
+            let generate_future = async move {
+                let on_message_callback = move |stream_token: StreamResponse| {
+                    let event = Event::default();
 
-            event
-                .json_data(CompletionCompleteChunk {
-                    id: "".to_string(),
-                    object: "text_completion".to_string(),
-                    created: current_time,
+                    let current_time = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                        .as_secs();
 
-                    choices: vec![CompletionComplete {
-                        finish_reason: "".to_string(),
-                        index: 0,
-                        logprobs: None,
-                        text: stream_token.token.text,
-                    }],
+                    event
+                        .json_data(CompletionCompleteChunk {
+                            id: "".to_string(),
+                            object: "text_completion".to_string(),
+                            created: current_time,
 
-                    model: info.model_id.clone(),
-                    system_fingerprint: format!(
-                        "{}-{}",
-                        info.version,
-                        info.docker_label.unwrap_or("native")
-                    ),
-                })
-                .map_or_else(
-                    |e| {
-                        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
-                        Event::default()
-                    },
-                    |data| data,
+                            choices: vec![CompletionComplete {
+                                finish_reason: "".to_string(),
+                                index: index as u32,
+                                logprobs: None,
+                                text: stream_token.token.text,
+                            }],
+
+                            model: model_id.clone(),
+                            system_fingerprint: system_fingerprint.clone(),
+                        })
+                        .map_or_else(|_e| Event::default(), |data| data)
+                };
+
+                let (header_tx, header_rx) = oneshot::channel();
+                let (sse_tx, sse_rx) = tokio::sync::mpsc::unbounded_channel();
+
+                tokio::spawn(async move {
+                    let (header_map, sse) = generate_stream_internal(
+                        infer_clone.clone(),
+                        compute_type_clone.clone(),
+                        Json(generate_request),
+                        on_message_callback,
+                        span_clone.clone(),
+                    )
+                    .await;
+
+                    // send and dont wait for response
+                    let _ = header_tx.send(header_map);
+
+                    // pin an emit messages to the sse_tx
+                    let mut sse = Box::pin(sse);
+                    while let Some(event) = sse.next().await {
+                        if sse_tx.send(event).is_err() {
+                            tracing::error!("Failed to send event. Receiver dropped.");
+                            break;
+                        }
+                    }
+                });
+
+                (header_rx, sse_rx)
+            };
+            response_streams.push_back(generate_future);
+        }
+
+        let mut all_rxs = vec![];
+
+        while let Some((header_rx, sse_rx)) = response_streams.next().await {
+            all_rxs.push(sse_rx);
+
+            // get the headers from the first response of each stream
+            let headers = header_rx.await.map_err(|e| {
+                tracing::error!("Failed to get headers: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "Failed to get headers".to_string(),
+                        error_type: "headers".to_string(),
+                    }),
                 )
+            })?;
+            if x_compute_type.is_none() {
+                x_compute_type = headers
+                    .get("x-compute-type")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v.to_string());
+
+                x_accel_buffering = headers
+                    .get("x-accel-buffering")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v.to_string());
+            }
+            x_compute_characters += headers
+                .get("x-compute-characters")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0);
+        }
+
+        let mut headers = HeaderMap::new();
+        if let Some(x_compute_type) = x_compute_type {
+            headers.insert("x-compute-type", x_compute_type.parse().unwrap());
+        }
+        headers.insert("x-compute-characters", x_compute_characters.into());
+        if let Some(x_accel_buffering) = x_accel_buffering {
+            headers.insert("x-accel-buffering", x_accel_buffering.parse().unwrap());
+        }
+
+        // now sink the sse streams into a single stream and remove the ones that are done
+        let stream: AsyncStream<Result<Event, Infallible>, _> = async_stream::stream! {
+            loop {
+                let mut i = 0;
+                while i < all_rxs.len() {
+                    let rx = &mut all_rxs[i];
+                    select! {
+                        Some(event) = rx.recv() => {
+                            yield event;
+                        }
+                        else => {
+                            all_rxs.remove(i);
+                            continue; // skip the increment to handle the next element at the same index
+                        }
+                    }
+                    i += 1; // only increment when no element was removed
+                }
+
+                if all_rxs.is_empty() {
+                    break;
+                }
+            }
         };
 
-        let (headers, response_stream) = generate_stream_internal(
-            infer,
-            compute_type,
-            Json(generate_request),
-            on_message_callback,
-        )
-        .await;
-
-        let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
+        let sse = Sse::new(stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
-        let (headers, Json(generation)) = generate(
-            Extension(infer),
-            Extension(compute_type),
-            Json(generate_request),
-        )
-        .await?;
-
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
-        let details = generation.details.ok_or((
-            // this should never happen but handle if details are missing unexpectedly
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "No details in generation".to_string(),
-                error_type: "no details".to_string(),
-            }),
-        ))?;
+        let responses = FuturesUnordered::new();
+        for (index, generate_request) in generate_requests.into_iter().enumerate() {
+            let infer_clone = infer.clone();
+            let compute_type_clone = compute_type.clone();
+            let span_clone = span.clone();
+            let response_future = async move {
+                let result = generate_internal(
+                    Extension(infer_clone),
+                    compute_type_clone,
+                    Json(generate_request),
+                    span_clone,
+                )
+                .await;
+                result.map(|(headers, generation)| (index, headers, generation))
+            };
+            responses.push(response_future);
+        }
+        let generate_responses = responses.try_collect::<Vec<_>>().await?;
+
+        let mut prompt_tokens = 0u32;
+        let mut completion_tokens = 0u32;
+        let mut total_tokens = 0u32;
+
+        let mut x_compute_time = 0u32;
+        let mut x_total_time = 0u32;
+        let mut x_validation_time = 0u32;
+        let mut x_queue_time = 0u32;
+        let mut x_inference_time = 0u32;
+        let mut x_time_per_token = 0u32;
+        let mut x_prompt_tokens = 0u32;
+        let mut x_generated_tokens = 0u32;
+
+        let choices = generate_responses
+            .into_iter()
+            .map(|(index, headers, Json(generation))| {
+                let details = generation.details.ok_or((
+                    // this should never happen but handle if details are missing unexpectedly
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "No details in generation".to_string(),
+                        error_type: "no details".to_string(),
+                    }),
+                ))?;
+
+                if x_compute_type.is_none() {
+                    x_compute_type = headers
+                        .get("x-compute-type")
+                        .and_then(|v| v.to_str().ok())
+                        .map(|v| v.to_string());
+                }
+
+                // accumulate headers and usage from each response
+                x_compute_time += headers
+                    .get("x-compute-time")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+                x_compute_characters += headers
+                    .get("x-compute-characters")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+                x_total_time += headers
+                    .get("x-total-time")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+                x_validation_time += headers
+                    .get("x-validation-time")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+                x_queue_time += headers
+                    .get("x-queue-time")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+                x_inference_time += headers
+                    .get("x-inference-time")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+                x_time_per_token += headers
+                    .get("x-time-per-token")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+                x_prompt_tokens += headers
+                    .get("x-prompt-tokens")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+                x_generated_tokens += headers
+                    .get("x-generated-tokens")
+                    .and_then(|v| v.to_str().ok()?.parse().ok())
+                    .unwrap_or(0);
+
+                prompt_tokens += details.prefill.len() as u32;
+                completion_tokens += details.generated_tokens;
+                total_tokens += details.prefill.len() as u32 + details.generated_tokens;
+
+                Ok(CompletionComplete {
+                    finish_reason: details.finish_reason.to_string(),
+                    index: index as u32,
+                    logprobs: None,
+                    text: generation.generated_text,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|(status, Json(err))| (status, Json(err)))?;
 
         let response = Completion {
             id: "".to_string(),
@@ -704,19 +920,30 @@ async fn completions(
                 info.version,
                 info.docker_label.unwrap_or("native")
             ),
-            choices: vec![CompletionComplete {
-                finish_reason: details.finish_reason.to_string(),
-                index: 0,
-                logprobs: None,
-                text: generation.generated_text,
-            }],
+            choices,
             usage: Usage {
-                prompt_tokens: details.prefill.len() as u32,
-                completion_tokens: details.generated_tokens,
-                total_tokens: details.prefill.len() as u32 + details.generated_tokens,
+                prompt_tokens,
+                completion_tokens,
+                total_tokens,
             },
         };
 
+        // headers similar to `generate` but aggregated
+        let mut headers = HeaderMap::new();
+        if let Some(x_compute_type) = x_compute_type {
+            headers.insert("x-compute-type", x_compute_type.parse().unwrap());
+        }
+        headers.insert("x-compute-characters", x_compute_characters.into());
+        headers.insert("x-total-time", x_total_time.into());
+        headers.insert("x-validation-time", x_validation_time.into());
+        headers.insert("x-queue-time", x_queue_time.into());
+        headers.insert("x-inference-time", x_inference_time.into());
+        headers.insert("x-time-per-token", x_time_per_token.into());
+        headers.insert("x-prompt-tokens", x_prompt_tokens.into());
+        headers.insert("x-generated-tokens", x_generated_tokens.into());
+        if let Some(x_accel_buffering) = x_accel_buffering {
+            headers.insert("x-accel-buffering", x_accel_buffering.parse().unwrap());
+        }
         Ok((headers, Json(response)).into_response())
     }
 }
@@ -728,7 +955,11 @@ async fn completions(
     path = "/v1/chat/completions",
     request_body = ChatRequest,
     responses(
-    (status = 200, description = "Generated Text", body = ChatCompletionChunk),
+    (status = 200, description = "Generated Chat Completion",
+    content(
+    ("application/json" = ChatCompletion),
+    ("text/event-stream" = ChatCompletionChunk),
+    )),
     (status = 424, description = "Generation Error", body = ErrorResponse,
     example = json ! ({"error": "Request failed during generation"})),
     (status = 429, description = "Model is overloaded", body = ErrorResponse,
@@ -757,21 +988,32 @@ async fn chat_completions(
     Extension(info): Extension<Info>,
     Json(req): Json<ChatRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    let span = tracing::Span::current();
     metrics::increment_counter!("tgi_request_count");
 
-    let stream = req.stream;
-    let max_new_tokens = req.max_tokens.or(Some(100));
-    let repetition_penalty = req
-        .presence_penalty
-        // rescale repetition_penalty from (-2.0, 2.0) to (0.0, 4.0)
-        .map(|x| x + 2.0);
-    let logprobs = req.logprobs.unwrap_or(false);
-    let seed = req.seed;
-    let stop = req.stop.unwrap_or_default();
+    let ChatRequest {
+        logprobs,
+        max_tokens,
+        messages,
+        presence_penalty,
+        seed,
+        stop,
+        stream,
+        tools,
+        tool_choice,
+        tool_prompt,
+        ..
+    } = req;
 
-    // apply chat template to flatten the request into a single input
-    let mut inputs = match infer.apply_chat_template(req.messages) {
-        Ok(inputs) => inputs,
+    let repetition_penalty = presence_penalty.map(|x| x + 2.0);
+    let max_new_tokens = max_tokens.or(Some(100));
+    let logprobs = logprobs.unwrap_or(false);
+    let tool_prompt = tool_prompt.unwrap_or_default();
+    let stop = stop.unwrap_or_default();
+
+    // extract tool grammar if present
+    let tool_grammar = match ToolGrammar::apply(tools, tool_choice) {
+        Ok(grammar) => grammar,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
             tracing::error!("{err}");
@@ -785,60 +1027,28 @@ async fn chat_completions(
         }
     };
 
-    let tool_grammar = if let Some((req_tools, tool_choice)) = req.tools.zip(req.tool_choice) {
-        let tool_prompt = req.tool_prompt.unwrap_or_default();
-        let tools_to_use = match tool_choice {
-            ToolType::FunctionName(name) => {
-                vec![req_tools
-                    .iter()
-                    .find(|tool| tool.function.name == *name)
-                    .ok_or_else(|| {
-                        (
-                            StatusCode::UNPROCESSABLE_ENTITY,
-                            Json(ErrorResponse {
-                                error: "Tool choice not found in tool names".to_string(),
-                                error_type: "Tool not found".to_string(),
-                            }),
-                        )
-                    })?
-                    .clone()]
-            }
-            ToolType::OneOf => req_tools.to_owned(),
-        };
+    let grammar_with_prompt = tool_grammar
+        .as_ref()
+        .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt));
 
-        let functions: HashMap<String, Value> = tools_to_use
-            .iter()
-            .map(|tool| {
-                let func = tool.function.clone();
-                (func.name, func.parameters)
-            })
-            .collect();
+    let typed_grammar = grammar_with_prompt
+        .as_ref()
+        .map(|(grammar, _)| grammar.clone());
 
-        let tools = Tools {
-            functions_map: FunctionsMap { functions },
-            properties: Properties {
-                function: tools_to_use
-                    .iter()
-                    .map(|tool| FunctionRef {
-                        ref_path: format!("#/$functions/{}", tool.function.name.clone()),
-                    })
-                    .collect(),
-            },
-        };
-
-        let tools_str = serde_json::to_string(&tools).map_err(|e| {
-            (
+    // apply chat template to flatten the request into a single input
+    let inputs = match infer.apply_chat_template(messages, grammar_with_prompt) {
+        Ok(inputs) => inputs,
+        Err(err) => {
+            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            tracing::error!("{err}");
+            return Err((
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(ErrorResponse {
-                    error: e.to_string(),
-                    error_type: "Input validation error".to_string(),
+                    error: err.to_string(),
+                    error_type: err.error_type().to_string(),
                 }),
-            )
-        })?;
-        inputs = format!("{inputs}{tool_prompt}{tools_str}");
-        Some(GrammarType::Json(serde_json::json!(tools)))
-    } else {
-        None
+            ));
+        }
     };
 
     // build the request passing some parameters
@@ -862,7 +1072,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: req.top_logprobs,
-            grammar: tool_grammar.clone(),
+            grammar: typed_grammar,
         },
     };
 
@@ -916,17 +1126,14 @@ async fn chat_completions(
             compute_type,
             Json(generate_request),
             on_message_callback,
+            span,
         )
         .await;
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
-        let (headers, Json(generation)) = generate(
-            Extension(infer),
-            Extension(compute_type),
-            Json(generate_request),
-        )
-        .await?;
+        let (headers, Json(generation)) =
+            generate_internal(Extension(infer), compute_type, Json(generate_request), span).await?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -945,27 +1152,28 @@ async fn chat_completions(
                         }),
                     )
                 })?;
-
             let tool_calls = vec![ToolCall {
                 id: 0,
                 r#type: "function".to_string(),
                 function: FunctionDefinition {
                     description: None,
-                    name: "tools".to_string(),
-                    parameters: gen_text_value.get("function").map_or_else(
-                        || {
-                            serde_json::from_str(&generation.generated_text).map_err(|e| {
-                                (
-                                    StatusCode::UNPROCESSABLE_ENTITY,
-                                    Json(ErrorResponse {
-                                        error: e.to_string(),
-                                        error_type: "Input validation error".to_string(),
-                                    }),
-                                )
-                            })
-                        },
-                        |f| Ok(f.clone()),
-                    )?,
+                    name: gen_text_value
+                        .get("function")
+                        .and_then(|f| f.get("_name"))
+                        .and_then(|name| name.as_str())
+                        .unwrap_or("default_function_name")
+                        .to_string(),
+                    // Serialize the JSON object obtained from "function" to an escaped JSON string
+                    arguments: gen_text_value
+                        .get("function")
+                        .map(|f| {
+                            let mut f_cloned = f.clone();
+                            if let Value::Object(ref mut props) = f_cloned {
+                                props.remove("_name");
+                            }
+                            f_cloned
+                        })
+                        .unwrap_or_default(),
                 },
             }];
             (Some(tool_calls), None)
@@ -1022,6 +1230,7 @@ async fn vertex_compatibility(
     Extension(compute_type): Extension<ComputeType>,
     Json(req): Json<VertexRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    let span = tracing::Span::current();
     metrics::increment_counter!("tgi_request_count");
 
     // check that theres at least one instance
@@ -1053,10 +1262,11 @@ async fn vertex_compatibility(
             };
 
             async {
-                generate(
+                generate_internal(
                     Extension(infer.clone()),
-                    Extension(compute_type.clone()),
+                    compute_type.clone(),
                     Json(generate_request),
+                    span.clone(),
                 )
                 .await
                 .map(|(_, Json(generation))| generation.generated_text)
@@ -1168,6 +1378,7 @@ pub async fn run(
     tokenizer_config: HubTokenizerConfig,
     messages_api_enabled: bool,
     grammar_support: bool,
+    max_client_batch_size: usize,
 ) -> Result<(), axum::BoxError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -1344,6 +1555,7 @@ pub async fn run(
         max_waiting_tokens,
         max_batch_size,
         validation_workers,
+        max_client_batch_size,
         version: env!("CARGO_PKG_VERSION"),
         sha: option_env!("VERGEN_GIT_SHA"),
         docker_label: option_env!("DOCKER_LABEL"),
@@ -1543,6 +1755,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,
         };
 
         (

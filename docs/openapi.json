@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "2.0.0"
+    "version": "2.0.1"
   },
   "paths": {
     "/": {
@@ -408,9 +408,14 @@
         },
         "responses": {
           "200": {
-            "description": "Generated Text",
+            "description": "Generated Chat Completion",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletion"
+                }
+              },
+              "text/event-stream": {
                 "schema": {
                   "$ref": "#/components/schemas/ChatCompletionChunk"
                 }
@@ -492,11 +497,16 @@
         },
         "responses": {
           "200": {
-            "description": "Generated Text",
+            "description": "Generated Chat Completion",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatCompletionChunk"
+                  "$ref": "#/components/schemas/Completion"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionCompleteChunk"
                 }
               }
             }
@@ -930,7 +940,7 @@
           "tool_prompt": {
             "type": "string",
             "description": "A prompt to be appended before the tools",
-            "example": "\"Based on the conversation, please choose the most appropriate tool to use: \"",
+            "example": "\"You will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n\"",
             "nullable": true
           },
           "tools": {
@@ -1071,7 +1081,10 @@
             "example": "mistralai/Mistral-7B-Instruct-v0.2"
           },
           "prompt": {
-            "type": "string",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
             "description": "The prompt to generate completions for.",
             "example": "What is Deep Learning?"
           },
@@ -1234,17 +1247,17 @@
         "type": "object",
         "required": [
           "name",
-          "parameters"
+          "arguments"
         ],
         "properties": {
+          "arguments": {},
           "description": {
             "type": "string",
             "nullable": true
           },
           "name": {
             "type": "string"
-          },
-          "parameters": {}
+          }
         }
       },
       "GenerateParameters": {
@@ -1260,7 +1273,7 @@
           },
           "decoder_input_details": {
             "type": "boolean",
-            "default": "true"
+            "default": "false"
           },
           "details": {
             "type": "boolean",
@@ -1285,6 +1298,7 @@
                 "$ref": "#/components/schemas/GrammarType"
               }
             ],
+            "default": "null",
             "nullable": true
           },
           "max_new_tokens": {
@@ -1478,6 +1492,7 @@
           "max_batch_total_tokens",
           "max_waiting_tokens",
           "validation_workers",
+          "max_client_batch_size",
           "version"
         ],
         "properties": {
@@ -1501,6 +1516,11 @@
           "max_best_of": {
             "type": "integer",
             "example": "2",
+            "minimum": 0
+          },
+          "max_client_batch_size": {
+            "type": "integer",
+            "example": "32",
             "minimum": 0
           },
           "max_concurrent_requests": {

@@ -81,6 +81,8 @@ struct Args {
     messages_api_enabled: bool,
     #[clap(long, env, default_value_t = false)]
     disable_grammar_support: bool,
+    #[clap(default_value = "4", long, env)]
+    max_client_batch_size: usize,
 }
 
 #[tokio::main]
@@ -115,6 +117,7 @@ async fn main() -> Result<(), RouterError> {
         ngrok_edge,
         messages_api_enabled,
         disable_grammar_support,
+        max_client_batch_size,
     } = args;
 
     // Launch Tokio runtime
@@ -422,6 +425,7 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_config,
         messages_api_enabled,
         disable_grammar_support,
+        max_client_batch_size,
     )
     .await?;
     Ok(())

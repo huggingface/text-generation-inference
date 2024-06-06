@@ -79,7 +79,7 @@ impl HubTokenizerConfig {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, ToSchema)]
+#[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
 #[serde(tag = "type", content = "value")]
 pub(crate) enum GrammarType {
     /// A string that represents a [JSON Schema](https://json-schema.org/).
@@ -155,6 +155,8 @@ pub struct Info {
     pub max_batch_size: Option<usize>,
     #[schema(example = "2")]
     pub validation_workers: usize,
+    #[schema(example = "32")]
+    pub max_client_batch_size: usize,
     /// Router Info
     #[schema(example = "0.5.0")]
     pub version: &'static str,
@@ -236,7 +238,7 @@ pub(crate) struct GenerateParameters {
     #[schema(default = "true")]
     pub details: bool,
     #[serde(default)]
-    #[schema(default = "true")]
+    #[schema(default = "false")]
     pub decoder_input_details: bool,
     #[serde(default)]
     #[schema(
@@ -250,6 +252,7 @@ pub(crate) struct GenerateParameters {
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 5)]
     pub top_n_tokens: Option<u32>,
     #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
     pub grammar: Option<GrammarType>,
 }
 
@@ -280,6 +283,34 @@ fn default_parameters() -> GenerateParameters {
     }
 }
 
+mod prompt_serde {
+    use serde::{self, Deserialize, Deserializer};
+    use serde_json::Value;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        match value {
+            Value::String(s) => Ok(vec![s]),
+            Value::Array(arr) if arr.is_empty() => Err(serde::de::Error::custom(
+                "Empty array detected. Do not use an empty array for the prompt.",
+            )),
+            Value::Array(arr) => arr
+                .iter()
+                .map(|v| match v {
+                    Value::String(s) => Ok(s.to_owned()),
+                    _ => Err(serde::de::Error::custom("Expected a string")),
+                })
+                .collect(),
+            _ => Err(serde::de::Error::custom(
+                "Expected a string or an array of strings",
+            )),
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize, ToSchema, Debug)]
 pub struct CompletionRequest {
     /// UNUSED
@@ -289,7 +320,8 @@ pub struct CompletionRequest {
 
     /// The prompt to generate completions for.
     #[schema(example = "What is Deep Learning?")]
-    pub prompt: String,
+    #[serde(deserialize_with = "prompt_serde::deserialize")]
+    pub prompt: Vec<String>,
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
@@ -669,7 +701,7 @@ pub(crate) struct ChatRequest {
     #[serde(default = "default_tool_prompt")]
     #[schema(
         nullable = true,
-        example = "\"Based on the conversation, please choose the most appropriate tool to use: \""
+        example = "\"You will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n\""
     )]
     pub tool_prompt: Option<String>,
 
@@ -682,7 +714,7 @@ pub(crate) struct ChatRequest {
 
 fn default_tool_prompt() -> Option<String> {
     Some(
-        "\nBased on the conversation, please choose the most appropriate tool to use: ".to_string(),
+        "\nYou will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n".to_string(),
     )
 }
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
@@ -727,26 +759,26 @@ mod deserialize_tool_choice {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
 pub struct Tools {
     #[serde(flatten)]
     functions_map: FunctionsMap,
     properties: Properties,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct FunctionsMap {
     #[serde(rename = "$functions")]
     functions: std::collections::HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct FunctionRef {
     #[serde(rename = "$ref")]
     ref_path: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Properties {
     #[serde(serialize_with = "serialize_function")]
     function: Vec<FunctionRef>,
@@ -767,7 +799,8 @@ pub(crate) struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
-    pub parameters: serde_json::Value,
+    #[serde(alias = "parameters")]
+    pub arguments: serde_json::Value,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
@@ -779,12 +812,14 @@ pub(crate) struct Tool {
     pub function: FunctionDefinition,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub(crate) struct ChatTemplateInputs<'a> {
     messages: Vec<Message>,
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
+    tools: Option<&'a str>,
+    tools_prompt: Option<&'a str>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug)]
