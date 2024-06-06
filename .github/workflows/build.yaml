@@ -124,16 +124,16 @@ jobs:
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ matrix.label }},mode=min
           cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ matrix.label }},mode=min
       - name: Set up Python
-        if: matrix.name == "cuda"
+        if: matrix.name == 'cuda'
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
       - name: Install
-        if: matrix.name == "cuda"
+        if: matrix.name == 'cuda'
         run: |
           make install-integration-tests
       - name: Run tests
-        if: matrix.name == "cuda"
+        if: matrix.name == 'cuda'
         run: |
           export DOCKER_VOLUME=/mnt/cache
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
