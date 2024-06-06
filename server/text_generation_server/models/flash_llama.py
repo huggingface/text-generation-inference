@@ -99,9 +99,7 @@ class FlashLlama(FlashCausalLM):
             weights._set_gptq_params(model_id, revision)
 
         prefix = ""
-        model = FlashLlamaForCausalLM(
-            prefix, config, weights, lora_weights, lora_configs
-        )
+        model = FlashLlamaForCausalLM(prefix, config, weights)
         torch.distributed.barrier(group=self.process_group)
         super(FlashLlama, self).__init__(
             model_id=model_id,

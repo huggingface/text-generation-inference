@@ -877,8 +877,6 @@ class FlashCausalLM(Model):
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs]["graph"] = graph
 
-        batch_lora_adapter_mask = torch.zeros(bs, dtype=torch.bool, device=self.device)
-        lora_indices = torch.zeros(bs, dtype=torch.int32, device=self.device)
         torch.cuda.synchronize()
         # Run once outside to warmup
         self.model.forward(
@@ -892,8 +890,6 @@ class FlashCausalLM(Model):
             max_s=max_s,
             prefill_cache_indices=None,
             lm_head_indices=None,
-            batch_lora_adapter_mask=batch_lora_adapter_mask,
-            lora_indices=lora_indices,
         )
         torch.cuda.synchronize()
 
@@ -909,8 +905,6 @@ class FlashCausalLM(Model):
                 max_s=max_s,
                 prefill_cache_indices=None,
                 lm_head_indices=None,
-                batch_lora_adapter_mask=batch_lora_adapter_mask,
-                lora_indices=lora_indices,
             )
             self.cuda_graphs[bs]["logits"] = logits
             self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
@@ -1038,10 +1032,6 @@ class FlashCausalLM(Model):
 
         # Dummy value, some models (starcoder2) don't accept `None`.
         input_lengths = torch.ones(seqlen, dtype=torch.int32, device=self.device)
-        batch_lora_adapter_mask = torch.zeros(
-            seqlen, dtype=torch.bool, device=self.device
-        )
-        lora_indices = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
 
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
@@ -1057,8 +1047,6 @@ class FlashCausalLM(Model):
             max_s=seqlen,
             lm_head_indices=None,
             prefill_cache_indices=None,
-            batch_lora_adapter_mask=batch_lora_adapter_mask,
-            lora_indices=lora_indices,
         )
 
     def forward(
@@ -1129,9 +1117,6 @@ class FlashCausalLM(Model):
         else:
             cuda_graph = None
 
-        batch_lora_adapter_mask = torch.zeros(bs, dtype=torch.bool, device=self.device)
-        lora_indices = torch.full((bs,), -1, dtype=torch.int32, device=self.device)
-
         if cu_seqlen_prefill is not None or cuda_graph is None:
             logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
@@ -1144,8 +1129,6 @@ class FlashCausalLM(Model):
                 max_s=max_s,
                 prefill_cache_indices=batch.prefill_cache_indices,
                 lm_head_indices=lm_head_indices,
-                batch_lora_adapter_mask=batch_lora_adapter_mask,
-                lora_indices=lora_indices,
                 adapter_data=adapter_data,
             )
             if batch.prefill_cache_indices is not None:
