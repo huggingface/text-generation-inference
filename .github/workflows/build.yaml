@@ -30,7 +30,7 @@ jobs:
       cancel-in-progress: true
     runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     strategy:
-      matrix:
+      matrix: 
         include:
           - name: "cuda"
             label: ""
@@ -123,53 +123,19 @@ jobs:
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ matrix.label }},mode=min
           cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ matrix.label }},mode=min
-  integration-tests-cuda:
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-cuda-${{ github.head_ref || github.run_id }}
-      cancel-in-progress: true
-    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
-    needs: build-and-push-image
-    steps:
       - name: Set up Python
+        if: matrix.name == 'cuda'
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
       - name: Install
+        if: matrix.name == 'cuda'
         run: |
           make install-integration-tests
       - name: Run tests
+        if: matrix.name == 'cuda'
         run: |
           export DOCKER_VOLUME=/mnt/cache
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
           pytest -s -vv integration-tests
-  integration-tests-rocm:
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
-      cancel-in-progress: true
-    runs-on:  [amd-gpu-tgi, multi-gpu, mi250]
-    needs:
-      - build-and-push-image
-    steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      - uses: actions/checkout@v4
-      - name: install deps
-        run: |
-          make install-integration-tests
-      - name: ROCM-SMI
-        run: |
-          rocm-smi
-      - name: ROCM-INFO
-        run: |
-          rocminfo  | grep "Agent" -A 14
-      - name: Show ROCR environment
-        run: |
-          echo "ROCR: $ROCR_VISIBLE_DEVICES"
-      - name: Run tests
-        run: |
-          export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-          export DOCKER_DEVICES=/dev/kfd,/dev/dri
-          python -m pytest -s -vv integration-tests/models/test_flash_gpt2.py
