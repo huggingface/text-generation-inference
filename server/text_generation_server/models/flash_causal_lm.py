@@ -899,6 +899,8 @@ class FlashCausalLM(Model):
                 os.environ.get("PYTORCH_TUNABLEOP_ENABLED") is None
                 or os.environ.get("PYTORCH_TUNABLEOP_ENABLED") == "1"
             ):
+                torch.cuda.tunable.enable()
+
                 if os.environ.get("PYTORCH_TUNABLEOP_TUNING") != "0":
                     torch.cuda.tunable.tuning_enable(True)
 
