@@ -20,7 +20,6 @@ class FlashMixtral(BaseFlashMistral):
         trust_remote_code: bool = False,
     ):
         super(FlashMixtral, self).__init__(
-            model_id=model_id,
             config_cls=MixtralConfig,
             model_cls=FlashMixtralForCausalLM,
             model_id=model_id,

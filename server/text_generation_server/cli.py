@@ -168,9 +168,12 @@ def download_weights(
             except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
                 pass
         else:
-            utils.peft.download_peft(
-                model_id, revision, trust_remote_code=trust_remote_code
-            )
+            try:
+                utils.peft.download_peft(
+                    model_id, revision, trust_remote_code=trust_remote_code
+                )
+            except Exception:
+                pass
 
         try:
             import json
