@@ -87,6 +87,7 @@ class FlashDbrx(FlashCausalLM):
 
         torch.distributed.barrier(group=self.process_group)
         super(FlashDbrx, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),

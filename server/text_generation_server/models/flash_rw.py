@@ -74,6 +74,7 @@ class FlashRWSharded(FlashCausalLM):
 
         torch.distributed.barrier(group=self.process_group)
         super(FlashRWSharded, self).__init__(
+            model_id=model_id,
             model=model.to(device),
             tokenizer=tokenizer,
             num_layers=len(model.transformer.h),

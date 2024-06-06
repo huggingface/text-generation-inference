@@ -79,6 +79,7 @@ class BaseFlashMistral(FlashCausalLM):
         torch.distributed.barrier(group=self.process_group)
         num_layers, num_kv_heads, head_size = self.get_layer_config(model)
         super().__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             num_layers=num_layers,
@@ -110,6 +111,7 @@ class FlashMistral(BaseFlashMistral):
         trust_remote_code: bool = False,
     ):
         super(FlashMistral, self).__init__(
+            model_id=model_id,
             config_cls=MistralConfig,
             model_cls=FlashMistralForCausalLM,
             model_id=model_id,

@@ -953,12 +953,13 @@ class FlashCausalLM(Model):
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
         free_memory = get_free_memory(self.device, MEMORY_FRACTION)
+        batch_num_blocks = batch.num_blocks if batch is not None else 0
 
         num_blocks = (
             # Leave 5% for some wiggle room
             int((free_memory * 0.95) // total_cache_size)
             # Add batch.num_blocks as we allocated it above, so it is included in the peak memory.
-            + batch.num_blocks
+            + batch_num_blocks
         )
 
         del batch
