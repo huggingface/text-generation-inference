@@ -28,9 +28,9 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ matrix.name }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
+    runs-on: [self-hosted, cpu]
     strategy:
-      matrix: 
+      matrix:
         include:
           - name: "cuda"
             label: ""
@@ -123,6 +123,13 @@ jobs:
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ matrix.label }},mode=min
           cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ matrix.label }},mode=min
+  integration-tests:
+    concurrency:
+      group: ${{ github.workflow }}-build-and-push-image-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
+    needs: build-and-push-image
+    steps:
       - name: Set up Python
         if: matrix.name == 'cuda'
         uses: actions/setup-python@v4
