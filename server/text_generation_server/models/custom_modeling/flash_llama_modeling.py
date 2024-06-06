@@ -226,7 +226,9 @@ class FlashLlamaAttention(torch.nn.Module):
                 max_s,
             )
 
-        return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
+        return self.o_proj(
+            attn_output.view(-1, self.num_heads * self.head_size), adapter_data
+        )
 
 
 class LlamaMLP(nn.Module):
@@ -295,7 +297,7 @@ class LlamaMLP(nn.Module):
         # TODO: This is a hotfix to be removed & properly refactored.
         self.quantize = config.quantize
 
-    def forward(self, hidden_states):
+    def forward(self, hidden_states, adapter_data):
         if (
             SYSTEM == "rocm"
             and self.hidden_act == "silu"
@@ -309,11 +311,13 @@ class LlamaMLP(nn.Module):
                 device="cuda",
             )
             _custom_C.LLMM_Silu(self.gate_up_proj.linear.weight, hidden_states, out, 8)
-            return self.down_proj(out)
+            return self.down_proj(out, adapter_data)
         else:
-            gate_up_states = self.gate_up_proj(hidden_states)
+            gate_up_states = self.gate_up_proj(hidden_states, adapter_data)
             gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-            return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
+            return self.down_proj(
+                self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], adapter_data
+            )
 
 
 class FlashLlamaLayer(nn.Module):
@@ -373,7 +377,7 @@ class FlashLlamaLayer(nn.Module):
             attn_output, res
         )
 
-        mlp_output = self.mlp(normed_attn_res_output)
+        mlp_output = self.mlp(normed_attn_res_output, adapter_data)
 
         return mlp_output, attn_res
 

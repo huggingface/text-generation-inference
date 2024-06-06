@@ -7,9 +7,7 @@ import torch
 import torch.nn.functional as F
 
 try:
-    # TODO: add build steps for Punica kernels
-    # import punica_kernels as _kernels
-    import punica.ops as _kernels
+    import punica_kernels as _kernels
 
     HAS_SGMV = not bool(os.environ.get("DISABLE_SGMV", ""))
 except ImportError:

@@ -63,6 +63,7 @@ class Model(ABC):
         world_size: int = 1,
         sliding_window: Optional[int] = None,
         speculate: Optional[int] = None,
+        adapter_id: str = BASE_MODEL_ADAPTER_ID,
     ):
         self.model_id = model_id
         self.model = model.eval()
@@ -87,6 +88,19 @@ class Model(ABC):
         )
         self.target_to_layer = self.adapter_target_to_layer()
         self.loaded_adapters = set()
+        self.static_adapter_id = adapter_id
+
+        # TODO: review moving adapter loading to the model
+        if adapter_id and adapter_id != BASE_MODEL_ADAPTER_ID:
+            pass
+            # download_adapter(adapter_id, adapter_source, api_token=None)
+            # self.load_adapter(
+            #     AdapterParameters(adapter_ids=[adapter_id]),
+            #     adapter_source,
+            #     adapter_index=0,
+            #     api_token=None,
+            #     dynamic=False,
+            # )
 
         if speculate is None:
             speculate = get_speculate()

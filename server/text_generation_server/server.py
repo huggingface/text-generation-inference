@@ -251,7 +251,7 @@ def serve(
                 majority_sign_method=0,
             )
             adapter_source = None
-            adapter_index = None
+            adapter_index = 0
             api_token = None
 
             model.load_adapter(
