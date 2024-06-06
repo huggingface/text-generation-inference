@@ -23,6 +23,9 @@ COPY --from=planner /usr/src/recipe.json recipe.json
 COPY Cargo.lock Cargo.lock
 RUN cargo chef cook --release --recipe-path recipe.json
 
+ARG GIT_SHA
+ARG DOCKER_LABEL
+
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
