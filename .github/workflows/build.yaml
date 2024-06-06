@@ -145,7 +145,7 @@ jobs:
           pytest -s -vv integration-tests
   integration-tests-rocm:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
+      group: ${{ github.workflow }}-${{ github.job }}-rocm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     runs-on:  [amd-gpu-tgi, multi-gpu, mi250]
     needs:
