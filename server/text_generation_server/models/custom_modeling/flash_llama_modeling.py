@@ -63,7 +63,7 @@ UP_PROJ = "up_proj"
 DOWN_PROJ = "down_proj"
 
 
-def load_attention(config, prefix, weights):
+def load_attention(config, prefix, weights, layer_id):
     # Only defined in granite.
     bias = getattr(config, "attention_bias", False)
 
