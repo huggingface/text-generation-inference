@@ -698,6 +698,9 @@ class FlashCausalLMBatch(Batch):
             )
             cumulative_adapter_indices_size = adapter_end_index
             adapter_set.update(batch.adapter_meta.adapter_set)
+            adapter_segment_builder.concat(
+                batch.adapter_meta.adapter_segments, batch.adapter_meta.segment_indices
+            )
 
             all_input_ids_tensor[
                 start_index:end_index, : batch.all_input_ids_tensor.shape[1]
@@ -742,7 +745,7 @@ class FlashCausalLMBatch(Batch):
             else None
         )
 
-        _adapter_segments, _adapter_segment_indices = adapter_segment_builder.build()
+        adapter_segments, adapter_segment_indices = adapter_segment_builder.build()
 
         return cls(
             batch_id=batches[0].batch_id,
@@ -774,6 +777,12 @@ class FlashCausalLMBatch(Batch):
             num_blocks=num_blocks,
             max_blocks=max_blocks,
             speculative_ids=speculative_ids,
+            adapter_meta=AdapterBatchMetadata(
+                adapter_indices=adapter_indices,
+                adapter_set=adapter_set,
+                adapter_segments=adapter_segments,
+                segment_indices=adapter_segment_indices,
+            ),
         )
 
     def __len__(self):
@@ -1233,14 +1242,6 @@ class FlashCausalLM(Model):
         )
 
         if prefill:
-            # adjust segment lengths to account for all request lengths being 1 during decoding
-            adapter_segments, _ = find_segments(batch.adapter_meta.adapter_indices)
-            batch.adapter_meta.adapter_segments = torch.tensor(
-                adapter_segments,
-                dtype=torch.int32,
-                device=batch.adapter_meta.adapter_segments.device,
-            )
-
             if len(batch) > 1 and prefill_logprobs:
                 # We create the prefill_tokens_indices tensor that will be used to gather prefill logprobs
                 # When batch == 1, we will just use the batch.input_ids values directly
@@ -1285,6 +1286,12 @@ class FlashCausalLM(Model):
                 # In decode, we do not need this as we can just increment position ids
                 next_position_ids[i] = batch.position_ids[end_index - 1]
 
+                # Initialize adapter indices
+                # In decode, we only have one token per row in the batch, so grab last index
+                next_adapter_indices[i] = batch.adapter_meta.adapter_indices[
+                    end_index - 1
+                ]
+
                 # Used to gather prefill logprobs
                 # Copy batch.input_ids to prefill_token_indices
                 if prefill_logprobs:
@@ -1311,6 +1318,15 @@ class FlashCausalLM(Model):
         batch.input_lengths_tensor += accepted_ids
         batch.slot_indices += accepted_ids
         batch.adapter_meta.adapter_indices = next_adapter_indices
+
+        if prefill:
+            # adjust segment lengths to account for all request lengths being 1 during decoding
+            adapter_segments, _ = find_segments(batch.adapter_meta.adapter_indices)
+            batch.adapter_meta.adapter_segments = torch.tensor(
+                adapter_segments,
+                dtype=torch.int32,
+                device=batch.adapter_meta.adapter_segments.device,
+            )
 
         if prefill and prefill_logprobs:
             # Get prefill logprobs

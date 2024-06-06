@@ -241,10 +241,11 @@ def serve(
 
             if len(lora_adapter_ids) > 0:
                 for index, adapter_id in enumerate(lora_adapter_ids):
-                    # TODO: avoid hacky hardcoded adapter id
+                    # TODO: improve non merged adapter loading and long term
+                    # improve adapter loading as a whole
                     adapter_parameters = AdapterParameters(
                         adapter_ids=[adapter_id],
-                        weights=[],
+                        weights=None,  #  will be set to 1
                         merge_strategy=0,
                         density=1.0,
                         majority_sign_method=0,

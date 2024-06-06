@@ -162,8 +162,6 @@ def load_module_map(
     api_token: str,
     trust_remote_code: bool = False,
 ) -> Tuple["ModuleMap", "AdapterConfig", Set[str], PreTrainedTokenizer]:
-    print("adapter_id", adapter_id)
-
     revision = "main"
 
     adapter_config = LoraConfig.load(adapter_id, api_token)
