@@ -147,18 +147,21 @@ class BaseFlashMistral(FlashCausalLM):
                 layer.self_attn.o_proj,
             )
 
-            layer_weights[(i, "gate_proj")] = (
-                f"{prefix}.{i}.mlp.gate_proj",
-                layer.mlp.gate_up_proj,
-            )
-            layer_weights[(i, "up_proj")] = (
-                f"{prefix}.{i}.mlp.up_proj",
-                layer.mlp.gate_up_proj,
-            )
-            layer_weights[(i, "down_proj")] = (
-                f"{prefix}.{i}.mlp.down_proj",
-                layer.mlp.down_proj,
-            )
+            # TODO: this is a hack to avoid the gate_proj for
+            # FlashStarcoder2 that doesnt have these layers
+            if hasattr(layer.mlp, "gate_up_proj"):
+                layer_weights[(i, "gate_proj")] = (
+                    f"{prefix}.{i}.mlp.gate_proj",
+                    layer.mlp.gate_up_proj,
+                )
+                layer_weights[(i, "up_proj")] = (
+                    f"{prefix}.{i}.mlp.up_proj",
+                    layer.mlp.gate_up_proj,
+                )
+                layer_weights[(i, "down_proj")] = (
+                    f"{prefix}.{i}.mlp.down_proj",
+                    layer.mlp.down_proj,
+                )
 
         layer_weights[(0, "lm_head")] = ("lm_head", _model.lm_head)
         return layer_weights
