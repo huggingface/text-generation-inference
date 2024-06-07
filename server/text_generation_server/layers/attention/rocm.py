@@ -169,7 +169,7 @@ if ENGINE == "ck":
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
-        if window_size_left != -1:
+        if window_size_left != -1 and q.shape[0] > window_size_left:
             raise ValueError(
                 f"ROCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
             )
@@ -204,7 +204,7 @@ elif ENGINE == "triton":
         window_size_left=-1,
         causal=True,
     ):
-        if window_size_left != -1:
+        if window_size_left != -1 and q.shape[0] > window_size_left:
             raise ValueError(
                 f"RoCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
             )

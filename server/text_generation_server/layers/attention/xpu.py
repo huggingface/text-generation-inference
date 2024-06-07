@@ -14,7 +14,7 @@ def attention(
     softmax_scale,
     window_size_left=-1,
 ):
-    if window_size_left != -1:
+    if window_size_left != -1 and q.shape[0] > window_size_left:
         raise ValueError(
             f"XPU version of Flash Attention does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
         )

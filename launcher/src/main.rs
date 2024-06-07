@@ -476,6 +476,7 @@ fn shard_manager(
     rope_factor: Option<f32>,
     max_total_tokens: usize,
     max_batch_size: Option<usize>,
+    max_batch_prefill_tokens: u32,
     otlp_endpoint: Option<String>,
     log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
@@ -547,6 +548,10 @@ fn shard_manager(
         shard_args.push("--otlp-endpoint".to_string());
         shard_args.push(otlp_endpoint);
     }
+
+    // In case we use sliding window, we may ignore the sliding in flash for some backends depending on the parameter.
+    shard_args.push("--max-batch-prefill-tokens".to_string());
+    shard_args.push(max_batch_prefill_tokens.to_string());
 
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
@@ -1004,6 +1009,7 @@ fn spawn_shards(
     args: &Args,
     cuda_graphs: Vec<usize>,
     max_total_tokens: usize,
+    max_batch_prefill_tokens: u32,
     max_log_level: LevelFilter,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
@@ -1061,6 +1067,7 @@ fn spawn_shards(
                 rope_factor,
                 max_total_tokens,
                 max_batch_size,
+                max_batch_prefill_tokens,
                 otlp_endpoint,
                 max_log_level,
                 status_sender,
@@ -1535,6 +1542,7 @@ fn main() -> Result<(), LauncherError> {
         &args,
         cuda_graphs,
         max_total_tokens,
+        max_batch_prefill_tokens,
         max_log_level,
         shutdown.clone(),
         &shutdown_receiver,
