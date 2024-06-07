@@ -13,7 +13,7 @@ on:
         required: true
 
 jobs:
-  build-and-push-image:
+  build-and-push:
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
@@ -136,3 +136,28 @@ jobs:
           echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
+  integration_tests:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    needs: build-and-push
+    runs-on: ${{ needs.build-and-push.outputs.runs_on }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+      - name: Install
+        run: |
+          make install-integration-tests
+      - name: Run tests
+        run: |
+          export DOCKER_VOLUME=/mnt/cache
+          export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
+          export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          pytest -s -vv integration-tests
