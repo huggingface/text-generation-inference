@@ -17,7 +17,7 @@ jobs:
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
-      runs_on: ${{ steps.final.outputs.runs_on }}
+      runs_on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ matrix.name }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
