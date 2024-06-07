@@ -284,7 +284,6 @@ impl State {
                         entry.request.stopping_parameters.max_new_tokens + self.speculate;
                     match block_allocator
                         .allocate(entry.request.input_length, decode_tokens)
-                        .await
                     {
                         Err(_) => {
                             // Entry is over budget

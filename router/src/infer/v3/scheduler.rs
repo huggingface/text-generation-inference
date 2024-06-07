@@ -428,8 +428,7 @@ async fn filter_update_allocations(entries: &mut IntMap<u64, Entry>) -> bool {
                 .block_allocation
                 .as_mut()
                 .expect("We checked that the block allocation exists above")
-                .extend(entry.cache_length)
-                .await
+                .extend()
         };
 
         if extension.is_err() {
