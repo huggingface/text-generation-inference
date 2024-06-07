@@ -30,13 +30,13 @@ jobs:
       fail-fast: true
       matrix:
         hardware: ["cuda", "rocm", "intel"]
-    uses: ./.github/workflows/build.yml # calls the one above ^
+    uses: ./.github/workflows/build.yaml # calls the one above ^
     with:
       hardware: ${{ matrix.hardware }}
     secrets: inherit
   integration_tests:
     needs: build-matrix
-    uses: ./.github/workflows/integration_tests.yml # calls the one above ^
+    uses: ./.github/workflows/integration_tests.yaml # calls the one above ^
     with:
       docker_image: ${{ steps.build.outputs.docker_image }}
       docker_devices: ${{ steps.build.outputs.docker_devices }}
