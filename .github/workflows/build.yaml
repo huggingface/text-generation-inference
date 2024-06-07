@@ -21,7 +21,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ matrix.name }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    runs_on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
+    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     permissions:
       contents: write
       packages: write
