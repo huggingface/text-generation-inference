@@ -52,9 +52,9 @@ jobs:
                 export dockerfile="Dockerfile_amd"
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
-                export runs_on="ubuntu-latest"
+                export runs_on="[self-hosted, amd-gpu , multi-gpu]"
                 ;;
-            rocm)
+            intel)
                 export dockerfile="Dockerfile_intel"
                 export label_extension="-intel"
                 export docker_devices=""

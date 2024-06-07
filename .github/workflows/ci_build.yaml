@@ -27,7 +27,7 @@ jobs:
     strategy:
       # super important if you want to see all results, even if one fails
       # fail-fast is true by default
-      fail-fast: true
+      fail-fast: false
       matrix:
         hardware: ["cuda", "rocm", "intel"]
     uses: ./.github/workflows/build.yaml # calls the one above ^
