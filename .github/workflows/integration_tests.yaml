@@ -15,7 +15,7 @@ on:
         required: true
         description: Hardware to run integration tests
 
-  integration-tests:
+  integration_tests:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
