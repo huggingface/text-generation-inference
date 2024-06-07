@@ -114,24 +114,24 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
             type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
-      - name: Build and push Docker image
-        id: build-and-push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ${{ env.DOCKERFILE }}
-          push: true
-          platforms: 'linux/amd64'
-          build-args: |
-            GIT_SHA=${{ env.GITHUB_SHA }}
-            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
-          tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
-          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
+            # - name: Build and push Docker image
+            #   id: build-and-push
+            #   uses: docker/build-push-action@v4
+            #   with:
+            #     context: .
+            #     file: ${{ env.DOCKERFILE }}
+            #     push: true
+            #     platforms: 'linux/amd64'
+            #     build-args: |
+            #       GIT_SHA=${{ env.GITHUB_SHA }}
+            #       DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            #     tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
+            #     labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
+            #     cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
+            #     cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"

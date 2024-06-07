@@ -37,6 +37,7 @@ jobs:
   integration_tests:
     needs: build
     uses: ./.github/workflows/integration_tests.yaml # calls the one above ^
+    if: matrix.hardware == 'cuda'
     with:
       docker_image: ${{ needs.build.outputs.docker_image }}
       docker_devices: ${{ needs.build.outputs.docker_devices }}
