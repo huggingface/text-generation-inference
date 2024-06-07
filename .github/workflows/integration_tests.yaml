@@ -1,7 +1,7 @@
 name: Integration tests
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       docker_image:
         type: string

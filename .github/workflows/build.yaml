@@ -1,7 +1,7 @@
 name: Build and push docker image to internal registry
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       hardware:
         type: choice
