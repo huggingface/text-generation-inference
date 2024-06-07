@@ -42,24 +42,26 @@ jobs:
         run: |
           case ${{ inputs.hardware }} in
             cuda)
-                dockerfile="Dockerfile"
-                label_extension=""
-                docker_devices=""
-                runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
+                export dockerfile="Dockerfile"
+                export label_extension=""
+                export docker_devices=""
+                export runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
                 ;;
             rocm)
-                dockerfile="Dockerfile_amd"
-                label_extension="-rocm"
-                docker_devices="/dev/kfd,/dev/dri"
-                runs_on="ubuntu-latest"
+                export dockerfile="Dockerfile_amd"
+                export label_extension="-rocm"
+                export docker_devices="/dev/kfd,/dev/dri"
+                export runs_on="ubuntu-latest"
                 ;;
             rocm)
-                dockerfile="Dockerfile_intel"
-                label_extension="-intel"
-                docker_devices=""
-                runs_on="ubuntu-latest"
+                export dockerfile="Dockerfile_intel"
+                export label_extension="-intel"
+                export docker_devices=""
+                export runs_on="ubuntu-latest"
                 ;;
           esac
+          echo $dockerfile
+          echo $label_extension
           echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
           echo "LABEL=${label_extension}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
