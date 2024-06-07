@@ -108,7 +108,17 @@ class FlashLlama(FlashCausalLM):
         layer_weights = {}
 
         prefix = "model.layers"
-        for i, layer in enumerate(self.model.model.layers):
+
+        # This accounts for VLMs (e.g. LlavaNext, Idefics2)
+        # that have a language_model inside of the larger model.
+        if hasattr(self.model, "language_model"):
+            _model = self.model.language_model
+        elif hasattr(self.model, "text_model"):
+            _model = self.model.text_model
+        else:
+            _model = self.model
+
+        for i, layer in enumerate(_model.model.layers):
             layer_weights[(i, "q_proj")] = (
                 f"{prefix}.{i}.self_attn.q_proj",
                 layer.self_attn.query_key_value,
@@ -139,7 +149,7 @@ class FlashLlama(FlashCausalLM):
                 layer.mlp.down_proj,
             )
 
-        layer_weights[(0, LM_HEAD)] = ("lm_head", self.model.lm_head)
+        layer_weights[(0, "lm_head")] = ("lm_head", _model.lm_head)
         return layer_weights
 
     @property
@@ -151,7 +161,7 @@ class FlashLlama(FlashCausalLM):
         return ["q_proj", "v_proj"]
 
     def get_num_layers_for_type(self, layer_type: str) -> int:
-        return 1 if layer_type == LM_HEAD else len(self.model.model.layers)
+        return 1 if layer_type == "lm_head" else len(self.model.model.layers)
 
     def is_row_parallel(self, layer_type: str) -> bool:
         return layer_type in ROW_PARALLEL

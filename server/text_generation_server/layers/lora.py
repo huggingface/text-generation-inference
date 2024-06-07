@@ -41,6 +41,8 @@ class LoraLinear(nn.Module):
         start_idx: int,
         end_idx: int,
     ) -> torch.Tensor:
+        if adapter_data is None:
+            return result
         data = adapter_data.data.get(layer_type)
         data: Optional["BatchLoraWeights"] = (
             data.get(LORA) if data is not None else None

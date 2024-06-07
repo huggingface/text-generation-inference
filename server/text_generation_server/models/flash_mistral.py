@@ -119,7 +119,17 @@ class BaseFlashMistral(FlashCausalLM):
         layer_weights = {}
 
         prefix = "model.layers"
-        for i, layer in enumerate(self.model.model.layers):
+
+        # This accounts for VLMs (e.g. LlavaNext, Idefics2)
+        # that have a language_model inside of the larger model.
+        if hasattr(self.model, "language_model"):
+            _model = self.model.language_model
+        elif hasattr(self.model, "text_model"):
+            _model = self.model.text_model
+        else:
+            _model = self.model
+
+        for i, layer in enumerate(_model.model.layers):
             layer_weights[(i, "q_proj")] = (
                 f"{prefix}.{i}.self_attn.q_proj",
                 layer.self_attn.query_key_value,
@@ -150,7 +160,7 @@ class BaseFlashMistral(FlashCausalLM):
                 layer.mlp.down_proj,
             )
 
-        layer_weights[(0, "lm_head")] = ("lm_head", self.model.lm_head)
+        layer_weights[(0, "lm_head")] = ("lm_head", _model.lm_head)
         return layer_weights
 
     @property
