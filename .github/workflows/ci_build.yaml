@@ -35,7 +35,7 @@ jobs:
       hardware: ${{ matrix.hardware }}
     secrets: inherit
   integration_tests:
-    needs: build-matrix
+    needs: build
     uses: ./.github/workflows/integration_tests.yaml # calls the one above ^
     with:
       docker_image: ${{ needs.build.outputs.docker_image }}
