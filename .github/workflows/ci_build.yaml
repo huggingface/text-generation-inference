@@ -40,4 +40,5 @@ jobs:
     with:
       docker_image: ${{ needs.build.outputs.docker_image }}
       docker_devices: ${{ needs.build.outputs.docker_devices }}
+      runs_on: ${{ needs.build.outputs.runs_on }}
     secrets: inherit

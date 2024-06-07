@@ -17,6 +17,7 @@ jobs:
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
+      runs_on: ${{ steps.final.outputs.runs_on }}
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ matrix.name }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
@@ -44,16 +45,19 @@ jobs:
                 dockerfile="Dockerfile"
                 label_extension=""
                 docker_devices=""
+                runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
                 ;;
             rocm)
                 dockerfile="Dockerfile_amd"
                 label_extension="-rocm"
                 docker_devices="/dev/kfd,/dev/dri"
+                runs_on="[self-hosted, amd-gpu , multi-gpu]"
                 ;;
             rocm)
                 dockerfile="Dockerfile_intel"
                 label_extension="-intel"
                 docker_devices=""
+                runs_on=""
                 ;;
           echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
           echo "LABEL=${label_extension}" >> $GITHUB_ENV
@@ -129,3 +133,4 @@ jobs:
         run: |
           echo "docker_image=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
+          echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
