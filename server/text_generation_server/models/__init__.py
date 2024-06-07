@@ -50,7 +50,7 @@ __all__ = [
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
-SLIDING_WINDOW_MESSAGE = "The backend {} does not support sliding window attention. TGI webserver was started max_batch_prefill_tokens={} larger than sliding_window={}. To use this model with the {} backend, please launch TGI with the argument `--max-batch-prefill-tokens` smaller than {}."
+SLIDING_WINDOW_MESSAGE = "The backend {} does not support sliding window attention. TGI webserver was started max_input_tokens={} larger than sliding_window={}. To use this model with the {} backend, please launch TGI with the argument `--max-batch-prefill-tokens` smaller than {}."
 
 FLASH_ATTENTION = True
 
@@ -261,7 +261,7 @@ def get_model(
     speculate: Optional[int],
     dtype: Optional[str],
     trust_remote_code: bool,
-    max_batch_prefill_tokens: int,
+    max_input_tokens: int,
 ) -> Model:
     global FLASH_ATTENTION
     if dtype is None:
@@ -416,9 +416,13 @@ def get_model(
         )
     sliding_window = config_dict.get("sliding_window", -1)
 
-    if sliding_window != -1 and not SUPPORTS_WINDOWING:
-        logger.warning(
-            f"Flash attention is available, but on the backend {SYSTEM} doesn't support sliding window attention, which is required by model {model_id} for long contexts."
+    if (
+        (sliding_window is not None and sliding_window != -1)
+        and not SUPPORTS_WINDOWING
+        and max_input_tokens > sliding_window
+    ):
+        raise ValueError(
+            f"The backend {SYSTEM} does not support sliding window attention. TGI webserver was started max_input_tokens={max_input_tokens} larger than sliding_window={sliding_window}. To use this model with the {SYSTEM} backend, please launch TGI with the argument `--max-batch-prefill-tokens` smaller than {sliding_window}."
         )
 
     if model_type == MAMBA:
@@ -706,22 +710,7 @@ def get_model(
                 )
 
     if model_type == MISTRAL:
-        sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            (sliding_window is not None and sliding_window != -1)
-            and not SUPPORTS_WINDOWING
-            and max_batch_prefill_tokens > sliding_window
-        ):
-            raise ValueError(
-                SLIDING_WINDOW_MESSAGE.format(
-                    SYSTEM,
-                    max_batch_prefill_tokens,
-                    sliding_window,
-                    SYSTEM,
-                    sliding_window,
-                )
-            )
-        elif FLASH_ATTENTION:
+        if FLASH_ATTENTION:
             return FlashMistral(
                 model_id,
                 revision,
@@ -743,22 +732,7 @@ def get_model(
             )
 
     if model_type == MIXTRAL:
-        sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            (sliding_window is not None and sliding_window != -1)
-            and not SUPPORTS_WINDOWING
-            and max_batch_prefill_tokens > sliding_window
-        ):
-            raise ValueError(
-                SLIDING_WINDOW_MESSAGE.format(
-                    SYSTEM,
-                    max_batch_prefill_tokens,
-                    sliding_window,
-                    SYSTEM,
-                    sliding_window,
-                )
-            )
-        elif FLASH_ATTENTION:
+        if FLASH_ATTENTION:
             return FlashMixtral(
                 model_id,
                 revision,
@@ -780,21 +754,7 @@ def get_model(
             )
 
     if model_type == STARCODER2:
-        if (
-            (sliding_window is not None and sliding_window != -1)
-            and not SUPPORTS_WINDOWING
-            and max_batch_prefill_tokens > sliding_window
-        ):
-            raise ValueError(
-                SLIDING_WINDOW_MESSAGE.format(
-                    SYSTEM,
-                    max_batch_prefill_tokens,
-                    sliding_window,
-                    SYSTEM,
-                    sliding_window,
-                )
-            )
-        elif FLASH_ATTENTION:
+        if FLASH_ATTENTION:
             return FlashStarcoder2(
                 model_id,
                 revision,
@@ -817,22 +777,7 @@ def get_model(
             )
 
     if model_type == QWEN2:
-        sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            (sliding_window is not None and sliding_window != -1)
-            and not SUPPORTS_WINDOWING
-            and max_batch_prefill_tokens > sliding_window
-        ):
-            raise ValueError(
-                SLIDING_WINDOW_MESSAGE.format(
-                    SYSTEM,
-                    max_batch_prefill_tokens,
-                    sliding_window,
-                    SYSTEM,
-                    sliding_window,
-                )
-            )
-        elif sliding_window is None or sliding_window != -1:
+        if FLASH_ATTENTION:
             return FlashQwen2(
                 model_id,
                 revision,

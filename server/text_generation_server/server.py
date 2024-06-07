@@ -199,7 +199,7 @@ def serve(
     dtype: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
-    max_batch_prefill_tokens: int,
+    max_input_tokens: int,
 ):
     async def serve_inner(
         model_id: str,
@@ -230,7 +230,7 @@ def serve(
                 speculate,
                 dtype,
                 trust_remote_code,
-                max_batch_prefill_tokens,
+                max_input_tokens,
             )
         except Exception:
             logger.exception("Error when initializing model")
