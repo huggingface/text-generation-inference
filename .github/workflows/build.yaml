@@ -39,6 +39,7 @@ jobs:
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Construct harware variables
+        shell: bash
         run: |
           case ${{ inputs.hardware }} in
             cuda)
@@ -61,7 +62,10 @@ jobs:
                 ;;
           esac
           echo $dockerfile
+          echo "Dockerfile=${dockerfile}"
           echo $label_extension
+          echo $docker_devices
+          echo $runs_on
           echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
           echo "LABEL=${label_extension}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
