@@ -11,10 +11,6 @@ on:
           # - rocm
           # - intel
         required: true
-      runs_on:
-        type: string
-        required: true
-        description: Hardware to run integration tests
 
 jobs:
   build-and-push-image:
