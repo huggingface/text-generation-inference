@@ -32,9 +32,9 @@ jobs:
       security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Initialize Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v3
         with:
           install: true
       - name: Inject slug/short variables
@@ -99,7 +99,7 @@ jobs:
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name == 'pull_request' }}
         id: meta-pr
-        uses: docker/metadata-action@v4.3.0
+        uses: docker/metadata-action@v5
         with:
           images: |
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
@@ -149,7 +149,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     needs: build-and-push
-    runs-on: ${{fromJson(needs.build-and-push.outputs.runs_on)}}
+    runs-on: ${{ needs.build-and-push.outputs.runs_on }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
