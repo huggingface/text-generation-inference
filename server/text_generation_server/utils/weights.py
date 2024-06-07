@@ -1,7 +1,6 @@
-from dataclasses import dataclass, field
 import os
 from pathlib import Path
-from typing import List, Dict, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 from safetensors import safe_open, SafetensorError
 import torch
 from loguru import logger
@@ -121,49 +120,62 @@ class Weights:
         ), f"The choosen size {size} is not compatible with sharding on {world_size} shards"
         return self.get_partial_sharded(tensor_name, dim)
 
-    def _get_qweight(self, name: str, blocks: int):
+    def _get_qweight(self, name: str, block_sizes: Union[int, List[int]]):
         slice_ = self._get_slice(name)
         total_size = slice_.get_shape()[1]
-        assert (
-            total_size % blocks == 0
-        ), f"Prepacked quantized matrix is not divisible by {blocks}"
-        single_size = total_size // blocks
+        block_sizes = _blocks_to_block_sizes(total_size=total_size, blocks=block_sizes)
+
         world_size = self.process_group.size()
         rank = self.process_group.rank()
 
-        assert (
-            single_size % world_size == 0
-        ), f"Prepacked quantized matrix cannot be sharded across {world_size} shards"
-        block_size = single_size // world_size
-        start = rank * block_size
-        stop = (rank + 1) * block_size
-
         weights = []
-        for block in range(blocks):
-            weights.append(
-                slice_[:, start + block * single_size : stop + block * single_size]
-            )
+        block_offset = 0
+        for block_size in block_sizes:
+            assert (
+                block_size % world_size == 0
+            ), f"Prepacked qkv cannot be sharded across {world_size} shards"
+            shard_block_size = block_size // world_size
+            start = rank * shard_block_size
+            stop = (rank + 1) * shard_block_size
+            weights.append(slice_[:, block_offset + start : block_offset + stop])
+            block_offset += block_size
 
         weight = torch.cat(weights, dim=1)
         weight = weight.to(device=self.device)
         return weight
 
-    def get_weights_col_packed_qkv(self, prefix: str, quantize: str):
-        return self.get_weights_col_packed(prefix, quantize, 3)
+    def get_weights_col_packed_qkv(
+        self,
+        prefix: str,
+        quantize: str,
+        num_heads: int,
+        num_key_value_heads: int,
+    ):
+        return self.get_weights_col_packed(
+            prefix, quantize, [num_heads, num_key_value_heads, num_key_value_heads]
+        )
 
     def get_weights_col_packed_gate_up(self, prefix: str, quantize: str):
         return self.get_weights_col_packed(prefix, quantize, 2)
 
-    def get_weights_col_packed(self, prefix: str, quantize: str, blocks: int):
+    def get_weights_col_packed(
+        self, prefix: str, quantize: str, block_sizes: Union[int, List[int]]
+    ):
         """
         Highly specific when the underlying tensor is a simple cat of Q,K,V instead of being
-        already alternating Q,K,V within the main tensor
+        already alternating Q,K,V within the main tensor.
+
+        The columns are split in equally sized blocks when blocks is an `int`, or
+        in blocks proportional given to the sizes. For instance `[2, 1, 1]` will
+        divide an input with dimensionality `1024` in `[512, 256, 256]`. This is
+        convenient for e.g. splitting QKV without knowing the storage details of
+        quantized weights.
         """
         if quantize in ["gptq", "awq"]:
             from text_generation_server.layers.gptq import GPTQWeight
 
             try:
-                qweight = self._get_qweight(f"{prefix}.qweight", blocks)
+                qweight = self._get_qweight(f"{prefix}.qweight", block_sizes)
             except RuntimeError:
                 raise RuntimeError(
                     f"Cannot load `{quantize}` weight, make sure the model is already quantized."
@@ -171,8 +183,8 @@ class Weights:
 
             bits, groupsize, _, quant_method = self._get_gptq_params()
 
-            qzeros = self._get_qweight(f"{prefix}.qzeros", blocks)
-            scales = self._get_qweight(f"{prefix}.scales", blocks)
+            qzeros = self._get_qweight(f"{prefix}.qzeros", block_sizes)
+            scales = self._get_qweight(f"{prefix}.scales", block_sizes)
             scales = scales.to(dtype=self.dtype)
 
             if quantize == "gptq" and quant_method == "gptq":
@@ -205,27 +217,31 @@ class Weights:
         elif quantize == "marlin":
             from text_generation_server.layers.marlin import MarlinWeight
 
-            B = self._get_qweight(f"{prefix}.B", blocks)
-            s = self._get_qweight(f"{prefix}.s", blocks)
+            B = self._get_qweight(f"{prefix}.B", block_sizes)
+            s = self._get_qweight(f"{prefix}.s", block_sizes)
             weight = MarlinWeight(B=B, s=s)
         else:
             slice_ = self._get_slice(f"{prefix}.weight")
             total_size = slice_.get_shape()[0]
-            assert total_size % blocks == 0, f"Prepacked is not divisible by {blocks}"
-            single_size = total_size // blocks
+            block_sizes = _blocks_to_block_sizes(
+                total_size=total_size, blocks=block_sizes
+            )
+
             world_size = self.process_group.size()
             rank = self.process_group.rank()
 
-            assert (
-                single_size % world_size == 0
-            ), f"Prepacked qkv cannot be sharded across {world_size} shards"
-            block_size = single_size // world_size
-            start = rank * block_size
-            stop = (rank + 1) * block_size
             tensors = []
-            for i in range(blocks):
-                tensor = slice_[start + i * single_size : stop + i * single_size]
+            block_offset = 0
+            for block_size in block_sizes:
+                assert (
+                    block_size % world_size == 0
+                ), f"Prepacked weights cannot be sharded across {world_size} shards"
+                shard_block_size = block_size // world_size
+                start = rank * shard_block_size
+                stop = (rank + 1) * shard_block_size
+                tensor = slice_[block_offset + start : block_offset + stop]
                 tensors.append(tensor)
+                block_offset += block_size
             weight = torch.cat(tensors, dim=0)
             weight = weight.to(device=self.device)
             weight = weight.to(dtype=self.dtype)
@@ -593,3 +609,31 @@ class Weights:
                         self.quant_method = "awq"
                 except Exception:
                     pass
+
+
+def _blocks_to_block_sizes(total_size: int, blocks: Union[int, List[int]]) -> List[int]:
+    """
+    Convert block count or proportions to block sizes.
+
+    This function accepts
+
+    - The number of blocks (int), in which case the block size is
+      total_size//blocks; or
+    - A list of block sizes (List[int]).
+
+    In the latter case, if sum(blocks) < total_size, the ratios between
+    the block sizes will be preserved. For instance, if blocks is
+    [2, 1, 1] and total_size is 1024, the returned block sizes are
+    [512, 256, 256].
+    """
+    if isinstance(blocks, list):
+        total_blocks = sum(blocks)
+        assert (
+            total_size % total_blocks == 0
+        ), f"Cannot split {total_size} in proportional blocks: {blocks}"
+        part_size = total_size // total_blocks
+        return [part_size * block for block in blocks]
+    else:
+        assert total_size % blocks == 0, f"Prepacked is not divisible by {blocks}"
+        single_size = total_size // blocks
+        return [single_size] * blocks
