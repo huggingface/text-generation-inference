@@ -130,6 +130,8 @@ jobs:
     runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     needs: build-and-push-image
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -151,6 +153,8 @@ jobs:
     needs:
       - build-and-push-image
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
