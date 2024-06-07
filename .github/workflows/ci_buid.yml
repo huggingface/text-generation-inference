@@ -23,24 +23,21 @@ on:
       - 'main'
 
 jobs:
-  version-matrix:
+  build-matrix:
     strategy:
       # super important if you want to see all results, even if one fails
       # fail-fast is true by default
       fail-fast: true
       matrix:
         hardware: ["cuda", "rocm", "intel"]
-    steps:
-    - name: Build
-      id: build
-      uses: ./.github/workflows/build.yml # calls the one above ^
-      with:
-        hardware: ${{ matrix.hardware }}
-      secrets: inherit
-    - name: Test
-      if: matrix.hardware == 'cuda'
-      uses: ./.github/workflows/integration_tests.yml # calls the one above ^
-      with:
-        docker_image: ${{ steps.build.outputs.docker_image }}
-        docker_devices: ${{ steps.build.outputs.docker_devices }}
-      secrets: inherit
+    uses: ./.github/workflows/build.yml # calls the one above ^
+    with:
+      hardware: ${{ matrix.hardware }}
+    secrets: inherit
+  integration_tests:
+    needs: build-matrix
+    uses: ./.github/workflows/integration_tests.yml # calls the one above ^
+    with:
+      docker_image: ${{ steps.build.outputs.docker_image }}
+      docker_devices: ${{ steps.build.outputs.docker_devices }}
+    secrets: inherit
