@@ -165,9 +165,6 @@ jobs:
       - name: ROCM-SMI
         run: |
           rocm-smi
-      - name: ROCM-INFO
-        run: |
-          rocminfo  | grep "Agent" -A 14
       - name: Show ROCR environment
         run: |
           echo "ROCR: $ROCR_VISIBLE_DEVICES"
