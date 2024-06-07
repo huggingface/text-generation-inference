@@ -152,8 +152,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.job }}-rocm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     runs-on:  [amd-gpu-tgi, multi-gpu, mi250]
-    needs:
-      - build-and-push-image
+    needs: build-and-push-image
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

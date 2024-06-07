@@ -11,9 +11,10 @@ from loguru import logger
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
-from typing import Optional, Tuple, List, Type, Dict
+from typing import Iterable, Optional, Tuple, List, Type, Dict
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
@@ -127,11 +128,13 @@ class FlashCausalLMBatch(Batch):
         )
 
     @classmethod
-    def batch_tokenized_inputs(cls, requests, tokenizer):
+    def batch_tokenized_inputs(
+        cls, requests: Iterable[generate_pb2.Request], tokenizer
+    ):
         batch_inputs = []
         max_truncation = 0
         for r in requests:
-            batch_inputs.append(r.inputs)
+            batch_inputs.append(concat_text_chunks(r.input_chunks.chunks))
             max_truncation = max(max_truncation, r.truncate)
 
         batch_tokenized_inputs = tokenizer(

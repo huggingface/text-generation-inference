@@ -15,6 +15,7 @@ def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="def",
+        input_chunks=generate_pb2.Input(chunks=[generate_pb2.InputChunk(text="def")]),
         prefill_logprobs=True,
         truncate=100,
         parameters=default_pb_parameters,
@@ -32,6 +33,13 @@ def default_fim_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="<fim-prefix>def<fim-suffix>world<fim-middle>",
+        input_chunks=generate_pb2.Input(
+            chunks=[
+                generate_pb2.InputChunk(
+                    text="<fim-prefix>def<fim-suffix>world<fim-middle>"
+                )
+            ]
+        ),
         prefill_logprobs=True,
         truncate=100,
         parameters=default_pb_parameters,

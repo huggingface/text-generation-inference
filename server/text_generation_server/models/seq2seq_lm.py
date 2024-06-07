@@ -6,6 +6,7 @@ from opentelemetry import trace
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
 
+from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
@@ -93,7 +94,7 @@ class Seq2SeqLMBatch(Batch):
         padding_right_offset = 0
         max_decode_tokens = 0
         for i, r in enumerate(pb.requests):
-            inputs.append(r.inputs)
+            inputs.append(concat_text_chunks(r.input_chunks.chunks))
             requests_idx_mapping[r.id] = i
             decoder_input_lengths.append(1)
             next_token_choosers.append(
