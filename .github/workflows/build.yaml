@@ -59,9 +59,10 @@ jobs:
                 docker_devices=""
                 runs_on=""
                 ;;
-          echo "DOCKERFILE=$dockerfile" >> $GITHUB_ENV
-          echo "LABEL=$label_extension" >> $GITHUB_ENV
-          echo "DOCKER_DEVICES=$docker_devices" >> $GITHUB_ENV
+          esac
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
+          echo "LABEL=${label_extension}" >> $GITHUB_ENV
+          echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
       - name: Tailscale
         uses: huggingface/tailscale-action@main
         with:
