@@ -23,7 +23,7 @@ on:
       - 'main'
 
 jobs:
-  build-matrix:
+  build:
     strategy:
       # super important if you want to see all results, even if one fails
       # fail-fast is true by default
@@ -38,6 +38,6 @@ jobs:
     needs: build-matrix
     uses: ./.github/workflows/integration_tests.yaml # calls the one above ^
     with:
-      docker_image: ${{ steps.build.outputs.docker_image }}
-      docker_devices: ${{ steps.build.outputs.docker_devices }}
+      docker_image: ${{ jobs.build.outputs.docker_image }}
+      docker_devices: ${{ jobs.build.outputs.docker_devices }}
     secrets: inherit
