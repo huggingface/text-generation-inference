@@ -45,8 +45,7 @@ jobs:
                 dockerfile="Dockerfile"
                 label_extension=""
                 docker_devices=""
-                # runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
-                runs_on="ubuntu-latest"
+                runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
                 ;;
             rocm)
                 dockerfile="Dockerfile_amd"
@@ -151,7 +150,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.10
+          python-version: "3.10"
       - name: Install
         run: |
           make install-integration-tests
