@@ -45,19 +45,20 @@ jobs:
                 dockerfile="Dockerfile"
                 label_extension=""
                 docker_devices=""
-                runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
+                # runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
+                runs_on="ubuntu-latest"
                 ;;
             rocm)
                 dockerfile="Dockerfile_amd"
                 label_extension="-rocm"
                 docker_devices="/dev/kfd,/dev/dri"
-                runs_on="[self-hosted, amd-gpu , multi-gpu]"
+                runs_on="ubuntu-latest"
                 ;;
             rocm)
                 dockerfile="Dockerfile_intel"
                 label_extension="-intel"
                 docker_devices=""
-                runs_on=""
+                runs_on="ubuntu-latest"
                 ;;
           esac
           echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
