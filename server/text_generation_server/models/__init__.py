@@ -420,7 +420,7 @@ def get_model(
         and max_input_tokens > sliding_window
     ):
         raise ValueError(
-            f"The backend {SYSTEM} does not support sliding window attention. TGI webserver was started max_input_tokens={max_input_tokens} larger than sliding_window={sliding_window}. To use this model with the {SYSTEM} backend, please launch TGI with the argument `--max-batch-prefill-tokens` smaller than {sliding_window}."
+            f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
         )
 
     if model_type == MAMBA:
