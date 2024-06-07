@@ -131,7 +131,9 @@ jobs:
     needs: build-and-push-image
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -154,11 +156,13 @@ jobs:
       - build-and-push-image
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
-      - uses: actions/setup-python@v5
+        uses: actions/checkout@v4
+      - name: Install Python 3.10
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
       - name: install deps
         run: |
           make install-integration-tests
