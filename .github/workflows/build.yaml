@@ -4,12 +4,12 @@ on:
   workflow_call:
     inputs:
       hardware:
-        type: choice
+        type: string
         description: Hardware
-        options:
-        - cuda
-        - rocm
-        - intel
+          # options:
+          # - cuda
+          # - rocm
+          # - intel
         required: true
       runs_on:
         type: string
