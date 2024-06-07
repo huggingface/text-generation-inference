@@ -14,7 +14,7 @@ on:
         type: string
         required: true
         description: Hardware to run integration tests
-
+jobs:
   integration_tests:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
