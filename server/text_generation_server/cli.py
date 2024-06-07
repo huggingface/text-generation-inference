@@ -78,7 +78,6 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
 
-    # TODO: determine if this api makes sense
     lora_adapter_ids = os.getenv("LORA_ADAPTERS", None)
 
     # split on comma and strip whitespace

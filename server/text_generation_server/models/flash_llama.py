@@ -20,31 +20,17 @@ from text_generation_server.utils import (
 tracer = trace.get_tracer(__name__)
 
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.utils.lora import LoraConfig
 
-Q_PROJ = "q_proj"
-K_PROJ = "k_proj"
-V_PROJ = "v_proj"
-O_PROJ = "o_proj"
-
-GATE_PROJ = "gate_proj"
-UP_PROJ = "up_proj"
-DOWN_PROJ = "down_proj"
-
-LM_HEAD = "lm_head"
-
-
-# TODO(travis): re-enable LM_HEAD after resolving issues with outputs
 ADAPTER_LAYERS = [
-    Q_PROJ,
-    K_PROJ,
-    V_PROJ,
-    O_PROJ,
-    GATE_PROJ,
-    UP_PROJ,
-    DOWN_PROJ,
-]  # LM_HEAD
-ROW_PARALLEL = {O_PROJ, DOWN_PROJ, LM_HEAD}
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+]
+ROW_PARALLEL = {"o_proj", "down_proj", "lm_head"}
 
 
 class FlashLlama(FlashCausalLM):
@@ -123,32 +109,32 @@ class FlashLlama(FlashCausalLM):
 
         prefix = "model.layers"
         for i, layer in enumerate(self.model.model.layers):
-            layer_weights[(i, Q_PROJ)] = (
+            layer_weights[(i, "q_proj")] = (
                 f"{prefix}.{i}.self_attn.q_proj",
                 layer.self_attn.query_key_value,
             )
-            layer_weights[(i, K_PROJ)] = (
+            layer_weights[(i, "k_proj")] = (
                 f"{prefix}.{i}.self_attn.k_proj",
                 layer.self_attn.query_key_value,
             )
-            layer_weights[(i, V_PROJ)] = (
+            layer_weights[(i, "v_proj")] = (
                 f"{prefix}.{i}.self_attn.v_proj",
                 layer.self_attn.query_key_value,
             )
-            layer_weights[(i, O_PROJ)] = (
+            layer_weights[(i, "o_proj")] = (
                 f"{prefix}.{i}.self_attn.o_proj",
                 layer.self_attn.o_proj,
             )
 
-            layer_weights[(i, GATE_PROJ)] = (
+            layer_weights[(i, "gate_proj")] = (
                 f"{prefix}.{i}.mlp.gate_proj",
                 layer.mlp.gate_up_proj,
             )
-            layer_weights[(i, UP_PROJ)] = (
+            layer_weights[(i, "up_proj")] = (
                 f"{prefix}.{i}.mlp.up_proj",
                 layer.mlp.gate_up_proj,
             )
-            layer_weights[(i, DOWN_PROJ)] = (
+            layer_weights[(i, "down_proj")] = (
                 f"{prefix}.{i}.mlp.down_proj",
                 layer.mlp.down_proj,
             )
@@ -162,7 +148,7 @@ class FlashLlama(FlashCausalLM):
 
     @property
     def default_traced_adapter_layers(self) -> List[str]:
-        return [Q_PROJ, V_PROJ]
+        return ["q_proj", "v_proj"]
 
     def get_num_layers_for_type(self, layer_type: str) -> int:
         return 1 if layer_type == LM_HEAD else len(self.model.model.layers)

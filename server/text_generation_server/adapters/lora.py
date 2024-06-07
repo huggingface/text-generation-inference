@@ -8,7 +8,6 @@ from torch.distributed import ProcessGroup
 
 from text_generation_server.adapters.config import AdapterConfig, ModuleMap
 
-LORA = "lora"
 from text_generation_server.adapters.weights import (
     AdapterBatchMetadata,
     AdapterWeights,
@@ -246,7 +245,7 @@ class BatchLoraWeights(BatchAdapterWeights):
 
     @classmethod
     def key(cls) -> str:
-        return LORA
+        return "lora"
 
     @classmethod
     def load(
@@ -279,9 +278,12 @@ class BatchLoraWeights(BatchAdapterWeights):
         }
 
         max_rank = max(
-            adapter_weights[idx].lora_a_r
-            for idx in segment_indices
-            if idx in adapter_weights
+            (
+                adapter_weights[idx].lora_a_r
+                for idx in segment_indices
+                if idx in adapter_weights
+            ),
+            default=0,
         )
 
         if prefill or max_rank > BGMV_MAX_RANK:

@@ -1,14 +1,9 @@
-#############
 from abc import ABC, abstractclassmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Type
 
 import torch
-
-
-LORA = "lora"
-LM_HEAD = "lm_head"
 
 
 @dataclass
@@ -127,7 +122,7 @@ class AdapterBatchData:
             if v.is_empty():
                 continue
             data[k] = v.get_data(
-                meta, prefill, prefill_head_indices if k == LM_HEAD else None
+                meta, prefill, prefill_head_indices if k == "lm_head" else None
             )
         return AdapterBatchData(meta=meta, data=data, prefill=prefill)
 
@@ -135,7 +130,7 @@ class AdapterBatchData:
         # TODO(travis): refactor to be less coupled to lora implementation
         ranks = set()
         for layer_data in self.data.values():
-            lora_data = layer_data.get(LORA)
+            lora_data = layer_data.get("lora")
             if lora_data is None:
                 continue
 

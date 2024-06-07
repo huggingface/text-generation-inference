@@ -52,16 +52,6 @@ if SYSTEM == "rocm":
     except Exception as e:
         raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
-# Constants
-Q_PROJ = "q_proj"
-K_PROJ = "k_proj"
-V_PROJ = "v_proj"
-O_PROJ = "o_proj"
-
-GATE_PROJ = "gate_proj"
-UP_PROJ = "up_proj"
-DOWN_PROJ = "down_proj"
-
 
 def load_attention(config, prefix, weights, layer_id):
     # Only defined in granite.
@@ -100,7 +90,7 @@ def load_attention(config, prefix, weights, layer_id):
     return TensorParallelMultiAdapterLinear.load(
         base_layer,
         layer_id,
-        [Q_PROJ, K_PROJ, V_PROJ],
+        ["q_proj", "k_proj", "v_proj"],
         sizes=[
             head_size * config.num_attention_heads,
             head_size * config.num_key_value_heads,
@@ -160,7 +150,7 @@ class FlashLlamaAttention(torch.nn.Module):
         self.o_proj = TensorParallelAdapterRowLinear.load(
             o_proj,
             index,
-            O_PROJ,
+            "o_proj",
             process_group=weights.process_group,
         )
 
@@ -268,7 +258,7 @@ class LlamaMLP(nn.Module):
         self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
             gate_up_proj,
             index,
-            [GATE_PROJ, UP_PROJ],
+            ["gate_proj", "up_proj"],
             sizes=[
                 config.intermediate_size,
                 config.intermediate_size,
@@ -286,7 +276,7 @@ class LlamaMLP(nn.Module):
         self.down_proj = TensorParallelAdapterRowLinear.load(
             down_proj,
             index,
-            DOWN_PROJ,
+            "down_proj",
             process_group=weights.process_group,
         )
 

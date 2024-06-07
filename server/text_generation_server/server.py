@@ -251,7 +251,7 @@ def serve(
                         density=1.0,
                         majority_sign_method=0,
                     )
-                    adapter_index = index
+                    adapter_index = index + 1
                     adapter_to_index[adapter_id] = adapter_index
                     model.load_adapter(
                         adapter_parameters,
