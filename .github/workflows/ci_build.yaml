@@ -38,6 +38,6 @@ jobs:
     needs: build-matrix
     uses: ./.github/workflows/integration_tests.yaml # calls the one above ^
     with:
-      docker_image: ${{ jobs.build.outputs.docker_image }}
-      docker_devices: ${{ jobs.build.outputs.docker_devices }}
+      docker_image: ${{ needs.build.outputs.docker_image }}
+      docker_devices: ${{ needs.build.outputs.docker_devices }}
     secrets: inherit
