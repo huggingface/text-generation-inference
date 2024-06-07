@@ -9,8 +9,8 @@ use tonic::transport::Uri;
 use tracing::instrument;
 use v3::client::{DecodeTimings, PrefillTimings};
 use v3::{
-    Batch, CachedBatch, Client, Generation, GrammarType, HealthResponse,
-    NextTokenChooserParameters, Request, StoppingCriteriaParameters, UpdatedRequest,
+    Batch, CachedBatch, Client, Generation, GrammarType, HealthResponse, KeptRequest,
+    NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
 
 #[derive(Debug, Clone)]
@@ -84,12 +84,19 @@ impl ShardedClient {
     pub async fn filter_batch(
         &mut self,
         batch_id: u64,
-        updated_requests: Vec<UpdatedRequest>,
+        kept_requests: Vec<KeptRequest>,
+        terminated_request_ids: Vec<u64>,
     ) -> Result<Option<CachedBatch>> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.filter_batch(batch_id, updated_requests.clone())))
+            .map(|client| {
+                Box::pin(client.filter_batch(
+                    batch_id,
+                    kept_requests.clone(),
+                    terminated_request_ids.clone(),
+                ))
+            })
             .collect();
         // all shards return the same message
         join_all(futures).await.pop().unwrap()

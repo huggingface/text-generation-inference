@@ -1,4 +1,4 @@
-use std::cmp::{max, min};
+use std::cmp::min;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 
@@ -16,8 +16,9 @@ impl BlockAllocation {
         self.slots.len()
     }
 
-    pub(crate) async fn extend(&mut self, current_length: u32) -> Result<(), AllocationError> {
-        let remaining_tokens = max(self.prompt_tokens + self.decode_tokens - current_length, 1);
+    pub(crate) async fn extend(&mut self, cache_length: u32) -> Result<(), AllocationError> {
+        let remaining_tokens =
+            (self.prompt_tokens + self.decode_tokens).saturating_sub(cache_length);
         self.block_allocator
             .clone()
             .extend(self, remaining_tokens)
@@ -131,6 +132,7 @@ async fn block_allocator_task(
                 let decode_tokens = min(decode_tokens, block_size);
                 let tokens = prompt_tokens + decode_tokens;
 
+                // FIXME: window size is not working
                 // Apply window size
                 let (required_blocks, repeats) = {
                     let (tokens, repeats) = match window_size {

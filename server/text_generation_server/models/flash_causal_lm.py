@@ -398,10 +398,36 @@ class FlashCausalLMBatch(Batch):
 
     @tracer.start_as_current_span("filter")
     def filter(
-        self, updated_requests: List[generate_pb2.UpdatedRequest]
-    ) -> Optional["FlashCausalLMBatch"]:
-        if len(updated_requests) == 0:
+        self,
+        model: "FlashCausalLM",
+        kept_requests: List[generate_pb2.KeptRequest],
+        terminated_request_ids: List[int],
+    ) -> Tuple[Optional["FlashCausalLMBatch"], List[generate_pb2.GeneratedText]]:
+        if len(kept_requests) == 0:
             raise ValueError("Batch must have at least one request")
+
+        terminated_generations = []
+        for request_id in terminated_request_ids:
+            idx = self.requests_idx_mapping[request_id]
+            all_input_ids = self.all_input_ids[idx]
+            stopping_criteria = self.stopping_criterias[idx]
+            do_sample = self.next_token_chooser.do_sample[idx]
+            seed = self.next_token_chooser.seeds[idx]
+
+            # Decode generated tokens
+            output_text, _, _ = model.decode_token(
+                all_input_ids,
+                prefix_offset=len(all_input_ids) - stopping_criteria.current_tokens - 1,
+                read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
+                skip_special_tokens=True,
+            )
+            generated_text = GeneratedText(
+                output_text,
+                stopping_criteria.current_tokens,
+                generate_pb2.FINISH_REASON_TERMINATED,
+                seed if do_sample else None,
+            )
+            terminated_generations.append(generated_text)
 
         device = self.input_ids.device
 
@@ -429,7 +455,7 @@ class FlashCausalLMBatch(Batch):
         num_blocks = 0
         max_blocks = 0
 
-        for i, request in enumerate(updated_requests):
+        for i, request in enumerate(kept_requests):
             request_id = request.id
 
             idx = self.requests_idx_mapping[request_id]
@@ -491,7 +517,7 @@ class FlashCausalLMBatch(Batch):
         # Move to GPU
         block_tables_tensor = block_tables_tensor.to(device)
 
-        return type(self)(
+        filtered_batch = type(self)(
             batch_id=self.batch_id,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
@@ -520,6 +546,7 @@ class FlashCausalLMBatch(Batch):
             max_blocks=max_blocks,
             speculative_ids=speculative_ids,
         )
+        return filtered_batch, terminated_generations
 
     @classmethod
     @tracer.start_as_current_span("concatenate")

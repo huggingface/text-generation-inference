@@ -196,7 +196,7 @@ class MambaBatch(Batch):
         )
 
     def filter(
-        self, updated_requests: List[generate_pb2.UpdatedRequest]
+        self, updated_requests: List[generate_pb2.KeptRequest]
     ) -> Optional["MambaBatch"]:
         request_ids = [r.id for r in updated_requests]
 

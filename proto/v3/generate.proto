@@ -164,6 +164,7 @@ enum FinishReason {
     FINISH_REASON_LENGTH = 0;
     FINISH_REASON_EOS_TOKEN = 1;
     FINISH_REASON_STOP_SEQUENCE = 2;
+    FINISH_REASON_TERMINATED = 3;
 }
 
 message GeneratedText {
@@ -198,11 +199,11 @@ message Generation {
     optional GeneratedText generated_text = 4;
     /// Top tokens
     repeated Tokens top_tokens = 5;
-    /// Current length of the request: prompt tokens + number of generated tokens until this point
-    uint32 current_length = 6;
+    /// Current length of the cache: prompt tokens + number of generated tokens until this point
+    uint32 cache_length = 6;
 }
 
-message UpdatedRequest {
+message KeptRequest {
     /// Request ID
     uint64 id = 1;
     /// Paged attention blocks
@@ -211,16 +212,23 @@ message UpdatedRequest {
     repeated uint32 slots = 3;
 }
 
+/// kept_requests + terminated_request_ids might not cover all requests from the
+/// cached batch as some requests can be filtered out without requiring to generate text
+/// for example if the client dropped its connection to the router
 message FilterBatchRequest {
     /// Batch ID
     uint64 batch_id = 1;
     /// Requests to keep
-    repeated UpdatedRequest updated_requests = 2;
+    repeated KeptRequest kept_requests = 2;
+    /// Requests to terminate and generate text for
+    repeated uint64 terminated_request_ids = 3;
 }
 
 message FilterBatchResponse {
     /// Filtered Batch (cached)
     CachedBatch batch = 1;
+    /// Terminated generations
+    repeated GeneratedText terminated_generations = 2;
 }
 
 

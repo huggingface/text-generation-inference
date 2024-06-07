@@ -10,7 +10,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use text_generation_client::v3::{Batch, CachedBatch, Generation, ShardedClient, UpdatedRequest};
+use text_generation_client::v3::{Batch, CachedBatch, Generation, KeptRequest, ShardedClient};
 use text_generation_client::ClientError;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit};
@@ -88,7 +88,7 @@ impl Scheduler for SchedulerV3 {
             queue_time: Instant::now(),
             batch_time: None,
             block_allocation: None,
-            current_length: input_length,
+            cache_length: 0,
         });
 
         // Notify the background task that we have a new entry in the queue that needs
@@ -350,7 +350,7 @@ async fn filter_batch(
                     .map(|alloc| (alloc.blocks.clone(), alloc.slots.clone()))
                     .unwrap_or((Vec::new(), Vec::new()));
 
-                UpdatedRequest {
+                KeptRequest {
                     id: *request_id,
                     blocks,
                     slots,
@@ -359,7 +359,10 @@ async fn filter_batch(
             .collect();
 
         // We unwrap here as we need to panic since we cannot recover if this method fails
-        client.filter_batch(id, updated_requests).await.unwrap()
+        client
+            .filter_batch(id, updated_requests, Vec::new())
+            .await
+            .unwrap()
     }
 }
 
@@ -374,7 +377,7 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
         let entry = entries
             .get_mut(&id)
             .expect("ID not found in entries. This is a bug.");
-        entry.current_length = generation.current_length;
+        entry.cache_length = generation.cache_length;
 
         // Create and enter a span to link this function back to the entry
         let _span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
@@ -403,7 +406,7 @@ async fn filter_update_allocations(entries: &mut IntMap<u64, Entry>) -> bool {
                 .block_allocation
                 .as_ref()
                 .map(|block_allocation| {
-                    if entry.current_length > block_allocation.len() as u32 {
+                    if entry.cache_length > block_allocation.len() as u32 {
                         // We need to re-allocate
                         Some(*id)
                     } else {
@@ -424,8 +427,8 @@ async fn filter_update_allocations(entries: &mut IntMap<u64, Entry>) -> bool {
             entry
                 .block_allocation
                 .as_mut()
-                .unwrap()
-                .extend(entry.current_length)
+                .expect("We checked that the block allocation exists above")
+                .extend(entry.cache_length)
                 .await
         };
 
@@ -563,6 +566,7 @@ impl From<text_generation_client::v3::GeneratedText> for GeneratedText {
         let v3_finish_reason =
             text_generation_client::v3::FinishReason::try_from(value.finish_reason).unwrap();
         let finish_reason = match v3_finish_reason {
+            text_generation_client::v3::FinishReason::Terminated => FinishReason::OutOfResources,
             text_generation_client::v3::FinishReason::Length => FinishReason::Length,
             text_generation_client::v3::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
             text_generation_client::v3::FinishReason::StopSequence => FinishReason::StopSequence,

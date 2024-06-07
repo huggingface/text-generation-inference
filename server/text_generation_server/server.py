@@ -83,10 +83,14 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         batch = self.cache.pop(request.batch_id)
         if batch is None:
             raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
-        filtered_batch = batch.filter(request.updated_requests)
+        filtered_batch, terminated_generations = batch.filter(
+            self.model, request.kept_requests, request.terminated_request_ids
+        )
         self.cache.set(filtered_batch)
 
-        return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
+        return generate_pb2.FilterBatchResponse(
+            batch=filtered_batch.to_pb(), terminated_generations=terminated_generations
+        )
 
     async def Warmup(self, request, context):
         if self.quantize in {"exl2", "gptq"}:

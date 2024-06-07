@@ -90,11 +90,13 @@ impl Client {
     pub async fn filter_batch(
         &mut self,
         batch_id: u64,
-        updated_requests: Vec<UpdatedRequest>,
+        kept_requests: Vec<KeptRequest>,
+        terminated_request_ids: Vec<u64>,
     ) -> Result<Option<CachedBatch>> {
         let request = tonic::Request::new(FilterBatchRequest {
             batch_id,
-            updated_requests,
+            kept_requests,
+            terminated_request_ids,
         })
         .inject_context();
         let filtered_batch = self.stub.filter_batch(request).await?.into_inner();

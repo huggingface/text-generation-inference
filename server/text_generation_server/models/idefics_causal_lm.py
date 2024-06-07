@@ -215,7 +215,7 @@ class IdeficsCausalLMBatch(Batch):
 
     @tracer.start_as_current_span("filter")
     def filter(
-        self, updated_requests: List[generate_pb2.UpdatedRequest]
+        self, updated_requests: List[generate_pb2.KeptRequest]
     ) -> Optional["IdeficsCausalLMBatch"]:
         request_ids = [r.id for r in updated_requests]
 

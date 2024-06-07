@@ -5,7 +5,7 @@ use crate::validation::{
     ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
 };
 use nohash_hasher::{BuildNoHashHasher, IntMap};
-use std::cmp::{max, min};
+use std::cmp::max;
 use std::collections::VecDeque;
 use text_generation_client::v3::{
     Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
@@ -33,8 +33,8 @@ pub(crate) struct Entry {
     pub batch_time: Option<Instant>,
     /// Block Allocation
     pub block_allocation: Option<BlockAllocation>,
-    /// Current length (in tokens) of the request (prompt tokens + generated_tokens)
-    pub current_length: u32,
+    /// Cache length (in tokens) of the request (prompt tokens + generated_tokens)
+    pub cache_length: u32,
 }
 
 /// Request Queue
@@ -164,9 +164,6 @@ struct State {
     /// Paged Attention block size
     block_size: u32,
 
-    /// Sliding window
-    window_size: Option<u32>,
-
     /// Speculation amount
     speculate: u32,
 
@@ -190,7 +187,6 @@ impl State {
             next_id: 0,
             next_batch_id: 0,
             block_size,
-            window_size,
             speculate,
             block_allocator,
         }
@@ -276,18 +272,7 @@ impl State {
                 }
                 Some(block_allocator) => {
                     prefill_tokens += entry.request.input_length;
-                    let max_new_tokens = match self.window_size {
-                        None => entry.request.stopping_parameters.max_new_tokens,
-                        Some(window_size) => min(
-                            window_size.saturating_sub(entry.request.input_length),
-                            entry.request.stopping_parameters.max_new_tokens,
-                        ),
-                    };
-                    decode_tokens += max_new_tokens;
-
-                    if prefill_tokens > prefill_token_budget
-                        || (prefill_tokens + decode_tokens + self.speculate) > token_budget
-                    {
+                    if prefill_tokens > prefill_token_budget {
                         // Entry is over budget
                         // Add it back to the front
                         tracing::debug!("Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget} || {prefill_tokens} + {decode_tokens} + {} > {token_budget}", self.speculate);
@@ -296,7 +281,7 @@ impl State {
                     }
 
                     let decode_tokens =
-                        entry.request.stopping_parameters.max_new_tokens + self.speculate - 1;
+                        entry.request.stopping_parameters.max_new_tokens + self.speculate;
                     match block_allocator
                         .allocate(entry.request.input_length, decode_tokens)
                         .await
@@ -500,7 +485,7 @@ mod tests {
             queue_time: Instant::now(),
             batch_time: None,
             block_allocation: None,
-            current_length: 0,
+            cache_length: 0,
         };
         (entry, receiver_tx)
     }
