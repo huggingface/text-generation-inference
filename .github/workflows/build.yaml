@@ -56,7 +56,7 @@ jobs:
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
                 # export runs_on="[self-hosted, amd-gpu , multi-gpu]"
-                export runs_on="amd-gpu"
+                export runs_on="amd-gpu-tgi"
                 ;;
             intel)
                 export dockerfile="Dockerfile_intel"
