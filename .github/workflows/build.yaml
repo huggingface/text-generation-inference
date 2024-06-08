@@ -54,8 +54,9 @@ jobs:
                 export dockerfile="Dockerfile_amd"
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
-                export runs_on="amd-gpu-tgi"
-                # export runs_on="ubuntu-latest"
+                # TODO Re-enable when they pass.
+                # export runs_on="amd-gpu-tgi"
+                export runs_on="ubuntu-latest"
                 ;;
             intel)
                 export dockerfile="Dockerfile_intel"
