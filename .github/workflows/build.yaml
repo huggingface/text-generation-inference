@@ -146,7 +146,7 @@ jobs:
           echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
-          echo "label=${${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
   integration_tests:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
