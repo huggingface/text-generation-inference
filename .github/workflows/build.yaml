@@ -166,6 +166,10 @@ jobs:
       - name: Install
         run: |
           make install-integration-tests
+      - name: Tailscale
+        uses: huggingface/tailscale-action@main
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
