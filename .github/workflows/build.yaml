@@ -47,13 +47,15 @@ jobs:
                 export dockerfile="Dockerfile"
                 export label_extension=""
                 export docker_devices=""
-                export runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
+                # export runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
+                export runs_on="nvidia-gpu"
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
-                export runs_on="[self-hosted, amd-gpu , multi-gpu]"
+                # export runs_on="[self-hosted, amd-gpu , multi-gpu]"
+                export runs_on="amd-gpu"
                 ;;
             intel)
                 export dockerfile="Dockerfile_intel"
@@ -77,20 +79,20 @@ jobs:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Login to internal Container Registry
-        uses: docker/login-action@v2.1.0
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
           password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
           registry: registry.internal.huggingface.tech
       - name: Login to Azure Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2.1.0
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.AZURE_DOCKER_USERNAME }}
           password: ${{ secrets.AZURE_DOCKER_PASSWORD }}
@@ -149,7 +151,8 @@ jobs:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     needs: build-and-push
-    runs-on: ${{ needs.build-and-push.outputs.runs_on }}
+    runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu", "ci"]
+    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
