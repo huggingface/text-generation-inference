@@ -48,15 +48,14 @@ jobs:
                 export dockerfile="Dockerfile"
                 export label_extension=""
                 export docker_devices=""
-                # export runs_on="[self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]"
                 export runs_on="nvidia-gpu"
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
-                # export runs_on="[self-hosted, amd-gpu , multi-gpu]"
                 export runs_on="amd-gpu-tgi"
+                # export runs_on="ubuntu-latest"
                 ;;
             intel)
                 export dockerfile="Dockerfile_intel"
@@ -168,6 +167,7 @@ jobs:
           make install-integration-tests
       - name: Tailscale
         uses: huggingface/tailscale-action@main
+        if: needs.build-and-push.outputs.runs_on != 'amd-gpu-tgi'
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Run tests
