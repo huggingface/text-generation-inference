@@ -237,8 +237,15 @@ class MarlinLinear(nn.Module):
     def __init__(self, *, weight: MarlinWeight, bias: Optional[torch.Tensor]):
         super().__init__()
 
-        _check_marlin_kernels()
-        assert marlin_kernels is not None
+        if SYSTEM != "cuda":
+            raise NotImplementedError(
+                f"Marlin quantization kernel is only available on Nvidia GPUs, not on the current {SYSTEM} backend."
+            )
+
+        if not has_sm_8_0:
+            raise NotImplementedError(
+                "Using quantized marlin models requires CUDA capability 8.0 or later"
+            )
 
         in_features = weight.B.shape[0] * MARLIN_TILE_SIZE
         out_features = weight.s.shape[1]
