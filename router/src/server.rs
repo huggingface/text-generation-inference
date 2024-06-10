@@ -1059,7 +1059,7 @@ async fn chat_completions(
         }
     };
 
-    //dDetermine the appropriate arguments for apply_chat_template
+    // determine the appropriate arguments for apply_chat_template
     let tools_grammar_prompt = tool_grammar
         .as_ref()
         .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt));
@@ -1072,7 +1072,7 @@ async fn chat_completions(
         ),
     };
 
-    // Apply chat template to flatten the request into a single input
+    // apply chat template to flatten the request into a single input
     let inputs = match infer.apply_chat_template(messages, tools_grammar_prompt) {
         Ok(inputs) => inputs,
         Err(err) => {
