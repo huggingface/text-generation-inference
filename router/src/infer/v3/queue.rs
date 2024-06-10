@@ -283,7 +283,7 @@ impl State {
                     let decode_tokens =
                         entry.request.stopping_parameters.max_new_tokens + self.speculate;
                     match block_allocator
-                        .allocate(entry.request.input_length, decode_tokens)
+                        .block_allocation(entry.request.input_length, decode_tokens)
                     {
                         Err(_) => {
                             // Entry is over budget
@@ -294,7 +294,7 @@ impl State {
                         }
                         Ok(block_allocation) => {
                             tracing::debug!("Allocation: {block_allocation:?}");
-                            max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
+                            max_blocks = max(max_blocks, block_allocation.blocks().len() as u32);
                             Some(block_allocation)
                         }
                     }
@@ -313,8 +313,8 @@ impl State {
             let (blocks, slots) = match &block_allocation {
                 None => (Vec::new(), Vec::new()),
                 Some(block_allocation) => (
-                    block_allocation.blocks.clone(),
-                    block_allocation.slots.clone(),
+                    block_allocation.blocks().to_vec(),
+                    block_allocation.slots().to_vec(),
                 ),
             };
 

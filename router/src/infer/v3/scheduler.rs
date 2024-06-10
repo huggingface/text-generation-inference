@@ -347,7 +347,7 @@ async fn filter_batch(
                 let (blocks, slots) = entry
                     .block_allocation
                     .as_ref()
-                    .map(|alloc| (alloc.blocks.clone(), alloc.slots.clone()))
+                    .map(|alloc| (alloc.blocks().to_vec(), alloc.slots().to_vec()))
                     .unwrap_or((Vec::new(), Vec::new()));
 
                 KeptRequest {
