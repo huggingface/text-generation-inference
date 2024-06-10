@@ -1,4 +1,4 @@
-<img width="955" alt="image" src="https://github.com/huggingface/text-generation-inference/assets/22736772/7e02b707-8808-4c76-9197-49bec946c869"># LoRA (Low-Rank Adaptation)
+# LoRA (Low-Rank Adaptation)
 
 ## What is LoRA?
 
