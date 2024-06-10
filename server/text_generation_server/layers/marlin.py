@@ -4,6 +4,8 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from text_generation_server.utils.import_utils import SYSTEM
+
 try:
     import marlin
 except ImportError:
@@ -37,6 +39,11 @@ class MarlinLinear(nn.Module):
         self, *, B: torch.Tensor, s: torch.Tensor, bias: Optional[torch.Tensor]
     ):
         super().__init__()
+
+        if SYSTEM != "cuda":
+            raise NotImplementedError(
+                f"Marlin quantization kernel is only available on Nvidia GPUs, not on the current {SYSTEM} backend."
+            )
 
         if not has_sm_8_0:
             raise NotImplementedError(
