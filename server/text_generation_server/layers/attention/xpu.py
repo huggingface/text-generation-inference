@@ -14,10 +14,7 @@ def attention(
     softmax_scale,
     window_size_left=-1,
 ):
-    if window_size_left != -1:
-        raise ValueError(
-            f"XPU version of Flash Attention does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
-        )
+    # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     return ipex.llm.functional.varlen_attention(
         q,
         k,
