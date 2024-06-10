@@ -169,10 +169,8 @@ if ENGINE == "ck":
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
-        if window_size_left != -1:
-            raise ValueError(
-                f"ROCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
-            )
+
+        # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
         return flash_attn_2_cuda.varlen_fwd(
             q,
             k,
@@ -204,10 +202,7 @@ elif ENGINE == "triton":
         window_size_left=-1,
         causal=True,
     ):
-        if window_size_left != -1:
-            raise ValueError(
-                f"RoCm version of Flash Attention v2 does not support window attention (window_size_left != -1, got window_size_left={window_size_left})."
-            )
+        # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
         output, _ = triton_attention(
             q,
             k,

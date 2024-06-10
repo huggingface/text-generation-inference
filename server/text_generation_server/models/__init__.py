@@ -24,6 +24,8 @@ from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.phi import Phi
 
+from text_generation_server.utils.import_utils import SYSTEM
+
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -257,6 +259,7 @@ def get_model(
     speculate: Optional[int],
     dtype: Optional[str],
     trust_remote_code: bool,
+    max_input_tokens: int,
 ) -> Model:
     global FLASH_ATTENTION
     if dtype is None:
@@ -410,11 +413,15 @@ def get_model(
             "Sharding is currently not supported with `exl2` quantization"
         )
     sliding_window = config_dict.get("sliding_window", -1)
-    if sliding_window != -1 and not SUPPORTS_WINDOWING:
-        logger.warning(
-            f"Flash attention is available, but doesn't support windowing which is required by model {model_id}"
+
+    if (
+        (sliding_window is not None and sliding_window != -1)
+        and not SUPPORTS_WINDOWING
+        and max_input_tokens > sliding_window
+    ):
+        raise ValueError(
+            f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
         )
-        FLASH_ATTENTION = False
 
     if model_type == MAMBA:
         return Mamba(
@@ -701,7 +708,6 @@ def get_model(
                 )
 
     if model_type == MISTRAL:
-        sliding_window = config_dict.get("sliding_window", -1)
         if FLASH_ATTENTION:
             return FlashMistral(
                 model_id,
@@ -724,7 +730,6 @@ def get_model(
             )
 
     if model_type == MIXTRAL:
-        sliding_window = config_dict.get("sliding_window", -1)
         if FLASH_ATTENTION:
             return FlashMixtral(
                 model_id,
@@ -747,7 +752,6 @@ def get_model(
             )
 
     if model_type == STARCODER2:
-        sliding_window = config_dict.get("sliding_window", -1)
         if FLASH_ATTENTION:
             return FlashStarcoder2(
                 model_id,
@@ -771,8 +775,7 @@ def get_model(
             )
 
     if model_type == QWEN2:
-        sliding_window = config_dict.get("sliding_window", -1)
-        if (sliding_window is None or sliding_window != -1) and SUPPORTS_WINDOWING:
+        if FLASH_ATTENTION:
             return FlashQwen2(
                 model_id,
                 revision,
