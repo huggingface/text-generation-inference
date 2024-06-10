@@ -129,9 +129,22 @@ class TensorParallelColumnLinear(SuperLayer):
         return cls(linear)
 
     @classmethod
-    def load_qkv(cls, config, prefix: str, weights, bias: bool):
+    def load_qkv(
+        cls,
+        config,
+        prefix: str,
+        weights,
+        bias: bool,
+        num_heads: int,
+        num_key_value_heads: int,
+    ):
         """Specific method when the QKV was joined after the fact"""
-        weight = weights.get_weights_col_packed_qkv(prefix, quantize=config.quantize)
+        weight = weights.get_weights_col_packed_qkv(
+            prefix,
+            quantize=config.quantize,
+            num_heads=num_heads,
+            num_key_value_heads=num_key_value_heads,
+        )
         if bias:
             raise NotImplementedError("packed_qkv only implemented for baichuan")
         else:

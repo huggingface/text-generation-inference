@@ -62,6 +62,8 @@ def load_attention(config, prefix, weights):
             prefix=f"{prefix}.qkv_proj",
             weights=weights,
             bias=bias,
+            num_heads=config.num_attention_heads,
+            num_key_value_heads=config.num_key_value_heads,
         )
     elif config.model_type == "baichuan":
         return TensorParallelColumnLinear.load_qkv(
@@ -69,6 +71,8 @@ def load_attention(config, prefix, weights):
             prefix=f"{prefix}.W_pack",
             weights=weights,
             bias=bias,
+            num_heads=config.num_attention_heads,
+            num_key_value_heads=config.num_key_value_heads,
         )
 
     # otherwise, load the default attention based on the number of heads
@@ -105,6 +109,11 @@ class FlashLlamaAttention(torch.nn.Module):
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
+                f"and `num_shards`: {weights.process_group.size()}"
+            )
+        if config.num_key_value_heads % weights.process_group.size() != 0:
+            raise ValueError(
+                f"`num_key_value_heads` must be divisible by `num_shards` (got `num_key_value_heads`: {config.num_key_value_heads} "
                 f"and `num_shards`: {weights.process_group.size()}"
             )
         self.num_heads = self.num_heads // weights.process_group.size()

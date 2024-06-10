@@ -59,7 +59,12 @@ def _load_qkv_gptq(config, prefix: str, weights):
     rank = weights.process_group.rank()
 
     # Weights
-    weight = weights.get_weights_col_packed_qkv(f"{prefix}.c_attn", config.quantize)
+    weight = weights.get_weights_col_packed_qkv(
+        f"{prefix}.c_attn",
+        config.quantize,
+        config.num_attention_heads,
+        config.num_attention_heads,
+    )
 
     # Bias
     slice_ = weights._get_slice(f"{prefix}.c_attn.bias")
