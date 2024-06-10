@@ -1,4 +1,4 @@
-# LoRA (Low-Rank Adaptation)
+<img width="955" alt="image" src="https://github.com/huggingface/text-generation-inference/assets/22736772/7e02b707-8808-4c76-9197-49bec946c869"># LoRA (Low-Rank Adaptation)
 
 ## What is LoRA?
 
@@ -26,7 +26,7 @@ Once a LoRA model has been trained, it can be used to generate text or perform o
 
 In practice its often useful to have multiple LoRA models, each fine-tuned on a different dataset or for a different task. This allows you to use the model that is best suited for a particular task or dataset.
 
-Text Genertaion Inference (TGI) now supports loading multiple LoRA models at startup that can be used in generation requests. This feature is available starting from version `~2.0.6` and is compatible with LoRA models trained using the `peft` library.
+Text Generation Inference (TGI) now supports loading multiple LoRA models at startup that can be used in generation requests. This feature is available starting from version `~2.0.6` and is compatible with LoRA models trained using the `peft` library.
 
 ### Specifying LoRA models
 
