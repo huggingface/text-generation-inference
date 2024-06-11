@@ -206,8 +206,10 @@ def test_seq2seq_lm_generate_token_completion_multi(
     )
     assert generations[1].generated_text.generated_tokens == 5
 
-    next_batch = next_batch.filter(
-        [generate_pb2.UpdatedRequest(id=next_batch.requests[0].id, blocks=[], slots=[])]
+    next_batch, _ = next_batch.filter(
+        default_seq2seq_lm,
+        [generate_pb2.KeptRequest(id=next_batch.requests[0].id, blocks=[], slots=[])],
+        [],
     )
 
     generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
@@ -341,15 +343,13 @@ def test_batch_concatenate(
     )
     assert generations[2].generated_text.generated_tokens == 5
 
-    next_batch = next_batch.filter(
+    next_batch, _ = next_batch.filter(
+        default_seq2seq_lm,
         [
-            generate_pb2.UpdatedRequest(
-                id=next_batch.requests[0].id, blocks=[], slots=[]
-            ),
-            generate_pb2.UpdatedRequest(
-                id=next_batch.requests[1].id, blocks=[], slots=[]
-            ),
-        ]
+            generate_pb2.KeptRequest(id=next_batch.requests[0].id, blocks=[], slots=[]),
+            generate_pb2.KeptRequest(id=next_batch.requests[1].id, blocks=[], slots=[]),
+        ],
+        [],
     )
 
     generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
@@ -360,8 +360,10 @@ def test_batch_concatenate(
     assert generations[0].request_id == default_seq2seq_lm_batch.requests[0].id
     assert generations[0].generated_text.generated_tokens == 7
 
-    next_batch = next_batch.filter(
-        [generate_pb2.UpdatedRequest(id=next_batch.requests[1].id, blocks=[], slots=[])]
+    next_batch, _ = next_batch.filter(
+        default_seq2seq_lm,
+        [generate_pb2.KeptRequest(id=next_batch.requests[1].id, blocks=[], slots=[])],
+        [],
     )
 
     generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)

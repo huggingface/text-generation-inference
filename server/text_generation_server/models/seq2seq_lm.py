@@ -167,14 +167,49 @@ class Seq2SeqLMBatch(Batch):
 
     @tracer.start_as_current_span("filter")
     def filter(
-        self, updated_requests: List[generate_pb2.KeptRequest]
-    ) -> Optional["Seq2SeqLMBatch"]:
-        request_ids = [r.id for r in updated_requests]
+        self,
+        model: "Seq2SeqLM",
+        kept_requests: List[generate_pb2.KeptRequest],
+        terminated_request_ids: List[int],
+    ) -> Tuple[Optional["Seq2SeqLMBatch"], List[generate_pb2.TerminatedGeneration]]:
+        terminated_generations = []
+        for request_id in terminated_request_ids:
+            idx = self.requests_idx_mapping[request_id]
+            all_decoder_input_ids = self.all_decoder_input_ids[idx]
+            decoder_input_length = self.decoder_input_lengths[idx]
+            stopping_criteria = self.stopping_criterias[idx]
+            next_token_chooser = self.next_token_choosers[idx]
 
-        if len(request_ids) == 0:
-            raise ValueError("Batch must have at least one request")
+            # Decode generated tokens
+            output_text, _, _ = model.decode_token(
+                all_decoder_input_ids,
+                prefix_offset=len(all_decoder_input_ids) - decoder_input_length - 1,
+                read_offset=len(all_decoder_input_ids) - decoder_input_length,
+                skip_special_tokens=True,
+            )
+            # Get seed
+            if isinstance(next_token_chooser.choice, Sampling):
+                seed = next_token_chooser.choice.seed
+            else:
+                seed = None
+
+            terminated_generations.append(
+                generate_pb2.TerminatedGeneration(
+                    id=request_id,
+                    generated_text=generate_pb2.GeneratedText(
+                        text=output_text,
+                        generated_tokens=stopping_criteria.current_tokens,
+                        finish_reason=generate_pb2.FINISH_REASON_TERMINATED,
+                        seed=seed,
+                    ),
+                )
+            )
+        if not kept_requests:
+            return None, terminated_generations
+
+        request_ids = [r.id for r in kept_requests]
         if len(request_ids) == len(self):
-            return self
+            return self, terminated_generations
 
         keep_indices = []
 
@@ -281,7 +316,7 @@ class Seq2SeqLMBatch(Batch):
         self.padding_right_offset = padding_right_offset
         self.max_tokens = max_tokens
 
-        return self
+        return self, terminated_generations
 
     @classmethod
     @tracer.start_as_current_span("concatenate")

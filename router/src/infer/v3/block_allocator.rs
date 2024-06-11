@@ -1,7 +1,8 @@
-use std::sync::{Arc, Mutex};
+use std::fmt::Formatter;
+use std::sync::{Arc, Mutex, TryLockError};
 use thiserror::Error;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct BlockAllocation {
     allocated_blocks: Vec<u32>,
     allocated_slots: Vec<u32>,
@@ -53,7 +54,19 @@ impl Drop for BlockAllocation {
     }
 }
 
-#[derive(Debug, Clone)]
+impl std::fmt::Debug for BlockAllocation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BlockAllocation")
+            .field("allocated_blocks", &self.allocated_blocks.len())
+            .field("allocated_slots", &self.allocated_slots.len())
+            .field("required_blocks", &self.required_blocks)
+            .field("required_slots", &self.required_slots)
+            .field("block_allocator", &self.block_allocator)
+            .finish()
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct BlockAllocator {
     free_blocks: Arc<Mutex<Vec<u32>>>,
     block_size: u32,
@@ -129,8 +142,7 @@ impl BlockAllocator {
             Err(AllocationError::NotEnoughPages)
         } else {
             let n_free_blocks = free_blocks.len();
-            let allocated_blocks =
-                free_blocks.split_off(n_free_blocks - clipped_required_blocks);
+            let allocated_blocks = free_blocks.split_off(n_free_blocks - clipped_required_blocks);
 
             let allocated_blocks = if repeats != 1 {
                 let mut allocated_blocks = allocated_blocks.repeat(repeats);
@@ -140,9 +152,8 @@ impl BlockAllocator {
                 allocated_blocks
             };
 
-            let mut allocated_slots = Vec::with_capacity(
-                allocated_blocks.len() * self.block_size as usize * repeats,
-            );
+            let mut allocated_slots =
+                Vec::with_capacity(allocated_blocks.len() * self.block_size as usize * repeats);
 
             let required_slots = (prompt_tokens + decode_tokens) as usize;
 
@@ -166,7 +177,30 @@ impl BlockAllocator {
     }
 
     pub(crate) fn free(&self, blocks: Vec<u32>) {
-        self.free_blocks.lock().expect("Lock could not be acquired. This is a bug.").extend(blocks)
+        self.free_blocks
+            .lock()
+            .expect("Lock could not be acquired. This is a bug.")
+            .extend(blocks)
+    }
+}
+
+impl std::fmt::Debug for BlockAllocator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("BlockAllocator");
+        d.field("block_size", &self.block_size)
+            .field("window_size", &self.window_size);
+        match self.free_blocks.try_lock() {
+            Ok(guard) => {
+                d.field("free_blocks", &(*guard).len());
+            }
+            Err(TryLockError::Poisoned(err)) => {
+                d.field("free_blocks", &(**err.get_ref()).len());
+            }
+            Err(TryLockError::WouldBlock) => {
+                d.field("free_blocks", &format_args!("<locked>"));
+            }
+        };
+        d.finish()
     }
 }
 

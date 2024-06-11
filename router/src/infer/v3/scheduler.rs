@@ -256,11 +256,7 @@ async fn prefill(
                     .expect("ID not found in entries. This is a bug.");
 
                 // Send intermediate responses
-                if let Err(_) = send_stream_responses(stream_responses, entry).map_err(|err| {
-                    tracing::error!("Entry response channel error.");
-                    metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
-                    err
-                }) {
+                if send_stream_responses(stream_responses, entry).is_err() {
                     // Sending failed, remove entry
                     entries
                         .remove(&id)
@@ -405,7 +401,7 @@ async fn filter_batch(
             .filter_batch(
                 id,
                 updated_requests,
-                terminated_entries.keys().map(|v| *v).collect(),
+                terminated_entries.keys().copied().collect(),
             )
             .await
             .unwrap()
@@ -460,11 +456,14 @@ fn send_terminated_generations(
             };
 
             // Send responses
-            if let Err(_) = entry.response_tx.send(Ok(response)).map_err(|err| {
+            let send_result = entry.response_tx.send(Ok(response)).map_err(|err| {
                 tracing::error!("Entry response channel error.");
                 metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
                 err
-            }) {
+            });
+
+            if send_result.is_err() {
+                // The channel is dropped, skip the rest of the messages
                 continue 'terminated_generations;
             }
         }
@@ -504,11 +503,7 @@ fn filter_send_ended_generations(
         // If the generation has ended for this request, we send the responses to the channel and
         // remove the entry to drop it and free its blocks
         if finished {
-            let _ = send_stream_responses(stream_responses, entry).map_err(|err| {
-                tracing::error!("Entry response channel error.");
-                metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
-                err
-            });
+            let _ = send_stream_responses(stream_responses, entry);
             // Remove from entries and filter
             entries.remove(&id).expect("ID not found in entries. This is a bug.");
             return None;
@@ -525,7 +520,11 @@ fn send_stream_responses(
     entry: &Entry,
 ) -> Result<(), Box<SendError<Result<InferStreamResponse, InferError>>>> {
     for response in stream_responses {
-        entry.response_tx.send(Ok(response))?;
+        entry.response_tx.send(Ok(response)).map_err(|err| {
+            tracing::error!("Entry response channel error.");
+            metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+            err
+        })?;
     }
     Ok(())
 }
@@ -541,7 +540,7 @@ fn filter_send_update_allocations(
 ) -> (bool, IntMap<u64, Entry>) {
     let mut updated = false;
 
-    let ids: Vec<u64> = entries.keys().map(|v| *v).collect();
+    let ids: Vec<u64> = entries.keys().copied().collect();
     let mut terminated_entries =
         IntMap::with_capacity_and_hasher(entries.len(), BuildNoHashHasher::default());
 
@@ -581,11 +580,7 @@ fn filter_send_update_allocations(
             .expect("ID not found in stream_responses. This is a bug.");
 
         // Send intermediate responses
-        if let Err(_) = send_stream_responses(stream_response, entry).map_err(|err| {
-            tracing::error!("Entry response channel error.");
-            metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
-            err
-        }) {
+        if send_stream_responses(stream_response, entry).is_err() {
             // Sending failed, remove entry
             entries
                 .remove(id)

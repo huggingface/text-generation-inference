@@ -275,7 +275,9 @@ impl State {
                     if prefill_tokens > prefill_token_budget {
                         // Entry is over budget
                         // Add it back to the front
-                        tracing::debug!("Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget} || {prefill_tokens} + {decode_tokens} + {} > {token_budget}", self.speculate);
+                        tracing::debug!(
+                            "Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget}"
+                        );
                         self.entries.push_front((id, entry));
                         break;
                     }
@@ -456,7 +458,7 @@ mod tests {
         let entry = Entry {
             request: ValidGenerateRequest {
                 inputs: vec![],
-                input_length: 0,
+                input_length: 1,
                 truncate: 0,
                 decoder_input_details: false,
                 parameters: ValidParameters {
@@ -567,7 +569,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_batch_token_budget() {
-        let mut state = State::new(false, 1, None, 0, 2);
+        let mut state = State::new(false, 1, None, 0, 16);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
@@ -689,7 +691,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_speculate() {
-        let queue = Queue::new(false, 1, None, 2, 16);
+        let queue = Queue::new(true, 1, None, 2, 16);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);

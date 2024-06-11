@@ -197,8 +197,10 @@ def test_causal_lm_generate_token_completion_multi(
     # Copy stopping_criterias before filtering
     stopping_criterias = default_multi_requests_bloom_batch.stopping_criterias.copy()
 
-    next_batch = next_batch.filter(
-        [generate_pb2.UpdatedRequest(id=next_batch.requests[0].id, blocks=[], slots=[])]
+    next_batch, _ = next_batch.filter(
+        default_bloom,
+        [generate_pb2.KeptRequest(id=next_batch.requests[0].id, blocks=[], slots=[])],
+        [],
     )
 
     for _ in range(
@@ -307,15 +309,13 @@ def test_batch_concatenate(
         == default_multi_requests_bloom_batch.stopping_criterias[1].max_new_tokens
     )
 
-    next_batch = next_batch.filter(
+    next_batch, _ = next_batch.filter(
+        default_bloom,
         [
-            generate_pb2.UpdatedRequest(
-                id=next_batch.requests[0].id, blocks=[], slots=[]
-            ),
-            generate_pb2.UpdatedRequest(
-                id=next_batch.requests[1].id, blocks=[], slots=[]
-            ),
-        ]
+            generate_pb2.KeptRequest(id=next_batch.requests[0].id, blocks=[], slots=[]),
+            generate_pb2.KeptRequest(id=next_batch.requests[1].id, blocks=[], slots=[]),
+        ],
+        [],
     )
 
     for _ in range(
@@ -339,8 +339,10 @@ def test_batch_concatenate(
         == default_bloom_batch.stopping_criterias[0].max_new_tokens
     )
 
-    next_batch = next_batch.filter(
-        [generate_pb2.UpdatedRequest(id=next_batch.requests[1].id, blocks=[], slots=[])]
+    next_batch, _ = next_batch.filter(
+        default_bloom,
+        [generate_pb2.KeptRequest(id=next_batch.requests[1].id, blocks=[], slots=[])],
+        [],
     )
 
     for _ in range(
