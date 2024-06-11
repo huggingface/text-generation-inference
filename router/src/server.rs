@@ -1016,6 +1016,7 @@ async fn chat_completions(
         tool_choice,
         tool_prompt,
         temperature,
+        response_format,
         ..
     } = req;
 
@@ -1029,6 +1030,18 @@ async fn chat_completions(
         Some(temperature) if temperature == 0.0 => (false, None),
         other => (true, other),
     };
+
+    // response_format and tools are mutually exclusive
+    if response_format.is_some() && tools.as_ref().is_some() {
+        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: "Grammar and tools are mutually exclusive".to_string(),
+                error_type: "grammar and tools".to_string(),
+            }),
+        ));
+    }
 
     // extract tool grammar if present
     let tool_grammar = match ToolGrammar::apply(tools, tool_choice) {
@@ -1046,16 +1059,21 @@ async fn chat_completions(
         }
     };
 
-    let grammar_with_prompt = tool_grammar
+    // determine the appropriate arguments for apply_chat_template
+    let tools_grammar_prompt = tool_grammar
         .as_ref()
         .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt));
 
-    let typed_grammar = grammar_with_prompt
-        .as_ref()
-        .map(|(grammar, _)| grammar.clone());
+    let (tools_grammar_prompt, grammar) = match response_format {
+        Some(response_format) => (None, Some(response_format)),
+        None => (
+            tools_grammar_prompt.clone(),
+            tools_grammar_prompt.map(|(grammar, _)| grammar.clone()),
+        ),
+    };
 
     // apply chat template to flatten the request into a single input
-    let inputs = match infer.apply_chat_template(messages, grammar_with_prompt) {
+    let inputs = match infer.apply_chat_template(messages, tools_grammar_prompt) {
         Ok(inputs) => inputs,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
@@ -1091,7 +1109,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: req.top_logprobs,
-            grammar: typed_grammar,
+            grammar,
         },
     };
 
