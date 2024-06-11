@@ -1,13 +1,17 @@
 import pytest
 
+from testing_utils import require_backend_async
+
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda", "xpu")
 def flash_gemma_gptq_handle(launcher):
     with launcher("TechxGenus/gemma-2b-GPTQ", num_shard=1, quantize="gptq") as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda", "xpu")
 async def flash_gemma_gptq(flash_gemma_gptq_handle):
     await flash_gemma_gptq_handle.health(300)
     return flash_gemma_gptq_handle.client
@@ -15,6 +19,7 @@ async def flash_gemma_gptq(flash_gemma_gptq_handle):
 
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma_gptq(flash_gemma_gptq, ignore_logprob_response_snapshot):
     response = await flash_gemma_gptq.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
@@ -28,6 +33,7 @@ async def test_flash_gemma_gptq(flash_gemma_gptq, ignore_logprob_response_snapsh
 
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma_gptq_all_params(
     flash_gemma_gptq, ignore_logprob_response_snapshot
 ):
@@ -53,6 +59,7 @@ async def test_flash_gemma_gptq_all_params(
 
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma_gptq_load(
     flash_gemma_gptq, generate_load, ignore_logprob_response_snapshot
 ):

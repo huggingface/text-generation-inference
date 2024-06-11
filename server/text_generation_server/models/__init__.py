@@ -105,11 +105,13 @@ if FLASH_ATTENTION:
     __all__.append(FlashCohere)
 
 MAMBA_AVAILABLE = True
+MAMBA_IMPORT_ERROR = None
 try:
     from text_generation_server.models.mamba import Mamba
 except ImportError as e:
     logger.warning(f"Could not import Mamba: {e}")
     MAMBA_AVAILABLE = False
+    MAMBA_IMPORT_ERROR = e
 
 if MAMBA_AVAILABLE:
     __all__.append(Mamba)
@@ -424,6 +426,11 @@ def get_model(
         )
 
     if model_type == MAMBA:
+        if not MAMBA_AVAILABLE:
+            raise ImportError(
+                f"Mamba is not available on the current {SYSTEM} system, with the following error: {MAMBA_IMPORT_ERROR}"
+            )
+
         return Mamba(
             model_id,
             revision,

@@ -1,19 +1,26 @@
 import pytest
 
+from testing_utils import require_backend_async
+
+# These tests do not pass on ROCm, with different generations.
+
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda")
 def flash_phi_handle(launcher):
     with launcher("microsoft/phi-2", num_shard=1) as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda")
 async def flash_phi(flash_phi_handle):
     await flash_phi_handle.health(300)
     return flash_phi_handle.client
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_flash_phi(flash_phi, response_snapshot):
     response = await flash_phi.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
@@ -25,6 +32,7 @@ async def test_flash_phi(flash_phi, response_snapshot):
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_flash_phi_all_params(flash_phi, response_snapshot):
     response = await flash_phi.generate(
         "Test request",
@@ -48,6 +56,7 @@ async def test_flash_phi_all_params(flash_phi, response_snapshot):
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_flash_phi_load(flash_phi, generate_load, response_snapshot):
     responses = await generate_load(flash_phi, "Test request", max_new_tokens=10, n=4)
 

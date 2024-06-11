@@ -3,7 +3,8 @@ import pytest
 
 @pytest.fixture(scope="module")
 def mt0_base_handle(launcher):
-    with launcher("bigscience/mt0-base") as handle:
+    # We use TP=1 as this model is loaded with AutoModel (sharding not supported).
+    with launcher("bigscience/mt0-base", num_shard=1) as handle:
         yield handle
 
 

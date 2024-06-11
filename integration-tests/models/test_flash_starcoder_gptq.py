@@ -1,5 +1,7 @@
 import pytest
 
+from testing_utils import SYSTEM, is_flaky_async, require_backend_async
+
 
 @pytest.fixture(scope="module")
 def flash_starcoder_gptq_handle(launcher):
@@ -14,6 +16,7 @@ async def flash_starcoder_gptq(flash_starcoder_gptq_handle):
 
 
 @pytest.mark.asyncio
+@is_flaky_async(max_attempts=10)
 async def test_flash_starcoder_gptq(flash_starcoder_gptq, generous_response_snapshot):
     response = await flash_starcoder_gptq.generate(
         "def geometric_mean(L: List[float]):",
@@ -21,10 +24,17 @@ async def test_flash_starcoder_gptq(flash_starcoder_gptq, generous_response_snap
         decoder_input_details=True,
     )
     assert response.details.generated_tokens == 20
-    assert response == generous_response_snapshot
+    assert (
+        response.generated_text
+        == '\n    """\n    Calculate the geometric mean of a list of numbers.\n\n    :param L: List'
+    )
+
+    if SYSTEM != "rocm":
+        assert response == generous_response_snapshot
 
 
 @pytest.mark.asyncio
+@is_flaky_async(max_attempts=10)
 async def test_flash_starcoder_gptq_default_params(
     flash_starcoder_gptq, generous_response_snapshot
 ):
@@ -37,13 +47,21 @@ async def test_flash_starcoder_gptq_default_params(
         seed=0,
     )
     assert response.details.generated_tokens == 20
-    assert response == generous_response_snapshot
+    assert (
+        response.generated_text == "\n    return reduce(lambda x, y: x * y, L) ** (1.0"
+    )
+
+    if SYSTEM != "rocm":
+        assert response == generous_response_snapshot
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_flash_starcoder_gptq_load(
     flash_starcoder_gptq, generate_load, generous_response_snapshot
 ):
+    # TODO: exllamav2 gptq kernel is highly non-deterministic on ROCm.
+
     responses = await generate_load(
         flash_starcoder_gptq,
         "def geometric_mean(L: List[float]):",

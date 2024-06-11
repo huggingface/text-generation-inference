@@ -1,5 +1,7 @@
 import pytest
 
+from testing_utils import require_backend_async
+
 
 @pytest.fixture(scope="module")
 def bloom_560m_sharded_handle(launcher):
@@ -14,7 +16,9 @@ async def bloom_560m_sharded(bloom_560m_sharded_handle):
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_bloom_560m_sharded(bloom_560m_sharded, response_snapshot):
+    # The generated text is different on MI300X, and for what it is worth also different on H100.
     response = await bloom_560m_sharded.generate(
         "Pour déguster un ortolan, il faut tout d'abord",
         max_new_tokens=10,

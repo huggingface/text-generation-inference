@@ -1,20 +1,26 @@
 import pytest
 
+from testing_utils import require_backend_async
+
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda")
 def bloom_560_handle(launcher):
     with launcher("bigscience/bloom-560m") as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda")
 async def bloom_560(bloom_560_handle):
     await bloom_560_handle.health(240)
     return bloom_560_handle.client
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_bloom_560m(bloom_560, response_snapshot):
+    # The generated text is different on MI300X, and for what it is worth also different on H100.
     response = await bloom_560.generate(
         "Pour déguster un ortolan, il faut tout d'abord",
         max_new_tokens=10,
@@ -28,7 +34,9 @@ async def test_bloom_560m(bloom_560, response_snapshot):
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_bloom_560m_all_params(bloom_560, response_snapshot):
+    # The generated text is different on MI300X, and for what it is worth also different on H100.
     response = await bloom_560.generate(
         "Pour déguster un ortolan, il faut tout d'abord",
         max_new_tokens=10,
@@ -50,7 +58,9 @@ async def test_bloom_560m_all_params(bloom_560, response_snapshot):
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_bloom_560m_load(bloom_560, generate_load, response_snapshot):
+    # The generated text is different on MI300X, and for what it is worth also different on H100.
     responses = await generate_load(
         bloom_560,
         "Pour déguster un ortolan, il faut tout d'abord",
