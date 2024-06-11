@@ -89,6 +89,7 @@ pub(crate) enum GrammarType {
     /// JSON Schema is a declarative language that allows to annotate JSON documents
     /// with types and descriptions.
     #[serde(rename = "json")]
+    #[serde(alias = "json_object")]
     #[schema(example = json ! ({"properties": {"location":{"type": "string"}}}))]
     Json(serde_json::Value),
     #[serde(rename = "regex")]
@@ -791,6 +792,13 @@ pub(crate) struct ChatRequest {
     #[schema(nullable = true, example = "null")]
     #[serde(deserialize_with = "deserialize_tool_choice::deserialize")]
     pub tool_choice: Option<ToolType>,
+
+    /// Response format constraints for the generation.
+    ///
+    /// NOTE: A request can use `response_format` OR `tools` but not both.
+    #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub response_format: Option<GrammarType>,
 }
 
 fn default_tool_prompt() -> Option<String> {
