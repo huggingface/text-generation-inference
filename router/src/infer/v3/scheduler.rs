@@ -361,6 +361,7 @@ async fn decode(
 }
 
 /// Filter a `batch` and remove all requests not present in `entries`
+/// Ask the server to generate the full texts for entries in `terminated_entries`
 #[instrument(skip_all)]
 async fn filter_batch(
     client: &mut ShardedClient,
@@ -408,7 +409,10 @@ async fn filter_batch(
     }
 }
 
-///
+/// Send `InferStreamResponse::Intermediate` and the final `InferStreamResponse::End` messages
+/// to terminated requests
+/// It modifies the last `InferStreamResponse::Intermediate` to add the final full text in
+/// `terminated_generations`
 #[instrument(skip_all)]
 fn send_terminated_generations(
     terminated_generations: Vec<TerminatedGeneration>,
@@ -530,7 +534,7 @@ fn send_stream_responses(
 }
 
 /// Check if block allocations need to be extended
-/// If we don't have enough blocks, request will be filtered with be added to an IntMap of
+/// If we don't have enough blocks, request will be filtered and added to an IntMap of
 /// terminated entries.
 /// If at least one entry allocation was extended, we return true to force an update
 #[instrument(skip_all)]
@@ -592,6 +596,7 @@ fn filter_send_update_allocations(
 }
 
 /// Map `Generation` to `<(bool, Vec<(u64, InferStreamResponse)>)>`
+/// `bool` is `true` if the generation is finished
 fn map_generation(generation: Generation, entry: &Entry) -> (bool, Vec<InferStreamResponse>) {
     let mut finished = false;
     let mut stream_responses = Vec::with_capacity(16);
