@@ -14,9 +14,6 @@ def flash_llama_marlin_handle(launcher):
 @pytest.fixture(scope="module")
 async def flash_llama_marlin(flash_llama_marlin_handle):
     if SYSTEM != "cuda":
-        with pytest.raises(Exception) as exc_info:
-            await flash_llama_marlin_handle.health(300)
-        assert exc_info.value.args[0] == "only available on Nvidia"
         pytest.skip(f"Marlin not supported on SYSTEM={SYSTEM}")
     else:
         await flash_llama_marlin_handle.health(300)

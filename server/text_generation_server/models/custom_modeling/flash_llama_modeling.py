@@ -19,7 +19,6 @@
 # limitations under the License.
 
 from typing import List, Optional, Tuple
-
 import torch
 import torch.distributed
 
@@ -189,7 +188,6 @@ class FlashLlamaAttention(torch.nn.Module):
                 input_lengths,
                 max_s,
             )
-
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
 
@@ -439,5 +437,6 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
+
         logits, speculative_logits = self.lm_head(hidden_states)
         return logits, speculative_logits

@@ -1,12 +1,22 @@
 import pytest
 
+from testing_utils import SYSTEM
+
 
 @pytest.fixture(scope="module")
 def flash_llama_awq_handle(launcher):
+    if SYSTEM == "rocm":
+        # On ROCm, for awq checkpoints, we need to use gptq kernel that supports ROCm.
+        quantize = "gptq"
+    elif SYSTEM == "xpu":
+        pytest.skiptest("AWQ is not supported on xpu")
+    else:
+        quantize = "awq"
+
     with launcher(
         "abhinavkulkarni/codellama-CodeLlama-7b-Python-hf-w4-g128-awq",
         num_shard=1,
-        quantize="awq",
+        quantize=quantize,
     ) as handle:
         yield handle
 

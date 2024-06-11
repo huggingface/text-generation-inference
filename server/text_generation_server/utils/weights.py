@@ -561,6 +561,8 @@ class Weights:
 
     def _set_gptq_params(self, model_id, revision):
         filename = "config.json"
+
+        self.quant_method = None
         try:
             if os.path.exists(os.path.join(model_id, filename)):
                 filename = os.path.join(model_id, filename)
@@ -608,7 +610,11 @@ class Weights:
                     if "version" in data and data["version"] == "GEMM":
                         self.quant_method = "awq"
                 except Exception:
-                    pass
+                    if self.quant_method is None:
+                        if "awq" in model_id.lower():
+                            self.quant_method = "awq"
+                        elif "gptq" in model_id.lower():
+                            self.quant_method = "gptq"
 
 
 def _blocks_to_block_sizes(total_size: int, blocks: Union[int, List[int]]) -> List[int]:

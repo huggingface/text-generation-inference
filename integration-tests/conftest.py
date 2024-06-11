@@ -320,7 +320,6 @@ def launcher(event_loop):
         max_batch_prefill_tokens: Optional[int] = None,
         max_total_tokens: Optional[int] = None,
     ):
-        print("call local_launcher")
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
 
