@@ -20,4 +20,4 @@ build-vllm-rocm:
 
 install-vllm-rocm: build-vllm-rocm
 	cd vllm && git fetch && git checkout $(commit_rocm) && \
-	PYTORCH_ROCM_ARCH="gfx90a;gfx942" pip install -e .
+	VLLM_TARGET_DEVICE="rocm" PYTORCH_ROCM_ARCH="gfx90a;gfx942" pip install --no-build-isolation -e .
