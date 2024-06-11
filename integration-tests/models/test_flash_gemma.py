@@ -1,13 +1,19 @@
 import pytest
 
+from testing_utils import require_backend_async
+
+# These tests do not pass on ROCm, that does not support head_dim > 128 (2b model is 256).
+
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda", "xpu")
 def flash_gemma_handle(launcher):
     with launcher("google/gemma-2b", num_shard=1) as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda", "xpu")
 async def flash_gemma(flash_gemma_handle):
     await flash_gemma_handle.health(300)
     return flash_gemma_handle.client
@@ -15,6 +21,7 @@ async def flash_gemma(flash_gemma_handle):
 
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma(flash_gemma, response_snapshot):
     response = await flash_gemma.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
@@ -26,6 +33,7 @@ async def test_flash_gemma(flash_gemma, response_snapshot):
 
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma_all_params(flash_gemma, response_snapshot):
     response = await flash_gemma.generate(
         "Test request",
@@ -49,6 +57,7 @@ async def test_flash_gemma_all_params(flash_gemma, response_snapshot):
 
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma_load(flash_gemma, generate_load, response_snapshot):
     responses = await generate_load(flash_gemma, "Test request", max_new_tokens=10, n=4)
 

@@ -82,7 +82,7 @@ class FastLinearROCm(torch.nn.Module):
                 out = F.linear(inp, weight)
 
             if batched:
-                out.view(*inp_shape[:-1], out.shape[-1])
+                out = out.view(*inp_shape[:-1], out.shape[-1])
 
             if bias is not None:
                 out = out + bias

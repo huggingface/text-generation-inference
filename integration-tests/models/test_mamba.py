@@ -1,19 +1,24 @@
 import pytest
 
+from testing_utils import require_backend_async
+
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda")
 def fused_kernel_mamba_handle(launcher):
     with launcher("state-spaces/mamba-130m", num_shard=1) as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda")
 async def fused_kernel_mamba(fused_kernel_mamba_handle):
     await fused_kernel_mamba_handle.health(300)
     return fused_kernel_mamba_handle.client
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_mamba(fused_kernel_mamba, response_snapshot):
     response = await fused_kernel_mamba.generate(
         "What is Deep Learning?", max_new_tokens=10
@@ -25,6 +30,7 @@ async def test_mamba(fused_kernel_mamba, response_snapshot):
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
     response = await fused_kernel_mamba.generate(
         "blue, red, yellow, ",
@@ -51,6 +57,7 @@ async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
 
 
 @pytest.mark.asyncio
+@require_backend_async("cuda")
 async def test_mamba_load(
     fused_kernel_mamba, generate_load, generous_response_snapshot
 ):
