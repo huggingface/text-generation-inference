@@ -31,15 +31,19 @@ jobs:
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
       security-events: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
+
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
+
       - name: Construct harware variables
         shell: bash
         run: |
@@ -54,11 +58,9 @@ jobs:
                 export dockerfile="Dockerfile_amd"
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
-                # TODO Re-enable when they pass.
-                # export runs_on="amd-gpu-tgi"
-                export runs_on="ubuntu-latest"
+                export runs_on="amd-gpu-tgi"
                 ;;
-            intel)
+            xpu)
                 export dockerfile="Dockerfile_intel"
                 export label_extension="-intel"
                 export docker_devices=""
@@ -74,10 +76,12 @@ jobs:
           echo "LABEL=${label_extension}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
           echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
+
       - name: Tailscale
         uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -85,12 +89,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Login to internal Container Registry
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
           password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
           registry: registry.internal.huggingface.tech
+
       - name: Login to Azure Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -98,6 +104,7 @@ jobs:
           username: ${{ secrets.AZURE_DOCKER_USERNAME }}
           password: ${{ secrets.AZURE_DOCKER_PASSWORD }}
           registry: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io
+
       # If pull request
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name == 'pull_request' }}
@@ -108,6 +115,7 @@ jobs:
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
           tags: |
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+
       # If main, release or tag
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name != 'pull_request' }}
@@ -125,6 +133,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
             type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
@@ -140,6 +149,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
           cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
+
       - name: Final
         id: final
         run: |
@@ -147,6 +157,7 @@ jobs:
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+
   integration_tests:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
@@ -157,25 +168,37 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+
       - name: Install
         run: |
           make install-integration-tests
+
       - name: Tailscale
         uses: huggingface/tailscale-action@main
         if: needs.build-and-push.outputs.runs_on != 'amd-gpu-tgi'
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
-          export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+
+          export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
+          echo "DOCKER_IMAGE:"
           echo $DOCKER_IMAGE
-          pytest -s -vv integration-tests
+
+          export SYSTEM=${{ inputs.hardware }}
+          echo "SYSTEM:"
+          echo $SYSTEM
+
+          pytest -s -vvvvv integration-tests
