@@ -1,6 +1,6 @@
 import pytest
 
-from testing_utils import SYSTEM, is_flaky_async
+from testing_utils import SYSTEM, is_flaky_async, require_backend_async
 
 
 @pytest.fixture(scope="module")

@@ -20,6 +20,8 @@ async def test_flash_gemma_gptq(flash_gemma_gptq, ignore_logprob_response_snapsh
         "Test request", max_new_tokens=10, decoder_input_details=True
     )
 
+    print(f"response.generated_text `{response.generated_text}`")
+
     assert response.details.generated_tokens == 10
     assert response == ignore_logprob_response_snapshot
 
