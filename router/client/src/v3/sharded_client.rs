@@ -2,7 +2,7 @@
 use crate::{v3, Health, ShardInfo};
 use crate::{ClientError, Result};
 
-use crate::v3::{Chunk, InfoResponse, Input};
+use crate::v3::{Chunk, InfoResponse, Input, TerminatedGeneration};
 use async_trait::async_trait;
 use futures::future::join_all;
 use tonic::transport::Uri;
@@ -86,7 +86,7 @@ impl ShardedClient {
         batch_id: u64,
         kept_requests: Vec<KeptRequest>,
         terminated_request_ids: Vec<u64>,
-    ) -> Result<Option<CachedBatch>> {
+    ) -> Result<(Option<CachedBatch>, Vec<TerminatedGeneration>)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()

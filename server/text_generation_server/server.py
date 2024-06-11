@@ -86,10 +86,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         filtered_batch, terminated_generations = batch.filter(
             self.model, request.kept_requests, request.terminated_request_ids
         )
-        self.cache.set(filtered_batch)
+        if filtered_batch is not None:
+            self.cache.set(filtered_batch)
 
         return generate_pb2.FilterBatchResponse(
-            batch=filtered_batch.to_pb(), terminated_generations=terminated_generations
+            batch=filtered_batch.to_pb() if filtered_batch is not None else None,
+            terminated_generations=terminated_generations,
         )
 
     async def Warmup(self, request, context):

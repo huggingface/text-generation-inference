@@ -33,7 +33,7 @@ class Batch(ABC):
         model,
         kept_requests: List[generate_pb2.KeptRequest],
         terminated_request_ids: List[int],
-    ) -> Tuple["Batch", List[generate_pb2.GeneratedText]]:
+    ) -> Tuple[Optional["Batch"], List[generate_pb2.TerminatedGeneration]]:
         raise NotImplementedError
 
     @classmethod

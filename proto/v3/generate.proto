@@ -224,11 +224,18 @@ message FilterBatchRequest {
     repeated uint64 terminated_request_ids = 3;
 }
 
+message TerminatedGeneration {
+    // Request ID
+    uint64 id = 1;
+    // Generated text
+    GeneratedText generated_text = 2;
+}
+
 message FilterBatchResponse {
     /// Filtered Batch (cached)
     CachedBatch batch = 1;
     /// Terminated generations
-    repeated GeneratedText terminated_generations = 2;
+    repeated TerminatedGeneration terminated_generations = 2;
 }
 
 

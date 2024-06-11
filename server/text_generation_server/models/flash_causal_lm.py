@@ -402,10 +402,7 @@ class FlashCausalLMBatch(Batch):
         model: "FlashCausalLM",
         kept_requests: List[generate_pb2.KeptRequest],
         terminated_request_ids: List[int],
-    ) -> Tuple[Optional["FlashCausalLMBatch"], List[generate_pb2.GeneratedText]]:
-        if len(kept_requests) == 0:
-            raise ValueError("Batch must have at least one request")
-
+    ) -> Tuple[Optional["FlashCausalLMBatch"], List[generate_pb2.TerminatedGeneration]]:
         terminated_generations = []
         for request_id in terminated_request_ids:
             idx = self.requests_idx_mapping[request_id]
@@ -421,13 +418,19 @@ class FlashCausalLMBatch(Batch):
                 read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
                 skip_special_tokens=True,
             )
-            generated_text = GeneratedText(
-                output_text,
-                stopping_criteria.current_tokens,
-                generate_pb2.FINISH_REASON_TERMINATED,
-                seed if do_sample else None,
+            terminated_generations.append(
+                generate_pb2.TerminatedGeneration(
+                    id=request_id,
+                    generated_text=generate_pb2.GeneratedText(
+                        text=output_text,
+                        generated_tokens=stopping_criteria.current_tokens,
+                        finish_reason=generate_pb2.FINISH_REASON_TERMINATED,
+                        seed=seed if do_sample else None,
+                    ),
+                )
             )
-            terminated_generations.append(generated_text)
+        if not kept_requests:
+            return None, terminated_generations
 
         device = self.input_ids.device
 
