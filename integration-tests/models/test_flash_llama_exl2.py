@@ -1,7 +1,9 @@
 import pytest
+from testing_utils import require_backend_async
 
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda")
 def flash_llama_exl2_handle(launcher):
     with launcher(
         "turboderp/Llama-3-8B-Instruct-exl2",
@@ -16,11 +18,13 @@ def flash_llama_exl2_handle(launcher):
 
 
 @pytest.fixture(scope="module")
+@require_backend_async("cuda")
 async def flash_llama_exl2(flash_llama_exl2_handle):
     await flash_llama_exl2_handle.health(300)
     return flash_llama_exl2_handle.client
 
 
+@require_backend_async("cuda")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2(flash_llama_exl2, ignore_logprob_response_snapshot):
@@ -32,6 +36,7 @@ async def test_flash_llama_exl2(flash_llama_exl2, ignore_logprob_response_snapsh
     assert response == ignore_logprob_response_snapshot
 
 
+@require_backend_async("cuda")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2_all_params(
@@ -58,6 +63,7 @@ async def test_flash_llama_exl2_all_params(
     assert response == ignore_logprob_response_snapshot
 
 
+@require_backend_async("cuda")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2_load(
