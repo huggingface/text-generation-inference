@@ -9,7 +9,7 @@ def flash_llama_awq_handle(launcher):
         # On ROCm, for awq checkpoints, we need to use gptq kernel that supports ROCm.
         quantize = "gptq"
     elif SYSTEM == "xpu":
-        pytest.skiptest("AWQ is not supported on xpu")
+        pytest.skip("AWQ is not supported on xpu")
     else:
         quantize = "awq"
 
