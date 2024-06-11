@@ -12,6 +12,8 @@ use crate::{
 use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
 use futures::future::try_join_all;
 use minijinja::{Environment, ErrorKind, Template};
+use minijinja_contrib::pycompat;
+
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -63,11 +65,6 @@ impl Infer {
                     .map(|t| t.template),
             })
             .map(|t| {
-                // .strip() is not supported in minijinja
-                // .capitalize() is not supported in minijinja but we can use | capitalize
-                let t = t
-                    .replace(".strip()", " | trim")
-                    .replace(".capitalize()", " | capitalize");
                 ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token)
             });
 
@@ -277,6 +274,8 @@ struct ChatTemplate {
 impl ChatTemplate {
     fn new(template: String, bos_token: Option<String>, eos_token: Option<String>) -> Self {
         let mut env = Box::new(Environment::new());
+        // enable things like .strip() or .capitalize()
+        env.set_unknown_method_callback(pycompat::unknown_method_callback);
         let template_str = template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
 
