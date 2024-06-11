@@ -64,9 +64,7 @@ impl Infer {
                     .find(|t| t.name == "default")
                     .map(|t| t.template),
             })
-            .map(|t| {
-                ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token)
-            });
+            .map(|t| ChatTemplate::new(t, tokenizer_config.bos_token, tokenizer_config.eos_token));
 
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
