@@ -1,11 +1,12 @@
+use std::cmp::min;
 use std::fmt::Formatter;
 use std::sync::{Arc, Mutex, TryLockError};
 use thiserror::Error;
 
 #[derive(Clone)]
 pub(crate) struct BlockAllocation {
+    block_size: usize,
     allocated_blocks: Vec<u32>,
-    allocated_slots: Vec<u32>,
     required_blocks: usize,
     required_slots: usize,
     block_allocator: BlockAllocator,
@@ -13,25 +14,20 @@ pub(crate) struct BlockAllocation {
 
 impl BlockAllocation {
     pub(crate) fn len(&self) -> usize {
-        self.allocated_slots.len()
+        self.allocated_blocks.len() * self.block_size
     }
 
     pub(crate) fn blocks(&self) -> &[u32] {
         &self.allocated_blocks
     }
 
-    pub(crate) fn slots(&self) -> &[u32] {
-        &self.allocated_slots
-    }
-
     /// Extend an allocation by adding a new block
     /// If the allocation length > window size, repeats blocks and slots to cover the
     /// whole `required_blocks` and `required_slots`
     pub(crate) fn extend(&mut self) -> Result<(), AllocationError> {
-        let (block, slots) = self.block_allocator.allocate_block()?;
+        let block = self.block_allocator.allocate_block()?;
         // Add block and slots to current allocation
         self.allocated_blocks.push(block);
-        self.allocated_slots.extend(slots);
 
         if let Some(window_size) = self.block_allocator.window_size {
             // if we have more slots than the window size,
@@ -41,8 +37,6 @@ impl BlockAllocation {
                 let repeats = (self.required_slots + window_size - 1) / window_size;
                 self.allocated_blocks = self.allocated_blocks.repeat(repeats);
                 self.allocated_blocks.truncate(self.required_blocks);
-                self.allocated_slots = self.allocated_slots.repeat(repeats);
-                self.allocated_slots.truncate(self.required_slots);
             }
         }
 
@@ -62,7 +56,6 @@ impl std::fmt::Debug for BlockAllocation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BlockAllocation")
             .field("allocated_blocks", &self.allocated_blocks.len())
-            .field("allocated_slots", &self.allocated_slots.len())
             .field("required_blocks", &self.required_blocks)
             .field("required_slots", &self.required_slots)
             .field("block_allocator", &self.block_allocator)
@@ -94,30 +87,29 @@ impl BlockAllocator {
         }
     }
 
-    fn allocate_block(&self) -> Result<(u32, Vec<u32>), AllocationError> {
+    fn allocate_block(&self) -> Result<u32, AllocationError> {
         let mut free_blocks = self.free_blocks.lock().expect("Lock could not be acquired");
 
         if free_blocks.is_empty() {
             return Err(AllocationError::NotEnoughPages);
         }
 
-        let block_id = free_blocks.pop().unwrap();
-        let slots = ((block_id * self.block_size)..((block_id + 1) * self.block_size)).collect();
-        Ok((block_id, slots))
+        Ok(free_blocks.pop().unwrap())
     }
 
     /// For prompt tokens, we allocate enough blocks to cover all tokens
-    /// For decode tokens, we allocate block by block
+    /// For decode tokens, we allocate min(decode_blocks, 16) blocks
     ///
-    /// If prompt tokens + min(decode_tokens, block_size) > window size, we repeat blocks and slots
+    /// If allocation > window size, we repeat blocks and slots
     pub(crate) fn block_allocation(
         &self,
         prompt_tokens: u32,
         decode_tokens: u32,
     ) -> Result<BlockAllocation, AllocationError> {
         let required_prompt_blocks = (prompt_tokens + self.block_size - 1) / self.block_size;
-        // prompt blocks + a single block for decode
-        let required_blocks = required_prompt_blocks + 1;
+        // prompt blocks + 16 blocks for decode
+        let decode_blocks = (decode_tokens + self.block_size - 1) / self.block_size;
+        let required_blocks = required_prompt_blocks + min(decode_blocks, 16);
         let required_slots = required_blocks * self.block_size;
 
         // Slots and blocks required for the whole request
@@ -164,21 +156,9 @@ impl BlockAllocator {
             allocated_blocks
         };
 
-        let mut allocated_slots =
-            Vec::with_capacity(allocated_blocks.len() * self.block_size as usize * repeats);
-
-        'slots: for block_id in allocated_blocks.iter() {
-            for s in (block_id * self.block_size)..((block_id + 1) * self.block_size) {
-                allocated_slots.push(s);
-                if allocated_slots.len() > total_slots {
-                    break 'slots;
-                }
-            }
-        }
-
         Ok(BlockAllocation {
+            block_size: self.block_size as usize,
             allocated_blocks,
-            allocated_slots,
             required_blocks: total_required_blocks,
             required_slots: total_slots,
             block_allocator: self.clone(),

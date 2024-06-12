@@ -133,9 +133,12 @@ class FlashCausalLMBatch(Batch):
             batch_inputs.append(concat_text_chunks(r.input_chunks.chunks))
             max_truncation = max(max_truncation, r.truncate)
 
+        logger.error(batch_inputs)
+
         batch_tokenized_inputs = tokenizer(
             batch_inputs, truncation=True, max_length=max_truncation
         )["input_ids"]
+        logger.error(batch_tokenized_inputs)
         return batch_tokenized_inputs
 
     @classmethod
@@ -179,7 +182,7 @@ class FlashCausalLMBatch(Batch):
         max_blocks = 0
 
         block_tables = []
-        flat_slots = []
+        flat_blocks = []
 
         # Parse batch
         for i, (r, tokenized_input) in enumerate(
@@ -231,24 +234,18 @@ class FlashCausalLMBatch(Batch):
                 request_blocks = [
                     b for b in range(num_blocks, num_blocks + needed_blocks)
                 ]
-                request_slots = [
-                    s
-                    for b in request_blocks
-                    for s in range(b * BLOCK_SIZE, (b + 1) * BLOCK_SIZE)
-                ]
             else:
                 request_blocks = r.blocks
-                request_slots = r.slots
 
             block_tables.append(request_blocks)
             num_blocks += len(request_blocks)
 
             request_slot_indices = torch.arange(
-                len(flat_slots),
-                len(flat_slots) + input_length,
+                len(flat_blocks) * BLOCK_SIZE,
+                (len(flat_blocks) * BLOCK_SIZE) + input_length,
                 dtype=torch.int64,
             )
-            flat_slots.extend(request_slots)
+            flat_blocks.extend(request_blocks)
             slot_indices.append(request_slot_indices)
 
             # Create tensor to slice into the kv tensor in prefill
@@ -347,7 +344,13 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens, device=device, dtype=torch.int64
         )
 
-        slots = torch.tensor(flat_slots, dtype=torch.int64, device=device)
+        flat_blocks_tensor = torch.tensor(flat_blocks, dtype=torch.int64, device=device)
+
+        slots = (
+            (flat_blocks_tensor * BLOCK_SIZE).repeat(BLOCK_SIZE, 1).T
+            + torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int64)
+        ).flatten()
+
         block_tables_tensor = torch.zeros(
             (len(block_tables), max_blocks), dtype=torch.int32, device="cpu"
         )
@@ -444,8 +447,8 @@ class FlashCausalLMBatch(Batch):
         max_seqlen = 0
 
         requests = []
+        flat_blocks = []
         block_tables = []
-        flat_slots = []
         all_input_ids = []
 
         input_lengths = []
@@ -483,16 +486,13 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens.append(self.top_n_tokens[idx])
 
             request_block_table = request.blocks
-            num_blocks += len(request_block_table)
             block_tables.append(request_block_table)
-
-            # List of slots allocated for this request
-            request_slots = request.slots
+            flat_blocks.extend(request_block_table)
 
             # Index
-            slot_indices.append(len(flat_slots) + request_input_length - 1)
-            flat_slots.extend(request_slots)
+            slot_indices.append((num_blocks * BLOCK_SIZE) + request_input_length - 1)
 
+            num_blocks += len(request_block_table)
             max_blocks = max(max_blocks, len(request_block_table))
 
         # Index into tensors
@@ -514,11 +514,16 @@ class FlashCausalLMBatch(Batch):
             block_tables_tensor[i, : len(request_blocks)] = torch.tensor(request_blocks)
 
         # Allocate on GPU
-        slots = torch.tensor(flat_slots, dtype=torch.int64, device=device)
         slot_indices = torch.tensor(slot_indices, dtype=torch.int64, device=device)
 
         # Move to GPU
         block_tables_tensor = block_tables_tensor.to(device)
+        flat_blocks_tensor = torch.tensor(flat_blocks, dtype=torch.int64, device=device)
+
+        slots = (
+            (flat_blocks_tensor * BLOCK_SIZE).repeat(BLOCK_SIZE, 1).T
+            + torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int64)
+        ).flatten()
 
         filtered_batch = type(self)(
             batch_id=self.batch_id,

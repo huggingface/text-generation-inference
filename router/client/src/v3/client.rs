@@ -157,7 +157,6 @@ impl Client {
                 truncate,
                 // Blocks and slots will be set on the server side if we use paged attention
                 blocks: vec![],
-                slots: vec![],
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,

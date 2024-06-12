@@ -250,7 +250,6 @@ impl Health for ShardedClient {
             top_n_tokens: 0,
             // Block 0 is reserved for health checks
             blocks: vec![0],
-            slots: (0..16).collect(),
         };
         let batch = Batch {
             id: u64::MAX,

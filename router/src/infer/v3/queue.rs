@@ -224,6 +224,11 @@ impl State {
             }
         }
 
+        // Check if max_size == 0
+        if max_size == Some(0) {
+            return None;
+        }
+
         // Pad prefill_token_budget to be a multiple of block size
         let prefill_token_budget =
             ((prefill_token_budget + self.block_size - 1) / self.block_size) * self.block_size;
@@ -312,14 +317,10 @@ impl State {
             // Update entry
             entry.temp_span = Some(entry_batch_span);
 
-            let (blocks, slots) = match &block_allocation {
-                None => (Vec::new(), Vec::new()),
-                Some(block_allocation) => (
-                    block_allocation.blocks().to_vec(),
-                    block_allocation.slots().to_vec(),
-                ),
-            };
-
+            let blocks = block_allocation
+                .as_ref()
+                .map(|block_allocation| block_allocation.blocks().to_vec())
+                .unwrap_or_default();
             entry.block_allocation = block_allocation;
 
             batch_requests.push(Request {
@@ -338,7 +339,6 @@ impl State {
                 )),
                 top_n_tokens: entry.request.top_n_tokens,
                 blocks,
-                slots,
             });
             // Set batch_time
             entry.batch_time = Some(Instant::now());

@@ -132,8 +132,6 @@ message Request {
     uint32 top_n_tokens = 7;
     /// Paged attention blocks
     repeated uint32 blocks = 9;
-    /// Paged attention slots
-    repeated uint32  slots = 10;
 }
 
 message Batch {
@@ -208,8 +206,6 @@ message KeptRequest {
     uint64 id = 1;
     /// Paged attention blocks
     repeated uint32 blocks = 2;
-    /// Paged attention slots
-    repeated uint32 slots = 3;
 }
 
 /// kept_requests + terminated_request_ids might not cover all requests from the
