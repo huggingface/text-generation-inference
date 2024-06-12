@@ -1002,6 +1002,7 @@ async fn chat_completions(
         tools,
         tool_choice,
         tool_prompt,
+        temperature,
         ..
     } = req;
 
@@ -1010,6 +1011,11 @@ async fn chat_completions(
     let logprobs = logprobs.unwrap_or(false);
     let tool_prompt = tool_prompt.unwrap_or_default();
     let stop = stop.unwrap_or_default();
+    // enable greedy only when temperature is 0
+    let (do_sample, temperature) = match temperature {
+        Some(temperature) if temperature == 0.0 => (false, None),
+        other => (true, other),
+    };
 
     // extract tool grammar if present
     let tool_grammar = match ToolGrammar::apply(tools, tool_choice) {
@@ -1056,13 +1062,13 @@ async fn chat_completions(
         inputs: inputs.to_string(),
         parameters: GenerateParameters {
             best_of: None,
-            temperature: req.temperature,
+            temperature,
             repetition_penalty,
             frequency_penalty: req.frequency_penalty,
             top_k: None,
             top_p: req.top_p,
             typical_p: None,
-            do_sample: true,
+            do_sample,
             max_new_tokens,
             return_full_text: None,
             stop,
@@ -1099,7 +1105,13 @@ async fn chat_completions(
             let (content, tool_calls) = if tool_grammar.is_some() {
                 (None, Some(vec![stream_token.token.text]))
             } else {
-                (Some(stream_token.token.text), None)
+                let content = if !stream_token.token.special {
+                    Some(stream_token.token.text)
+                } else {
+                    None
+                };
+
+                (content, None)
             };
 
             event

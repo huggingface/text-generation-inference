@@ -1,7 +1,7 @@
 # Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
 
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set, Union
 
 import math
 import torch
@@ -144,12 +144,22 @@ class StopSequenceCriteria:
 class StoppingCriteria:
     def __init__(
         self,
-        eos_token_id: int,
+        eos_token_ids: Optional[Union[Set[int], int]],
         stop_sequence_criterias: List[StopSequenceCriteria],
         max_new_tokens: int = 20,
         ignore_eos_token: bool = False,
     ):
-        self.eos_token_id = eos_token_id
+        if eos_token_ids is None:
+            eos_token_ids = set()
+        elif isinstance(eos_token_ids, int):
+            eos_token_ids = set([eos_token_ids])
+        elif isinstance(eos_token_ids, set):
+            eos_token_ids = eos_token_ids
+        else:
+            raise RuntimeError(
+                f"eos_token_ids is of invalid type {type(eos_token_ids)}, expected int, None or set[int]"
+            )
+        self.eos_token_ids = eos_token_ids
         self.stop_sequence_criterias = stop_sequence_criterias
         self.max_new_tokens = max_new_tokens
         self.current_tokens = 0
@@ -161,7 +171,10 @@ class StoppingCriteria:
         if self.current_tokens >= self.max_new_tokens:
             return True, FinishReason.FINISH_REASON_LENGTH
 
-        if not self.ignore_eos_token and last_token == self.eos_token_id:
+        if isinstance(last_token, torch.Tensor):
+            last_token = last_token.item()
+
+        if not self.ignore_eos_token and last_token in self.eos_token_ids:
             return True, FinishReason.FINISH_REASON_EOS_TOKEN
 
         if self.stop_sequence_criterias:
@@ -182,9 +195,13 @@ class StoppingCriteria:
         pb: generate_pb2.StoppingCriteriaParameters,
         tokenizer: PreTrainedTokenizerBase,
     ) -> "StoppingCriteria":
-        stop_sequence_criterias = [StopSequenceCriteria(sequence) for sequence in pb.stop_sequences]
+        stop_sequence_criterias = [
+            StopSequenceCriteria(sequence) for sequence in pb.stop_sequences
+        ]
+        # TODO Hack because eos_token_id cannot be what we want.
+        eos_token_id = getattr(tokenizer, "_eos_token_ids", tokenizer.eos_token_id)
         return StoppingCriteria(
-            tokenizer.eos_token_id,
+            eos_token_id,
             stop_sequence_criterias,
             pb.max_new_tokens,
             pb.ignore_eos_token,
@@ -274,7 +291,7 @@ class HeterogeneousNextTokenChooser:
             else None
         )
 
-        if any([x != 1.0 for x in temperature]):
+        if any(x != 1.0 for x in temperature):
             do_sample = [
                 sample or x != 1.0 for x, sample in zip(temperature, do_sample)
             ]
@@ -282,15 +299,15 @@ class HeterogeneousNextTokenChooser:
                 HeterogeneousTemperatureLogitsWarper(temperature, dtype, device)
             )
 
-        if any([x != 0 for x in top_k]):
+        if any(x != 0 for x in top_k):
             do_sample = [sample or x != 0 for x, sample in zip(top_k, do_sample)]
             warpers.append(HeterogeneousTopKLogitsWarper(top_k, device))
 
-        if any([x < 1.0 for x in top_p]):
+        if any(x < 1.0 for x in top_p):
             do_sample = [sample or x < 1.0 for x, sample in zip(top_p, do_sample)]
             warpers.append(HeterogeneousTopPLogitsWarper(top_p, dtype, device))
 
-        if any([x < 1.0 for x in typical_p]):
+        if any(x < 1.0 for x in typical_p):
             do_sample = [sample or x < 1.0 for x, sample in zip(typical_p, do_sample)]
             warpers.append(HeterogeneousTypicalLogitsWarper(typical_p, dtype, device))
 

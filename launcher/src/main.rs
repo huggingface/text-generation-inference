@@ -253,7 +253,7 @@ struct Args {
     ///
     /// This setting is only applied if there is room in the batch
     /// as defined by `max_batch_total_tokens`.
-    #[clap(default_value = "1.2", long, env)]
+    #[clap(default_value = "0.3", long, env)]
     waiting_served_ratio: f32,
 
     /// Limits the number of tokens for the prefill operation.
@@ -435,7 +435,6 @@ fn shard_manager(
     quantize: Option<Quantization>,
     speculate: Option<usize>,
     dtype: Option<Dtype>,
-    max_total_tokens: usize,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -451,6 +450,8 @@ fn shard_manager(
     cuda_memory_fraction: f32,
     rope_scaling: Option<RopeScaling>,
     rope_factor: Option<f32>,
+    max_total_tokens: usize,
+    max_batch_size: Option<usize>,
     otlp_endpoint: Option<String>,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
@@ -515,6 +516,7 @@ fn shard_manager(
         (Some(scaling), Some(factor)) => Some((scaling, factor)),
         (None, Some(factor)) => Some((RopeScaling::Linear, factor)),
     };
+
     // OpenTelemetry
     if let Some(otlp_endpoint) = otlp_endpoint {
         shard_args.push("--otlp-endpoint".to_string());
@@ -526,9 +528,6 @@ fn shard_manager(
 
     // Remove LOG_LEVEL if present
     envs.retain(|(name, _)| name != "LOG_LEVEL");
-
-    // Max total tokens
-    envs.push(("MAX_TOTAL_TOKENS".into(), max_total_tokens.to_string().into()));
 
     // Torch Distributed Env vars
     if world_size == 1 {
@@ -570,6 +569,14 @@ fn shard_manager(
     if let Some((scaling, factor)) = rope {
         envs.push(("ROPE_SCALING".into(), scaling.to_string().into()));
         envs.push(("ROPE_FACTOR".into(), factor.to_string().into()));
+    }
+
+    envs.push((
+        "MAX_TOTAL_TOKENS".into(),
+        max_total_tokens.to_string().into(),
+    ));
+    if let Some(max_batch_size) = max_batch_size {
+        envs.push(("MAX_BATCH_SIZE".into(), max_batch_size.to_string().into()));
     }
 
     // If huggingface_hub_cache is some, pass it to the shard
@@ -680,8 +687,7 @@ fn shard_manager(
 
         // We received a shutdown signal
         if shutdown.load(Ordering::SeqCst) {
-            terminate("Shard", p, Duration::from_secs(30)).unwrap();
-            tracing::info!("Shard terminated");
+            terminate("shard", p, Duration::from_secs(90)).unwrap();
             return;
         }
 
@@ -975,13 +981,13 @@ fn spawn_shards(
     num_shard: usize,
     args: &Args,
     cuda_graphs: Vec<usize>,
+    max_total_tokens: usize,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
     shutdown_sender: mpsc::Sender<()>,
     status_receiver: &mpsc::Receiver<ShardStatus>,
     status_sender: mpsc::Sender<ShardStatus>,
     running: Arc<AtomicBool>,
-    max_total_tokens: usize,
 ) -> Result<(), LauncherError> {
     // Start shard processes
     for rank in 0..1 {
@@ -1007,6 +1013,7 @@ fn spawn_shards(
         let cuda_memory_fraction = args.cuda_memory_fraction;
         let rope_scaling = args.rope_scaling;
         let rope_factor = args.rope_factor;
+        let max_batch_size = args.max_batch_size;
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -1014,7 +1021,6 @@ fn spawn_shards(
                 quantize,
                 speculate,
                 dtype,
-                max_total_tokens,
                 trust_remote_code,
                 uds_path,
                 rank,
@@ -1030,6 +1036,8 @@ fn spawn_shards(
                 cuda_memory_fraction,
                 rope_scaling,
                 rope_factor,
+                max_total_tokens,
+                max_batch_size,
                 otlp_endpoint,
                 status_sender,
                 shutdown,
@@ -1240,7 +1248,6 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
     signal::kill(Pid::from_raw(process.id() as i32), Signal::SIGTERM).unwrap();
 
     tracing::info!("Waiting for {process_name} to gracefully shutdown");
-
     while terminate_time.elapsed() < timeout {
         if let Some(status) = process.try_wait()? {
             tracing::info!("{process_name} terminated");
@@ -1248,7 +1255,6 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
         }
         sleep(Duration::from_millis(100));
     }
-
     tracing::info!("Killing {process_name}");
 
     process.kill()?;
@@ -1293,7 +1299,7 @@ fn main() -> Result<(), LauncherError> {
         tracing::info!("{}", env_runtime);
     }
 
-    tracing::info!("{:?}", args);
+    tracing::info!("{:#?}", args);
 
     let get_max_position_embeddings = || -> Result<usize, Box<dyn std::error::Error>> {
         let model_id = args.model_id.clone();
@@ -1326,7 +1332,12 @@ fn main() -> Result<(), LauncherError> {
             (Some(max_position_embeddings), _) | (None, Some(max_position_embeddings)) => {
                 if max_position_embeddings > max_default {
                     let max = max_position_embeddings;
-                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
+                    if args.max_input_tokens.is_none()
+                        && args.max_total_tokens.is_none()
+                        && args.max_batch_prefill_tokens.is_none()
+                    {
+                        tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
+                    }
                     max_default
                 } else {
                     max_position_embeddings
@@ -1398,7 +1409,7 @@ fn main() -> Result<(), LauncherError> {
     }
 
     let cuda_graphs = match (&args.cuda_graphs, &args.quantize) {
-        (Some(cuda_graphs), Some(_q)) => cuda_graphs.clone(),
+        (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
         #[allow(deprecated)]
         (
             None,
@@ -1493,13 +1504,13 @@ fn main() -> Result<(), LauncherError> {
         num_shard,
         &args,
         cuda_graphs,
+        max_total_tokens,
         shutdown.clone(),
         &shutdown_receiver,
         shutdown_sender,
         &status_receiver,
         status_sender,
         running.clone(),
-        max_total_tokens,
     )?;
 
     // We might have received a termination signal

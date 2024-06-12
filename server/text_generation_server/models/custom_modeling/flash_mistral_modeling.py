@@ -409,23 +409,29 @@ class MistralModel(torch.nn.Module):
 
 
 class FlashMistralForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix, config, weights, name=None):
+        if name is None:
+            name = "model"
         super().__init__()
-
         self.embed_tokens = TensorParallelEmbedding(
             prefix=(
-                "model.embed_tokens" if not prefix else f"{prefix}.model.embed_tokens"
+                f"{name}.embed_tokens"
+                if not prefix
+                else f"{prefix}.{name}.embed_tokens"
             ),
             weights=weights,
         )
         self.model = MistralModel(
-            prefix="model" if not prefix else f"{prefix}.model",
+            prefix=name if not prefix else f"{prefix}.{name}",
             config=config,
             weights=weights,
         )
         self.lm_head = SpeculativeHead.load(
             config,
-            prefix="lm_head" if not prefix else f"{prefix}.lm_head",
+            # TODO dirty hack for idefics2.
+            prefix=(
+                "lm_head" if not prefix or name != "model" else f"{prefix}.lm_head"
+            ),
             weights=weights,
         )
         self.max_past = config.sliding_window

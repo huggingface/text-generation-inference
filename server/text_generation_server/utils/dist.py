@@ -68,7 +68,15 @@ def initialize_torch_distributed():
         if world_size > n_hpus:
             raise ValueError(f"WORLD_SIZE ({world_size}) is higher than the number of available HPUs ({n_hpus}).")
     else:
-        backend = "gloo"
+        try:
+            import oneccl_bindings_for_pytorch
+
+            backend = "ccl"
+            if os.getenv("CCL_WORKER_COUNT", None) is None:
+                os.environ["CCL_WORKER_COUNT"] = str(1)
+        except ImportError:
+            backend = "gloo"
+        options = None
 
     if WORLD_SIZE == 1:
         return FakeGroup(RANK, WORLD_SIZE), RANK, WORLD_SIZE

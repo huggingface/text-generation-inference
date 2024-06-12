@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "text-generation-server"
-version = "2.0.1"
+version = "2.0.2"
 description = "Text Generation Inference Python gRPC Server"
 authors = ["Olivier Dehaene <olivier@huggingface.co>"]
 
@@ -26,6 +26,8 @@ optimum-habana = "1.11.1"
 transformers = "4.38.2"
 accelerate = "0.27.2"
 outlines= { version = "^0.0.36", optional = true }
+prometheus-client = "^0.20.0"
+py-cpuinfo = "^9.0.0"
 
 [tool.poetry.group.dev.dependencies]
 grpcio-tools = "*"

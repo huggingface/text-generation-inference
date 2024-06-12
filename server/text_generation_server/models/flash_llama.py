@@ -2,14 +2,13 @@ import torch
 import torch.distributed
 
 from opentelemetry import trace
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer, GenerationConfig
 from transformers.models.llama import LlamaTokenizer
 from typing import Optional
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_llama_modeling import (
     FlashLlamaForCausalLM,
-    LlamaConfig,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -18,6 +17,8 @@ from text_generation_server.utils import (
 )
 
 tracer = trace.get_tracer(__name__)
+
+from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
 
 
 class FlashLlama(FlashCausalLM):
@@ -33,6 +34,9 @@ class FlashLlama(FlashCausalLM):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16 if dtype is None else dtype
+        elif IS_XPU_SYSTEM:
+            device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashLlama is only available on GPU")
@@ -53,8 +57,17 @@ class FlashLlama(FlashCausalLM):
                 truncation_side="left",
                 trust_remote_code=trust_remote_code,
             )
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id, revision=revision, trust_remote_code=trust_remote_code
+            )
+            if isinstance(generation_config.eos_token_id, (list, set)):
+                # TODO Huge hack
+                tokenizer._eos_token_ids = set(generation_config.eos_token_id)
+        except Exception:
+            pass
 
-        config = LlamaConfig.from_pretrained(
+        config = AutoConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize

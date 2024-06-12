@@ -474,6 +474,8 @@ class Mamba(Model):
                         self.cuda_graph_warmup(bs)
                 except Exception:
                     logger.exception(f"Decode cuda graph warmup failed")
+        else:
+            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
         return None
 

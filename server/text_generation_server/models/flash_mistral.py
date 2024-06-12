@@ -33,8 +33,9 @@ tracer = trace.get_tracer(__name__)
 # Will be set in init
 SLIDING_WINDOW: Optional[int] = None
 SLIDING_WINDOW_BLOCKS: Optional[int] = None
+from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
 
-MEM_POOL = torch.cuda.graph_pool_handle()
+MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
 
 def set_sliding_window(sliding_window: int, sliding_window_blocks: int):
@@ -315,6 +316,9 @@ class BaseFlashMistral(FlashCausalLM):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16 if dtype is None else dtype
+        elif IS_XPU_SYSTEM:
+            device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashMistral is only available on GPU")

@@ -33,6 +33,11 @@ from text_generation_server.utils import StoppingCriteria, HeterogeneousNextToke
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
 tracer = trace.get_tracer(__name__)
+from text_generation_server.utils.import_utils import (
+    IS_CUDA_SYSTEM,
+    IS_ROCM_SYSTEM,
+    IS_XPU_SYSTEM,
+)
 
 
 @dataclass
@@ -752,7 +757,10 @@ class FlashCausalLM(Model):
 
     def warmup(self, batch: FlashCausalLMBatch):
         # The warmup batch is the biggest batch we could ever receive
-        torch.cuda.empty_cache()
+        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
+            torch.cuda.empty_cache()
+        elif IS_XPU_SYSTEM:
+            torch.xpu.empty_cache()
         try:
             cache_manager = set_cache_manager(
                 batch.blocks,
@@ -772,7 +780,10 @@ class FlashCausalLM(Model):
                 f"You need to decrease `--max-batch-prefill-tokens`"
             ) from e
 
-        torch.cuda.synchronize(self.device)
+        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
+            torch.cuda.synchronize(self.device)
+        elif IS_XPU_SYSTEM:
+            torch.xpu.synchronize(self.device)
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
@@ -780,12 +791,20 @@ class FlashCausalLM(Model):
         cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
-        total_free_memory, _ = torch.cuda.mem_get_info(self.device)
-        total_gpu_memory = torch.cuda.get_device_properties(self.device).total_memory
+        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
+            total_free_memory, _ = torch.cuda.mem_get_info(self.device)
+            total_gpu_memory = torch.cuda.get_device_properties(
+                self.device
+            ).total_memory
 
-        free_memory = max(
-            0, total_free_memory - (1 - MEMORY_FRACTION) * total_gpu_memory
-        )
+            free_memory = max(
+                0, total_free_memory - (1 - MEMORY_FRACTION) * total_gpu_memory
+            )
+        elif IS_XPU_SYSTEM:
+            total_gpu_memory = torch.xpu.get_device_properties(self.device).total_memory
+            free_memory = int(total_gpu_memory * 0.5)
+        else:
+            raise NotImplementedError("FlashModel is only available on GPU")
 
         num_blocks = (
             # Leave 5% for some wiggle room
@@ -816,6 +835,8 @@ class FlashCausalLM(Model):
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except torch.cuda.OutOfMemoryError:
                 logger.exception(f"Decode cuda graph warmup failed")
+        else:
+            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
         return int(num_blocks * BLOCK_SIZE)
 

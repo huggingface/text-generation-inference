@@ -80,6 +80,7 @@ class Client:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
+        tool_prompt: Optional[str] = None,
         tool_choice: Optional[str] = None,
     ):
         """
@@ -119,6 +120,8 @@ class Client:
                 higher are kept for generation
             tools (`List[Tool]`):
                 List of tools to use
+            tool_prompt (`str`):
+                A prompt to be appended before the tools
             tool_choice (`str`):
                 The tool to use
 
@@ -139,6 +142,7 @@ class Client:
             temperature=temperature,
             top_p=top_p,
             tools=tools,
+            tool_prompt=tool_prompt,
             tool_choice=tool_choice,
         )
         if not stream:
@@ -466,6 +470,7 @@ class AsyncClient:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         tools: Optional[List[Tool]] = None,
+        tool_prompt: Optional[str] = None,
         tool_choice: Optional[str] = None,
     ) -> Union[ChatComplete, AsyncIterator[ChatCompletionChunk]]:
         """
@@ -505,6 +510,8 @@ class AsyncClient:
                 higher are kept for generation
             tools (`List[Tool]`):
                 List of tools to use
+            tool_prompt (`str`):
+                A prompt to be appended before the tools
             tool_choice (`str`):
                 The tool to use
 
@@ -525,6 +532,7 @@ class AsyncClient:
             temperature=temperature,
             top_p=top_p,
             tools=tools,
+            tool_prompt=tool_prompt,
             tool_choice=tool_choice,
         )
         if not stream:

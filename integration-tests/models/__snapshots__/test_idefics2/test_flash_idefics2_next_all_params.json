@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 3735,
+        "logprob": -8.5625,
+        "text": "Test"
+      },
+      {
+        "id": 2159,
+        "logprob": -10.78125,
+        "text": "request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 288,
+        "logprob": -0.2854004,
+        "special": false,
+        "text": "ing"
+      },
+      {
+        "id": 264,
+        "logprob": -0.37573242,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 633,
+        "logprob": -0.09301758,
+        "special": false,
+        "text": " new"
+      },
+      {
+        "id": 4480,
+        "logprob": -0.3322754,
+        "special": false,
+        "text": " feature"
+      },
+      {
+        "id": 297,
+        "logprob": -0.8510742,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 272,
+        "logprob": -0.13464355,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 2039,
+        "logprob": 0.0,
+        "special": false,
+        "text": " game"
+      },
+      {
+        "id": 28723,
+        "logprob": -0.89990234,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 13,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 13,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test requesting a new feature in the game.\n\n"
+}

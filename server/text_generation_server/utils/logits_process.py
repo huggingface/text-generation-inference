@@ -132,13 +132,16 @@ class FrequencyPenaltyLogitsProcessor(LogitsProcessor):
         score = torch.gather(scores, 1, input_ids)
         # if score < 0 then penalty has to be multiplied to reduce the previous token probability
         score = -torch.where(score < 0, score * self.penalty, score / self.penalty)
+        # set score to 0 where input_ids is a padding token
+        score *= input_ids.ne(0)
 
         return scores.scatter_add_(1, input_ids, score)
 
 
 class HeterogeneousFrequencyPenaltyLogitsProcessor(LogitsProcessor):
     r"""
-    Frequency penalty as defined by OpenAI
+    Frequency penalty as defined by OpenAI in
+    https://platform.openai.com/docs/guides/text-generation/parameter-details
 
     Args:
         frequency_penalty (`List[float]`):
@@ -152,13 +155,19 @@ class HeterogeneousFrequencyPenaltyLogitsProcessor(LogitsProcessor):
         ).unsqueeze(1)
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
-        score = torch.gather(scores, 1, input_ids)
-        # if score < 0 then penalty has to be multiplied to reduce the previous token probability
-        score = -torch.where(
-            score < 0, score * self.penalty_tensor, score / self.penalty_tensor
-        )
+        batch_size, input_size = input_ids.size()
+        vocab_size = scores.size(1)
 
-        return scores.scatter_add_(1, input_ids, score)
+        # Calculate the frequency for each token so far
+        token_freq = torch.zeros(batch_size, vocab_size, device=input_ids.device)
+        token_freq.scatter_add_(
+            1, input_ids, torch.ones_like(input_ids, dtype=torch.float)
+        )
+        token_freq /= input_size
+
+        # Apply the frequency penalty to logits
+        scores -= token_freq * self.penalty_tensor
+        return scores
 
     def filter(self, indices):
         self.penalty = [self.penalty[i] for i in indices]
