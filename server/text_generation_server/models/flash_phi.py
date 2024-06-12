@@ -8,7 +8,6 @@ from typing import Optional
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.custom_modeling.flash_phi_modeling import (
     FlashPhiForCausalLM,
-    PhiConfig,
 )
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -44,7 +43,7 @@ class FlashPhi(FlashCausalLM):
             trust_remote_code=trust_remote_code,
         )
 
-        config = PhiConfig.from_pretrained(
+        config = AutoConfig.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
