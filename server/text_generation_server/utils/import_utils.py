@@ -1,14 +1,14 @@
 import torch
 from loguru import logger
+from text_generation_server.utils.dist import WORLD_SIZE
 
 
-def is_xpu_available():
+def is_ipex_available():
     try:
         import intel_extension_for_pytorch
     except ImportError:
         return False
-
-    return hasattr(torch, "xpu") and torch.xpu.is_available()
+    return True
 
 
 def get_cuda_free_memory(device, memory_fraction):
@@ -24,6 +24,15 @@ def get_xpu_free_memory(device, memory_fraction):
     return free_memory
 
 
+def get_cpu_free_memory(device, memory_fraction):
+    import psutil
+
+    mem = psutil.virtual_memory()
+    free_memory = int(mem.available * 0.95 / WORLD_SIZE)
+    return free_memory
+
+
+IPEX_AVAIL = is_ipex_available()
 SYSTEM = None
 if torch.version.hip is not None:
     SYSTEM = "rocm"
@@ -35,7 +44,7 @@ elif torch.version.cuda is not None and torch.cuda.is_available():
     empty_cache = torch.cuda.empty_cache
     synchronize = torch.cuda.synchronize
     get_free_memory = get_cuda_free_memory
-elif is_xpu_available():
+elif IPEX_AVAIL and hasattr(torch, "xpu") and torch.xpu.is_available():
     SYSTEM = "xpu"
     empty_cache = torch.xpu.empty_cache
     synchronize = torch.xpu.synchronize
@@ -48,5 +57,5 @@ else:
 
     empty_cache = noop
     synchronize = noop
-    get_free_memory = noop
+    get_free_memory = get_cpu_free_memory
 logger.info(f"Detected system {SYSTEM}")

@@ -15,7 +15,7 @@ from typing import Iterable, Optional, Tuple, List, Type, Dict
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from text_generation_server.utils.chunks import concat_text_chunks
-from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM, IPEX_AVAIL
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.dist import RANK
@@ -773,21 +773,38 @@ class FlashCausalLM(Model):
         else:
             x = BLOCK_SIZE // element_size
 
-        self.kv_cache = [
-            (
-                torch.empty(
-                    (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
-                    dtype=dtype,
-                    device=device,
-                ),
-                torch.empty(
-                    (num_blocks, num_heads, head_size, BLOCK_SIZE),
-                    dtype=dtype,
-                    device=device,
-                ),
-            )
-            for _ in range(num_layers)
-        ]
+        if IPEX_AVAIL and SYSTEM == "cpu":
+            self.kv_cache = [
+                (
+                    torch.empty(
+                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.empty(
+                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
+        else:
+            self.kv_cache = [
+                (
+                    torch.empty(
+                        (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.empty(
+                        (num_blocks, num_heads, head_size, BLOCK_SIZE),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
 
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
         input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
