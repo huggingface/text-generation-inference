@@ -280,9 +280,6 @@ class SuRotaryEmbedding(PositionRotaryEmbedding):
 
             freqs = torch.cat([short_freqs, long_freqs])
 
-            from loguru import logger
-
-            logger.info(freqs.shape)
             self._cos_cached = (torch.cos(freqs) * self.scaling_factor).to(dtype)
             self._sin_cached = (torch.sin(freqs) * self.scaling_factor).to(dtype)
 
