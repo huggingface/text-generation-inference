@@ -82,11 +82,13 @@ try:
     from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
     from text_generation_server.models.flash_dbrx import FlashDbrx
+    from text_generation_server.models.flash_phi3small import FlashPhi3Small
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
     logger.warning(f"Could not import Flash Attention enabled models: {e}")
     SUPPORTS_WINDOWING = False
     FLASH_ATTENTION = False
+
 
 if FLASH_ATTENTION:
     __all__.append(FlashGPT2)
@@ -103,6 +105,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashStarcoder2)
     __all__.append(FlashGemma)
     __all__.append(FlashCohere)
+    __all__.append(FlashPhi3Small)
 
 MAMBA_AVAILABLE = True
 try:
@@ -137,6 +140,11 @@ class ModelType(enum.Enum):
         "type": "phi3",
         "name": "Phi 3",
         "url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
+    }
+    PHI3_SMALL = {
+        "type": "phi3small",
+        "name": "Phi 3 Small",
+        "url": "https://huggingface.co/microsoft/Phi-3-small-8k-instruct",
     }
     GEMMA = {
         "type": "gemma",
@@ -863,6 +871,30 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("LlavaNext"))
+
+    if model_type == PHI3_SMALL:
+        if FLASH_ATTENTION:
+            return FlashPhi3Small(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Phi3 Small")
+            )
+        else:
+            return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
 
     if sharded:
         raise NotImplementedError("sharded is not supported for AutoModel")
