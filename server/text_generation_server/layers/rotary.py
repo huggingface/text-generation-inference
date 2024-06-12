@@ -272,14 +272,10 @@ class SuRotaryEmbedding(PositionRotaryEmbedding):
             else:
                 inv_freq = self.short_inv_freq
             t = torch.arange(seqlen, device=device, dtype=inv_freq.dtype)
-            if self.scaling_factor is not None:
-                t /= self.scaling_factor
-            # Don't do einsum, it converts fp32 to fp16
-            # freqs = torch.einsum("i,j->ij", t, self.inv_freq)
 
             freqs = torch.outer(t, inv_freq.to(device=t.device))
-            self._cos_cached = torch.cos(freqs).to(dtype)
-            self._sin_cached = torch.sin(freqs).to(dtype)
+            self._cos_cached = (torch.cos(freqs) * self.scaling_factor).to(dtype)
+            self._sin_cached = (torch.sin(freqs) * self.scaling_factor).to(dtype)
 
 
 class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
