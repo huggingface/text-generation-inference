@@ -85,5 +85,4 @@ class GPTNeoxSharded(CausalLM):
             use_cache=True,
         )
 
-        logits = outputs.logits
-        return logits, speculative_logits, outputs.past_key_values
+        return outputs.logits, speculative_logits, outputs.past_key_values

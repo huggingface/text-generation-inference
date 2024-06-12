@@ -792,7 +792,7 @@ class OPTForCausalLM(OPTPreTrainedModel):
             return_dict=return_dict,
         )
 
-        logits, speculative_logits = self.lm_head(outputs)
+        logits, speculative_logits = self.lm_head(outputs.last_hidden_state)
 
         loss = None
 
