@@ -44,6 +44,9 @@ def serve(
     otlp_endpoint: Optional[str] = None,
     max_input_tokens: Optional[int] = None,
 ):
+    # derive sharded from environment variables if not provided
+    sharded = sharded or os.getenv("WORLD_SIZE", None) is not None
+
     if sharded:
         assert (
             os.getenv("RANK", None) is not None
