@@ -164,7 +164,8 @@ pub(crate) async fn batching_task(
                 };
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
-                let max_size = max_batch_size.map(|max_size| max_size.saturating_sub(batch_size as usize));
+                let max_size =
+                    max_batch_size.map(|max_size| max_size.saturating_sub(batch_size as usize));
 
                 // Try to get a new batch
                 if let Some((mut new_entries, new_batch, span)) = queue
@@ -990,10 +991,10 @@ mod tests {
             content: "You are a friendly chatbot who always responds in the style of a pirate"
                 .to_string(),
         }]
-            .iter()
-            .chain(&example_chat)
-            .cloned()
-            .collect::<Vec<_>>();
+        .iter()
+        .chain(&example_chat)
+        .cloned()
+        .collect::<Vec<_>>();
 
         let test_default_templates = vec![
             ChatTemplateTestItem {

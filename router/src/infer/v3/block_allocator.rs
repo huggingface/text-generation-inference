@@ -21,13 +21,28 @@ impl BlockAllocation {
         &self.allocated_blocks
     }
 
-    /// Extend an allocation by adding a new block
+    /// Extend an allocation by adding new blocks
     /// If the allocation length > window size, repeats blocks and slots to cover the
     /// whole `required_blocks` and `required_slots`
     pub(crate) fn extend(&mut self) -> Result<(), AllocationError> {
-        let block = self.block_allocator.allocate_block()?;
+        let required_blocks = match self.block_allocator.window_size {
+            None => self.required_blocks,
+            Some(window_size) => min(
+                (window_size as usize + self.block_size - 1) / self.block_size,
+                self.required_blocks,
+            ),
+        };
+        let remaining_blocks = required_blocks - self.allocated_blocks.len();
+        let new_blocks = min(remaining_blocks, 16);
+
+        // Try to allocate all remaining blocks
+        let blocks = match self.block_allocator.allocate_blocks(new_blocks) {
+            Ok(blocks) => blocks,
+            // Failed, try to allocate one block
+            Err(_) => self.block_allocator.allocate_blocks(1)?,
+        };
         // Add block and slots to current allocation
-        self.allocated_blocks.push(block);
+        self.allocated_blocks.extend(blocks);
 
         if let Some(window_size) = self.block_allocator.window_size {
             // if we have more slots than the window size,
@@ -87,14 +102,18 @@ impl BlockAllocator {
         }
     }
 
-    fn allocate_block(&self) -> Result<u32, AllocationError> {
+    fn allocate_blocks(&self, blocks: usize) -> Result<Vec<u32>, AllocationError> {
         let mut free_blocks = self.free_blocks.lock().expect("Lock could not be acquired");
 
-        if free_blocks.is_empty() {
+        if blocks > free_blocks.len() {
+            // Not enough blocks to cover this allocation
+            // Early return
             return Err(AllocationError::NotEnoughPages);
         }
 
-        Ok(free_blocks.pop().unwrap())
+        // Take the blocks
+        let n_free_blocks = free_blocks.len();
+        Ok(free_blocks.split_off(n_free_blocks - blocks))
     }
 
     /// For prompt tokens, we allocate enough blocks to cover all tokens

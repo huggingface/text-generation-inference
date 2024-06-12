@@ -133,12 +133,9 @@ class FlashCausalLMBatch(Batch):
             batch_inputs.append(concat_text_chunks(r.input_chunks.chunks))
             max_truncation = max(max_truncation, r.truncate)
 
-        logger.error(batch_inputs)
-
         batch_tokenized_inputs = tokenizer(
             batch_inputs, truncation=True, max_length=max_truncation
         )["input_ids"]
-        logger.error(batch_tokenized_inputs)
         return batch_tokenized_inputs
 
     @classmethod
