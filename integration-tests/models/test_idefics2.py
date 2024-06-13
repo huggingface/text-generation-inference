@@ -3,6 +3,7 @@ import base64
 
 from testing_utils import require_backend_async, SYSTEM
 
+
 # TODO fix the server parsser to count inline image tokens correctly
 def get_chicken():
     with open("integration-tests/images/chicken_on_money.png", "rb") as image_file:
@@ -42,7 +43,7 @@ async def test_flash_idefics2_next_simple(flash_idefics2_next, response_snapshot
         response.generated_text == " A chicken is sitting on a pile of money."
     ), f"{repr(response.generated_text)}"
     assert response.details.generated_tokens == 10
-    
+
     if SYSTEM != "rocm":
         # Snapshot logprobs are not close enough on ROCm.
         assert response == response_snapshot
@@ -105,7 +106,7 @@ async def test_flash_idefics2_next_load(
     assert generated_texts[0] == " A chicken is sitting on a pile of money."
     assert len(generated_texts) == 4
     assert all([r.generated_text == generated_texts[0] for r in responses])
-    
+
     if SYSTEM != "rocm":
         # Snapshot logprobs are not close enough on ROCm.
         assert responses == response_snapshot
