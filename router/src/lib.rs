@@ -4,6 +4,9 @@ mod infer;
 pub mod server;
 mod validation;
 
+#[cfg(feature = "kserve")]
+mod kserve;
+
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use utoipa::ToSchema;

@@ -4,6 +4,11 @@ use crate::infer::v2::SchedulerV2;
 use crate::infer::v3::SchedulerV3;
 use crate::infer::{HealthCheck, Scheduler};
 use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
+#[cfg(feature = "kserve")]
+use crate::kserve::{
+    kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
+    kserve_model_metadata, kserve_model_metadata_ready,
+};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
@@ -172,7 +177,7 @@ async fn generate(
     generate_internal(infer, ComputeType(compute_type), Json(req), span).await
 }
 
-async fn generate_internal(
+pub(crate) async fn generate_internal(
     infer: Extension<Infer>,
     ComputeType(compute_type): ComputeType,
     Json(req): Json<GenerateRequest>,
@@ -1727,28 +1732,58 @@ pub async fn run(
         docker_label: option_env!("DOCKER_LABEL"),
     };
 
-    // Define VertextApiDoc conditionally only if the "google" feature is enabled
-    let doc = {
-        // avoid `mut` if possible
-        #[cfg(feature = "google")]
-        {
-            use crate::VertexInstance;
+    #[allow(unused_mut)] // mut is needed for conditional compilation
+    let mut doc = ApiDoc::openapi();
 
-            #[derive(OpenApi)]
-            #[openapi(
-                paths(vertex_compatibility),
-                components(schemas(VertexInstance, VertexRequest, VertexResponse))
-            )]
-            struct VertextApiDoc;
+    #[cfg(feature = "google")]
+    {
+        use crate::VertexInstance;
 
-            // limiting mutability to the smallest scope necessary
-            let mut doc = ApiDoc::openapi();
-            doc.merge(VertextApiDoc::openapi());
-            doc
-        }
-        #[cfg(not(feature = "google"))]
-        ApiDoc::openapi()
-    };
+        #[derive(OpenApi)]
+        #[openapi(
+            paths(vertex_compatibility),
+            components(schemas(VertexInstance, VertexRequest, VertexResponse))
+        )]
+        struct VertexApiDoc;
+
+        doc.merge(VertexApiDoc::openapi());
+    }
+
+    #[cfg(feature = "kserve")]
+    {
+        use crate::kserve::{
+            InferenceOutput, InferenceRequest, LiveResponse, MetadataServerResponse, OutputChunk,
+            ReadyResponse,
+        };
+        use crate::kserve::{
+            __path_kerve_server_metadata, __path_kserve_health_live, __path_kserve_health_ready,
+            __path_kserve_model_infer, __path_kserve_model_metadata,
+            __path_kserve_model_metadata_ready,
+        };
+
+        #[derive(OpenApi)]
+        #[openapi(
+            paths(
+                kserve_model_infer,
+                kserve_health_live,
+                kserve_health_ready,
+                kerve_server_metadata,
+                kserve_model_metadata,
+                kserve_model_metadata_ready,
+            ),
+            components(schemas(
+                InferenceOutput,
+                InferenceRequest,
+                LiveResponse,
+                MetadataServerResponse,
+                OutputChunk,
+                ReadyResponse,
+            ))
+        )]
+        struct KServeApiDoc;
+
+        doc.merge(KServeApiDoc::openapi());
+    }
 
     // Configure Swagger UI
     let swagger_ui = SwaggerUi::new("/docs").url("/api-doc/openapi.json", doc);
@@ -1796,6 +1831,27 @@ pub async fn run(
         if let Ok(env_health_route) = std::env::var("AIP_HEALTH_ROUTE") {
             app = app.route(&env_health_route, get(health));
         }
+    }
+
+    #[cfg(feature = "kserve")]
+    {
+        tracing::info!("Built with `kserve` feature");
+        app = app
+            .route(
+                "/v2/models/:model_name/versions/:model_version/infer",
+                post(kserve_model_infer),
+            )
+            .route(
+                "/v2/models/:model_name/versions/:model_version",
+                get(kserve_model_metadata),
+            )
+            .route("/v2/health/ready", get(kserve_health_ready))
+            .route("/v2/health/live", get(kserve_health_live))
+            .route("/v2", get(kerve_server_metadata))
+            .route(
+                "/v2/models/:model_name/versions/:model_version/ready",
+                get(kserve_model_metadata_ready),
+            );
     }
 
     // add layers after routes
