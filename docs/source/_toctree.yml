@@ -17,6 +17,8 @@
     title: Supported Models and Hardware
   - local: messages_api
     title: Messages API
+  - local: architecture
+    title: Internal Architecture
   title: Getting started
 - sections:
   - local: basic_tutorials/consuming_tgi
