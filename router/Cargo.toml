@@ -44,7 +44,8 @@ utoipa = { version = "4.2.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "6.0.0", features = ["axum"] }
 ngrok = { version = "0.13.1", features = ["axum"], optional = true }
 init-tracing-opentelemetry = { version = "0.14.1", features = ["opentelemetry-otlp"] }
-minijinja = { git = "https://github.com/mitsuhiko/minijinja.git", rev = "5cd4efb" }
+minijinja = { version = "2.0.2" }
+minijinja-contrib = { version = "2.0.2", features = ["pycompat"] }
 futures-util = "0.3.30"
 regex = "1.10.3"
 once_cell = "1.19.0"
@@ -58,3 +59,4 @@ vergen = { version = "8.2.5", features = ["build", "git", "gitcl"] }
 default = ["ngrok"]
 ngrok = ["dep:ngrok"]
 google = []
+kserve = []

@@ -1,0 +1,23 @@
+{
+  "choices": [
+    {
+      "finish_reason": "eos_token",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\n  \"temperature\": [\n    35,\n    34,\n    36\n  ],\n  \"unit\": \"°c\"\n}",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1718044128,
+  "id": "",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "object": "text_completion",
+  "system_fingerprint": "2.0.5-dev0-native",
+  "usage": {
+    "completion_tokens": 39,
+    "prompt_tokens": 136,
+    "total_tokens": 175
+  }
+}

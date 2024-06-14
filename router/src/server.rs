@@ -4,6 +4,11 @@ use crate::infer::v2::SchedulerV2;
 use crate::infer::v3::SchedulerV3;
 use crate::infer::{HealthCheck, Scheduler};
 use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
+#[cfg(feature = "kserve")]
+use crate::kserve::{
+    kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
+    kserve_model_metadata, kserve_model_metadata_ready,
+};
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
@@ -172,7 +177,7 @@ async fn generate(
     generate_internal(infer, ComputeType(compute_type), Json(req), span).await
 }
 
-async fn generate_internal(
+pub(crate) async fn generate_internal(
     infer: Extension<Infer>,
     ComputeType(compute_type): ComputeType,
     Json(req): Json<GenerateRequest>,
@@ -1017,6 +1022,7 @@ async fn chat_completions(
         tool_choice,
         tool_prompt,
         temperature,
+        response_format,
         ..
     } = req;
 
@@ -1030,6 +1036,18 @@ async fn chat_completions(
         Some(temperature) if temperature == 0.0 => (false, None),
         other => (true, other),
     };
+
+    // response_format and tools are mutually exclusive
+    if response_format.is_some() && tools.as_ref().is_some() {
+        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: "Grammar and tools are mutually exclusive".to_string(),
+                error_type: "grammar and tools".to_string(),
+            }),
+        ));
+    }
 
     // extract tool grammar if present
     let tool_grammar = match ToolGrammar::apply(tools, tool_choice) {
@@ -1047,16 +1065,21 @@ async fn chat_completions(
         }
     };
 
-    let grammar_with_prompt = tool_grammar
+    // determine the appropriate arguments for apply_chat_template
+    let tools_grammar_prompt = tool_grammar
         .as_ref()
         .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt));
 
-    let typed_grammar = grammar_with_prompt
-        .as_ref()
-        .map(|(grammar, _)| grammar.clone());
+    let (tools_grammar_prompt, grammar) = match response_format {
+        Some(response_format) => (None, Some(response_format)),
+        None => (
+            tools_grammar_prompt.clone(),
+            tools_grammar_prompt.map(|(grammar, _)| grammar.clone()),
+        ),
+    };
 
     // apply chat template to flatten the request into a single input
-    let inputs = match infer.apply_chat_template(messages, grammar_with_prompt) {
+    let inputs = match infer.apply_chat_template(messages, tools_grammar_prompt) {
         Ok(inputs) => inputs,
         Err(err) => {
             metrics::increment_counter!("tgi_request_failure", "err" => "validation");
@@ -1092,7 +1115,7 @@ async fn chat_completions(
             decoder_input_details: !stream,
             seed,
             top_n_tokens: req.top_logprobs,
-            grammar: typed_grammar,
+            grammar,
             ..Default::default()
         },
     };
@@ -1711,28 +1734,58 @@ pub async fn run(
         docker_label: option_env!("DOCKER_LABEL"),
     };
 
-    // Define VertextApiDoc conditionally only if the "google" feature is enabled
-    let doc = {
-        // avoid `mut` if possible
-        #[cfg(feature = "google")]
-        {
-            use crate::VertexInstance;
+    #[allow(unused_mut)] // mut is needed for conditional compilation
+    let mut doc = ApiDoc::openapi();
 
-            #[derive(OpenApi)]
-            #[openapi(
-                paths(vertex_compatibility),
-                components(schemas(VertexInstance, VertexRequest, VertexResponse))
-            )]
-            struct VertextApiDoc;
+    #[cfg(feature = "google")]
+    {
+        use crate::VertexInstance;
 
-            // limiting mutability to the smallest scope necessary
-            let mut doc = ApiDoc::openapi();
-            doc.merge(VertextApiDoc::openapi());
-            doc
-        }
-        #[cfg(not(feature = "google"))]
-        ApiDoc::openapi()
-    };
+        #[derive(OpenApi)]
+        #[openapi(
+            paths(vertex_compatibility),
+            components(schemas(VertexInstance, VertexRequest, VertexResponse))
+        )]
+        struct VertexApiDoc;
+
+        doc.merge(VertexApiDoc::openapi());
+    }
+
+    #[cfg(feature = "kserve")]
+    {
+        use crate::kserve::{
+            InferenceOutput, InferenceRequest, LiveResponse, MetadataServerResponse, OutputChunk,
+            ReadyResponse,
+        };
+        use crate::kserve::{
+            __path_kerve_server_metadata, __path_kserve_health_live, __path_kserve_health_ready,
+            __path_kserve_model_infer, __path_kserve_model_metadata,
+            __path_kserve_model_metadata_ready,
+        };
+
+        #[derive(OpenApi)]
+        #[openapi(
+            paths(
+                kserve_model_infer,
+                kserve_health_live,
+                kserve_health_ready,
+                kerve_server_metadata,
+                kserve_model_metadata,
+                kserve_model_metadata_ready,
+            ),
+            components(schemas(
+                InferenceOutput,
+                InferenceRequest,
+                LiveResponse,
+                MetadataServerResponse,
+                OutputChunk,
+                ReadyResponse,
+            ))
+        )]
+        struct KServeApiDoc;
+
+        doc.merge(KServeApiDoc::openapi());
+    }
 
     // Configure Swagger UI
     let swagger_ui = SwaggerUi::new("/docs").url("/api-doc/openapi.json", doc);
@@ -1780,6 +1833,27 @@ pub async fn run(
         if let Ok(env_health_route) = std::env::var("AIP_HEALTH_ROUTE") {
             app = app.route(&env_health_route, get(health));
         }
+    }
+
+    #[cfg(feature = "kserve")]
+    {
+        tracing::info!("Built with `kserve` feature");
+        app = app
+            .route(
+                "/v2/models/:model_name/versions/:model_version/infer",
+                post(kserve_model_infer),
+            )
+            .route(
+                "/v2/models/:model_name/versions/:model_version",
+                get(kserve_model_metadata),
+            )
+            .route("/v2/health/ready", get(kserve_health_ready))
+            .route("/v2/health/live", get(kserve_health_live))
+            .route("/v2", get(kerve_server_metadata))
+            .route(
+                "/v2/models/:model_name/versions/:model_version/ready",
+                get(kserve_model_metadata_ready),
+            );
     }
 
     // add layers after routes
