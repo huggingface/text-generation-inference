@@ -14,7 +14,7 @@ from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
-from text_generation_server.models.santacoder import SantaCoder
+from text_generation_server.models.starcoder import StarCoder
 
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
@@ -86,13 +86,7 @@ def get_model(
     model_type = config_dict["model_type"]
 
     if model_type == "gpt_bigcode":
-        return SantaCoder(
-            model_id,
-            revision,
-            use_medusa=use_medusa,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
+        return StarCoder(model_id, revision, dtype)
 
     if model_type == "bloom":
         return BLOOM(
