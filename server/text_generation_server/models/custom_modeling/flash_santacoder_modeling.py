@@ -81,16 +81,11 @@ def _load_multi_mqa_gptq(
         qzeros = torch.cat([q_tensor, kv_tensor], dim=1)
         qzeros = qzeros.to(device=weights.device)
 
-        (
-            bits,
-            groupsize,
-            _,
-            quant_method,
-        ) = weights._get_gptq_params()
-        if quant_method == "gptq":
+        gptq_params = weights._get_gptq_params()
+        if gptq_params.quant_method == "gptq":
             g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
             g_idx = g_idx.to(device=weights.device)
-        elif quant_method == "awq":
+        elif gptq_params.quant_method == "awq":
             g_idx = None
             from text_generation_server.layers.awq.conversion_utils import (
                 fast_awq_to_gptq,
@@ -105,8 +100,8 @@ def _load_multi_mqa_gptq(
             qzeros=qzeros,
             scales=scales,
             g_idx=g_idx,
-            bits=bits,
-            groupsize=groupsize,
+            bits=gptq_params.bits,
+            groupsize=gptq_params.groupsize,
             use_exllama=HAS_EXLLAMA,
         )
 

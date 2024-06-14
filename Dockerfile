@@ -140,9 +140,9 @@ RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-eetq
 # Build marlin kernels
 FROM kernel-builder as marlin-kernels-builder
 WORKDIR /usr/src
-COPY server/Makefile-marlin Makefile
+COPY server/marlin/ .
 # Build specific version of transformers
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-marlin
+RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 
 # Build Lorax Punica kernels
 FROM kernel-builder as lorax-punica-builder
