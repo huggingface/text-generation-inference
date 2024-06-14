@@ -136,6 +136,10 @@ def get_tmp_tensor_for_size(size: int, device: torch.device) -> torch.Tensor:
     return torch.empty((tmp_size,), dtype=torch.uint8, device=device)
 
 
+def get_tmp_tensor_for_size_no_kernels(size: int, device: torch.device) -> torch.Tensor:
+    return torch.empty((size,), dtype=torch.uint8, device=device)
+
+
 def get_tmp_expand_size(size: int) -> int:
     return _kernels.sgmv_cutlass_tmp_size(size)
 
@@ -143,12 +147,12 @@ def get_tmp_expand_size(size: int) -> int:
 def get_tmp_tensors(
     nsegments: int, lora_rank: int, device: torch.device
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    if use_cutlass_shrink(lora_rank):
+    if use_cutlass_shrink(lora_rank) and has_sgmv():
         tmp = get_tmp_tensor_for_size(nsegments, device)
         return tmp, tmp
     else:
         tmp_shrink = get_tmp_tensor(device)
-        tmp_expand = get_tmp_tensor_for_size(nsegments, device)
+        tmp_expand = get_tmp_tensor_for_size_no_kernels(nsegments, device)
         return tmp_shrink, tmp_expand
 
 

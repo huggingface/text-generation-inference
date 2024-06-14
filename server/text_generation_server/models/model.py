@@ -90,18 +90,6 @@ class Model(ABC):
         self.loaded_adapters = set()
         self.static_adapter_id = adapter_id
 
-        # TODO: review moving adapter loading to the model
-        if adapter_id and adapter_id != BASE_MODEL_ADAPTER_ID:
-            pass
-            # download_adapter(adapter_id, adapter_source, api_token=None)
-            # self.load_adapter(
-            #     AdapterParameters(adapter_ids=[adapter_id]),
-            #     adapter_source,
-            #     adapter_index=0,
-            #     api_token=None,
-            #     dynamic=False,
-            # )
-
         if speculate is None:
             speculate = get_speculate()
         self.speculate = speculate
