@@ -196,7 +196,7 @@ class ModelType(enum.Enum):
     QWEN2 = {
         "type": "qwen2",
         "name": "Qwen 2",
-        "url": "https://huggingface.co/bigcode/starcoder2-15b-instruct-v0.1",
+        "url": "https://huggingface.co/collections/Qwen/qwen2-6659360b33528ced941e557f",
     }
     OPT = {
         "type": "opt",
