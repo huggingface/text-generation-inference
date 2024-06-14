@@ -220,7 +220,7 @@ COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86
 # Copy build artifacts from eetq kernels builder
 COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 # Copy build artifacts from marlin kernels builder
-COPY --from=marlin-kernels-builder /usr/src/marlin/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+COPY --from=marlin-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 COPY --from=lorax-punica-builder /usr/src/lorax-punica/server/punica_kernels/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 
 # Copy builds artifacts from vllm builder
@@ -273,4 +273,4 @@ COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
 ENTRYPOINT ["/tgi-entrypoint.sh"]
-CMD ["--json-output"]
+# CMD ["--json-output"]
