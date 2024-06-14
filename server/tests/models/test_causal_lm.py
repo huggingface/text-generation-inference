@@ -95,7 +95,7 @@ def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):
     assert batch.past_key_values is None
     assert all(
         [
-            torch.equal(input_ids, request.all_input_ids[:batch.input_length + 1, 0])
+            torch.equal(input_ids.to('cpu'), request.all_input_ids[:batch.input_length + 1, 0])
             for input_ids, request in zip(batch.input_ids, batch.requests)
         ]
     )
