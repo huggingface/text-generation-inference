@@ -205,7 +205,7 @@ class GalacticaSharded(CausalLM):
         weights = Weights(
             filenames, device=device, dtype=dtype, process_group=self.process_group
         )
-        if config.quantize == "gptq":
+        if config.quantize in ["gptq", "marlin"]:
             weights._set_gptq_params(model_id, revision)
 
         model = OPTForCausalLM(config, weights)

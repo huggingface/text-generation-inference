@@ -1,6 +1,7 @@
 from typing import Optional
 import torch
 from torch.nn import functional as F
+from text_generation_server.layers.marlin import GPTQMarlinLinear
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "rocm":
@@ -223,13 +224,23 @@ def get_linear(weight, bias, quantize):
                 "You do not seem to have awq installed, either install it (cd server &&  make install-awq), or try using GPTQ `---quantize gptq` a conversion AWQ->GPTQ will happen on the fly"
             )
     elif quantize == "marlin":
-        from text_generation_server.layers.marlin import MarlinLinear, MarlinWeight
+        from text_generation_server.layers.marlin import (
+            GPTQMarlinWeight,
+            MarlinLinear,
+            MarlinWeight,
+        )
 
-        if not isinstance(weight, MarlinWeight):
+        if isinstance(weight, GPTQMarlinWeight):
+            linear = GPTQMarlinLinear(
+                weight=weight,
+                bias=bias,
+            )
+        elif isinstance(weight, MarlinWeight):
+            linear = MarlinLinear(weight=weight, bias=bias)
+        else:
             raise NotImplementedError(
                 f"The passed weight is not `marlin` compatible, loader needs to be updated."
             )
-        linear = MarlinLinear(B=weight.B, s=weight.s, bias=bias)
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear

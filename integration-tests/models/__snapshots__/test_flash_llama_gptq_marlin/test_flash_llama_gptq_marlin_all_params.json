@@ -1,0 +1,84 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2323,
+        "logprob": null,
+        "text": "Test"
+      },
+      {
+        "id": 1715,
+        "logprob": -11.34375,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -2.2539062,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 578,
+        "logprob": -0.15563965,
+        "special": false,
+        "text": " The"
+      },
+      {
+        "id": 3622,
+        "logprob": -0.8203125,
+        "special": false,
+        "text": " server"
+      },
+      {
+        "id": 706,
+        "logprob": 0.0,
+        "special": false,
+        "text": " has"
+      },
+      {
+        "id": 539,
+        "logprob": 0.0,
+        "special": false,
+        "text": " not"
+      },
+      {
+        "id": 3686,
+        "logprob": 0.0,
+        "special": false,
+        "text": " yet"
+      },
+      {
+        "id": 3288,
+        "logprob": 0.0,
+        "special": false,
+        "text": " sent"
+      },
+      {
+        "id": 904,
+        "logprob": 0.0,
+        "special": false,
+        "text": " any"
+      },
+      {
+        "id": 828,
+        "logprob": 0.0,
+        "special": false,
+        "text": " data"
+      },
+      {
+        "id": 382,
+        "logprob": -1.5517578,
+        "special": false,
+        "text": ".\n\n"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request. The server has not yet sent any data.\n\n"
+}
