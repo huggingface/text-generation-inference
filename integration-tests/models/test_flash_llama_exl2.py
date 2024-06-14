@@ -1,9 +1,9 @@
 import pytest
-from testing_utils import require_backend_async
+from testing_utils import require_backend_async, require_backend
 
 
 @pytest.fixture(scope="module")
-@require_backend_async("cuda")
+@require_backend("cuda")
 def flash_llama_exl2_handle(launcher):
     with launcher(
         "turboderp/Llama-3-8B-Instruct-exl2",

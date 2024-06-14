@@ -51,6 +51,20 @@ def is_flaky_async(
 
     return decorator
 
+def require_backend(*args):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*wrapper_args, **wrapper_kwargs):
+            if SYSTEM not in args:
+                pytest.skip(
+                    f"Skipping as this test requires the backend {args} to be run, but current system is SYSTEM={SYSTEM}."
+                )
+            return func(*wrapper_args, **wrapper_kwargs)
+
+        return wrapper
+
+    return decorator
+
 
 def require_backend_async(*args):
     def decorator(func):

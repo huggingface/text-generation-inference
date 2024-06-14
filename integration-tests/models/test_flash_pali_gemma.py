@@ -3,13 +3,13 @@ import requests
 import io
 import base64
 
-from testing_utils import require_backend_async
+from testing_utils import require_backend_async, require_backend
 
 # These tests do not pass on ROCm, that does not support head_dim > 128 (2b model is 256).
 
 
 @pytest.fixture(scope="module")
-@require_backend_async("cuda", "xpu")
+@require_backend("cuda", "xpu")
 def flash_pali_gemma_handle(launcher):
     with launcher(
         "google/paligemma-3b-pt-224",

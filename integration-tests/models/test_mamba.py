@@ -1,10 +1,10 @@
 import pytest
 
-from testing_utils import require_backend_async
+from testing_utils import require_backend_async, require_backend
 
 
 @pytest.fixture(scope="module")
-@require_backend_async("cuda")
+@require_backend("cuda")
 def fused_kernel_mamba_handle(launcher):
     with launcher("state-spaces/mamba-130m", num_shard=1) as handle:
         yield handle
