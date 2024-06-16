@@ -67,6 +67,7 @@ class RW(CausalLM):
             requires_padding=True,
             dtype=dtype,
             device=device,
+            return_dict=True,
         )
 
     def forward(
