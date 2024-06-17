@@ -41,7 +41,7 @@ There are several ways you can contribute to text-generation-inference.
 
 ## Fixing outstanding issues
 
-If you notice an issue with the existing code and have a fix in mind, feel free to [start contributing](#create-a-pull-request) and open 
+If you notice an issue with the existing code and have a fix in mind, feel free to [start contributing](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) and open
 a Pull Request!
 
 ## Submitting a bug-related issue or feature request
