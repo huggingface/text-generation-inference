@@ -54,10 +54,8 @@ class UDSOpenTelemetryAioServerInterceptor(OpenTelemetryAioServerInterceptor):
         )
 
 
-def setup_tracing(shard: int, otlp_endpoint: str):
-    resource = Resource.create(
-        attributes={"service.name": f"text-generation-inference.server-{shard}"}
-    )
+def setup_tracing(otlp_service_name: str, otlp_endpoint: str):
+    resource = Resource.create(attributes={"service.name": otlp_service_name})
     span_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
     span_processor = BatchSpanProcessor(span_exporter)
 
