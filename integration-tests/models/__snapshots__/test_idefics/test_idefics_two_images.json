@@ -1,0 +1,85 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 12,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 450,
+        "logprob": -0.26342773,
+        "special": false,
+        "text": " The"
+      },
+      {
+        "id": 21282,
+        "logprob": -0.01838684,
+        "special": false,
+        "text": " cow"
+      },
+      {
+        "id": 322,
+        "logprob": -0.18041992,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 521,
+        "logprob": -0.62841797,
+        "special": false,
+        "text": " ch"
+      },
+      {
+        "id": 21475,
+        "logprob": -0.0037956238,
+        "special": false,
+        "text": "icken"
+      },
+      {
+        "id": 526,
+        "logprob": -0.018737793,
+        "special": false,
+        "text": " are"
+      },
+      {
+        "id": 373,
+        "logprob": -1.0820312,
+        "special": false,
+        "text": " on"
+      },
+      {
+        "id": 263,
+        "logprob": -0.5083008,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 25695,
+        "logprob": -0.07128906,
+        "special": false,
+        "text": " beach"
+      },
+      {
+        "id": 29889,
+        "logprob": -0.12573242,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 32002,
+        "logprob": -0.0029792786,
+        "special": true,
+        "text": "<end_of_utterance>"
+      },
+      {
+        "id": 2,
+        "logprob": -0.00024962425,
+        "special": true,
+        "text": "</s>"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " The cow and chicken are on a beach."
+}

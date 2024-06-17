@@ -22,6 +22,12 @@ async def flash_pali_gemma(flash_pali_gemma_handle):
     return flash_pali_gemma_handle.client
 
 
+def get_chicken():
+    with open("integration-tests/images/chicken_on_money.png", "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read())
+    return f"data:image/png;base64,{encoded_string.decode('utf-8')}"
+
+
 def get_cow_beach():
     with open("integration-tests/images/cow_beach.png", "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read())
@@ -36,4 +42,21 @@ async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot):
     response = await flash_pali_gemma.generate(inputs, max_new_tokens=20)
 
     assert response.generated_text == "beach"
+    assert response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_pali_gemma_two_images(flash_pali_gemma, response_snapshot):
+    chicken = get_chicken()
+    cow_beach = get_cow_beach()
+    response = await flash_pali_gemma.generate(
+        f"caption![]({chicken})![]({cow_beach})\n",
+        max_new_tokens=20,
+    )
+    # Is PaliGemma not able to handle two separate images? At least we
+    # get output showing that both images are used.
+    assert (
+        response.generated_text == "image result for chicken on the beach"
+    ), f"{repr(response.generated_text)}"
     assert response == response_snapshot
