@@ -17,6 +17,7 @@ jobs:
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
+      docker_volume: ${{ steps.final.outputs.docker_volume}}
       runs_on: ${{ steps.final.outputs.runs_on }}
       label: ${{ steps.final.outputs.label }}
     concurrency:
@@ -157,6 +158,33 @@ jobs:
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
 
+          if [[ ${{ inputs.hardware }} == "rocm" ]]
+          then
+            echo "docker_volume=/data/cache/.cache/huggingface/hub"
+          else
+            echo "docker_volume=/mnt/cache" >> "$GITHUB_OUTPUT"
+          fi
+
+
+  prepare_integration_tests:
+    runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
+    needs: build-and-push
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    container:
+      image: ${{ needs.build-and-push.outputs.docker_image }}
+      options: --shm-size "16gb" --ipc host -v ${{ needs.build-and-push.outputs.docker_volume }}:/data
+    steps:
+      - name: Clean Hugging Face cache
+        run: |
+          if [[ ${{ inputs.hardware }} == "rocm" ]]
+          then
+            python clean_cache.py
+          fi
+
+
   integration_tests:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
@@ -188,7 +216,6 @@ jobs:
 
       - name: Run tests
         run: |
-          export DOCKER_VOLUME=/mnt/cache
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
 
