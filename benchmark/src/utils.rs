@@ -37,7 +37,7 @@ pub(crate) fn percentiles(values: &[f64], pecents: &[i32]) -> BTreeMap<String, f
         .iter()
         .map(|&p| {
             let i = (f64::from(p) / 100.0 * values.len() as f64) as usize;
-            (format!("p{p}"), *values.get(i).unwrap_or(&std::f64::NAN))
+            (format!("p{p}"), *values.get(i).unwrap_or(&f64::NAN))
         })
         .collect()
 }

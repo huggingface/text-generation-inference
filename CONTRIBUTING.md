@@ -55,10 +55,10 @@ feedback.
 The text-generation-inference library is robust and reliable thanks to users who report the problems they encounter.
 
 Before you report an issue, we would really appreciate it if you could **make sure the bug was not
-already reported** (use the search bar on GitHub under Issues). Your issue should also be related to bugs in the 
-library itself, and not your code. 
+already reported** (use the search bar on GitHub under Issues). Your issue should also be related to bugs in the
+library itself, and not your code.
 
-Once you've confirmed the bug hasn't already been reported, please include the following information in your issue so 
+Once you've confirmed the bug hasn't already been reported, please include the following information in your issue so
 we can quickly resolve it:
 
 * Your **OS type and version**, as well as your environment versions (versions of rust, python, and dependencies).
@@ -79,20 +79,20 @@ that in your issue report.
 
 If there is a new feature you'd like to see in text-generation-inference, please open an issue and describe:
 
-1. What is the *motivation* behind this feature? Is it related to a problem or frustration with the library? Is it 
-   a feature related to something you need for a project? Is it something you worked on and think it could benefit 
+1. What is the *motivation* behind this feature? Is it related to a problem or frustration with the library? Is it
+   a feature related to something you need for a project? Is it something you worked on and think it could benefit
    the community?
 
    Whatever it is, we'd love to hear about it!
 
-2. Describe your requested feature in as much detail as possible. The more you can tell us about it, the better 
+2. Describe your requested feature in as much detail as possible. The more you can tell us about it, the better
    we'll be able to help you.
 3. Provide a *code snippet* that demonstrates the feature's usage.
 4. If the feature is related to a paper, please include a link.
 
 If your issue is well written we're already 80% of the way there by the time you create it.
 
-We have added [templates](https://github.com/huggingface/text-generation-inference/tree/main/.github/ISSUE_TEMPLATE) 
+We have added [templates](https://github.com/huggingface/text-generation-inference/tree/main/.github/ISSUE_TEMPLATE)
 to help you get started with your issue.
 
 ## Do you want to implement a new model?
@@ -107,14 +107,14 @@ If you are willing to contribute the model yourself, let us know so we can help 
 
 ## Do you want to add documentation?
 
-We're always looking for improvements to the documentation that make it more clear and accurate. Please let us know 
-how the documentation can be improved such as typos and any content that is missing, unclear or inaccurate. We'll be 
+We're always looking for improvements to the documentation that make it more clear and accurate. Please let us know
+how the documentation can be improved such as typos and any content that is missing, unclear or inaccurate. We'll be
 happy to make the changes or help you make a contribution if you're interested!
 
 ## I want to become a maintainer of the project. How do I get there?
 
 TGI is a project led and managed by Hugging Face as it powers our internal services. However, we are happy to have
 motivated individuals from other organizations join us as maintainers with the goal of making TGI the best inference
-service. 
+service.
 
 If you are such an individual (or organization), please reach out to us and let's collaborate.

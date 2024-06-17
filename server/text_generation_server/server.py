@@ -240,7 +240,11 @@ def serve(
             interceptors=[
                 ExceptionInterceptor(),
                 UDSOpenTelemetryAioServerInterceptor(),
-            ]
+            ],
+            options=[
+                # Set the maximum possible message length: i32::MAX
+                ("grpc.max_receive_message_length", (1 << 31) - 1)
+            ],
         )
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
             TextGenerationService(model, Cache(), quantize, server_urls), server
