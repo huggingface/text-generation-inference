@@ -28,7 +28,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ matrix.name }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    runs-on: ubuntu
+    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
     strategy:
       matrix:
         include:
