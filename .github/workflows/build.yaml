@@ -51,10 +51,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Initialize Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
-        with:
-          install: true
+      
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
       - name: Tailscale
@@ -63,6 +60,10 @@ jobs:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           slackChannel: ${{ secrets.SLACK_CIFEEDBACK_CHANNEL }}
           slackToken: ${{ secrets.SLACK_CIFEEDBACK_BOT_TOKEN }}
+      - name: Initialize Docker Buildx
+        uses: docker/setup-buildx-action@v2.0.0
+        with:
+          install: true
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
