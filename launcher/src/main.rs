@@ -148,6 +148,7 @@ impl std::fmt::Display for Dtype {
 enum RopeScaling {
     Linear,
     Dynamic,
+    Yarn,
 }
 
 impl std::fmt::Display for RopeScaling {
@@ -159,6 +160,9 @@ impl std::fmt::Display for RopeScaling {
             }
             RopeScaling::Dynamic => {
                 write!(f, "dynamic")
+            }
+            RopeScaling::Yarn => {
+                write!(f, "yarn")
             }
         }
     }
