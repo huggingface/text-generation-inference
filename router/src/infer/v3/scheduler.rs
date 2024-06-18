@@ -407,14 +407,13 @@ async fn filter_batch(
                     .block_allocation
                     .as_ref()
                     .map(|alloc| {
-                        let max_blocks = match max_blocks {
-                            Some(max_blocks) => max_blocks,
-                            _ => unreachable!(),
-                        };
-
                         let blocks = alloc.blocks().to_vec();
                         let mut padded_blocks = blocks.clone();
-                        padded_blocks.resize(max_blocks - padded_blocks.len(), 0);
+
+                        if let Some(max_blocks) = max_blocks {
+                            padded_blocks.resize(max_blocks, 0);
+                        }
+
                         (blocks, padded_blocks)
                     })
                     .unwrap_or_default();
