@@ -53,7 +53,9 @@ def image_text_replacement(image_input, config, image_id) -> str:
         num_features = get_number_of_features(height, width, config)
         from loguru import logger
 
-        logger.info(f"Found {num_features} in image of resolution {height}x{width}")
+        logger.info(
+            f"Found {num_features} features in image of resolution {height}x{width}"
+        )
         return "<image>" * num_features
 
     elif config.model_type == "paligemma":
@@ -133,23 +135,41 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
     def batch_tokenized_inputs(
         cls, requests: Iterable[generate_pb2.Request], tokenizer, processor, config
     ):
+        # Process images first. We need all of them so that the processor
+        # can make the image splits the same size. And we need the final
+        # sizes to insert correct number of image tokens.
+        images = []
+        for r in requests:
+            for chunk in r.input_chunks.chunks:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    pass
+                elif chunk_type == "image":
+                    image = Image.open(BytesIO(chunk.image.data))
+                    if config.model_type == "llava_next":
+                        images.append(image)
+                    else:
+                        images.append([image])
+                else:
+                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
+
+        if images:
+            image_inputs = processor.image_processor(images, return_tensors="pt")
+        else:
+            image_inputs = None
+
         batch_inputs = []
-        image_inputs = []
         max_truncation = 0
+        image_id = 0
         for r in requests:
             full_text = ""
-            image_id = 0
             for chunk in r.input_chunks.chunks:
                 chunk_type = chunk.WhichOneof("chunk")
                 if chunk_type == "text":
                     full_text += chunk.text
                 elif chunk_type == "image":
-                    image = Image.open(BytesIO(chunk.image.data))
-                    image_input = processor.image_processor(image, return_tensors="pt")
-                    full_text += image_text_replacement(image_input, config, image_id)
-                    image_inputs.append(image_input)
-                else:
-                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
+                    full_text += image_text_replacement(image_inputs, config, image_id)
+                    image_id += 1
 
             batch_inputs.append(full_text)
             max_truncation = max(max_truncation, r.truncate)
@@ -160,24 +180,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
             max_length=max_truncation,
             add_special_tokens=not config.model_type == "paligemma",
         )["input_ids"]
-        if image_inputs:
-            image_input = image_inputs[0]
-            new_image_inputs = {
-                "pixel_values": torch.cat(
-                    [img["pixel_values"] for img in image_inputs], dim=0
-                ),
-            }
-            if "pixel_attention_mask" in image_input:
-                new_image_inputs["pixel_attention_mask"] = torch.cat(
-                    [img["pixel_attention_mask"] for img in image_inputs], dim=0
-                )
-            if "image_sizes" in image_input:
-                new_image_inputs["image_sizes"] = torch.cat(
-                    [img["image_sizes"] for img in image_inputs], dim=0
-                )
-            image_inputs = new_image_inputs
-        else:
-            image_inputs = None
+
         return batch_tokenized_inputs, image_inputs
 
     @classmethod
