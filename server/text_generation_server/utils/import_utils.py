@@ -1,6 +1,5 @@
 import torch
 from loguru import logger
-from text_generation_server.utils.dist import WORLD_SIZE
 
 
 def is_ipex_available():
@@ -26,6 +25,7 @@ def get_xpu_free_memory(device, memory_fraction):
 
 def get_cpu_free_memory(device, memory_fraction):
     import psutil
+    from text_generation_server.utils.dist import WORLD_SIZE
 
     mem = psutil.virtual_memory()
     free_memory = int(mem.available * 0.95 / WORLD_SIZE)
