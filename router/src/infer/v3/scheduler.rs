@@ -314,6 +314,9 @@ async fn decode(
 
             // Filter and send finished generations
             let mut filtered_stream_responses = filter_send_ended_generations(generations, entries);
+
+            tracing::info!("filtered_stream: {:?}", start_filtering_time.elapsed());
+
             // Send `StreamResponseInfer::Intermediate` messages for entries that don't need to be
             // re-allocated,
             // Allocated new blocks for entries that go over their allocation
@@ -321,17 +324,21 @@ async fn decode(
             let (force_update, terminated_entries) =
                 filter_send_update_allocations(entries, &mut filtered_stream_responses);
 
+            tracing::info!("filtered_update: {:?}", start_filtering_time.elapsed());
+
             let next_batch = match next_batch {
                 // Run Only on re-allocation or if entries were filtered
                 Some(batch) if batch.size as usize != entries.len() || force_update => {
                     // Filter next batch: remove requests that were stopped and update blocks/slots
                     let (filtered_batch, terminated_generations) =
                         filter_batch(client, batch, entries, &terminated_entries).await;
+                    tracing::info!("filter_batch: {:?}", start_filtering_time.elapsed());
                     send_terminated_generations(
                         terminated_generations,
                         terminated_entries,
                         filtered_stream_responses,
                     );
+                    tracing::info!("send_terminated: {:?}", start_filtering_time.elapsed());
 
                     filtered_batch
                 }
@@ -379,22 +386,48 @@ async fn filter_batch(
         client.clear_cache(Some(id)).await.unwrap();
         Default::default()
     } else {
-        // Collect new blocks/slots
+        let max_blocks = entries
+            .iter()
+            .map(|(_, entry)| {
+                entry
+                    .block_allocation
+                    .as_ref()
+                    .map(|alloc| alloc.blocks().len())
+            })
+            .max()
+            .flatten();
+
+        let start_time = Instant::now();
+
+        // Collect new blocks
         let updated_requests = entries
             .iter()
             .map(|(request_id, entry)| {
-                let blocks = entry
+                let (blocks, padded_blocks) = entry
                     .block_allocation
                     .as_ref()
-                    .map(|alloc| alloc.blocks().to_vec())
+                    .map(|alloc| {
+                        let max_blocks = match max_blocks {
+                            Some(max_blocks) => max_blocks,
+                            _ => unreachable!(),
+                        };
+
+                        let blocks = alloc.blocks().to_vec();
+                        let mut padded_blocks = blocks.clone();
+                        padded_blocks.resize(max_blocks - padded_blocks.len(), 0);
+                        (blocks, padded_blocks)
+                    })
                     .unwrap_or_default();
 
                 KeptRequest {
                     id: *request_id,
                     blocks,
+                    padded_blocks,
                 }
             })
             .collect();
+
+        tracing::info!("Collect blocks: {:?}", start_time.elapsed());
 
         // Filter Python shard cache
         // We unwrap here as we need to panic since we cannot recover if this method fails

@@ -32,7 +32,7 @@ impl BlockAllocation {
                 self.required_blocks,
             ),
         };
-        let remaining_blocks = required_blocks - self.allocated_blocks.len();
+        let remaining_blocks = required_blocks.saturating_sub(self.allocated_blocks.len());
         let new_blocks = min(remaining_blocks, 16);
 
         // Try to allocate all remaining blocks

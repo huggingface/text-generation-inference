@@ -206,6 +206,8 @@ message KeptRequest {
     uint64 id = 1;
     /// Paged attention blocks
     repeated uint32 blocks = 2;
+    /// Paged attention blocks padded to max blocks for this batch
+    repeated uint32 padded_blocks = 3;
 }
 
 /// kept_requests + terminated_request_ids might not cover all requests from the

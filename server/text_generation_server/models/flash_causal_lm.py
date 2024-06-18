@@ -403,6 +403,8 @@ class FlashCausalLMBatch(Batch):
         kept_requests: List[generate_pb2.KeptRequest],
         terminated_request_ids: List[int],
     ) -> Tuple[Optional["FlashCausalLMBatch"], List[generate_pb2.TerminatedGeneration]]:
+        start = time.time_ns()
+
         terminated_generations = []
         for request_id in terminated_request_ids:
             idx = self.requests_idx_mapping[request_id]
@@ -429,6 +431,11 @@ class FlashCausalLMBatch(Batch):
                     ),
                 )
             )
+
+        from loguru import logger
+
+        logger.info(f"terminated generations {(time.time_ns() - start)/1e6}")
+
         if not kept_requests:
             return None, terminated_generations
 
@@ -445,7 +452,7 @@ class FlashCausalLMBatch(Batch):
 
         requests = []
         flat_blocks = []
-        block_tables = []
+        padded_blocks = []
         all_input_ids = []
 
         input_lengths = []
@@ -483,14 +490,16 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens.append(self.top_n_tokens[idx])
 
             request_block_table = request.blocks
-            block_tables.append(request_block_table)
             flat_blocks.extend(request_block_table)
+            padded_blocks.extend(request.padded_blocks)
 
             # Index
             slot_indices.append((num_blocks * BLOCK_SIZE) + request_input_length - 1)
 
             num_blocks += len(request_block_table)
             max_blocks = max(max_blocks, len(request_block_table))
+
+        logger.info(f"for loop requests: {(time.time_ns() - start)/1e6}")
 
         # Index into tensors
         input_ids = self.input_ids[indices]
@@ -503,12 +512,14 @@ class FlashCausalLMBatch(Batch):
             self.speculative_ids[indices] if self.speculative_ids is not None else None
         )
 
-        # Create block_tables_tensor on CPU
-        block_tables_tensor = torch.zeros(
-            (len(block_tables), max_blocks), dtype=torch.int32, device="cpu"
-        )
-        for i, request_blocks in enumerate(block_tables):
-            block_tables_tensor[i, : len(request_blocks)] = torch.tensor(request_blocks)
+        logger.info(f"slice objects: {(time.time_ns() - start)/1e6}")
+
+        # Create block_tables_tensor on GPU
+        block_tables_tensor = torch.tensor(
+            padded_blocks, dtype=torch.int32, device=device
+        ).view(len(requests), -1)
+
+        logger.info(f"allocate block table: {(time.time_ns() - start)/1e6}")
 
         # Allocate on GPU
         slot_indices = torch.tensor(slot_indices, dtype=torch.int64, device=device)
@@ -521,6 +532,8 @@ class FlashCausalLMBatch(Batch):
             (flat_blocks_tensor * BLOCK_SIZE).repeat(BLOCK_SIZE, 1).T
             + torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int64)
         ).flatten()
+
+        logger.info(f"done allocation: {(time.time_ns() - start)/1e6}")
 
         filtered_batch = type(self)(
             batch_id=self.batch_id,
