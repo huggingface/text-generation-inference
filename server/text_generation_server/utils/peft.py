@@ -1,5 +1,5 @@
 import os
-import json
+from typing import Union
 from loguru import logger
 import torch
 
@@ -45,7 +45,9 @@ def download_and_unload_peft(model_id, revision, trust_remote_code):
     tokenizer.save_pretrained(cache_dir)
 
 
-def download_peft(model_id, revision, trust_remote_code):
+def download_peft(
+    model_id: Union[str, os.PathLike], revision: str, trust_remote_code: bool
+):
     torch_dtype = torch.float16
     try:
         _model = AutoPeftModelForCausalLM.from_pretrained(

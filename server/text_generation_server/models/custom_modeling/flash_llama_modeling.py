@@ -59,7 +59,7 @@ def load_attention(config, prefix, weights, layer_id):
 
     # if specific model type, load the correct attention
     if config.model_type == "phi3":
-        base_layer = TensorParallelColumnLinear.load_qkv(
+        return TensorParallelColumnLinear.load_qkv(
             config,
             prefix=f"{prefix}.qkv_proj",
             weights=weights,
@@ -68,7 +68,7 @@ def load_attention(config, prefix, weights, layer_id):
             num_key_value_heads=config.num_key_value_heads,
         )
     elif config.model_type == "baichuan":
-        base_layer = TensorParallelColumnLinear.load_qkv(
+        return TensorParallelColumnLinear.load_qkv(
             config,
             prefix=f"{prefix}.W_pack",
             weights=weights,
@@ -76,28 +76,28 @@ def load_attention(config, prefix, weights, layer_id):
             num_heads=config.num_attention_heads,
             num_key_value_heads=config.num_key_value_heads,
         )
+    else:
+        # otherwise, load the default attention based on the number of heads
+        base_layer = TensorParallelColumnLinear.load_multi(
+            config,
+            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+            dim=0,
+            weights=weights,
+            bias=bias,
+        )
 
-    # otherwise, load the default attention based on the number of heads
-    base_layer = TensorParallelColumnLinear.load_multi(
-        config,
-        prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        dim=0,
-        weights=weights,
-        bias=bias,
-    )
-
-    head_size = config.hidden_size // config.num_attention_heads
-    return TensorParallelMultiAdapterLinear.load(
-        base_layer,
-        layer_id,
-        ["q_proj", "k_proj", "v_proj"],
-        sizes=[
-            head_size * config.num_attention_heads,
-            head_size * config.num_key_value_heads,
-            head_size * config.num_key_value_heads,
-        ],
-        process_group=weights.process_group,
-    )
+        head_size = config.hidden_size // config.num_attention_heads
+        return TensorParallelMultiAdapterLinear.load(
+            base_layer,
+            layer_id,
+            ["q_proj", "k_proj", "v_proj"],
+            sizes=[
+                head_size * config.num_attention_heads,
+                head_size * config.num_key_value_heads,
+                head_size * config.num_key_value_heads,
+            ],
+            process_group=weights.process_group,
+        )
 
 
 class FlashLlamaAttention(torch.nn.Module):
@@ -240,7 +240,7 @@ class LlamaMLP(nn.Module):
         # Fuse gate and up proj
         bias = getattr(config, "mlp_bias", False)
         if config.model_type == "phi3":
-            gate_up_proj = TensorParallelColumnLinear.load_gate_up(
+            self.gate_up_proj = TensorParallelColumnLinear.load_gate_up(
                 config,
                 prefix=f"{prefix}.gate_up_proj",
                 weights=weights,
@@ -255,16 +255,16 @@ class LlamaMLP(nn.Module):
                 bias=bias,
             )
 
-        self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
-            gate_up_proj,
-            index,
-            ["gate_proj", "up_proj"],
-            sizes=[
-                config.intermediate_size,
-                config.intermediate_size,
-            ],
-            process_group=weights.process_group,
-        )
+            self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
+                gate_up_proj,
+                index,
+                ["gate_proj", "up_proj"],
+                sizes=[
+                    config.intermediate_size,
+                    config.intermediate_size,
+                ],
+                process_group=weights.process_group,
+            )
 
         down_proj = TensorParallelRowLinear.load(
             config,
@@ -273,12 +273,15 @@ class LlamaMLP(nn.Module):
             bias=bias,
         )
 
-        self.down_proj = TensorParallelAdapterRowLinear.load(
-            down_proj,
-            index,
-            "down_proj",
-            process_group=weights.process_group,
-        )
+        if config.model_type == "phi3":
+            self.down_proj = down_proj
+        else:
+            self.down_proj = TensorParallelAdapterRowLinear.load(
+                down_proj,
+                index,
+                "down_proj",
+                process_group=weights.process_group,
+            )
 
         self.intermediate_size = (
             config.intermediate_size // weights.process_group.size()
@@ -470,9 +473,6 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             prefix=suffix if not prefix else f"{prefix}.{suffix}",
             weights=weights,
         )
-
-    def get_lora_index(self, adapter_id):
-        return self.model.layers[0].self_attn.key_to_index[adapter_id]
 
     def forward(
         self,

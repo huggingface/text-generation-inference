@@ -1,3 +1,7 @@
+# Origin:   https://github.com/predibase/lorax
+# Path:     lorax/server/lorax_server/adapters/weights.py
+# License:  Apache License Version 2.0, January 2004
+
 from abc import ABC, abstractclassmethod
 from collections import defaultdict
 from dataclasses import dataclass

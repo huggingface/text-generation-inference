@@ -1,3 +1,7 @@
+# Origin:   https://github.com/predibase/lorax
+# Path:     lorax/server/lorax_server/utils/sgmv.py
+# License:  Apache License Version 2.0, January 2004
+
 import os
 import warnings
 from functools import lru_cache

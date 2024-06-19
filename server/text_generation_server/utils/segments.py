@@ -1,3 +1,7 @@
+# Origin:   https://github.com/predibase/lorax
+# Path:     lorax/server/lorax_server/utils/segments.py
+# License:  Apache License Version 2.0, January 2004
+
 from typing import List, Tuple, Union
 
 import torch

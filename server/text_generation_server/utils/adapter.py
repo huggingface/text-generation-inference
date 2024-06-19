@@ -1,3 +1,7 @@
+# Origin:   https://github.com/predibase/lorax
+# Path:     lorax/server/lorax_server/utils/adapter.py
+# License:  Apache License Version 2.0, January 2004
+
 import warnings
 from dataclasses import dataclass
 from functools import lru_cache
@@ -20,22 +24,20 @@ if TYPE_CHECKING:
 BASE_MODEL_ADAPTER_ID = "__base_model__"
 
 
+@dataclass
 class AdapterParameters:
-    def __init__(
-        self, adapter_ids, weights, merge_strategy, density, majority_sign_method
-    ):
-        self.adapter_ids = adapter_ids
-        self.weights = weights
-        self.merge_strategy = merge_strategy
-        self.density = density
-        self.majority_sign_method = majority_sign_method
+    adapter_ids: Tuple[str]
+    weights: Tuple[float]
+    merge_strategy: NotImplemented
+    density: float
+    majority_sign_method: NotImplemented
 
 
+@dataclass
 class AdapterSource:
-    def __init__(self, adapter_id: str, model_id: str, revision: str):
-        self.adapter_id = adapter_id
-        self.model_id = model_id
-        self.revision = revision
+    adapter_id: str
+    model_id: str
+    revision: str
 
 
 def load_and_merge_adapters(
@@ -65,11 +67,11 @@ def load_and_merge_adapters(
     )
 
 
+@dataclass
 class AdapterParametersContainer:
-    def __init__(self, adapter_parameters, adapter_source, adapter_index):
-        self.adapter_parameters = adapter_parameters
-        self.adapter_source = adapter_source
-        self.adapter_index = adapter_index
+    adapter_parameters: AdapterParameters
+    adapter_source: str
+    adapter_index: int
 
     def __hash__(self) -> int:
         return self.adapter_index
@@ -123,7 +125,7 @@ def check_architectures(
 ):
     try:
         if not adapter_config.base_model_name_or_path:
-            # Avoid execuation latency caused by the network connection retrying for AutoConfig.from_pretrained(None)
+            # Avoid execution latency caused by the network connection retrying for AutoConfig.from_pretrained(None)
             return
 
         expected_config = AutoConfig.from_pretrained(

@@ -1,3 +1,7 @@
+# Origin:   https://github.com/predibase/lorax
+# Path:     lorax/server/lorax_server/adapters/lora.py
+# License:  Apache License Version 2.0, January 2004
+
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Type, Union
@@ -25,8 +29,6 @@ from text_generation_server.utils.sgmv import (
 if TYPE_CHECKING:
     from text_generation_server.models.model import Model
 
-EMPTY_TENSOR = torch.tensor([])
-
 
 @dataclass
 class LoraConfig(AdapterConfig):
@@ -38,7 +40,7 @@ class LoraConfig(AdapterConfig):
 
     def map_weights_for_model(
         self,
-        adapter_weights: Dict,
+        adapter_weights: Dict[int, AdapterWeights],
         weight_names: Tuple[str],
     ) -> Tuple[ModuleMap, Set[str]]:
         adapter_weight_names = set()
@@ -262,7 +264,7 @@ class BatchLoraWeights(BatchAdapterWeights):
         if not adapter_weights:
             return None
 
-        first_weights = list(adapter_weights.values())[0]
+        first_weights = next(iter(adapter_weights.values()))
         device = first_weights.weights_a.device
         segment_indices = meta.segment_indices
 
@@ -293,7 +295,7 @@ class BatchLoraWeights(BatchAdapterWeights):
                     (
                         adapter_weights[idx].weights_a.data_ptr()
                         if idx in adapter_weights
-                        else EMPTY_TENSOR.data_ptr()
+                        else 0
                     )
                     for idx in segment_indices
                 ],
@@ -305,7 +307,7 @@ class BatchLoraWeights(BatchAdapterWeights):
                     (
                         adapter_weights[idx].weights_b.data_ptr()
                         if idx in adapter_weights
-                        else EMPTY_TENSOR.data_ptr()
+                        else 0
                     )
                     for idx in segment_indices
                 ],
@@ -319,7 +321,7 @@ class BatchLoraWeights(BatchAdapterWeights):
                     (
                         adapter_weights[idx].weights_a_t.data_ptr()
                         if idx in adapter_weights
-                        else EMPTY_TENSOR.data_ptr()
+                        else 0
                     )
                     for idx in segment_indices
                 ],
@@ -331,7 +333,7 @@ class BatchLoraWeights(BatchAdapterWeights):
                     (
                         adapter_weights[idx].weights_b_t.data_ptr()
                         if idx in adapter_weights
-                        else EMPTY_TENSOR.data_ptr()
+                        else 0
                     )
                     for idx in segment_indices
                 ],
