@@ -1,8 +1,5 @@
 import pytest
 
-# TODO: avoid skipping module when CI permissions are fixed
-pytest.skip(allow_module_level=True)
-
 
 @pytest.fixture(scope="module")
 def flash_llama_handle(launcher):

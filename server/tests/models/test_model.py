@@ -5,9 +5,6 @@ from transformers import AutoTokenizer
 
 from text_generation_server.models import Model
 
-# TODO: avoid skipping module when CI permissions are fixed
-pytest.skip(allow_module_level=True)
-
 
 def get_test_model():
     class TestModel(Model):
