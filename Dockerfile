@@ -20,6 +20,7 @@ RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     rm -f $PROTOC_ZIP
 
 COPY --from=planner /usr/src/recipe.json recipe.json
+COPY Cargo.lock Cargo.lock
 RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY Cargo.toml Cargo.toml
