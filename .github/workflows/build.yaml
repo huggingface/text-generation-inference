@@ -141,7 +141,7 @@ jobs:
         run: |
           export DOCKER_VOLUME=/mnt/cache
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HF_TOKEN }}
           pytest -s -vv integration-tests
       - name: Tailscale Wait
         if: ${{ failure() || runner.debug == '1' }}
