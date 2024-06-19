@@ -72,7 +72,7 @@ jobs:
       - name: Run server tests
         run: |
           pip install pytest
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HF_TOKEN }}
           pytest -s -vv server/tests
       - name: Pre-commit checks
         run: |
