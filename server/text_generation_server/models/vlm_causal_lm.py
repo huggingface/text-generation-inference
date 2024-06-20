@@ -39,15 +39,14 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     return height // patch_size, width // patch_size
 
 
-def image_text_replacement(image_input, config, image_id) -> str:
+def image_text_replacement(processor, image_input, config, image_id) -> str:
     if config.model_type == "idefics2":
         # TODO technically depends on image splitting which is not implemented.
-        num_features = 320
-        return (
-            "<fake_token_around_image>"
-            + "<image>" * num_features
-            + "<fake_token_around_image>"
-        )
+        image_seq_len = 64
+        image_str = f"<fake_token_around_image>{'<image>' * image_seq_len}<fake_token_around_image>"
+        if processor.image_processor.do_image_splitting:
+            image_str *= 5
+        return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
@@ -168,7 +167,9 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 if chunk_type == "text":
                     full_text += chunk.text
                 elif chunk_type == "image":
-                    full_text += image_text_replacement(image_inputs, config, image_id)
+                    full_text += image_text_replacement(
+                        processor, image_inputs, config, image_id
+                    )
                     image_id += 1
 
             batch_inputs.append(full_text)

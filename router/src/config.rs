@@ -112,7 +112,7 @@ pub struct Idefics2 {}
 
 impl Idefics2 {
     pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
-        320
+        64
     }
 }
 

@@ -13,7 +13,9 @@ use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use text_generation_router::config::Config;
-use text_generation_router::{server, HubModelInfo, HubProcessorConfig, HubTokenizerConfig};
+use text_generation_router::{
+    server, HubModelInfo, HubPreprocessorConfig, HubProcessorConfig, HubTokenizerConfig,
+};
 use thiserror::Error;
 use tokenizers::Tokenizer;
 use tower_http::cors::AllowOrigin;
@@ -209,6 +211,7 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_filename,
         config_filename,
         tokenizer_config_filename,
+        preprocessor_config_filename,
         processor_config_filename,
         model_info,
     ) = match api {
@@ -216,6 +219,7 @@ async fn main() -> Result<(), RouterError> {
             Some(local_path.join("tokenizer.json")),
             Some(local_path.join("config.json")),
             Some(local_path.join("tokenizer_config.json")),
+            Some(local_path.join("preprocessor_config.json")),
             Some(local_path.join("processor_config.json")),
             None,
         ),
@@ -232,6 +236,7 @@ async fn main() -> Result<(), RouterError> {
             };
             let config_filename = api_repo.get("config.json").await.ok();
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
+            let preprocessor_config_filename = api_repo.get("preprocessor_config.json").await.ok();
             let processor_config_filename = api_repo.get("processor_config.json").await.ok();
 
             let model_info = if let Some(model_info) = get_model_info(&api_repo).await {
@@ -244,6 +249,7 @@ async fn main() -> Result<(), RouterError> {
                 tokenizer_filename,
                 config_filename,
                 tokenizer_config_filename,
+                preprocessor_config_filename,
                 processor_config_filename,
                 model_info,
             )
@@ -258,6 +264,7 @@ async fn main() -> Result<(), RouterError> {
                 repo.get("tokenizer.json"),
                 repo.get("config.json"),
                 repo.get("tokenizer_config.json"),
+                repo.get("preprocessor_config.json"),
                 repo.get("processor_config.json"),
                 None,
             )
@@ -295,6 +302,8 @@ async fn main() -> Result<(), RouterError> {
         HubTokenizerConfig::default()
     });
 
+    let preprocessor_config =
+        preprocessor_config_filename.and_then(HubPreprocessorConfig::from_file);
     let processor_config = processor_config_filename
         .and_then(HubProcessorConfig::from_file)
         .unwrap_or_default();
@@ -356,6 +365,7 @@ async fn main() -> Result<(), RouterError> {
         ngrok_authtoken,
         ngrok_edge,
         tokenizer_config,
+        preprocessor_config,
         processor_config,
         messages_api_enabled,
         disable_grammar_support,

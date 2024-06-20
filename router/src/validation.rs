@@ -1,13 +1,16 @@
 /// Payload validation logic
 use crate::config::Config;
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
-use crate::{GenerateParameters, GenerateRequest, GrammarType};
+use crate::{
+    GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
+};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{io::Reader as ImageReader, ImageFormat};
 use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 use std::io::Cursor;
+use std::iter;
 use text_generation_client::{Chunk, Image, InputChunk};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
@@ -36,6 +39,7 @@ impl Validation {
         workers: usize,
         tokenizer: Option<Tokenizer>,
         config: Option<Config>,
+        preprocessor_config: Option<HubPreprocessorConfig>,
         max_best_of: usize,
         max_stop_sequences: usize,
         max_top_n_tokens: u32,
@@ -53,12 +57,18 @@ impl Validation {
             for _ in 0..workers {
                 let tokenizer_clone = tokenizer.clone();
                 let config_clone = config.clone();
+                let preprocessor_config_clone = preprocessor_config.clone();
                 let (tokenizer_sender, tokenizer_receiver) = mpsc::unbounded_channel();
                 senders.push(tokenizer_sender);
 
                 // Spawn worker
                 tokio::task::spawn_blocking(move || {
-                    tokenizer_worker(tokenizer_clone, config_clone, tokenizer_receiver)
+                    tokenizer_worker(
+                        tokenizer_clone,
+                        config_clone,
+                        preprocessor_config_clone,
+                        tokenizer_receiver,
+                    )
                 });
             }
 
@@ -420,13 +430,20 @@ async fn round_robin_task(
 fn tokenizer_worker(
     tokenizer: Tokenizer,
     config: Option<Config>,
+    preprocessor_config: Option<HubPreprocessorConfig>,
     mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>,
 ) {
     // Loop over requests
     while let Some(((inputs, truncate), response_tx, parent_span)) = receiver.blocking_recv() {
         parent_span.in_scope(|| {
             response_tx
-                .send(prepare_input(inputs, truncate, &tokenizer, &config))
+                .send(prepare_input(
+                    inputs,
+                    truncate,
+                    &tokenizer,
+                    config.as_ref(),
+                    preprocessor_config.as_ref(),
+                ))
                 .unwrap_or(())
         })
     }
@@ -506,16 +523,59 @@ fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), Validatio
     }
 }
 
+fn image_tokens(
+    config: &Config,
+    preprocessor_config: Option<&HubPreprocessorConfig>,
+    height: usize,
+    width: usize,
+) -> String {
+    use Config::*;
+    use HubPreprocessorConfig::*;
+    match config {
+        Idefics => "<image>".to_string(),
+        Idefics2(config) => {
+            let slots = config.get_number_of_features(height, width);
+
+            const FAKE: &str = "<fake_token_around_image>";
+            const IMAGE: &str = "<image>";
+            const FAKE_LEN: usize = FAKE.len();
+            const IMAGE_LEN: usize = IMAGE.len();
+
+            let mut tokens = String::with_capacity(2 * FAKE_LEN + slots * IMAGE_LEN);
+            tokens.push_str(FAKE);
+            tokens.extend(iter::repeat(IMAGE).take(slots));
+            tokens.push_str(FAKE);
+
+            if matches!(
+                preprocessor_config,
+                Some(Idefics2Processor(Idefics2Preprocessor {
+                    do_image_splitting: true,
+                    ..
+                }))
+            ) {
+                tokens = tokens.repeat(5);
+            }
+
+            tokens
+        }
+        Paligemma(config) => "<image>".repeat(config.get_number_of_features(height, width)),
+        LlavaNext(config) => "<image>".repeat(config.get_number_of_features(height, width)),
+        _ => unimplemented!("Images tokens are not supported for this model configuration"),
+    }
+}
+
 /// Get input length and optionally truncate it
 fn prepare_input(
     inputs: String,
     _truncate: Option<usize>,
     tokenizer: &Tokenizer,
-    config: &Option<Config>,
+    config: Option<&Config>,
+    preprocessor_config: Option<&HubPreprocessorConfig>,
 ) -> Result<(tokenizers::Encoding, Vec<InputChunk>), ValidationError> {
+    use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
-        Some(Config::LlavaNext(config)) => {
+        Some(config @ (Idefics | Idefics2(_) | Paligemma(_) | LlavaNext(_))) => {
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
@@ -527,82 +587,8 @@ fn prepare_input(
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
                 let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                let slots = config.get_number_of_features(height, width);
                 input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
-                tokenizer_query.push_str(&"<image>".repeat(slots));
-                start = chunk_end;
-            }
-            if start != inputs.len() {
-                input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
-                tokenizer_query.push_str(&inputs[start..]);
-            }
-            (tokenizer_query, input_chunks)
-        }
-        Some(Config::Paligemma(config)) => {
-            let mut input_chunks = Vec::new();
-            let mut tokenizer_query = String::with_capacity(inputs.len());
-            let mut start = 0;
-            for chunk in RE.find_iter(&inputs) {
-                let chunk_start = chunk.start();
-                let chunk_end = chunk.end();
-                if chunk_start != start {
-                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()).into());
-                    tokenizer_query.push_str(&inputs[start..chunk_start]);
-                }
-                let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                let slots = config.get_number_of_features(height, width);
-                input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
-                tokenizer_query.push_str(&"<image>".repeat(slots));
-                start = chunk_end;
-            }
-            if start != inputs.len() {
-                input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
-                tokenizer_query.push_str(&inputs[start..]);
-            }
-            (tokenizer_query, input_chunks)
-        }
-        Some(Config::Idefics2(config)) => {
-            let mut input_chunks = Vec::new();
-            let mut tokenizer_query = String::with_capacity(inputs.len());
-            let mut start = 0;
-            for chunk in RE.find_iter(&inputs) {
-                let chunk_start = chunk.start();
-                let chunk_end = chunk.end();
-                if chunk_start != start {
-                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()).into());
-                    tokenizer_query.push_str(&inputs[start..chunk_start]);
-                }
-                let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                let slots = config.get_number_of_features(height, width);
-                tokenizer_query.push_str("<fake_token_around_image>");
-                tokenizer_query.push_str(&"<image>".repeat(slots));
-                tokenizer_query.push_str("<fake_token_around_image>");
-
-                input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
-                start = chunk_end;
-            }
-            if start != inputs.len() {
-                input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
-                tokenizer_query.push_str(&inputs[start..]);
-            }
-            (tokenizer_query, input_chunks)
-        }
-        Some(Config::Idefics) => {
-            let mut input_chunks = Vec::new();
-            let mut tokenizer_query = String::with_capacity(inputs.len());
-            let mut start = 0;
-            for chunk in RE.find_iter(&inputs) {
-                let chunk_start = chunk.start();
-                let chunk_end = chunk.end();
-                if chunk_start != start {
-                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()).into());
-                    tokenizer_query.push_str(&inputs[start..chunk_start]);
-                }
-                let (data, mimetype, _height, _width) =
-                    fetch_image(&inputs[chunk_start..chunk_end])?;
-                let slots = 1;
-                tokenizer_query.push_str(&"<image>".repeat(slots));
-                input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
+                tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
                 start = chunk_end;
             }
             if start != inputs.len() {
@@ -766,6 +752,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -800,6 +787,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -833,6 +821,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -871,6 +860,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -938,6 +928,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequences,
             max_top_n_tokens,
@@ -1023,6 +1014,7 @@ mod tests {
             workers,
             tokenizer,
             Some(config),
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
