@@ -1,36 +1,30 @@
-mod health;
-pub(crate) mod v2;
-pub(crate) mod v3;
+mod chat_template;
+pub(crate) mod schedulers;
+mod tool_grammar;
 
-pub(crate) use health::HealthCheck;
+pub(crate) use tool_grammar::ToolGrammar;
 
-use crate::validation::{ValidGenerateRequest, Validation, ValidationError};
+use crate::infer::chat_template::ChatTemplate;
+use crate::validation::{Validation, ValidationError};
+use crate::GrammarType;
 use crate::{
-    ChatTemplateInputs, ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig,
-    HubTokenizerConfig, Message, MessageChunk, PrefillToken, Text, TextMessage, Token,
+    ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig, HubTokenizerConfig,
+    Message, PrefillToken, Token,
 };
-use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
 use futures::future::try_join_all;
-use minijinja::{Environment, ErrorKind, Template};
-use minijinja_contrib::pycompat;
+use minijinja::ErrorKind;
+pub(crate) use schedulers::Scheduler;
 
-use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use crate::infer::schedulers::SchedulerError;
+use async_stream::stream;
+use futures::Stream;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::instrument;
-
-pub(crate) trait Scheduler {
-    fn schedule(
-        &self,
-        request: ValidGenerateRequest,
-        permit: OwnedSemaphorePermit,
-    ) -> Result<GenerateStreamResponse, InferError>;
-}
 
 /// Inference struct
 #[derive(Clone)]
@@ -43,6 +37,8 @@ pub struct Infer {
     chat_template: Option<ChatTemplate>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
+    /// Backend health
+    backend_health: Arc<AtomicBool>,
 }
 
 impl Infer {
@@ -69,20 +65,31 @@ impl Infer {
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
 
+        // Backend health
+        let backend_health = Arc::new(AtomicBool::new(false));
+
         Self {
             validation,
             scheduler,
             chat_template,
             limit_concurrent_requests: semaphore,
+            backend_health,
         }
     }
 
     /// Add a new request to the queue and return a stream of InferStreamResponse
     #[instrument(skip_all)]
-    pub(crate) async fn generate_stream(
-        &self,
+    pub(crate) async fn generate_stream<'a>(
+        &'a self,
         request: GenerateRequest,
-    ) -> Result<GenerateStreamResponse, InferError> {
+    ) -> Result<
+        (
+            OwnedSemaphorePermit,
+            u32, // input_length
+            impl Stream<Item = Result<InferStreamResponse, InferError>> + 'a,
+        ),
+        InferError,
+    > {
         // Limit concurrent requests by acquiring a permit from the semaphore
         let permit = self
             .clone()
@@ -101,7 +108,20 @@ impl Infer {
             err
         })?;
 
-        self.scheduler.schedule(valid_request, permit)
+        let input_length = valid_request.input_length;
+        let mut generation_stream = self
+            .scheduler
+            .schedule(valid_request)
+            .map_err(InferError::Scheduler)?;
+
+        let stream = stream! {
+            while let Some(generation) = generation_stream.next().await {
+                self.backend_health.store(generation.is_ok(), Ordering::SeqCst);
+                yield generation.map_err(InferError::GenerationError)
+            }
+        };
+
+        Ok((permit, input_length, stream))
     }
 
     /// Tokenizer the input
@@ -153,7 +173,7 @@ impl Infer {
         let use_top_tokens = request.parameters.top_n_tokens.is_some_and(|x| x > 0);
 
         // Create stream and keep semaphore permit as long as generate lives
-        let (_permit, _input_length, mut stream) = self.generate_stream(request).await?;
+        let (_permit, _input_length, stream) = self.generate_stream(request).await?;
 
         // Return values
         let mut result_prefill = Vec::new();
@@ -162,6 +182,8 @@ impl Infer {
         let mut result_generated_text = None;
         let mut result_start = None;
         let mut result_queued = None;
+
+        let mut stream = Box::pin(stream);
 
         // Iterate on stream
         while let Some(response) = stream.next().await {
@@ -254,199 +276,17 @@ impl Infer {
         let best_response = infer_responses.remove(max_index);
         Ok((best_response, infer_responses))
     }
-}
 
-/// Raise a exception (custom function) used in the chat templates
-fn raise_exception(err_text: String) -> Result<String, minijinja::Error> {
-    Err(minijinja::Error::new(ErrorKind::SyntaxError, err_text))
-}
-
-#[derive(Clone)]
-struct ChatTemplate {
-    template: Template<'static, 'static>,
-    bos_token: Option<String>,
-    eos_token: Option<String>,
-    use_default_tool_template: bool,
-}
-
-impl ChatTemplate {
-    fn new(template: String, bos_token: Option<String>, eos_token: Option<String>) -> Self {
-        let mut env = Box::new(Environment::new());
-        // enable things like .strip() or .capitalize()
-        env.set_unknown_method_callback(pycompat::unknown_method_callback);
-        let template_str = template.into_boxed_str();
-        env.add_function("raise_exception", raise_exception);
-
-        // check if contains the tools variable within the template
-        let use_default_tool_template =
-            !template_str.as_ref().replace(' ', "").contains("{{tools}}");
-        // leaking env and template_str as read-only, static resources for performance.
-        let template = Box::leak(env)
-            .template_from_str(Box::leak(template_str))
-            .unwrap();
-
-        Self {
-            template,
-            bos_token,
-            eos_token,
-            use_default_tool_template,
-        }
-    }
-
-    fn apply(
-        &self,
-        mut messages: Vec<Message>,
-        grammar_with_prompt: Option<(GrammarType, String)>,
-    ) -> Result<String, InferError> {
-        if self.use_default_tool_template {
-            if let Some(last_message) = messages.last_mut() {
-                if let Some((GrammarType::Json(tools), tool_prompt)) = grammar_with_prompt {
-                    last_message.content.push(MessageChunk::Text(Text {
-                        text: format!("\n---\n{}\n{}", tool_prompt, tools),
-                    }));
-                }
-            }
-        }
-
-        let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-
-        self.template
-            .render(ChatTemplateInputs {
-                messages,
-                bos_token: self.bos_token.as_deref(),
-                eos_token: self.eos_token.as_deref(),
-                add_generation_prompt: true,
-                tools: None,
-                tools_prompt: None,
-            })
-            .map_err(InferError::TemplateError)
+    #[instrument(skip(self))]
+    pub(crate) async fn health(&self) -> bool {
+        let health = self
+            .scheduler
+            .health(self.backend_health.load(Ordering::SeqCst))
+            .await;
+        self.backend_health.store(health, Ordering::SeqCst);
+        health
     }
 }
-
-pub struct ToolGrammar {}
-
-impl ToolGrammar {
-    pub fn apply(
-        tools: Option<Vec<Tool>>,
-        tool_choice: Option<ToolType>,
-    ) -> Result<Option<Tools>, InferError> {
-        if let Some((req_tools, tool_choice)) = tools.zip(tool_choice) {
-            // let tool_prompt = tool_prompt.unwrap_or_default();
-            let tools_to_use = match tool_choice {
-                ToolType::FunctionName(name) => {
-                    vec![req_tools
-                        .iter()
-                        .find(|tool| tool.function.name == *name)
-                        .unwrap_or_else(|| panic!("Tool with name {} not found", name))
-                        .clone()]
-                }
-                ToolType::OneOf => req_tools.to_owned(),
-            };
-
-            // adds the error notification function for LLM feedback if required
-            let mut text_response_properties = Map::new();
-            text_response_properties.insert(
-                "error".to_string(),
-                serde_json::json!({
-                    "type": "string",
-                    "description": "The error or issue to notify"
-                }),
-            );
-            text_response_properties.insert(
-                "_name".to_string(),
-                serde_json::json!({
-                    "type": "string",
-                    "const": "notify_error"
-                }),
-            );
-
-            let functions: HashMap<String, serde_json::Value> = tools_to_use
-                .iter()
-                .map(|tool| {
-                    let func = tool.function.clone();
-
-                    // Clone the existing parameters, which are expected to be a JSON object
-                    let mut params = if let Value::Object(params) = &func.arguments {
-                        params.clone()
-                    } else {
-                        Map::new()
-                    };
-
-                    // Insert the function's description at the top level, outside of properties
-                    params.insert(
-                        "description".to_string(),
-                        Value::String(func.description.clone().unwrap_or_default()),
-                    );
-
-                    // Ensure 'properties' exists and is an object
-                    let properties = params
-                        .entry("properties".to_string())
-                        .or_insert_with(|| json!({}))
-                        .as_object_mut()
-                        .unwrap();
-
-                    // Insert the constant for the function name inside 'properties'
-                    properties.insert(
-                        "_name".to_string(),
-                        json!({
-                            "type": "string",
-                            "const": func.name.clone(),
-                            // "description": "The name of the function"
-                        }),
-                    );
-
-                    // Check if 'required' exists, and it is an array. If not, create an empty array.
-                    let required = params
-                        .entry("required".to_string())
-                        .or_insert_with(|| json!([]))
-                        .as_array_mut()
-                        .unwrap();
-
-                    // Add 'name' to the 'required' array if it is not already present
-                    if !required.iter().any(|r| r == "_name") {
-                        required.push(json!("_name"));
-                    }
-
-                    (func.name, Value::Object(params))
-                })
-                .chain([(
-                    "notify_error".to_string(),
-                    serde_json::json!({
-                        "properties": text_response_properties,
-                        "required": ["error", "_name"],
-                        "type": "object"
-                    }),
-                )])
-                .collect();
-
-            let tools = Tools {
-                functions_map: FunctionsMap { functions },
-                properties: Properties {
-                    function: tools_to_use
-                        .iter()
-                        .map(|tool| FunctionRef {
-                            ref_path: format!("#/$functions/{}", tool.function.name.clone()),
-                        })
-                        .chain(std::iter::once(FunctionRef {
-                            ref_path: "#/$functions/notify_error".to_string(),
-                        }))
-                        .collect(),
-                },
-            };
-
-            return Ok(Some(tools));
-        }
-        // Err(InferError::ToolError("No tools provided".to_string()))
-        Ok(None)
-    }
-}
-
-/// Type alias for generation responses
-pub(crate) type GenerateStreamResponse = (
-    OwnedSemaphorePermit,
-    u32, // input_length
-    UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
-);
 
 #[derive(Debug)]
 pub(crate) struct GeneratedText {
@@ -491,8 +331,10 @@ pub(crate) struct InferResponse {
 
 #[derive(Debug, Error)]
 pub enum InferError {
+    #[error("Request failed during scheduling: {0}")]
+    Scheduler(SchedulerError),
     #[error("Request failed during generation: {0}")]
-    GenerationError(String),
+    GenerationError(SchedulerError),
     #[error("Model is overloaded")]
     Overloaded(#[from] TryAcquireError),
     #[error("Input validation error: {0}")]
@@ -508,6 +350,7 @@ pub enum InferError {
 impl InferError {
     pub(crate) fn error_type(&self) -> &str {
         match self {
+            InferError::Scheduler(_) => "scheduler",
             InferError::GenerationError(_) => "generation",
             InferError::Overloaded(_) => "overloaded",
             InferError::ValidationError(_) => "validation",

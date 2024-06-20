@@ -1,5 +1,5 @@
 /// Batching and inference logic
-use crate::infer::v2::queue::{Entry, Queue};
+use crate::infer::schedulers::v2::queue::{Entry, Queue};
 use crate::infer::{
     GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse, Scheduler,
 };
@@ -498,7 +498,7 @@ impl From<text_generation_client::v2::GeneratedText> for GeneratedText {
 // tests
 #[cfg(test)]
 mod tests {
-    use crate::infer::raise_exception;
+    use crate::infer::chat_template::raise_exception;
     use crate::{ChatTemplateInputs, TextMessage};
     use minijinja::Environment;
 

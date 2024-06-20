@@ -1,8 +1,7 @@
 /// HTTP Server logic
 use crate::config::Config;
-use crate::infer::v2::SchedulerV2;
-use crate::infer::v3::SchedulerV3;
-use crate::infer::{HealthCheck, Scheduler};
+use crate::infer::schedulers::{connect_backend, SchedulerError};
+use crate::infer::Scheduler;
 use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
 #[cfg(feature = "kserve")]
 use crate::kserve::{
@@ -39,9 +38,8 @@ use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use serde_json::Value;
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use text_generation_client::{v2, v3, ClientError, ShardInfo};
+use text_generation_client::ShardInfo;
 use thiserror::Error;
 use tokenizers::Tokenizer;
 use tokio::select;
@@ -121,12 +119,10 @@ responses(
 example = json ! ({"error": "unhealthy", "error_type": "healthcheck"})),
 )
 )]
-#[instrument(skip(health))]
+#[instrument(skip(infer))]
 /// Health check method
-async fn health(
-    mut health: Extension<HealthCheck>,
-) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
-    match health.check().await {
+async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    match infer.health().await {
         true => Ok(()),
         false => Err((
             StatusCode::SERVICE_UNAVAILABLE,
@@ -437,8 +433,9 @@ async fn generate_stream_internal(
         } else {
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
-                Ok((_permit, _input_length, mut response_stream)) => {
+                Ok((_permit, _input_length, response_stream)) => {
                     let mut index = 0;
+                    let mut response_stream = Box::pin(response_stream);
                     // Server-Sent Event stream
                     while let Some(response) = response_stream.next().await {
                         index += 1;
@@ -1497,137 +1494,22 @@ pub async fn run(
     // Create state
 
     // Open connection, get model info and warmup
-    let (scheduler, health_ext, shard_info, max_batch_total_tokens): (
+    let (scheduler, shard_info, max_batch_total_tokens): (
         Arc<dyn Scheduler + Send + Sync>,
-        HealthCheck,
         ShardInfo,
         u32,
-    ) = {
-        // Helper function to check both v2 and v3
-        let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
-            match max_supported_batch_total_tokens {
-                // Older models do not support automatic max-batch-total-tokens
-                None => {
-                    let max_batch_total_tokens = max_batch_total_tokens.unwrap_or(
-                        16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)),
-                    );
-                    tracing::warn!("Model does not support automatic max batch total tokens");
-                    Ok(max_batch_total_tokens)
-                }
-                // Flash attention models return their max supported total tokens
-                Some(max_supported_batch_total_tokens) => {
-                    // Warn if user added his own max-batch-total-tokens as we will ignore it
-                    if max_batch_total_tokens.is_some() {
-                        tracing::warn!(
-                            "`--max-batch-total-tokens` is deprecated for Flash \
-                        Attention models."
-                        );
-                        tracing::warn!(
-                            "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
-                        );
-                    }
-                    if max_total_tokens as u32 > max_supported_batch_total_tokens {
-                        return Err(WebServerError::NotEnoughMemory(max_total_tokens));
-                    }
-
-                    Ok(max_supported_batch_total_tokens)
-                }
-            }
-        };
-
-        let generation_health = Arc::new(AtomicBool::new(false));
-
-        match v3::ShardedClient::connect_uds(master_shard_uds_path.clone()).await {
-            Ok(mut sharded_client) => {
-                // server is running on v3
-                // Clear the cache; useful if the webserver rebooted
-                sharded_client
-                    .clear_cache(None)
-                    .await
-                    .map_err(WebServerError::Cache)?;
-                // Get info from the shard
-                let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
-
-                // Warmup model
-                tracing::info!("Warming up model");
-                let max_batch_total_tokens = check_max_batch_total_tokens(
-                    sharded_client
-                        .warmup(
-                            max_input_tokens as u32,
-                            max_batch_prefill_tokens,
-                            max_total_tokens as u32,
-                            max_batch_size,
-                        )
-                        .await
-                        .map_err(WebServerError::Warmup)?,
-                )?;
-
-                let health_ext =
-                    HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
-                let scheduler = Arc::new(SchedulerV3::new(
-                    sharded_client,
-                    waiting_served_ratio,
-                    max_batch_prefill_tokens,
-                    max_batch_total_tokens,
-                    max_waiting_tokens,
-                    max_batch_size,
-                    shard_info.requires_padding,
-                    shard_info.window_size,
-                    shard_info.speculate,
-                    generation_health,
-                ));
-                tracing::info!("Using scheduler V3");
-
-                (scheduler, health_ext, shard_info, max_batch_total_tokens)
-            }
-            Err(_) => {
-                let mut sharded_client = v2::ShardedClient::connect_uds(master_shard_uds_path)
-                    .await
-                    .map_err(WebServerError::Connection)?;
-
-                // server is running on v2
-                // Clear the cache; useful if the webserver rebooted
-                sharded_client
-                    .clear_cache(None)
-                    .await
-                    .map_err(WebServerError::Cache)?;
-                // Get info from the shard
-                let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
-
-                // Warmup model
-                tracing::info!("Warming up model");
-                let max_batch_total_tokens = check_max_batch_total_tokens(
-                    sharded_client
-                        .warmup(
-                            max_input_tokens as u32,
-                            max_batch_prefill_tokens,
-                            max_total_tokens as u32,
-                            max_batch_size,
-                        )
-                        .await
-                        .map_err(WebServerError::Warmup)?,
-                )?;
-
-                let health_ext =
-                    HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
-                let scheduler = Arc::new(SchedulerV2::new(
-                    sharded_client,
-                    waiting_served_ratio,
-                    max_batch_prefill_tokens,
-                    max_batch_total_tokens,
-                    max_waiting_tokens,
-                    max_batch_size,
-                    shard_info.requires_padding,
-                    shard_info.window_size,
-                    shard_info.speculate,
-                    generation_health,
-                ));
-                tracing::info!("Using scheduler V2");
-
-                (scheduler, health_ext, shard_info, max_batch_total_tokens)
-            }
-        }
-    };
+    ) = connect_backend(
+        master_shard_uds_path,
+        max_input_tokens,
+        max_total_tokens,
+        waiting_served_ratio,
+        max_batch_prefill_tokens,
+        max_batch_total_tokens,
+        max_waiting_tokens,
+        max_batch_size,
+    )
+    .await
+    .map_err(WebServerError::Scheduler)?;
     tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
 
     let validation = Validation::new(
@@ -1857,7 +1739,6 @@ pub async fn run(
     // add layers after routes
     app = app
         .layer(Extension(info))
-        .layer(Extension(health_ext.clone()))
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
         .layer(Extension(compute_type))
@@ -1933,6 +1814,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            InferError::Scheduler(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (
@@ -1958,16 +1840,8 @@ impl From<InferError> for Event {
 
 #[derive(Debug, Error)]
 pub enum WebServerError {
-    #[error("Unable to connect to the Python model shards: {0}")]
-    Connection(ClientError),
-    #[error("Unable to clear the Python model shards cache: {0}")]
-    Cache(ClientError),
-    #[error("Unable to get the Python model shards info: {0}")]
-    Info(ClientError),
-    #[error("Unable to warmup the Python model shards: {0}")]
-    Warmup(ClientError),
-    #[error("Not enough memory to handle `max_total_tokens={0}`")]
-    NotEnoughMemory(usize),
+    #[error("Scheduler error: {0}")]
+    Scheduler(#[from] SchedulerError),
     #[error("Axum error: {0}")]
     Axum(#[from] axum::BoxError),
 }

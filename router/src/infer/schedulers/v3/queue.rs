@@ -1,5 +1,5 @@
-use crate::infer::v3::block_allocator::{BlockAllocation, BlockAllocator};
-use crate::infer::InferError;
+use crate::infer::schedulers::v3::block_allocator::{BlockAllocation, BlockAllocator};
+use crate::infer::schedulers::SchedulerError;
 use crate::infer::InferStreamResponse;
 use crate::validation::{
     ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
@@ -22,7 +22,7 @@ pub(crate) struct Entry {
     /// Request
     pub request: ValidGenerateRequest,
     /// Response sender to communicate between the Infer struct and the batching_task
-    pub response_tx: mpsc::UnboundedSender<Result<InferStreamResponse, InferError>>,
+    pub response_tx: mpsc::UnboundedSender<Result<InferStreamResponse, SchedulerError>>,
     /// Span that will live as long as entry
     pub span: Span,
     /// Temporary span used as a guard when logging inference, wait times...
@@ -463,7 +463,7 @@ mod tests {
 
     fn default_entry() -> (
         Entry,
-        mpsc::UnboundedReceiver<Result<InferStreamResponse, InferError>>,
+        mpsc::UnboundedReceiver<Result<InferStreamResponse, SchedulerError>>,
     ) {
         let (response_tx, receiver_tx) = mpsc::unbounded_channel();
 

@@ -1,19 +1,16 @@
 /// Batching and inference logic
-use crate::infer::v3::queue::{Entry, Queue};
-use crate::infer::{
-    GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse, Scheduler,
-};
+use crate::infer::schedulers::v3::queue::{Entry, Queue};
+use crate::infer::schedulers::SchedulerError;
+use crate::infer::{GeneratedText, InferStreamResponse, Scheduler};
 use crate::validation::ValidGenerateRequest;
 use crate::{FinishReason, PrefillToken, Token};
+use async_trait::async_trait;
 use nohash_hasher::IntMap;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 use text_generation_client::v3::{Batch, CachedBatch, Generation, ShardedClient};
-use text_generation_client::ClientError;
+use text_generation_client::{ClientError, Health};
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit};
+use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
@@ -23,6 +20,8 @@ pub(crate) struct SchedulerV3 {
     queue: Queue,
     /// Notify batcher on queue appends
     batching_task_notifier: Arc<Notify>,
+    /// Client, used for health checks to skip the queue
+    client: ShardedClient,
 }
 
 impl SchedulerV3 {
@@ -37,7 +36,6 @@ impl SchedulerV3 {
         requires_padding: bool,
         window_size: Option<u32>,
         speculate: u32,
-        generation_health: Arc<AtomicBool>,
     ) -> Self {
         let queue = Queue::new(
             requires_padding,
@@ -50,7 +48,7 @@ impl SchedulerV3 {
 
         // Spawn batching background task that contains all the inference logic
         tokio::spawn(batching_task(
-            client,
+            client.clone(),
             waiting_served_ratio,
             max_batch_prefill_tokens,
             max_batch_total_tokens,
@@ -58,26 +56,26 @@ impl SchedulerV3 {
             max_batch_size,
             queue.clone(),
             batching_task_notifier.clone(),
-            generation_health,
         ));
 
         Self {
             queue,
             batching_task_notifier,
+            client,
         }
     }
 }
 
+#[async_trait]
 impl Scheduler for SchedulerV3 {
     #[instrument(skip_all)]
     fn schedule(
         &self,
         request: ValidGenerateRequest,
-        permit: OwnedSemaphorePermit,
-    ) -> Result<GenerateStreamResponse, InferError> {
+    ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, SchedulerError>>, SchedulerError>
+    {
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
-        let input_length = request.input_length;
 
         // Append the request to the queue
         self.queue.append(Entry {
@@ -95,11 +93,17 @@ impl Scheduler for SchedulerV3 {
         self.batching_task_notifier.notify_one();
 
         // Return stream
-        Ok((
-            permit,
-            input_length,
-            UnboundedReceiverStream::new(response_rx),
-        ))
+        Ok(UnboundedReceiverStream::new(response_rx))
+    }
+
+    async fn health(&self, current_health: bool) -> bool {
+        if current_health {
+            // Generation is healthy, we only check that the shards can allocate on device
+            self.client.device_health().await
+        } else {
+            self.client.model_health().await
+        }
+        .is_ok()
     }
 }
 
@@ -117,7 +121,6 @@ pub(crate) async fn batching_task(
     max_batch_size: Option<usize>,
     queue: Queue,
     notifier: Arc<Notify>,
-    generation_health: Arc<AtomicBool>,
 ) {
     // Infinite loop
     loop {
@@ -136,7 +139,7 @@ pub(crate) async fn batching_task(
             )
             .await
         {
-            let mut cached_batch = prefill(&mut client, batch, &mut entries, &generation_health)
+            let mut cached_batch = prefill(&mut client, batch, &mut entries)
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -187,10 +190,9 @@ pub(crate) async fn batching_task(
                     });
 
                     // Generate one token for this new batch to have the attention past in cache
-                    let new_cached_batch =
-                        prefill(&mut client, new_batch, &mut new_entries, &generation_health)
-                            .instrument(span)
-                            .await;
+                    let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
+                        .instrument(span)
+                        .await;
                     // Reset waiting counter
                     waiting_tokens = 1;
                     // Extend current batch with the new batch
@@ -214,7 +216,7 @@ pub(crate) async fn batching_task(
                     entry.temp_span = Some(entry_batch_span);
                 });
 
-                cached_batch = decode(&mut client, batches, &mut entries, &generation_health)
+                cached_batch = decode(&mut client, batches, &mut entries)
                     .instrument(next_batch_span)
                     .await;
                 waiting_tokens += 1;
@@ -230,7 +232,6 @@ async fn prefill(
     client: &mut ShardedClient,
     batch: Batch,
     entries: &mut IntMap<u64, Entry>,
-    generation_health: &Arc<AtomicBool>,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
@@ -238,9 +239,6 @@ async fn prefill(
 
     match client.prefill(batch).await {
         Ok((generations, next_batch, timings)) => {
-            // Update health
-            generation_health.store(true, Ordering::SeqCst);
-
             let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
@@ -257,8 +255,6 @@ async fn prefill(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
-            // Update health
-            generation_health.store(false, Ordering::SeqCst);
             let _ = client.clear_cache(Some(batch_id)).await;
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
@@ -272,7 +268,6 @@ async fn decode(
     client: &mut ShardedClient,
     batches: Vec<CachedBatch>,
     entries: &mut IntMap<u64, Entry>,
-    generation_health: &Arc<AtomicBool>,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
@@ -280,9 +275,6 @@ async fn decode(
 
     match client.decode(batches).await {
         Ok((generations, next_batch, timings)) => {
-            // Update health
-            generation_health.store(true, Ordering::SeqCst);
-
             let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
@@ -302,7 +294,6 @@ async fn decode(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
-            generation_health.store(false, Ordering::SeqCst);
             for id in batch_ids {
                 let _ = client.clear_cache(Some(id)).await;
             }
@@ -378,7 +369,7 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
 fn send_responses(
     generation: Generation,
     entry: &Entry,
-) -> Result<bool, Box<SendError<Result<InferStreamResponse, InferError>>>> {
+) -> Result<bool, Box<SendError<Result<InferStreamResponse, SchedulerError>>>> {
     // Return directly if the channel is disconnected
     if entry.response_tx.is_closed() {
         metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
@@ -471,7 +462,7 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     entries.drain().for_each(|(_, entry)| {
         // Create and enter a span to link this function back to the entry
         let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
-        let err = InferError::GenerationError(error.to_string());
+        let err = SchedulerError::Generation(Box::new(error.clone()));
         metrics::increment_counter!("tgi_request_failure", "err" => "generation");
         tracing::error!("{err}");
 
@@ -505,7 +496,7 @@ impl From<text_generation_client::v3::GeneratedText> for GeneratedText {
 // tests
 #[cfg(test)]
 mod tests {
-    use crate::infer::raise_exception;
+    use crate::infer::chat_template::raise_exception;
     use crate::{ChatTemplateInputs, TextMessage};
     use minijinja::Environment;
 
