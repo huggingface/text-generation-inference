@@ -160,7 +160,7 @@ jobs:
 
           if [[ ${{ inputs.hardware }} == "rocm" ]]
           then
-            echo "docker_volume=/data/cache/.cache/huggingface/hub"
+            echo "docker_volume=/data/cache/.cache/huggingface/hub" >> "$GITHUB_OUTPUT"
           else
             echo "docker_volume=/mnt/cache" >> "$GITHUB_OUTPUT"
           fi

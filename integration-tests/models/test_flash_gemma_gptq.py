@@ -4,6 +4,7 @@ from testing_utils import require_backend_async, require_backend
 
 # These tests do not pass on ROCm, that does not support head_dim > 128 (2b model is 256).
 
+
 @pytest.fixture(scope="module")
 @require_backend("cuda", "xpu")
 def flash_gemma_gptq_handle(launcher):
