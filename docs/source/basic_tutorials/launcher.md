@@ -337,12 +337,6 @@ Options:
           [env: OTLP_ENDPOINT=]
 
 ```
-## OTLP_SERVICE_NAME
-```shell
-      --otlp-service-name <OTLP_SERVICE_NAME>
-          [env: OTLP_SERVICE_NAME=]
-
-```
 ## CORS_ALLOW_ORIGIN
 ```shell
       --cors-allow-origin <CORS_ALLOW_ORIGIN>
