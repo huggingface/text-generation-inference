@@ -22,7 +22,7 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
 
     Args:
         image_size (`tuple`):
-            The size of the input image in the format (width, height).
+            The size of the input image in the format (height, width).
         grid_pinpoints (`List`):
             A list containing possible resolutions. Each item in the list should be a tuple or list
             of the form `(height, width)`.
@@ -64,19 +64,26 @@ def image_text_replacement(processor, image_input, config, image_id) -> str:
 
 
 def get_unpadded_features(
-    height: int, width: int, npatches: int, num_patch_height: int, num_patch_width: int
+    original_height: int,
+    original_width: int,
+    npatches: int,
+    num_patch_height: int,
+    num_patch_width: int,
 ) -> Tuple[int, int]:
     current_height = npatches * num_patch_height
     current_width = npatches * num_patch_width
 
-    aspect_ratio: float = width / height
+    aspect_ratio: float = original_width / original_height
     current_aspect_ratio: float = current_width / current_height
+
     if aspect_ratio > current_aspect_ratio:
-        new_height = (height * current_width) // width
-        current_height = new_height
+        new_height = (original_height * current_width) // original_width
+        padding = (current_height - new_height) // 2
+        current_height = current_height - (2 * padding)
     else:
-        new_width = (width * current_height) // height
-        current_width = new_width
+        new_width = (original_width * current_height) // original_height
+        padding = (current_width - new_width) // 2
+        current_width = current_width - (2 * padding)
 
     unpadded_features = current_height * current_width
     newline_features = current_height
@@ -95,7 +102,9 @@ def get_number_of_features(height: int, width: int, config) -> int:
 
     npatches = image_size // patch_size
 
-    num_patch_height, num_patch_width = get_anyres_image_grid_shape(
+    # Dimensions are intentionally swapped to be bug-compatible with
+    # upstream: https://github.com/LLaVA-VL/LLaVA-NeXT/issues/59
+    num_patch_width, num_patch_height = get_anyres_image_grid_shape(
         [height, width],
         image_grid_pinpoints,
         image_size,
