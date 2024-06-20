@@ -341,6 +341,7 @@ Options:
 ```shell
       --otlp-service-name <OTLP_SERVICE_NAME>
           [env: OTLP_SERVICE_NAME=]
+          [default: text-generation-inference.router]
 
 ```
 ## CORS_ALLOW_ORIGIN

@@ -414,7 +414,7 @@ struct Args {
     otlp_endpoint: Option<String>,
 
     #[clap(default_value = "text-generation-inference.router", long, env)]
-    otlp_service_name: Option<String>,
+    otlp_service_name: String,
 
     #[clap(long, env)]
     cors_allow_origin: Vec<String>,
@@ -559,10 +559,8 @@ fn shard_manager(
     }
 
     // OpenTelemetry Service Name
-    if let Some(otlp_endpoint) = otlp_endpoint {
-        shard_args.push("--otlp-service-name".to_string());
-        shard_args.push(otlp_service_name);
-    }
+    shard_args.push("--otlp-service-name".to_string());
+    shard_args.push(otlp_service_name);
 
     // In case we use sliding window, we may ignore the sliding in flash for some backends depending on the parameter.
     shard_args.push("--max-input-tokens".to_string());
@@ -1220,9 +1218,10 @@ fn spawn_webserver(
     }
 
     // OpenTelemetry
-    if args.otlp_service_name {
-        router_args.push("--otlp-service-name".to_string());
-    }
+    let otlp_service_name = args.otlp_service_name;
+    router_args.push("--otlp-service-name".to_string());
+    router_args.push(otlp_service_name);
+
 
     // CORS origins
     for origin in args.cors_allow_origin.into_iter() {
