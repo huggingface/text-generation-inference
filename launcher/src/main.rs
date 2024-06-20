@@ -486,7 +486,7 @@ fn shard_manager(
     max_batch_size: Option<usize>,
     max_input_tokens: usize,
     otlp_endpoint: Option<String>,
-    otlp_service_name: String,
+    otlp_service_name: Option<String>,
     log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
@@ -559,7 +559,7 @@ fn shard_manager(
     }
 
     // OpenTelemetry Service Name
-    if let Some(otlp_endpoint) = otlp_endpoint {
+    if let Some(otlp_service_name) = otlp_service_name {
         shard_args.push("--otlp-service-name".to_string());
         shard_args.push(otlp_service_name);
     }
@@ -1220,8 +1220,9 @@ fn spawn_webserver(
     }
 
     // OpenTelemetry
-    if args.otlp_service_name {
+    if let Some(otlp_service_name) = args.otlp_service_name {
         router_args.push("--otlp-service-name".to_string());
+        router_args.push(otlp_service_name);
     }
 
     // CORS origins
