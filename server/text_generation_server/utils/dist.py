@@ -55,7 +55,7 @@ def initialize_torch_distributed():
         backend = "nccl"
         options = ProcessGroupNCCL.Options()
         options.is_high_priority_stream = True
-        options._timeout = timedelta(seconds=60)
+        options._timeout = timedelta(seconds=30)
     else:
         try:
             import oneccl_bindings_for_pytorch
@@ -79,7 +79,7 @@ def initialize_torch_distributed():
                 backend=backend,
                 world_size=WORLD_SIZE,
                 rank=RANK,
-                timeout=timedelta(seconds=60),
+                timeout=timedelta(seconds=30),
                 pg_options=options,
             )
         else:
