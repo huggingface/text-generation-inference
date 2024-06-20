@@ -39,7 +39,7 @@ RUN cargo build --profile release-opt
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
 FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 as pytorch-install
 
-# NOTE: When updating PyTorch version, make sure to update server/pyproject.toml's `nvidia-nccl-cu12` requirement. Context: https://github.com/huggingface/text-generation-inference/pull/2099
+# NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
 ARG PYTORCH_VERSION=2.3.0
 
 ARG PYTHON_VERSION=3.10
@@ -234,7 +234,8 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements_cuda.txt && \
-    pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir
+    pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir && \
+    pip install nvidia-nccl-cu12==2.22.3
 
 # Deps before the binaries
 # The binaries change on every build given we burn the SHA into them
