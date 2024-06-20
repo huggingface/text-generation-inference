@@ -172,16 +172,24 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    if: needs.build-and-push.outputs.runs_on == 'amd-gpu-tgi'
     container:
       image: ${{ needs.build-and-push.outputs.docker_image }}
       options: --shm-size "16gb" --ipc host -v ${{ needs.build-and-push.outputs.docker_volume }}:/data
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Clean Hugging Face cache
+        shell: bash
         run: |
           if [[ ${{ inputs.hardware }} == "rocm" ]]
           then
-            python clean_cache.py
+            echo "pwd:"
+            pwd
+            echo "ls:"
+            ls
+            python integration-tests/clean_cache.py
           fi
 
 

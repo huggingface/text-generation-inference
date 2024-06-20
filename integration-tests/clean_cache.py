@@ -64,6 +64,9 @@ def cleanup_cache():
 
         size_per_model[model_id] = model_size
 
+    total_required_size = sum(size_per_model.values())
+    print(f"Total required disk: {size_per_model:.2f} GB")
+
     cached_dir = huggingface_hub.scan_cache_dir()
 
     cache_size_per_model = {}
@@ -86,11 +89,18 @@ def cleanup_cache():
 
     total_required_cached_size = sum(cached_required_size_per_model.values())
     total_other_cached_size = sum(cache_size_per_model.values())
-    total_required_size = sum(size_per_model.values())
-
     total_non_cached_required_size = total_required_size - total_required_cached_size
 
+    print(
+        f"Total HF cached models size: {total_other_cached_size + total_required_cached_size:.2f} GB"
+    )
+    print(
+        f"Total non-necessary HF cached models size: {total_other_cached_size:.2f} GB"
+    )
+
     free_memory = shutil.disk_usage("/data").free * 1e-9
+    print(f"Free memory: {free_memory:.2f} GB")
+
     if free_memory + total_other_cached_size < total_non_cached_required_size * 1.05:
         raise ValueError(
             "Not enough space on device to execute the complete CI, please clean up the CI machine"
