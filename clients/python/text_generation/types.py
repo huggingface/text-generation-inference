@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, ConfigDict
 from typing import Optional, List, Union, Any
 
 from text_generation.errors import ValidationError
@@ -452,5 +452,6 @@ class StreamResponse(BaseModel):
 
 # Inference API currently deployed model
 class DeployedModel(BaseModel):
+    model_config  = ConfigDict(protected_namespaces=())
     model_id: str
     sha: str
