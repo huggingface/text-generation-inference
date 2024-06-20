@@ -1,5 +1,5 @@
+pub(crate) mod backends;
 mod chat_template;
-pub(crate) mod schedulers;
 mod tool_grammar;
 
 pub(crate) use tool_grammar::ToolGrammar;
@@ -11,11 +11,11 @@ use crate::{
     ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig, HubTokenizerConfig,
     Message, PrefillToken, Token,
 };
+pub(crate) use backends::{Backend, BackendInfo};
 use futures::future::try_join_all;
 use minijinja::ErrorKind;
-pub(crate) use schedulers::Scheduler;
 
-use crate::infer::schedulers::SchedulerError;
+use crate::infer::backends::BackendError;
 use async_stream::stream;
 use futures::Stream;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,8 +31,8 @@ use tracing::instrument;
 pub struct Infer {
     /// Validation
     validation: Validation,
-    /// Request scheduler
-    scheduler: Arc<dyn Scheduler + Send + Sync>,
+    /// Request backend
+    backend: Arc<dyn Backend + Send + Sync>,
     /// Chat template
     chat_template: Option<ChatTemplate>,
     /// Inference limit
@@ -44,7 +44,7 @@ pub struct Infer {
 impl Infer {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        scheduler: Arc<dyn Scheduler + Send + Sync>,
+        backend: impl Backend + Send + Sync + 'static,
         validation: Validation,
         max_concurrent_requests: usize,
         tokenizer_config: HubTokenizerConfig,
@@ -70,7 +70,7 @@ impl Infer {
 
         Self {
             validation,
-            scheduler,
+            backend: Arc::new(backend),
             chat_template,
             limit_concurrent_requests: semaphore,
             backend_health,
@@ -110,9 +110,9 @@ impl Infer {
 
         let input_length = valid_request.input_length;
         let mut generation_stream = self
-            .scheduler
+            .backend
             .schedule(valid_request)
-            .map_err(InferError::Scheduler)?;
+            .map_err(InferError::Backend)?;
 
         let stream = stream! {
             while let Some(generation) = generation_stream.next().await {
@@ -280,7 +280,7 @@ impl Infer {
     #[instrument(skip(self))]
     pub(crate) async fn health(&self) -> bool {
         let health = self
-            .scheduler
+            .backend
             .health(self.backend_health.load(Ordering::SeqCst))
             .await;
         self.backend_health.store(health, Ordering::SeqCst);
@@ -332,9 +332,9 @@ pub(crate) struct InferResponse {
 #[derive(Debug, Error)]
 pub enum InferError {
     #[error("Request failed during scheduling: {0}")]
-    Scheduler(SchedulerError),
+    Backend(BackendError),
     #[error("Request failed during generation: {0}")]
-    GenerationError(SchedulerError),
+    GenerationError(BackendError),
     #[error("Model is overloaded")]
     Overloaded(#[from] TryAcquireError),
     #[error("Input validation error: {0}")]
@@ -350,7 +350,7 @@ pub enum InferError {
 impl InferError {
     pub(crate) fn error_type(&self) -> &str {
         match self {
-            InferError::Scheduler(_) => "scheduler",
+            InferError::Backend(_) => "backend",
             InferError::GenerationError(_) => "generation",
             InferError::Overloaded(_) => "overloaded",
             InferError::ValidationError(_) => "validation",

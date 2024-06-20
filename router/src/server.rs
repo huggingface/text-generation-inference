@@ -1,7 +1,6 @@
 /// HTTP Server logic
 use crate::config::Config;
-use crate::infer::schedulers::{connect_backend, SchedulerError};
-use crate::infer::Scheduler;
+use crate::infer::backends::{connect_backend, BackendError};
 use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
 #[cfg(feature = "kserve")]
 use crate::kserve::{
@@ -38,8 +37,6 @@ use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use serde_json::Value;
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use std::sync::Arc;
-use text_generation_client::ShardInfo;
 use thiserror::Error;
 use tokenizers::Tokenizer;
 use tokio::select;
@@ -1494,11 +1491,7 @@ pub async fn run(
     // Create state
 
     // Open connection, get model info and warmup
-    let (scheduler, shard_info, max_batch_total_tokens): (
-        Arc<dyn Scheduler + Send + Sync>,
-        ShardInfo,
-        u32,
-    ) = connect_backend(
+    let (backend, backend_info) = connect_backend(
         master_shard_uds_path,
         max_input_tokens,
         max_total_tokens,
@@ -1509,8 +1502,7 @@ pub async fn run(
         max_batch_size,
     )
     .await
-    .map_err(WebServerError::Scheduler)?;
-    tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
+    .map_err(WebServerError::Backend)?;
 
     let validation = Validation::new(
         validation_workers,
@@ -1525,7 +1517,7 @@ pub async fn run(
     );
 
     let infer = Infer::new(
-        scheduler,
+        backend,
         validation,
         max_concurrent_requests,
         tokenizer_config,
@@ -1563,7 +1555,7 @@ pub async fn run(
     let batch_size_buckets: Vec<f64> = (0..1024).map(|x| (x + 1) as f64).collect();
     // Speculated tokens buckets
     let skipped_matcher = Matcher::Full(String::from("tgi_request_skipped_tokens"));
-    let skipped_buckets: Vec<f64> = (0..shard_info.speculate + 1).map(|x| x as f64).collect();
+    let skipped_buckets: Vec<f64> = (0..backend_info.speculate + 1).map(|x| x as f64).collect();
 
     // Prometheus handler
     let builder = PrometheusBuilder::new()
@@ -1592,20 +1584,15 @@ pub async fn run(
 
     // Endpoint info
     let info = Info {
+        backend_info,
         model_id: model_info.model_id,
         model_sha: model_info.sha,
-        model_dtype: shard_info.dtype,
-        model_device_type: shard_info.device_type,
         model_pipeline_tag: model_info.pipeline_tag,
         max_concurrent_requests,
         max_best_of,
         max_stop_sequences,
         max_input_tokens,
         max_total_tokens,
-        waiting_served_ratio,
-        max_batch_total_tokens,
-        max_waiting_tokens,
-        max_batch_size,
         validation_workers,
         max_client_batch_size,
         router: env!("CARGO_PKG_NAME"),
@@ -1814,7 +1801,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            InferError::Scheduler(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            InferError::Backend(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (
@@ -1840,8 +1827,8 @@ impl From<InferError> for Event {
 
 #[derive(Debug, Error)]
 pub enum WebServerError {
-    #[error("Scheduler error: {0}")]
-    Scheduler(#[from] SchedulerError),
+    #[error("Backend error: {0}")]
+    Backend(#[from] BackendError),
     #[error("Axum error: {0}")]
     Axum(#[from] axum::BoxError),
 }

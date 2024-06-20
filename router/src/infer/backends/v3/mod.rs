@@ -1,12 +1,11 @@
+mod backend;
 mod block_allocator;
 mod queue;
-mod scheduler;
 
-use crate::infer::schedulers::v3::scheduler::SchedulerV3;
-use crate::infer::schedulers::Scheduler;
-use std::sync::Arc;
+use crate::infer::backends::v3::backend::BackendV3;
+use crate::infer::backends::BackendInfo;
 use text_generation_client::v3::ShardedClient;
-use text_generation_client::{ClientError, ShardInfo};
+use text_generation_client::ClientError;
 use thiserror::Error;
 
 #[allow(clippy::too_many_arguments)]
@@ -19,7 +18,7 @@ pub(crate) async fn connect_backend(
     max_batch_total_tokens: Option<u32>,
     max_waiting_tokens: usize,
     max_batch_size: Option<usize>,
-) -> Result<(Arc<dyn Scheduler + Send + Sync>, ShardInfo, u32), V3Error> {
+) -> Result<(BackendV3, BackendInfo), V3Error> {
     // Helper function
     let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
         match max_supported_batch_total_tokens {
@@ -77,21 +76,31 @@ pub(crate) async fn connect_backend(
             .await
             .map_err(V3Error::Warmup)?,
     )?;
+    tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
 
-    let scheduler = Arc::new(SchedulerV3::new(
+    let backend_info = BackendInfo {
+        waiting_served_ratio,
+        max_batch_total_tokens,
+        max_waiting_tokens,
+        max_batch_size,
+        model_device_type: shard_info.device_type.clone(),
+        model_dtype: shard_info.dtype.clone(),
+        speculate: shard_info.speculate as usize,
+    };
+
+    let backend = BackendV3::new(
         sharded_client,
         waiting_served_ratio,
         max_batch_prefill_tokens,
         max_batch_total_tokens,
         max_waiting_tokens,
         max_batch_size,
-        shard_info.requires_padding,
-        shard_info.window_size,
-        shard_info.speculate,
-    ));
-    tracing::info!("Using scheduler V3");
+        shard_info,
+    );
 
-    Ok((scheduler, shard_info, max_batch_total_tokens))
+    tracing::info!("Using backend V3");
+
+    Ok((backend, backend_info))
 }
 
 #[derive(Debug, Error)]

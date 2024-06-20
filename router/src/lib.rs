@@ -7,6 +7,7 @@ mod validation;
 #[cfg(feature = "kserve")]
 mod kserve;
 
+use crate::infer::BackendInfo;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use utoipa::ToSchema;
@@ -135,13 +136,9 @@ pub struct Info {
     pub model_id: String,
     #[schema(nullable = true, example = "e985a63cdc139290c5f700ff1929f0b5942cced2")]
     pub model_sha: Option<String>,
-    #[schema(example = "torch.float16")]
-    pub model_dtype: String,
-    #[schema(example = "cuda")]
-    pub model_device_type: String,
     #[schema(nullable = true, example = "text-generation")]
     pub model_pipeline_tag: Option<String>,
-    /// Router Parameters
+    /// Shared Parameters
     #[schema(example = "128")]
     pub max_concurrent_requests: usize,
     #[schema(example = "2")]
@@ -152,14 +149,6 @@ pub struct Info {
     pub max_input_tokens: usize,
     #[schema(example = "2048")]
     pub max_total_tokens: usize,
-    #[schema(example = "1.2")]
-    pub waiting_served_ratio: f32,
-    #[schema(example = "32000")]
-    pub max_batch_total_tokens: u32,
-    #[schema(example = "20")]
-    pub max_waiting_tokens: usize,
-    #[schema(nullable = true, example = "null")]
-    pub max_batch_size: Option<usize>,
     #[schema(example = "2")]
     pub validation_workers: usize,
     #[schema(example = "32")]
@@ -173,6 +162,9 @@ pub struct Info {
     pub sha: Option<&'static str>,
     #[schema(nullable = true, example = "null")]
     pub docker_label: Option<&'static str>,
+    /// Backend parameters
+    #[serde(flatten)]
+    backend_info: BackendInfo,
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema, Default)]

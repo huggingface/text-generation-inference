@@ -1,30 +1,31 @@
 /// Batching and inference logic
-use crate::infer::schedulers::v3::queue::{Entry, Queue};
-use crate::infer::schedulers::SchedulerError;
-use crate::infer::{GeneratedText, InferStreamResponse, Scheduler};
+use crate::infer::backends::v2::queue::{Entry, Queue};
+use crate::infer::{
+    Backend, GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse,
+};
 use crate::validation::ValidGenerateRequest;
 use crate::{FinishReason, PrefillToken, Token};
-use async_trait::async_trait;
 use nohash_hasher::IntMap;
-use std::sync::Arc;
-use text_generation_client::v3::{Batch, CachedBatch, Generation, ShardedClient};
-use text_generation_client::{ClientError, Health};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use text_generation_client::v2::{Batch, CachedBatch, Generation, ShardedClient};
+use text_generation_client::ClientError;
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
 
-pub(crate) struct SchedulerV3 {
+pub(crate) struct BackendV2 {
     /// Request queue
     queue: Queue,
     /// Notify batcher on queue appends
     batching_task_notifier: Arc<Notify>,
-    /// Client, used for health checks to skip the queue
-    client: ShardedClient,
 }
 
-impl SchedulerV3 {
+impl BackendV2 {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         client: ShardedClient,
@@ -36,19 +37,14 @@ impl SchedulerV3 {
         requires_padding: bool,
         window_size: Option<u32>,
         speculate: u32,
+        generation_health: Arc<AtomicBool>,
     ) -> Self {
-        let queue = Queue::new(
-            requires_padding,
-            16,
-            window_size,
-            speculate,
-            max_batch_total_tokens,
-        );
+        let queue = Queue::new(requires_padding, 16, window_size, speculate);
         let batching_task_notifier = Arc::new(Notify::new());
 
         // Spawn batching background task that contains all the inference logic
         tokio::spawn(batching_task(
-            client.clone(),
+            client,
             waiting_served_ratio,
             max_batch_prefill_tokens,
             max_batch_total_tokens,
@@ -56,26 +52,26 @@ impl SchedulerV3 {
             max_batch_size,
             queue.clone(),
             batching_task_notifier.clone(),
+            generation_health,
         ));
 
         Self {
             queue,
             batching_task_notifier,
-            client,
         }
     }
 }
 
-#[async_trait]
-impl Scheduler for SchedulerV3 {
+impl Backend for BackendV2 {
     #[instrument(skip_all)]
     fn schedule(
         &self,
         request: ValidGenerateRequest,
-    ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, SchedulerError>>, SchedulerError>
-    {
+        permit: OwnedSemaphorePermit,
+    ) -> Result<GenerateStreamResponse, InferError> {
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
+        let input_length = request.input_length;
 
         // Append the request to the queue
         self.queue.append(Entry {
@@ -85,7 +81,6 @@ impl Scheduler for SchedulerV3 {
             temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
-            block_allocation: None,
         });
 
         // Notify the background task that we have a new entry in the queue that needs
@@ -93,17 +88,11 @@ impl Scheduler for SchedulerV3 {
         self.batching_task_notifier.notify_one();
 
         // Return stream
-        Ok(UnboundedReceiverStream::new(response_rx))
-    }
-
-    async fn health(&self, current_health: bool) -> bool {
-        if current_health {
-            // Generation is healthy, we only check that the shards can allocate on device
-            self.client.device_health().await
-        } else {
-            self.client.model_health().await
-        }
-        .is_ok()
+        Ok((
+            permit,
+            input_length,
+            UnboundedReceiverStream::new(response_rx),
+        ))
     }
 }
 
@@ -121,6 +110,7 @@ pub(crate) async fn batching_task(
     max_batch_size: Option<usize>,
     queue: Queue,
     notifier: Arc<Notify>,
+    generation_health: Arc<AtomicBool>,
 ) {
     // Infinite loop
     loop {
@@ -139,7 +129,7 @@ pub(crate) async fn batching_task(
             )
             .await
         {
-            let mut cached_batch = prefill(&mut client, batch, &mut entries)
+            let mut cached_batch = prefill(&mut client, batch, &mut entries, &generation_health)
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -190,9 +180,10 @@ pub(crate) async fn batching_task(
                     });
 
                     // Generate one token for this new batch to have the attention past in cache
-                    let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
-                        .instrument(span)
-                        .await;
+                    let new_cached_batch =
+                        prefill(&mut client, new_batch, &mut new_entries, &generation_health)
+                            .instrument(span)
+                            .await;
                     // Reset waiting counter
                     waiting_tokens = 1;
                     // Extend current batch with the new batch
@@ -216,7 +207,7 @@ pub(crate) async fn batching_task(
                     entry.temp_span = Some(entry_batch_span);
                 });
 
-                cached_batch = decode(&mut client, batches, &mut entries)
+                cached_batch = decode(&mut client, batches, &mut entries, &generation_health)
                     .instrument(next_batch_span)
                     .await;
                 waiting_tokens += 1;
@@ -232,6 +223,7 @@ async fn prefill(
     client: &mut ShardedClient,
     batch: Batch,
     entries: &mut IntMap<u64, Entry>,
+    generation_health: &Arc<AtomicBool>,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
@@ -239,6 +231,9 @@ async fn prefill(
 
     match client.prefill(batch).await {
         Ok((generations, next_batch, timings)) => {
+            // Update health
+            generation_health.store(true, Ordering::SeqCst);
+
             let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
@@ -255,6 +250,8 @@ async fn prefill(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
+            // Update health
+            generation_health.store(false, Ordering::SeqCst);
             let _ = client.clear_cache(Some(batch_id)).await;
             send_errors(err, entries);
             metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
@@ -268,6 +265,7 @@ async fn decode(
     client: &mut ShardedClient,
     batches: Vec<CachedBatch>,
     entries: &mut IntMap<u64, Entry>,
+    generation_health: &Arc<AtomicBool>,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
@@ -275,6 +273,9 @@ async fn decode(
 
     match client.decode(batches).await {
         Ok((generations, next_batch, timings)) => {
+            // Update health
+            generation_health.store(true, Ordering::SeqCst);
+
             let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
             filter_send_generations(generations, entries);
@@ -294,6 +295,7 @@ async fn decode(
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
+            generation_health.store(false, Ordering::SeqCst);
             for id in batch_ids {
                 let _ = client.clear_cache(Some(id)).await;
             }
@@ -369,7 +371,7 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
 fn send_responses(
     generation: Generation,
     entry: &Entry,
-) -> Result<bool, Box<SendError<Result<InferStreamResponse, SchedulerError>>>> {
+) -> Result<bool, Box<SendError<Result<InferStreamResponse, InferError>>>> {
     // Return directly if the channel is disconnected
     if entry.response_tx.is_closed() {
         metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
@@ -462,7 +464,7 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     entries.drain().for_each(|(_, entry)| {
         // Create and enter a span to link this function back to the entry
         let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
-        let err = SchedulerError::Generation(Box::new(error.clone()));
+        let err = InferError::GenerationError(error.to_string());
         metrics::increment_counter!("tgi_request_failure", "err" => "generation");
         tracing::error!("{err}");
 
@@ -474,14 +476,14 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     });
 }
 
-impl From<text_generation_client::v3::GeneratedText> for GeneratedText {
-    fn from(value: text_generation_client::v3::GeneratedText) -> Self {
-        let v3_finish_reason =
-            text_generation_client::v3::FinishReason::try_from(value.finish_reason).unwrap();
-        let finish_reason = match v3_finish_reason {
-            text_generation_client::v3::FinishReason::Length => FinishReason::Length,
-            text_generation_client::v3::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
-            text_generation_client::v3::FinishReason::StopSequence => FinishReason::StopSequence,
+impl From<text_generation_client::v2::GeneratedText> for GeneratedText {
+    fn from(value: text_generation_client::v2::GeneratedText) -> Self {
+        let v2_finish_reason =
+            text_generation_client::v2::FinishReason::try_from(value.finish_reason).unwrap();
+        let finish_reason = match v2_finish_reason {
+            text_generation_client::v2::FinishReason::Length => FinishReason::Length,
+            text_generation_client::v2::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
+            text_generation_client::v2::FinishReason::StopSequence => FinishReason::StopSequence,
         };
 
         Self {
@@ -1133,7 +1135,7 @@ mod tests {
                 target: "<｜begin▁of▁sentence｜>You are an AI programming assistant, utilizing the Deepseek Coder model, developed by Deepseek Company, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer\n### Instruction:\nHello, how are you?\n### Response:\nI'm doing great. How can I help you today?\n<|EOT|>\n### Instruction:\nI'd like to show off how chat templating works!\n",
             },
             // NOT INCLUDED
-            // - meetkai/functionary-medium-v3.2
+            // - meetkai/functionary-medium-v2.2
             // - fireworks-ai/firefunction-v1
             // https://github
             ChatTemplateTestItem {
