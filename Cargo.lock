@@ -3611,6 +3611,7 @@ dependencies = [
  "hf-hub",
  "image",
  "init-tracing-opentelemetry",
+ "itertools 0.10.5",
  "jsonschema",
  "metrics",
  "metrics-exporter-prometheus",

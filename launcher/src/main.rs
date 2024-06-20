@@ -762,7 +762,7 @@ fn num_cuda_devices() -> Option<usize> {
         Err(_) => match env::var("NVIDIA_VISIBLE_DEVICES") {
             Ok(devices) => devices,
             Err(_) => env::var("ZE_AFFINITY_MASK").ok()?,
-        }
+        },
     };
     let n_devices = devices.split(',').count();
     Some(n_devices)
@@ -1224,7 +1224,6 @@ fn spawn_webserver(
     let otlp_service_name = args.otlp_service_name;
     router_args.push("--otlp-service-name".to_string());
     router_args.push(otlp_service_name);
-
 
     // CORS origins
     for origin in args.cors_allow_origin.into_iter() {

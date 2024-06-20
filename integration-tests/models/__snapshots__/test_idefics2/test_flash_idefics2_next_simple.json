@@ -8,61 +8,61 @@
     "tokens": [
       {
         "id": 330,
-        "logprob": -0.13000488,
+        "logprob": -0.08660889,
         "special": false,
         "text": " A"
       },
       {
         "id": 13088,
-        "logprob": -0.6713867,
+        "logprob": -0.7089844,
         "special": false,
         "text": " chicken"
       },
       {
         "id": 349,
-        "logprob": -0.2980957,
+        "logprob": -0.32885742,
         "special": false,
         "text": " is"
       },
       {
         "id": 6398,
-        "logprob": -0.060638428,
+        "logprob": -0.05126953,
         "special": false,
         "text": " sitting"
       },
       {
         "id": 356,
-        "logprob": -0.27319336,
+        "logprob": -0.35229492,
         "special": false,
         "text": " on"
       },
       {
         "id": 264,
-        "logprob": -0.140625,
+        "logprob": -0.12561035,
         "special": false,
         "text": " a"
       },
       {
         "id": 17972,
-        "logprob": -0.040405273,
+        "logprob": -0.038085938,
         "special": false,
         "text": " pile"
       },
       {
         "id": 302,
-        "logprob": -0.0002708435,
+        "logprob": -0.00018656254,
         "special": false,
         "text": " of"
       },
       {
         "id": 2445,
-        "logprob": -0.095336914,
+        "logprob": -0.07293701,
         "special": false,
         "text": " money"
       },
       {
         "id": 28723,
-        "logprob": -0.0068359375,
+        "logprob": -0.004852295,
         "special": false,
         "text": "."
       }
