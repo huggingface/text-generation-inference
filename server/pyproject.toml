@@ -50,6 +50,9 @@ outlines = ["outlines"]
 grpcio-tools = "^1.51.1"
 pytest = "^7.3.0"
 
+[tool.poetry.group.cuda.dependencies]
+# Fix https://github.com/NVIDIA/nccl/issues/1251 bug in nccl 2.20.5 bundled with PyTorch 2.3, nccl 2.21 appears to fix the issue.
+nvidia-nccl-cu12 = "==2.21.5"
 
 [[tool.poetry.source]]
 name = "pytorch-gpu-src"
