@@ -497,7 +497,7 @@ fn statis_spans<'a>(data: &[f64], unit: &'static str) -> Vec<Line<'a>> {
                 "Lowest:  {:.2} {unit}",
                 data.iter()
                     .min_by(|a, b| a.total_cmp(b))
-                    .unwrap_or(&std::f64::NAN)
+                    .unwrap_or(&f64::NAN)
             ),
             Style::default().fg(Color::Reset),
         )]),
@@ -506,7 +506,7 @@ fn statis_spans<'a>(data: &[f64], unit: &'static str) -> Vec<Line<'a>> {
                 "Highest: {:.2} {unit}",
                 data.iter()
                     .max_by(|a, b| a.total_cmp(b))
-                    .unwrap_or(&std::f64::NAN)
+                    .unwrap_or(&f64::NAN)
             ),
             Style::default().fg(Color::Reset),
         )]),
@@ -555,17 +555,17 @@ fn latency_throughput_chart<'a>(
     let min_latency: f64 = *latency_iter
         .clone()
         .min_by(|a, b| a.total_cmp(b))
-        .unwrap_or(&std::f64::NAN);
+        .unwrap_or(&f64::NAN);
     let max_latency: f64 = *latency_iter
         .max_by(|a, b| a.total_cmp(b))
-        .unwrap_or(&std::f64::NAN);
+        .unwrap_or(&f64::NAN);
     let min_throughput: f64 = *throughput_iter
         .clone()
         .min_by(|a, b| a.total_cmp(b))
-        .unwrap_or(&std::f64::NAN);
+        .unwrap_or(&f64::NAN);
     let max_throughput: f64 = *throughput_iter
         .max_by(|a, b| a.total_cmp(b))
-        .unwrap_or(&std::f64::NAN);
+        .unwrap_or(&f64::NAN);
 
     // Char min max values
     let min_x = if zoom {

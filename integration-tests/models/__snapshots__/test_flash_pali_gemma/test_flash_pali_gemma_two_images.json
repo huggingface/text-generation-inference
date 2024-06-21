@@ -1,0 +1,61 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 8,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 2502,
+        "logprob": -1.734375,
+        "special": false,
+        "text": "image"
+      },
+      {
+        "id": 2196,
+        "logprob": -0.5756836,
+        "special": false,
+        "text": " result"
+      },
+      {
+        "id": 604,
+        "logprob": -0.007843018,
+        "special": false,
+        "text": " for"
+      },
+      {
+        "id": 12254,
+        "logprob": -1.7167969,
+        "special": false,
+        "text": " chicken"
+      },
+      {
+        "id": 611,
+        "logprob": -0.17053223,
+        "special": false,
+        "text": " on"
+      },
+      {
+        "id": 573,
+        "logprob": -0.7626953,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 8318,
+        "logprob": -0.02709961,
+        "special": false,
+        "text": " beach"
+      },
+      {
+        "id": 1,
+        "logprob": -0.20739746,
+        "special": true,
+        "text": "<eos>"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "image result for chicken on the beach"
+}
