@@ -41,12 +41,14 @@ def cleanup_cache(token: str):
     extension_per_model = {}
     for model_id, revision in REQUIRED_MODELS.items():
         model_size = 0
+        print(f"call huggingface_hub.list_repo_files for {model_id}")
         all_files = huggingface_hub.list_repo_files(
             model_id,
             repo_type="model",
             revision=revision,
             token=token,
         )
+        print(f"end huggingface_hub.list_repo_files")
 
         extension = None
         if any(".safetensors" in filename for filename in all_files):
@@ -58,6 +60,9 @@ def cleanup_cache(token: str):
 
         extension_per_model[model_id] = extension
 
+        print(
+            f"call huggingface_hub.hf_hub_url & huggingface_hub.get_hf_file_metadata for {model_id}"
+        )
         for filename in all_files:
             if filename.endswith(extension):
                 file_url = huggingface_hub.hf_hub_url(
@@ -67,6 +72,7 @@ def cleanup_cache(token: str):
                     file_url, token=token
                 )
                 model_size += file_metadata.size * 1e-9  # in GB
+        print(f"end two calls")
 
         size_per_model[model_id] = model_size
 
