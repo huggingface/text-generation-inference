@@ -113,6 +113,8 @@ def download_weights(
     json_output: bool = False,
     trust_remote_code: bool = False,
 ):
+    print("Updating the download code ...")
+
     # Remove default handler
     logger.remove()
     logger.add(
