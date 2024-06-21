@@ -1,17 +1,15 @@
 import pytest
 
-from testing_utils import require_backend_async, require_backend
+from testing_utils import require_backend_async
 
 
 @pytest.fixture(scope="module")
-@require_backend("cuda")
 def bloom_560_handle(launcher):
     with launcher("bigscience/bloom-560m") as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
-@require_backend_async("cuda")
 async def bloom_560(bloom_560_handle):
     await bloom_560_handle.health(240)
     return bloom_560_handle.client

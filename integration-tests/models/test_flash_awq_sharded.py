@@ -1,10 +1,9 @@
 import pytest
 
-from testing_utils import SYSTEM, is_flaky_async, require_backend_async, require_backend
+from testing_utils import SYSTEM, is_flaky_async, require_backend_async
 
 
 @pytest.fixture(scope="module")
-@require_backend("cuda", "rocm")
 def flash_llama_awq_handle_sharded(launcher):
     if SYSTEM == "rocm":
         # On ROCm, for awq checkpoints, we need to use gptq kernel that supports ROCm.
@@ -21,7 +20,6 @@ def flash_llama_awq_handle_sharded(launcher):
 
 
 @pytest.fixture(scope="module")
-@require_backend_async("cuda", "rocm")
 async def flash_llama_awq_sharded(flash_llama_awq_handle_sharded):
     await flash_llama_awq_handle_sharded.health(300)
     return flash_llama_awq_handle_sharded.client

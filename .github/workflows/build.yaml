@@ -191,7 +191,7 @@ jobs:
             pwd
             echo "ls:"
             ls
-            python integration-tests/clean_cache_and_download.py --token ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+            python integration-tests/clean_cache_and_download.py --token ${{ secrets.HF_TOKEN }}
           fi
 
 
@@ -239,7 +239,7 @@ jobs:
       - name: Run tests
         run: |
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HF_TOKEN }}
 
           export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
           echo "DOCKER_IMAGE:"

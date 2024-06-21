@@ -3,7 +3,6 @@ from testing_utils import require_backend_async, require_backend
 
 
 @pytest.fixture(scope="module")
-@require_backend("cuda")
 def flash_llama_exl2_handle(launcher):
     with launcher(
         "turboderp/Llama-3-8B-Instruct-exl2",
@@ -18,7 +17,6 @@ def flash_llama_exl2_handle(launcher):
 
 
 @pytest.fixture(scope="module")
-@require_backend_async("cuda")
 async def flash_llama_exl2(flash_llama_exl2_handle):
     await flash_llama_exl2_handle.health(300)
     return flash_llama_exl2_handle.client

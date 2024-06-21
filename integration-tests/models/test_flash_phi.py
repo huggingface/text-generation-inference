@@ -1,19 +1,17 @@
 import pytest
 
-from testing_utils import require_backend_async, require_backend
+from testing_utils import require_backend_async
 
 # These tests do not pass on ROCm, with different generations.
 
 
 @pytest.fixture(scope="module")
-@require_backend("cuda")
 def flash_phi_handle(launcher):
     with launcher("microsoft/phi-2", num_shard=1) as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
-@require_backend_async("cuda")
 async def flash_phi(flash_phi_handle):
     await flash_phi_handle.health(300)
     return flash_phi_handle.client
