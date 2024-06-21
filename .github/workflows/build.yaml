@@ -78,10 +78,12 @@ jobs:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           slackChannel: ${{ secrets.SLACK_CIFEEDBACK_CHANNEL }}
           slackToken: ${{ secrets.SLACK_CIFEEDBACK_BOT_TOKEN }}
+
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
+
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -189,7 +191,7 @@ jobs:
             pwd
             echo "ls:"
             ls
-            python integration-tests/clean_cache.py
+            python integration-tests/clean_cache_and_download.py --token ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
           fi
 
 
@@ -206,6 +208,18 @@ jobs:
 
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
+
+      - name: Tailscale
+        uses: huggingface/tailscale-action@main
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: Login to internal Container Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
+          password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
+          registry: registry.internal.huggingface.tech
 
       - name: Set up Python
         uses: actions/setup-python@v4
