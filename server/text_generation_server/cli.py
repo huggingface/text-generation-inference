@@ -316,7 +316,7 @@ def quantize(
         logger_level=logger_level,
         json_output=json_output,
     )
-    from text_generation_server.utils.gptq.quantize import quantize
+    from text_generation_server.layers.gptq.quantize import quantize
 
     quantize(
         model_id=model_id,
