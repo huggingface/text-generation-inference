@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-
 from text_generation_server.utils.import_utils import SYSTEM
 
 try:
@@ -177,12 +176,12 @@ class GPTQMarlinLinear(nn.Module):
         self.bits = weight.bits
         self.is_full_k = weight.is_full_k
 
-        self.register_buffer("qweight", weight.qweight)
-        self.register_buffer("scales", weight.scales)
-        self.register_buffer("g_idx", weight.g_idx)
-        self.register_buffer("perm", weight.perm)
+        self.qweight = weight.qweight
+        self.scales = weight.scales
+        self.g_idx = weight.g_idx
+        self.perm = weight.perm
         if bias is not None:
-            self.register_buffer("bias", bias)
+            self.bias = bias
         else:
             self.bias = None
 
@@ -208,6 +207,116 @@ class GPTQMarlinLinear(nn.Module):
             self.is_full_k,
         )
         C = C.reshape(A.shape[:-1] + (self.scales.shape[1],))
+
+        if self.bias is not None:
+            C += self.bias
+
+        return C
+
+
+GPTQ_MARLIN_24_MIN_THREAD_N = 128
+GPTQ_MARLIN_24_MIN_THREAD_K = 128
+GPTQ_MARLIN_24_MAX_PARALLEL = 64
+GPTQ_MARLIN_24_SUPPORTED_NUM_BITS = [4, 8]
+GPTQ_MARLIN_24_SUPPORTED_GROUP_SIZES = [-1, 128]
+
+
+@dataclass
+class GPTQMarlin24Weight:
+    """
+    GPTQ-Marlin 2:4 weights.
+
+    Attributes:
+        B (torch.Tensor): int4-quantized weights packed into int32.
+        B_meta (torch.Tensor): metadata for 2:4 sparsity.
+        s (torch.Tensor): float16 scales.
+        bits: quantized weight size.
+    """
+
+    B: torch.Tensor
+    B_meta: torch.Tensor
+    s: torch.Tensor
+    bits: int
+
+    def __post_init__(self):
+        assert self.B.dtype == torch.int32
+        assert self.B_meta.dtype == torch.int16
+        assert self.s.dtype == torch.float16
+
+
+class GPTQMarlin24Linear(nn.Module):
+    def __init__(self, *, weight: GPTQMarlin24Weight, bias: Optional[torch.Tensor]):
+        super().__init__()
+
+        _check_marlin_kernels()
+        assert marlin_kernels is not None
+
+        if weight.bits not in GPTQ_MARLIN_BITS:
+            supported_bits = ", ".join(str(b) for b in GPTQ_MARLIN_BITS)
+            raise RuntimeError(
+                f"{weight.bits}-bit GPTQ Sparse 2:4 Marlin is not supported, must be one of: {supported_bits}"
+            )
+
+        in_features = weight.B.shape[0] * MARLIN_TILE_SIZE * 2
+        out_features = weight.s.shape[1]
+        groupsize = -1 if weight.s.shape[0] == 1 else in_features // weight.s.shape[0]
+
+        if groupsize not in GPTQ_MARLIN_24_SUPPORTED_GROUP_SIZES:
+            supported_sizes = ", ".join(
+                str(b) for b in GPTQ_MARLIN_24_SUPPORTED_GROUP_SIZES
+            )
+            raise RuntimeError(
+                f"Group size {groupsize} is not supported, must be one of: {supported_sizes}"
+            )
+
+        self.bits = weight.bits
+        weights_per_int32 = 32 // self.bits
+
+        assert (
+            out_features % GPTQ_MARLIN_24_MIN_THREAD_N == 0
+        ), f"Number of output features ({out_features}) not divisable by {GPTQ_MARLIN_24_MIN_THREAD_N} threads"
+        assert (
+            out_features % weights_per_int32 == 0
+        ), f"Number of output features ({out_features}) not divisable by weights per int32 ({weights_per_int32})"
+
+        assert (
+            in_features % GPTQ_MARLIN_24_MIN_THREAD_K == 0
+        ), f"Number of output features ({out_features}) not divisable by {GPTQ_MARLIN_24_MIN_THREAD_K} threads"
+        if groupsize != -1 and in_features % groupsize != 0:
+            raise ValueError(
+                f"Number of input features ({in_features}) not divisable by group size ({groupsize})"
+            )
+
+        self.B = weight.B
+        self.B_meta = weight.B_meta
+        self.s = weight.s
+        if bias is not None:
+            self.bias = bias
+        else:
+            self.bias = None
+
+        self.workspace = torch.zeros(
+            (out_features // GPTQ_MARLIN_24_MIN_THREAD_N) * GPTQ_MARLIN_24_MAX_PARALLEL,
+            dtype=torch.int,
+            device=weight.B.device,
+        )
+
+    def forward(self, A: torch.Tensor) -> torch.Tensor:
+        assert marlin_kernels is not None
+
+        C = marlin_kernels.gptq_marlin_24_gemm(
+            A.view(-1, A.shape[-1]),
+            self.B,
+            self.B_meta,
+            self.s,
+            self.workspace,
+            self.bits,
+            A.shape[0],
+            self.s.shape[1],
+            A.shape[1],
+        )
+
+        C = C.reshape(A.shape[:-1] + (self.s.shape[1],))
 
         if self.bias is not None:
             C += self.bias
@@ -255,10 +364,10 @@ class MarlinLinear(nn.Module):
             128,
         }, f"Group size must be -1 or 128, was {groupsize}"
 
-        self.register_buffer("B", weight.B)
-        self.register_buffer("s", weight.s)
+        self.B = weight.B
+        self.s = weight.s
         if bias is not None:
-            self.register_buffer("bias", bias)
+            self.bias = bias
         else:
             self.bias = None
 
