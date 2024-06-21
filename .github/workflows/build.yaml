@@ -194,19 +194,6 @@ jobs:
             python integration-tests/clean_cache_and_download.py --token ${{ secrets.HF_TOKEN }}
           fi
 
-  test_tailscale:
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
-      cancel-in-progress: true
-    needs: [build-and-push, prepare_integration_tests]
-    runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
-    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
-    steps:
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-
   integration_tests:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
@@ -220,11 +207,6 @@ jobs:
 
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
-
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
       - name: Login to internal Container Registry
         uses: docker/login-action@v3
