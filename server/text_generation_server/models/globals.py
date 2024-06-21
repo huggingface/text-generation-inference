@@ -15,6 +15,13 @@ if cuda_graphs is not None:
 else:
     cuda_graphs = None
 
+
+# sorting the cuda graphs in descending order helps reduce the
+# memory impact and results in less memory usage
+if cuda_graphs is not None:
+    cuda_graphs.sort(reverse=True)
+
+
 CUDA_GRAPHS = cuda_graphs
 
 # This is overridden at model loading.
