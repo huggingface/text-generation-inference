@@ -5,12 +5,14 @@ use crate::infer::{
 };
 use crate::validation::ValidGenerateRequest;
 use crate::{FinishReason, PrefillToken, Token};
-use nohash_hasher::IntMap;
+use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use text_generation_client::v3::{Batch, CachedBatch, Generation, ShardedClient};
+use text_generation_client::v3::{
+    Batch, CachedBatch, Generation, KeptRequest, ShardedClient, TerminatedGeneration,
+};
 use text_generation_client::ClientError;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify, OwnedSemaphorePermit};
@@ -88,6 +90,7 @@ impl Scheduler for SchedulerV3 {
             queue_time: Instant::now(),
             batch_time: None,
             block_allocation: None,
+            cache_length: 0,
         });
 
         // Notify the background task that we have a new entry in the queue that needs
@@ -161,7 +164,8 @@ pub(crate) async fn batching_task(
                 };
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
-                let max_size = max_batch_size.map(|max_size| max_size - batch_size as usize);
+                let max_size =
+                    max_batch_size.map(|max_size| max_size.saturating_sub(batch_size as usize));
 
                 // Try to get a new batch
                 if let Some((mut new_entries, new_batch, span)) = queue
@@ -242,11 +246,34 @@ async fn prefill(
             generation_health.store(true, Ordering::SeqCst);
 
             let start_filtering_time = Instant::now();
-            // Send generated tokens and filter stopped entries
-            filter_send_generations(generations, entries);
+            // Filter and send finished generations
+            let filtered_stream_responses = filter_send_ended_generations(generations, entries);
+
+            // Iterate on intermediate generations
+            for (id, stream_responses) in filtered_stream_responses {
+                // Get entry
+                let entry = entries
+                    .get_mut(&id)
+                    .expect("ID not found in entries. This is a bug.");
+
+                // Send intermediate responses
+                if send_stream_responses(stream_responses, entry).is_err() {
+                    // Sending failed, remove entry
+                    entries
+                        .remove(&id)
+                        .expect("ID not found in entries. This is a bug.");
+                }
+            }
 
             // Filter next batch and remove requests that were stopped
-            let next_batch = filter_batch(client, next_batch, entries).await;
+            let next_batch = match next_batch {
+                Some(batch) if batch.size as usize != entries.len() => {
+                    let (filtered_batch, _) =
+                        filter_batch(client, batch, entries, &IntMap::default()).await;
+                    filtered_batch
+                }
+                batch => batch,
+            };
 
             metrics::histogram!("tgi_batch_forward_duration", timings.forward.as_secs_f64(), "method" => "prefill");
             metrics::histogram!("tgi_batch_decode_duration", timings.decode.as_secs_f64(), "method" => "prefill");
@@ -284,11 +311,39 @@ async fn decode(
             generation_health.store(true, Ordering::SeqCst);
 
             let start_filtering_time = Instant::now();
-            // Send generated tokens and filter stopped entries
-            filter_send_generations(generations, entries);
 
-            // Filter next batch and remove requests that were stopped
-            let next_batch = filter_batch(client, next_batch, entries).await;
+            // Filter and send finished generations
+            let mut filtered_stream_responses = filter_send_ended_generations(generations, entries);
+
+            tracing::info!("filtered_stream: {:?}", start_filtering_time.elapsed());
+
+            // Send `StreamResponseInfer::Intermediate` messages for entries that don't need to be
+            // re-allocated,
+            // Allocated new blocks for entries that go over their allocation
+            // Filter entries that couldn't  be re-allocated and add them to `terminated_entries`
+            let (force_update, terminated_entries) =
+                filter_send_update_allocations(entries, &mut filtered_stream_responses);
+
+            tracing::info!("filtered_update: {:?}", start_filtering_time.elapsed());
+
+            let next_batch = match next_batch {
+                // Run Only on re-allocation or if entries were filtered
+                Some(batch) if batch.size as usize != entries.len() || force_update => {
+                    // Filter next batch: remove requests that were stopped and update blocks/slots
+                    let (filtered_batch, terminated_generations) =
+                        filter_batch(client, batch, entries, &terminated_entries).await;
+                    tracing::info!("filter_batch: {:?}", start_filtering_time.elapsed());
+                    send_terminated_generations(
+                        terminated_generations,
+                        terminated_entries,
+                        filtered_stream_responses,
+                    );
+                    tracing::info!("send_terminated: {:?}", start_filtering_time.elapsed());
+
+                    filtered_batch
+                }
+                batch => batch,
+            };
 
             if let Some(concat_duration) = timings.concat {
                 metrics::histogram!("tgi_batch_concat_duration", concat_duration.as_secs_f64(), "method" => "decode");
@@ -314,78 +369,269 @@ async fn decode(
 }
 
 /// Filter a `batch` and remove all requests not present in `entries`
+/// Ask the server to generate the full texts for entries in `terminated_entries`
 #[instrument(skip_all)]
 async fn filter_batch(
     client: &mut ShardedClient,
-    next_batch: Option<CachedBatch>,
+    batch: CachedBatch,
     entries: &IntMap<u64, Entry>,
-) -> Option<CachedBatch> {
-    let mut batch = next_batch?;
-
-    // No need to filter
-    if batch.size as usize == entries.len() {
-        return Some(batch);
-    }
-
+    terminated_entries: &IntMap<u64, Entry>,
+) -> (Option<CachedBatch>, Vec<TerminatedGeneration>) {
     let id = batch.id;
-
-    // Retain only requests that are still in entries
-    batch.request_ids.retain(|id| entries.contains_key(id));
-
-    if batch.request_ids.is_empty() {
+    if entries.is_empty() && terminated_entries.is_empty() {
         // All requests have been filtered out
         // Next batch is now empty
         // Clear it from the Python shards cache
         // We unwrap here as we need to panic since we cannot recover if this method fails
         client.clear_cache(Some(id)).await.unwrap();
-        None
+        Default::default()
     } else {
+        let max_blocks = entries
+            .iter()
+            .map(|(_, entry)| {
+                entry
+                    .block_allocation
+                    .as_ref()
+                    .map(|alloc| alloc.blocks().len())
+            })
+            .max()
+            .flatten();
+
+        let start_time = Instant::now();
+
+        // Collect new blocks
+        let updated_requests = entries
+            .iter()
+            .map(|(request_id, entry)| {
+                let (blocks, padded_blocks) = entry
+                    .block_allocation
+                    .as_ref()
+                    .map(|alloc| {
+                        let blocks = alloc.blocks().to_vec();
+                        let mut padded_blocks = blocks.clone();
+
+                        if let Some(max_blocks) = max_blocks {
+                            padded_blocks.resize(max_blocks, 0);
+                        }
+
+                        (blocks, padded_blocks)
+                    })
+                    .unwrap_or_default();
+
+                KeptRequest {
+                    id: *request_id,
+                    blocks,
+                    padded_blocks,
+                }
+            })
+            .collect();
+
+        tracing::info!("Collect blocks: {:?}", start_time.elapsed());
+
         // Filter Python shard cache
         // We unwrap here as we need to panic since we cannot recover if this method fails
-        client.filter_batch(id, batch.request_ids).await.unwrap()
+        client
+            .filter_batch(
+                id,
+                updated_requests,
+                terminated_entries.keys().copied().collect(),
+            )
+            .await
+            .unwrap()
     }
 }
 
-/// Send one or multiple `InferStreamResponse` to Infer for all `entries`
-/// and filter entries
+/// Send `InferStreamResponse::Intermediate` and the final `InferStreamResponse::End` messages
+/// to terminated requests
+/// It modifies the last `InferStreamResponse::Intermediate` to add the final full text in
+/// `terminated_generations`
 #[instrument(skip_all)]
-fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
-    generations.into_iter().for_each(|generation| {
+fn send_terminated_generations(
+    terminated_generations: Vec<TerminatedGeneration>,
+    terminated_entries: IntMap<u64, Entry>,
+    mut stream_responses: IntMap<u64, Vec<InferStreamResponse>>,
+) {
+    // Receive final message for terminated generations
+    'terminated_generations: for terminated_generation in terminated_generations {
+        let id = terminated_generation.id;
+        // Get entry for this generation
+        let entry = terminated_entries
+            .get(&id)
+            .expect("ID not found in entries. This is a bug.");
+        // Get previous `InferStreamResponse` for this generation
+        let stream_responses = stream_responses
+            .remove(&id)
+            .expect("ID not found in stream_responses. This is a bug.");
+
+        // Peekable iterator to know when we are at the last `InferStreamResponse`
+        let mut iterator = stream_responses.into_iter().peekable();
+
+        while let Some(stream_response) = iterator.next() {
+            let response = if iterator.peek().is_none() {
+                // Last `InferStreamResponse::Intermediate`
+                let (token, top_tokens) = match stream_response {
+                    InferStreamResponse::Intermediate { token, top_tokens } => (token, top_tokens),
+                    _ => unreachable!(),
+                };
+                // Modify it to be a `InferStreamResponse::End` with the new OutOfResources finish
+                // reason
+                InferStreamResponse::End {
+                    token,
+                    top_tokens,
+                    generated_text: GeneratedText::from(
+                        terminated_generation
+                            .generated_text
+                            .clone()
+                            .expect("Generated Text is None. This is a bug."),
+                    ),
+                    queued: entry.queue_time,
+                    start: entry.batch_time.unwrap(),
+                }
+            } else {
+                stream_response
+            };
+
+            // Send responses
+            let send_result = entry.response_tx.send(Ok(response)).map_err(|err| {
+                tracing::error!("Entry response channel error.");
+                metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+                err
+            });
+
+            if send_result.is_err() {
+                // The channel is dropped, skip the rest of the messages
+                continue 'terminated_generations;
+            }
+        }
+    }
+}
+
+/// Send `InferStreamResponse::End` to `Infer` for finished entries and remove them from `entries`
+/// Returns filtered `InferStreamResponse::Intermediate` generations
+#[instrument(skip_all)]
+fn filter_send_ended_generations(
+    generations: Vec<Generation>,
+    entries: &mut IntMap<u64, Entry>,
+) -> IntMap<u64, Vec<InferStreamResponse>> {
+    generations.into_iter().filter_map(|generation| {
         let id = generation.request_id;
         // Get entry
         // We can `expect` here as the request id should always be in the entries
         let entry = entries
-            .get(&id)
+            .get_mut(&id)
             .expect("ID not found in entries. This is a bug.");
 
         // Create and enter a span to link this function back to the entry
         let _span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_generation", generation = ?generation).entered();
-        // Send generation responses back to the infer task
-        // If the receive an error from the Flume channel, it means that the client dropped the
-        // request and we need to stop generating hence why we unwrap_or(true)
-        let stopped = send_responses(generation, entry).map_err(|err| {
+
+        // Return directly if the channel is disconnected
+        if entry.response_tx.is_closed() {
+            metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+            // Remove from entries and filter
+            entries.remove(&id).expect("ID not found in entries. This is a bug.");
+            return None;
+        }
+
+        // Update cache length
+        entry.cache_length = generation.cache_length;
+
+        let (finished, stream_responses) = map_generation(generation, entry);
+        // If the generation has ended for this request, we send the responses to the channel and
+        // remove the entry to drop it and free its blocks
+        if finished {
+            let _ = send_stream_responses(stream_responses, entry);
+            // Remove from entries and filter
+            entries.remove(&id).expect("ID not found in entries. This is a bug.");
+            return None;
+        }
+
+        Some((id, stream_responses))
+    }).collect()
+}
+
+/// Send `InferStreamResponse` to `Infer` through an `Entry` response channel
+#[instrument(skip_all)]
+fn send_stream_responses(
+    stream_responses: Vec<InferStreamResponse>,
+    entry: &Entry,
+) -> Result<(), Box<SendError<Result<InferStreamResponse, InferError>>>> {
+    for response in stream_responses {
+        entry.response_tx.send(Ok(response)).map_err(|err| {
             tracing::error!("Entry response channel error.");
             metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
             err
-        }).unwrap_or(true);
-        if stopped {
-            entries.remove(&id).expect("ID not found in entries. This is a bug.");
-        }
-    });
+        })?;
+    }
+    Ok(())
 }
 
-/// Send responses through the `entry` response channel
-fn send_responses(
-    generation: Generation,
-    entry: &Entry,
-) -> Result<bool, Box<SendError<Result<InferStreamResponse, InferError>>>> {
-    // Return directly if the channel is disconnected
-    if entry.response_tx.is_closed() {
-        metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
-        return Ok(true);
+/// Check if block allocations need to be extended
+/// If we don't have enough blocks, request will be filtered and added to an IntMap of
+/// terminated entries.
+/// If at least one entry allocation was extended, we return true to force an update
+#[instrument(skip_all)]
+fn filter_send_update_allocations(
+    entries: &mut IntMap<u64, Entry>,
+    stream_responses: &mut IntMap<u64, Vec<InferStreamResponse>>,
+) -> (bool, IntMap<u64, Entry>) {
+    let mut updated = false;
+
+    let ids: Vec<u64> = entries.keys().copied().collect();
+    let mut terminated_entries =
+        IntMap::with_capacity_and_hasher(entries.len(), BuildNoHashHasher::default());
+
+    for id in &ids {
+        let entry = entries
+            .get_mut(id)
+            .expect("ID not found in entries. This is a bug.");
+
+        if let Some(block_allocation) = entry.block_allocation.as_mut() {
+            // Check if allocation can handle the current cache_length
+            if entry.cache_length > block_allocation.len() as u32 {
+                updated = true;
+
+                // Extend allocation by asking for a new block
+                if let Err(err) = block_allocation.extend() {
+                    // Failed to extend allocation
+                    tracing::error!("Failed to extend allocation: {err}");
+                    metrics::increment_counter!("tgi_request_failure", "err" => "out_of_resources");
+
+                    // Remove entry
+                    let mut entry = entries
+                        .remove(id)
+                        .expect("ID not found in entries. This is a bug.");
+                    // Clear block allocation
+                    entry.block_allocation = None;
+                    // Add it to terminated entries
+                    terminated_entries.insert(*id, entry);
+                    // Skip the rest of the logic to not send the intermediate messages
+                    // This entry will be terminated and we will need to edit the last intermediate
+                    // response to add the complete generated text
+                    continue;
+                }
+            }
+        }
+        let stream_response = stream_responses
+            .remove(id)
+            .expect("ID not found in stream_responses. This is a bug.");
+
+        // Send intermediate responses
+        if send_stream_responses(stream_response, entry).is_err() {
+            // Sending failed, remove entry
+            entries
+                .remove(id)
+                .expect("ID not found in entries. This is a bug.");
+        }
     }
 
-    let mut stopped = false;
+    (updated, terminated_entries)
+}
+
+/// Map `Generation` to `<(bool, Vec<(u64, InferStreamResponse)>)>`
+/// `bool` is `true` if the generation is finished
+fn map_generation(generation: Generation, entry: &Entry) -> (bool, Vec<InferStreamResponse>) {
+    let mut finished = false;
+    let mut stream_responses = Vec::with_capacity(16);
 
     if let Some(prefill_tokens) = generation.prefill_tokens {
         // Create Token objects
@@ -398,10 +644,8 @@ fn send_responses(
             .map(|((id, logprob), text)| PrefillToken { id, text, logprob })
             .collect();
 
-        // Send message
-        entry
-            .response_tx
-            .send(Ok(InferStreamResponse::Prefill(prefill_tokens)))?;
+        // Push to stream_responses
+        stream_responses.push(InferStreamResponse::Prefill(prefill_tokens));
     }
 
     // Create last Token
@@ -443,26 +687,24 @@ fn send_responses(
         match (&generation.generated_text, iterator.peek()) {
             (Some(generated_text), None) => {
                 // Generation has ended
-                stopped = true;
-                // Send message
-                entry.response_tx.send(Ok(InferStreamResponse::End {
+                finished = true;
+                // Push to stream_responses
+                stream_responses.push(InferStreamResponse::End {
                     token,
                     top_tokens,
                     generated_text: GeneratedText::from(generated_text.clone()),
                     queued: entry.queue_time,
                     start: entry.batch_time.unwrap(),
-                }))?;
+                });
             }
             _ => {
-                // Send message
-                entry
-                    .response_tx
-                    .send(Ok(InferStreamResponse::Intermediate { token, top_tokens }))?;
+                // Push to stream_responses
+                stream_responses.push(InferStreamResponse::Intermediate { token, top_tokens });
             }
         }
     }
 
-    Ok(stopped)
+    (finished, stream_responses)
 }
 
 /// Send errors to Infer for all `entries`
@@ -488,6 +730,7 @@ impl From<text_generation_client::v3::GeneratedText> for GeneratedText {
         let v3_finish_reason =
             text_generation_client::v3::FinishReason::try_from(value.finish_reason).unwrap();
         let finish_reason = match v3_finish_reason {
+            text_generation_client::v3::FinishReason::Terminated => FinishReason::OutOfResources,
             text_generation_client::v3::FinishReason::Length => FinishReason::Length,
             text_generation_client::v3::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
             text_generation_client::v3::FinishReason::StopSequence => FinishReason::StopSequence,

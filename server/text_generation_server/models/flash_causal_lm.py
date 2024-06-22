@@ -79,13 +79,9 @@ class FlashCausalLMBatch(Batch):
     # Paged Attention values
 
     # Set when creating the batch
-    # CPU tensor of length b indicating the start of each sequence in slots
-    start_slots: torch.Tensor
     # tensor of indices of the currently used slots, length = \sum_{i=0}^{b} s_i in prefill, length = b in decode
     slot_indices: torch.Tensor
 
-    # list of length b of list of length s_i // block_size
-    block_tables: List[List[int]]
     # tensor of size [b, max_total_seqlen // block_size] holding the paged attention block tables for all sequences
     block_tables_tensor: torch.Tensor
     # tensor of length \sum_{i=0}^{b} max_s_i  holding the paged attention slots for all sequences
@@ -154,7 +150,6 @@ class FlashCausalLMBatch(Batch):
         sliding_window = get_sliding_windows()
         position_ids = []
         cu_seqlen_prefill = [0]
-        start_slots = []
         slot_indices = []
         prefill_cache_indices = []
 
@@ -176,7 +171,6 @@ class FlashCausalLMBatch(Batch):
 
         # Cumulative length
         cumulative_length = 0
-        cumulative_max_length = 0
         prefill_out_cumulative_length = 0
 
         num_blocks = 0
@@ -185,7 +179,7 @@ class FlashCausalLMBatch(Batch):
         max_blocks = 0
 
         block_tables = []
-        slots = []
+        flat_blocks = []
 
         # Parse batch
         for i, (r, tokenized_input) in enumerate(
@@ -203,6 +197,9 @@ class FlashCausalLMBatch(Batch):
 
             input_length = len(tokenized_input)
             input_lengths.append(input_length)
+
+            speculative_length = get_speculate()
+            speculative_length = 0 if speculative_length is None else speculative_length
 
             prefix_offsets.append(input_length - 5)
             read_offsets.append(input_length)
@@ -226,36 +223,26 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens.append(r.top_n_tokens)
 
             # Paged attention
-            # Remove one as the first token des not have a past
-            speculative_length = get_speculate()
-            speculative_length = 0 if speculative_length is None else speculative_length
-            total_tokens = input_length + max_new_tokens - 1 + speculative_length
-
             # blocks and slots can be empty (for example in warmup)
             if not r.blocks:
+                # Remove one as the first token des not have a past
+                total_tokens = input_length + max_new_tokens - 1 + speculative_length
                 needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
                 request_blocks = [
                     b for b in range(num_blocks, num_blocks + needed_blocks)
                 ]
-                request_slots = [
-                    s
-                    for b in request_blocks
-                    for s in range(b * BLOCK_SIZE, (b + 1) * BLOCK_SIZE)
-                ]
             else:
                 request_blocks = r.blocks
-                request_slots = r.slots
 
             block_tables.append(request_blocks)
-            slots.extend(request_slots[:total_tokens])
             num_blocks += len(request_blocks)
-            start_slots.append(cumulative_max_length)
 
             request_slot_indices = torch.arange(
-                cumulative_max_length,
-                cumulative_max_length + input_length,
+                len(flat_blocks) * BLOCK_SIZE,
+                (len(flat_blocks) * BLOCK_SIZE) + input_length,
                 dtype=torch.int64,
             )
+            flat_blocks.extend(request_blocks)
             slot_indices.append(request_slot_indices)
 
             # Create tensor to slice into the kv tensor in prefill
@@ -289,7 +276,6 @@ class FlashCausalLMBatch(Batch):
 
             # Update
             cumulative_length += input_length
-            cumulative_max_length += total_tokens
             max_seqlen = max(max_seqlen, input_length)
             max_blocks = max(max_blocks, len(request_blocks))
             max_length = max(
@@ -299,7 +285,6 @@ class FlashCausalLMBatch(Batch):
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters, dtype, device, tokenizer
         )
-        start_slots = torch.tensor(start_slots, dtype=torch.int64)
 
         # Padded all_input_ids_tensor
         all_input_ids_tensor = np.zeros(
@@ -356,7 +341,13 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens, device=device, dtype=torch.int64
         )
 
-        slots = torch.tensor(slots, dtype=torch.int64, device=device)
+        flat_blocks_tensor = torch.tensor(flat_blocks, dtype=torch.int64, device=device)
+
+        slots = (
+            (flat_blocks_tensor * BLOCK_SIZE).repeat(BLOCK_SIZE, 1).T
+            + torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int64)
+        ).flatten()
+
         block_tables_tensor = torch.zeros(
             (len(block_tables), max_blocks), dtype=torch.int32, device="cpu"
         )
@@ -372,9 +363,7 @@ class FlashCausalLMBatch(Batch):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             prefill_cache_indices=prefill_cache_indices,
-            start_slots=start_slots,
             slot_indices=slot_indices,
-            block_tables=block_tables,
             block_tables_tensor=block_tables_tensor,
             slots=slots,
             max_seqlen=max_seqlen,
@@ -408,12 +397,47 @@ class FlashCausalLMBatch(Batch):
         return cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
 
     @tracer.start_as_current_span("filter")
-    def filter(self, request_ids: List[int]) -> "FlashCausalLMBatch":
-        if len(request_ids) == 0:
-            raise ValueError("Batch must have at least one request")
-        # We assume that if len(requests) == len(self) then the requests are the same
-        if len(request_ids) == len(self):
-            return self
+    def filter(
+        self,
+        model: "FlashCausalLM",
+        kept_requests: List[generate_pb2.KeptRequest],
+        terminated_request_ids: List[int],
+    ) -> Tuple[Optional["FlashCausalLMBatch"], List[generate_pb2.TerminatedGeneration]]:
+        start = time.time_ns()
+
+        terminated_generations = []
+        for request_id in terminated_request_ids:
+            idx = self.requests_idx_mapping[request_id]
+            all_input_ids = self.all_input_ids[idx]
+            stopping_criteria = self.stopping_criterias[idx]
+            do_sample = self.next_token_chooser.do_sample[idx]
+            seed = self.next_token_chooser.seeds[idx]
+
+            # Decode generated tokens
+            output_text, _, _ = model.decode_token(
+                all_input_ids,
+                prefix_offset=len(all_input_ids) - stopping_criteria.current_tokens - 1,
+                read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
+                skip_special_tokens=True,
+            )
+            terminated_generations.append(
+                generate_pb2.TerminatedGeneration(
+                    id=request_id,
+                    generated_text=generate_pb2.GeneratedText(
+                        text=output_text,
+                        generated_tokens=stopping_criteria.current_tokens,
+                        finish_reason=generate_pb2.FINISH_REASON_TERMINATED,
+                        seed=seed if do_sample else None,
+                    ),
+                )
+            )
+
+        from loguru import logger
+
+        logger.info(f"terminated generations {(time.time_ns() - start)/1e6}")
+
+        if not kept_requests:
+            return None, terminated_generations
 
         device = self.input_ids.device
 
@@ -423,18 +447,12 @@ class FlashCausalLMBatch(Batch):
         # Used to index into tensors
         indices = []
 
-        # slots to keep after filtering
-        slot_filtering_indices = torch.zeros(
-            self.slots.shape[0], dtype=torch.bool, device=device
-        )
-
-        # Create on CPU to only move to GPU once instead of at every copy
-        slot_indices = torch.empty(len(request_ids), dtype=torch.int64)
+        slot_indices = []
         max_seqlen = 0
 
         requests = []
-        start_slots = []
-        block_tables = []
+        flat_blocks = []
+        padded_blocks = []
         all_input_ids = []
 
         input_lengths = []
@@ -446,10 +464,10 @@ class FlashCausalLMBatch(Batch):
 
         num_blocks = 0
         max_blocks = 0
-        # Cumulative length
-        cumulative_max_length = 0
 
-        for i, request_id in enumerate(request_ids):
+        for i, request in enumerate(kept_requests):
+            request_id = request.id
+
             idx = self.requests_idx_mapping[request_id]
             indices.append(idx)
             requests_idx_mapping[request_id] = i
@@ -471,49 +489,53 @@ class FlashCausalLMBatch(Batch):
 
             top_n_tokens.append(self.top_n_tokens[idx])
 
-            remaining_tokens = (
-                stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
-            )
+            request_block_table = request.blocks
+            flat_blocks.extend(request_block_table)
+            padded_blocks.extend(request.padded_blocks)
 
-            request_block_table = self.block_tables[idx]
+            # Index
+            slot_indices.append((num_blocks * BLOCK_SIZE) + request_input_length - 1)
+
             num_blocks += len(request_block_table)
-            block_tables.append(request_block_table)
-            start_slots.append(cumulative_max_length)
-
-            # Copy to tensor (CPU)
-            slot_indices[i] = cumulative_max_length + request_input_length - 1
-
-            # Set slice
-            slot_filtering_indices[
-                self.start_slots[idx] : self.start_slots[idx]
-                + request_input_length
-                + remaining_tokens
-                - 1
-            ] = True
-
-            cumulative_max_length += request_input_length + remaining_tokens - 1
-
             max_blocks = max(max_blocks, len(request_block_table))
+
+        logger.info(f"for loop requests: {(time.time_ns() - start)/1e6}")
 
         # Index into tensors
         input_ids = self.input_ids[indices]
         position_ids = self.position_ids[indices]
         all_input_ids_tensor = self.all_input_ids_tensor[indices]
-        block_tables_tensor = self.block_tables_tensor[indices]
         input_lengths_tensor = self.input_lengths_tensor[indices]
-        slots = self.slots[slot_filtering_indices]
         next_token_chooser = self.next_token_chooser.filter(indices)
         top_n_tokens_tensor = self.top_n_tokens_tensor[indices]
         speculative_ids = (
             self.speculative_ids[indices] if self.speculative_ids is not None else None
         )
 
-        start_slots = torch.tensor(start_slots, dtype=torch.int64)
+        logger.info(f"slice objects: {(time.time_ns() - start)/1e6}")
 
-        # Move to GPU now that we have the whole tensor
-        slot_indices = slot_indices.to(device)
+        # Create block_tables_tensor on GPU
+        block_tables_tensor = torch.tensor(
+            padded_blocks, dtype=torch.int32, device=device
+        ).view(len(requests), -1)
 
-        return type(self)(
+        logger.info(f"allocate block table: {(time.time_ns() - start)/1e6}")
+
+        # Allocate on GPU
+        slot_indices = torch.tensor(slot_indices, dtype=torch.int64, device=device)
+
+        # Move to GPU
+        block_tables_tensor = block_tables_tensor.to(device)
+        flat_blocks_tensor = torch.tensor(flat_blocks, dtype=torch.int64, device=device)
+
+        slots = (
+            (flat_blocks_tensor * BLOCK_SIZE).repeat(BLOCK_SIZE, 1).T
+            + torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int64)
+        ).flatten()
+
+        logger.info(f"done allocation: {(time.time_ns() - start)/1e6}")
+
+        filtered_batch = type(self)(
             batch_id=self.batch_id,
             requests=requests,
             requests_idx_mapping=requests_idx_mapping,
@@ -521,9 +543,7 @@ class FlashCausalLMBatch(Batch):
             position_ids=position_ids,
             cu_seqlen_prefill=None,
             prefill_cache_indices=None,
-            start_slots=start_slots,
             slot_indices=slot_indices,
-            block_tables=block_tables,
             block_tables_tensor=block_tables_tensor,
             slots=slots,
             max_seqlen=max_seqlen,
@@ -544,6 +564,7 @@ class FlashCausalLMBatch(Batch):
             max_blocks=max_blocks,
             speculative_ids=speculative_ids,
         )
+        return filtered_batch, terminated_generations
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
@@ -567,6 +588,7 @@ class FlashCausalLMBatch(Batch):
             )
             max_blocks = max(max_blocks, b.max_blocks)
             max_seqlen = max(max_seqlen, b.max_seqlen)
+            # When we filter, we do not recompute this value so we do so here
             max_length = max(
                 max_length,
                 max(
@@ -597,8 +619,6 @@ class FlashCausalLMBatch(Batch):
             total_batch_size,
         )
 
-        start_slots = []
-        block_tables = []
         all_input_ids = []
 
         input_lengths = []
@@ -645,9 +665,6 @@ class FlashCausalLMBatch(Batch):
                 start_index:end_index, : batch.block_tables_tensor.shape[1]
             ] = batch.block_tables_tensor[:, :max_blocks]
 
-            start_slots.append(batch.start_slots + cumulative_slots)
-
-            block_tables.extend(batch.block_tables)
             all_input_ids.extend(batch.all_input_ids)
 
             input_lengths.extend(batch.input_lengths)
@@ -663,8 +680,6 @@ class FlashCausalLMBatch(Batch):
             # Update
             cumulative_batch_size += len(batch)
             cumulative_slots += len(batch.slots)
-
-        start_slots = torch.concat(start_slots)
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters,
@@ -688,9 +703,7 @@ class FlashCausalLMBatch(Batch):
             position_ids=position_ids,
             cu_seqlen_prefill=None,
             prefill_cache_indices=None,
-            start_slots=start_slots,
             slot_indices=slot_indices,
-            block_tables=block_tables,
             block_tables_tensor=block_tables_tensor,
             slots=slots,
             max_seqlen=max_seqlen,
@@ -1374,6 +1387,7 @@ class FlashCausalLM(Model):
                     ),
                     generated_text,
                     top_tokens,
+                    input_length + n_accepted_ids,
                 )
 
                 generations.append(generation)

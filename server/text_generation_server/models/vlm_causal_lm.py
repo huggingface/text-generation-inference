@@ -124,12 +124,20 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         return batch
 
     @tracer.start_as_current_span("filter")
-    def filter(self, request_ids: List[int]):
-        batch = super().filter(request_ids)
-        batch.pixel_values = None
-        batch.pixel_attention_mask = None
-        batch.image_sizes = None
-        return batch
+    def filter(
+        self,
+        model: "VlmCausalLM",
+        kept_requests: List[generate_pb2.KeptRequest],
+        terminated_request_ids: List[int],
+    ) -> Tuple[Optional["VlmCausalLMBatch"], List[generate_pb2.TerminatedGeneration]]:
+        batch, terminated_generations = super().filter(
+            model, kept_requests, terminated_request_ids
+        )
+        if batch is not None:
+            batch.pixel_values = None
+            batch.pixel_attention_mask = None
+            batch.image_sizes = None
+        return batch, terminated_generations
 
     @classmethod
     def batch_tokenized_inputs(

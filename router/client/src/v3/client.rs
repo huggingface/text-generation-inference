@@ -90,15 +90,17 @@ impl Client {
     pub async fn filter_batch(
         &mut self,
         batch_id: u64,
-        request_ids: Vec<u64>,
-    ) -> Result<Option<CachedBatch>> {
+        kept_requests: Vec<KeptRequest>,
+        terminated_request_ids: Vec<u64>,
+    ) -> Result<(Option<CachedBatch>, Vec<TerminatedGeneration>)> {
         let request = tonic::Request::new(FilterBatchRequest {
             batch_id,
-            request_ids,
+            kept_requests,
+            terminated_request_ids,
         })
         .inject_context();
         let filtered_batch = self.stub.filter_batch(request).await?.into_inner();
-        Ok(filtered_batch.batch)
+        Ok((filtered_batch.batch, filtered_batch.terminated_generations))
     }
 
     /// Warmup on a max size batch
@@ -155,7 +157,6 @@ impl Client {
                 truncate,
                 // Blocks and slots will be set on the server side if we use paged attention
                 blocks: vec![],
-                slots: vec![],
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,

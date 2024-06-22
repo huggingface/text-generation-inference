@@ -1096,6 +1096,8 @@ pub(crate) enum FinishReason {
     EndOfSequenceToken,
     #[schema(rename = "stop_sequence")]
     StopSequence,
+    #[schema(rename = "out_of_resources")]
+    OutOfResources,
 }
 
 impl std::fmt::Display for FinishReason {
@@ -1104,6 +1106,7 @@ impl std::fmt::Display for FinishReason {
             FinishReason::Length => write!(f, "length"),
             FinishReason::EndOfSequenceToken => write!(f, "eos_token"),
             FinishReason::StopSequence => write!(f, "stop_sequence"),
+            FinishReason::OutOfResources => write!(f, "out_of_resources"),
         }
     }
 }

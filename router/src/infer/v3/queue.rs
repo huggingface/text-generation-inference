@@ -5,7 +5,7 @@ use crate::validation::{
     ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
 };
 use nohash_hasher::{BuildNoHashHasher, IntMap};
-use std::cmp::{max, min};
+use std::cmp::max;
 use std::collections::VecDeque;
 use text_generation_client::v3::{
     Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
@@ -33,6 +33,8 @@ pub(crate) struct Entry {
     pub batch_time: Option<Instant>,
     /// Block Allocation
     pub block_allocation: Option<BlockAllocation>,
+    /// Cache length (in tokens) of the request (prompt tokens + generated_tokens)
+    pub cache_length: u32,
 }
 
 /// Request Queue
@@ -162,9 +164,6 @@ struct State {
     /// Paged Attention block size
     block_size: u32,
 
-    /// Sliding window
-    window_size: Option<u32>,
-
     /// Speculation amount
     speculate: u32,
 
@@ -188,7 +187,6 @@ impl State {
             next_id: 0,
             next_batch_id: 0,
             block_size,
-            window_size,
             speculate,
             block_allocator,
         }
@@ -224,6 +222,11 @@ impl State {
                 tracing::debug!("Not enough entries");
                 return None;
             }
+        }
+
+        // Check if max_size == 0
+        if max_size == Some(0) {
+            return None;
         }
 
         // Pad prefill_token_budget to be a multiple of block size
@@ -274,41 +277,31 @@ impl State {
                 }
                 Some(block_allocator) => {
                     prefill_tokens += entry.request.input_length;
-                    let max_new_tokens = match self.window_size {
-                        None => entry.request.stopping_parameters.max_new_tokens,
-                        Some(window_size) => min(
-                            window_size.saturating_sub(entry.request.input_length),
-                            entry.request.stopping_parameters.max_new_tokens,
-                        ),
-                    };
-                    decode_tokens += max_new_tokens;
-
-                    if prefill_tokens > prefill_token_budget
-                        || (prefill_tokens + decode_tokens + self.speculate) > token_budget
-                    {
+                    if prefill_tokens > prefill_token_budget {
                         // Entry is over budget
                         // Add it back to the front
-                        tracing::debug!("Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget} || {prefill_tokens} + {decode_tokens} + {} > {token_budget}", self.speculate);
+                        tracing::debug!(
+                            "Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget}"
+                        );
                         self.entries.push_front((id, entry));
                         break;
                     }
 
-                    let tokens = entry.request.input_length
-                        + entry.request.stopping_parameters.max_new_tokens
-                        + self.speculate
-                        - 1;
-
-                    match block_allocator.allocate(tokens).await {
-                        None => {
+                    let decode_tokens =
+                        entry.request.stopping_parameters.max_new_tokens + self.speculate;
+                    match block_allocator
+                        .block_allocation(entry.request.input_length, decode_tokens)
+                    {
+                        Err(_) => {
                             // Entry is over budget
                             // Add it back to the front
                             tracing::debug!("Over budget: not enough free blocks");
                             self.entries.push_front((id, entry));
                             break 'entry_loop;
                         }
-                        Some(block_allocation) => {
+                        Ok(block_allocation) => {
                             tracing::debug!("Allocation: {block_allocation:?}");
-                            max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
+                            max_blocks = max(max_blocks, block_allocation.blocks().len() as u32);
                             Some(block_allocation)
                         }
                     }
@@ -324,14 +317,10 @@ impl State {
             // Update entry
             entry.temp_span = Some(entry_batch_span);
 
-            let (blocks, slots) = match &block_allocation {
-                None => (Vec::new(), Vec::new()),
-                Some(block_allocation) => (
-                    block_allocation.blocks.clone(),
-                    block_allocation.slots.clone(),
-                ),
-            };
-
+            let blocks = block_allocation
+                .as_ref()
+                .map(|block_allocation| block_allocation.blocks().to_vec())
+                .unwrap_or_default();
             entry.block_allocation = block_allocation;
 
             batch_requests.push(Request {
@@ -350,7 +339,6 @@ impl State {
                 )),
                 top_n_tokens: entry.request.top_n_tokens,
                 blocks,
-                slots,
             });
             // Set batch_time
             entry.batch_time = Some(Instant::now());
@@ -470,7 +458,7 @@ mod tests {
         let entry = Entry {
             request: ValidGenerateRequest {
                 inputs: vec![],
-                input_length: 0,
+                input_length: 1,
                 truncate: 0,
                 decoder_input_details: false,
                 parameters: ValidParameters {
@@ -498,6 +486,7 @@ mod tests {
             queue_time: Instant::now(),
             batch_time: None,
             block_allocation: None,
+            cache_length: 0,
         };
         (entry, receiver_tx)
     }
@@ -580,7 +569,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_batch_token_budget() {
-        let mut state = State::new(false, 1, None, 0, 2);
+        let mut state = State::new(false, 1, None, 0, 16);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
@@ -702,7 +691,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_speculate() {
-        let queue = Queue::new(false, 1, None, 2, 16);
+        let queue = Queue::new(true, 1, None, 2, 16);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);

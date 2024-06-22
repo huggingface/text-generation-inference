@@ -195,11 +195,49 @@ class MambaBatch(Batch):
             max_tokens=max_tokens,
         )
 
-    def filter(self, request_ids: List[int]) -> Optional["MambaBatch"]:
-        if len(request_ids) == 0:
-            raise ValueError("Batch must have at least one request")
+    def filter(
+        self,
+        model: "Mamba",
+        kept_requests: List[generate_pb2.KeptRequest],
+        terminated_request_ids: List[int],
+    ) -> Tuple[Optional["MambaBatch"], List[generate_pb2.TerminatedGeneration]]:
+        terminated_generations = []
+        for request_id in terminated_request_ids:
+            idx = self.requests_idx_mapping[request_id]
+            all_input_ids = self.all_input_ids[idx]
+            stopping_criteria = self.stopping_criterias[idx]
+            next_token_chooser = self.next_token_choosers[idx]
+
+            # Decode generated tokens
+            output_text, _, _ = model.decode_token(
+                all_input_ids[:, 0],
+                prefix_offset=len(all_input_ids) - stopping_criteria.current_tokens - 1,
+                read_offset=len(all_input_ids) - stopping_criteria.current_tokens,
+                skip_special_tokens=True,
+            )
+            # Get seed
+            if isinstance(next_token_chooser.choice, Sampling):
+                seed = next_token_chooser.choice.seed
+            else:
+                seed = None
+
+            terminated_generations.append(
+                generate_pb2.TerminatedGeneration(
+                    id=request_id,
+                    generated_text=generate_pb2.GeneratedText(
+                        text=output_text,
+                        generated_tokens=stopping_criteria.current_tokens,
+                        finish_reason=generate_pb2.FINISH_REASON_TERMINATED,
+                        seed=seed,
+                    ),
+                )
+            )
+        if not kept_requests:
+            return None, terminated_generations
+
+        request_ids = [r.id for r in kept_requests]
         if len(request_ids) == len(self):
-            return self
+            return self, terminated_generations
 
         keep_indices = []
 
@@ -274,7 +312,7 @@ class MambaBatch(Batch):
             :, indices
         ]
         self.inference_params.ssm_states = self.inference_params.ssm_states[:, indices]
-        return self
+        return self, terminated_generations
 
     @classmethod
     def concatenate(cls, batches: List["MambaBatch"]) -> "MambaBatch":
@@ -775,6 +813,7 @@ class Mamba(Model):
                     ),
                     generated_text,
                     top_tokens,
+                    new_input_length,
                 )
 
                 generations.append(generation)

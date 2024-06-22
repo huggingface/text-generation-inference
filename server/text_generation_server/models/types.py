@@ -3,7 +3,7 @@ import torch
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from transformers import PreTrainedTokenizerBase
 
@@ -28,7 +28,12 @@ class Batch(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def filter(self, request_ids: List[int]) -> "Batch":
+    def filter(
+        self,
+        model,
+        kept_requests: List[generate_pb2.KeptRequest],
+        terminated_request_ids: List[int],
+    ) -> Tuple[Optional["Batch"], List[generate_pb2.TerminatedGeneration]]:
         raise NotImplementedError
 
     @classmethod
@@ -84,6 +89,7 @@ class Generation:
     generated_text: Optional[GeneratedText]
     # Optional for now, since it's not yet supported for every model.
     top_tokens: Optional[List[Tokens]]
+    cache_length: int
 
     def to_pb(self) -> generate_pb2.Generation:
         return generate_pb2.Generation(
@@ -100,4 +106,5 @@ class Generation:
                 if self.top_tokens is not None
                 else None
             ),
+            cache_length=self.cache_length,
         )

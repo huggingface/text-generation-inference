@@ -132,8 +132,6 @@ message Request {
     uint32 top_n_tokens = 7;
     /// Paged attention blocks
     repeated uint32 blocks = 9;
-    /// Paged attention slots
-    repeated uint32  slots = 10;
 }
 
 message Batch {
@@ -164,6 +162,7 @@ enum FinishReason {
     FINISH_REASON_LENGTH = 0;
     FINISH_REASON_EOS_TOKEN = 1;
     FINISH_REASON_STOP_SEQUENCE = 2;
+    FINISH_REASON_TERMINATED = 3;
 }
 
 message GeneratedText {
@@ -198,18 +197,43 @@ message Generation {
     optional GeneratedText generated_text = 4;
     /// Top tokens
     repeated Tokens top_tokens = 5;
+    /// Current length of the cache: prompt tokens + number of generated tokens until this point
+    uint32 cache_length = 6;
 }
 
+message KeptRequest {
+    /// Request ID
+    uint64 id = 1;
+    /// Paged attention blocks
+    repeated uint32 blocks = 2;
+    /// Paged attention blocks padded to max blocks for this batch
+    repeated uint32 padded_blocks = 3;
+}
+
+/// kept_requests + terminated_request_ids might not cover all requests from the
+/// cached batch as some requests can be filtered out without requiring to generate text
+/// for example if the client dropped its connection to the router
 message FilterBatchRequest {
     /// Batch ID
     uint64 batch_id = 1;
     /// Requests to keep
-    repeated uint64 request_ids = 2;
+    repeated KeptRequest kept_requests = 2;
+    /// Requests to terminate and generate text for
+    repeated uint64 terminated_request_ids = 3;
+}
+
+message TerminatedGeneration {
+    // Request ID
+    uint64 id = 1;
+    // Generated text
+    GeneratedText generated_text = 2;
 }
 
 message FilterBatchResponse {
     /// Filtered Batch (cached)
     CachedBatch batch = 1;
+    /// Terminated generations
+    repeated TerminatedGeneration terminated_generations = 2;
 }
 
 
