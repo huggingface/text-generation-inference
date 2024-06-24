@@ -43,6 +43,8 @@
     title: Monitoring TGI with Prometheus and Grafana
   - local: basic_tutorials/train_medusa
     title: Train Medusa
+  - local: basic_tutorials/fp8_kv_cache
+    title: Accelerating Inference with FP8 KV Cache
   title: Tutorials
 - sections:
   - local: conceptual/streaming
