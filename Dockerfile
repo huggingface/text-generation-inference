@@ -3,6 +3,7 @@ FROM lukemathwalker/cargo-chef:latest-rust-1.78 AS chef
 WORKDIR /usr/src
 
 FROM chef as planner
+COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
