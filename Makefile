@@ -53,3 +53,6 @@ run-falcon-7b-instruct-quantize:
 
 clean:
 	rm -rf target aml
+
+interact:
+	docker run --rm -it --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --device=/dev/kfd --device=/dev/dri --group-add video --ipc=host --shm-size 64g --net host -v /home/mohit/.cache/huggingface/hub/:/data -v $(PWD):/tgi tgi-mht
