@@ -258,6 +258,9 @@ class TensorParallelAdapterRowLinear(LoraLinear):
     ) -> torch.Tensor:
         result = self.base_layer(input)
 
+        if self.layer_name is None:
+            return result
+
         # Fused all-gather + all-reduce from S-LoRA paper: https://arxiv.org/abs/2311.03285
         stride = result.shape[-1] // self.process_group.size()
         start_idx = self.process_group.rank() * stride
