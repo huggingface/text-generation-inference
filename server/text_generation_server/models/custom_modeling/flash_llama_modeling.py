@@ -56,28 +56,37 @@ if SYSTEM == "rocm":
 def load_attention(config, prefix, weights, layer_id):
     # Only defined in granite.
     bias = getattr(config, "attention_bias", False)
+    head_size = config.hidden_size // config.num_attention_heads
+    sizes = None
+    prefixes = None
 
-    # if specific model type, load the correct attention
     if config.model_type == "phi3":
-        return TensorParallelColumnLinear.load_qkv(
+        prefix = f"{prefix}.qkv_proj"
+        base_layer = TensorParallelColumnLinear.load_qkv(
             config,
-            prefix=f"{prefix}.qkv_proj",
+            prefix=prefix,
             weights=weights,
             bias=bias,
             num_heads=config.num_attention_heads,
             num_key_value_heads=config.num_key_value_heads,
         )
     elif config.model_type == "baichuan":
-        return TensorParallelColumnLinear.load_qkv(
+        prefix = f"{prefix}.W_pack"
+        base_layer = TensorParallelColumnLinear.load_qkv(
             config,
-            prefix=f"{prefix}.W_pack",
+            prefix=prefix,
             weights=weights,
             bias=bias,
             num_heads=config.num_attention_heads,
             num_key_value_heads=config.num_key_value_heads,
         )
     else:
-        # otherwise, load the default attention based on the number of heads
+        prefixes = ["q_proj", "k_proj", "v_proj"]
+        sizes = [
+            head_size * config.num_attention_heads,
+            head_size * config.num_key_value_heads,
+            head_size * config.num_key_value_heads,
+        ]
         base_layer = TensorParallelColumnLinear.load_multi(
             config,
             prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
@@ -86,18 +95,13 @@ def load_attention(config, prefix, weights, layer_id):
             bias=bias,
         )
 
-        head_size = config.hidden_size // config.num_attention_heads
-        return TensorParallelMultiAdapterLinear.load(
-            base_layer,
-            layer_id,
-            ["q_proj", "k_proj", "v_proj"],
-            sizes=[
-                head_size * config.num_attention_heads,
-                head_size * config.num_key_value_heads,
-                head_size * config.num_key_value_heads,
-            ],
-            process_group=weights.process_group,
-        )
+    return TensorParallelMultiAdapterLinear.load(
+        base_layer=base_layer,
+        layer_id=layer_id,
+        layer_names=prefixes,
+        sizes=sizes,
+        process_group=weights.process_group,
+    )
 
 
 class FlashLlamaAttention(torch.nn.Module):
@@ -237,34 +241,39 @@ class LlamaMLP(nn.Module):
                 ),
             )
         )
+        prefixes = None
+        sizes = None
+
         # Fuse gate and up proj
         bias = getattr(config, "mlp_bias", False)
         if config.model_type == "phi3":
-            self.gate_up_proj = TensorParallelColumnLinear.load_gate_up(
+            gate_up_proj = TensorParallelColumnLinear.load_gate_up(
                 config,
                 prefix=f"{prefix}.gate_up_proj",
                 weights=weights,
                 bias=bias,
             )
         else:
+            prefixes = [f"{prefix}.gate_proj", f"{prefix}.up_proj"]
+            sizes = [
+                config.intermediate_size,
+                config.intermediate_size,
+            ]
             gate_up_proj = TensorParallelColumnLinear.load_multi(
                 config,
-                prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
+                prefixes=prefixes,
                 weights=weights,
                 dim=0,
                 bias=bias,
             )
 
-            self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
-                gate_up_proj,
-                index,
-                ["gate_proj", "up_proj"],
-                sizes=[
-                    config.intermediate_size,
-                    config.intermediate_size,
-                ],
-                process_group=weights.process_group,
-            )
+        self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
+            gate_up_proj,
+            index,
+            layer_names=prefixes,
+            sizes=sizes,
+            process_group=weights.process_group,
+        )
 
         down_proj = TensorParallelRowLinear.load(
             config,
@@ -273,15 +282,12 @@ class LlamaMLP(nn.Module):
             bias=bias,
         )
 
-        if config.model_type == "phi3":
-            self.down_proj = down_proj
-        else:
-            self.down_proj = TensorParallelAdapterRowLinear.load(
-                down_proj,
-                index,
-                "down_proj",
-                process_group=weights.process_group,
-            )
+        self.down_proj = TensorParallelAdapterRowLinear.load(
+            down_proj,
+            index,
+            "down_proj",
+            process_group=weights.process_group,
+        )
 
         self.intermediate_size = (
             config.intermediate_size // weights.process_group.size()

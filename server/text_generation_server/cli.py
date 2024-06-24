@@ -85,6 +85,11 @@ def serve(
         [x.strip() for x in lora_adapter_ids.split(",")] if lora_adapter_ids else []
     )
 
+    if len(lora_adapter_ids) > 0:
+        logger.warning(
+            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
+        )
+
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = None if dtype is None else dtype.value

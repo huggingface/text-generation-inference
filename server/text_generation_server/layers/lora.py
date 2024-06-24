@@ -1,12 +1,13 @@
 import math
 import os
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple, List
 
 import torch
 import torch.distributed
 from accelerate import init_empty_weights
 from torch import nn
 from torch.nn import functional as F
+from torch.distributed import ProcessGroup
 
 from text_generation_server.utils.sgmv import (
     add_lora_a_bgmv,
@@ -17,16 +18,15 @@ from text_generation_server.utils.sgmv import (
     orient_for_rank,
 )
 
-LORA = "lora"
-MEDUSA = "medusa"
-
 if TYPE_CHECKING:
     from text_generation_server.adapters import AdapterBatchData
     from text_generation_server.adapters.lora import BatchLoraWeights
 
 
 class LoraLinear(nn.Module):
-    def __init__(self, base_layer, layer_id, process_group):
+    def __init__(
+        self, base_layer: nn.Module, layer_id: int, process_group: ProcessGroup
+    ):
         super().__init__()
         self.base_layer = base_layer
         self.layer_id = layer_id
@@ -41,14 +41,24 @@ class LoraLinear(nn.Module):
         start_idx: int,
         end_idx: int,
     ) -> torch.Tensor:
-        if adapter_data is None:
-            return result
         data = adapter_data.data.get(layer_type)
         data: Optional["BatchLoraWeights"] = (
-            data.get(LORA) if data is not None else None
+            data.get("lora") if data is not None else None
         )
 
         if has_sgmv() and data is not None and data.can_vectorize(self.process_group):
+            # In tensor-parallel configurations, each GPU processes a specific segment of the output.
+            # The 'result' tensor represents the full output, which can vary in size based on
+            # the layer type (e.g., attention vs. feed-forward layers). We define the current
+            # segment using start_idx and end_idx. If the segment size doesn't match this GPU's
+            # slice of 'result', we create a zero tensor of the correct size for LoRA computation.
+            # This approach ensures accurate LoRA application across various layer sizes and
+            # configurations, adapting to different model architectures and parallelization strategies.
+            #
+            # Example scenarios where this is necessary:
+            # 1. The adapter's size doesn't evenly divide across GPUs.
+            # 2. We're processing the last segment which might be smaller.
+            # 3. Different projection layers (q, k, v) have different sizes.
             if end_idx - start_idx != result.shape[1]:
                 proj = torch.zeros_like(result[:, start_idx:end_idx])
             else:
@@ -58,55 +68,57 @@ class LoraLinear(nn.Module):
                 lora_a_ptr = rank_segments.lora_a_ptr
                 lora_b_ptr = rank_segments.lora_b_ptr
 
+                if lora_a_ptr is None or lora_b_ptr is None:
+                    raise ValueError("LoRA data is missing")
+
                 if data.use_sgmv:
                     # Use SGMV for prefill
-                    if lora_a_ptr is not None and lora_b_ptr is not None:
-                        v = lora_a_sgmv_cutlass(
-                            input,
-                            rank_segments.tmp_shrink,
-                            lora_a_ptr,
-                            rank_segments.segment_starts,
-                            rank_segments.segment_ends,
-                            self.layer_id,
-                            r,
-                        )
+                    v = lora_a_sgmv_cutlass(
+                        input,
+                        rank_segments.tmp_shrink,
+                        lora_a_ptr,
+                        rank_segments.segment_starts,
+                        rank_segments.segment_ends,
+                        self.layer_id,
+                        r,
+                    )
 
-                        if self.process_group.size() > 1:
-                            v = self.collect_lora_a(v)
+                    if self.process_group.size() > 1:
+                        v = self.collect_lora_a(v)
 
-                        lora_b_sgmv_cutlass(
-                            proj,
-                            v,
-                            rank_segments.tmp_expand,
-                            lora_b_ptr,
-                            rank_segments.segment_starts,
-                            rank_segments.segment_ends,
-                            self.layer_id,
-                        )
+                    lora_b_sgmv_cutlass(
+                        proj,
+                        v,
+                        rank_segments.tmp_expand,
+                        lora_b_ptr,
+                        rank_segments.segment_starts,
+                        rank_segments.segment_ends,
+                        self.layer_id,
+                    )
                 else:
                     # Use BGMV for decode
-                    if lora_a_ptr is not None and lora_b_ptr is not None:
-                        v = torch.zeros(
-                            (input.size(0), r), dtype=input.dtype, device=input.device
-                        )
-                        add_lora_a_bgmv(
-                            v,
-                            input,
-                            lora_a_ptr,
-                            rank_segments.indices,
-                            self.layer_id,
-                        )
+                    v = torch.zeros(
+                        (input.size(0), r), dtype=input.dtype, device=input.device
+                    )
+                    # TODO: error with [-1, 0], but not [0, -1]
+                    add_lora_a_bgmv(
+                        v,
+                        input,
+                        lora_a_ptr,
+                        rank_segments.indices,
+                        self.layer_id,
+                    )
 
-                        if self.process_group.size() > 1:
-                            v = self.collect_lora_a(v)
+                    if self.process_group.size() > 1:
+                        v = self.collect_lora_a(v)
 
-                        add_lora_b_bgmv(
-                            proj,
-                            v,
-                            lora_b_ptr,
-                            rank_segments.indices,
-                            self.layer_id,
-                        )
+                    add_lora_b_bgmv(
+                        proj,
+                        v,
+                        lora_b_ptr,
+                        rank_segments.indices,
+                        self.layer_id,
+                    )
 
             if end_idx - start_idx != result.shape[1]:
                 result[:, start_idx:end_idx] += proj
@@ -149,13 +161,27 @@ class LoraLinear(nn.Module):
 
 
 class TensorParallelMultiAdapterLinear(LoraLinear):
-    def __init__(self, base_layer, layer_id, layer_names, sizes, process_group):
+    def __init__(
+        self,
+        base_layer: nn.Module,
+        layer_id: int,
+        layer_names: List[str],
+        sizes: List[int],
+        process_group: ProcessGroup,
+    ):
         super().__init__(base_layer, layer_id, process_group)
         self.layer_names = layer_names
         self.sizes = sizes
 
     @classmethod
-    def load(cls, base_layer, layer_id, layer_names, sizes, process_group):
+    def load(
+        cls,
+        base_layer: nn.Module,
+        layer_id: int,
+        layer_names: List[str],
+        sizes: List[int],
+        process_group: ProcessGroup,
+    ):
         return TensorParallelMultiAdapterLinear(
             base_layer, layer_id, layer_names, sizes, process_group
         )
@@ -164,6 +190,10 @@ class TensorParallelMultiAdapterLinear(LoraLinear):
         self, input: torch.Tensor, adapter_data: "AdapterBatchData"
     ) -> torch.Tensor:
         result = self.base_layer(input)
+
+        # noop if no layer names are provided (e.g. for models without adapters)
+        if self.layer_names is None:
+            return result
 
         # handle models like Bloom that have inputs of shape
         # (batch_size, sequence_length, hidden_size)
@@ -178,7 +208,12 @@ class TensorParallelMultiAdapterLinear(LoraLinear):
         offset = 0
         for i, layer_name in enumerate(self.layer_names):
             start_idx = offset // self.process_group.size()
-
+            # The 'sizes' parameter is essential in tensor-parallel setups for handling multiple
+            # projection layers (q_proj, k_proj, v_proj) by defining their output dimensions. It
+            # ensures correct slicing of the result tensor, accommodating variations like grouped-query
+            # attention where k_proj and v_proj differ from q_proj. This allows precise application of
+            # LoRA adapters to each sub-component of the multi-head attention mechanism, managing the
+            # different projection sizes across layers and model architectures.
             if self.sizes is not None:
                 offset += self.sizes[i]
                 end_idx = offset // self.process_group.size()
