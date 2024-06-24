@@ -292,31 +292,3 @@ class Model(ABC):
         ]
 
         return weights_a, weights_b
-
-    def offload_adapter(
-        self,
-        adapter_parameters: AdapterParameters,
-        adapter_source: AdapterSource,
-        adapter_index: int,
-    ):
-        """Offloads the adapter weights from GPU to CPU or disk."""
-        if adapter_index not in self.loaded_adapters:
-            # Adapter already offloaded
-            return
-
-        if not self.supports_adapter_loading:
-            raise ValueError("This model does not support adapter loading.")
-
-        if not self.dynamic_adapter_loading_enabled:
-            raise ValueError(
-                f"This model was initialized with the adapter {self.static_adapter_id} "
-                f"and therefore does not support dynamic adapter loading. "
-                f"Please initialize a new model instance from the base model in "
-                f"order to use the dynamic adapter loading feature."
-            )
-
-        for layer_name in self.adapter_layers:
-            if layer_name in self.layer_to_adapter_weights:
-                self.layer_to_adapter_weights[layer_name].remove_adapter(adapter_index)
-
-        self.loaded_adapters.remove(adapter_index)

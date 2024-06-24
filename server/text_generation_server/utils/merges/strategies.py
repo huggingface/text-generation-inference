@@ -1,3 +1,7 @@
+# Origin:   https://github.com/predibase/lorax
+# Path:     lorax/server/lorax_server/utils/merges/strategies.py
+# License:  Apache License Version 2.0, January 2004
+
 import copy
 from abc import ABC
 from collections import defaultdict
