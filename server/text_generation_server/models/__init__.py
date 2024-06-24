@@ -114,7 +114,6 @@ except ImportError as e:
 if MAMBA_AVAILABLE:
     __all__.append(Mamba)
 
-
 class ModelType(enum.Enum):
     IDEFICS2 = {
         "type": "idefics2",
@@ -245,6 +244,11 @@ class ModelType(enum.Enum):
         "multimodal": True,
     }
 
+FP8_KVCACHE_SUPPORTED_MODELS = {
+    "llama",
+    "baichun",
+    "phi3",
+}
 
 __GLOBALS = locals()
 for data in ModelType:
@@ -259,7 +263,6 @@ def get_model(
     speculate: Optional[int],
     dtype: Optional[str],
     kv_cache_dtype: Optional[str],
-    quantization_param_path: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
 ) -> Model:
@@ -278,9 +281,6 @@ def get_model(
         dtype = torch.bfloat16
     else:
         raise RuntimeError(f"Unknown dtype {dtype}")
-    
-    if kv_cache_dtype not in {"auto", "fp8"}:
-        raise RuntimeError(f"Unknown kv_cache_dtype {kv_cache_dtype}")
 
     if speculate is not None:
         set_speculate(speculate)
@@ -291,6 +291,11 @@ def get_model(
         model_id, revision=revision, trust_remote_code=trust_remote_code
     )
     model_type = config_dict.get("model_type", None)
+
+    if model_type not in FP8_KVCACHE_SUPPORTED_MODELS and kv_cache_dtype != "auto":
+        raise RuntimeError(
+            f"kv_cache_dtype is only supported for Llama models. Got model_type: {model_type}, kv_cache_dtype: {kv_cache_dtype}"
+        )
 
     speculator = None
     if "medusa_num_heads" in config_dict:
@@ -600,7 +605,6 @@ def get_model(
                 speculator=speculator,
                 dtype=dtype,
                 kv_cache_dtype=kv_cache_dtype,
-                quantization_param_path=quantization_param_path,
                 trust_remote_code=trust_remote_code,
             )
         elif sharded:

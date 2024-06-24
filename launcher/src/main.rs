@@ -145,6 +145,28 @@ impl std::fmt::Display for Dtype {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
+enum KvDtype {
+    #[clap(name = "fp8")]
+    Fp8,
+    #[clap(name = "fp8_e5m2")]
+    Fp8e5m2,
+}
+
+impl std::fmt::Display for KvDtype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self {
+            KvDtype::Fp8 => {
+                write!(f, "fp8")
+            },
+            KvDtype::Fp8e5m2 => {
+                write!(f, "fp8_e5m2")
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
 enum RopeScaling {
     Linear,
     Dynamic,
@@ -214,22 +236,12 @@ struct Args {
     #[clap(long, env, value_enum)]
     dtype: Option<Dtype>,
 
-    /// Data type for kv cache storage. If "auto", will use model
-    /// data type. FP8_E5M2 (without scaling) is only supported on cuda
-    /// version greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead
-    /// supported for common inference criteria.
-    #[clap(default_value = "auto", long, env)]
-    kv_cache_dtype: Option<String>,
-
-    /// Path to the JSON file containing the KV cache
-    /// scaling factors. This should generally be supplied, when
-    /// KV cache dtype is FP8. Otherwise, KV cache scaling factors
-    /// default to 1.0, which may cause accuracy issues.
-    /// FP8_E5M2 (without scaling) is only supported on cuda version
-    /// greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead
-    /// supported for common inference criteria.
-    #[clap(long, env)]
-    quantization_param_path: Option<String>,
+    // Specify the data type for KV cache. By default, it uses the model's data type.
+    // CUDA 11.8+ supports `fp8(fp8_e4m3)` and 'fp8_e5m2', while ROCm (AMD GPU) supports `fp8(fp8_e4m3fn)'.
+    // If 'fp8_e4m3' is chosen, a model checkpoint with scales for the KV cache should be provided.
+    // If not provided, the KV cache scaling factors default to 1.0, which may impact accuracy."
+    #[clap(long, env, value_enum)]
+    kv_cache_dtype: Option<KvDtype>,
 
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
     /// encouraged when loading a model with custom code to ensure no malicious code has been
@@ -481,8 +493,7 @@ fn shard_manager(
     quantize: Option<Quantization>,
     speculate: Option<usize>,
     dtype: Option<Dtype>,
-    kv_cache_dtype: Option<String>,
-    quantization_param_path: Option<String>,
+    kv_cache_dtype: Option<KvDtype>,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -556,12 +567,7 @@ fn shard_manager(
 
     if let Some(kv_cache_dtype) = kv_cache_dtype {
         shard_args.push("--kv-cache-dtype".to_string());
-        shard_args.push(kv_cache_dtype)
-    }
-
-    if let Some(quantization_param_path) = quantization_param_path {
-        shard_args.push("--quantization-param-path".to_string());
-        shard_args.push(quantization_param_path)
+        shard_args.push(kv_cache_dtype.to_string());
     }
 
     // Model optional revision
@@ -1067,8 +1073,7 @@ fn spawn_shards(
         let quantize = args.quantize;
         let speculate = args.speculate;
         let dtype = args.dtype;
-        let kv_cache_dtype = args.kv_cache_dtype.clone();
-        let quantization_param_path = args.quantization_param_path.clone();
+        let kv_cache_dtype = args.kv_cache_dtype;
         let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
@@ -1087,7 +1092,6 @@ fn spawn_shards(
                 speculate,
                 dtype,
                 kv_cache_dtype,
-                quantization_param_path,
                 trust_remote_code,
                 uds_path,
                 rank,

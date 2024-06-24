@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 from safetensors import safe_open, SafetensorError
+from server.text_generation_server.utils.import_utils import SYSTEM
 import torch
 from loguru import logger
 from huggingface_hub import hf_hub_download
@@ -88,7 +89,7 @@ class Weights:
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32. Exl2 uses int16
         # as well.
-        if tensor.dtype not in [torch.int16, torch.int32, torch.int64]:
+        if tensor.dtype not in [torch.int16, torch.int32,torch.int64] and not tensor_name.endswith("kv_scale"):
             tensor = tensor.to(dtype=self.dtype)
         if to_device:
             tensor = tensor.to(device=self.device)
@@ -761,6 +762,40 @@ class Weights:
                         self.quant_method = "awq"
                 except Exception:
                     pass
+
+    def get_kv_cache_scaling_factor(self, prefix: str, kv_cache_dtype: str):
+        try:
+            kv_scale = self.get_tensor(f"{prefix}.kv_scale").cpu().tolist()
+        except RuntimeError:
+            if kv_cache_dtype == "fp8":
+                log_once(
+                    logger.warning,
+                    "Could not find the `kv_scale` in checkpoint for `fp8_e4m3`. Using scaling factor"
+                    "`1.0`. This may result in accuracy issues. Please ensure the checkpoint includes "
+                    "the correct KV cache scaling factor.",
+                )
+
+            kv_scale = 1.0
+        else:
+            if kv_cache_dtype == "fp8_e5m2":
+                raise RuntimeError(
+                    "Found `kv_scale` in the checkpoint, but `fp8_e5m2` KV dtype do not support `kv_scale` > 1.0"
+                )
+
+            if not isinstance(kv_scale, float):
+                raise RuntimeError(
+                    "Only support per-tensor scaling factor for `fp8 (fp8_e4m3)` KV cache"
+                )
+
+            # ROCm uses FP8 format with fp8_e4m3fn, whereas Nvidia GPUs use fp8_e4m3.
+            # The multiplication by 2 compensates for the different numeric representation
+            # between ROCm and Nvidia GPUs, ensuring consistent effective scaling across platforms.
+            #  After this adjustment, the overall effect is equivalent to the scaling applied without
+            # it on Nvidia GPUs.
+            if SYSTEM == "rocm":
+                kv_scale *= 2.0
+
+        return kv_scale
 
 
 def _blocks_to_block_sizes(total_size: int, blocks: Union[int, List[int]]) -> List[int]:

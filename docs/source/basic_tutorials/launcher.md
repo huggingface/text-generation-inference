@@ -91,18 +91,8 @@ Options:
 ## KV_CACHE_DTYPE
 ```shell
       --kv-cache-dtype <KV_CACHE_DTYPE>
-          Data type for kv cache storage. If "auto", will use model data type. FP8_E5M2 (without scaling) is only supported on cuda version greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead supported for common inference criteria
-          
           [env: KV_CACHE_DTYPE=]
-          [default: auto]
-
-```
-## QUANTIZATION_PARAM_PATH
-```shell
-      --quantization-param-path <QUANTIZATION_PARAM_PATH>
-          Path to the JSON file containing the KV cache scaling factors. This should generally be supplied, when KV cache dtype is FP8. Otherwise, KV cache scaling factors default to 1.0, which may cause accuracy issues. FP8_E5M2 (without scaling) is only supported on cuda version greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is instead supported for common inference criteria
-          
-          [env: QUANTIZATION_PARAM_PATH=]
+          [possible values: fp8, fp8_e5m2]
 
 ```
 ## TRUST_REMOTE_CODE
@@ -244,7 +234,7 @@ Options:
       --hostname <HOSTNAME>
           The IP address to listen on
           
-          [env: HOSTNAME=]
+          [env: HOSTNAME=hf-amd-mi250-dev]
           [default: 0.0.0.0]
 
 ```
@@ -253,7 +243,7 @@ Options:
   -p, --port <PORT>
           The port to listen on
           
-          [env: PORT=]
+          [env: PORT=80]
           [default: 3000]
 
 ```
@@ -289,7 +279,7 @@ Options:
       --huggingface-hub-cache <HUGGINGFACE_HUB_CACHE>
           The location of the huggingface hub cache. Used to override the location if you want to provide a mounted disk for instance
           
-          [env: HUGGINGFACE_HUB_CACHE=]
+          [env: HUGGINGFACE_HUB_CACHE=/data]
 
 ```
 ## WEIGHTS_CACHE_OVERRIDE
