@@ -35,7 +35,7 @@ REQUIRED_MODELS = {
 }
 
 
-def cleanup_cache(token: str):
+def cleanup_cache(token: str, cache_dir: str):
     # Retrieve the size per model for all models used in the CI.
     size_per_model = {}
     extension_per_model = {}
@@ -74,7 +74,7 @@ def cleanup_cache(token: str):
     total_required_size = sum(size_per_model.values())
     print(f"Total required disk: {total_required_size:.2f} GB")
 
-    cached_dir = huggingface_hub.scan_cache_dir()
+    cached_dir = huggingface_hub.scan_cache_dir(cache_dir)
 
     cache_size_per_model = {}
     cached_required_size_per_model = {}
@@ -121,7 +121,7 @@ def cleanup_cache(token: str):
 
         print("Removing", largest_model_id)
         for sha in cached_shas_per_model[largest_model_id]:
-            huggingface_hub.scan_cache_dir().delete_revisions(sha).execute()
+            huggingface_hub.scan_cache_dir(cache_dir).delete_revisions(sha).execute()
 
         del cache_size_per_model[largest_model_id]
 
@@ -135,10 +135,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--token", help="Hugging Face Hub token.", required=True, type=str
     )
+    parser.add_argument("--cache-dir", help="Hub cache path.", required=True, type=str)
     args = parser.parse_args()
 
     start = time.time()
-    extension_per_model = cleanup_cache(args.token)
+    extension_per_model = cleanup_cache(args.token, args.cache_dir)
     end = time.time()
 
     print(f"Cache cleanup done in {end - start:.2f} s")
@@ -153,6 +154,7 @@ if __name__ == "__main__":
             revision=revision,
             token=args.token,
             allow_patterns=f"*{extension_per_model[model_id]}",
+            cache_dir=args.cache_dir,
         )
     end = time.time()
 

@@ -174,7 +174,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    if: needs.build-and-push.outputs.runs_on == 'amd-gpu-tgi'
+    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
     container:
       image: ${{ needs.build-and-push.outputs.docker_image }}
       options: --shm-size "16gb" --ipc host -v ${{ needs.build-and-push.outputs.docker_volume }}:/data
@@ -191,7 +191,7 @@ jobs:
             pwd
             echo "ls:"
             ls
-            python integration-tests/clean_cache_and_download.py --token ${{ secrets.HF_TOKEN }}
+            python integration-tests/clean_cache_and_download.py --token ${{ secrets.HF_TOKEN }} --cache-dir /data
           fi
 
   integration_tests:
@@ -242,5 +242,9 @@ jobs:
           export SYSTEM=${{ inputs.hardware }}
           echo "SYSTEM:"
           echo $SYSTEM
+
+          export DOCKER_VOLUME=${{ needs.build-and-push.outputs.docker_volume }}
+          echo "DOCKER_VOLUME:"
+          echo $DOCKER_VOLUME
 
           pytest -s -vvvvv integration-tests
