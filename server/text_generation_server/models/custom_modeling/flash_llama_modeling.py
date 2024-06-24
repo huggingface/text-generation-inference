@@ -254,14 +254,14 @@ class LlamaMLP(nn.Module):
                 bias=bias,
             )
         else:
-            prefixes = [f"{prefix}.gate_proj", f"{prefix}.up_proj"]
+            prefixes = [f"gate_proj", f"up_proj"]
             sizes = [
                 config.intermediate_size,
                 config.intermediate_size,
             ]
             gate_up_proj = TensorParallelColumnLinear.load_multi(
                 config,
-                prefixes=prefixes,
+                prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
                 weights=weights,
                 dim=0,
                 bias=bias,
