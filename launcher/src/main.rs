@@ -158,10 +158,10 @@ impl std::fmt::Display for KvDtype {
         match self {
             KvDtype::Fp8 => {
                 write!(f, "fp8")
-            },
+            }
             KvDtype::Fp8e5m2 => {
                 write!(f, "fp8_e5m2")
-            },
+            }
         }
     }
 }
