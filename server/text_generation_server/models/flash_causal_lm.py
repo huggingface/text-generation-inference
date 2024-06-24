@@ -726,8 +726,6 @@ class FlashCausalLM(Model):
         head_size: int,
         dtype: torch.dtype,
         device: torch.device,
-        kv_cache_dtype: str = "auto",
-        quantization_param_path: Optional[str] = None,
         rank: int = 0,
         world_size: int = 1,
         sliding_window: Optional[int] = None,
@@ -749,37 +747,6 @@ class FlashCausalLM(Model):
             world_size=world_size,
             sliding_window=sliding_window,
         )
-
-        if kv_cache_dtype == "fp8":
-            self.kv_cache_dtype = torch.uint8
-        else:
-            self.kv_cache_dtype = self.dtype
-
-        if kv_cache_dtype == "fp8" and SYSTEM == "rocm":
-            logger.info(f"Using KV cache data type: {kv_cache_dtype}")
-            # Currently scaled KV cache is only enabled on ROCm
-            if quantization_param_path is not None:
-                if callable(getattr(self.model, "load_kv_cache_scales", None)):
-                    self.model.load_kv_cache_scales(quantization_param_path)
-                else:
-                    raise RuntimeError(
-                        "Using FP8 KV cache and scaling "
-                        "factors provided but model "
-                        f"{self.model.__class__} does not "
-                        "support loading scaling factors."
-                    )
-            else:
-                logger.info(
-                    "Using FP8 KV cache but no scaling factors "
-                    "provided. Defaulting to scaling factors of 1.0. "
-                    "This may lead to less accurate results!"
-                )
-        elif quantization_param_path is not None:
-            logger.info(
-                "KV cache scaling factors provided, "
-                "but the KV cache data type is not FP8. "
-                "KV cache scaling factors will not be used."
-            )
 
     @property
     def batch_type(self) -> Type[FlashCausalLMBatch]:
@@ -906,7 +873,7 @@ class FlashCausalLM(Model):
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
-        dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
+        dtype_size = torch.tensor([], dtype=self.dtype).element_size()
         cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
@@ -986,7 +953,7 @@ class FlashCausalLM(Model):
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except torch.cuda.OutOfMemoryError:
-                logger.exception("Decode cuda graph warmup failed")
+                logger.exception(f"Decode cuda graph warmup failed")
         else:
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
