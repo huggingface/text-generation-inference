@@ -136,7 +136,6 @@ jobs:
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
-          network: host
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
