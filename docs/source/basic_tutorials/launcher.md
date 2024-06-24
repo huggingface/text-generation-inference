@@ -243,7 +243,7 @@ Options:
   -p, --port <PORT>
           The port to listen on
           
-          [env: PORT=80]
+          [env: PORT=]
           [default: 3000]
 
 ```
