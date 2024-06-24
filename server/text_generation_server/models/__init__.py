@@ -114,6 +114,7 @@ except ImportError as e:
 if MAMBA_AVAILABLE:
     __all__.append(Mamba)
 
+
 class ModelType(enum.Enum):
     IDEFICS2 = {
         "type": "idefics2",
@@ -243,6 +244,7 @@ class ModelType(enum.Enum):
         "url": "https://huggingface.co/HuggingFaceM4/idefics-9b",
         "multimodal": True,
     }
+
 
 FP8_KVCACHE_SUPPORTED_MODELS = {
     "llama",

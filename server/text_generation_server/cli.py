@@ -91,10 +91,12 @@ def serve(
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
-    
+
     if kv_cache_dtype in {"fp8", "fp8_e5m2"}:
         if SYSTEM not in {"cuda", "rocm"}:
-            raise RuntimeError(f"`{kv_cache_dtype}` KV cache is only supported on Nvidia and AMD GPUs.")
+            raise RuntimeError(
+                f"`{kv_cache_dtype}` KV cache is only supported on Nvidia and AMD GPUs."
+            )
         if kv_cache_dtype == "fp8_e5m2" and SYSTEM != "cuda":
             raise RuntimeError(f"`fp8_e5m2` KV cache is only supported on Nvidia GPUs.")
 

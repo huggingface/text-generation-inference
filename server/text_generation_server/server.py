@@ -269,6 +269,13 @@ def serve(
     set_model_id(model_id)
     asyncio.run(
         serve_inner(
-            model_id, revision, sharded, quantize, speculate, dtype, kv_cache_dtype, trust_remote_code
+            model_id,
+            revision,
+            sharded,
+            quantize,
+            speculate,
+            dtype,
+            kv_cache_dtype,
+            trust_remote_code,
         )
     )

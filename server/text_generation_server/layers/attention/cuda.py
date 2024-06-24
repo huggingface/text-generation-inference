@@ -23,7 +23,9 @@ def reshape_and_cache(
     kv_cache_dtype: str = "auto",
     kv_scale: int = 1.0,
 ):
-    cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots, kv_cache_dtype, kv_scale)
+    cache_ops.reshape_and_cache(
+        key, value, key_cache, value_cache, slots, kv_cache_dtype, kv_scale
+    )
 
 
 def paged_attention(

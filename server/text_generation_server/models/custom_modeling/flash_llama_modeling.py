@@ -45,6 +45,7 @@ from text_generation_server.layers.layernorm import (
 )
 
 from loguru import logger
+
 if SYSTEM == "rocm":
     try:
         from vllm import _custom_C
@@ -138,7 +139,9 @@ class FlashLlamaAttention(torch.nn.Module):
         self.kv_cache_dtype = config.kv_cache_dtype
 
         if self.kv_cache_dtype == "fp8":
-            self.kv_scale = weights.get_kv_cache_scaling_factor(prefix, self.kv_cache_dtype)
+            self.kv_scale = weights.get_kv_cache_scaling_factor(
+                prefix, self.kv_cache_dtype
+            )
         else:
             self.kv_scale = 1.0
         logger.info(f"kv_cache_dtype: {self.kv_cache_dtype}, kv_scale: {self.kv_scale}")
@@ -168,7 +171,15 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots, self.kv_cache_dtype, self.kv_scale)
+        reshape_and_cache(
+            kv[:, 0],
+            kv[:, 1],
+            kv_cache[0],
+            kv_cache[1],
+            slots,
+            self.kv_cache_dtype,
+            self.kv_scale,
+        )
 
         # output tensor
         attn_output = torch.empty_like(query)

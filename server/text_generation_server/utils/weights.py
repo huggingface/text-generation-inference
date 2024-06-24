@@ -89,7 +89,11 @@ class Weights:
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32. Exl2 uses int16
         # as well.
-        if tensor.dtype not in [torch.int16, torch.int32,torch.int64] and not tensor_name.endswith("kv_scale"):
+        if tensor.dtype not in [
+            torch.int16,
+            torch.int32,
+            torch.int64,
+        ] and not tensor_name.endswith("kv_scale"):
             tensor = tensor.to(dtype=self.dtype)
         if to_device:
             tensor = tensor.to(device=self.device)
