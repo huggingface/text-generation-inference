@@ -1,0 +1,41 @@
+name: Integration tests
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        type: string
+        description: Hardware
+        required: true
+      docker_devices:
+        type: string
+        description: Hardware
+      runs_on:
+        type: string
+        required: true
+        description: Hardware to run integration tests
+jobs:
+  integration_tests:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    runs-on: ${{ inputs.runs_on }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+      - name: Install
+        run: |
+          make install-integration-tests
+      - name: Run tests
+        run: |
+          export DOCKER_VOLUME=/mnt/cache
+          export DOCKER_IMAGE=${{ inputs.docker_image }}
+          export DOCKER_DEVICES=${{ inputs.docker_devices }}
+          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          pytest -s -vv integration-tests
