@@ -17,14 +17,32 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
 use thiserror::Error;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
 
 #[derive(Deserialize)]
+struct RawConfig {
+    max_position_embeddings: Option<usize>,
+    n_positions: Option<usize>,
+    max_seq_len: Option<usize>,
+}
+
+#[derive(Deserialize)]
 struct Config {
     max_position_embeddings: Option<usize>,
-    max_seq_len: Option<usize>,
+}
+
+impl From<RawConfig> for Config {
+    fn from(other: RawConfig) -> Self {
+        let max_position_embeddings = other
+            .max_position_embeddings
+            .or(other.max_seq_len)
+            .or(other.n_positions);
+        Config {
+            max_position_embeddings,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -37,11 +55,17 @@ enum Quantization {
     /// Should be a drop-in replacement to bitsandbytes with much better performance.
     /// Kernels are from <https://github.com/NetEase-FuXi/EETQ.git>
     Eetq,
+    /// Variable bit quantization. Requires a specific EXL2 quantized model:
+    /// <https://hf.co/models?search=exl2>. Requires exllama2 kernels and does
+    /// not support tensor parallelism (num_shard > 1).
+    Exl2,
     /// 4 bit quantization. Requires a specific GTPQ quantized model: <https://hf.co/models?search=gptq>.
     /// text-generation-inference will use exllama (faster) kernels wherever possible, and use
     /// triton kernel (wider support) when it's not.
     /// AWQ has faster kernels.
     Gptq,
+    /// 4 bit quantization. Requires a specific Marlin quantized model: <https://hf.co/models?search=marlin>.
+    Marlin,
     /// Bitsandbytes 8bit. Can be applied on any model, will cut the memory requirement in half,
     /// but it is known that the model will be much slower to run than the native f16.
     #[deprecated(
@@ -77,8 +101,14 @@ impl std::fmt::Display for Quantization {
             Quantization::BitsandbytesFP4 => {
                 write!(f, "bitsandbytes-fp4")
             }
+            Quantization::Exl2 => {
+                write!(f, "exl2")
+            }
             Quantization::Gptq => {
                 write!(f, "gptq")
+            }
+            Quantization::Marlin => {
+                write!(f, "marlin")
             }
             Quantization::Awq => {
                 write!(f, "awq")
@@ -228,7 +258,7 @@ struct Args {
     max_stop_sequences: usize,
 
     /// This is the maximum allowed value for clients to set `top_n_tokens`.
-    /// `top_n_tokens is used to return information about the the `n` most likely
+    /// `top_n_tokens` is used to return information about the the `n` most likely
     /// tokens at each generation step, instead of just the sampled token. This
     /// information can be used for downstream tasks like for classification or
     /// ranking.
@@ -470,7 +500,9 @@ fn shard_manager(
     rope_factor: Option<f32>,
     max_total_tokens: usize,
     max_batch_size: Option<usize>,
+    max_input_tokens: usize,
     otlp_endpoint: Option<String>,
+    log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
     _shutdown_sender: mpsc::Sender<()>,
@@ -493,7 +525,7 @@ fn shard_manager(
         "--uds-path".to_string(),
         uds_path,
         "--logger-level".to_string(),
-        "INFO".to_string(),
+        log_level.to_string().to_uppercase(),
         "--json-output".to_string(),
     ];
 
@@ -550,6 +582,10 @@ fn shard_manager(
         shard_args.push("--otlp-endpoint".to_string());
         shard_args.push(otlp_endpoint);
     }
+
+    // In case we use sliding window, we may ignore the sliding in flash for some backends depending on the parameter.
+    shard_args.push("--max-input-tokens".to_string());
+    shard_args.push(max_input_tokens.to_string());
 
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
@@ -781,13 +817,13 @@ struct PythonLogMessage {
 impl PythonLogMessage {
     fn trace(&self) {
         match self.record.level.name {
-            PythonLogLevelEnum::Trace => tracing::trace!("{}", self.text),
-            PythonLogLevelEnum::Debug => tracing::debug!("{}", self.text),
-            PythonLogLevelEnum::Info => tracing::info!("{}", self.text),
-            PythonLogLevelEnum::Success => tracing::info!("{}", self.text),
-            PythonLogLevelEnum::Warning => tracing::warn!("{}", self.text),
-            PythonLogLevelEnum::Error => tracing::error!("{}", self.text),
-            PythonLogLevelEnum::Critical => tracing::error!("{}", self.text),
+            PythonLogLevelEnum::Trace => tracing::trace!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Debug => tracing::debug!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Info => tracing::info!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Success => tracing::info!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Warning => tracing::warn!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Error => tracing::error!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Critical => tracing::error!("{}", self.text.trim_end()),
         }
     }
 }
@@ -1007,6 +1043,8 @@ fn spawn_shards(
     args: &Args,
     cuda_graphs: Vec<usize>,
     max_total_tokens: usize,
+    max_input_tokens: usize,
+    max_log_level: LevelFilter,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
     shutdown_sender: mpsc::Sender<()>,
@@ -1067,7 +1105,9 @@ fn spawn_shards(
                 rope_factor,
                 max_total_tokens,
                 max_batch_size,
+                max_input_tokens,
                 otlp_endpoint,
+                max_log_level,
                 status_sender,
                 shutdown,
                 shutdown_sender,
@@ -1298,8 +1338,22 @@ fn main() -> Result<(), LauncherError> {
     let args: Args = Args::parse();
 
     // Filter events with LOG_LEVEL
-    let env_filter =
-        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
+    let varname = "LOG_LEVEL";
+    let env_filter = if let Ok(log_level) = std::env::var(varname) {
+        // Override to avoid simple logs to be spammed with tokio level informations
+        let log_level = match &log_level[..] {
+            "warn" => "text_generation_launcher=warn,text_generation_router=warn",
+            "info" => "text_generation_launcher=info,text_generation_router=info",
+            "debug" => "text_generation_launcher=debug,text_generation_router=debug",
+            log_level => log_level,
+        };
+        EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .parse_lossy(log_level)
+    } else {
+        EnvFilter::new("info")
+    };
+    let max_log_level = env_filter.max_level_hint().unwrap_or(LevelFilter::INFO);
 
     if args.json_output {
         tracing_subscriber::fmt()
@@ -1342,33 +1396,30 @@ fn main() -> Result<(), LauncherError> {
         };
 
         let content = std::fs::read_to_string(filename)?;
-        let config: Config = serde_json::from_str(&content)?;
+        let config: RawConfig = serde_json::from_str(&content)?;
+        let config: Config = config.into();
 
         // Quantization usually means you're even more RAM constrained.
         let max_default = 4096;
 
-        let max_position_embeddings = match (config.max_position_embeddings, config.max_seq_len) {
-            (Some(max_position_embeddings), _) | (None, Some(max_position_embeddings)) => {
-                if max_position_embeddings > max_default {
-                    let max = max_position_embeddings;
-                    if args.max_input_tokens.is_none()
-                        && args.max_total_tokens.is_none()
-                        && args.max_batch_prefill_tokens.is_none()
-                    {
-                        tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
-                    }
-                    max_default
-                } else {
-                    max_position_embeddings
+        if let Some(max_position_embeddings) = config.max_position_embeddings {
+            if max_position_embeddings > max_default {
+                let max = max_position_embeddings;
+                if args.max_input_tokens.is_none()
+                    && args.max_total_tokens.is_none()
+                    && args.max_batch_prefill_tokens.is_none()
+                {
+                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
                 }
+                Ok(max_default)
+            } else {
+                Ok(max_position_embeddings)
             }
-            _ => {
-                return Err(Box::new(LauncherError::ArgumentValidation(
-                    "no max defined".to_string(),
-                )));
-            }
-        };
-        Ok(max_position_embeddings)
+        } else {
+            Err(Box::new(LauncherError::ArgumentValidation(
+                "no max defined".to_string(),
+            )))
+        }
     };
     let max_position_embeddings: usize = get_max_position_embeddings().unwrap_or(4096);
 
@@ -1462,6 +1513,11 @@ fn main() -> Result<(), LauncherError> {
 
     let num_shard = find_num_shards(args.sharded, args.num_shard)?;
     if num_shard > 1 {
+        if matches!(args.quantize, Some(Quantization::Exl2)) {
+            return Err(LauncherError::ArgumentValidation(
+                "Sharding is currently not supported with `exl2` quantization".into(),
+            ));
+        }
         tracing::info!("Sharding model on {num_shard} processes");
     }
 
@@ -1524,6 +1580,8 @@ fn main() -> Result<(), LauncherError> {
         &args,
         cuda_graphs,
         max_total_tokens,
+        max_input_tokens,
+        max_log_level,
         shutdown.clone(),
         &shutdown_receiver,
         shutdown_sender,

@@ -19,7 +19,9 @@ class Quantization(str, Enum):
     gptq = "gptq"
     awq = "awq"
     eetq = "eetq"
+    exl2 = "exl2"
     fp8 = "fp8"
+    marlin = "marlin"
 
 
 class Dtype(str, Enum):
@@ -42,6 +44,7 @@ def serve(
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
+    max_input_tokens: Optional[int] = None,
 ):
     if sharded:
         assert (
@@ -100,6 +103,7 @@ def serve(
         quantization_param_path,
         trust_remote_code,
         uds_path,
+        max_input_tokens,
     )
 
 

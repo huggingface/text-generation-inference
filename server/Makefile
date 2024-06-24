@@ -10,17 +10,25 @@ unit-tests:
 
 gen-server:
 	# Compile protos
-	pip install grpcio-tools==1.51.1 mypy-protobuf==3.4.0 'types-protobuf>=3.20.4' --no-cache-dir
+	pip install grpcio-tools==1.62.2 mypy-protobuf==3.6.0 'types-protobuf' --no-cache-dir
 	mkdir text_generation_server/pb || true
-	python -m grpc_tools.protoc -I../proto --python_out=text_generation_server/pb \
-		--grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/generate.proto
+	python -m grpc_tools.protoc -I../proto/v3 --python_out=text_generation_server/pb \
+		--grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/v3/generate.proto
 	find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
 	touch text_generation_server/pb/__init__.py
 
-install: gen-server
+install-server: gen-server
 	pip install pip --upgrade
 	pip install -r requirements_cuda.txt
 	pip install -e ".[bnb, accelerate, quantize, peft, outlines]"
+
+
+install: install-cuda
+	echo "Installed server"
+
+install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention
+
+install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm
 
 run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded

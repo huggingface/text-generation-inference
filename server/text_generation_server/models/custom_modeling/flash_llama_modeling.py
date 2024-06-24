@@ -27,7 +27,11 @@ from torch import nn
 from transformers.activations import ACT2FN
 
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -49,38 +53,37 @@ if SYSTEM == "rocm":
 
 
 def load_attention(config, prefix, weights):
-    bias = config.attention_bias
-    if config.num_attention_heads != config.num_key_value_heads:
-        return TensorParallelColumnLinear.load_multi(
+    # Only defined in granite.
+    bias = getattr(config, "attention_bias", False)
+
+    # if specific model type, load the correct attention
+    if config.model_type == "phi3":
+        return TensorParallelColumnLinear.load_qkv(
             config,
-            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-            dim=0,
+            prefix=f"{prefix}.qkv_proj",
             weights=weights,
             bias=bias,
+            num_heads=config.num_attention_heads,
+            num_key_value_heads=config.num_key_value_heads,
         )
-    else:
-        if config.model_type == "baichuan":
-            return TensorParallelColumnLinear.load_qkv(
-                config,
-                prefix=f"{prefix}.W_pack",
-                weights=weights,
-                bias=bias,
-            )
-        elif config.model_type == "phi3":
-            return TensorParallelColumnLinear.load_qkv(
-                config,
-                prefix=f"{prefix}.qkv_proj",
-                weights=weights,
-                bias=bias,
-            )
-        else:
-            return TensorParallelColumnLinear.load_multi(
-                config,
-                prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-                dim=0,
-                weights=weights,
-                bias=bias,
-            )
+    elif config.model_type == "baichuan":
+        return TensorParallelColumnLinear.load_qkv(
+            config,
+            prefix=f"{prefix}.W_pack",
+            weights=weights,
+            bias=bias,
+            num_heads=config.num_attention_heads,
+            num_key_value_heads=config.num_key_value_heads,
+        )
+
+    # otherwise, load the default attention based on the number of heads
+    return TensorParallelColumnLinear.load_multi(
+        config,
+        prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+        dim=0,
+        weights=weights,
+        bias=bias,
+    )
 
 
 class FlashLlamaAttention(torch.nn.Module):
@@ -107,6 +110,11 @@ class FlashLlamaAttention(torch.nn.Module):
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
+                f"and `num_shards`: {weights.process_group.size()}"
+            )
+        if config.num_key_value_heads % weights.process_group.size() != 0:
+            raise ValueError(
+                f"`num_key_value_heads` must be divisible by `num_shards` (got `num_key_value_heads`: {config.num_key_value_heads} "
                 f"and `num_shards`: {weights.process_group.size()}"
             )
         self.num_heads = self.num_heads // weights.process_group.size()
@@ -162,15 +170,7 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        paged_attention.reshape_and_cache(
-            kv[:, 0],
-            kv[:, 1],
-            kv_cache[0],
-            kv_cache[1],
-            slots,
-            self.kv_cache_dtype,
-            self.kv_scale,
-        )
+        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
 
         # output tensor
         attn_output = torch.empty_like(query)
@@ -178,7 +178,7 @@ class FlashLlamaAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
@@ -189,7 +189,7 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],
@@ -424,7 +424,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
 
         self.lm_head = SpeculativeHead.load(
             config,
-            prefix=suffix if not prefix else f"{prefix}.suffix",
+            prefix=suffix if not prefix else f"{prefix}.{suffix}",
             weights=weights,
         )
         self.config = config

@@ -1,8 +1,11 @@
 /// Single shard Client
-use crate::pb::generate::v2::text_generation_service_client::TextGenerationServiceClient;
-use crate::pb::generate::v2::*;
-use crate::Result;
+use crate::v2::pb;
+use crate::{ClientError, Result};
+
+use crate::WARMUP_IMAGE_BASE64;
 use grpc_metadata::InjectTelemetryContext;
+use pb::generate::v2::text_generation_service_client::TextGenerationServiceClient;
+use pb::generate::v2::*;
 use std::cmp::min;
 use std::time::Duration;
 use tonic::transport::{Channel, Uri};
@@ -42,7 +45,9 @@ impl Client {
     #[instrument(skip(self))]
     pub async fn service_discovery(&mut self) -> Result<Vec<String>> {
         let request = tonic::Request::new(ServiceDiscoveryRequest {}).inject_context();
-        let response = self.stub.service_discovery(request).await?;
+        let response = self.stub.service_discovery(request).await.map_err(|_| {
+            ClientError::Connection("Server does not support v2 interface".to_string())
+        })?;
         let urls = response
             .into_inner()
             .urls
@@ -118,13 +123,15 @@ impl Client {
             if n_tokens == 0 {
                 // 1 request is enough to test vision heads.
                 // Sending images on other queries messes up easily with truncation.
-                inputs.push_str("![](data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAABg2lDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV/TSotUROxQxCFDdbKLijjWKhShQqgVWnUwufQLmrQkKS6OgmvBwY/FqoOLs64OroIg+AHi7OCk6CIl/i8ptIjx4Lgf7+497t4BQqvKNDOQADTdMjKppJjLr4rBVwQQwhAERGVm1uckKQ3P8XUPH1/v4jzL+9yfY0AtmAzwicQJVjcs4g3imU2rznmfOMLKskp8Tjxh0AWJH7muuPzGueSwwDMjRjYzTxwhFks9rPQwKxsa8TRxTNV0yhdyLquctzhr1Qbr3JO/MFzQV5a5TnMUKSxiCRJEKGiggiosxGnVSTGRof2kh3/E8UvkUshVASPHAmrQIDt+8D/43a1ZnJp0k8JJoO/Ftj/GgOAu0G7a9vexbbdPAP8zcKV3/bUWMPtJerOrxY6AwW3g4rqrKXvA5Q4QfarLhuxIfppCsQi8n9E35YHhW6B/ze2ts4/TByBLXaVvgINDYLxE2ese7w719vbvmU5/PycecohsjayNAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH6AQIEQMnlTSSjwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAASSURBVDjLY2AYBaNgFIyCoQsABMQAAeRw1DoAAAAASUVORK5CYII=)");
+                inputs.push_str(&format!(
+                    "![](data:image/jpeg;base64,{WARMUP_IMAGE_BASE64})",
+                ));
             }
 
             requests.push(Request {
                 id: 0,
-                // We truncate the input on the server side to be sure that it has the correct size
                 inputs,
+                // We truncate the input on the server side to be sure that it has the correct size
                 truncate,
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {

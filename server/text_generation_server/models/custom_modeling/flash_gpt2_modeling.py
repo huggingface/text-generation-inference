@@ -25,7 +25,11 @@ from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -42,6 +46,10 @@ def load_qkv(config, prefix: str, weights, head_size, num_heads):
             prefix,
             weights,
         )
+    elif config.quantize == "marlin":
+        raise RuntimeError(
+            "GPT-2 models with marlin quantization are not yet supported"
+        )
     else:
         return _load_qkv(config, prefix, weights, head_size, num_heads)
 
@@ -51,7 +59,12 @@ def _load_qkv_gptq(config, prefix: str, weights):
     rank = weights.process_group.rank()
 
     # Weights
-    weight = weights.get_weights_col_packed_qkv(f"{prefix}.c_attn", config.quantize)
+    weight = weights.get_weights_col_packed_qkv(
+        f"{prefix}.c_attn",
+        config.quantize,
+        config.num_attention_heads,
+        config.num_attention_heads,
+    )
 
     # Bias
     slice_ = weights._get_slice(f"{prefix}.c_attn.bias")
@@ -213,7 +226,7 @@ class FlashGPT2Attention(torch.nn.Module):
         key = key.view(-1, self.num_heads, self.head_size)
         value = value.view(-1, self.num_heads, self.head_size)
 
-        paged_attention.reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
+        reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
 
         # output tensor
         attn_output = torch.empty_like(query)
@@ -221,7 +234,7 @@ class FlashGPT2Attention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 query,
                 key,
                 value,
@@ -232,7 +245,7 @@ class FlashGPT2Attention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],

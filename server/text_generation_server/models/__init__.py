@@ -24,6 +24,8 @@ from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.phi import Phi
 
+from text_generation_server.utils.import_utils import SYSTEM
+
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -80,15 +82,11 @@ try:
     from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
     from text_generation_server.models.flash_dbrx import FlashDbrx
-    from text_generation_server.utils.flash_attn import (
-        HAS_FLASH_ATTN_V2_CUDA,
-        HAS_FLASH_ATTN_V2_ROCM,
-    )
+    from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
     logger.warning(f"Could not import Flash Attention enabled models: {e}")
+    SUPPORTS_WINDOWING = False
     FLASH_ATTENTION = False
-    HAS_FLASH_ATTN_V2_CUDA = False
-    HAS_FLASH_ATTN_V2_ROCM = False
 
 if FLASH_ATTENTION:
     __all__.append(FlashGPT2)
@@ -198,7 +196,7 @@ class ModelType(enum.Enum):
     QWEN2 = {
         "type": "qwen2",
         "name": "Qwen 2",
-        "url": "https://huggingface.co/bigcode/starcoder2-15b-instruct-v0.1",
+        "url": "https://huggingface.co/collections/Qwen/qwen2-6659360b33528ced941e557f",
     }
     OPT = {
         "type": "opt",
@@ -263,11 +261,17 @@ def get_model(
     kv_cache_dtype: Optional[str],
     quantization_param_path: Optional[str],
     trust_remote_code: bool,
+    max_input_tokens: int,
 ) -> Model:
+    global FLASH_ATTENTION
     if dtype is None:
-        # Keep it as default for now and let
-        # every model resolve their own default dtype.
-        dtype = None
+        if quantize in ["awq", "exl2", "gptq", "marlin"]:
+            # These quantizers only work with float16 params.
+            dtype = torch.float16
+        else:
+            # Keep it as default for now and let
+            # every model resolve their own default dtype.
+            dtype = None
     elif dtype == "float16":
         dtype = torch.float16
     elif dtype == "bfloat16":
@@ -403,11 +407,26 @@ def get_model(
     quantization_config = config_dict.get("quantization_config", None)
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
-        if method in {"gptq", "awq"}:
+        if method in {"gptq", "awq", "exl2"}:
             logger.info(f"Auto selecting quantization method {method}")
             quantize = method
         else:
             logger.info(f"Unknown quantization method {method}")
+
+    if quantize == "exl2" and sharded:
+        raise RuntimeError(
+            "Sharding is currently not supported with `exl2` quantization"
+        )
+    sliding_window = config_dict.get("sliding_window", -1)
+
+    if (
+        (sliding_window is not None and sliding_window != -1)
+        and not SUPPORTS_WINDOWING
+        and max_input_tokens > sliding_window
+    ):
+        raise ValueError(
+            f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
+        )
 
     if model_type == MAMBA:
         return Mamba(
@@ -477,14 +496,26 @@ def get_model(
         )
     elif model_type == GPT2:
         if FLASH_ATTENTION:
-            return FlashGPT2(
-                model_id,
-                revision,
-                quantize=quantize,
-                speculator=speculator,
-                dtype=dtype,
-                trust_remote_code=trust_remote_code,
-            )
+            try:
+                return FlashGPT2(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    speculator=speculator,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+                )
+            except RuntimeError as e:
+                # Lots of legacy models with various weight names.
+                logger.warning(f"Couldn't load flash gpt2 variant: {e}")
+                return CausalLM(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    speculator=speculator,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+                )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-2"))
         else:
@@ -684,12 +715,7 @@ def get_model(
                 )
 
     if model_type == MISTRAL:
-        sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
-            or HAS_FLASH_ATTN_V2_CUDA
-            or HAS_FLASH_ATTN_V2_ROCM
-        ):
+        if FLASH_ATTENTION:
             return FlashMistral(
                 model_id,
                 revision,
@@ -711,12 +737,7 @@ def get_model(
             )
 
     if model_type == MIXTRAL:
-        sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
-            or HAS_FLASH_ATTN_V2_CUDA
-            or HAS_FLASH_ATTN_V2_ROCM
-        ):
+        if FLASH_ATTENTION:
             return FlashMixtral(
                 model_id,
                 revision,
@@ -738,12 +759,7 @@ def get_model(
             )
 
     if model_type == STARCODER2:
-        sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
-            or HAS_FLASH_ATTN_V2_CUDA
-            or HAS_FLASH_ATTN_V2_ROCM
-        ):
+        if FLASH_ATTENTION:
             return FlashStarcoder2(
                 model_id,
                 revision,
@@ -766,12 +782,7 @@ def get_model(
             )
 
     if model_type == QWEN2:
-        sliding_window = config_dict.get("sliding_window", -1)
-        if (
-            ((sliding_window is None or sliding_window == -1) and FLASH_ATTENTION)
-            or HAS_FLASH_ATTN_V2_CUDA
-            or HAS_FLASH_ATTN_V2_ROCM
-        ):
+        if FLASH_ATTENTION:
             return FlashQwen2(
                 model_id,
                 revision,
@@ -872,6 +883,8 @@ def get_model(
         raise NotImplementedError("4bit quantization is not supported for AutoModel")
     elif quantize == "eetq":
         raise NotImplementedError("Eetq quantization is not supported for AutoModel")
+    elif quantize == "exl2":
+        raise NotImplementedError("exl2 quantization is not supported for AutoModel")
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
         return CausalLM(
             model_id,

@@ -14,13 +14,21 @@ from typing import List, Optional
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model
-from text_generation_server.models.pali_gemma import PaliGemmaBatch
-from text_generation_server.models.vlm_causal_lm import (
-    VlmCausalLMBatch,
-)
+
+try:
+    from text_generation_server.models.pali_gemma import PaliGemmaBatch
+    from text_generation_server.models.vlm_causal_lm import (
+        VlmCausalLMBatch,
+    )
+    from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
+
+    VLM_BATCH_TYPES = {PaliGemmaBatch, VlmCausalLMBatch, IdeficsCausalLMBatch}
+except (ImportError, NotImplementedError):
+    # These imports can fail on CPU/Non flash.
+    VLM_BATCH_TYPES = set()
+
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
-from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
 from text_generation_server.models.globals import set_model_id
 
 
@@ -81,7 +89,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
-        if self.quantize == "gptq":
+        if self.quantize in {"exl2", "gptq"}:
             try:
                 # When using GPTQ, Exllama kernels need some global kernels
                 # For which we have the finale shapes only after the model has loaded
@@ -96,11 +104,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             except ImportError:
                 pass
 
-        if self.model.batch_type in {
-            IdeficsCausalLMBatch,
-            VlmCausalLMBatch,
-            PaliGemmaBatch,
-        }:  # Hack, i would rather use kwargs in the `from_pb` call
+        if (
+            self.model.batch_type in VLM_BATCH_TYPES
+        ):  # Hack, i would rather use kwargs in the `from_pb` call
             batch = self.model.batch_type.from_pb_processor(
                 request.batch,
                 self.model.tokenizer,
@@ -121,11 +127,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
     async def Prefill(self, request, context):
         start = time.time_ns()
-        if self.model.batch_type in {
-            IdeficsCausalLMBatch,
-            VlmCausalLMBatch,
-            PaliGemmaBatch,
-        }:  # Hack, i would rather use kwargs in the `from_pb` call
+        if (
+            self.model.batch_type in VLM_BATCH_TYPES
+        ):  # Hack, i would rather use kwargs in the `from_pb` call
             batch = self.model.batch_type.from_pb_processor(
                 request.batch,
                 self.model.tokenizer,
@@ -197,6 +201,7 @@ def serve(
     quantization_param_path: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
+    max_input_tokens: int,
 ):
     async def serve_inner(
         model_id: str,
@@ -231,6 +236,7 @@ def serve(
                 kv_cache_dtype,
                 quantization_param_path,
                 trust_remote_code,
+                max_input_tokens,
             )
         except Exception:
             logger.exception("Error when initializing model")
@@ -240,7 +246,11 @@ def serve(
             interceptors=[
                 ExceptionInterceptor(),
                 UDSOpenTelemetryAioServerInterceptor(),
-            ]
+            ],
+            options=[
+                # Set the maximum possible message length: i32::MAX
+                ("grpc.max_receive_message_length", (1 << 31) - 1)
+            ],
         )
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
             TextGenerationService(model, Cache(), quantize, server_urls), server

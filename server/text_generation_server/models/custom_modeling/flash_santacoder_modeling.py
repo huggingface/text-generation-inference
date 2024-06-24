@@ -5,7 +5,11 @@ from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -25,6 +29,10 @@ def load_multi_mqa(
         return _load_multi_mqa_gptq(
             config, prefix, weights, bias, head_size, num_heads, hidden_size
         )
+    elif config.quantize == "marlin":
+        raise RuntimeError(
+            "santacoder models with marlin quantization are not yet supported"
+        )
     else:
         return _load_multi_mqa(
             config, prefix, weights, bias, head_size, num_heads, hidden_size
@@ -34,6 +42,8 @@ def load_multi_mqa(
 def _load_multi_mqa_gptq(
     config, prefix: str, weights, bias: bool, head_size, num_heads, hidden_size
 ):
+    from text_generation_server.layers.gptq import GPTQWeight
+
     if any("c_attn" in k for k in weights.routing.keys()) and not config.transpose:
         world_size = weights.process_group.size()
         rank = weights.process_group.rank()
@@ -71,16 +81,11 @@ def _load_multi_mqa_gptq(
         qzeros = torch.cat([q_tensor, kv_tensor], dim=1)
         qzeros = qzeros.to(device=weights.device)
 
-        (
-            bits,
-            groupsize,
-            _,
-            quant_method,
-        ) = weights._get_gptq_params()
-        if quant_method == "gptq":
+        gptq_params = weights._get_gptq_params()
+        if gptq_params.quant_method == "gptq":
             g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
             g_idx = g_idx.to(device=weights.device)
-        elif quant_method == "awq":
+        elif gptq_params.quant_method == "awq":
             g_idx = None
             from text_generation_server.layers.awq.conversion_utils import (
                 fast_awq_to_gptq,
@@ -90,8 +95,15 @@ def _load_multi_mqa_gptq(
 
         from text_generation_server.layers.gptq import HAS_EXLLAMA
 
-        use_exllama = HAS_EXLLAMA
-        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
+        weight = GPTQWeight(
+            qweight=qweight,
+            qzeros=qzeros,
+            scales=scales,
+            g_idx=g_idx,
+            bits=gptq_params.bits,
+            groupsize=gptq_params.groupsize,
+            use_exllama=HAS_EXLLAMA,
+        )
 
         if bias:
             slice_ = weights._get_slice(f"{prefix}.c_attn.bias")
@@ -268,7 +280,7 @@ class FlashMQAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         key_value = key_value.view(-1, 2, 1, self.head_size)
 
-        paged_attention.reshape_and_cache(
+        reshape_and_cache(
             key_value[:, 0], key_value[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
@@ -278,7 +290,7 @@ class FlashMQAttention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 query,
                 torch.select(key_value, dim=1, index=0),
                 torch.select(key_value, dim=1, index=1),
@@ -289,7 +301,7 @@ class FlashMQAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],
@@ -469,6 +481,7 @@ class FlashSantacoderForCausalLM(nn.Module):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         hidden_states = self.transformer(

@@ -12,15 +12,14 @@ use std::fs::File;
 use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
-use text_generation_client::{ClientError, ShardedClient};
 use text_generation_router::config::Config;
-use text_generation_router::{server, HubModelInfo, HubTokenizerConfig};
+use text_generation_router::{server, HubModelInfo, HubProcessorConfig, HubTokenizerConfig};
 use thiserror::Error;
 use tokenizers::Tokenizer;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, Layer};
+use tracing_subscriber::{filter::LevelFilter, EnvFilter, Layer};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -206,11 +205,18 @@ async fn main() -> Result<(), RouterError> {
     };
 
     // Load tokenizer and model info
-    let (tokenizer_filename, config_filename, tokenizer_config_filename, model_info) = match api {
+    let (
+        tokenizer_filename,
+        config_filename,
+        tokenizer_config_filename,
+        processor_config_filename,
+        model_info,
+    ) = match api {
         Type::None => (
             Some(local_path.join("tokenizer.json")),
             Some(local_path.join("config.json")),
             Some(local_path.join("tokenizer_config.json")),
+            Some(local_path.join("processor_config.json")),
             None,
         ),
         Type::Api(api) => {
@@ -226,6 +232,7 @@ async fn main() -> Result<(), RouterError> {
             };
             let config_filename = api_repo.get("config.json").await.ok();
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
+            let processor_config_filename = api_repo.get("processor_config.json").await.ok();
 
             let model_info = if let Some(model_info) = get_model_info(&api_repo).await {
                 Some(model_info)
@@ -237,6 +244,7 @@ async fn main() -> Result<(), RouterError> {
                 tokenizer_filename,
                 config_filename,
                 tokenizer_config_filename,
+                processor_config_filename,
                 model_info,
             )
         }
@@ -250,6 +258,7 @@ async fn main() -> Result<(), RouterError> {
                 repo.get("tokenizer.json"),
                 repo.get("config.json"),
                 repo.get("tokenizer_config.json"),
+                repo.get("processor_config.json"),
                 None,
             )
         }
@@ -286,6 +295,10 @@ async fn main() -> Result<(), RouterError> {
         HubTokenizerConfig::default()
     });
 
+    let processor_config = processor_config_filename
+        .and_then(HubProcessorConfig::from_file)
+        .unwrap_or_default();
+
     tracing::info!("Using config {config:?}");
     if tokenizer.is_none() {
         tracing::warn!("Could not find a fast tokenizer implementation for {tokenizer_name}");
@@ -300,59 +313,6 @@ async fn main() -> Result<(), RouterError> {
         }
         Some(pipeline_tag) => pipeline_tag.as_str() == "text-generation",
     };
-
-    // Instantiate sharded client from the master unix socket
-    let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
-        .await
-        .map_err(RouterError::Connection)?;
-    // Clear the cache; useful if the webserver rebooted
-    sharded_client
-        .clear_cache(None)
-        .await
-        .map_err(RouterError::Cache)?;
-    // Get info from the shard
-    let shard_info = sharded_client.info().await.map_err(RouterError::Info)?;
-
-    // Warmup model
-    tracing::info!("Warming up model");
-    let max_supported_batch_total_tokens = match sharded_client
-        .warmup(
-            max_input_tokens as u32,
-            max_batch_prefill_tokens,
-            max_total_tokens as u32,
-            max_batch_size,
-        )
-        .await
-        .map_err(RouterError::Warmup)?
-    {
-        // Older models do not support automatic max-batch-total-tokens
-        None => {
-            let max_batch_total_tokens = max_batch_total_tokens
-                .unwrap_or(16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)));
-            tracing::warn!("Model does not support automatic max batch total tokens");
-            max_batch_total_tokens
-        }
-        // Flash attention models return their max supported total tokens
-        Some(max_supported_batch_total_tokens) => {
-            // Warn if user added his own max-batch-total-tokens as we will ignore it
-            if max_batch_total_tokens.is_some() {
-                tracing::warn!(
-                    "`--max-batch-total-tokens` is deprecated for Flash \
-                        Attention models."
-                );
-                tracing::warn!(
-                    "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
-                );
-            }
-            if max_total_tokens as u32 > max_supported_batch_total_tokens {
-                return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_supported_batch_total_tokens}")));
-            }
-
-            max_supported_batch_total_tokens
-        }
-    };
-    tracing::info!("Setting max batch total tokens to {max_supported_batch_total_tokens}");
-    tracing::info!("Connected");
 
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
@@ -373,8 +333,8 @@ async fn main() -> Result<(), RouterError> {
 
     // Run server
     server::run(
+        master_shard_uds_path,
         model_info,
-        shard_info,
         compat_return_full_text,
         max_concurrent_requests,
         max_best_of,
@@ -384,10 +344,9 @@ async fn main() -> Result<(), RouterError> {
         max_total_tokens,
         waiting_served_ratio,
         max_batch_prefill_tokens,
-        max_supported_batch_total_tokens,
+        max_batch_total_tokens,
         max_waiting_tokens,
         max_batch_size,
-        sharded_client,
         tokenizer,
         config,
         validation_workers,
@@ -397,6 +356,7 @@ async fn main() -> Result<(), RouterError> {
         ngrok_authtoken,
         ngrok_edge,
         tokenizer_config,
+        processor_config,
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
@@ -454,8 +414,21 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
     }
 
     // Filter events with LOG_LEVEL
-    let env_filter =
-        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
+    let varname = "LOG_LEVEL";
+    let env_filter = if let Ok(log_level) = std::env::var(varname) {
+        // Override to avoid simple logs to be spammed with tokio level informations
+        let log_level = match &log_level[..] {
+            "warn" => "text_generation_launcher=warn,text_generation_router=warn",
+            "info" => "text_generation_launcher=info,text_generation_router=info",
+            "debug" => "text_generation_launcher=debug,text_generation_router=debug",
+            log_level => log_level,
+        };
+        EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .parse_lossy(log_level)
+    } else {
+        EnvFilter::new("info")
+    };
 
     tracing_subscriber::registry()
         .with(env_filter)
@@ -529,16 +502,8 @@ pub async fn get_tokenizer_config(api_repo: &ApiRepo) -> Option<HubTokenizerConf
 enum RouterError {
     #[error("Argument validation error: {0}")]
     ArgumentValidation(String),
-    #[error("Unable to connect to the Python model shards: {0}")]
-    Connection(ClientError),
-    #[error("Unable to clear the Python model shards cache: {0}")]
-    Cache(ClientError),
-    #[error("Unable to get the Python model shards info: {0}")]
-    Info(ClientError),
-    #[error("Unable to warmup the Python model shards: {0}")]
-    Warmup(ClientError),
+    #[error("WebServer error: {0}")]
+    WebServer(#[from] server::WebServerError),
     #[error("Tokio runtime failed to start: {0}")]
     Tokio(#[from] std::io::Error),
-    #[error("Axum webserver failed: {0}")]
-    Axum(#[from] axum::BoxError),
 }

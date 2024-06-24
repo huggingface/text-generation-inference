@@ -20,6 +20,7 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
+from text_generation_server.utils.chunks import concat_text_chunks
 
 # CREDIT: Papers with code => https://github.com/paperswithcode/galai/blob/main/galai/utils.py
 
@@ -91,7 +92,9 @@ class GalacticaCausalLMBatch(CausalLMBatch):
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
             # Add escape_custom_split_sequence to the CausalLMBatch logic
-            inputs.append(escape_custom_split_sequence(r.inputs))
+            inputs.append(
+                escape_custom_split_sequence(concat_text_chunks(r.input_chunks.chunks))
+            )
             next_token_choosers.append(
                 NextTokenChooser.from_pb(r.parameters, device, tokenizer)
             )
@@ -202,7 +205,7 @@ class GalacticaSharded(CausalLM):
         weights = Weights(
             filenames, device=device, dtype=dtype, process_group=self.process_group
         )
-        if config.quantize == "gptq":
+        if config.quantize in ["gptq", "marlin"]:
             weights._set_gptq_params(model_id, revision)
 
         model = OPTForCausalLM(config, weights)

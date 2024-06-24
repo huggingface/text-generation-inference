@@ -2,11 +2,11 @@
 
 ## What is Guidance?
 
-Guidance is a feature that allows users to constrain the generation of a large language model with a specified grammar. This feature is particularly useful when you want to generate text that follows a specific structure or uses a specific set of words or produce output in a specific format.
+Guidance is a feature that allows users to constrain the generation of a large language model with a specified grammar. This feature is particularly useful when you want to generate text that follows a specific structure or uses a specific set of words or produce output in a specific format. A prominent example is JSON grammar, where the model is forced to output valid JSON.
 
 ## How is it used?
 
-Guidance can be in many ways and the community is always finding new ways to use it. Here are some examples of how you can use guidance:
+Guidance can be implemented in many ways and the community is always finding new ways to use it. Here are some examples of how you can use guidance:
 
 Technically, guidance can be used to generate:
 

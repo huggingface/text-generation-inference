@@ -1,26 +1,16 @@
-pub mod config;
-mod health;
 /// Text Generation Inference Webserver
+pub mod config;
 mod infer;
-mod queue;
 pub mod server;
 mod validation;
 
-use infer::{Infer, InferError, InferStreamResponse};
-use queue::{Entry, Queue};
+#[cfg(feature = "kserve")]
+mod kserve;
+
 use serde::{Deserialize, Serialize};
-use tokio::sync::OwnedSemaphorePermit;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
-
-/// Type alias for generation responses
-pub(crate) type GenerateStreamResponse = (
-    OwnedSemaphorePermit,
-    u32, // input_length
-    UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
-);
 
 #[derive(Clone, Deserialize, ToSchema)]
 pub(crate) struct VertexInstance {
@@ -80,6 +70,20 @@ impl HubTokenizerConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct HubProcessorConfig {
+    pub chat_template: Option<ChatTemplateVersions>,
+    pub image_seq_len: usize,
+    pub processor_class: Option<String>,
+}
+
+impl HubProcessorConfig {
+    pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Option<Self> {
+        let content = std::fs::read_to_string(filename).ok()?;
+        serde_json::from_str(&content).ok()
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
 #[serde(tag = "type", content = "value")]
 pub(crate) enum GrammarType {
@@ -88,6 +92,7 @@ pub(crate) enum GrammarType {
     /// JSON Schema is a declarative language that allows to annotate JSON documents
     /// with types and descriptions.
     #[serde(rename = "json")]
+    #[serde(alias = "json_object")]
     #[schema(example = json ! ({"properties": {"location":{"type": "string"}}}))]
     Json(serde_json::Value),
     #[serde(rename = "regex")]
@@ -144,7 +149,7 @@ pub struct Info {
     #[schema(example = "4")]
     pub max_stop_sequences: usize,
     #[schema(example = "1024")]
-    pub max_input_length: usize,
+    pub max_input_tokens: usize,
     #[schema(example = "2048")]
     pub max_total_tokens: usize,
     #[schema(example = "1.2")]
@@ -402,6 +407,11 @@ pub struct CompletionRequest {
     #[serde(default)]
     #[schema(example = "1.0")]
     pub frequency_penalty: Option<f32>,
+
+    /// Up to 4 sequences where the API will stop generating further tokens.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub stop: Option<Vec<String>>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
@@ -785,6 +795,13 @@ pub(crate) struct ChatRequest {
     #[schema(nullable = true, example = "null")]
     #[serde(deserialize_with = "deserialize_tool_choice::deserialize")]
     pub tool_choice: Option<ToolType>,
+
+    /// Response format constraints for the generation.
+    ///
+    /// NOTE: A request can use `response_format` OR `tools` but not both.
+    #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub response_format: Option<GrammarType>,
 }
 
 fn default_tool_prompt() -> Option<String> {
@@ -1068,7 +1085,7 @@ pub struct SimpleToken {
     stop: usize,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
 pub(crate) enum FinishReason {

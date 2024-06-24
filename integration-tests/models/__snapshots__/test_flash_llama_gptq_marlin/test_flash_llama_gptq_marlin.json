@@ -1,0 +1,84 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2323,
+        "logprob": null,
+        "text": "Test"
+      },
+      {
+        "id": 1715,
+        "logprob": -11.34375,
+        "text": " request"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 198,
+        "logprob": -2.5742188,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 262,
+        "logprob": -1.6230469,
+        "special": false,
+        "text": "   "
+      },
+      {
+        "id": 3270,
+        "logprob": -2.046875,
+        "special": false,
+        "text": " \"\"\"\n"
+      },
+      {
+        "id": 262,
+        "logprob": -0.015281677,
+        "special": false,
+        "text": "   "
+      },
+      {
+        "id": 422,
+        "logprob": -2.1425781,
+        "special": false,
+        "text": " if"
+      },
+      {
+        "id": 1715,
+        "logprob": -0.9238281,
+        "special": false,
+        "text": " request"
+      },
+      {
+        "id": 13204,
+        "logprob": -0.076660156,
+        "special": false,
+        "text": ".method"
+      },
+      {
+        "id": 624,
+        "logprob": -0.021987915,
+        "special": false,
+        "text": " =="
+      },
+      {
+        "id": 364,
+        "logprob": -0.39208984,
+        "special": false,
+        "text": " '"
+      },
+      {
+        "id": 3019,
+        "logprob": -0.10821533,
+        "special": false,
+        "text": "POST"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "\n    \"\"\"\n    if request.method == 'POST"
+}

@@ -5,7 +5,11 @@ from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -36,31 +40,12 @@ def _load_gqa(config, prefix: str, weights):
     assert config.hidden_size % config.num_attention_heads == 0
     assert config.num_attention_heads % weights.process_group.size() == 0
 
-    weight = weights.get_multi_weights_col(
+    return TensorParallelColumnLinear.load_multi(
+        config,
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
-    )
-
-    if config.quantize not in ["gptq", "awq"]:
-        weight = weight.to(dtype=weights.dtype).to(device=weights.device)
-
-        head_size = config.hidden_size // config.num_attention_heads
-        num_heads = config.num_attention_heads // weights.process_group.size()
-        num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.shape) == [
-            (num_heads + 2 * num_key_value_heads) * head_size,
-            config.hidden_size,
-        ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
-
-    w = [
-        weights.get_sharded(f"{p}.bias", dim=0)
-        for p in [f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"]
-    ]
-    bias = torch.cat(w, dim=0).to(dtype=weights.dtype).to(device=weights.device)
-
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=bias, quantize=config.quantize)
+        weights=weights,
+        bias=True,
     )
 
 
@@ -142,7 +127,7 @@ class Qwen2Attention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        paged_attention.reshape_and_cache(
+        reshape_and_cache(
             kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
@@ -152,7 +137,7 @@ class Qwen2Attention(torch.nn.Module):
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
@@ -164,7 +149,7 @@ class Qwen2Attention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention.attention(
+            paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],

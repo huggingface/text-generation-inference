@@ -6,7 +6,6 @@ from typing import Optional
 
 from transformers.models.gpt2 import GPT2TokenizerFast
 
-from text_generation_server.models.cache_manager import BLOCK_SIZE
 from text_generation_server.models.flash_mistral import (
     BaseFlashMistral,
     set_sliding_window,
@@ -56,15 +55,13 @@ class FlashStarcoder2(BaseFlashMistral):
 
         # Set context windows
         if config.sliding_window is not None:
-            set_sliding_window(
-                config.sliding_window, math.ceil(config.sliding_window / BLOCK_SIZE)
-            )
+            set_sliding_window(config.sliding_window)
 
         torch.distributed.barrier(group=self.process_group)
 
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(filenames, device, dtype, process_group=self.process_group)
-        if config.quantize in ["gptq", "awq"]:
+        if config.quantize in ["gptq", "awq", "marlin"]:
             weights._set_gptq_params(model_id, revision)
 
         model = FlashStarcoder2ForCausalLM(config, weights)

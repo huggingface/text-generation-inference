@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.78 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.79 AS chef
 WORKDIR /usr/src
 
 ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
@@ -14,9 +14,6 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 
-ARG GIT_SHA
-ARG DOCKER_LABEL
-
 RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
     unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
@@ -24,7 +21,10 @@ RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     rm -f $PROTOC_ZIP
 
 COPY --from=planner /usr/src/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --profile release-opt --recipe-path recipe.json
+
+ARG GIT_SHA
+ARG DOCKER_LABEL
 
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
@@ -32,7 +32,7 @@ COPY proto proto
 COPY benchmark benchmark
 COPY router router
 COPY launcher launcher
-RUN cargo build --release
+RUN cargo build --profile release-opt
 
 
 # Text Generation Inference base image for Intel
@@ -43,11 +43,12 @@ USER root
 RUN wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb && \
     dpkg -i ./libssl1.1_1.1.1f-1ubuntu2_amd64.deb
 
+RUN wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor | tee /usr/share/keyrings/intel-graphics.gpg > /dev/null
 
 RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
 | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
 
-RUN apt-get update && apt install -y intel-basekit xpu-smi
+RUN apt-get update && apt install -y intel-basekit xpu-smi cmake python3-dev ninja-build
 
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
@@ -56,8 +57,8 @@ ENV HUGGINGFACE_HUB_CACHE=/data \
 
 
 WORKDIR /usr/src
-RUN wget https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_dev/xpu/intel_extension_for_pytorch-2.1.30a0-cp310-cp310-linux_x86_64.whl
-RUN pip install intel_extension_for_pytorch-2.1.30a0-cp310-cp310-linux_x86_64.whl
+RUN wget https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_dev/xpu/torch-2.1.0.post1%2Bcxx11.abi-cp310-cp310-linux_x86_64.whl && pip install torch-2.1.0.post1+cxx11.abi-cp310-cp310-linux_x86_64.whl
+RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout -b group_rope origin/dev/gqa_rope
 
 # Install server
 COPY proto proto
@@ -65,7 +66,7 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_cuda.txt && \
+    pip install -r requirements_intel.txt && \
     pip install ".[accelerate, peft, outlines]" --no-cache-dir
 
 ENV CCL_ROOT=/opt/intel/oneapi/ccl/latest
@@ -75,13 +76,17 @@ ENV LIBRARY_PATH=/opt/intel/oneapi/mpi/latest/lib:/opt/intel/oneapi/ccl/latest/l
 ENV LD_LIBRARY_PATH=/opt/intel/oneapi/ccl/latest/lib/:/opt/intel/oneapi/mpi/latest/opt/mpi/libfabric/lib:/opt/intel/oneapi/mpi/latest/lib:/opt/intel/oneapi/mkl/latest/lib:/opt/intel/oneapi/compiler/latest/opt/compiler/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/lib:/opt/intel/oneapi/lib/intel64:
 ENV PATH=/opt/intel/oneapi/mpi/latest/opt/mpi/libfabric/bin:/opt/intel/oneapi/mpi/latest/bin:/opt/intel/oneapi/mpi/latest/opt/mpi/libfabric/bin:/opt/intel/oneapi/mkl/latest/bin/:/opt/intel/oneapi/compiler/latest/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV CCL_ZE_IPC_EXCHANGE=sockets
+ENV CMAKE_PREFIX_PATH=/opt/intel/oneapi/mkl/latest/lib/cmake:/opt/intel/oneapi/compiler/latest
+ENV CPATH=/opt/intel/oneapi/mpi/latest/include:/opt/intel/oneapi/ccl/latest/include:/opt/intel/oneapi/mkl/latest/include
+
+RUN pip uninstall -y intel-extension-for-pytorch && cd intel-extension-for-pytorch && git submodule update --init --recursive && USE_AOT_DEVLIST='pvc' BUILD_SEPARATE_OPS=OFF BUILD_WITH_CPU=OFF USE_XETLA=ON python setup.py install && rm -rf /usr/src/intel-extension-for-pytorch
 
 # Install benchmarker
-COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router
-COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
+COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
-COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 # Final image
 FROM base

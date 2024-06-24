@@ -1,45 +1,19 @@
-import re
 import torch
-import math
 from PIL import Image
 from io import BytesIO
-import base64
 
 from opentelemetry import trace
-from typing import Optional, Tuple, List, Type, Dict
+from typing import Iterable, Optional, Tuple, List, Type, Dict
 
 from transformers import PreTrainedTokenizerBase
 from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.pb import generate_pb2
+from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch
 from text_generation_server.models.flash_mistral import (
     BaseFlashMistral,
-    FlashMistralBatch,
-)
-from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch
-from text_generation_server.models.cache_manager import (
-    get_cache_manager,
 )
 
 tracer = trace.get_tracer(__name__)
-
-IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
-
-
-def split(string) -> List[Dict[str, str]]:
-    parts = []
-    cursor = 0
-    for pattern in IMAGES.finditer(string):
-        start = pattern.start()
-        if start != cursor:
-            parts.append({"type": "text", "content": string[cursor:start]})
-
-        parts.append({"type": "image", "content": pattern.group(1)})
-        cursor = pattern.end()
-
-    if cursor != len(string):
-        parts.append({"type": "text", "content": string[cursor:]})
-
-    return parts
 
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
@@ -79,7 +53,9 @@ def image_text_replacement(image_input, config, image_id) -> str:
         num_features = get_number_of_features(height, width, config)
         from loguru import logger
 
-        logger.info(f"Found {num_features} in image of resolution {height}x{width}")
+        logger.info(
+            f"Found {num_features} features in image of resolution {height}x{width}"
+        )
         return "<image>" * num_features
 
     elif config.model_type == "paligemma":
@@ -133,14 +109,7 @@ def get_number_of_features(height: int, width: int, config) -> int:
     return unpadded_features + newline_features + base_features
 
 
-def load_data_uri(image_uri: str) -> Image.Image:
-    image_uri = image_uri.split(",")[-1]
-    content = base64.b64decode(image_uri)
-    image = Image.open(BytesIO(content))
-    return image
-
-
-class VlmCausalLMBatch(FlashMistralBatch):
+class VlmCausalLMBatch(FlashCausalLMBatch):
     pixel_values: Optional[List[torch.Tensor]]
     pixel_attention_mask: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
@@ -163,35 +132,44 @@ class VlmCausalLMBatch(FlashMistralBatch):
         return batch
 
     @classmethod
-    def batch_tokenized_inputs(cls, requests, tokenizer, processor, config):
-        batch_inputs = []
-        image_inputs = []
-        max_truncation = 0
+    def batch_tokenized_inputs(
+        cls, requests: Iterable[generate_pb2.Request], tokenizer, processor, config
+    ):
+        # Process images first. We need all of them so that the processor
+        # can make the image splits the same size. And we need the final
+        # sizes to insert correct number of image tokens.
+        images = []
         for r in requests:
-            chunks = split(r.inputs)
-            full_text = ""
-            image_id = 0
-            for chunk in chunks:
-                if chunk["type"] == "text":
-                    full_text += chunk["content"]
-                elif chunk["type"] == "image":
-                    image = chunk["content"]
-                    # Should never receive URLs anymore, processing should be done
-                    # On the rust layer.
-                    # This avoid making n queries per TP
-                    # if image.startswith("https://") or image.startswith("http://"):
-                    #     image = processor.image_processor.fetch_images(image)
-                    if image.startswith("data:"):
-                        image = load_data_uri(image)
+            for chunk in r.input_chunks.chunks:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    pass
+                elif chunk_type == "image":
+                    image = Image.open(BytesIO(chunk.image.data))
+                    if config.model_type == "llava_next":
+                        images.append(image)
                     else:
-                        raise RuntimeError(
-                            "Cannot process input image not starting with data:"
-                        )
-                    image_input = processor.image_processor(image, return_tensors="pt")
-                    full_text += image_text_replacement(image_input, config, image_id)
-                    image_inputs.append(image_input)
+                        images.append([image])
                 else:
-                    raise RuntimeError(f"Invalid chunk type {chunk['type']}")
+                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
+
+        if images:
+            image_inputs = processor.image_processor(images, return_tensors="pt")
+        else:
+            image_inputs = None
+
+        batch_inputs = []
+        max_truncation = 0
+        image_id = 0
+        for r in requests:
+            full_text = ""
+            for chunk in r.input_chunks.chunks:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    full_text += chunk.text
+                elif chunk_type == "image":
+                    full_text += image_text_replacement(image_inputs, config, image_id)
+                    image_id += 1
 
             batch_inputs.append(full_text)
             max_truncation = max(max_truncation, r.truncate)
@@ -202,24 +180,7 @@ class VlmCausalLMBatch(FlashMistralBatch):
             max_length=max_truncation,
             add_special_tokens=not config.model_type == "paligemma",
         )["input_ids"]
-        if image_inputs:
-            image_input = image_inputs[0]
-            new_image_inputs = {
-                "pixel_values": torch.cat(
-                    [img["pixel_values"] for img in image_inputs], dim=0
-                ),
-            }
-            if "pixel_attention_mask" in image_input:
-                new_image_inputs["pixel_attention_mask"] = torch.cat(
-                    [img["pixel_attention_mask"] for img in image_inputs], dim=0
-                )
-            if "image_sizes" in image_input:
-                new_image_inputs["image_sizes"] = torch.cat(
-                    [img["image_sizes"] for img in image_inputs], dim=0
-                )
-            image_inputs = new_image_inputs
-        else:
-            image_inputs = None
+
         return batch_tokenized_inputs, image_inputs
 
     @classmethod
@@ -268,7 +229,7 @@ class VlmCausalLM(BaseFlashMistral):
             input_ids = batch.input_ids
             position_ids = batch.position_ids
             cu_seqlen_prefill = batch.cu_seqlen_prefill
-            kv_cache = get_cache_manager().kv_cache
+            kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
@@ -307,7 +268,7 @@ class VlmCausalLM(BaseFlashMistral):
             input_ids = batch.input_ids
             position_ids = batch.position_ids
             cu_seqlen_prefill = batch.cu_seqlen_prefill
-            kv_cache = get_cache_manager().kv_cache
+            kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor

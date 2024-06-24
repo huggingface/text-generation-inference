@@ -7,9 +7,10 @@ import os
 import docker
 import json
 import math
+import shutil
+import tempfile
 import time
 import random
-import re
 
 from docker.errors import NotFound
 from typing import Optional, List, Dict
@@ -37,6 +38,7 @@ DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 
 class ResponseComparator(JSONSnapshotExtension):
     rtol = 0.2
+    ignore_logprob = False
 
     def serialize(
         self,
@@ -94,7 +96,10 @@ class ResponseComparator(JSONSnapshotExtension):
             return (
                 token.id == other.id
                 and token.text == other.text
-                and math.isclose(token.logprob, other.logprob, rel_tol=self.rtol)
+                and (
+                    self.ignore_logprob
+                    or math.isclose(token.logprob, other.logprob, rel_tol=self.rtol)
+                )
                 and token.special == other.special
             )
 
@@ -104,8 +109,11 @@ class ResponseComparator(JSONSnapshotExtension):
                     prefill_token.id == other.id
                     and prefill_token.text == other.text
                     and (
-                        math.isclose(
-                            prefill_token.logprob, other.logprob, rel_tol=self.rtol
+                        self.ignore_logprob
+                        or math.isclose(
+                            prefill_token.logprob,
+                            other.logprob,
+                            rel_tol=self.rtol,
                         )
                         if prefill_token.logprob is not None
                         else prefill_token.logprob == other.logprob
@@ -222,6 +230,10 @@ class GenerousResponseComparator(ResponseComparator):
     rtol = 0.75
 
 
+class IgnoreLogProbResponseComparator(ResponseComparator):
+    ignore_logprob = True
+
+
 class LauncherHandle:
     def __init__(self, port: int):
         self.client = AsyncClient(f"http://localhost:{port}")
@@ -271,6 +283,11 @@ def response_snapshot(snapshot):
 @pytest.fixture
 def generous_response_snapshot(snapshot):
     return snapshot.use_extension(GenerousResponseComparator)
+
+
+@pytest.fixture
+def ignore_logprob_response_snapshot(snapshot):
+    return snapshot.use_extension(IgnoreLogProbResponseComparator)
 
 
 @pytest.fixture(scope="module")
@@ -347,19 +364,22 @@ def launcher(event_loop):
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
 
-        with subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
-        ) as process:
-            yield ProcessLauncherHandle(process, port)
+        with tempfile.TemporaryFile("w+") as tmp:
+            # We'll output stdout/stderr to a temporary file. Using a pipe
+            # cause the process to block until stdout is read.
+            with subprocess.Popen(
+                args,
+                stdout=tmp,
+                stderr=subprocess.STDOUT,
+                env=env,
+            ) as process:
+                yield ProcessLauncherHandle(process, port)
 
-            process.terminate()
-            process.wait(60)
+                process.terminate()
+                process.wait(60)
 
-            launcher_output = process.stdout.read().decode("utf-8")
-            print(launcher_output, file=sys.stderr)
-
-            process.stdout.close()
-            process.stderr.close()
+                tmp.seek(0)
+                shutil.copyfileobj(tmp, sys.stderr)
 
         if not use_flash_attention:
             del env["USE_FLASH_ATTENTION"]

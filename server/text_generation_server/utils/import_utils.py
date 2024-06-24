@@ -1,4 +1,5 @@
 import torch
+from loguru import logger
 
 
 def is_xpu_available():
@@ -17,7 +18,7 @@ def get_cuda_free_memory(device, memory_fraction):
     return free_memory
 
 
-def get_xpu_free_memory(device):
+def get_xpu_free_memory(device, memory_fraction):
     total_gpu_memory = torch.xpu.get_device_properties(device).total_memory
     free_memory = int(total_gpu_memory * 0.5)
     return free_memory
@@ -48,3 +49,4 @@ else:
     empty_cache = noop
     synchronize = noop
     get_free_memory = noop
+logger.info(f"Detected system {SYSTEM}")

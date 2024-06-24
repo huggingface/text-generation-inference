@@ -1,5 +1,5 @@
 # Rust builder
-FROM lukemathwalker/cargo-chef:latest-rust-1.78 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.79 AS chef
 WORKDIR /usr/src
 
 ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
@@ -15,9 +15,6 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 
-ARG GIT_SHA
-ARG DOCKER_LABEL
-
 RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
     unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
@@ -25,7 +22,10 @@ RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     rm -f $PROTOC_ZIP
 
 COPY --from=planner /usr/src/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --profile release-opt --recipe-path recipe.json
+
+ARG GIT_SHA
+ARG DOCKER_LABEL
 
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
@@ -33,7 +33,7 @@ COPY proto proto
 COPY benchmark benchmark
 COPY router router
 COPY launcher launcher
-RUN cargo build --release
+RUN cargo build --profile release-opt
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
@@ -137,6 +137,13 @@ COPY server/Makefile-eetq Makefile
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-eetq
 
+# Build marlin kernels
+FROM kernel-builder as marlin-kernels-builder
+WORKDIR /usr/src
+COPY server/marlin/ .
+# Build specific version of transformers
+RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
+
 # Build Transformers CUDA kernels
 FROM kernel-builder as custom-kernels-builder
 WORKDIR /usr/src
@@ -193,7 +200,7 @@ COPY --from=flash-att-builder /usr/src/flash-attention/csrc/layer_norm/build/lib
 COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 
 # Copy build artifacts from flash attention v2 builder
-COPY --from=flash-att-v2-builder /usr/src/flash-attention-v2/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+COPY --from=flash-att-v2-builder /opt/conda/lib/python3.10/site-packages/flash_attn_2_cuda.cpython-310-x86_64-linux-gnu.so /opt/conda/lib/python3.10/site-packages
 
 # Copy build artifacts from custom kernels builder
 COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
@@ -205,6 +212,8 @@ COPY --from=exllamav2-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-31
 COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 # Copy build artifacts from eetq kernels builder
 COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
+# Copy build artifacts from marlin kernels builder
+COPY --from=marlin-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 
 # Copy builds artifacts from vllm builder
 COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
@@ -225,17 +234,21 @@ RUN cd server && \
     pip install -r requirements_cuda.txt && \
     pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir
 
-# Install benchmarker
-COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
-# Install router
-COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
-# Install launcher
-COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
-
+# Deps before the binaries
+# The binaries change on every build given we burn the SHA into them
+# The deps change less often.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
         g++ \
         && rm -rf /var/lib/apt/lists/*
+
+# Install benchmarker
+COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+# Install router
+COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/local/bin/text-generation-router
+# Install launcher
+COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
+
 
 # AWS Sagemaker compatible image
 FROM base as sagemaker
