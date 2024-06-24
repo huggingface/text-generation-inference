@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 from safetensors import safe_open, SafetensorError
-from server.text_generation_server.utils.import_utils import SYSTEM
 import torch
 from loguru import logger
 from huggingface_hub import hf_hub_download
 import json
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
 
 

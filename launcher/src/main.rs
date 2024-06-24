@@ -237,7 +237,7 @@ struct Args {
     dtype: Option<Dtype>,
 
     // Specify the data type for KV cache. By default, it uses the model's data type.
-    // CUDA 11.8+ supports `fp8(fp8_e4m3)` and 'fp8_e5m2', while ROCm (AMD GPU) supports `fp8(fp8_e4m3fn)'.
+    // CUDA 11.8+ supports `fp8(fp8_e4m3)` and 'fp8_e5m2', while ROCm (AMD GPU) supports `fp8(fp8_e4m3)'.
     // If 'fp8_e4m3' is chosen, a model checkpoint with scales for the KV cache should be provided.
     // If not provided, the KV cache scaling factors default to 1.0, which may impact accuracy."
     #[clap(long, env, value_enum)]
