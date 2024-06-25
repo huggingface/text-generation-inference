@@ -13,6 +13,7 @@ async def fused_kernel_mamba(fused_kernel_mamba_handle):
     return fused_kernel_mamba_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_mamba(fused_kernel_mamba, response_snapshot):
     response = await fused_kernel_mamba.generate(
@@ -24,6 +25,7 @@ async def test_mamba(fused_kernel_mamba, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
     response = await fused_kernel_mamba.generate(
@@ -50,6 +52,7 @@ async def test_mamba_all_params(fused_kernel_mamba, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_mamba_load(
     fused_kernel_mamba, generate_load, generous_response_snapshot

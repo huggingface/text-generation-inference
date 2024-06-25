@@ -17,6 +17,7 @@ async def flash_llama_awq_sharded(flash_llama_awq_handle_sharded):
     return flash_llama_awq_handle_sharded.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_llama_awq_sharded(flash_llama_awq_sharded, response_snapshot):
     response = await flash_llama_awq_sharded.generate(
@@ -31,6 +32,7 @@ async def test_flash_llama_awq_sharded(flash_llama_awq_sharded, response_snapsho
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_llama_awq_load_sharded(
     flash_llama_awq_sharded, generate_load, response_snapshot

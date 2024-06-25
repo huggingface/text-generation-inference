@@ -13,6 +13,7 @@ async def flash_gemma_gptq(flash_gemma_gptq_handle):
     return flash_gemma_gptq_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma_gptq(flash_gemma_gptq, ignore_logprob_response_snapshot):
@@ -24,6 +25,7 @@ async def test_flash_gemma_gptq(flash_gemma_gptq, ignore_logprob_response_snapsh
     assert response == ignore_logprob_response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma_gptq_all_params(
@@ -49,6 +51,7 @@ async def test_flash_gemma_gptq_all_params(
     assert response == ignore_logprob_response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma_gptq_load(
