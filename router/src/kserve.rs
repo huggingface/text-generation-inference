@@ -1,15 +1,15 @@
+use crate::infer::Infer;
 use crate::{
     default_parameters,
     server::{generate_internal, ComputeType},
-    Deserialize, ErrorResponse, GenerateParameters, GenerateRequest, Infer, Serialize, ToSchema,
+    Deserialize, ErrorResponse, GenerateParameters, GenerateRequest, Serialize, ToSchema,
 };
 use axum::extract::{Extension, Path};
-use axum::response::{IntoResponse, Response};
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::IntoResponse;
 use axum::Json;
 use futures::stream::FuturesUnordered;
 use futures::TryStreamExt;
-use reqwest::header::HeaderMap;
-use reqwest::StatusCode;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct OutputChunk {
@@ -64,8 +64,6 @@ pub struct MetadataServerResponse {
     pub extensions: Vec<String>,
 }
 
-// Routes
-
 #[utoipa::path(
     post,
     tag = "Text Generation Inference",
@@ -76,13 +74,13 @@ pub struct MetadataServerResponse {
             example = json!({"error": "No response"}))
     )
 )]
-pub async fn kserve_health_live() -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+pub async fn kserve_health_live() -> Json<LiveResponse> {
     let data = LiveResponse { live: true };
-    Ok((HeaderMap::new(), Json(data)).into_response())
+    Json(data)
 }
 
 #[utoipa::path(
-    post,
+    get,
     tag = "Text Generation Inference",
     path = "/v2/health/ready",
     responses(
@@ -91,9 +89,9 @@ pub async fn kserve_health_live() -> Result<Response, (StatusCode, Json<ErrorRes
             example = json!({"error": "No response"}))
     )
 )]
-pub async fn kserve_health_ready() -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+pub async fn kserve_health_ready() -> Json<ReadyResponse> {
     let data = ReadyResponse { live: true };
-    Ok((HeaderMap::new(), Json(data)).into_response())
+    Json(data)
 }
 
 #[utoipa::path(
@@ -106,7 +104,7 @@ pub async fn kserve_health_ready() -> Result<Response, (StatusCode, Json<ErrorRe
             example = json!({"error": "No response"}))
     )
 )]
-pub async fn kerve_server_metadata() -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+pub async fn kerve_server_metadata() -> Json<MetadataServerResponse> {
     let data = MetadataServerResponse {
         name: "text-generation-inference".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -116,7 +114,7 @@ pub async fn kerve_server_metadata() -> Result<Response, (StatusCode, Json<Error
             "metrics".to_string(),
         ],
     };
-    Ok((HeaderMap::new(), Json(data)).into_response())
+    Json(data)
 }
 
 #[utoipa::path(
@@ -131,13 +129,30 @@ pub async fn kerve_server_metadata() -> Result<Response, (StatusCode, Json<Error
 )]
 pub async fn kserve_model_metadata(
     Path((model_name, model_version)): Path<(String, String)>,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+) -> Json<MetadataServerResponse> {
     let data = MetadataServerResponse {
         name: model_name,
         version: model_version,
         extensions: vec!["infer".to_string(), "ready".to_string()],
     };
-    Ok((HeaderMap::new(), Json(data)).into_response())
+    Json(data)
+}
+
+#[utoipa::path(
+    get,
+    tag = "Text Generation Inference",
+    path = "/v2/models/{model_name}/versions/{model_version}/ready",
+    responses(
+        (status = 200, description = "Model version is ready", body = ReadyResponse),
+        (status = 404, description = "Model or version not found", body = ErrorResponse,
+            example = json!({"error": "No response"}))
+    )
+)]
+pub async fn kserve_model_metadata_ready(
+    Path((_model_name, _model_version)): Path<(String, String)>,
+) -> Json<ReadyResponse> {
+    let data = ReadyResponse { live: true };
+    Json(data)
 }
 
 #[utoipa::path(
@@ -155,7 +170,7 @@ pub async fn kserve_model_infer(
     infer: Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Json(payload): Json<InferenceRequest>,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let id = payload.id.clone();
     let str_inputs = payload
         .inputs
@@ -226,22 +241,5 @@ pub async fn kserve_model_infer(
         outputs: output_chunks,
     };
 
-    Ok((HeaderMap::new(), Json(inference_output)).into_response())
-}
-
-#[utoipa::path(
-    get,
-    tag = "Text Generation Inference",
-    path = "/v2/models/{model_name}/versions/{model_version}/ready",
-    responses(
-        (status = 200, description = "Model version is ready", body = ReadyResponse),
-        (status = 404, description = "Model or version not found", body = ErrorResponse,
-            example = json!({"error": "No response"}))
-    )
-)]
-pub async fn kserve_model_metadata_ready(
-    Path((_model_name, _model_version)): Path<(String, String)>,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let data = ReadyResponse { live: true };
-    Ok((HeaderMap::new(), Json(data)).into_response())
+    Ok((HeaderMap::new(), Json(inference_output)))
 }
