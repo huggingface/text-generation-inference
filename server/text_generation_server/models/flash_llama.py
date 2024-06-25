@@ -84,8 +84,9 @@ class FlashLlama(FlashCausalLM):
             num_layers=len(model.model.layers),
             num_kv_heads=model.model.num_key_value_heads,
             head_size=model.model.head_size,
-            dtype=torch.uint8 if "fp8" in kv_cache_dtype else dtype,
+            dtype=dtype,
             device=device,
             rank=rank,
             world_size=world_size,
+            kv_cache_dtype=torch.uint8 if "fp8" in kv_cache_dtype else dtype,
         )

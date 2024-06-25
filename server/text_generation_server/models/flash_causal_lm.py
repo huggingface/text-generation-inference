@@ -729,6 +729,7 @@ class FlashCausalLM(Model):
         rank: int = 0,
         world_size: int = 1,
         sliding_window: Optional[int] = None,
+        kv_cache_dtype: Optional[torch.dtype] = None,
     ):
         self.num_layers = num_layers
         self.num_kv_heads = num_kv_heads
@@ -736,6 +737,8 @@ class FlashCausalLM(Model):
 
         self.cuda_graphs = {}
         self.kv_cache = []
+
+        self.kv_cache_dtype = kv_cache_dtype if kv_cache_dtype else dtype
 
         super(FlashCausalLM, self).__init__(
             model=model,
@@ -854,7 +857,7 @@ class FlashCausalLM(Model):
                 self.num_layers,
                 self.num_kv_heads,
                 self.head_size,
-                self.dtype,
+                self.kv_cache_dtype,
                 self.device,
             )
             max_bt = batch.max_blocks
@@ -873,7 +876,7 @@ class FlashCausalLM(Model):
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
-        dtype_size = torch.tensor([], dtype=self.dtype).element_size()
+        dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
         cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
@@ -893,7 +896,7 @@ class FlashCausalLM(Model):
             self.num_layers,
             self.num_kv_heads,
             self.head_size,
-            self.dtype,
+            self.kv_cache_dtype,
             self.device,
         )
 

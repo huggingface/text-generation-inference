@@ -21,8 +21,8 @@ E4M3 offers higher precision for representing floating point numbers. However, d
 
 ## Current Hardware Support
 
-* Nvidia GPUs:  Supports both FP8E4M3 and FP8E5M2.
-* AMD GPUs: Supports FP8E4M3.
+* Nvidia GPUs:  Supports both FP8E4M3 (fp8) and FP8E5M2 (fp8_e5m2).
+* AMD GPUs: Supports FP8E4M3FNUZ (fp8).
 
 ## FP8 E5M2 KV Cache
 Example usage:
