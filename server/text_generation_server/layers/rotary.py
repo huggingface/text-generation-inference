@@ -2,14 +2,14 @@ import os
 import torch
 from torch import nn
 
-from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM, IPEX_AVAIL
 
 if SYSTEM == "cuda":
     from flash_attn.layers.rotary import RotaryEmbedding
     import rotary_emb
 elif SYSTEM == "rocm":
     from vllm._C import ops
-elif SYSTEM == "xpu":
+elif IPEX_AVAIL:
     import intel_extension_for_pytorch as ipex
 
 
@@ -69,7 +69,7 @@ class PositionRotaryEmbedding(nn.Module):
 
             # Inplace operation, updating query and key.
             ops.rotary_embedding(query, key, head_size, cos, sin, True)
-        elif SYSTEM == "xpu":
+        elif IPEX_AVAIL:
             ipex.llm.functional.rotary_embedding(
                 query, key, sin, cos, query.size(-1), True
             )

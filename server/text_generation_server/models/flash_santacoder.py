@@ -18,7 +18,7 @@ from text_generation_server.utils import (
     Weights,
 )
 
-from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM, IPEX_AVAIL
 
 tracer = trace.get_tracer(__name__)
 
@@ -40,6 +40,9 @@ class FlashSantacoderSharded(FlashCausalLM):
         elif SYSTEM == "xpu":
             device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
+        elif IPEX_AVAIL:
+            device = torch.device("cpu")
+            dtype = torch.bfloat16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashSantacoderSharded is only available on GPU")
 
