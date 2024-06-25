@@ -759,7 +759,10 @@ fn shutdown_shards(shutdown: Arc<AtomicBool>, shutdown_receiver: &mpsc::Receiver
 fn num_cuda_devices() -> Option<usize> {
     let devices = match env::var("CUDA_VISIBLE_DEVICES") {
         Ok(devices) => devices,
-        Err(_) => env::var("NVIDIA_VISIBLE_DEVICES").ok()?,
+        Err(_) => match env::var("NVIDIA_VISIBLE_DEVICES") {
+            Ok(devices) => devices,
+            Err(_) => env::var("ZE_AFFINITY_MASK").ok()?,
+        }
     };
     let n_devices = devices.split(',').count();
     Some(n_devices)
@@ -832,9 +835,9 @@ fn find_num_shards(
     let num_shard = match (sharded, num_shard) {
         (Some(true), None) => {
             // try to default to the number of available GPUs
-            tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES");
+            tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES/ZE_AFFINITY_MASK");
             let n_devices = num_cuda_devices()
-                .expect("--num-shard and CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES are not set");
+                .expect("--num-shard and CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES/ZE_AFFINITY_MASK are not set");
             if n_devices <= 1 {
                 return Err(LauncherError::NotEnoughCUDADevices(format!(
                     "`sharded` is true but only found {n_devices} CUDA devices"
