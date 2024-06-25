@@ -159,7 +159,9 @@ async fn main() -> Result<(), RouterError> {
     });
 
     // Parse Huggingface hub token
-    let authorization_token = std::env::var("HF_TOKEN").or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN")).ok();
+    let authorization_token = std::env::var("HF_TOKEN")
+        .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
+        .ok();
 
     // Tokenizer instance
     // This will only be used to validate payloads
