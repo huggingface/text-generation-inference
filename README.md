@@ -153,7 +153,8 @@ this will impact performance.
 ### Distributed Tracing
 
 `text-generation-inference` is instrumented with distributed tracing using OpenTelemetry. You can use this feature
-by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
+by setting the address to an OTLP collector with the `--otlp-endpoint` argument. The default service name can be 
+overridden with the `--otlp-service-name` argument
 
 ### Architecture
 

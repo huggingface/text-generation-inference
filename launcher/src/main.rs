@@ -413,6 +413,9 @@ struct Args {
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
 
+    #[clap(default_value = "text-generation-inference.router", long, env)]
+    otlp_service_name: String,
+
     #[clap(long, env)]
     cors_allow_origin: Vec<String>,
     #[clap(long, env)]
@@ -483,6 +486,7 @@ fn shard_manager(
     max_batch_size: Option<usize>,
     max_input_tokens: usize,
     otlp_endpoint: Option<String>,
+    otlp_service_name: String,
     log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
@@ -548,11 +552,15 @@ fn shard_manager(
         (None, Some(factor)) => Some((RopeScaling::Linear, factor)),
     };
 
-    // OpenTelemetry
+    // OpenTelemetry Endpoint
     if let Some(otlp_endpoint) = otlp_endpoint {
         shard_args.push("--otlp-endpoint".to_string());
         shard_args.push(otlp_endpoint);
     }
+
+    // OpenTelemetry Service Name
+    shard_args.push("--otlp-service-name".to_string());
+    shard_args.push(otlp_service_name);
 
     // In case we use sliding window, we may ignore the sliding in flash for some backends depending on the parameter.
     shard_args.push("--max-input-tokens".to_string());
@@ -1035,6 +1043,7 @@ fn spawn_shards(
         let shutdown = shutdown.clone();
         let shutdown_sender = shutdown_sender.clone();
         let otlp_endpoint = args.otlp_endpoint.clone();
+        let otlp_service_name = args.otlp_service_name.clone();
         let quantize = args.quantize;
         let speculate = args.speculate;
         let dtype = args.dtype;
@@ -1074,6 +1083,7 @@ fn spawn_shards(
                 max_batch_size,
                 max_input_tokens,
                 otlp_endpoint,
+                otlp_service_name,
                 max_log_level,
                 status_sender,
                 shutdown,
@@ -1206,6 +1216,12 @@ fn spawn_webserver(
         router_args.push("--otlp-endpoint".to_string());
         router_args.push(otlp_endpoint);
     }
+
+    // OpenTelemetry
+    let otlp_service_name = args.otlp_service_name;
+    router_args.push("--otlp-service-name".to_string());
+    router_args.push(otlp_service_name);
+
 
     // CORS origins
     for origin in args.cors_allow_origin.into_iter() {
