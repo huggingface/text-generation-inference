@@ -177,6 +177,7 @@ impl Client {
                 }),
                 prefill_logprobs: true,
                 top_n_tokens: 20,
+                adapter_id: None,
             });
             n_tokens += max_input_length;
 

@@ -1,0 +1,12 @@
+lorax_punica_commit := c71861a653412267dc27ec86013dd945ce3474bc
+
+build-lorax-punica:
+	if [ ! -d 'lorax-punica' ]; then \
+		git clone --no-checkout https://github.com/predibase/lorax.git lorax-punica; \
+	fi
+	cd lorax-punica && git sparse-checkout set server/punica_kernels && git checkout $(lorax_punica_commit)
+	cd lorax-punica && git submodule update --init --recursive
+	cd lorax-punica/server/punica_kernels && python setup.py build
+
+install-lorax-punica: build-lorax-punica
+	cd lorax-punica/server/punica_kernels && python setup.py install

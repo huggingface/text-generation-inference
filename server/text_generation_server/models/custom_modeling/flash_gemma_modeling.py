@@ -460,6 +460,7 @@ class FlashGemmaForCausalLM(torch.nn.Module):
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         input_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(

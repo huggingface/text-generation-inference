@@ -741,6 +741,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
         pixel_attention_mask: Optional[torch.BoolTensor] = None,
         # Unused here
         image_sizes: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         if pixel_values is not None:

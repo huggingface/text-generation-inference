@@ -445,6 +445,7 @@ class FlashGPT2ForCausalLM(torch.nn.Module):
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         token_embeds = self.embed_tokens(input_ids)
         position_embeds = self.embed_positions(position_ids)

@@ -6,7 +6,7 @@ from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
@@ -253,6 +253,7 @@ for data in ModelType:
 
 def get_model(
     model_id: str,
+    lora_adapter_ids: Optional[List[str]],
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
@@ -595,6 +596,7 @@ def get_model(
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))

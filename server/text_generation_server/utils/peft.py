@@ -1,5 +1,5 @@
 import os
-import json
+from typing import Union
 from loguru import logger
 import torch
 
@@ -43,3 +43,26 @@ def download_and_unload_peft(model_id, revision, trust_remote_code):
     model.save_pretrained(cache_dir, safe_serialization=True)
     model.config.save_pretrained(cache_dir)
     tokenizer.save_pretrained(cache_dir)
+
+
+def download_peft(
+    model_id: Union[str, os.PathLike], revision: str, trust_remote_code: bool
+):
+    torch_dtype = torch.float16
+    try:
+        _model = AutoPeftModelForCausalLM.from_pretrained(
+            model_id,
+            revision=revision,
+            torch_dtype=torch_dtype,
+            trust_remote_code=trust_remote_code,
+            low_cpu_mem_usage=True,
+        )
+    except Exception:
+        _model = AutoPeftModelForSeq2SeqLM.from_pretrained(
+            model_id,
+            revision=revision,
+            torch_dtype=torch_dtype,
+            trust_remote_code=trust_remote_code,
+            low_cpu_mem_usage=True,
+        )
+    logger.info("Peft model downloaded.")

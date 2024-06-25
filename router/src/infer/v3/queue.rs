@@ -351,6 +351,7 @@ impl State {
                 top_n_tokens: entry.request.top_n_tokens,
                 blocks,
                 slots,
+                adapter_id: entry.request.adapter_id.clone(),
             });
             // Set batch_time
             entry.batch_time = Some(Instant::now());
@@ -491,6 +492,7 @@ mod tests {
                     stop_sequences: vec![],
                 },
                 top_n_tokens: 0,
+                adapter_id: None,
             },
             response_tx,
             span: info_span!("entry"),

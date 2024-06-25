@@ -178,6 +178,7 @@ class LlavaNextForConditionalGeneration(nn.Module):
         # Unused for this model
         pixel_attention_mask=None,
         image_sizes: Optional[torch.LongTensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ):
         inputs_embeds = self.language_model.embed_tokens(input_ids)
         if pixel_values is not None and len(pixel_values) > 0:

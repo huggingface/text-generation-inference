@@ -62,6 +62,7 @@ class RW(CausalLM):
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
         super(CausalLM, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,

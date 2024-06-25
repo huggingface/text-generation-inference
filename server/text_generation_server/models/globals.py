@@ -1,6 +1,7 @@
 import torch
 import os
 from loguru import logger
+from typing import Dict
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 # This is overridden by the cli
@@ -32,3 +33,14 @@ MODEL_ID = None
 def set_model_id(model_id: str):
     global MODEL_ID
     MODEL_ID = model_id
+
+
+# NOTE: eventually we should move this into the router and pass back the
+# index in all cases.
+global ADAPTER_TO_INDEX
+ADAPTER_TO_INDEX: Dict[str, int] = None
+
+
+def set_adapter_to_index(adapter_to_index: Dict[str, int]):
+    global ADAPTER_TO_INDEX
+    ADAPTER_TO_INDEX = adapter_to_index

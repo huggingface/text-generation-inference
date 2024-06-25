@@ -429,6 +429,7 @@ mod tests {
                     stop_sequences: vec![],
                 },
                 top_n_tokens: 0,
+                adapter_id: None,
             },
             response_tx,
             span: info_span!("entry"),

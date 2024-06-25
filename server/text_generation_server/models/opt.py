@@ -63,6 +63,7 @@ class OPTSharded(CausalLM):
 
         torch.distributed.barrier(group=self.process_group)
         super(CausalLM, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,

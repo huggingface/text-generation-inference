@@ -60,6 +60,9 @@
   - local: conceptual/speculation
     title: Speculation (Medusa, ngram)
   - local: conceptual/guidance
-    title: How Guidance Works (via outlines)
+    title: How Guidance Works (via outlines
+  - local: conceptual/lora
+    title: LoRA (Low-Rank Adaptation)
+
 
   title: Conceptual Guides

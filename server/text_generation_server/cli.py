@@ -79,6 +79,18 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(otlp_service_name=otlp_service_name, otlp_endpoint=otlp_endpoint)
 
+    lora_adapter_ids = os.getenv("LORA_ADAPTERS", None)
+
+    # split on comma and strip whitespace
+    lora_adapter_ids = (
+        [x.strip() for x in lora_adapter_ids.split(",")] if lora_adapter_ids else []
+    )
+
+    if len(lora_adapter_ids) > 0:
+        logger.warning(
+            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
+        )
+
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = None if dtype is None else dtype.value
@@ -93,6 +105,7 @@ def serve(
         )
     server.serve(
         model_id,
+        lora_adapter_ids,
         revision,
         sharded,
         quantize,
@@ -113,6 +126,7 @@ def download_weights(
     logger_level: str = "INFO",
     json_output: bool = False,
     trust_remote_code: bool = False,
+    merge_lora: bool = False,
 ):
     # Remove default handler
     logger.remove()
@@ -143,18 +157,28 @@ def download_weights(
     ) is not None
 
     if not is_local_model:
-        try:
-            adapter_config_filename = hf_hub_download(
-                model_id, revision=revision, filename="adapter_config.json"
-            )
-            utils.download_and_unload_peft(
-                model_id, revision, trust_remote_code=trust_remote_code
-            )
-            is_local_model = True
-            utils.weight_files(model_id, revision, extension)
-            return
-        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
-            pass
+        # TODO: maybe reverse the default value of merge_lora?
+        # currently by default we don't merge the weights with the base model
+        if merge_lora:
+            try:
+                adapter_config_filename = hf_hub_download(
+                    model_id, revision=revision, filename="adapter_config.json"
+                )
+                utils.download_and_unload_peft(
+                    model_id, revision, trust_remote_code=trust_remote_code
+                )
+                is_local_model = True
+                utils.weight_files(model_id, revision, extension)
+                return
+            except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+                pass
+        else:
+            try:
+                utils.peft.download_peft(
+                    model_id, revision, trust_remote_code=trust_remote_code
+                )
+            except Exception:
+                pass
 
         try:
             import json
