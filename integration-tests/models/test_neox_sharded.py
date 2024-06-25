@@ -15,6 +15,7 @@ async def neox_sharded(neox_sharded_handle):
     return neox_sharded_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_neox(neox_sharded, response_snapshot):
@@ -28,6 +29,7 @@ async def test_neox(neox_sharded, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_neox_load(neox_sharded, generate_load, response_snapshot):

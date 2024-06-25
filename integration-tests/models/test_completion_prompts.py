@@ -26,6 +26,7 @@ async def flash_llama_completion(flash_llama_completion_handle):
 # method for it. Instead, we use the `requests` library to make the HTTP request directly.
 
 
+@pytest.mark.release
 def test_flash_llama_completion_single_prompt(
     flash_llama_completion, response_snapshot
 ):
@@ -46,6 +47,7 @@ def test_flash_llama_completion_single_prompt(
     assert response == response_snapshot
 
 
+@pytest.mark.release
 def test_flash_llama_completion_many_prompts(flash_llama_completion, response_snapshot):
     response = requests.post(
         f"{flash_llama_completion.base_url}/v1/completions",
@@ -68,6 +70,7 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
     assert response == response_snapshot
 
 
+@pytest.mark.release
 async def test_flash_llama_completion_many_prompts_stream(
     flash_llama_completion, response_snapshot
 ):

@@ -13,6 +13,7 @@ async def flash_gpt2(flash_gpt2_handle):
     return flash_gpt2_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_gpt2(flash_gpt2, response_snapshot):
     response = await flash_gpt2.generate(
@@ -25,6 +26,7 @@ async def test_flash_gpt2(flash_gpt2, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_gpt2_load(flash_gpt2, generate_load, response_snapshot):
     responses = await generate_load(

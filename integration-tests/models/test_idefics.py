@@ -45,6 +45,7 @@ async def test_idefics(idefics, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_idefics_two_images(idefics, response_snapshot):
@@ -60,6 +61,7 @@ async def test_idefics_two_images(idefics, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_idefics_load(idefics, generate_load, response_snapshot):
     chicken = get_chicken()

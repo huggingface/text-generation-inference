@@ -21,6 +21,7 @@ async def non_flash_llama_grammar(non_flash_llama_grammar_handle):
     return non_flash_llama_grammar_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_non_flash_llama_grammar_json(non_flash_llama_grammar, response_snapshot):

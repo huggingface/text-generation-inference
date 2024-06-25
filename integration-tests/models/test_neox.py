@@ -15,6 +15,7 @@ async def neox(neox_handle):
     return neox_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_neox(neox, response_snapshot):
@@ -28,6 +29,7 @@ async def test_neox(neox, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_neox_load(neox, generate_load, response_snapshot):
