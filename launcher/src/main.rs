@@ -413,6 +413,9 @@ struct Args {
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
 
+    #[clap(default_value = "text-generation-inference.router", long, env)]
+    otlp_service_name: String,
+
     #[clap(long, env)]
     cors_allow_origin: Vec<String>,
     #[clap(long, env)]
@@ -483,6 +486,7 @@ fn shard_manager(
     max_batch_size: Option<usize>,
     max_input_tokens: usize,
     otlp_endpoint: Option<String>,
+    otlp_service_name: String,
     log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
@@ -548,11 +552,15 @@ fn shard_manager(
         (None, Some(factor)) => Some((RopeScaling::Linear, factor)),
     };
 
-    // OpenTelemetry
+    // OpenTelemetry Endpoint
     if let Some(otlp_endpoint) = otlp_endpoint {
         shard_args.push("--otlp-endpoint".to_string());
         shard_args.push(otlp_endpoint);
     }
+
+    // OpenTelemetry Service Name
+    shard_args.push("--otlp-service-name".to_string());
+    shard_args.push(otlp_service_name);
 
     // In case we use sliding window, we may ignore the sliding in flash for some backends depending on the parameter.
     shard_args.push("--max-input-tokens".to_string());
@@ -592,7 +600,7 @@ fn shard_manager(
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HF_TOKEN".into(), api_token.into()))
     };
 
     // Detect rope scaling
@@ -751,7 +759,10 @@ fn shutdown_shards(shutdown: Arc<AtomicBool>, shutdown_receiver: &mpsc::Receiver
 fn num_cuda_devices() -> Option<usize> {
     let devices = match env::var("CUDA_VISIBLE_DEVICES") {
         Ok(devices) => devices,
-        Err(_) => env::var("NVIDIA_VISIBLE_DEVICES").ok()?,
+        Err(_) => match env::var("NVIDIA_VISIBLE_DEVICES") {
+            Ok(devices) => devices,
+            Err(_) => env::var("ZE_AFFINITY_MASK").ok()?,
+        }
     };
     let n_devices = devices.split(',').count();
     Some(n_devices)
@@ -824,9 +835,9 @@ fn find_num_shards(
     let num_shard = match (sharded, num_shard) {
         (Some(true), None) => {
             // try to default to the number of available GPUs
-            tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES");
+            tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES/ZE_AFFINITY_MASK");
             let n_devices = num_cuda_devices()
-                .expect("--num-shard and CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES are not set");
+                .expect("--num-shard and CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES/ZE_AFFINITY_MASK are not set");
             if n_devices <= 1 {
                 return Err(LauncherError::NotEnoughCUDADevices(format!(
                     "`sharded` is true but only found {n_devices} CUDA devices"
@@ -925,7 +936,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HF_TOKEN".into(), api_token.into()))
     };
 
     // If args.weights_cache_override is some, pass it to the download process
@@ -1035,6 +1046,7 @@ fn spawn_shards(
         let shutdown = shutdown.clone();
         let shutdown_sender = shutdown_sender.clone();
         let otlp_endpoint = args.otlp_endpoint.clone();
+        let otlp_service_name = args.otlp_service_name.clone();
         let quantize = args.quantize;
         let speculate = args.speculate;
         let dtype = args.dtype;
@@ -1074,6 +1086,7 @@ fn spawn_shards(
                 max_batch_size,
                 max_input_tokens,
                 otlp_endpoint,
+                otlp_service_name,
                 max_log_level,
                 status_sender,
                 shutdown,
@@ -1207,6 +1220,12 @@ fn spawn_webserver(
         router_args.push(otlp_endpoint);
     }
 
+    // OpenTelemetry
+    let otlp_service_name = args.otlp_service_name;
+    router_args.push("--otlp-service-name".to_string());
+    router_args.push(otlp_service_name);
+
+
     // CORS origins
     for origin in args.cors_allow_origin.into_iter() {
         router_args.push("--cors-allow-origin".to_string());
@@ -1227,7 +1246,7 @@ fn spawn_webserver(
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HF_TOKEN".into(), api_token.into()))
     };
 
     // Parse Compute type
