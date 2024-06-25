@@ -452,6 +452,9 @@ class StreamResponse(BaseModel):
 
 # Inference API currently deployed model
 class DeployedModel(BaseModel):
+    # Disable warning for use of `model_` prefix in `model_id`. Be mindful about adding members
+    # with model_ prefixes, since this disables guardrails for colliding fields:
+    # https://github.com/pydantic/pydantic/issues/9177
     model_config  = ConfigDict(protected_namespaces=())
     model_id: str
     sha: str
