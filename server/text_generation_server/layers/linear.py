@@ -217,7 +217,7 @@ def get_linear(weight, bias, quantize):
                 qweight=weight.qweight,
                 qzeros=weight.qzeros,
                 scales=weight.scales,
-                bias=bias is not None,
+                bias=bias,
             )
         except ImportError:
             raise NotImplementedError(
