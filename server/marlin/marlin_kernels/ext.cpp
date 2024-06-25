@@ -5,6 +5,7 @@
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("gptq_marlin_gemm", &gptq_marlin_gemm,
         "Marlin gemm with GPTQ compatibility");
+  m.def("gptq_marlin_24_gemm", &gptq_marlin_24_gemm, "Marlin sparse 2:4 gemm");
   m.def("gptq_marlin_repack", &gptq_marlin_repack,
         "Repack GPTQ parameters for Marlin");
   m.def("marlin_gemm", &marlin_gemm, "Marlin gemm");
