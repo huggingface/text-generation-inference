@@ -1,4 +1,4 @@
-from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM, IPEX_AVAIL
 import os
 
 if os.getenv("USE_FLASH_ATTENTION", "").lower() == "false":
@@ -7,7 +7,7 @@ if SYSTEM == "cuda":
     from .cuda import attention, paged_attention, reshape_and_cache, SUPPORTS_WINDOWING
 elif SYSTEM == "rocm":
     from .rocm import attention, paged_attention, reshape_and_cache, SUPPORTS_WINDOWING
-elif SYSTEM == "xpu":
+elif IPEX_AVAIL:
     from .xpu import attention, paged_attention, reshape_and_cache, SUPPORTS_WINDOWING
 else:
     raise ImportError(f"System {SYSTEM} doesn't support flash/paged attention")
