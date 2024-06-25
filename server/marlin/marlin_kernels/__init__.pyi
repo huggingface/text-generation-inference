@@ -19,6 +19,23 @@ def gptq_marlin_gemm(
     """
     ...
 
+def gptq_marlin_24_gemm(
+    a: torch.Tensor,
+    b_q_weight: torch.Tensor,
+    b_meta: torch.Tensor,
+    b_scales: torch.Tensor,
+    workspace: torch.Tensor,
+    num_bits: int,
+    size_m: int,
+    size_n: int,
+    size_k: int,
+) -> torch.Tensor:
+    """
+    Matrix multiplication using Marlin kernels. This is an extension of
+    `marlin_gemm` that supports 2:4 sparsity.
+    """
+    ...
+
 def gptq_marlin_repack(
     b_q_weight: torch.Tensor,
     perm: torch.Tensor,

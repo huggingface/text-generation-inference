@@ -1,7 +1,6 @@
 from typing import Optional
 import torch
 from torch.nn import functional as F
-from text_generation_server.layers.marlin import GPTQMarlinLinear
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "rocm":
@@ -225,6 +224,9 @@ def get_linear(weight, bias, quantize):
             )
     elif quantize == "marlin":
         from text_generation_server.layers.marlin import (
+            GPTQMarlin24Linear,
+            GPTQMarlin24Weight,
+            GPTQMarlinLinear,
             GPTQMarlinWeight,
             MarlinLinear,
             MarlinWeight,
@@ -232,6 +234,11 @@ def get_linear(weight, bias, quantize):
 
         if isinstance(weight, GPTQMarlinWeight):
             linear = GPTQMarlinLinear(
+                weight=weight,
+                bias=bias,
+            )
+        elif isinstance(weight, GPTQMarlin24Weight):
+            linear = GPTQMarlin24Linear(
                 weight=weight,
                 bias=bias,
             )
