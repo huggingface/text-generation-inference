@@ -15,7 +15,7 @@ from typing import Iterable, Optional, Tuple, List, Type, Dict
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from text_generation_server.utils.chunks import concat_text_chunks
-from text_generation_server.utils.import_utils import SYSTEM, IPEX_AVAIL
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.dist import RANK
@@ -768,12 +768,9 @@ class FlashCausalLM(Model):
         empty_cache()
 
         element_size = torch.tensor([], dtype=dtype).element_size()
-        if SYSTEM == "xpu":
-            x = 1
-        else:
-            x = BLOCK_SIZE // element_size
+        x = BLOCK_SIZE // element_size
 
-        if IPEX_AVAIL and SYSTEM == "cpu":
+        if SYSTEM == "ipex" and device == torch.device("cpu"):
             self.kv_cache = [
                 (
                     torch.empty(

@@ -17,7 +17,7 @@ from text_generation_server.utils import (
 
 tracer = trace.get_tracer(__name__)
 
-from text_generation_server.utils.import_utils import SYSTEM, IPEX_AVAIL
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 class FlashLlama(FlashCausalLM):
@@ -34,12 +34,12 @@ class FlashLlama(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
-        elif SYSTEM == "xpu":
-            device = torch.device(f"xpu:{rank}")
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+            else:
+                device = torch.device("cpu")
             dtype = torch.float16 if dtype is None else dtype
-        elif IPEX_AVAIL:
-            device = torch.device("cpu")
-            dtype = torch.bfloat16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashLlama is only available on GPU")
 

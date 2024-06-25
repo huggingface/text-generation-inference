@@ -20,9 +20,9 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
-from text_generation_server.utils.import_utils import IPEX_AVAIL
+from text_generation_server.utils.import_utils import SYSTEM
 
-if not IPEX_AVAIL:
+if SYSTEM != "ipex":
     from vllm.model_executor.layers.fused_moe import fused_moe
 
 from text_generation_server.layers.attention import (

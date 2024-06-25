@@ -37,5 +37,5 @@ jobs:
           export DOCKER_VOLUME=/mnt/cache
           export DOCKER_IMAGE=${{ inputs.docker_image }}
           export DOCKER_DEVICES=${{ inputs.docker_devices }}
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
           pytest -s -vv integration-tests

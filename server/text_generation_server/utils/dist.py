@@ -3,7 +3,7 @@ import torch
 
 from datetime import timedelta
 from loguru import logger
-from text_generation_server.utils.import_utils import IPEX_AVAIL
+from text_generation_server.utils.import_utils import SYSTEM
 
 # Tensor Parallelism settings
 RANK = int(os.getenv("RANK", "0"))
@@ -69,7 +69,7 @@ def initialize_torch_distributed():
 
         if not torch.distributed.is_initialized():
             # Call the init process.
-            if IPEX_AVAIL:
+            if SYSTEM == "ipex":
                 import intel_extension_for_pytorch as ipex
 
                 ipex.distributed.init_process_group(

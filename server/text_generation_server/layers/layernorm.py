@@ -3,7 +3,6 @@ from torch import nn
 from accelerate import init_empty_weights
 from text_generation_server.utils.import_utils import (
     SYSTEM,
-    IPEX_AVAIL,
 )
 
 
@@ -83,7 +82,7 @@ elif SYSTEM == "rocm":
 
             return super().forward(hidden_states), residual
 
-elif IPEX_AVAIL:
+elif SYSTEM == "ipex":
     import intel_extension_for_pytorch as ipex
 
     class FastLayerNorm(nn.LayerNorm):
@@ -112,7 +111,7 @@ class FastRMSNorm(nn.Module):
         return cls(weight, eps)
 
     def forward(self, hidden_states, residual=None):
-        if IPEX_AVAIL:
+        if SYSTEM == "ipex":
             out = ipex.llm.functional.add_rms_norm(
                 residual,
                 hidden_states,
