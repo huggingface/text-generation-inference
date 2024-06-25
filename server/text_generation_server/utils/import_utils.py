@@ -37,7 +37,10 @@ def get_cpu_free_memory(device, memory_fraction):
     return free_memory
 
 
-IPEX_AVAIL = is_ipex_available()
+def noop(*args, **kwargs):
+    pass
+
+
 SYSTEM = None
 if torch.version.hip is not None:
     SYSTEM = "rocm"
@@ -49,16 +52,18 @@ elif torch.version.cuda is not None and torch.cuda.is_available():
     empty_cache = torch.cuda.empty_cache
     synchronize = torch.cuda.synchronize
     get_free_memory = get_cuda_free_memory
-elif IPEX_AVAIL and hasattr(torch, "xpu") and torch.xpu.is_available():
-    SYSTEM = "xpu"
-    empty_cache = torch.xpu.empty_cache
-    synchronize = torch.xpu.synchronize
-    get_free_memory = get_xpu_free_memory
+elif is_ipex_available():
+    SYSTEM = "ipex"
+    if hasattr(torch, "xpu") and torch.xpu.is_available():
+        empty_cache = torch.xpu.empty_cache
+        synchronize = torch.xpu.synchronize
+        get_free_memory = get_xpu_free_memory
+    else:
+        empty_cache = noop
+        synchronize = noop
+        get_free_memory = get_cpu_free_memory
 else:
     SYSTEM = "cpu"
-
-    def noop(*args, **kwargs):
-        pass
 
     empty_cache = noop
     synchronize = noop
