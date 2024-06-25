@@ -65,6 +65,8 @@ struct Args {
     json_output: bool,
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
+    #[clap(default_value = "text-generation-inference.router", long, env)]
+    otlp_service_name: String,
     #[clap(long, env)]
     cors_allow_origin: Option<Vec<String>>,
     #[clap(long, env)]
@@ -107,6 +109,7 @@ async fn main() -> Result<(), RouterError> {
         validation_workers,
         json_output,
         otlp_endpoint,
+        otlp_service_name,
         cors_allow_origin,
         ngrok,
         ngrok_authtoken,
@@ -117,7 +120,7 @@ async fn main() -> Result<(), RouterError> {
     } = args;
 
     // Launch Tokio runtime
-    init_logging(otlp_endpoint, json_output);
+    init_logging(otlp_endpoint, otlp_service_name, json_output);
 
     // Validate args
     if max_input_tokens >= max_total_tokens {
@@ -156,7 +159,9 @@ async fn main() -> Result<(), RouterError> {
     });
 
     // Parse Huggingface hub token
-    let authorization_token = std::env::var("HUGGING_FACE_HUB_TOKEN").ok();
+    let authorization_token = std::env::var("HF_TOKEN")
+        .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
+        .ok();
 
     // Tokenizer instance
     // This will only be used to validate payloads
@@ -367,10 +372,11 @@ async fn main() -> Result<(), RouterError> {
 
 /// Init logging using env variables LOG_LEVEL and LOG_FORMAT:
 ///     - otlp_endpoint is an optional URL to an Open Telemetry collector
+///     - otlp_service_name service name to appear in APM
 ///     - LOG_LEVEL may be TRACE, DEBUG, INFO, WARN or ERROR (default to INFO)
 ///     - LOG_FORMAT may be TEXT or JSON (default to TEXT)
 ///     - LOG_COLORIZE may be "false" or "true" (default to "true" or ansi supported platforms)
-fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
+fn init_logging(otlp_endpoint: Option<String>, otlp_service_name: String, json_output: bool) {
     let mut layers = Vec::new();
 
     // STDOUT/STDERR layer
@@ -401,7 +407,7 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
                 trace::config()
                     .with_resource(Resource::new(vec![KeyValue::new(
                         "service.name",
-                        "text-generation-inference.router",
+                        otlp_service_name,
                     )]))
                     .with_sampler(Sampler::AlwaysOn),
             )

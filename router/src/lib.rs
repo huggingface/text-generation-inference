@@ -576,7 +576,7 @@ impl ChatCompletion {
         };
         Self {
             id: String::new(),
-            object: "text_completion".into(),
+            object: "chat.completion".into(),
             created,
             model,
             system_fingerprint,
@@ -688,7 +688,7 @@ impl ChatCompletionChunk {
         };
         Self {
             id: String::new(),
-            object: "text_completion".to_string(),
+            object: "chat.completion.chunk".to_string(),
             created,
             model,
             system_fingerprint,

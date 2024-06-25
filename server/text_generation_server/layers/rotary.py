@@ -9,7 +9,7 @@ if SYSTEM == "cuda":
     import rotary_emb
 elif SYSTEM == "rocm":
     from vllm._C import ops
-elif SYSTEM == "xpu":
+elif SYSTEM == "ipex":
     import intel_extension_for_pytorch as ipex
 
 
@@ -69,7 +69,7 @@ class PositionRotaryEmbedding(nn.Module):
 
             # Inplace operation, updating query and key.
             ops.rotary_embedding(query, key, head_size, cos, sin, True)
-        elif SYSTEM == "xpu":
+        elif SYSTEM == "ipex":
             ipex.llm.functional.rotary_embedding(
                 query, key, sin, cos, query.size(-1), True
             )

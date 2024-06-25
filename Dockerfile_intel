@@ -1,3 +1,5 @@
+ARG PLATFORM=xpu
+
 FROM lukemathwalker/cargo-chef:latest-rust-1.79 AS chef
 WORKDIR /usr/src
 
@@ -37,7 +39,8 @@ RUN cargo build --profile release-opt
 
 
 # Text Generation Inference base image for Intel
-FROM intel/intel-extension-for-pytorch:2.1.30-xpu as base
+
+FROM intel/intel-extension-for-pytorch:2.1.30-xpu as xpu
 
 USER root
 # libssl.so.1.1 is not installed on Ubuntu 22.04 by default, install it
@@ -49,7 +52,7 @@ RUN wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | gpg --dea
 RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
 | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
 
-RUN apt-get update && apt install -y intel-basekit xpu-smi cmake python3-dev ninja-build
+RUN apt-get update && apt install -y intel-basekit xpu-smi cmake python3-dev ninja-build pciutils
 
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
@@ -59,7 +62,7 @@ ENV HUGGINGFACE_HUB_CACHE=/data \
 
 WORKDIR /usr/src
 RUN wget https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_dev/xpu/torch-2.1.0.post1%2Bcxx11.abi-cp310-cp310-linux_x86_64.whl && pip install torch-2.1.0.post1+cxx11.abi-cp310-cp310-linux_x86_64.whl
-RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout -b group_rope origin/dev/gqa_rope
+RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout -b distributed origin/dev/distributed
 
 # Install server
 COPY proto proto
@@ -89,8 +92,84 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 # Install launcher
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
-# Final image
-FROM base
 
+# Text Generation Inference base image for Intel-cpu
+FROM ubuntu:22.04 as cpu
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    make \
+    g++ \
+    git \
+    wget \
+    cmake
+
+ENV HUGGINGFACE_HUB_CACHE=/data \
+    HF_HUB_ENABLE_HF_TRANSFER=1 \
+    PORT=80
+
+ARG MAMBA_VERSION=23.1.0-1
+ARG PYTHON_VERSION='3.10.10'
+# Automatically set by buildx
+ARG TARGETPLATFORM
+ENV PATH /opt/conda/bin:$PATH
+
+# TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
+# Install mamba
+# translating Docker's TARGETPLATFORM into mamba arches
+RUN case ${TARGETPLATFORM} in \
+         "linux/arm64")  MAMBA_ARCH=aarch64  ;; \
+         *)              MAMBA_ARCH=x86_64   ;; \
+    esac && \
+    curl -fsSL -v -o ~/mambaforge.sh -O  "https://github.com/conda-forge/miniforge/releases/download/${MAMBA_VERSION}/Mambaforge-${MAMBA_VERSION}-Linux-${MAMBA_ARCH}.sh"
+RUN chmod +x ~/mambaforge.sh && \
+    bash ~/mambaforge.sh -b -p /opt/conda && \
+    rm ~/mambaforge.sh
+
+RUN conda install -c conda-forge gperftools mkl
+
+RUN pip install https://download.pytorch.org/whl/nightly/cpu/torch-2.4.0.dev20240612%2Bcpu-cp310-cp310-linux_x86_64.whl
+RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchvision-0.19.0.dev20240612%2Bcpu-cp310-cp310-linux_x86_64.whl
+RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchaudio-2.4.0.dev20240612%2Bcpu-cp310-cp310-linux_x86_64.whl
+
+WORKDIR /usr/src
+
+RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout eda7a7c42df6f9a64e0de9c2b69304ee02f2c32a
+
+RUN git clone https://github.com/intel/torch-ccl.git && cd torch-ccl && git checkout ccl_torch_dev_0131
+
+RUN cd intel-extension-for-pytorch && git submodule sync && git submodule update --init --recursive && python setup.py install
+
+RUN cd torch-ccl && git submodule sync && git submodule update --init --recursive && pip install .
+
+ENV LD_PRELOAD=/opt/conda/lib/libtcmalloc.so:/opt/conda/lib/libiomp5.so
+ENV CCL_ROOT=/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch
+ENV I_MPI_ROOT=/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch
+ENV FI_PROVIDER_PATH=/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch/opt/mpi/libfabric/lib/prov:/usr/lib64/libfabric
+ENV LD_LIBRARY_PATH=/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch/opt/mpi/libfabric/lib:/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch/lib
+ENV KMP_BLOCKTIME=1
+ENV KMP_TPAUSE=0
+ENV KMP_FORKJOIN_BARRIER_PATTERN=dist,dist
+ENV KMP_PLAIN_BARRIER_PATTERN=dist,dist
+ENV KMP_REDUCTION_BARRIER_PATTERN=dist,dist
+
+# Install server
+COPY proto proto
+COPY server server
+COPY server/Makefile server/Makefile
+RUN cd server && \
+    make gen-server && \
+    pip install -r requirements_intel.txt && \
+    pip install ".[accelerate, peft, outlines]" --no-cache-dir
+
+# Install benchmarker
+COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+# Install router
+COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/local/bin/text-generation-router
+# Install launcher
+COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
+
+FROM ${PLATFORM} as final
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]

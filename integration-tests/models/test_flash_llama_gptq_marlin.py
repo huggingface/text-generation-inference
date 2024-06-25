@@ -15,6 +15,7 @@ async def flash_llama_gptq_marlin(flash_llama_gptq_marlin_handle):
     return flash_llama_gptq_marlin_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_gptq_marlin(flash_llama_gptq_marlin, response_snapshot):
@@ -26,6 +27,7 @@ async def test_flash_llama_gptq_marlin(flash_llama_gptq_marlin, response_snapsho
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_gptq_marlin_all_params(
@@ -50,6 +52,7 @@ async def test_flash_llama_gptq_marlin_all_params(
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_gptq_marlin_load(

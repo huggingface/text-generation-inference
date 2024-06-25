@@ -22,7 +22,7 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
 from text_generation_server.utils.import_utils import SYSTEM
 
-if SYSTEM != "xpu":
+if SYSTEM != "ipex":
     from vllm.model_executor.layers.fused_moe import fused_moe
 
 from text_generation_server.layers.attention import (

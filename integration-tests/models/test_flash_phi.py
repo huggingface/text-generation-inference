@@ -13,6 +13,7 @@ async def flash_phi(flash_phi_handle):
     return flash_phi_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_phi(flash_phi, response_snapshot):
     response = await flash_phi.generate(
@@ -24,6 +25,7 @@ async def test_flash_phi(flash_phi, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_phi_all_params(flash_phi, response_snapshot):
     response = await flash_phi.generate(
@@ -47,6 +49,7 @@ async def test_flash_phi_all_params(flash_phi, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_phi_load(flash_phi, generate_load, response_snapshot):
     responses = await generate_load(flash_phi, "Test request", max_new_tokens=10, n=4)

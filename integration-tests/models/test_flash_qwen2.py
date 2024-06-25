@@ -13,6 +13,7 @@ async def flash_qwen2(flash_qwen2_handle):
     return flash_qwen2_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_qwen2(flash_qwen2, response_snapshot):
     response = await flash_qwen2.generate(
@@ -24,6 +25,7 @@ async def test_flash_qwen2(flash_qwen2, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_qwen2_all_params(flash_qwen2, response_snapshot):
     response = await flash_qwen2.generate(
@@ -46,6 +48,7 @@ async def test_flash_qwen2_all_params(flash_qwen2, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_qwen2_load(flash_qwen2, generate_load, response_snapshot):
     responses = await generate_load(flash_qwen2, "Test request", max_new_tokens=10, n=4)

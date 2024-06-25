@@ -26,6 +26,7 @@ async def flash_llava_next(flash_llava_next_handle):
     return flash_llava_next_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llava_next_simple(flash_llava_next, response_snapshot):
@@ -41,6 +42,7 @@ async def test_flash_llava_next_simple(flash_llava_next, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llava_next_all_params(flash_llava_next, response_snapshot):
@@ -64,6 +66,7 @@ async def test_flash_llava_next_all_params(flash_llava_next, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llava_next_load(

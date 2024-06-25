@@ -1,5 +1,6 @@
 import intel_extension_for_pytorch as ipex
 import torch
+from text_generation_server.models.flash_causal_lm import BLOCK_SIZE
 
 SUPPORTS_WINDOWING = False
 
@@ -56,8 +57,6 @@ def paged_attention(
     input_lengths: torch.Tensor,
     max_s: int,
 ):
-    query = query.contiguous()
-    block_size = value_cache.shape[3]
     return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
         out,
         query,
@@ -67,7 +66,7 @@ def paged_attention(
         softmax_scale,
         block_tables,
         input_lengths,
-        block_size,
+        BLOCK_SIZE,
         max_s,
         None,
     )

@@ -17,6 +17,7 @@ async def flash_llama_awq(flash_llama_awq_handle):
     return flash_llama_awq_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_llama_awq(flash_llama_awq, response_snapshot):
     response = await flash_llama_awq.generate(
@@ -31,6 +32,7 @@ async def test_flash_llama_awq(flash_llama_awq, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_llama_awq_all_params(flash_llama_awq, response_snapshot):
     response = await flash_llama_awq.generate(
@@ -52,6 +54,7 @@ async def test_flash_llama_awq_all_params(flash_llama_awq, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_llama_awq_load(flash_llama_awq, generate_load, response_snapshot):
     responses = await generate_load(

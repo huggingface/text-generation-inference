@@ -105,14 +105,14 @@ The Swagger UI is also available at: [https://huggingface.github.io/text-generat
 
 ### Using a private or gated model
 
-You have the option to utilize the `HUGGING_FACE_HUB_TOKEN` environment variable for configuring the token employed by
+You have the option to utilize the `HF_TOKEN` environment variable for configuring the token employed by
 `text-generation-inference`. This allows you to gain access to protected resources.
 
 For example, if you want to serve the gated Llama V2 model variants:
 
 1. Go to https://huggingface.co/settings/tokens
 2. Copy your cli READ token
-3. Export `HUGGING_FACE_HUB_TOKEN=<your cli READ token>`
+3. Export `HF_TOKEN=<your cli READ token>`
 
 or with Docker:
 
@@ -121,7 +121,7 @@ model=meta-llama/Llama-2-7b-chat-hf
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 token=<your cli READ token>
 
-docker run --gpus all --shm-size 1g -e HUGGING_FACE_HUB_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:2.0 --model-id $model
+docker run --gpus all --shm-size 1g -e HF_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:2.0 --model-id $model
 ```
 
 ### A note on Shared Memory (shm)
@@ -153,7 +153,8 @@ this will impact performance.
 ### Distributed Tracing
 
 `text-generation-inference` is instrumented with distributed tracing using OpenTelemetry. You can use this feature
-by setting the address to an OTLP collector with the `--otlp-endpoint` argument.
+by setting the address to an OTLP collector with the `--otlp-endpoint` argument. The default service name can be
+overridden with the `--otlp-service-name` argument
 
 ### Architecture
 

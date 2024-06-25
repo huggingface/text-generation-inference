@@ -13,6 +13,7 @@ async def t5_sharded(t5_sharded_handle):
     return t5_sharded_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_t5_sharded(t5_sharded, response_snapshot):
     response = await t5_sharded.generate(
@@ -24,6 +25,7 @@ async def test_t5_sharded(t5_sharded, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_t5_sharded_load(t5_sharded, generate_load, response_snapshot):
     responses = await generate_load(

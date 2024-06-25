@@ -1,40 +1,60 @@
-import sys
-import subprocess
-import contextlib
-import pytest
 import asyncio
-import os
-import docker
+import contextlib
 import json
 import math
+import os
+import random
+import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import time
-import random
+from typing import Dict, List, Optional
 
-from docker.errors import NotFound
-from typing import Optional, List, Dict
-from syrupy.extensions.json import JSONSnapshotExtension
+import docker
+import pytest
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
-
+from docker.errors import NotFound
+from syrupy.extensions.json import JSONSnapshotExtension
 from text_generation import AsyncClient
 from text_generation.types import (
-    Response,
-    Details,
-    InputToken,
-    Token,
     BestOfSequence,
-    Grammar,
     ChatComplete,
     ChatCompletionChunk,
     ChatCompletionComplete,
     Completion,
+    Details,
+    Grammar,
+    InputToken,
+    Response,
+    Token,
 )
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
-HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
+HF_TOKEN = os.getenv("HF_TOKEN", None)
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 DOCKER_DEVICES = os.getenv("DOCKER_DEVICES")
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--release", action="store_true", default=False, help="run release tests"
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "release: mark test as a release-only test")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--release"):
+        # --release given in cli: do not skip release tests
+        return
+    skip_release = pytest.mark.skip(reason="need --release option to run")
+    for item in items:
+        if "release" in item.keywords:
+            item.add_marker(skip_release)
 
 
 class ResponseComparator(JSONSnapshotExtension):
@@ -447,8 +467,8 @@ def launcher(event_loop):
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
 
-        if HUGGING_FACE_HUB_TOKEN is not None:
-            env["HUGGING_FACE_HUB_TOKEN"] = HUGGING_FACE_HUB_TOKEN
+        if HF_TOKEN is not None:
+            env["HF_TOKEN"] = HF_TOKEN
 
         volumes = []
         if DOCKER_VOLUME:

@@ -156,6 +156,8 @@ jobs:
     needs: build-and-push
     runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
     if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    env:
+      PYTEST_FLAGS: ${{ github.ref == 'refs/heads/main' && '--release' || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -178,6 +180,6 @@ jobs:
           export DOCKER_VOLUME=/mnt/cache
           export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
-          pytest -s -vv integration-tests
+          pytest -s -vv integration-tests ${PYTEST_FLAGS}

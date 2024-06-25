@@ -34,6 +34,7 @@ def get_cow_beach():
     return f"data:image/png;base64,{encoded_string.decode('utf-8')}"
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot):
@@ -45,6 +46,7 @@ async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_pali_gemma_two_images(flash_pali_gemma, response_snapshot):

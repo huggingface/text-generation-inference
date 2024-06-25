@@ -847,26 +847,43 @@ class FlashCausalLM(Model):
         empty_cache()
 
         element_size = torch.tensor([], dtype=dtype).element_size()
-        if SYSTEM == "xpu":
+        if SYSTEM == "ipex" and device.type == "xpu":
             x = 1
         else:
             x = BLOCK_SIZE // element_size
 
-        self.kv_cache = [
-            (
-                torch.empty(
-                    (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
-                    dtype=dtype,
-                    device=device,
-                ),
-                torch.empty(
-                    (num_blocks, num_heads, head_size, BLOCK_SIZE),
-                    dtype=dtype,
-                    device=device,
-                ),
-            )
-            for _ in range(num_layers)
-        ]
+        if SYSTEM == "ipex" and device == torch.device("cpu"):
+            self.kv_cache = [
+                (
+                    torch.empty(
+                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.empty(
+                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
+        else:
+            self.kv_cache = [
+                (
+                    torch.empty(
+                        (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.empty(
+                        (num_blocks, num_heads, head_size, BLOCK_SIZE),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
 
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
         input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
