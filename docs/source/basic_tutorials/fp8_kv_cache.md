@@ -1,6 +1,10 @@
 # Accelerating Inference with FP8 KV Cache
 
-Text Generation Inference (TGI) now supports FP8 KV Cache, enhancing inference speed on both Nvidia and AMD GPUs. This feature significantly boosts performance and memory efficiency, enabling faster and more scalable text generation. By quantizing the KV cache to 8-bit floating point (FP8) formats, we can greatly reduce the memory footprint. This reduction allows for improved throughput in text generation tasks
+Text Generation Inference (TGI) supports FP8 KV Cache, enhancing inference speed on both Nvidia and AMD GPUs.
+
+FP8 KV Cache enhances the efficiency of text generation by quantizing the KV cache to FP8 format. Quantizing the KV cache to FP8 reduces its memory footprint, enabling storage of more tokens in cache. This improves overall throughput in text generation tasks.
+
+In FP8 KV Cache, while the KV cache is stored in quantized FP8 format for memory efficiency, computations are performed in FP16 format. This strategy strikes a balance between conserving memory and maintaining computational accuracy.
 
 ## FP8 Formats: E4M3 and E5M2
 The Open Compute Project (OCP) defines two common 8-bit floating point data formats:
