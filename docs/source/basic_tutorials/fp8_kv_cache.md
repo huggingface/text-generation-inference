@@ -39,7 +39,7 @@ text-generation-launcher --model-id <> --kv-cache-dtype fp8
 ```
 
 ### Checkpoint structure for KV scales
-The FP8 kv cache scaling factors required in the FP16 checkpoints are specified through the .kv_scale parameter present on the `Attention` module, such as:
+The FP8 kv cache scaling factors, required in the model, are specified through the `.kv_scale` parameter present in the `Attention` module, such as:
 
 ```
 model.layers.0.self_attn.kv_scale                < F32
@@ -47,10 +47,12 @@ model.layers.1.self_attn.kv_scale                < F32
 ...
 ```
 
+When providing `.kv_scale` in model, the config should specify proper `kv_cache_torch_dtype` used to generate scales (`float8_e4m3fn` or `float8_e4m3fnuz`).
+
+Example config: [Llama-2-7b-chat-hf-FP8-KV#config.json](https://huggingface.co/mohitsha/Llama-2-7b-chat-hf-FP8-KV/blob/main/config.json#L14)
+
 ### Generating model with KV Cache scales
 
-Use [AutoFP8](https://github.com/neuralmagic/AutoFP8) with calibration data to generate per-tensor scales for FP8 quantized KV Cache. For more details, see the following example: https://github.com/neuralmagic/AutoFP8/blob/main/example_dataset.py
+TGI provides a utility to generate model with FP8 KV cache scales using Nvidia AMMO for use with TGI. For more information: [create_fp8_kv_scales_model.py](https://github.com/huggingface/text-generation-inference/examples/fp8_kvcache/create_fp8_kv_scales_model.py)
 
-TGI provides a utility to extract the FP8 KV cache scales from an `AutoFP8` quantized model and save them to the FP16 model for use with TGI. For more information: <path to script>
-
-Alternatively, you can use other quantizer tools, such as Nvidia AMMO, to obtain these scaling factors.
+Alternatively, you can use other quantizer tools to obtain these scaling factors.
