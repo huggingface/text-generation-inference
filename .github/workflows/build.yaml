@@ -177,6 +177,9 @@ jobs:
     if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
     container:
       image: ${{ needs.build-and-push.outputs.docker_image }}
+      credentials:
+        username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
+        password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
       options: --shm-size "16gb" --ipc host -v ${{ needs.build-and-push.outputs.docker_volume }}:/data
     steps:
       - name: Checkout repository
