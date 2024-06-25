@@ -768,7 +768,10 @@ class FlashCausalLM(Model):
         empty_cache()
 
         element_size = torch.tensor([], dtype=dtype).element_size()
-        x = BLOCK_SIZE // element_size
+        if SYSTEM == "ipex" and device.type == "xpu":
+            x = 1
+        else:
+            x = BLOCK_SIZE // element_size
 
         if SYSTEM == "ipex" and device == torch.device("cpu"):
             self.kv_cache = [

@@ -36,9 +36,10 @@ class FlashNeoXSharded(FlashCausalLM):
         elif SYSTEM == "ipex":
             if hasattr(torch, "xpu") and torch.xpu.is_available():
                 device = torch.device(f"xpu:{rank}")
+                dtype = torch.float16 if dtype is None else dtype
             else:
                 device = torch.device("cpu")
-            dtype = torch.float16 if dtype is None else dtype
+                dtype = torch.bfloat16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashNeoX is only available on GPU")
 
