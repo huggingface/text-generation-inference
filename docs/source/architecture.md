@@ -70,6 +70,8 @@ Options:
           [env: JSON_OUTPUT=]
       --otlp-endpoint <OTLP_ENDPOINT>
           [env: OTLP_ENDPOINT=]
+      --otlp-service-name <OTLP_SERVICE_NAME>
+          [env: OTLP_SERVICE_NAME=]
       --cors-allow-origin <CORS_ALLOW_ORIGIN>
           [env: CORS_ALLOW_ORIGIN=]
       --ngrok
@@ -138,6 +140,8 @@ Serve's command line parameters on the TGI repository are these:
 │ --logger-level                                   TEXT                        [default: INFO]             │
 │ --json-output          --no-json-output                                      [default: no-json-output]   │
 │ --otlp-endpoint                                  TEXT                        [default: None]             │
+│ --otlp-service-name                              TEXT                        [default:                   │
+│                                                                              text-generation-inference...│
 │ --help                                                                       Show this message and exit. │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

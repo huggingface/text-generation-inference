@@ -42,6 +42,7 @@ def serve(
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
+    otlp_service_name: str = "text-generation-inference.server",
     max_input_tokens: Optional[int] = None,
 ):
     if sharded:
@@ -76,7 +77,7 @@ def serve(
 
     # Setup OpenTelemetry distributed tracing
     if otlp_endpoint is not None:
-        setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
+        setup_tracing(otlp_service_name=otlp_service_name, otlp_endpoint=otlp_endpoint)
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
