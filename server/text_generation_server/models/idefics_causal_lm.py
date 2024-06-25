@@ -634,6 +634,7 @@ class IdeficsCausalLM(Model):
                 tokenizer.add_special_tokens({"pad_token": "<unk>"})
 
         super(IdeficsCausalLM, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,

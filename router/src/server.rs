@@ -673,6 +673,7 @@ async fn completions(
                 seed,
                 top_n_tokens: None,
                 grammar: None,
+                ..Default::default()
             },
         })
         .collect();
@@ -1115,6 +1116,7 @@ async fn chat_completions(
             seed,
             top_n_tokens: req.top_logprobs,
             grammar,
+            ..Default::default()
         },
     };
 

@@ -17,7 +17,12 @@ def get_test_model():
     tokenizer = AutoTokenizer.from_pretrained("huggingface/llama-7b")
 
     model = TestModel(
-        torch.nn.Linear(1, 1), tokenizer, False, torch.float32, torch.device("cpu")
+        "test_model_id",
+        torch.nn.Linear(1, 1),
+        tokenizer,
+        False,
+        torch.float32,
+        torch.device("cpu"),
     )
     return model
 

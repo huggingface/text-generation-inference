@@ -69,6 +69,7 @@ class FlashGPT2(FlashCausalLM):
         model = FlashGPT2ForCausalLM(prefix, config, weights)
         torch.distributed.barrier(group=self.process_group)
         super(FlashGPT2, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             num_layers=len(model.model.layers),

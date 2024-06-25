@@ -29,7 +29,10 @@ except (ImportError, NotImplementedError):
 
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
-from text_generation_server.models.globals import set_model_id
+from text_generation_server.models.globals import set_model_id, set_adapter_to_index
+from text_generation_server.utils.adapter import (
+    AdapterParameters,
+)
 
 
 class SignalHandler:
@@ -192,6 +195,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
 def serve(
     model_id: str,
+    lora_adapter_ids: Optional[List[str]],
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
@@ -203,6 +207,7 @@ def serve(
 ):
     async def serve_inner(
         model_id: str,
+        lora_adapter_ids: Optional[List[str]],
         revision: Optional[str],
         sharded: bool = False,
         quantize: Optional[str] = None,
@@ -211,6 +216,7 @@ def serve(
         trust_remote_code: bool = False,
     ):
         unix_socket_template = "unix://{}-{}"
+        adapter_to_index = {}
         if sharded:
             server_urls = [
                 unix_socket_template.format(uds_path, rank)
@@ -224,6 +230,7 @@ def serve(
         try:
             model = get_model(
                 model_id,
+                lora_adapter_ids,
                 revision,
                 sharded,
                 quantize,
@@ -232,10 +239,33 @@ def serve(
                 trust_remote_code,
                 max_input_tokens,
             )
+
+            if len(lora_adapter_ids) > 0:
+                for index, adapter_id in enumerate(lora_adapter_ids):
+                    # TODO: improve non merged adapter loading and long term
+                    # improve adapter loading as a whole
+                    adapter_parameters = AdapterParameters(
+                        adapter_ids=[adapter_id],
+                        weights=None,  #  will be set to 1
+                        merge_strategy=0,
+                        density=1.0,
+                        majority_sign_method=0,
+                    )
+                    adapter_index = index + 1
+                    adapter_to_index[adapter_id] = adapter_index
+                    model.load_adapter(
+                        adapter_parameters,
+                        None,  # adapter_source
+                        adapter_index,
+                        None,  # api_token
+                        False,  # dynamic
+                    )
+
         except Exception:
             logger.exception("Error when initializing model")
             raise
 
+        set_adapter_to_index(adapter_to_index)
         server = aio.server(
             interceptors=[
                 ExceptionInterceptor(),
@@ -266,6 +296,13 @@ def serve(
     set_model_id(model_id)
     asyncio.run(
         serve_inner(
-            model_id, revision, sharded, quantize, speculate, dtype, trust_remote_code
+            model_id,
+            lora_adapter_ids,
+            revision,
+            sharded,
+            quantize,
+            speculate,
+            dtype,
+            trust_remote_code,
         )
     )

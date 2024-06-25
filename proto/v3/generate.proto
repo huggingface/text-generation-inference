@@ -134,6 +134,8 @@ message Request {
     repeated uint32 blocks = 9;
     /// Paged attention slots
     repeated uint32  slots = 10;
+    /// LORA adapter index
+    optional string adapter_id = 11;
 }
 
 message Batch {

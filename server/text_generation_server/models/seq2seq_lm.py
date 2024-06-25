@@ -575,6 +575,7 @@ class Seq2SeqLM(Model):
         tokenizer.bos_token_id = model.config.decoder_start_token_id
 
         super(Seq2SeqLM, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,
