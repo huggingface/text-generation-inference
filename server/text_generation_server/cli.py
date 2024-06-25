@@ -7,7 +7,7 @@ from loguru import logger
 from typing import Optional
 from enum import Enum
 from huggingface_hub import hf_hub_download
-
+from text_generation_server.utils.import_utils import SYSTEM
 
 app = typer.Typer()
 
@@ -37,6 +37,7 @@ def serve(
     quantize: Optional[Quantization] = None,
     speculate: Optional[int] = None,
     dtype: Optional[Dtype] = None,
+    kv_cache_dtype: str = "auto",
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
@@ -91,6 +92,15 @@ def serve(
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
+
+    if kv_cache_dtype in {"fp8", "fp8_e5m2"}:
+        if SYSTEM not in {"cuda", "rocm"}:
+            raise RuntimeError(
+                f"`{kv_cache_dtype}` KV cache is only supported on Nvidia and AMD GPUs."
+            )
+        if kv_cache_dtype == "fp8_e5m2" and SYSTEM != "cuda":
+            raise RuntimeError(f"`fp8_e5m2` KV cache is only supported on Nvidia GPUs.")
+
     server.serve(
         model_id,
         revision,
@@ -98,6 +108,7 @@ def serve(
         quantize,
         speculate,
         dtype,
+        kv_cache_dtype,
         trust_remote_code,
         uds_path,
         max_input_tokens,

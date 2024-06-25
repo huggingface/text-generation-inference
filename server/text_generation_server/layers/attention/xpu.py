@@ -40,6 +40,8 @@ def reshape_and_cache(
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
     slots: torch.Tensor,
+    kv_cache_dtype: str = "auto",
+    kv_scale: int = 1.0,
 ):
     ipex.llm.modules.PagedAttention.reshape_and_cache(
         key, value, key_cache, value_cache, slots
@@ -56,6 +58,8 @@ def paged_attention(
     block_tables: torch.Tensor,
     input_lengths: torch.Tensor,
     max_s: int,
+    kv_cache_dtype: str = "auto",
+    kv_scale: int = 1.0,
 ):
     return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
         out,

@@ -88,6 +88,13 @@ Options:
           [possible values: float16, bfloat16]
 
 ```
+## KV_CACHE_DTYPE
+```shell
+      --kv-cache-dtype <KV_CACHE_DTYPE>
+          [env: KV_CACHE_DTYPE=]
+          [possible values: fp8, fp8_e5m2]
+
+```
 ## TRUST_REMOTE_CODE
 ```shell
       --trust-remote-code
