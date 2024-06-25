@@ -3,9 +3,8 @@ import torch
 
 from typing import Optional, List, Tuple
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.models.globals import FLASH_DECODING
+from text_generation_server.models.globals import FLASH_DECODING, BLOCK_SIZE
 
-BLOCK_SIZE: int = 256 if FLASH_DECODING else 16
 # Will be set in warmup
 CACHE_MANAGER: Optional["CacheManager"] = None
 

@@ -39,9 +39,15 @@ impl SchedulerV3 {
         speculate: u32,
         generation_health: Arc<AtomicBool>,
     ) -> Self {
+        let flashdecoding = if let Ok(flashdecoding) = std::env::var("FLASH_DECODING") {
+            matches!(flashdecoding.to_lowercase().as_str(), "1" | "true")
+        } else {
+            false
+        };
+        let block_size = if flashdecoding { 256 } else { 16 };
         let queue = Queue::new(
             requires_padding,
-            16,
+            block_size,
             window_size,
             speculate,
             max_batch_total_tokens,

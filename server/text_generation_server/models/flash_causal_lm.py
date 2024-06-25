@@ -30,6 +30,7 @@ from text_generation_server.models.types import (
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.globals import (
     MEM_POOL,
+    FLASH_DECODING,
     CUDA_GRAPHS,
     get_adapter_to_index,
     MODEL_ID,
@@ -46,7 +47,9 @@ from text_generation_server.utils.import_utils import (
 
 tracer = trace.get_tracer(__name__)
 
-BLOCK_SIZE: int = 256 if os.getenv("FLASH_DECODING", "").lower() in {"1", "true"} else 16
+BLOCK_SIZE: int = (
+    256 if os.getenv("FLASH_DECODING", "").lower() in {"1", "true"} else 16
+)
 
 # Will be set in init
 SLIDING_WINDOW: Optional[int] = None
@@ -856,7 +859,23 @@ class FlashCausalLM(Model):
         else:
             x = BLOCK_SIZE // element_size
 
-        if SYSTEM == "ipex" and device == torch.device("cpu"):
+        if FLASH_DECODING:
+            self.kv_cache = [
+                (
+                    torch.empty(
+                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.empty(
+                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
+        elif SYSTEM == "ipex" and device == torch.device("cpu"):
             self.kv_cache = [
                 (
                     torch.empty(
