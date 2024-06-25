@@ -237,6 +237,8 @@ RUN cd server && \
     pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir && \
     pip install nvidia-nccl-cu12==2.22.3
 
+ENV LD_PRELOAD=/opt/conda/lib/python3.10/site-packages/nvidia/nccl/lib/libnccl.so.2
+
 # Deps before the binaries
 # The binaries change on every build given we burn the SHA into them
 # The deps change less often.
