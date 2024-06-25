@@ -64,6 +64,8 @@ class FlashLlama(FlashCausalLM):
         config.quantize = quantize
         config.speculator = speculator
         config.kv_cache_dtype = kv_cache_dtype
+        if not hasattr(config, "kv_cache_torch_dtype"):
+            config.kv_cache_torch_dtype = None
 
         torch.distributed.barrier(group=self.process_group)
 

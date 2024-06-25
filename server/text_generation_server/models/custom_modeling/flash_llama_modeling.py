@@ -140,7 +140,7 @@ class FlashLlamaAttention(torch.nn.Module):
 
         if self.kv_cache_dtype == "fp8":
             self.kv_scale = weights.get_kv_cache_scaling_factor(
-                prefix, self.kv_cache_dtype
+                prefix, self.kv_cache_dtype, config.kv_cache_torch_dtype
             )
         else:
             self.kv_scale = 1.0
