@@ -1,0 +1,22 @@
+[package]
+name = "trtllm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+
+build = "build.rs"
+
+[dependencies]
+async-trait = "0.1"
+async-stream = "0.3"
+clap = { version = "4.5", features = ["derive", "env"] }
+text-generation-router = { path = "../../router" }
+tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
+tokio-stream = "0.1.14"
+thiserror = "1.0"
+
+[build-dependencies]
+anyhow = "1.0"
+cmake = "0.1"
+git2 = "0.19"
