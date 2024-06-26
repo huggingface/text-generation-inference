@@ -16,6 +16,7 @@ jobs:
   build-and-push:
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
+      base_docker_image: ${{ steps.final.outputs.base_docker_image }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
       docker_volume: ${{ steps.final.outputs.docker_volume}}
       runs_on: ${{ steps.final.outputs.runs_on }}
@@ -162,46 +163,35 @@ jobs:
 
           if [[ ${{ inputs.hardware }} == "rocm" ]]
           then
+            echo "base_docker_image=rocm/dev-ubuntu-22.04:6.1.1_hip_update" >> "$GITHUB_OUTPUT"
+          elif [[ ${{ inputs.hardware }} == "cuda" ]]
+          then
+            echo "base_docker_image=nvidia/cuda:12.1.0-base-ubuntu22.04" >> "$GITHUB_OUTPUT"
+          elif [[ ${{ inputs.hardware }} == "cuda" ]]
+          then
+            echo "base_docker_image=intel/intel-extension-for-pytorch:2.1.30-xpu" >> "$GITHUB_OUTPUT"
+          else
+            exit 1
+          fi
+
+          if [[ ${{ inputs.hardware }} == "rocm" ]]
+          then
             echo "docker_volume=/data/cache/.cache/huggingface/hub" >> "$GITHUB_OUTPUT"
           else
             echo "docker_volume=/mnt/cache" >> "$GITHUB_OUTPUT"
           fi
 
-
-  login_tailscale_and_registry:
-    runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
-    needs: build-and-push
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
-      cancel-in-progress: true
-    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
-    steps:
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        if: needs.build-and-push.outputs.runs_on != 'amd-gpu-tgi'
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-
-      - name: Login to internal Container Registry
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
-          password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
-          registry: registry.internal.huggingface.tech
-
-
   prepare_integration_tests:
     runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
-    needs: [build-and-push, login_tailscale_and_registry]
+    needs: [build-and-push]
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    # Ideally, we would use the image from registry.internal.huggingface.tech but we can not login to the private registry outside of tailscale,
+    # and even adding a previous job with tailscale login still results in `Docker login for 'registry.internal.huggingface.tech' failed with exit code 1`.
     container:
-      image: ${{ needs.build-and-push.outputs.docker_image }}
-      credentials:
-        username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
-        password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
+      image: ${{ needs.build-and-push.outputs.base_docker_image }}
       options: --shm-size "16gb" --ipc host -v ${{ needs.build-and-push.outputs.docker_volume }}:/data
     steps:
       - name: Checkout repository
@@ -216,7 +206,10 @@ jobs:
             pwd
             echo "ls:"
             ls
-            python integration-tests/clean_cache_and_download.py --token ${{ secrets.HF_TOKEN }} --cache-dir /data
+
+            pip3 install -U huggingface_hub
+
+            python3 integration-tests/clean_cache_and_download.py --token ${{ secrets.HF_TOKEN }} --cache-dir /data
           fi
 
   integration_tests:
@@ -234,13 +227,6 @@ jobs:
 
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
-
-      # - name: Login to internal Container Registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
-      #     password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
-      #     registry: registry.internal.huggingface.tech
 
       - name: Set up Python
         uses: actions/setup-python@v4
