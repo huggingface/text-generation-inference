@@ -12,9 +12,9 @@ use crate::kserve::{
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
-    GenerateResponse, GrammarType, HubModelInfo, HubPreprocessorConfig, HubProcessorConfig,
-    HubTokenizerConfig, Info, Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse,
-    Token, TokenizeResponse, Usage, Validation,
+    GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig, Info,
+    Message, ObjectType, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token,
+    TokenizeResponse, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -705,7 +705,7 @@ async fn completions(
                     event
                         .json_data(CompletionCompleteChunk {
                             id: "".to_string(),
-                            object: "text_completion".to_string(),
+                            object: ObjectType::ChatCompletionChunk,
                             created: current_time,
 
                             choices: vec![CompletionComplete {
@@ -932,7 +932,7 @@ async fn completions(
 
         let response = Completion {
             id: "".to_string(),
-            object: "text_completion".to_string(),
+            object: ObjectType::ChatCompletion,
             created: current_time,
             model: info.model_id.clone(),
             system_fingerprint: format!(

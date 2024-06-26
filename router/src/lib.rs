@@ -442,10 +442,11 @@ pub struct CompletionRequest {
     pub stop: Option<Vec<String>>,
 }
 
-#[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct Completion {
     pub id: String,
-    pub object: String,
+    #[schema(default = "ObjectType::ChatCompletion")]
+    pub object: ObjectType,
     #[schema(example = "1706270835")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -466,7 +467,7 @@ pub(crate) struct CompletionComplete {
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletion {
     pub id: String,
-    pub object: String,
+    pub object: ObjectType,
     #[schema(example = "1706270835")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -562,6 +563,14 @@ pub(crate) struct Usage {
     pub total_tokens: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ObjectType {
+    #[serde(rename = "chat.completion")]
+    ChatCompletion,
+    #[serde(rename = "chat.completion.chunk")]
+    ChatCompletionChunk,
+}
+
 impl ChatCompletion {
     pub(crate) fn new(
         model: String,
@@ -598,7 +607,7 @@ impl ChatCompletion {
         };
         Self {
             id: String::new(),
-            object: "chat.completion".into(),
+            object: ObjectType::ChatCompletion,
             created,
             model,
             system_fingerprint,
@@ -620,7 +629,7 @@ impl ChatCompletion {
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct CompletionCompleteChunk {
     pub id: String,
-    pub object: String,
+    pub object: ObjectType,
     pub created: u64,
     pub choices: Vec<CompletionComplete>,
     pub model: String,
@@ -630,7 +639,7 @@ pub(crate) struct CompletionCompleteChunk {
 #[derive(Clone, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
-    pub object: String,
+    pub object: ObjectType,
     #[schema(example = "1706270978")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -710,7 +719,7 @@ impl ChatCompletionChunk {
         };
         Self {
             id: String::new(),
-            object: "chat.completion.chunk".to_string(),
+            object: ObjectType::ChatCompletionChunk,
             created,
             model,
             system_fingerprint,
