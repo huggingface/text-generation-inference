@@ -34,9 +34,13 @@ class FlashRWSharded(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
-        elif SYSTEM == "xpu":
-            device = torch.device(f"xpu:{rank}")
-            dtype = torch.float16 if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = torch.float16 if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                dtype = torch.bfloat16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashRW is only available on GPU")
 
@@ -74,6 +78,7 @@ class FlashRWSharded(FlashCausalLM):
 
         torch.distributed.barrier(group=self.process_group)
         super(FlashRWSharded, self).__init__(
+            model_id=model_id,
             model=model.to(device),
             tokenizer=tokenizer,
             num_layers=len(model.transformer.h),

@@ -15,6 +15,7 @@ async def bloom_560(bloom_560_handle):
     return bloom_560_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @require_backend_async("cuda")
 async def test_bloom_560m(bloom_560, response_snapshot):
@@ -31,6 +32,7 @@ async def test_bloom_560m(bloom_560, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @require_backend_async("cuda")
 async def test_bloom_560m_all_params(bloom_560, response_snapshot):
@@ -55,6 +57,7 @@ async def test_bloom_560m_all_params(bloom_560, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @require_backend_async("cuda")
 async def test_bloom_560m_load(bloom_560, generate_load, response_snapshot):

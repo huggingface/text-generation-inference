@@ -22,6 +22,7 @@ async def llama_grammar(llama_grammar_handle):
     return llama_grammar_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_grammar_response_format_llama_json(llama_grammar, response_snapshot):
 
@@ -62,6 +63,7 @@ async def test_grammar_response_format_llama_json(llama_grammar, response_snapsh
     assert chat_completion == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_grammar_response_format_llama_error_if_tools_not_installed(
     llama_grammar,

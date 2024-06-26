@@ -4,6 +4,7 @@ include Makefile-vllm
 include Makefile-awq
 include Makefile-eetq
 include Makefile-selective-scan
+include Makefile-lorax-punica
 
 unit-tests:
 	pytest -s -vv -m "not private" tests

@@ -15,6 +15,7 @@ async def flash_llama_gptq(flash_llama_gptq_handle):
     return flash_llama_gptq_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 @is_flaky_async(max_attempts=5)
@@ -31,6 +32,7 @@ async def test_flash_llama_gptq(flash_llama_gptq, response_snapshot):
         assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 @require_backend_async("cuda")
@@ -55,6 +57,7 @@ async def test_flash_llama_gptq_all_params(flash_llama_gptq, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 @require_backend_async("cuda")

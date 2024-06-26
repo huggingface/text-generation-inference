@@ -43,6 +43,26 @@ if SYSTEM is None:
     )
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--release", action="store_true", default=False, help="run release tests"
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "release: mark test as a release-only test")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--release"):
+        # --release given in cli: do not skip release tests
+        return
+    skip_release = pytest.mark.skip(reason="need --release option to run")
+    for item in items:
+        if "release" in item.keywords:
+            item.add_marker(skip_release)
+
+
 class ResponseComparator(JSONSnapshotExtension):
     rtol = 0.2
     ignore_logprob = False

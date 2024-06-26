@@ -452,6 +452,11 @@ struct Args {
     /// Control the maximum number of inputs that a client can send in a single request
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
+
+    /// Lora Adapters a list of adapter ids i.e. `repo/adapter1,repo/adapter2` to load during
+    /// startup that will be available to callers via the `adapter_id` field in a request.
+    #[clap(long, env)]
+    lora_adapters: Option<String>,
 }
 
 #[derive(Debug)]
@@ -485,6 +490,7 @@ fn shard_manager(
     max_total_tokens: usize,
     max_batch_size: Option<usize>,
     max_input_tokens: usize,
+    lora_adapters: Option<String>,
     otlp_endpoint: Option<String>,
     otlp_service_name: String,
     log_level: LevelFilter,
@@ -618,6 +624,11 @@ fn shard_manager(
     ));
     if let Some(max_batch_size) = max_batch_size {
         envs.push(("MAX_BATCH_SIZE".into(), max_batch_size.to_string().into()));
+    }
+
+    // Lora Adapters
+    if let Some(lora_adapters) = lora_adapters {
+        envs.push(("LORA_ADAPTERS".into(), lora_adapters.into()));
     }
 
     // If huggingface_hub_cache is some, pass it to the shard
@@ -762,7 +773,7 @@ fn num_cuda_devices() -> Option<usize> {
         Err(_) => match env::var("NVIDIA_VISIBLE_DEVICES") {
             Ok(devices) => devices,
             Err(_) => env::var("ZE_AFFINITY_MASK").ok()?,
-        }
+        },
     };
     let n_devices = devices.split(',').count();
     Some(n_devices)
@@ -1060,6 +1071,7 @@ fn spawn_shards(
         let rope_scaling = args.rope_scaling;
         let rope_factor = args.rope_factor;
         let max_batch_size = args.max_batch_size;
+        let lora_adapters = args.lora_adapters.clone();
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -1085,6 +1097,7 @@ fn spawn_shards(
                 max_total_tokens,
                 max_batch_size,
                 max_input_tokens,
+                lora_adapters,
                 otlp_endpoint,
                 otlp_service_name,
                 max_log_level,
@@ -1224,7 +1237,6 @@ fn spawn_webserver(
     let otlp_service_name = args.otlp_service_name;
     router_args.push("--otlp-service-name".to_string());
     router_args.push(otlp_service_name);
-
 
     // CORS origins
     for origin in args.cors_allow_origin.into_iter() {

@@ -12,6 +12,7 @@ setup(
                 "marlin_kernels/gptq_marlin.cu",
                 "marlin_kernels/gptq_marlin_repack.cu",
                 "marlin_kernels/marlin_cuda_kernel.cu",
+                "marlin_kernels/sparse/marlin_24_cuda_kernel.cu",
                 "marlin_kernels/ext.cpp",
             ],
             extra_compile_args=extra_compile_args,

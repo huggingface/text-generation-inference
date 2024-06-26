@@ -15,6 +15,7 @@ async def flash_starcoder_gptq(flash_starcoder_gptq_handle):
     return flash_starcoder_gptq_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @is_flaky_async(max_attempts=10)
 async def test_flash_starcoder_gptq(flash_starcoder_gptq, generous_response_snapshot):
@@ -33,6 +34,7 @@ async def test_flash_starcoder_gptq(flash_starcoder_gptq, generous_response_snap
         assert response == generous_response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @is_flaky_async(max_attempts=10)
 async def test_flash_starcoder_gptq_default_params(
@@ -55,6 +57,7 @@ async def test_flash_starcoder_gptq_default_params(
         assert response == generous_response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @require_backend_async("cuda")
 async def test_flash_starcoder_gptq_load(

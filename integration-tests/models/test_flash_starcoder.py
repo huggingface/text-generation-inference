@@ -13,6 +13,7 @@ async def flash_starcoder(flash_starcoder_handle):
     return flash_starcoder_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_starcoder(flash_starcoder, response_snapshot):
@@ -24,6 +25,7 @@ async def test_flash_starcoder(flash_starcoder, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_starcoder_default_params(flash_starcoder, response_snapshot):
@@ -40,6 +42,7 @@ async def test_flash_starcoder_default_params(flash_starcoder, response_snapshot
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_starcoder_load(flash_starcoder, generate_load, response_snapshot):

@@ -673,6 +673,7 @@ async fn completions(
                 seed,
                 top_n_tokens: None,
                 grammar: None,
+                ..Default::default()
             },
         })
         .collect();
@@ -1115,6 +1116,7 @@ async fn chat_completions(
             seed,
             top_n_tokens: req.top_logprobs,
             grammar,
+            ..Default::default()
         },
     };
 
@@ -1764,12 +1766,12 @@ pub async fn run(
         #[derive(OpenApi)]
         #[openapi(
             paths(
-                kserve_model_infer,
                 kserve_health_live,
                 kserve_health_ready,
                 kerve_server_metadata,
                 kserve_model_metadata,
                 kserve_model_metadata_ready,
+                kserve_model_infer,
             ),
             components(schemas(
                 InferenceOutput,

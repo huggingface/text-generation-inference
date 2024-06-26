@@ -23,6 +23,7 @@ async def flash_llama_exl2(flash_llama_exl2_handle):
 
 
 @require_backend_async("cuda")
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2(flash_llama_exl2, ignore_logprob_response_snapshot):
@@ -35,6 +36,7 @@ async def test_flash_llama_exl2(flash_llama_exl2, ignore_logprob_response_snapsh
 
 
 @require_backend_async("cuda")
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2_all_params(
@@ -62,6 +64,7 @@ async def test_flash_llama_exl2_all_params(
 
 
 @require_backend_async("cuda")
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2_load(

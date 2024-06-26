@@ -204,6 +204,8 @@ jobs:
     needs: [build-and-push, prepare_integration_tests]
     runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
     if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    env:
+      PYTEST_FLAGS: ${{ github.ref == 'refs/heads/main' && '--release' || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -250,4 +252,4 @@ jobs:
           echo "DOCKER_VOLUME:"
           echo $DOCKER_VOLUME
 
-          pytest -s -vvvvv integration-tests
+          pytest -s -vvvvv integration-tests ${PYTEST_FLAGS}

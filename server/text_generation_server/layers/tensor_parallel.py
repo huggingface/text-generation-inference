@@ -3,6 +3,10 @@ from torch.nn import functional as F
 from typing import Iterable, List
 from text_generation_server.layers.linear import get_linear, FastLinear
 from text_generation_server.layers.exl2 import Exl2Weight
+from text_generation_server.utils.import_utils import SYSTEM
+
+if SYSTEM == "ipex":
+    import intel_extension_for_pytorch as ipex
 
 
 class LayerConcat(torch.nn.Module):
@@ -96,10 +100,14 @@ class TensorParallelHead(SuperLayer):
                 local_out = gather_input.T
 
             torch.mm(input, self.linear.weight.T, out=local_out)
-
-            torch.distributed.all_gather_into_tensor(
-                world_out, gather_input, group=self.process_group
-            )
+            if SYSTEM == "ipex":
+                ipex.distributed.all_gather_into_tensor(
+                    world_out, gather_input, group=self.process_group
+                )
+            else:
+                torch.distributed.all_gather_into_tensor(
+                    world_out, gather_input, group=self.process_group
+                )
 
             if input.shape[0] == 1:
                 return world_out
@@ -109,7 +117,10 @@ class TensorParallelHead(SuperLayer):
         world_output = [
             torch.empty_like(output) for _ in range(self.process_group.size())
         ]
-        torch.distributed.all_gather(world_output, output, group=self.process_group)
+        if SYSTEM == "ipex":
+            ipex.distributed.all_gather(world_output, output, group=self.process_group)
+        else:
+            torch.distributed.all_gather(world_output, output, group=self.process_group)
         world_output = torch.cat(world_output, dim=-1)
         return world_output
 
@@ -206,7 +217,10 @@ class TensorParallelRowLinear(SuperLayer):
     def forward(self, input: torch.Tensor, reduce: bool = True) -> torch.Tensor:
         out = super().forward(input)
         if self.process_group.size() > 1 and reduce:
-            torch.distributed.all_reduce(out, group=self.process_group)
+            if SYSTEM == "ipex":
+                ipex.distributed.all_reduce(out, group=self.process_group)
+            else:
+                torch.distributed.all_reduce(out, group=self.process_group)
         return out
 
 
@@ -243,5 +257,8 @@ class TensorParallelEmbedding(torch.nn.Module):
         )
         out = torch.nn.functional.embedding(input, self.weight)
         if self.reduce and self.process_group.size() > 1:
-            torch.distributed.all_reduce(out, group=self.process_group)
+            if SYSTEM == "ipex":
+                ipex.distributed.all_reduce(out, group=self.process_group)
+            else:
+                torch.distributed.all_reduce(out, group=self.process_group)
         return out

@@ -14,6 +14,7 @@ async def mt0_base(mt0_base_handle):
     return mt0_base_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_mt0_base(mt0_base, response_snapshot):
     response = await mt0_base.generate(
@@ -28,6 +29,7 @@ async def test_mt0_base(mt0_base, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_mt0_base_all_params(mt0_base, response_snapshot):
     response = await mt0_base.generate(
@@ -50,6 +52,7 @@ async def test_mt0_base_all_params(mt0_base, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_mt0_base_load(mt0_base, generate_load, response_snapshot):
     responses = await generate_load(

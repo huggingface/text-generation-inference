@@ -3,7 +3,7 @@ import torch.distributed
 
 from opentelemetry import trace
 from transformers import AutoTokenizer, AutoConfig
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, List
 
 from text_generation_server.models import FlashCausalLM
 from text_generation_server.models.flash_causal_lm import set_sliding_window
@@ -19,6 +19,18 @@ from text_generation_server.utils import (
 from text_generation_server.utils.import_utils import SYSTEM
 
 tracer = trace.get_tracer(__name__)
+
+
+ADAPTER_LAYERS = [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+]
+ROW_PARALLEL = {"o_proj", "down_proj", "lm_head"}
 
 
 class BaseFlashMistral(FlashCausalLM):
@@ -38,9 +50,13 @@ class BaseFlashMistral(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
-        elif SYSTEM == "xpu":
-            device = torch.device(f"xpu:{rank}")
-            dtype = torch.float16 if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = torch.float16 if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                dtype = torch.bfloat16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashMistral is only available on GPU")
 
@@ -79,6 +95,7 @@ class BaseFlashMistral(FlashCausalLM):
         torch.distributed.barrier(group=self.process_group)
         num_layers, num_kv_heads, head_size = self.get_layer_config(model)
         super().__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             num_layers=num_layers,
@@ -97,6 +114,75 @@ class BaseFlashMistral(FlashCausalLM):
             model.model.num_key_value_heads,
             model.model.head_size,
         )
+
+    @property
+    def supports_adapter_loading(self) -> bool:
+        return True
+
+    def adapter_target_to_layer(self) -> Dict[str, Tuple[str, torch.Tensor]]:
+        layer_weights = {}
+
+        prefix = "model.layers"
+
+        # This accounts for VLMs (e.g. LlavaNext, Idefics2)
+        # that have a language_model inside of the larger model.
+        if hasattr(self.model, "language_model"):
+            _model = self.model.language_model
+        elif hasattr(self.model, "text_model"):
+            _model = self.model.text_model
+        else:
+            _model = self.model
+
+        for i, layer in enumerate(_model.model.layers):
+            layer_weights[(i, "q_proj")] = (
+                f"{prefix}.{i}.self_attn.q_proj",
+                layer.self_attn.query_key_value,
+            )
+            layer_weights[(i, "k_proj")] = (
+                f"{prefix}.{i}.self_attn.k_proj",
+                layer.self_attn.query_key_value,
+            )
+            layer_weights[(i, "v_proj")] = (
+                f"{prefix}.{i}.self_attn.v_proj",
+                layer.self_attn.query_key_value,
+            )
+            layer_weights[(i, "o_proj")] = (
+                f"{prefix}.{i}.self_attn.o_proj",
+                layer.self_attn.o_proj,
+            )
+
+            # TODO: this is a hack to avoid the gate_proj for
+            # FlashStarcoder2 that doesnt have these layers
+            if hasattr(layer.mlp, "gate_up_proj"):
+                layer_weights[(i, "gate_proj")] = (
+                    f"{prefix}.{i}.mlp.gate_proj",
+                    layer.mlp.gate_up_proj,
+                )
+                layer_weights[(i, "up_proj")] = (
+                    f"{prefix}.{i}.mlp.up_proj",
+                    layer.mlp.gate_up_proj,
+                )
+                layer_weights[(i, "down_proj")] = (
+                    f"{prefix}.{i}.mlp.down_proj",
+                    layer.mlp.down_proj,
+                )
+
+        layer_weights[(0, "lm_head")] = ("lm_head", _model.lm_head)
+        return layer_weights
+
+    @property
+    def adapter_layers(self) -> List[str]:
+        return ADAPTER_LAYERS
+
+    @property
+    def default_traced_adapter_layers(self) -> List[str]:
+        return ["q_proj", "v_proj"]
+
+    def get_num_layers_for_type(self, layer_type: str) -> int:
+        return 1 if layer_type == "lm_head" else len(self.model.model.layers)
+
+    def is_row_parallel(self, layer_type: str) -> bool:
+        return layer_type in ROW_PARALLEL
 
 
 class FlashMistral(BaseFlashMistral):

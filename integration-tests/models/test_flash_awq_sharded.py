@@ -26,6 +26,7 @@ async def flash_llama_awq_sharded(flash_llama_awq_handle_sharded):
 
 
 @is_flaky_async(max_attempts=5)
+@pytest.mark.release
 @pytest.mark.asyncio
 @require_backend_async("cuda", "rocm")
 async def test_flash_llama_awq_sharded(flash_llama_awq_sharded, response_snapshot):
@@ -47,6 +48,7 @@ async def test_flash_llama_awq_sharded(flash_llama_awq_sharded, response_snapsho
 
 
 @require_backend_async("cuda")
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_llama_awq_load_sharded(
     flash_llama_awq_sharded, generate_load, response_snapshot
@@ -57,6 +59,7 @@ async def test_flash_llama_awq_load_sharded(
         flash_llama_awq_sharded, "What is Deep Learning?", max_new_tokens=10, n=4
     )
 
+    assert len(responses) == 4
     assert all(
         [
             r.generated_text

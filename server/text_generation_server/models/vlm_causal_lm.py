@@ -222,7 +222,9 @@ class VlmCausalLM(BaseFlashMistral):
         return VlmCausalLMBatch
 
     def forward(
-        self, batch: VlmCausalLMBatch
+        self,
+        batch: VlmCausalLMBatch,
+        adapter_data: Optional[Dict[str, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Model Forward
         if batch.speculative_ids is not None:

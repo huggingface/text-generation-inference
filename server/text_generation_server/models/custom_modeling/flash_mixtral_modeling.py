@@ -26,7 +26,7 @@ import numpy as np
 from torch import nn
 from text_generation_server.utils.import_utils import SYSTEM
 
-if SYSTEM != "xpu":
+if SYSTEM != "ipex":
     from vllm.model_executor.layers.fused_moe import fused_moe
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
@@ -638,6 +638,7 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         true_max_s = max_s
         if prefill_cache_indices is not None:

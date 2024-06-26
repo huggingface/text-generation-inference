@@ -15,6 +15,7 @@ async def bloom_560m_sharded(bloom_560m_sharded_handle):
     return bloom_560m_sharded_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @require_backend_async("cuda")
 async def test_bloom_560m_sharded(bloom_560m_sharded, response_snapshot):
@@ -31,6 +32,7 @@ async def test_bloom_560m_sharded(bloom_560m_sharded, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_bloom_560m_sharded_load(
     bloom_560m_sharded, generate_load, response_snapshot

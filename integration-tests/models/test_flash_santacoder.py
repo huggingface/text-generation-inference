@@ -15,6 +15,7 @@ async def flash_santacoder(flash_santacoder_handle):
     return flash_santacoder_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @require_backend_async("cuda", "xpu")
 async def test_flash_santacoder(flash_santacoder, response_snapshot):
@@ -27,6 +28,7 @@ async def test_flash_santacoder(flash_santacoder, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_santacoder_load(
     flash_santacoder, generate_load, response_snapshot

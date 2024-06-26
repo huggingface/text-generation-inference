@@ -22,5 +22,5 @@ jobs:
       - name: Run tests
         run: |
           pip install pytest pytest-asyncio
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
           make python-client-tests
