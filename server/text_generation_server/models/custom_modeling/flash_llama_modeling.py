@@ -60,7 +60,7 @@ def load_attention(config, prefix, weights, layer_id):
     sizes = None
     prefixes = None
 
-    if config.model_type == "phi3":
+    if config.model_type == "phi3" and config.quantize != "exl2":
         prefix = f"{prefix}.qkv_proj"
         base_layer = TensorParallelColumnLinear.load_qkv(
             config,
@@ -246,7 +246,7 @@ class LlamaMLP(nn.Module):
 
         # Fuse gate and up proj
         bias = getattr(config, "mlp_bias", False)
-        if config.model_type == "phi3":
+        if config.model_type == "phi3" and config.quantize != "exl2":
             gate_up_proj = TensorParallelColumnLinear.load_gate_up(
                 config,
                 prefix=f"{prefix}.gate_up_proj",
