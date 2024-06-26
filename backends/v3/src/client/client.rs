@@ -1,6 +1,7 @@
-use crate::v3::{pb, Chunk};
-use crate::{ClientError, Result, WARMUP_IMAGE_BASE64};
 /// Single shard Client
+
+use crate::client::{pb, Chunk};
+use crate::client::{ClientError, Result, WARMUP_IMAGE_BASE64};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use grpc_metadata::InjectTelemetryContext;

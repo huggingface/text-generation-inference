@@ -1,16 +1,15 @@
 /// Batching and inference logic
-use crate::infer::v3::queue::{Entry, Queue};
-use crate::infer::{
+use crate::queue::{Entry, Queue};
+use text_generation_router::infer::{
     GeneratedText, InferError, InferStreamResponse, Backend,
 };
-use crate::validation::ValidGenerateRequest;
-use crate::{FinishReason, PrefillToken, Token};
+use text_generation_router::validation::ValidGenerateRequest;
+use text_generation_router::{FinishReason, PrefillToken, Token};
 use nohash_hasher::IntMap;
 use std::sync::{
     Arc,
 };
-use text_generation_client::v3::{Batch, CachedBatch, Generation, ShardedClient};
-use text_generation_client::{ClientError, Health};
+use crate::client::{Batch, CachedBatch, Generation, ShardedClient, ClientError, Health};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
@@ -18,7 +17,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
 use async_trait::async_trait;
 
-pub(crate) struct BackendV3 {
+pub struct BackendV3 {
     /// Request queue
     queue: Queue,
     /// Notify batcher on queue appends
@@ -78,7 +77,6 @@ impl Backend for BackendV3 {
     ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError> {
         // MPSC channel to communicate with the background batching task
         let (response_tx, response_rx) = mpsc::unbounded_channel();
-        let input_length = request.input_length;
 
         // Append the request to the queue
         self.queue.append(Entry {
@@ -480,14 +478,14 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
     });
 }
 
-impl From<text_generation_client::v3::GeneratedText> for GeneratedText {
-    fn from(value: text_generation_client::v3::GeneratedText) -> Self {
+impl From<crate::client::GeneratedText> for GeneratedText {
+    fn from(value: crate::client::GeneratedText) -> Self {
         let v3_finish_reason =
-            text_generation_client::v3::FinishReason::try_from(value.finish_reason).unwrap();
+            crate::client::FinishReason::try_from(value.finish_reason).unwrap();
         let finish_reason = match v3_finish_reason {
-            text_generation_client::v3::FinishReason::Length => FinishReason::Length,
-            text_generation_client::v3::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
-            text_generation_client::v3::FinishReason::StopSequence => FinishReason::StopSequence,
+            crate::client::FinishReason::Length => FinishReason::Length,
+            crate::client::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
+            crate::client::FinishReason::StopSequence => FinishReason::StopSequence,
         };
 
         Self {

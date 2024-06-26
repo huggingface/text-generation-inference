@@ -1,5 +1,4 @@
 // pub(crate) mod v2;
-pub(crate) mod v3;
 mod chat_template;
 pub mod tool_grammar;
 
@@ -23,7 +22,7 @@ use chat_template::ChatTemplate;
 use async_trait::async_trait;
 
 #[async_trait]
-pub(crate) trait Backend {
+pub trait Backend {
     fn schedule(
         &self,
         request: ValidGenerateRequest,
@@ -286,15 +285,15 @@ pub(crate) type GenerateStreamResponse = (
 );
 
 #[derive(Debug)]
-pub(crate) struct GeneratedText {
-    pub(crate) text: String,
-    pub(crate) generated_tokens: u32,
-    pub(crate) finish_reason: FinishReason,
-    pub(crate) seed: Option<u64>,
+pub struct GeneratedText {
+    pub text: String,
+    pub generated_tokens: u32,
+    pub finish_reason: FinishReason,
+    pub seed: Option<u64>,
 }
 
 #[derive(Debug)]
-pub(crate) enum InferStreamResponse {
+pub enum InferStreamResponse {
     // Optional first message
     Prefill(Vec<PrefillToken>),
     // Intermediate messages

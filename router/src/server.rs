@@ -1,6 +1,5 @@
 /// HTTP Server logic
 use crate::config::Config;
-use crate::infer::v3::{connect_backend, V3Error};
 use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, Backend};
 use crate::infer::tool_grammar::ToolGrammar;
 #[cfg(feature = "kserve")]
@@ -38,9 +37,6 @@ use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use serde_json::Value;
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use text_generation_client::{v2, v3, ClientError, ShardInfo};
 use thiserror::Error;
 use tokenizers::Tokenizer;
 use tokio::select;
@@ -1398,7 +1394,7 @@ pub(crate) struct ComputeType(String);
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
-    master_shard_uds_path: String,
+    backend: impl Backend + Send + Sync + 'static,
     model_info: HubModelInfo,
     compat_return_full_text: bool,
     max_concurrent_requests: usize,
@@ -1407,11 +1403,6 @@ pub async fn run(
     max_top_n_tokens: u32,
     max_input_tokens: usize,
     max_total_tokens: usize,
-    waiting_served_ratio: f32,
-    max_batch_prefill_tokens: u32,
-    max_batch_total_tokens: Option<u32>,
-    max_waiting_tokens: usize,
-    max_batch_size: Option<usize>,
     tokenizer: Option<Tokenizer>,
     config: Option<Config>,
     validation_workers: usize,
@@ -1495,11 +1486,6 @@ pub async fn run(
     struct ApiDoc;
 
     // Create state
-
-    // Open connection, get model info and warmup
-    let (backend, backend_info) = connect_backend(max_input_tokens, max_total_tokens, master_shard_uds_path, waiting_served_ratio, max_batch_prefill_tokens, max_batch_total_tokens, max_waiting_tokens, max_batch_size).await?;
-    // tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
-
     let validation = Validation::new(
         validation_workers,
         tokenizer,
@@ -1827,8 +1813,6 @@ impl From<InferError> for Event {
 
 #[derive(Debug, Error)]
 pub enum WebServerError {
-    #[error("Backend error: {0}")]
-    Backend(#[from] V3Error),
     #[error("Axum error: {0}")]
     Axum(#[from] axum::BoxError),
 }

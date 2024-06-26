@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "benchmark",
-    "router",
-    "router/client",
-    "router/grpc-metadata",
+#    "benchmark",
+    "backends/v3",
+#    "backends/client",
+    "backends/grpc-metadata",
     "launcher"
 ]
 resolver = "2"

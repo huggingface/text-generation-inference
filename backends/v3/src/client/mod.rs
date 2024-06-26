@@ -1,15 +1,24 @@
 //! Text Generation gRPC client library
 
-pub mod v2;
-pub mod v3;
 
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD, Engine};
 use thiserror::Error;
 use tonic::transport;
 use tonic::Status;
 
-pub use v3::{Chunk, Image, Input, InputChunk};
+#[allow(clippy::derive_partial_eq_without_eq)]
+mod pb;
+
+mod client;
+mod sharded_client;
+
+pub use client::Client;
+pub use pb::generate::v3::{
+    input_chunk::Chunk, Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarType,
+    HealthResponse, Image, InfoResponse, Input, InputChunk, NextTokenChooserParameters, Request,
+    StoppingCriteriaParameters,
+};
+pub use sharded_client::ShardedClient;
 
 #[async_trait]
 pub trait Health {
@@ -60,29 +69,6 @@ impl From<transport::Error> for ClientError {
 impl From<Chunk> for InputChunk {
     fn from(chunk: Chunk) -> Self {
         InputChunk { chunk: Some(chunk) }
-    }
-}
-
-/// Convert input chunks to a stringly-typed input for backwards
-/// compat for backends that haven't implemented chunked inputs.
-pub trait ChunksToString {
-    /// Convert chunks to string.
-    fn chunks_to_string(&self) -> String;
-}
-
-impl ChunksToString for Vec<InputChunk> {
-    fn chunks_to_string(&self) -> String {
-        let mut output = String::new();
-        self.iter().for_each(|c| match &c.chunk {
-            Some(Chunk::Text(text)) => output.push_str(text),
-            Some(Chunk::Image(Image { data, mimetype })) => {
-                let encoded = STANDARD.encode(data);
-                output.push_str(&format!("![](data:{};base64,{})", mimetype, encoded))
-            }
-            // We don't create empty chunks, so this should be unreachable.
-            None => unreachable!("Chunks should never be empty"),
-        });
-        output
     }
 }
 

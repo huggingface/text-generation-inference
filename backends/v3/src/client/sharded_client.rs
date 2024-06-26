@@ -1,14 +1,14 @@
 /// Multi shard Client
-use crate::{v3, Health, ShardInfo};
-use crate::{ClientError, Result};
+use crate::client::{Health, ShardInfo};
+use crate::client::{ClientError, Result};
 
-use crate::v3::{Chunk, InfoResponse, Input};
+use crate::client::{Chunk, InfoResponse, Input};
 use async_trait::async_trait;
 use futures::future::join_all;
 use tonic::transport::Uri;
 use tracing::instrument;
-use v3::client::{DecodeTimings, PrefillTimings};
-use v3::{
+use crate::client::client::{DecodeTimings, PrefillTimings};
+use crate::client::{
     Batch, CachedBatch, Client, Generation, GrammarType, HealthResponse,
     NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };

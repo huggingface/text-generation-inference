@@ -1,8 +1,8 @@
 /// Text Generation Inference Webserver
 pub mod config;
-mod infer;
+pub mod infer;
 pub mod server;
-mod validation;
+pub mod validation;
 
 #[cfg(feature = "kserve")]
 mod kserve;
@@ -1055,23 +1055,23 @@ impl From<CompatGenerateRequest> for GenerateRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PrefillToken {
     #[schema(example = 0)]
-    id: u32,
+    pub id: u32,
     #[schema(example = "test")]
-    text: String,
+    pub text: String,
     #[schema(nullable = true, example = - 0.34)]
-    logprob: f32,
+    pub logprob: f32,
 }
 
 #[derive(Debug, Serialize, ToSchema, Clone)]
 pub struct Token {
     #[schema(example = 0)]
-    id: u32,
+    pub id: u32,
     #[schema(example = "test")]
-    text: String,
+    pub text: String,
     #[schema(nullable = true, example = - 0.34)]
-    logprob: f32,
+    pub logprob: f32,
     #[schema(example = "false")]
-    special: bool,
+    pub special: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -1089,7 +1089,7 @@ pub struct SimpleToken {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
-pub(crate) enum FinishReason {
+pub enum FinishReason {
     #[schema(rename = "length")]
     Length,
     #[serde(rename = "eos_token")]

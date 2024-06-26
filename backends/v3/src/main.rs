@@ -20,6 +20,7 @@ use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter, Layer};
+use text_generation_router_v3::{connect_backend, V3Error};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -336,9 +337,11 @@ async fn main() -> Result<(), RouterError> {
         }
     };
 
+    let (backend, backend_info) = connect_backend(max_input_tokens, max_total_tokens, master_shard_uds_path, waiting_served_ratio, max_batch_prefill_tokens, max_batch_total_tokens, max_waiting_tokens, max_batch_size).await?;
+
     // Run server
     server::run(
-        master_shard_uds_path,
+        backend,
         model_info,
         compat_return_full_text,
         max_concurrent_requests,
@@ -347,11 +350,6 @@ async fn main() -> Result<(), RouterError> {
         max_top_n_tokens,
         max_input_tokens,
         max_total_tokens,
-        waiting_served_ratio,
-        max_batch_prefill_tokens,
-        max_batch_total_tokens,
-        max_waiting_tokens,
-        max_batch_size,
         tokenizer,
         config,
         validation_workers,
@@ -508,6 +506,8 @@ pub async fn get_tokenizer_config(api_repo: &ApiRepo) -> Option<HubTokenizerConf
 enum RouterError {
     #[error("Argument validation error: {0}")]
     ArgumentValidation(String),
+    #[error("Backend failed: {0}")]
+    Backend(#[from] V3Error),
     #[error("WebServer error: {0}")]
     WebServer(#[from] server::WebServerError),
     #[error("Tokio runtime failed to start: {0}")]

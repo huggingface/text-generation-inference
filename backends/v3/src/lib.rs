@@ -1,14 +1,13 @@
 mod block_allocator;
 mod queue;
 mod backend;
+mod client;
 
-use futures_util::TryFutureExt;
 use serde::Serialize;
 use thiserror::Error;
 use utoipa::ToSchema;
 pub(crate) use backend::BackendV3;
-use text_generation_client::ClientError;
-use text_generation_client::v3::ShardedClient;
+use crate::client::{ShardedClient, ClientError};
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct BackendInfo {
@@ -127,7 +126,7 @@ pub async fn connect_backend(
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum V3Error {
+pub enum V3Error {
     #[error("Unable to clear the Python model shards cache: {0}")]
     Cache(ClientError),
     #[error("Unable to connect to the Python model shards: {0}")]
