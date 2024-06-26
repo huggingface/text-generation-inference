@@ -3602,6 +3602,7 @@ name = "text-generation-router"
 version = "2.0.5-dev0"
 dependencies = [
  "async-stream",
+ "async-trait",
  "axum 0.7.5",
  "axum-tracing-opentelemetry",
  "base64 0.22.1",

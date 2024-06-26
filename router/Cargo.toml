@@ -15,6 +15,7 @@ name = "text-generation-router"
 path = "src/main.rs"
 
 [dependencies]
+async-trait = "0.1.74"
 async-stream = "0.3.5"
 axum = { version = "0.7", features = ["json"] }
 axum-tracing-opentelemetry = "0.16"

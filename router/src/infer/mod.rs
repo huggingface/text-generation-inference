@@ -1,24 +1,18 @@
-mod health;
-pub(crate) mod v2;
+// pub(crate) mod v2;
 pub(crate) mod v3;
 mod chat_template;
-mod tool_grammar;
-
-pub(crate) use health::HealthCheck;
+pub mod tool_grammar;
 
 use crate::validation::{ValidGenerateRequest, Validation, ValidationError};
 use crate::{
-    ChatTemplateInputs, ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig,
-    HubTokenizerConfig, Message, MessageChunk, PrefillToken, Text, TextMessage, Token,
+    ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig,
+    HubTokenizerConfig, Message, PrefillToken, Token,
 };
-use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
+use crate::{GrammarType};
 use futures::future::try_join_all;
-use minijinja::{Environment, ErrorKind, Template};
-use minijinja_contrib::pycompat;
-
-use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use minijinja::{ErrorKind};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
@@ -26,13 +20,16 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::instrument;
 use chat_template::ChatTemplate;
+use async_trait::async_trait;
 
-pub(crate) trait Scheduler {
+#[async_trait]
+pub(crate) trait Backend {
     fn schedule(
         &self,
         request: ValidGenerateRequest,
-        permit: OwnedSemaphorePermit,
-    ) -> Result<GenerateStreamResponse, InferError>;
+    ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError>;
+
+    async fn health(&self, current_health: bool) -> bool;
 }
 
 /// Inference struct
@@ -90,15 +87,7 @@ impl Infer {
     #[instrument(skip_all)]
     pub(crate) async fn generate_stream<'a>(
         &'a self,
-        request: GenerateRequest,
-    ) -> Result<
-        (
-            OwnedSemaphorePermit,
-            u32, // input_length
-            impl Stream<Item=Result<InferStreamResponse, InferError>> + 'a,
-        ),
-        InferError,
-    > {
+        request: GenerateRequest) -> Result<GenerateStreamResponse, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
         let permit = self
             .clone()
@@ -118,35 +107,11 @@ impl Infer {
         })?;
 
         let input_length = valid_request.input_length;
-        let mut generation_stream = self
+        let generation_stream = self
             .backend
-            .schedule(valid_request)
-            .map_err(InferError::Backend)?;
+            .schedule(valid_request)?;
 
-        let stream = stream! {
-            while let Some(generation) = generation_stream.next().await {
-                self.backend_health.store(generation.is_ok(), Ordering::SeqCst);
-
-                yield generation.map(|generation| match generation {
-                    types::TokenStreamResponse::Prefill(prefill_tokens) => InferStreamResponse::Prefill(
-                        prefill_tokens.into_iter().map(PrefillToken::from).collect()
-                    ),
-                    types::TokenStreamResponse::Intermediate { token, top_tokens } => InferStreamResponse::Intermediate {
-                        token: Token::from(token),
-                        top_tokens: top_tokens.into_iter().map(Token::from).collect(),
-                    },
-                    types::TokenStreamResponse::End { token, top_tokens, generated_text, start, queued } => InferStreamResponse::End {
-                        token: Token::from(token),
-                        top_tokens: top_tokens.into_iter().map(Token::from).collect(),
-                        generated_text,
-                        start,
-                        queued,
-                    }
-                }).map_err(InferError::GenerationError)
-            }
-        };
-
-        Ok((permit, input_length, stream))
+        Ok((permit, input_length, generation_stream))
     }
 
     /// Tokenizer the input
@@ -363,10 +328,8 @@ pub(crate) struct InferResponse {
 
 #[derive(Debug, Error)]
 pub enum InferError {
-    #[error("Request failed during scheduling: {0}")]
-    Backend(BackendError),
     #[error("Request failed during generation: {0}")]
-    GenerationError(BackendError),
+    GenerationError(String),
     #[error("Model is overloaded")]
     Overloaded(#[from] TryAcquireError),
     #[error("Input validation error: {0}")]
@@ -382,7 +345,6 @@ pub enum InferError {
 impl InferError {
     pub(crate) fn error_type(&self) -> &str {
         match self {
-            InferError::Backend(_) => "backend",
             InferError::GenerationError(_) => "generation",
             InferError::Overloaded(_) => "overloaded",
             InferError::ValidationError(_) => "validation",
