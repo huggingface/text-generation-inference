@@ -6,6 +6,7 @@ pub mod validation;
 
 #[cfg(feature = "kserve")]
 mod kserve;
+pub mod logging;
 
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -157,7 +158,6 @@ pub struct Info {
     pub validation_workers: usize,
     #[schema(example = "32")]
     pub max_client_batch_size: usize,
-
 
     /// Router Info
     #[schema(example = "text-generation-router")]

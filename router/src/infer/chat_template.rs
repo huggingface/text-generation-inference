@@ -74,7 +74,6 @@ impl ChatTemplate {
     }
 }
 
-
 // tests
 #[cfg(test)]
 mod tests {

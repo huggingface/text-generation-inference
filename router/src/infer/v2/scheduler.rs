@@ -1,7 +1,7 @@
 /// Batching and inference logic
 use crate::infer::v2::queue::{Entry, Queue};
 use crate::infer::{
-    GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse, Backend,
+    Backend, GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse,
 };
 use crate::validation::ValidGenerateRequest;
 use crate::{FinishReason, PrefillToken, Token};

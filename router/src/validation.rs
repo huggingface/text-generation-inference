@@ -638,7 +638,7 @@ pub struct Image {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Chunk {
     Text(String),
-    Image(Image)
+    Image(Image),
 }
 
 /// Convert input chunks to a stringly-typed input for backwards

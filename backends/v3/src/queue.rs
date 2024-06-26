@@ -1,14 +1,17 @@
 use crate::block_allocator::{BlockAllocation, BlockAllocator};
-use text_generation_router::infer::InferError;
-use text_generation_router::infer::InferStreamResponse;
-use text_generation_router::validation::{Chunk, ChunksToString, ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters};
-use nohash_hasher::{BuildNoHashHasher, IntMap};
-use std::cmp::{max, min};
-use std::collections::VecDeque;
+use crate::client;
 use crate::client::{
     Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
-use crate::client as client;
+use nohash_hasher::{BuildNoHashHasher, IntMap};
+use std::cmp::{max, min};
+use std::collections::VecDeque;
+use text_generation_router::infer::InferError;
+use text_generation_router::infer::InferStreamResponse;
+use text_generation_router::validation::{
+    Chunk, ChunksToString, ValidGenerateRequest, ValidGrammar, ValidParameters,
+    ValidStoppingParameters,
+};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
@@ -335,10 +338,21 @@ impl State {
                 id,
                 prefill_logprobs: entry.request.decoder_input_details,
                 input_chunks: Some(client::Input {
-                    chunks: entry.request.inputs.clone().into_iter().map(|c| client::InputChunk { chunk: Some(match c {
-                        Chunk::Text(text) => client::Chunk::Text(text),
-                        Chunk::Image(image) => client::Chunk::Image(client::Image { data: image.data, mimetype: image.mimetype })
-                    })}).collect()
+                    chunks: entry
+                        .request
+                        .inputs
+                        .clone()
+                        .into_iter()
+                        .map(|c| client::InputChunk {
+                            chunk: Some(match c {
+                                Chunk::Text(text) => client::Chunk::Text(text),
+                                Chunk::Image(image) => client::Chunk::Image(client::Image {
+                                    data: image.data,
+                                    mimetype: image.mimetype,
+                                }),
+                            }),
+                        })
+                        .collect(),
                 }),
                 inputs: entry.request.inputs.chunks_to_string(),
                 truncate: entry.request.truncate,

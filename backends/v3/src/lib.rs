@@ -1,13 +1,13 @@
-mod block_allocator;
-mod queue;
 mod backend;
+mod block_allocator;
 mod client;
+mod queue;
 
+use crate::client::{ClientError, ShardedClient};
+pub(crate) use backend::BackendV3;
 use serde::Serialize;
 use thiserror::Error;
 use utoipa::ToSchema;
-pub(crate) use backend::BackendV3;
-use crate::client::{ShardedClient, ClientError};
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct BackendInfo {
@@ -31,7 +31,8 @@ pub struct BackendInfo {
 }
 
 pub async fn connect_backend(
-    max_input_tokens: usize, max_total_tokens: usize,
+    max_input_tokens: usize,
+    max_total_tokens: usize,
     master_shard_uds_path: String,
     waiting_served_ratio: f32,
     max_batch_prefill_tokens: u32,

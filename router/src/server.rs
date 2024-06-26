@@ -1,7 +1,7 @@
 /// HTTP Server logic
 use crate::config::Config;
-use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, Backend};
 use crate::infer::tool_grammar::ToolGrammar;
+use crate::infer::{Backend, Infer, InferError, InferResponse, InferStreamResponse};
 #[cfg(feature = "kserve")]
 use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
@@ -23,7 +23,7 @@ use crate::{
 use crate::{FunctionDefinition, ToolCall, ToolType};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
-use axum::http::{HeaderMap, Method, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -33,10 +33,15 @@ use futures::stream::StreamExt;
 use futures::stream::{FuturesOrdered, FuturesUnordered};
 use futures::Stream;
 use futures::TryStreamExt;
+use hf_hub::api::tokio::{Api, ApiBuilder, ApiRepo};
+use hf_hub::{Cache, Repo, RepoType};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use serde_json::Value;
 use std::convert::Infallible;
-use std::net::SocketAddr;
+use std::fs::File;
+use std::io::BufReader;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokenizers::Tokenizer;
 use tokio::select;
@@ -1395,24 +1400,22 @@ pub(crate) struct ComputeType(String);
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
     backend: impl Backend + Send + Sync + 'static,
-    model_info: HubModelInfo,
-    compat_return_full_text: bool,
     max_concurrent_requests: usize,
     max_best_of: usize,
     max_stop_sequences: usize,
     max_top_n_tokens: u32,
     max_input_tokens: usize,
     max_total_tokens: usize,
-    tokenizer: Option<Tokenizer>,
-    config: Option<Config>,
     validation_workers: usize,
-    addr: SocketAddr,
-    allow_origin: Option<AllowOrigin>,
+    tokenizer_name: String,
+    tokenizer_config_path: Option<String>,
+    revision: Option<String>,
+    hostname: String,
+    port: u16,
+    cors_allow_origin: Option<Vec<String>>,
     ngrok: bool,
     _ngrok_authtoken: Option<String>,
     _ngrok_edge: Option<String>,
-    tokenizer_config: HubTokenizerConfig,
-    processor_config: HubProcessorConfig,
     messages_api_enabled: bool,
     grammar_support: bool,
     max_client_batch_size: usize,
@@ -1485,6 +1488,195 @@ pub async fn run(
     )]
     struct ApiDoc;
 
+    // CORS allowed origins
+    // map to go inside the option and then map to parse from String to HeaderValue
+    // Finally, convert to AllowOrigin
+    let allow_origin: Option<AllowOrigin> = cors_allow_origin.map(|cors_allow_origin| {
+        AllowOrigin::list(
+            cors_allow_origin
+                .iter()
+                .map(|origin| origin.parse::<HeaderValue>().unwrap()),
+        )
+    });
+
+    // Parse Huggingface hub token
+    let authorization_token = std::env::var("HF_TOKEN")
+        .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
+        .ok();
+
+    // Tokenizer instance
+    // This will only be used to validate payloads
+    let local_path = Path::new(&tokenizer_name);
+
+    // Shared API builder initialization
+    let api_builder = || {
+        let mut builder = ApiBuilder::new()
+            .with_progress(false)
+            .with_token(authorization_token);
+
+        if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
+            builder = builder.with_cache_dir(cache_dir.into());
+        }
+
+        builder
+    };
+
+    // Decide if we need to use the API based on the revision and local path
+    let use_api = revision.is_some() || !local_path.exists() || !local_path.is_dir();
+
+    // Initialize API if needed
+    #[derive(Clone)]
+    enum Type {
+        Api(Api),
+        Cache(Cache),
+        None,
+    }
+    let api = if use_api {
+        if std::env::var("HF_HUB_OFFLINE") == Ok("1".to_string()) {
+            let cache = Cache::default();
+            tracing::warn!("Offline mode active using cache defaults");
+            Type::Cache(cache)
+        } else {
+            tracing::info!("Using the Hugging Face API");
+            match api_builder().build() {
+                Ok(api) => Type::Api(api),
+                Err(_) => {
+                    tracing::warn!("Unable to build the Hugging Face API");
+                    Type::None
+                }
+            }
+        }
+    } else {
+        Type::None
+    };
+
+    // Load tokenizer and model info
+    let (
+        tokenizer_filename,
+        config_filename,
+        tokenizer_config_filename,
+        processor_config_filename,
+        model_info,
+    ) = match api {
+        Type::None => (
+            Some(local_path.join("tokenizer.json")),
+            Some(local_path.join("config.json")),
+            Some(local_path.join("tokenizer_config.json")),
+            Some(local_path.join("processor_config.json")),
+            None,
+        ),
+        Type::Api(api) => {
+            let api_repo = api.repo(Repo::with_revision(
+                tokenizer_name.to_string(),
+                RepoType::Model,
+                revision.clone().unwrap_or_else(|| "main".to_string()),
+            ));
+
+            let tokenizer_filename = match api_repo.get("tokenizer.json").await {
+                Ok(tokenizer_filename) => Some(tokenizer_filename),
+                Err(_) => get_base_tokenizer(&api, &api_repo).await,
+            };
+            let config_filename = api_repo.get("config.json").await.ok();
+            let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
+            let processor_config_filename = api_repo.get("processor_config.json").await.ok();
+
+            let model_info = if let Some(model_info) = get_hub_model_info(&api_repo).await {
+                Some(model_info)
+            } else {
+                tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
+                None
+            };
+            (
+                tokenizer_filename,
+                config_filename,
+                tokenizer_config_filename,
+                processor_config_filename,
+                model_info,
+            )
+        }
+        Type::Cache(cache) => {
+            let repo = cache.repo(Repo::with_revision(
+                tokenizer_name.to_string(),
+                RepoType::Model,
+                revision.clone().unwrap_or_else(|| "main".to_string()),
+            ));
+            (
+                repo.get("tokenizer.json"),
+                repo.get("config.json"),
+                repo.get("tokenizer_config.json"),
+                repo.get("processor_config.json"),
+                None,
+            )
+        }
+    };
+    let tokenizer: Option<Tokenizer> =
+        tokenizer_filename.and_then(|filename| Tokenizer::from_file(filename).ok());
+    let config: Option<Config> = config_filename.and_then(|filename| {
+        std::fs::read_to_string(filename)
+            .ok()
+            .as_ref()
+            .and_then(|c| {
+                let config: Result<Config, _> = serde_json::from_str(c);
+                if let Err(err) = &config {
+                    tracing::warn!("Could not parse config {err:?}");
+                }
+                config.ok()
+            })
+    });
+    let model_info = model_info.unwrap_or_else(|| HubModelInfo {
+        model_id: tokenizer_name.to_string(),
+        sha: None,
+        pipeline_tag: None,
+    });
+
+    // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
+    let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
+    {
+        HubTokenizerConfig::from_file(filename)
+    } else {
+        tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
+    };
+    let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
+        tracing::warn!("Could not find tokenizer config locally and no API specified");
+        HubTokenizerConfig::default()
+    });
+
+    let processor_config = processor_config_filename
+        .and_then(HubProcessorConfig::from_file)
+        .unwrap_or_default();
+
+    tracing::info!("Using config {config:?}");
+    if tokenizer.is_none() {
+        tracing::warn!("Could not find a fast tokenizer implementation for {tokenizer_name}");
+        tracing::warn!("Rust input length validation and truncation is disabled");
+    }
+
+    // if pipeline-tag == text-generation we default to return_full_text = true
+    let compat_return_full_text = match &model_info.pipeline_tag {
+        None => {
+            tracing::warn!("no pipeline tag found for model {tokenizer_name}");
+            true
+        }
+        Some(pipeline_tag) => pipeline_tag.as_str() == "text-generation",
+    };
+
+    // Determine the server port based on the feature and environment variable.
+    let port = if cfg!(feature = "google") {
+        std::env::var("AIP_HTTP_PORT")
+            .map(|aip_http_port| aip_http_port.parse::<u16>().unwrap_or(port))
+            .unwrap_or(port)
+    } else {
+        port
+    };
+
+    let addr = match hostname.parse() {
+        Ok(ip) => SocketAddr::new(ip, port),
+        Err(_) => {
+            tracing::warn!("Invalid hostname, defaulting to 0.0.0.0");
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
+        }
+    };
+
     // Create state
     let validation = Validation::new(
         validation_workers,
@@ -1551,8 +1743,8 @@ pub async fn run(
         .unwrap()
         .set_buckets_for_metric(batch_size_matcher, &batch_size_buckets)
         .unwrap();
-        // .set_buckets_for_metric(skipped_matcher, &skipped_buckets)
-        // .unwrap();
+    // .set_buckets_for_metric(skipped_matcher, &skipped_buckets)
+    // .unwrap();
     let prom_handle = builder
         .install_recorder()
         .expect("failed to install metrics recorder");
@@ -1748,6 +1940,68 @@ pub async fn run(
             .map_err(|err| WebServerError::Axum(Box::new(err)))?;
     }
     Ok(())
+}
+
+/// get model info from the Huggingface Hub
+pub async fn get_hub_model_info(api: &ApiRepo) -> Option<HubModelInfo> {
+    let response = api.info_request().send().await.ok()?;
+
+    if response.status().is_success() {
+        let hub_model_info: HubModelInfo =
+            serde_json::from_str(&response.text().await.ok()?).ok()?;
+        if let Some(sha) = &hub_model_info.sha {
+            tracing::info!(
+                "Serving revision {sha} of model {}",
+                hub_model_info.model_id
+            );
+        }
+        Some(hub_model_info)
+    } else {
+        None
+    }
+}
+
+/// get base tokenizer
+pub async fn get_base_tokenizer(api: &Api, api_repo: &ApiRepo) -> Option<PathBuf> {
+    let config_filename = api_repo.get("config.json").await.ok()?;
+
+    // Open the file in read-only mode with buffer.
+    let file = File::open(config_filename).ok()?;
+    let reader = BufReader::new(file);
+
+    // Read the JSON contents of the file as an instance of `User`.
+    let config: serde_json::Value = serde_json::from_reader(reader).ok()?;
+
+    if let Some(serde_json::Value::String(base_model_id)) = config.get("base_model_name_or_path") {
+        let api_base_repo = api.repo(Repo::with_revision(
+            base_model_id.to_string(),
+            RepoType::Model,
+            "main".to_string(),
+        ));
+
+        api_base_repo.get("tokenizer.json").await.ok()
+    } else {
+        None
+    }
+}
+
+/// get tokenizer_config from the Huggingface Hub
+pub async fn get_tokenizer_config(api_repo: &ApiRepo) -> Option<HubTokenizerConfig> {
+    let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok()?;
+
+    // Open the file in read-only mode with buffer.
+    let file = File::open(tokenizer_config_filename).ok()?;
+    let reader = BufReader::new(file);
+
+    // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
+    let tokenizer_config: HubTokenizerConfig = serde_json::from_reader(reader)
+        .map_err(|e| {
+            tracing::warn!("Unable to parse tokenizer config: {}", e);
+            e
+        })
+        .ok()?;
+
+    Some(tokenizer_config)
 }
 
 /// Shutdown signal handler

@@ -1,6 +1,5 @@
 //! Text Generation gRPC client library
 
-
 use async_trait::async_trait;
 use thiserror::Error;
 use tonic::transport;

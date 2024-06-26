@@ -1,5 +1,4 @@
 /// Single shard Client
-
 use crate::client::{pb, Chunk};
 use crate::client::{ClientError, Result, WARMUP_IMAGE_BASE64};
 use base64::engine::general_purpose::STANDARD;
@@ -20,6 +19,7 @@ pub struct Client {
 
 impl Client {
     /// Returns a client connected to the given url
+    #[allow(dead_code)]
     pub async fn connect(uri: Uri) -> Result<Self> {
         let channel = Channel::builder(uri).connect().await?;
 

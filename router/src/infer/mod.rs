@@ -3,23 +3,23 @@ mod chat_template;
 pub mod tool_grammar;
 
 use crate::validation::{ValidGenerateRequest, Validation, ValidationError};
+use crate::GrammarType;
 use crate::{
-    ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig,
-    HubTokenizerConfig, Message, PrefillToken, Token,
+    ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig, HubTokenizerConfig,
+    Message, PrefillToken, Token,
 };
-use crate::{GrammarType};
+use async_trait::async_trait;
+use chat_template::ChatTemplate;
 use futures::future::try_join_all;
-use minijinja::{ErrorKind};
-use std::sync::Arc;
+use minijinja::ErrorKind;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::instrument;
-use chat_template::ChatTemplate;
-use async_trait::async_trait;
 
 #[async_trait]
 pub trait Backend {
@@ -86,7 +86,8 @@ impl Infer {
     #[instrument(skip_all)]
     pub(crate) async fn generate_stream<'a>(
         &'a self,
-        request: GenerateRequest) -> Result<GenerateStreamResponse, InferError> {
+        request: GenerateRequest,
+    ) -> Result<GenerateStreamResponse, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
         let permit = self
             .clone()
@@ -106,9 +107,7 @@ impl Infer {
         })?;
 
         let input_length = valid_request.input_length;
-        let generation_stream = self
-            .backend
-            .schedule(valid_request)?;
+        let generation_stream = self.backend.schedule(valid_request)?;
 
         Ok((permit, input_length, generation_stream))
     }

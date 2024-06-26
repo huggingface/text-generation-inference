@@ -1,17 +1,17 @@
+use crate::client::{ClientError, Result};
 /// Multi shard Client
 use crate::client::{Health, ShardInfo};
-use crate::client::{ClientError, Result};
 
-use crate::client::{Chunk, InfoResponse, Input};
-use async_trait::async_trait;
-use futures::future::join_all;
-use tonic::transport::Uri;
-use tracing::instrument;
 use crate::client::client::{DecodeTimings, PrefillTimings};
 use crate::client::{
     Batch, CachedBatch, Client, Generation, GrammarType, HealthResponse,
     NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
+use crate::client::{Chunk, InfoResponse, Input};
+use async_trait::async_trait;
+use futures::future::join_all;
+use tonic::transport::Uri;
+use tracing::instrument;
 
 #[derive(Debug, Clone)]
 /// Text Generation Inference gRPC multi client
@@ -35,6 +35,7 @@ impl ShardedClient {
     }
 
     /// Returns a client connected to the given uri
+    #[allow(dead_code)]
     pub async fn connect(uri: Uri) -> Result<Self> {
         let master_client = Client::connect(uri).await?;
         Self::from_master_client(master_client).await

@@ -1,21 +1,17 @@
+use crate::client::{Batch, CachedBatch, ClientError, Generation, Health, ShardedClient};
 /// Batching and inference logic
 use crate::queue::{Entry, Queue};
-use text_generation_router::infer::{
-    GeneratedText, InferError, InferStreamResponse, Backend,
-};
+use async_trait::async_trait;
+use nohash_hasher::IntMap;
+use std::sync::Arc;
+use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidGenerateRequest;
 use text_generation_router::{FinishReason, PrefillToken, Token};
-use nohash_hasher::IntMap;
-use std::sync::{
-    Arc,
-};
-use crate::client::{Batch, CachedBatch, Generation, ShardedClient, ClientError, Health};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
-use async_trait::async_trait;
 
 pub struct BackendV3 {
     /// Request queue
@@ -94,9 +90,7 @@ impl Backend for BackendV3 {
         self.batching_task_notifier.notify_one();
 
         // Return stream
-        Ok(
-            UnboundedReceiverStream::new(response_rx),
-        )
+        Ok(UnboundedReceiverStream::new(response_rx))
     }
 
     async fn health(&self, current_health: bool) -> bool {
@@ -193,10 +187,9 @@ pub(crate) async fn batching_task(
                     });
 
                     // Generate one token for this new batch to have the attention past in cache
-                    let new_cached_batch =
-                        prefill(&mut client, new_batch, &mut new_entries)
-                            .instrument(span)
-                            .await;
+                    let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
+                        .instrument(span)
+                        .await;
                     // Reset waiting counter
                     waiting_tokens = 1;
                     // Extend current batch with the new batch
@@ -480,8 +473,7 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
 
 impl From<crate::client::GeneratedText> for GeneratedText {
     fn from(value: crate::client::GeneratedText) -> Self {
-        let v3_finish_reason =
-            crate::client::FinishReason::try_from(value.finish_reason).unwrap();
+        let v3_finish_reason = crate::client::FinishReason::try_from(value.finish_reason).unwrap();
         let finish_reason = match v3_finish_reason {
             crate::client::FinishReason::Length => FinishReason::Length,
             crate::client::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
