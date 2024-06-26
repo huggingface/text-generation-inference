@@ -1052,7 +1052,7 @@ impl From<CompatGenerateRequest> for GenerateRequest {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema, Clone)]
 pub struct PrefillToken {
     #[schema(example = 0)]
     pub id: u32,

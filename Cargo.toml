@@ -2,10 +2,11 @@
 members = [
 #    "benchmark",
     "backends/v3",
+    "backends/dummy",
 #    "backends/client",
     "backends/grpc-metadata",
     "launcher"
-]
+, "backends/dummy"]
 resolver = "2"
 
 [workspace.package]

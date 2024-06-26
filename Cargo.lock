@@ -791,6 +791,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dummy"
+version = "2.0.5-dev0"
+dependencies = [
+ "async-trait",
+ "clap",
+ "text-generation-router",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "either"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
