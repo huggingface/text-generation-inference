@@ -121,12 +121,10 @@ responses(
 example = json ! ({"error": "unhealthy", "error_type": "healthcheck"})),
 )
 )]
-#[instrument(skip(health))]
+#[instrument(skip(infer))]
 /// Health check method
-async fn health(
-    mut health: Extension<HealthCheck>,
-) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
-    match health.check().await {
+async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    match infer.health().await {
         true => Ok(()),
         false => Err((
             StatusCode::SERVICE_UNAVAILABLE,
@@ -437,8 +435,9 @@ async fn generate_stream_internal(
         } else {
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
-                Ok((_permit, _input_length, mut response_stream)) => {
+                Ok((_permit, _input_length, response_stream)) => {
                     let mut index = 0;
+                    let mut response_stream = Box::pin(response_stream);
                     // Server-Sent Event stream
                     while let Some(response) = response_stream.next().await {
                         index += 1;
@@ -1960,16 +1959,8 @@ impl From<InferError> for Event {
 
 #[derive(Debug, Error)]
 pub enum WebServerError {
-    #[error("Unable to connect to the Python model shards: {0}")]
-    Connection(ClientError),
-    #[error("Unable to clear the Python model shards cache: {0}")]
-    Cache(ClientError),
-    #[error("Unable to get the Python model shards info: {0}")]
-    Info(ClientError),
-    #[error("Unable to warmup the Python model shards: {0}")]
-    Warmup(ClientError),
-    #[error("Not enough memory to handle `max_total_tokens={0}`")]
-    NotEnoughMemory(usize),
+    #[error("Backend error: {0}")]
+    Backend(#[from] BackendError),
     #[error("Axum error: {0}")]
     Axum(#[from] axum::BoxError),
 }
