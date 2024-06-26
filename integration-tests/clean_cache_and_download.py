@@ -115,7 +115,7 @@ def cleanup_cache(token: str, cache_dir: str):
     print("total_required_size", total_required_size)
     print("total_required_cached_size", total_required_cached_size)
     total_non_cached_required_size = total_required_size - total_required_cached_size
-    assert total_non_cached_required_size >= 0
+    assert total_non_cached_required_size >= -0.001
 
     print(
         f"Total non-cached required models size: {total_non_cached_required_size:.2f} GB (to be downloaded)"

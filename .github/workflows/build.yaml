@@ -168,7 +168,7 @@ jobs:
           fi
 
 
-  login_tailscale:
+  login_tailscale_and_registry:
     runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
     needs: build-and-push
     concurrency:
@@ -182,10 +182,17 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
+      - name: Login to internal Container Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
+          password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
+          registry: registry.internal.huggingface.tech
+
 
   prepare_integration_tests:
     runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
-    needs: [build-and-push, login_tailscale]
+    needs: [build-and-push, login_tailscale_and_registry]
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
