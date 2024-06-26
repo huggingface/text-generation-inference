@@ -445,7 +445,6 @@ pub struct CompletionRequest {
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct Completion {
     pub id: String,
-    #[schema(default = "ObjectType::ChatCompletion")]
     pub object: ObjectType,
     #[schema(example = "1706270835")]
     pub created: u64,
