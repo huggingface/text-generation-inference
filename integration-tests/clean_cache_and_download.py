@@ -112,6 +112,8 @@ def cleanup_cache(token: str, cache_dir: str):
     total_required_cached_size = sum(cached_required_size_per_model.values())
     total_other_cached_size = sum(cache_size_per_model.values())
 
+    print("total_required_size", total_required_size)
+    print("total_required_cached_size", total_required_cached_size)
     total_non_cached_required_size = total_required_size - total_required_cached_size
     assert total_non_cached_required_size >= 0
 

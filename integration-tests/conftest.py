@@ -394,7 +394,7 @@ def launcher(event_loop):
         with tempfile.TemporaryFile("w+") as tmp:
             # We'll output stdout/stderr to a temporary file. Using a pipe
             # cause the process to block until stdout is read.
-            print("call subprocess.Popen, with args", args)
+            print("subprocess.Popen:", args)
             with subprocess.Popen(
                 args,
                 stdout=tmp,
@@ -426,7 +426,6 @@ def launcher(event_loop):
         max_batch_prefill_tokens: Optional[int] = None,
         max_total_tokens: Optional[int] = None,
     ):
-        print("call docker launcher")
         port = random.randint(8000, 10_000)
 
         args = ["--model-id", model_id, "--env"]
@@ -494,8 +493,6 @@ def launcher(event_loop):
                 docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
             ]
 
-        print("call client.containers.run")
-        print("container_name", container_name)
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,

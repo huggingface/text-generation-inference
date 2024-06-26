@@ -168,9 +168,24 @@ jobs:
           fi
 
 
-  prepare_integration_tests:
+  login_tailscale:
     runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
     needs: build-and-push
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    steps:
+      - name: Tailscale
+        uses: huggingface/tailscale-action@main
+        if: needs.build-and-push.outputs.runs_on != 'amd-gpu-tgi'
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+
+  prepare_integration_tests:
+    runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
+    needs: [build-and-push, login_tailscale]
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
