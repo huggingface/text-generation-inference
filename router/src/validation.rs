@@ -96,7 +96,7 @@ impl Validation {
         &self,
         inputs: String,
         truncate: Option<usize>,
-    ) -> Result<Option<(tokenizers::Encoding, Vec<InputChunk>)>, ValidationError> {
+    ) -> Result<Option<(tokenizers::Encoding, Vec<Chunk>)>, ValidationError> {
         // If we have a fast tokenizer
         if let Some(sender) = &self.sender {
             // Create response channel
@@ -122,7 +122,7 @@ impl Validation {
         inputs: String,
         truncate: Option<usize>,
         max_new_tokens: Option<u32>,
-    ) -> Result<(Vec<InputChunk>, usize, u32), ValidationError> {
+    ) -> Result<(Vec<Chunk>, usize, u32), ValidationError> {
         // If we have a fast tokenizer
         if let Some((encoding, inputs)) = self.tokenize(inputs.clone(), truncate).await? {
             // Create response channel
@@ -631,18 +631,51 @@ fn prepare_input(
 
 type TokenizerRequest = (
     (String, Option<usize>),
-    oneshot::Sender<Result<(tokenizers::Encoding, Vec<InputChunk>), ValidationError>>,
+    oneshot::Sender<Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError>>,
     Span,
 );
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Image {
+    pub data: Vec<u8>,
+    pub mimetype: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Chunk {
+    Text(String),
+    Image(Image),
+}
+
+/// Convert input chunks to a stringly-typed input for backwards
+/// compat for backends that haven't implemented chunked inputs.
+pub trait ChunksToString {
+    /// Convert chunks to string.
+    fn chunks_to_string(&self) -> String;
+}
+
+impl ChunksToString for Vec<Chunk> {
+    fn chunks_to_string(&self) -> String {
+        let mut output = String::new();
+        self.iter().for_each(|c| match &c {
+            Chunk::Text(text) => output.push_str(text),
+            Chunk::Image(Image { data, mimetype }) => {
+                let encoded = STANDARD.encode(data);
+                output.push_str(&format!("![](data:{};base64,{})", mimetype, encoded))
+            }
+        });
+        output
+    }
+}
+
 #[derive(Debug, Clone)]
-pub(crate) enum ValidGrammar {
+pub enum ValidGrammar {
     Json(String),
     Regex(String),
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ValidParameters {
+pub struct ValidParameters {
     /// / exponential scaling output probability distribution
     pub temperature: f32,
     /// / restricting to the k highest probability elements
@@ -666,7 +699,7 @@ pub(crate) struct ValidParameters {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ValidStoppingParameters {
+pub struct ValidStoppingParameters {
     /// / Maximum number of generated tokens
     pub max_new_tokens: u32,
     /// / Optional stopping sequences
@@ -677,8 +710,8 @@ pub(crate) struct ValidStoppingParameters {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ValidGenerateRequest {
-    pub inputs: Vec<InputChunk>,
+pub struct ValidGenerateRequest {
+    pub inputs: Vec<Chunk>,
     pub input_length: u32,
     pub truncate: u32,
     pub decoder_input_details: bool,
@@ -750,6 +783,9 @@ pub enum ValidationError {
     InvalidImageContent(String),
     #[error("Could not fetch image: {0}")]
     FailedFetchImage(#[from] reqwest::Error),
+    #[error("{0} modality is not supported")]
+    UnsupportedModality(&'static str)
+
 }
 
 #[cfg(test)]

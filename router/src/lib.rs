@@ -1,11 +1,12 @@
 /// Text Generation Inference Webserver
 pub mod config;
-mod infer;
+pub mod infer;
 pub mod server;
-mod validation;
+pub mod validation;
 
 #[cfg(feature = "kserve")]
 mod kserve;
+pub mod logging;
 
 pub mod usage_stats;
 
@@ -148,12 +149,13 @@ pub struct Info {
     pub model_id: String,
     #[schema(nullable = true, example = "e985a63cdc139290c5f700ff1929f0b5942cced2")]
     pub model_sha: Option<String>,
-    #[schema(example = "torch.float16")]
-    pub model_dtype: String,
-    #[schema(example = "cuda")]
-    pub model_device_type: String,
+    // #[schema(example = "torch.float16")]
+    // pub model_dtype: String,
+    // #[schema(example = "cuda")]
+    // pub model_device_type: String,
     #[schema(nullable = true, example = "text-generation")]
     pub model_pipeline_tag: Option<String>,
+
     /// Router Parameters
     #[schema(example = "128")]
     pub max_concurrent_requests: usize,
@@ -165,18 +167,11 @@ pub struct Info {
     pub max_input_tokens: usize,
     #[schema(example = "2048")]
     pub max_total_tokens: usize,
-    #[schema(example = "1.2")]
-    pub waiting_served_ratio: f32,
-    #[schema(example = "32000")]
-    pub max_batch_total_tokens: u32,
-    #[schema(example = "20")]
-    pub max_waiting_tokens: usize,
-    #[schema(nullable = true, example = "null")]
-    pub max_batch_size: Option<usize>,
     #[schema(example = "2")]
     pub validation_workers: usize,
     #[schema(example = "32")]
     pub max_client_batch_size: usize,
+
     /// Router Info
     #[schema(example = "text-generation-router")]
     pub router: &'static str,
@@ -1068,23 +1063,23 @@ impl From<CompatGenerateRequest> for GenerateRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PrefillToken {
     #[schema(example = 0)]
-    id: u32,
+    pub id: u32,
     #[schema(example = "test")]
-    text: String,
+    pub text: String,
     #[schema(nullable = true, example = - 0.34)]
-    logprob: f32,
+    pub logprob: f32,
 }
 
 #[derive(Debug, Serialize, ToSchema, Clone)]
 pub struct Token {
     #[schema(example = 0)]
-    id: u32,
+    pub id: u32,
     #[schema(example = "test")]
-    text: String,
+    pub text: String,
     #[schema(nullable = true, example = - 0.34)]
-    logprob: f32,
+    pub logprob: f32,
     #[schema(example = "false")]
-    special: bool,
+    pub special: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -1102,7 +1097,7 @@ pub struct SimpleToken {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
-pub(crate) enum FinishReason {
+pub enum FinishReason {
     #[schema(rename = "length")]
     Length,
     #[serde(rename = "eos_token")]

@@ -1,7 +1,7 @@
 /// Batching and inference logic
 use crate::infer::v2::queue::{Entry, Queue};
 use crate::infer::{
-    GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse, Scheduler,
+    Backend, GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse,
 };
 use crate::validation::ValidGenerateRequest;
 use crate::{FinishReason, PrefillToken, Token};
@@ -18,14 +18,14 @@ use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
 
-pub(crate) struct SchedulerV2 {
+pub(crate) struct BackendV2 {
     /// Request queue
     queue: Queue,
     /// Notify batcher on queue appends
     batching_task_notifier: Arc<Notify>,
 }
 
-impl SchedulerV2 {
+impl BackendV2 {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         client: ShardedClient,
@@ -69,7 +69,7 @@ impl SchedulerV2 {
     }
 }
 
-impl Scheduler for SchedulerV2 {
+impl Backend for BackendV2 {
     #[instrument(skip_all)]
     fn schedule(
         &self,

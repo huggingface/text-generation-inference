@@ -1,11 +1,11 @@
 [workspace]
 members = [
-    "benchmark",
-    "router",
-    "router/client",
-    "router/grpc-metadata",
+#    "benchmark",
+    "backends/v3",
+#    "backends/client",
+    "backends/grpc-metadata",
     "launcher"
-]
+, "backends/trtllm"]
 resolver = "2"
 
 [workspace.package]
