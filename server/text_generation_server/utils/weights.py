@@ -79,6 +79,13 @@ class Weights:
         slice_ = f.get_slice(tensor_name)
         return slice_
 
+    def _has_tensor(self, tensor_name: str):
+        try:
+            self.get_filename(tensor_name)
+        except Exception:
+            return False
+        return True
+
     def get_shape(self, tensor_name: str):
         return self._get_slice(tensor_name).get_shape()
 
@@ -749,23 +756,26 @@ class Weights:
         return weight
 
     def _get_gptq_params(self) -> _GPTQParams:
-        try:
+        if self._has_tensor("gptq_bits") and self._has_tensor("gptq_groupsize"):
             bits = self.get_tensor("gptq_bits").item()
             groupsize = self.get_tensor("gptq_groupsize").item()
             checkpoint_format = getattr(self, "gptq_checkpoint_format", None)
             desc_act = False
-            sym = True
+            # `server quantize` used asymmetric quantization unconditionally
+            # before the `gptq_sym` setting tensor was added.
+            sym = (
+                self.get_tensor("gptq_sym").item()
+                if self._has_tensor("gptq_sym")
+                else False
+            )
             quant_method = "gptq"
-        except (SafetensorError, RuntimeError) as e:
-            try:
-                bits = self.gptq_bits
-                groupsize = self.gptq_groupsize
-                checkpoint_format = getattr(self, "gptq_checkpoint_format", None)
-                desc_act = getattr(self, "gptq_desc_act", False)
-                quant_method = getattr(self, "quant_method", "gptq")
-                sym = getattr(self, "sym", True)
-            except Exception:
-                raise e
+        else:
+            bits = self.gptq_bits
+            groupsize = self.gptq_groupsize
+            checkpoint_format = getattr(self, "gptq_checkpoint_format", None)
+            desc_act = getattr(self, "gptq_desc_act", False)
+            quant_method = getattr(self, "quant_method", "gptq")
+            sym = getattr(self, "sym", True)
 
         return _GPTQParams(
             bits=bits,
