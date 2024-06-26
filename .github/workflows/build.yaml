@@ -110,7 +110,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            registry.github-runners.huggingface.tech/api-inference/community/text-generation-inference
+            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
           tags: |
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
       # If main, release or tag
@@ -122,7 +122,7 @@ jobs:
           flavor: |
             latest=auto
           images: |
-            registry.github-runners.huggingface.tech/api-inference/community/text-generation-inference
+            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
             ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
@@ -148,7 +148,7 @@ jobs:
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry.github-runners.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
