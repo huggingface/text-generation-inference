@@ -12,6 +12,7 @@ from pathlib import Path
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
+from text_generation_server.models.causal_lm_ragged import CausalLMRagged
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOMSharded
 from text_generation_server.models.mpt import MPTSharded
@@ -588,7 +589,7 @@ def get_model(
             )
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and False:
             return FlashLlama(
                 model_id,
                 revision,
@@ -601,7 +602,8 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
         else:
-            return CausalLM(
+            logger.info("LOADING CAUSALLM!!!!!!!!!!!!!!!!!!")
+            return CausalLMRagged(
                 model_id,
                 revision,
                 quantize=quantize,

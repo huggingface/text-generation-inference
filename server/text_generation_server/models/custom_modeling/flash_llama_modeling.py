@@ -111,6 +111,7 @@ class FlashLlamaAttention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        layer_idx,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -143,6 +144,7 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.query_key_value = load_attention(config, prefix, weights, index)
         self.index = index
+        self.layer_idx = layer_idx
 
         o_proj = TensorParallelRowLinear.load(
             config,
@@ -162,6 +164,8 @@ class FlashLlamaAttention(torch.nn.Module):
         self.kv_head_mapping = torch.arange(
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
         ).repeat_interleave(self.num_groups)
+
+        self.step = 0
 
     def forward(
         self,
@@ -194,6 +198,18 @@ class FlashLlamaAttention(torch.nn.Module):
         # output tensor
         attn_output = torch.empty_like(query)
 
+        if self.layer_idx < 4:
+            torch.save(query, f"query_states_step{self.step}_layer{self.layer_idx}.pt")
+            if cu_seqlen_prefill is not None:
+                torch.save(
+                    torch.select(kv, dim=1, index=0),
+                    f"key_states_step{self.step}_layer{self.layer_idx}.pt",
+                )
+                torch.save(
+                    torch.select(kv, dim=1, index=1),
+                    f"value_states_step{self.step}_layer{self.layer_idx}.pt",
+                )
+
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
@@ -220,9 +236,14 @@ class FlashLlamaAttention(torch.nn.Module):
                 max_s,
             )
 
-        return self.o_proj(
-            attn_output.view(-1, self.num_heads * self.head_size), adapter_data
-        )
+        attn_output = attn_output.view(-1, self.num_heads * self.head_size)
+        if self.layer_idx < 4:
+            torch.save(
+                attn_output, f"attn_output_step{self.step}_layer{self.layer_idx}.pt"
+            )
+
+        self.step += 1
+        return self.o_proj(attn_output, adapter_data)
 
 
 class LlamaMLP(nn.Module):
@@ -299,6 +320,7 @@ class LlamaMLP(nn.Module):
     def forward(self, hidden_states, adapter_data):
         if (
             SYSTEM == "rocm"
+            and False
             and self.hidden_act == "silu"
             and hidden_states.shape[0] == 1
             and not self.quantize
@@ -320,13 +342,14 @@ class LlamaMLP(nn.Module):
 
 
 class FlashLlamaLayer(nn.Module):
-    def __init__(self, index, prefix, config, weights):
+    def __init__(self, index, prefix, config, weights, layer_idx):
         super().__init__()
         self.self_attn = FlashLlamaAttention(
             index=index,
             prefix=f"{prefix}.self_attn",
             config=config,
             weights=weights,
+            layer_idx=layer_idx,
         )
         self.mlp = LlamaMLP(
             prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
@@ -399,6 +422,7 @@ class FlashLlamaModel(torch.nn.Module):
                     ),
                     config=config,
                     weights=weights,
+                    layer_idx=layer_id,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
