@@ -320,7 +320,6 @@ async fn main() -> Result<(), RouterError> {
         tokenizer
     });
 
-    // tokenizer.with_post_processor(post_processor);
     let preprocessor_config =
         preprocessor_config_filename.and_then(HubPreprocessorConfig::from_file);
     let processor_config = processor_config_filename
