@@ -1149,23 +1149,6 @@ class FlashCausalLM(Model):
             cuda_graph = None
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
-            logger.info(f"input_ids {input_ids} {input_ids.shape}")
-            logger.info(f"position_ids {position_ids} {position_ids.shape}")
-            logger.info(
-                f"cu_seqlen_prefill {cu_seqlen_prefill} {cu_seqlen_prefill.shape if cu_seqlen_prefill is not None else 'NONE'}"
-            )
-            logger.info(
-                f"kv_cache {type(kv_cache)}, len={len(kv_cache)}, {len(kv_cache[0])}, shape={kv_cache[0][0].shape}"
-            )
-            logger.info(
-                f"block_tables {type(block_tables)} {block_tables.shape} {block_tables}"
-            )
-            logger.info(f"slots {type(slots)} {slots.shape} {slots}")
-            logger.info(f"input_lengths {input_lengths}")
-            logger.info(f"max_s {max_s}")
-            logger.info(f"prefill_cache_indices {batch.prefill_cache_indices}")
-            logger.info(f"lm_head_indices {lm_head_indices}")
-            logger.info(f"adapter_data {adapter_data}")
             logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
