@@ -13,14 +13,15 @@ use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
     GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig, Info,
-    Message, ObjectType, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token,
-    TokenizeResponse, Usage, Validation,
+    Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse,
+    Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
     ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
     ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
-    CompletionRequest, DeltaToolCall, Function, Tool, VertexRequest, VertexResponse,
+    CompletionRequest, CompletionType, DeltaToolCall, Function, Tool, VertexRequest,
+    VertexResponse,
 };
 use crate::{FunctionDefinition, ToolCall, ToolType};
 use async_stream::__private::AsyncStream;
@@ -705,7 +706,6 @@ async fn completions(
                     event
                         .json_data(CompletionCompleteChunk {
                             id: "".to_string(),
-                            object: ObjectType::ChatCompletionChunk,
                             created: current_time,
 
                             choices: vec![CompletionComplete {
@@ -932,7 +932,6 @@ async fn completions(
 
         let response = Completion {
             id: "".to_string(),
-            object: ObjectType::ChatCompletion,
             created: current_time,
             model: info.model_id.clone(),
             system_fingerprint: format!(
@@ -1153,14 +1152,16 @@ async fn chat_completions(
             };
 
             event
-                .json_data(ChatCompletionChunk::new(
-                    model_id.clone(),
-                    system_fingerprint.clone(),
-                    content,
-                    tool_calls,
-                    current_time,
-                    logprobs,
-                    stream_token.details.map(|d| d.finish_reason.to_string()),
+                .json_data(CompletionType::ChatCompletionChunk(
+                    ChatCompletionChunk::new(
+                        model_id.clone(),
+                        system_fingerprint.clone(),
+                        content,
+                        tool_calls,
+                        current_time,
+                        logprobs,
+                        stream_token.details.map(|d| d.finish_reason.to_string()),
+                    ),
                 ))
                 .unwrap_or_else(|e| {
                     println!("Failed to serialize ChatCompletionChunk: {:?}", e);
@@ -1228,7 +1229,7 @@ async fn chat_completions(
             (None, Some(generation.generated_text))
         };
         // build the complete response object with the full text
-        let response = ChatCompletion::new(
+        let response = CompletionType::ChatCompletion(ChatCompletion::new(
             model_id,
             system_fingerprint,
             output,
@@ -1236,7 +1237,7 @@ async fn chat_completions(
             generation.details.unwrap(),
             logprobs,
             tool_calls,
-        );
+        ));
 
         // wrap generation inside a Vec to match api-inference
         Ok((headers, Json(response)).into_response())

@@ -445,7 +445,6 @@ pub struct CompletionRequest {
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct Completion {
     pub id: String,
-    pub object: ObjectType,
     #[schema(example = "1706270835")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -466,7 +465,6 @@ pub(crate) struct CompletionComplete {
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletion {
     pub id: String,
-    pub object: ObjectType,
     #[schema(example = "1706270835")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -562,12 +560,13 @@ pub(crate) struct Usage {
     pub total_tokens: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ObjectType {
-    #[serde(rename = "chat.completion")]
-    ChatCompletion,
+#[derive(Clone, Serialize, ToSchema)]
+#[serde(tag = "object")]
+enum CompletionType {
     #[serde(rename = "chat.completion.chunk")]
-    ChatCompletionChunk,
+    ChatCompletionChunk(ChatCompletionChunk),
+    #[serde(rename = "chat.completion")]
+    ChatCompletion(ChatCompletion),
 }
 
 impl ChatCompletion {
@@ -606,7 +605,6 @@ impl ChatCompletion {
         };
         Self {
             id: String::new(),
-            object: ObjectType::ChatCompletion,
             created,
             model,
             system_fingerprint,
@@ -628,7 +626,6 @@ impl ChatCompletion {
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct CompletionCompleteChunk {
     pub id: String,
-    pub object: ObjectType,
     pub created: u64,
     pub choices: Vec<CompletionComplete>,
     pub model: String,
@@ -638,7 +635,6 @@ pub(crate) struct CompletionCompleteChunk {
 #[derive(Clone, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
-    pub object: ObjectType,
     #[schema(example = "1706270978")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -718,7 +714,6 @@ impl ChatCompletionChunk {
         };
         Self {
             id: String::new(),
-            object: ObjectType::ChatCompletionChunk,
             created,
             model,
             system_fingerprint,
