@@ -1,7 +1,7 @@
 import pytest
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.models.transformers_causal_lm import CausalLMBatch
 from text_generation_server.models.santacoder import SantaCoder
 
 
