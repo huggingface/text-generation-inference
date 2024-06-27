@@ -1,13 +1,16 @@
 /// Payload validation logic
 use crate::config::Config;
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
-use crate::{GenerateParameters, GenerateRequest, GrammarType};
+use crate::{
+    GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
+};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{io::Reader as ImageReader, ImageFormat};
 use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 use std::io::Cursor;
+use std::iter;
 use text_generation_client::{Chunk, Image, InputChunk};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
@@ -36,6 +39,7 @@ impl Validation {
         workers: usize,
         tokenizer: Option<Tokenizer>,
         config: Option<Config>,
+        preprocessor_config: Option<HubPreprocessorConfig>,
         max_best_of: usize,
         max_stop_sequences: usize,
         max_top_n_tokens: u32,
@@ -53,12 +57,18 @@ impl Validation {
             for _ in 0..workers {
                 let tokenizer_clone = tokenizer.clone();
                 let config_clone = config.clone();
+                let preprocessor_config_clone = preprocessor_config.clone();
                 let (tokenizer_sender, tokenizer_receiver) = mpsc::unbounded_channel();
                 senders.push(tokenizer_sender);
 
                 // Spawn worker
                 tokio::task::spawn_blocking(move || {
-                    tokenizer_worker(tokenizer_clone, config_clone, tokenizer_receiver)
+                    tokenizer_worker(
+                        tokenizer_clone,
+                        config_clone,
+                        preprocessor_config_clone,
+                        tokenizer_receiver,
+                    )
                 });
             }
 
@@ -422,13 +432,20 @@ async fn round_robin_task(
 fn tokenizer_worker(
     tokenizer: Tokenizer,
     config: Option<Config>,
+    preprocessor_config: Option<HubPreprocessorConfig>,
     mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>,
 ) {
     // Loop over requests
     while let Some(((inputs, truncate), response_tx, parent_span)) = receiver.blocking_recv() {
         parent_span.in_scope(|| {
             response_tx
-                .send(prepare_input(inputs, truncate, &tokenizer, &config))
+                .send(prepare_input(
+                    inputs,
+                    truncate,
+                    &tokenizer,
+                    config.as_ref(),
+                    preprocessor_config.as_ref(),
+                ))
                 .unwrap_or(())
         })
     }
@@ -508,16 +525,67 @@ fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), Validatio
     }
 }
 
+fn image_tokens(
+    config: &Config,
+    preprocessor_config: Option<&HubPreprocessorConfig>,
+    height: usize,
+    width: usize,
+) -> String {
+    use Config::*;
+    use HubPreprocessorConfig::*;
+    match config {
+        Idefics => "<image>".to_string(),
+        Idefics2(config) => {
+            const FAKE: &str = "<fake_token_around_image>";
+            const IMAGE: &str = "<image>";
+
+            let slots = config.get_number_of_features(height, width);
+
+            let mut image_string = String::with_capacity(2 * FAKE.len() + slots * IMAGE.len());
+            image_string.push_str(FAKE);
+            image_string.extend(iter::repeat(IMAGE).take(slots));
+            image_string.push_str(FAKE);
+
+            if matches!(
+                preprocessor_config,
+                Some(Idefics2Processor(Idefics2Preprocessor {
+                    do_image_splitting: true,
+                    ..
+                }))
+            ) {
+                image_string = image_string.repeat(5);
+            };
+
+            image_string
+        }
+        Paligemma(config) => "<image>".repeat(config.get_number_of_features(height, width)),
+        LlavaNext(config) => "<image>".repeat(config.get_number_of_features(height, width)),
+        _ => unimplemented!("Images tokens are not supported for this model configuration"),
+    }
+}
+
+fn image_tokens_fixup(config: &Config, text: String) -> String {
+    match config {
+        Config::Idefics2(_) => {
+            const FAKE: &str = "<fake_token_around_image>";
+            text.replace(&format!("{FAKE}{FAKE}"), FAKE)
+        }
+        _ => text,
+    }
+}
+
 /// Get input length and optionally truncate it
 fn prepare_input(
     inputs: String,
     _truncate: Option<usize>,
     tokenizer: &Tokenizer,
-    config: &Option<Config>,
+    config: Option<&Config>,
+    preprocessor_config: Option<&HubPreprocessorConfig>,
 ) -> Result<(tokenizers::Encoding, Vec<InputChunk>), ValidationError> {
+    use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
-        Some(Config::LlavaNext(config)) => {
+        Some(config @ (Idefics | Idefics2(_) | Paligemma(_) | LlavaNext(_))) => {
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
@@ -529,88 +597,17 @@ fn prepare_input(
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
                 let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                let slots = config.get_number_of_features(height, width);
                 input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
-                tokenizer_query.push_str(&"<image>".repeat(slots));
+                tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
                 start = chunk_end;
             }
             if start != inputs.len() {
                 input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
                 tokenizer_query.push_str(&inputs[start..]);
             }
-            (tokenizer_query, input_chunks)
-        }
-        Some(Config::Paligemma(config)) => {
-            let mut input_chunks = Vec::new();
-            let mut tokenizer_query = String::with_capacity(inputs.len());
-            let mut start = 0;
-            for chunk in RE.find_iter(&inputs) {
-                let chunk_start = chunk.start();
-                let chunk_end = chunk.end();
-                if chunk_start != start {
-                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()).into());
-                    tokenizer_query.push_str(&inputs[start..chunk_start]);
-                }
-                let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                let slots = config.get_number_of_features(height, width);
-                input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
-                tokenizer_query.push_str(&"<image>".repeat(slots));
-                start = chunk_end;
-            }
-            if start != inputs.len() {
-                input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
-                tokenizer_query.push_str(&inputs[start..]);
-            }
-            (tokenizer_query, input_chunks)
-        }
-        Some(Config::Idefics2(config)) => {
-            let mut input_chunks = Vec::new();
-            let mut tokenizer_query = String::with_capacity(inputs.len());
-            let mut start = 0;
-            for chunk in RE.find_iter(&inputs) {
-                let chunk_start = chunk.start();
-                let chunk_end = chunk.end();
-                if chunk_start != start {
-                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()).into());
-                    tokenizer_query.push_str(&inputs[start..chunk_start]);
-                }
-                let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                let slots = config.get_number_of_features(height, width);
-                tokenizer_query.push_str("<fake_token_around_image>");
-                tokenizer_query.push_str(&"<image>".repeat(slots));
-                tokenizer_query.push_str("<fake_token_around_image>");
 
-                input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
-                start = chunk_end;
-            }
-            if start != inputs.len() {
-                input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
-                tokenizer_query.push_str(&inputs[start..]);
-            }
-            (tokenizer_query, input_chunks)
-        }
-        Some(Config::Idefics) => {
-            let mut input_chunks = Vec::new();
-            let mut tokenizer_query = String::with_capacity(inputs.len());
-            let mut start = 0;
-            for chunk in RE.find_iter(&inputs) {
-                let chunk_start = chunk.start();
-                let chunk_end = chunk.end();
-                if chunk_start != start {
-                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()).into());
-                    tokenizer_query.push_str(&inputs[start..chunk_start]);
-                }
-                let (data, mimetype, _height, _width) =
-                    fetch_image(&inputs[chunk_start..chunk_end])?;
-                let slots = 1;
-                tokenizer_query.push_str(&"<image>".repeat(slots));
-                input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
-                start = chunk_end;
-            }
-            if start != inputs.len() {
-                input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
-                tokenizer_query.push_str(&inputs[start..]);
-            }
+            tokenizer_query = image_tokens_fixup(config, tokenizer_query);
+
             (tokenizer_query, input_chunks)
         }
         _ => (inputs.clone(), vec![Chunk::Text(inputs).into()]),
@@ -750,7 +747,7 @@ pub enum ValidationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{PaliTextConfig, Paligemma};
+    use crate::config::{Idefics2, PaliTextConfig, Paligemma};
     use crate::default_parameters;
     use crate::tests::get_tokenizer;
 
@@ -769,6 +766,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -803,6 +801,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -836,6 +835,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -874,6 +874,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -941,6 +942,7 @@ mod tests {
             workers,
             tokenizer,
             config,
+            None,
             max_best_of,
             max_stop_sequences,
             max_top_n_tokens,
@@ -1026,6 +1028,7 @@ mod tests {
             workers,
             tokenizer,
             Some(config),
+            None,
             max_best_of,
             max_stop_sequence,
             max_top_n_tokens,
@@ -1056,6 +1059,85 @@ mod tests {
                     .into()
                 ],
             "Failed to process images",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_idefics2_correct_n_fake_tokens() {
+        let pixel_data = STANDARD.decode(PIXEL_GIF).unwrap();
+
+        let tokenizer = Some(get_tokenizer().await);
+
+        let max_best_of = 2;
+        let max_stop_sequence = 3;
+        let max_top_n_tokens = 4;
+        let max_input_length = 5;
+        let max_total_tokens = 6;
+        let disable_grammar_support = true;
+        let workers = 1;
+        let config = Config::Idefics2(Idefics2 {});
+        let validation = Validation::new(
+            workers,
+            tokenizer,
+            Some(config),
+            Some(HubPreprocessorConfig::Idefics2Processor(
+                Idefics2Preprocessor {
+                    do_image_splitting: true,
+                },
+            )),
+            max_best_of,
+            max_stop_sequence,
+            max_top_n_tokens,
+            max_input_length,
+            max_total_tokens,
+            disable_grammar_support,
+        );
+
+        let (encoding, chunks) = match validation
+            .tokenize(
+                format!(
+                    "test![](data:image/gif;base64,{})![](data:image/gif;base64,{})",
+                    PIXEL_GIF, PIXEL_GIF
+                ),
+                None,
+            )
+            .await
+        {
+            Ok(Some((encoding, chunks))) => (encoding, chunks),
+            _ => panic!("Unexpected tokenization failure"),
+        };
+
+        assert!(
+            chunks
+                == vec![
+                    Chunk::Text("test".to_string()).into(),
+                    Chunk::Image(Image {
+                        data: pixel_data.clone(),
+                        mimetype: "image/gif".to_string()
+                    })
+                    .into(),
+                    Chunk::Image(Image {
+                        data: pixel_data.clone(),
+                        mimetype: "image/gif".to_string()
+                    })
+                    .into()
+                ],
+            "Failed to process images",
+        );
+
+        // Verify the number of fake tokens:
+        //
+        // - Two images surrounded/separated by a fake token = 3.
+        // - Both are split in 5 subimages, separated by a fake token: 2 * 4
+        //
+        // Fake tokens get split up by the testing tokenizer, but we don't care.
+        assert_eq!(
+            encoding
+                .get_tokens()
+                .iter()
+                .filter(|t| *t == "fake")
+                .count(),
+            11
         );
     }
 }

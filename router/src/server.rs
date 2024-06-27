@@ -12,9 +12,9 @@ use crate::kserve::{
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
-    GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig, Info,
-    Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse,
-    Usage, Validation,
+    GenerateResponse, GrammarType, HubModelInfo, HubPreprocessorConfig, HubProcessorConfig,
+    HubTokenizerConfig, Info, Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse,
+    Token, TokenizeResponse, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -1423,6 +1423,7 @@ pub async fn run(
     _ngrok_authtoken: Option<String>,
     _ngrok_edge: Option<String>,
     tokenizer_config: HubTokenizerConfig,
+    preprocessor_config: Option<HubPreprocessorConfig>,
     processor_config: HubProcessorConfig,
     messages_api_enabled: bool,
     grammar_support: bool,
@@ -1636,6 +1637,7 @@ pub async fn run(
         validation_workers,
         tokenizer,
         config,
+        preprocessor_config,
         max_best_of,
         max_stop_sequences,
         max_top_n_tokens,
