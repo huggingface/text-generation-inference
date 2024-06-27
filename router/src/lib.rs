@@ -442,7 +442,7 @@ pub struct CompletionRequest {
     pub stop: Option<Vec<String>>,
 }
 
-#[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
 pub(crate) struct Completion {
     pub id: String,
     #[schema(example = "1706270835")]
