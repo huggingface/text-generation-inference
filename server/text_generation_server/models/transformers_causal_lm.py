@@ -478,7 +478,7 @@ class CausalLMBatch(Batch):
         return len(self.requests)
 
 
-class CausalLM(Model):
+class TransformersCausalLM(Model):
     def __init__(
         self,
         model_id: str,

@@ -4,7 +4,7 @@ import torch.distributed
 from transformers import AutoConfig, AutoTokenizer
 from typing import Optional, List, Tuple
 
-from text_generation_server.models import CausalLM
+from text_generation_server.models import TransformersCausalLM
 from text_generation_server.models.custom_modeling.phi_modeling import (
     PhiConfig,
     PhiForCausalLM,
@@ -16,7 +16,7 @@ from text_generation_server.utils import (
 )
 
 
-class Phi(CausalLM):
+class Phi(TransformersCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -59,7 +59,7 @@ class Phi(CausalLM):
         weights = Weights(filenames, device, dtype, process_group=self.process_group)
         model = PhiForCausalLM(config, weights)
         torch.distributed.barrier(group=self.process_group)
-        super(CausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,

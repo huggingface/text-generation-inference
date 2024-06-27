@@ -12,8 +12,8 @@ from transformers import (
 from text_generation_server.models.custom_modeling.bloom_modeling import (
     BloomForCausalLM,
 )
-from text_generation_server.models import CausalLM
-from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.models import TransformersCausalLM
+from text_generation_server.models.transformers_causal_lm import CausalLMBatch
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import (
     initialize_torch_distributed,
@@ -36,7 +36,7 @@ class BloomCausalLMBatch(CausalLMBatch):
         return batch
 
 
-class BLOOMSharded(CausalLM):
+class BLOOMSharded(TransformersCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -89,7 +89,7 @@ class BLOOMSharded(CausalLM):
         model = BloomForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(CausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,

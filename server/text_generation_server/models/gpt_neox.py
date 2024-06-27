@@ -7,7 +7,7 @@ from transformers import (
     AutoTokenizer,
     AutoConfig,
 )
-from text_generation_server.models import CausalLM
+from text_generation_server.models import TransformersCausalLM
 from text_generation_server.models.custom_modeling.neox_modeling import (
     GPTNeoxForCausalLM,
 )
@@ -18,7 +18,7 @@ from text_generation_server.utils import (
 )
 
 
-class GPTNeoxSharded(CausalLM):
+class GPTNeoxSharded(TransformersCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -64,7 +64,7 @@ class GPTNeoxSharded(CausalLM):
         model = GPTNeoxForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(CausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,

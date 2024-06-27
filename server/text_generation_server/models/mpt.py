@@ -8,8 +8,8 @@ from transformers import AutoTokenizer, PretrainedConfig, PreTrainedTokenizerBas
 from huggingface_hub import hf_hub_download
 import json
 
-from text_generation_server.models import CausalLM
-from text_generation_server.models.causal_lm import CausalLMBatch
+from text_generation_server.models import TransformersCausalLM
+from text_generation_server.models.transformers_causal_lm import CausalLMBatch
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.custom_modeling.mpt_modeling import (
     MPTForCausalLM,
@@ -37,7 +37,7 @@ class MPTCausalLMBatch(CausalLMBatch):
         return batch
 
 
-class MPTSharded(CausalLM):
+class MPTSharded(TransformersCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -89,7 +89,7 @@ class MPTSharded(CausalLM):
         model = MPTForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(CausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,

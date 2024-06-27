@@ -8,7 +8,7 @@ from transformers import (
     AutoConfig,
 )
 from text_generation_server.models.custom_modeling.opt_modeling import OPTForCausalLM
-from text_generation_server.models import CausalLM
+from text_generation_server.models import TransformersCausalLM
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -16,7 +16,7 @@ from text_generation_server.utils import (
 )
 
 
-class OPTSharded(CausalLM):
+class OPTSharded(TransformersCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -62,7 +62,7 @@ class OPTSharded(CausalLM):
         model = OPTForCausalLM(config, weights)
 
         torch.distributed.barrier(group=self.process_group)
-        super(CausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,

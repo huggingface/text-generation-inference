@@ -4,7 +4,7 @@ import torch.distributed
 from typing import Optional, List
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from text_generation_server.models import CausalLM
+from text_generation_server.models import TransformersCausalLM
 
 FIM_PREFIX = "<fim-prefix>"
 FIM_MIDDLE = "<fim-middle>"
@@ -13,7 +13,7 @@ FIM_PAD = "<fim-pad>"
 EOD = "<|endoftext|>"
 
 
-class SantaCoder(CausalLM):
+class SantaCoder(TransformersCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -61,7 +61,7 @@ class SantaCoder(CausalLM):
                 trust_remote_code=trust_remote_code,
             )
 
-        super(CausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,

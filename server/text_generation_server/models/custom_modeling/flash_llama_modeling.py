@@ -299,6 +299,7 @@ class LlamaMLP(nn.Module):
     def forward(self, hidden_states, adapter_data):
         if (
             SYSTEM == "rocm"
+            and False
             and self.hidden_act == "silu"
             and hidden_states.shape[0] == 1
             and not self.quantize

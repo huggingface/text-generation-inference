@@ -3,10 +3,10 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import List, Optional, Tuple
 
-from text_generation_server.models import CausalLM
+from text_generation_server.models import TransformersCausalLM
 
 
-class RW(CausalLM):
+class RW(TransformersCausalLM):
     def __init__(
         self,
         model_id: str,
@@ -61,7 +61,7 @@ class RW(CausalLM):
             else:
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
-        super(CausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,

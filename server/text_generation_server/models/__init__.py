@@ -8,10 +8,13 @@ from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional, List
 from pathlib import Path
-
+import transformers
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
-from text_generation_server.models.causal_lm import CausalLM
+from text_generation_server.models.transformers_causal_lm import TransformersCausalLM
+from text_generation_server.models.transformers_flash_causal_lm import (
+    TransformersFlashCausalLM,
+)
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOMSharded
 from text_generation_server.models.mpt import MPTSharded
@@ -23,6 +26,8 @@ from text_generation_server.models.santacoder import SantaCoder
 from text_generation_server.models.t5 import T5Sharded
 from text_generation_server.models.gpt_neox import GPTNeoxSharded
 from text_generation_server.models.phi import Phi
+
+from text_generation_server.models.globals import USE_CUSTOM_MODELING
 
 from text_generation_server.utils.import_utils import SYSTEM
 
@@ -288,6 +293,31 @@ def get_model(
     )
     model_type = config_dict.get("model_type", None)
 
+    transformers_causal_lm_class = TransformersCausalLM
+    if (
+        not USE_CUSTOM_MODELING
+        and model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
+    ):
+        logger.info(
+            "TGI's flash enabled models could either not be loaded or are disabled, using Transformers fallback."
+        )
+        transformers_model_class = getattr(
+            transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type]
+        )
+
+        if (
+            transformers_model_class._supports_flash_attn_2
+            and transformers_model_class._supports_cache_class
+        ):
+            logger.info(
+                f"Transformers' {model_type} implementation supports custom cache and flash/paged attention. Using TransformersFlashCausalLM with ragged tensors (single dimension for batch and sequence length)."
+            )
+            transformers_causal_lm_class = TransformersFlashCausalLM
+        else:
+            logger.info(
+                f"Transformers' {model_type} implementation supports custom cache and flash/paged attention. Using TransformersCausalLM with classic tensors with padding (two dimensions for batch size and sequence length)."
+            )
+
     speculator = None
     if "medusa_num_heads" in config_dict:
         medusa_model_id = model_id
@@ -449,7 +479,7 @@ def get_model(
         or model_type == GPT2
         and model_id.startswith("bigcode/")
     ):
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashSantacoderSharded(
                 model_id,
                 revision,
@@ -491,7 +521,7 @@ def get_model(
             trust_remote_code=trust_remote_code,
         )
     elif model_type == GPT2:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             try:
                 return FlashGPT2(
                     model_id,
@@ -504,7 +534,8 @@ def get_model(
             except RuntimeError as e:
                 # Lots of legacy models with various weight names.
                 logger.warning(f"Couldn't load flash gpt2 variant: {e}")
-                return CausalLM(
+
+                return transformers_causal_lm_class(
                     model_id,
                     revision,
                     quantize=quantize,
@@ -515,7 +546,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-2"))
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -524,7 +555,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
     elif model_type == GPT_NEOX:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashNeoXSharded(
                 model_id,
                 revision,
@@ -543,7 +574,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -553,7 +584,7 @@ def get_model(
             )
 
     elif model_type == PHI:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashPhi(
                 model_id,
                 revision,
@@ -563,7 +594,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -573,7 +604,7 @@ def get_model(
             )
 
     elif model_type == "phi-msft":
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             raise NotImplementedError(
                 "Legacy phi-msft is not supported with Flash Attention"
             )
@@ -588,7 +619,7 @@ def get_model(
             )
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashLlama(
                 model_id,
                 revision,
@@ -601,7 +632,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -610,7 +641,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
     if model_type == GEMMA:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashGemma(
                 model_id,
                 revision,
@@ -622,7 +653,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma"))
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -632,7 +663,7 @@ def get_model(
             )
 
     if model_type == COHERE:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashCohere(
                 model_id,
                 revision,
@@ -644,7 +675,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Cohere"))
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -654,7 +685,7 @@ def get_model(
             )
 
     if model_type == DBRX:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashDbrx(
                 model_id,
                 revision,
@@ -666,7 +697,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded DBRX"))
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -677,7 +708,7 @@ def get_model(
 
     if model_type in ["RefinedWeb", "RefinedWebModel", FALCON]:
         if sharded:
-            if FLASH_ATTENTION:
+            if FLASH_ATTENTION and USE_CUSTOM_MODELING:
                 if config_dict.get("alibi", False):
                     raise NotImplementedError("sharded is not supported for this model")
                 return FlashRWSharded(
@@ -710,7 +741,7 @@ def get_model(
                 )
 
     if model_type == MISTRAL:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashMistral(
                 model_id,
                 revision,
@@ -722,7 +753,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mistral"))
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -732,7 +763,7 @@ def get_model(
             )
 
     if model_type == MIXTRAL:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashMixtral(
                 model_id,
                 revision,
@@ -744,7 +775,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mixtral"))
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -754,7 +785,7 @@ def get_model(
             )
 
     if model_type == STARCODER2:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashStarcoder2(
                 model_id,
                 revision,
@@ -767,7 +798,7 @@ def get_model(
                 FLASH_ATT_ERROR_MESSAGE.format("Sharded Starcoder2")
             )
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -777,7 +808,7 @@ def get_model(
             )
 
     if model_type == QWEN2:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return FlashQwen2(
                 model_id,
                 revision,
@@ -788,7 +819,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Qwen2"))
         else:
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -817,7 +848,7 @@ def get_model(
             trust_remote_code=trust_remote_code,
         )
     if model_type == IDEFICS:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return IDEFICSSharded(
                 model_id,
                 revision,
@@ -829,7 +860,7 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == IDEFICS2:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return Idefics2(
                 model_id,
                 revision,
@@ -841,7 +872,7 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == "paligemma":
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return PaliGemma(
                 model_id,
                 revision,
@@ -854,7 +885,7 @@ def get_model(
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
 
     if model_type == LLAVA_NEXT:
-        if FLASH_ATTENTION:
+        if FLASH_ATTENTION and USE_CUSTOM_MODELING:
             return LlavaNext(
                 model_id,
                 revision,
@@ -881,7 +912,7 @@ def get_model(
     elif quantize == "exl2":
         raise NotImplementedError("exl2 quantization is not supported for AutoModel")
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        return CausalLM(
+        return transformers_causal_lm_class(
             model_id,
             revision,
             quantize=quantize,
@@ -902,7 +933,7 @@ def get_model(
     auto_map = config_dict.get("auto_map", None)
     if trust_remote_code and auto_map is not None:
         if "AutoModelForCausalLM" in auto_map.keys():
-            return CausalLM(
+            return transformers_causal_lm_class(
                 model_id,
                 revision,
                 quantize=quantize,

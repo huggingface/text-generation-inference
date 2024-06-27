@@ -5,7 +5,10 @@ from copy import copy
 from transformers import AutoTokenizer
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLM, CausalLMBatch
+from text_generation_server.models.transformers_causal_lm import (
+    TransformersCausalLM,
+    CausalLMBatch,
+)
 
 
 @pytest.fixture(scope="session")
