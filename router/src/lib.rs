@@ -59,10 +59,8 @@ use std::path::Path;
 pub struct HubTokenizerConfig {
     pub chat_template: Option<ChatTemplateVersions>,
     pub completion_template: Option<String>,
-    #[serde(deserialize_with = "token_serde::deserialize")]
-    pub bos_token: Option<String>,
-    #[serde(deserialize_with = "token_serde::deserialize")]
-    pub eos_token: Option<String>,
+    pub bos_token: Option<TokenizerConfigToken>,
+    pub eos_token: Option<TokenizerConfigToken>,
     pub tokenizer_class: Option<String>,
     pub add_bos_token: Option<bool>,
     pub add_eos_token: Option<bool>,
@@ -83,12 +81,24 @@ pub enum TokenizerConfigToken {
     Object { content: String },
 }
 
-impl From<TokenizerConfigToken> for String {
-    fn from(token: TokenizerConfigToken) -> Self {
-        match token {
+impl TokenizerConfigToken {
+    pub fn as_str(&self) -> &str {
+        match self {
             TokenizerConfigToken::String(s) => s,
             TokenizerConfigToken::Object { content } => content,
         }
+    }
+}
+
+impl From<TokenizerConfigToken> for String {
+    fn from(token: TokenizerConfigToken) -> Self {
+        token.as_str().to_string()
+    }
+}
+
+impl From<String> for TokenizerConfigToken {
+    fn from(s: String) -> Self {
+        TokenizerConfigToken::String(s)
     }
 }
 

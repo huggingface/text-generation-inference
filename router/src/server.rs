@@ -23,7 +23,7 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Tool, VertexRequest,
     VertexResponse,
 };
-use crate::{FunctionDefinition, ToolCall, ToolType};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolType};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
