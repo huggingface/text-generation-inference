@@ -210,6 +210,11 @@ jobs:
             pip3 install -U huggingface_hub
 
             python3 integration-tests/clean_cache_and_download.py --token ${{ secrets.HF_TOKEN }} --cache-dir /data
+
+            # Avoid permissions issues in the next step not run within docker (File was unable to be removed Error: EACCES).
+            if [[ $PWD == *"text-generation-inference"* ]]; then
+              rm -rf *
+            fi
           fi
 
   integration_tests:
