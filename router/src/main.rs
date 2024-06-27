@@ -302,7 +302,7 @@ async fn main() -> Result<(), RouterError> {
             let mut tokenizer = Tokenizer::from_file(filename).ok();
         if let Some(tokenizer) = &mut tokenizer{
                 if let Some(class) = &tokenizer_config.tokenizer_class{
-                    if class == "LlamaTokenizer"{
+                    if class == "LlamaTokenizer" || class == "LlamaTokenizerFast"  {
                         tracing::info!("Overriding LllamaTokenizer with TemplateProcessing to follow python override defined in https://github.com/huggingface/transformers/blob/4aa17d00690b7f82c95bb2949ea57e22c35b4336/src/transformers/models/llama/tokenization_llama_fast.py#L203-L205");
                         let mut single = vec![];
                         let mut special_tokens = vec![];
