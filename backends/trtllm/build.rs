@@ -5,7 +5,7 @@ use anyhow::{anyhow, Error};
 use git2::{Error as GitError, Repository, SubmoduleUpdateOptions};
 use git2::build::CheckoutBuilder;
 
-const ENV_TGI_TENSORRT_LLM_VERSION: &str = "TGI_TRTLLM_VERSION";
+// const ENV_TGI_TENSORRT_LLM_VERSION: &str = "TGI_TRTLLM_VERSION";
 const ENV_TGI_TENSORRT_LLM_VERSION_COMMIT: &str = "TGI_TRTLLM_VERSION_COMMIT";
 
 const TENSORRT_LLM_REPOSITORY_URL: &str = "https://github.com/nvidia/tensorrt-llm";
@@ -24,7 +24,7 @@ fn get_trtllm_snapshot<P: AsRef<Path>>(
 ) -> Result<(), GitError> {
     let dest = dest.as_ref();
 
-    let mut repo = if dest.join(".git").exists() {
+    let repo = if dest.join(".git").exists() {
         Repository::open(dest)
     } else {
         Repository::init(dest)
@@ -56,6 +56,23 @@ fn get_trtllm_snapshot<P: AsRef<Path>>(
     Ok(())
 }
 
+fn cmake_backend_build<P: AsRef<Path>>(trtllm_sources_dir: P, dest: P, profile: &str) {
+    cmake::Config::new(PathBuf::from("csrc"))
+        .profile(match profile {
+            "release" => "Release",
+            _ => "DebWithRelInfo",
+        })
+        .generator("Ninja")
+        .define(
+            "TGI_TRTLLM_BACKEND_TRTLLM_ROOT_DIR",
+            trtllm_sources_dir.as_ref().as_os_str(),
+        )
+        .uses_cxx11()
+        .build_target("tgi_trtllm_backend")
+        .out_dir(dest)
+        .build();
+}
+
 fn main() -> Result<(), Error> {
     env::set_var(
         ENV_TGI_TENSORRT_LLM_VERSION_COMMIT,
@@ -63,15 +80,18 @@ fn main() -> Result<(), Error> {
     );
 
     let tensorrt_llm_sources_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("tensorrt-llm");
-    let _build_profile: String = env::var("PROFILE").unwrap();
+    let backend_out_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("tgi-trtllm-backend");
+    let build_profile: String = env::var("PROFILE").unwrap();
 
     // First we need to retrieve TensorRT-LLM sources to build the library to link against
     get_trtllm_snapshot(
         TENSORRT_LLM_REPOSITORY_URL,
         TENSORRT_LLM_REPOSITORY_COMMIT_HASH,
-        tensorrt_llm_sources_dir,
+        &tensorrt_llm_sources_dir,
     )
     .map_err(|e| anyhow!(e))?;
+
+    cmake_backend_build(&tensorrt_llm_sources_dir, &backend_out_dir, &build_profile);
 
     Ok(())
 }
