@@ -61,6 +61,9 @@ pub struct HubTokenizerConfig {
     pub bos_token: Option<String>,
     #[serde(deserialize_with = "token_serde::deserialize")]
     pub eos_token: Option<String>,
+    pub tokenizer_class: Option<String>,
+    pub add_bos_token: Option<bool>,
+    pub add_eos_token: Option<bool>,
 }
 
 impl HubTokenizerConfig {

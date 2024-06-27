@@ -3942,8 +3942,6 @@ dependencies = [
  "tokio-stream",
  "tower-http",
  "tracing",
- "tracing-core",
- "tracing-log 0.2.0",
  "tracing-opentelemetry 0.21.0",
  "tracing-subscriber",
  "utoipa",
