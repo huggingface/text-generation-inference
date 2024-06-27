@@ -28,8 +28,12 @@ from text_generation_server.models.types import (
     GeneratedText,
 )
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
-import text_generation_server.models.globals as tgi_globals
+from text_generation_server.models.globals import (
+    MEM_POOL,
+    CUDA_GRAPHS,
+    get_adapter_to_index,
+    MODEL_ID,
+)
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 from text_generation_server.utils.segments import SegmentConcatBuilder, find_segments
@@ -233,7 +237,8 @@ class FlashCausalLMBatch(Batch):
             stopping_criterias.append(stopping_criteria)
             top_n_tokens.append(r.top_n_tokens)
 
-            adapter_index = tgi_globals.ADAPTER_TO_INDEX.get(r.adapter_id, 0)
+            ADAPTER_TO_INDEX = get_adapter_to_index()
+            adapter_index = ADAPTER_TO_INDEX.get(r.adapter_id, 0)
             adapter_indices_list.append(torch.full((input_length,), adapter_index))
             adapter_set.add(adapter_index)
 
@@ -499,9 +504,8 @@ class FlashCausalLMBatch(Batch):
 
             top_n_tokens.append(self.top_n_tokens[idx])
 
-            adapter_index = tgi_globals.ADAPTER_TO_INDEX.get(
-                self.requests[idx].adapter_id, 0
-            )
+            ADAPTER_TO_INDEX = get_adapter_to_index()
+            adapter_index = ADAPTER_TO_INDEX.get(self.requests[idx].adapter_id, 0)
             adapter_set.add(adapter_index)
 
             remaining_tokens = (
@@ -1017,7 +1021,7 @@ class FlashCausalLM(Model):
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
-                    f"tunableop_{tgi_globals.MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                    f"tunableop_{MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
                 logger.info(

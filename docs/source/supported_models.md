@@ -10,6 +10,7 @@ Text Generation Inference enables serving optimized models on specific hardware 
 - [Llama](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
 - [Phi 3](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)
 - [Gemma](https://huggingface.co/google/gemma-7b)
+- [Gemma2](https://huggingface.co/google/gemma2-9b)
 - [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)
 - [Dbrx](https://huggingface.co/databricks/dbrx-instruct)
 - [Mamba](https://huggingface.co/state-spaces/mamba-2.8b-slimpj)

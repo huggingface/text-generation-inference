@@ -68,6 +68,9 @@ try:
     from text_generation_server.models.flash_gemma import (
         FlashGemma,
     )
+    from text_generation_server.models.flash_gemma2 import (
+        FlashGemma2,
+    )
     from text_generation_server.models.pali_gemma import (
         PaliGemma,
     )
@@ -102,6 +105,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashQwen2)
     __all__.append(FlashStarcoder2)
     __all__.append(FlashGemma)
+    __all__.append(FlashGemma2)
     __all__.append(FlashCohere)
 
 MAMBA_AVAILABLE = True
@@ -142,6 +146,11 @@ class ModelType(enum.Enum):
         "type": "gemma",
         "name": "Gemma",
         "url": "https://huggingface.co/google/gemma-7b",
+    }
+    GEMMA2 = {
+        "type": "gemma2",
+        "name": "Gemma2",
+        "url": "https://huggingface.co/google/gemma2-9b",
     }
     COHERE = {
         "type": "cohere",
@@ -621,6 +630,27 @@ def get_model(
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma"))
+        else:
+            return CausalLM(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == GEMMA2:
+        if FLASH_ATTENTION:
+            return FlashGemma2(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma2"))
         else:
             return CausalLM(
                 model_id,

@@ -44,7 +44,7 @@ from text_generation_server.layers.layernorm import (
 )
 
 
-class GemmaConfig(PretrainedConfig):
+class Gemma2Config(PretrainedConfig):
     def __init__(
         self,
         vocab_size=256128,
@@ -100,7 +100,7 @@ class GemmaConfig(PretrainedConfig):
         )
 
 
-class GemmaFastRMSNorm(FastRMSNorm):
+class Gemma2FastRMSNorm(FastRMSNorm):
     @classmethod
     def load(cls, prefix, weights, eps=1e-6):
         dtype = weights.dtype
@@ -161,12 +161,16 @@ def _load_gqa(config, prefix: str, weights):
     )
 
 
-class FlashGemmaAttention(torch.nn.Module):
-    def __init__(self, prefix: str, config, weights, causal: bool):
+class FlashGemma2Attention(torch.nn.Module):
+    def __init__(self, prefix: str, config, weights, causal: bool, is_sliding: bool):
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.head_size = config.head_dim
         self.causal = causal
+        if is_sliding:
+            self.window_size = config.sliding_window
+        else:
+            self.window_size = -1
 
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
@@ -175,7 +179,8 @@ class FlashGemmaAttention(torch.nn.Module):
             device=weights.device,
         )
 
-        self.softmax_scale = self.head_size**-0.5
+        # self.softmax_scale = self.head_size**-0.5
+        self.softmax_scale = config.query_pre_attn_scalar**-0.5
 
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
@@ -242,6 +247,7 @@ class FlashGemmaAttention(torch.nn.Module):
                 max_s,
                 self.softmax_scale,
                 causal=self.causal,
+                window_size_left=self.window_size,
             )
         # Decode
         else:
@@ -260,7 +266,7 @@ class FlashGemmaAttention(torch.nn.Module):
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
 
-class GemmaMLP(nn.Module):
+class Gemma2MLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         act = config.hidden_act
@@ -298,19 +304,33 @@ class GemmaMLP(nn.Module):
         return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
 
 
-class FlashGemmaLayer(nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+class FlashGemma2Layer(nn.Module):
+    def __init__(self, prefix, config, weights, causal: bool, is_sliding: bool):
         super().__init__()
-        self.self_attn = FlashGemmaAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights, causal=causal
+        self.self_attn = FlashGemma2Attention(
+            prefix=f"{prefix}.self_attn",
+            config=config,
+            weights=weights,
+            causal=causal,
+            is_sliding=is_sliding,
         )
-        self.mlp = GemmaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
+        self.mlp = Gemma2MLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
-        self.input_layernorm = GemmaFastRMSNorm.load(
+        self.input_layernorm = Gemma2FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
         )
-        self.post_attention_layernorm = GemmaFastRMSNorm.load(
+        self.post_attention_layernorm = Gemma2FastRMSNorm.load(
             prefix=f"{prefix}.post_attention_layernorm",
+            weights=weights,
+            eps=config.rms_norm_eps,
+        )
+        self.pre_feedforward_layernorm = Gemma2FastRMSNorm.load(
+            prefix=f"{prefix}.pre_feedforward_layernorm",
+            weights=weights,
+            eps=config.rms_norm_eps,
+        )
+        self.post_feedforward_layernorm = Gemma2FastRMSNorm.load(
+            prefix=f"{prefix}.post_feedforward_layernorm",
             weights=weights,
             eps=config.rms_norm_eps,
         )
@@ -344,16 +364,18 @@ class FlashGemmaLayer(nn.Module):
         )
 
         # faster post attention rms norm
-        normed_attn_res_output, attn_res = self.post_attention_layernorm(
-            attn_output, res
-        )
+        normed_attn_res_output, _ = self.post_attention_layernorm(attn_output)
+        normed_attn_res_output = normed_attn_res_output + res
+        res = normed_attn_res_output
 
-        mlp_output = self.mlp(normed_attn_res_output)
+        pre_normed, _ = self.pre_feedforward_layernorm(normed_attn_res_output)
+        mlp_output = self.mlp(pre_normed)
+        post_hidden_states, _ = self.post_feedforward_layernorm(mlp_output)
 
-        return mlp_output, attn_res
+        return post_hidden_states, normed_attn_res_output
 
 
-class FlashGemmaModel(torch.nn.Module):
+class FlashGemma2Model(torch.nn.Module):
     def __init__(self, prefix, config, weights, causal: bool):
         super().__init__()
 
@@ -362,16 +384,17 @@ class FlashGemmaModel(torch.nn.Module):
         self.tp_world_size = process_group.size()
         self.layers = nn.ModuleList(
             [
-                FlashGemmaLayer(
+                FlashGemma2Layer(
                     prefix=f"{prefix}.layers.{layer_id}",
                     config=config,
                     weights=weights,
                     causal=causal,
+                    is_sliding=layer_id % 2 == 0,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
-        self.norm = GemmaFastRMSNorm.load(
+        self.norm = Gemma2FastRMSNorm.load(
             prefix=f"{prefix}.norm", weights=weights, eps=config.rms_norm_eps
         )
 
@@ -418,7 +441,7 @@ class FlashGemmaModel(torch.nn.Module):
         return hidden_states
 
 
-class FlashGemmaForCausalLM(torch.nn.Module):
+class FlashGemma2ForCausalLM(torch.nn.Module):
     def __init__(self, prefix, config, weights, causal: bool):
         super().__init__()
 
@@ -433,7 +456,7 @@ class FlashGemmaForCausalLM(torch.nn.Module):
         )
         self.embed_tokens.weight *= embed_norm
 
-        self.model = FlashGemmaModel(
+        self.model = FlashGemma2Model(
             prefix=prefix, config=config, weights=weights, causal=causal
         )
         self.lm_head = SpeculativeHead.load(

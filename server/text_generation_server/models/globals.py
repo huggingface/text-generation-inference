@@ -44,3 +44,8 @@ ADAPTER_TO_INDEX: Dict[str, int] = None
 def set_adapter_to_index(adapter_to_index: Dict[str, int]):
     global ADAPTER_TO_INDEX
     ADAPTER_TO_INDEX = adapter_to_index
+
+
+def get_adapter_to_index():
+    global ADAPTER_TO_INDEX
+    return ADAPTER_TO_INDEX
