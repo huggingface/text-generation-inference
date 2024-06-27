@@ -39,7 +39,9 @@ class PaliGemmaBatch(VlmCausalLMBatch):
                     # TODO do_convert_RGB should be on by default ?
                     image = image.convert("RGB")
                     image_input = processor.image_processor(image, return_tensors="pt")
-                    full_text += image_text_replacement(image_input, config, image_id)
+                    full_text += image_text_replacement(
+                        processor, image_input, config, image_id
+                    )
                     image_inputs.append(image_input)
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
