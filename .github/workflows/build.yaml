@@ -213,7 +213,7 @@ jobs:
 
             # Avoid permissions issues in the next step not run within docker (File was unable to be removed Error: EACCES).
             if [[ $PWD == *"text-generation-inference"* ]]; then
-              rm -rf *
+              rm -rf * .*
             fi
           fi
 
