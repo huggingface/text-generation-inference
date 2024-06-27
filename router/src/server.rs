@@ -636,7 +636,7 @@ async fn completions(
         ));
     }
 
-    if req.prompt.len() > info.max_client_batch_size {
+    if req.prompt.0.len() > info.max_client_batch_size {
         metrics::increment_counter!("tgi_request_failure", "err" => "validation");
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -652,6 +652,7 @@ async fn completions(
 
     let generate_requests: Vec<GenerateRequest> = req
         .prompt
+        .0
         .iter()
         .map(|prompt| GenerateRequest {
             inputs: prompt.to_string(),
