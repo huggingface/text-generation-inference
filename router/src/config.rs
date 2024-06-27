@@ -158,6 +158,7 @@ pub enum Config {
     Baichuan,
     Paligemma(Paligemma),
     Gemma,
+    Gemma2,
     Cohere,
     Drbx,
     Falcon,
