@@ -304,38 +304,23 @@ async fn main() -> Result<(), RouterError> {
         tracing::warn!("Could not find tokenizer config locally and no API specified");
         HubTokenizerConfig::default()
     });
-    let tokenizer: Option<Tokenizer> =
-        tokenizer_filename.and_then(|filename| {
-            let mut tokenizer = Tokenizer::from_file(filename).ok();
-        if let Some(tokenizer) = &mut tokenizer{
-                if let Some(class) = &tokenizer_config.tokenizer_class{
-                    if class == "LlamaTokenizer" || class == "LlamaTokenizerFast"  {
-                        tracing::info!("Overriding LllamaTokenizer with TemplateProcessing to follow python override defined in https://github.com/huggingface/transformers/blob/4aa17d00690b7f82c95bb2949ea57e22c35b4336/src/transformers/models/llama/tokenization_llama_fast.py#L203-L205");
-                        let mut single = vec![];
-                        let mut special_tokens = vec![];
-                        if let Some(true) = &tokenizer_config.add_bos_token{
-                            if let Some(bos_token) = &tokenizer_config.bos_token{
-                                let bos_token_id = tokenizer.token_to_id(&bos_token).expect("Should have found the bos token id");
-                                special_tokens.push((bos_token.clone(), bos_token_id));
-                                single.push(bos_token.to_string());
-                            }
-                        }
-                        single.push("$0".to_string());
-                        if let Some(true) = &tokenizer_config.add_eos_token{
-                            if let Some(eos_token) = &tokenizer_config.eos_token{
-                                let eos_token_id = tokenizer.token_to_id(&eos_token).expect("Should have found the eos token id");
-                                special_tokens.push((eos_token.clone(), eos_token_id));
-                                single.push(eos_token.to_string());
-                            }
-                        }
-                        let post_processor = TemplateProcessing::builder().try_single(single).unwrap().special_tokens(special_tokens).build().unwrap();
+
+    let tokenizer: Option<Tokenizer> = tokenizer_filename.and_then(|filename| {
+        let mut tokenizer = Tokenizer::from_file(filename).ok();
+        if let Some(tokenizer) = &mut tokenizer {
+            if let Some(class) = &tokenizer_config.tokenizer_class {
+                if class == "LlamaTokenizer" || class == "LlamaTokenizerFast" {
+                    tracing::info!("Overriding LlamaTokenizer with TemplateProcessing to follow python override defined in https://github.com/huggingface/transformers/blob/4aa17d00690b7f82c95bb2949ea57e22c35b4336/src/transformers/models/llama/tokenization_llama_fast.py#L203-L205");
+                    if let Some(post_processor) = create_post_processor(tokenizer, &tokenizer_config) {
                         tokenizer.with_post_processor(post_processor);
-                    }}
+                    }
                 }
-            tokenizer
+            }
+        }
+        tokenizer
+    });
 
-        });
-
+    // tokenizer.with_post_processor(post_processor);
     let preprocessor_config =
         preprocessor_config_filename.and_then(HubPreprocessorConfig::from_file);
     let processor_config = processor_config_filename
@@ -543,6 +528,74 @@ pub async fn get_tokenizer_config(api_repo: &ApiRepo) -> Option<HubTokenizerConf
     Some(tokenizer_config)
 }
 
+/// Create a post_processor for the LlamaTokenizer
+pub fn create_post_processor(
+    tokenizer: &Tokenizer,
+    tokenizer_config: &HubTokenizerConfig,
+) -> Option<TemplateProcessing> {
+    let add_bos_token = tokenizer_config.add_bos_token.unwrap_or(true);
+    let add_eos_token = tokenizer_config.add_eos_token.unwrap_or(false);
+
+    let bos_token = tokenizer_config.bos_token.as_ref();
+    let eos_token = tokenizer_config.eos_token.as_ref();
+
+    if add_bos_token && bos_token.is_none() {
+        panic!("add_bos_token = true but bos_token is None");
+    }
+
+    if add_eos_token && eos_token.is_none() {
+        panic!("add_eos_token = true but eos_token is None");
+    }
+
+    let mut single = String::new();
+    let mut pair = String::new();
+    let mut special_tokens = Vec::new();
+
+    if add_bos_token {
+        let bos = bos_token.unwrap();
+        let bos_token_id = tokenizer
+            .token_to_id(bos)
+            .expect("Should have found the bos token id");
+        special_tokens.push((bos.clone(), bos_token_id));
+        single.push_str(&format!("{}:0 ", bos));
+        pair.push_str(&format!("{}:0 ", bos));
+    }
+
+    single.push_str("$A:0");
+    pair.push_str("$A:0");
+
+    if add_eos_token {
+        let eos = eos_token.unwrap();
+        let eos_token_id = tokenizer
+            .token_to_id(eos)
+            .expect("Should have found the eos token id");
+        special_tokens.push((eos.clone(), eos_token_id));
+        single.push_str(&format!(" {}:0", eos));
+        pair.push_str(&format!(" {}:0", eos));
+    }
+
+    if add_bos_token {
+        pair.push_str(&format!(" {}:1", bos_token.unwrap()));
+    }
+
+    pair.push_str(" $B:1");
+
+    if add_eos_token {
+        pair.push_str(&format!(" {}:1", eos_token.unwrap()));
+    }
+
+    let post_processor = TemplateProcessing::builder()
+        .try_single(single)
+        .unwrap()
+        .try_pair(pair)
+        .unwrap()
+        .special_tokens(special_tokens)
+        .build()
+        .unwrap();
+
+    Some(post_processor)
+}
+
 #[derive(Debug, Error)]
 enum RouterError {
     #[error("Argument validation error: {0}")]
@@ -551,4 +604,37 @@ enum RouterError {
     WebServer(#[from] server::WebServerError),
     #[error("Tokio runtime failed to start: {0}")]
     Tokio(#[from] std::io::Error),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_post_processor() {
+        let tokenizer_config = HubTokenizerConfig {
+            add_bos_token: None,
+            add_eos_token: None,
+            bos_token: Some("<s>".to_string()),
+            eos_token: Some("</s>".to_string()),
+            chat_template: None,
+            tokenizer_class: None,
+            completion_template: None,
+        };
+
+        let tokenizer =
+            Tokenizer::from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0", None).unwrap();
+        let post_processor = create_post_processor(&tokenizer, &tokenizer_config).unwrap();
+
+        let expected = TemplateProcessing::builder()
+            .try_single("<s>:0 $A:0")
+            .unwrap()
+            .try_pair("<s>:0 $A:0 <s>:1 $B:1")
+            .unwrap()
+            .special_tokens(vec![("<s>".to_string(), 1)])
+            .build()
+            .unwrap();
+
+        assert_eq!(post_processor, expected);
+    }
 }
