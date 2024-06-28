@@ -353,6 +353,7 @@ def quantize(
         upload_to_model_id=upload_to_model_id,
         percdamp=percdamp,
         act_order=act_order,
+        sym=True,
     )
 
 
