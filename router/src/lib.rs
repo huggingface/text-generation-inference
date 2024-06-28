@@ -90,18 +90,6 @@ impl TokenizerConfigToken {
     }
 }
 
-impl From<TokenizerConfigToken> for String {
-    fn from(token: TokenizerConfigToken) -> Self {
-        token.as_str().to_string()
-    }
-}
-
-impl From<String> for TokenizerConfigToken {
-    fn from(s: String) -> Self {
-        TokenizerConfigToken::String(s)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "processor_class")]
 pub enum HubPreprocessorConfig {
