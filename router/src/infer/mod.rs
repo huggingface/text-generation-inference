@@ -293,20 +293,8 @@ impl ChatTemplate {
 
         Self {
             template,
-            bos_token: match bos_token {
-                Some(token) => match token {
-                    TokenizerConfigToken::String(token) => Some(token),
-                    TokenizerConfigToken::Object { content } => Some(content),
-                },
-                None => None,
-            },
-            eos_token: match eos_token {
-                Some(token) => match token {
-                    TokenizerConfigToken::String(token) => Some(token),
-                    TokenizerConfigToken::Object { content } => Some(content),
-                },
-                None => None,
-            },
+            bos_token: bos_token.map(|token| token.as_str().to_string()),
+            eos_token: eos_token.map(|token| token.as_str().to_string()),
             use_default_tool_template,
         }
     }
