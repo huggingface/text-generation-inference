@@ -31,6 +31,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{http, Json, Router};
 use axum_tracing_opentelemetry::middleware::OtelAxumLayer;
+use http::header::AUTHORIZATION;
 use futures::stream::StreamExt;
 use futures::stream::{FuturesOrdered, FuturesUnordered};
 use futures::Stream;
@@ -1419,6 +1420,7 @@ pub async fn run(
     validation_workers: usize,
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
+    api_key: Option<String>,
     ngrok: bool,
     _ngrok_authtoken: Option<String>,
     _ngrok_edge: Option<String>,
@@ -1793,16 +1795,39 @@ pub async fn run(
     let swagger_ui = SwaggerUi::new("/docs").url("/api-doc/openapi.json", doc);
 
     // Define base and health routes
-    let base_routes = Router::new()
+    let mut base_routes = Router::new()
         .route("/", post(compat_generate))
-        .route("/", get(health))
-        .route("/info", get(get_model_info))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/completions", post(completions))
         .route("/vertex", post(vertex_compatibility))
-        .route("/tokenize", post(tokenize))
+        .route("/tokenize", post(tokenize));
+
+    if let Some(api_key) = api_key {
+        let mut prefix = "Bearer ".to_string();
+        prefix.push_str(&api_key);
+
+        // Leak to allow FnMut
+        let api_key: &'static str = prefix.leak();
+
+        let auth = move |headers: HeaderMap,
+                         request: axum::extract::Request,
+                         next: axum::middleware::Next| async move {
+            match headers.get(AUTHORIZATION) {
+                Some(token) if token == api_key => {
+                    let response = next.run(request).await;
+                    Ok(response)
+                }
+                _ => Err(StatusCode::UNAUTHORIZED),
+            }
+        };
+
+        base_routes = base_routes.layer(axum::middleware::from_fn(auth))
+    }
+    let health_routes = Router::new()
+        .route("/", get(health))
+        .route("/info", get(get_model_info))
         .route("/health", get(health))
         .route("/ping", get(health))
         .route("/metrics", get(metrics));
@@ -1821,6 +1846,7 @@ pub async fn run(
     let mut app = Router::new()
         .merge(swagger_ui)
         .merge(base_routes)
+        .merge(health_routes)
         .merge(aws_sagemaker_route);
 
     #[cfg(feature = "google")]
