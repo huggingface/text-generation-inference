@@ -1,6 +1,6 @@
 {
   "name": "tgi-trtllm-backend",
-  "image": "nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04",
+  "image": "nvcr.io/nvidia/pytorch:24.05-py3",
   "runArgs": [
     "--gpus=all"
   ],
