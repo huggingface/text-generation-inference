@@ -3762,7 +3762,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "2.0.5-dev0"
+version = "2.1.1-dev0"
 dependencies = [
  "average",
  "clap",
@@ -3783,7 +3783,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "2.0.5-dev0"
+version = "2.1.1-dev0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3801,7 +3801,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "2.0.5-dev0"
+version = "2.1.1-dev0"
 dependencies = [
  "clap",
  "ctrlc",
@@ -3820,7 +3820,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "2.0.5-dev0"
+version = "2.1.1-dev0"
 dependencies = [
  "async-stream",
  "axum 0.7.5",
@@ -3832,6 +3832,7 @@ dependencies = [
  "hf-hub",
  "image",
  "init-tracing-opentelemetry",
+ "itertools 0.10.5",
  "jsonschema",
  "metrics 0.21.1",
  "metrics-exporter-prometheus",
@@ -3854,8 +3855,6 @@ dependencies = [
  "tokio-stream",
  "tower-http",
  "tracing",
- "tracing-core",
- "tracing-log 0.2.0",
  "tracing-opentelemetry 0.21.0",
  "tracing-subscriber",
  "utoipa",

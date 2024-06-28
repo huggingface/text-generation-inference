@@ -1,3 +1,4 @@
+from itertools import repeat
 import torch
 from PIL import Image
 from io import BytesIO
@@ -15,6 +16,9 @@ from text_generation_server.models.flash_mistral import (
 
 tracer = trace.get_tracer(__name__)
 
+IDEFICS2_FAKE_TOKEN = "<fake_token_around_image>"
+IDEFICS2_IMAGE_TOKEN = "<image>"
+
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     """
@@ -22,7 +26,7 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
 
     Args:
         image_size (`tuple`):
-            The size of the input image in the format (width, height).
+            The size of the input image in the format (height, width).
         grid_pinpoints (`List`):
             A list containing possible resolutions. Each item in the list should be a tuple or list
             of the form `(height, width)`.
@@ -39,15 +43,13 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     return height // patch_size, width // patch_size
 
 
-def image_text_replacement(image_input, config, image_id) -> str:
+def image_text_replacement(processor, image_input, config, image_id: int) -> str:
     if config.model_type == "idefics2":
-        # TODO technically depends on image splitting which is not implemented.
-        num_features = 320
-        return (
-            "<fake_token_around_image>"
-            + "<image>" * num_features
-            + "<fake_token_around_image>"
-        )
+        image_seq_len = 64
+        image_str = f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_IMAGE_TOKEN * image_seq_len}{IDEFICS2_FAKE_TOKEN}"
+        if processor.image_processor.do_image_splitting:
+            image_str *= 5
+        return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
@@ -64,20 +66,35 @@ def image_text_replacement(image_input, config, image_id) -> str:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
 
+def image_text_replacement_fixup(config, text: str) -> str:
+    if config.model_type == "idefics2":
+        return text.replace(
+            f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_FAKE_TOKEN}", IDEFICS2_FAKE_TOKEN
+        )
+    return text
+
+
 def get_unpadded_features(
-    height: int, width: int, npatches: int, num_patch_height: int, num_patch_width: int
+    original_height: int,
+    original_width: int,
+    npatches: int,
+    num_patch_height: int,
+    num_patch_width: int,
 ) -> Tuple[int, int]:
     current_height = npatches * num_patch_height
     current_width = npatches * num_patch_width
 
-    aspect_ratio: float = width / height
+    aspect_ratio: float = original_width / original_height
     current_aspect_ratio: float = current_width / current_height
+
     if aspect_ratio > current_aspect_ratio:
-        new_height = (height * current_width) // width
-        current_height = new_height
+        new_height = (original_height * current_width) // original_width
+        padding = (current_height - new_height) // 2
+        current_height = current_height - (2 * padding)
     else:
-        new_width = (width * current_height) // height
-        current_width = new_width
+        new_width = (original_width * current_height) // original_height
+        padding = (current_width - new_width) // 2
+        current_width = current_width - (2 * padding)
 
     unpadded_features = current_height * current_width
     newline_features = current_height
@@ -96,7 +113,9 @@ def get_number_of_features(height: int, width: int, config) -> int:
 
     npatches = image_size // patch_size
 
-    num_patch_height, num_patch_width = get_anyres_image_grid_shape(
+    # Dimensions are intentionally swapped to be bug-compatible with
+    # upstream: https://github.com/LLaVA-VL/LLaVA-NeXT/issues/59
+    num_patch_width, num_patch_height = get_anyres_image_grid_shape(
         [height, width],
         image_grid_pinpoints,
         image_size,
@@ -168,8 +187,12 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 if chunk_type == "text":
                     full_text += chunk.text
                 elif chunk_type == "image":
-                    full_text += image_text_replacement(image_inputs, config, image_id)
+                    full_text += image_text_replacement(
+                        processor, image_inputs, config, image_id
+                    )
                     image_id += 1
+
+            full_text = image_text_replacement_fixup(config, full_text)
 
             batch_inputs.append(full_text)
             max_truncation = max(max_truncation, r.truncate)
