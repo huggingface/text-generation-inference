@@ -251,7 +251,7 @@ jobs:
       - name: Run tests
         run: |
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HF_TOKEN }}
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
 
           export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
           echo "DOCKER_IMAGE:"
