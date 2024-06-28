@@ -131,8 +131,8 @@ jobs:
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=gha,scope=cache-${{ env.LABEL }},mode=min
-          cache-to: type=gha,scope=cache-${{ env.LABEL }},mode=min
+          cache-from: type=registry,ref=registry-push.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
+          cache-to: type=registry,ref=registry-push.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
       - name: Final
         id: final
         run: |
