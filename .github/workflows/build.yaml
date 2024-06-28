@@ -9,7 +9,7 @@ on:
           # options:
           # - cuda
           # - rocm
-          # - intel
+          # - xpu
         required: true
 
 jobs:
@@ -167,7 +167,7 @@ jobs:
           elif [[ ${{ inputs.hardware }} == "cuda" ]]
           then
             echo "base_docker_image=nvidia/cuda:12.1.0-base-ubuntu22.04" >> "$GITHUB_OUTPUT"
-          elif [[ ${{ inputs.hardware }} == "cuda" ]]
+          elif [[ ${{ inputs.hardware }} == "xpu" ]]
           then
             echo "base_docker_image=intel/intel-extension-for-pytorch:2.1.30-xpu" >> "$GITHUB_OUTPUT"
           else
