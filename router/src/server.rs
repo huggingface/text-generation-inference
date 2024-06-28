@@ -1825,7 +1825,7 @@ pub async fn run(
 
         base_routes = base_routes.layer(axum::middleware::from_fn(auth))
     }
-    let health_routes = Router::new()
+    let info_routes = Router::new()
         .route("/", get(health))
         .route("/info", get(get_model_info))
         .route("/health", get(health))
@@ -1846,7 +1846,7 @@ pub async fn run(
     let mut app = Router::new()
         .merge(swagger_ui)
         .merge(base_routes)
-        .merge(health_routes)
+        .merge(info_routes)
         .merge(aws_sagemaker_route);
 
     #[cfg(feature = "google")]
