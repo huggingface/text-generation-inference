@@ -1,0 +1,33 @@
+//
+// Created by Morgan Funtowicz on 6/30/24.
+//
+
+#ifndef TGI_TRTLLM_BACKEND_H
+#define TGI_TRTLLM_BACKEND_H
+
+#include <filesystem>
+
+//#include <tensorrt_llm/runtime/common.h>
+//#include <tensorrt_llm/executor/executor.h>
+//
+//namespace tle = tensorrt_llm::executor;
+
+namespace huggingface::tgi::backends {
+    class TensorRtLlmBackendImpl {
+    private:
+//        tle::Executor executor;
+
+    public:
+        TensorRtLlmBackendImpl(std::filesystem::path &engineFolder);
+    };
+
+    /***
+     *
+     * @param engineFolder
+     * @return
+     */
+    std::unique_ptr<huggingface::tgi::backends::TensorRtLlmBackendImpl>
+    create_trtllm_backend(std::filesystem::path &engineFolder);
+}
+
+#endif //TGI_TRTLLM_BACKEND_H
