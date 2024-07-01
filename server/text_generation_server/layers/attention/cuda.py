@@ -1,6 +1,7 @@
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING, BLOCK_SIZE
+from text_generation_server.layers.attention import Seqlen
 
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
@@ -40,8 +41,7 @@ def paged_attention(
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
-    cu_seqlen_q: torch.Tensor,
-    cu_seqlen_k: torch.Tensor,
+    seqlen: Seqlen,
     max_s: int,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
@@ -66,7 +66,6 @@ def paged_attention(
     block_size = BLOCK_SIZE
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
-    input_lengths = cu_seqlen_k
 
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
@@ -88,8 +87,8 @@ def paged_attention(
             key_cache,
             value_cache,
             None,
-            cu_seqlen_q,
-            cu_seqlen_k,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_k,
             None,
             block_tables,
             None,
@@ -106,6 +105,7 @@ def paged_attention(
         )
         return out2[0]
     else:
+        input_lengths = seqlen.input_lengths
         from vllm._C import ops
 
         use_v1 = max_s <= 8192 and (
