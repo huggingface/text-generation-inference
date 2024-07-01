@@ -168,7 +168,7 @@ class FlashNeoxAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention(
+            attn_output = paged_attention(
                 attn_output,
                 qkv[:, 0],
                 kv_cache[0],

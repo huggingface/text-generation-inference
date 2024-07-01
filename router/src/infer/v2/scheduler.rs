@@ -39,7 +39,14 @@ impl SchedulerV2 {
         speculate: u32,
         generation_health: Arc<AtomicBool>,
     ) -> Self {
-        let queue = Queue::new(requires_padding, 16, window_size, speculate);
+        // Infer shared state
+        let flashdecoding = if let Ok(flashdecoding) = std::env::var("FLASH_DECODING") {
+            matches!(flashdecoding.to_lowercase().as_str(), "1" | "true")
+        } else {
+            false
+        };
+        let block_size = if flashdecoding { 256 } else { 16 };
+        let queue = Queue::new(requires_padding, block_size, window_size, speculate);
         let batching_task_notifier = Arc::new(Notify::new());
 
         // Spawn batching background task that contains all the inference logic
