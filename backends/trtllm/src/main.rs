@@ -27,7 +27,7 @@ struct Args {
     hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
-    #[clap(default_value = "bigscience/bloom", long, env)]
+    #[clap(long, env, required = true)]
     tokenizer_name: String,
     #[clap(long, env)]
     tokenizer_config_path: Option<String>,
