@@ -53,23 +53,40 @@ pub enum ChatTemplateVersions {
     Multiple(Vec<ChatTemplate>),
 }
 
+use std::path::Path;
+
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct HubTokenizerConfig {
     pub chat_template: Option<ChatTemplateVersions>,
     pub completion_template: Option<String>,
-    #[serde(deserialize_with = "token_serde::deserialize")]
-    pub bos_token: Option<String>,
-    #[serde(deserialize_with = "token_serde::deserialize")]
-    pub eos_token: Option<String>,
+    pub bos_token: Option<TokenizerConfigToken>,
+    pub eos_token: Option<TokenizerConfigToken>,
     pub tokenizer_class: Option<String>,
     pub add_bos_token: Option<bool>,
     pub add_eos_token: Option<bool>,
 }
 
 impl HubTokenizerConfig {
-    pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Option<Self> {
-        let content = std::fs::read_to_string(filename).ok()?;
-        serde_json::from_str(&content).ok()
+    pub fn from_file<P: AsRef<Path>>(filename: P) -> Option<Self> {
+        std::fs::read_to_string(filename)
+            .ok()
+            .and_then(|content| serde_json::from_str(&content).ok())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(untagged)]
+pub enum TokenizerConfigToken {
+    String(String),
+    Object { content: String },
+}
+
+impl TokenizerConfigToken {
+    pub fn as_str(&self) -> &str {
+        match self {
+            TokenizerConfigToken::String(s) => s,
+            TokenizerConfigToken::Object { content } => content,
+        }
     }
 }
 
@@ -100,9 +117,10 @@ pub struct HubProcessorConfig {
 }
 
 impl HubProcessorConfig {
-    pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Option<Self> {
-        let content = std::fs::read_to_string(filename).ok()?;
-        serde_json::from_str(&content).ok()
+    pub fn from_file<P: AsRef<Path>>(filename: P) -> Option<Self> {
+        std::fs::read_to_string(filename)
+            .ok()
+            .and_then(|content| serde_json::from_str(&content).ok())
     }
 }
 
@@ -119,35 +137,6 @@ pub(crate) enum GrammarType {
     Json(serde_json::Value),
     #[serde(rename = "regex")]
     Regex(String),
-}
-
-mod token_serde {
-    use super::*;
-    use serde::de;
-    use serde::Deserializer;
-    use serde_json::Value;
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
-
-        match value {
-            Value::String(s) => Ok(Some(s)),
-            Value::Object(map) => {
-                if let Some(content) = map.get("content").and_then(|v| v.as_str()) {
-                    Ok(Some(content.to_string()))
-                } else {
-                    Err(de::Error::custom(
-                        "content key not found in structured token",
-                    ))
-                }
-            }
-            Value::Null => Ok(None),
-            _ => Err(de::Error::custom("invalid token format")),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
@@ -359,30 +348,33 @@ fn default_parameters() -> GenerateParameters {
     }
 }
 
-mod prompt_serde {
-    use serde::{self, Deserialize, Deserializer};
-    use serde_json::Value;
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug)]
+#[serde(try_from = "PromptDeserializer")]
+pub struct Prompt(pub Vec<String>);
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum PromptDeserializer {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl TryFrom<PromptDeserializer> for Prompt {
+    type Error = String;
+
+    fn try_from(value: PromptDeserializer) -> Result<Self, Self::Error> {
         match value {
-            Value::String(s) => Ok(vec![s]),
-            Value::Array(arr) if arr.is_empty() => Err(serde::de::Error::custom(
-                "Empty array detected. Do not use an empty array for the prompt.",
-            )),
-            Value::Array(arr) => arr
-                .iter()
-                .map(|v| match v {
-                    Value::String(s) => Ok(s.to_owned()),
-                    _ => Err(serde::de::Error::custom("Expected a string")),
-                })
-                .collect(),
-            _ => Err(serde::de::Error::custom(
-                "Expected a string or an array of strings",
-            )),
+            PromptDeserializer::Single(s) => Ok(Prompt(vec![s])),
+            PromptDeserializer::Multiple(v) => {
+                if v.is_empty() {
+                    Err(
+                        "Empty array detected. Do not use an empty array for the prompt."
+                            .to_string(),
+                    )
+                } else {
+                    Ok(Prompt(v))
+                }
+            }
         }
     }
 }
@@ -396,8 +388,7 @@ pub struct CompletionRequest {
 
     /// The prompt to generate completions for.
     #[schema(example = "What is Deep Learning?")]
-    #[serde(deserialize_with = "prompt_serde::deserialize")]
-    pub prompt: Vec<String>,
+    pub prompt: Prompt,
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
@@ -445,7 +436,6 @@ pub struct CompletionRequest {
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
 pub(crate) struct Completion {
     pub id: String,
-    pub object: String,
     #[schema(example = "1706270835")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -466,7 +456,6 @@ pub(crate) struct CompletionComplete {
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletion {
     pub id: String,
-    pub object: String,
     #[schema(example = "1706270835")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -562,6 +551,15 @@ pub(crate) struct Usage {
     pub total_tokens: u32,
 }
 
+#[derive(Clone, Serialize, ToSchema)]
+#[serde(tag = "object")]
+enum CompletionType {
+    #[serde(rename = "chat.completion.chunk")]
+    ChatCompletionChunk(ChatCompletionChunk),
+    #[serde(rename = "chat.completion")]
+    ChatCompletion(ChatCompletion),
+}
+
 impl ChatCompletion {
     pub(crate) fn new(
         model: String,
@@ -598,7 +596,6 @@ impl ChatCompletion {
         };
         Self {
             id: String::new(),
-            object: "chat.completion".into(),
             created,
             model,
             system_fingerprint,
@@ -620,7 +617,6 @@ impl ChatCompletion {
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct CompletionCompleteChunk {
     pub id: String,
-    pub object: String,
     pub created: u64,
     pub choices: Vec<CompletionComplete>,
     pub model: String,
@@ -630,7 +626,6 @@ pub(crate) struct CompletionCompleteChunk {
 #[derive(Clone, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
-    pub object: String,
     #[schema(example = "1706270978")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -710,7 +705,6 @@ impl ChatCompletionChunk {
         };
         Self {
             id: String::new(),
-            object: "chat.completion.chunk".to_string(),
             created,
             model,
             system_fingerprint,
@@ -821,7 +815,6 @@ pub(crate) struct ChatRequest {
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
-    #[serde(deserialize_with = "deserialize_tool_choice::deserialize")]
     pub tool_choice: Option<ToolType>,
 
     /// Response format constraints for the generation.
@@ -837,44 +830,41 @@ fn default_tool_prompt() -> Option<String> {
         "\nYou will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n".to_string(),
     )
 }
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
-enum ToolType {
-    FunctionName(String),
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[serde(untagged)]
+pub enum ToolType {
     OneOf,
+    FunctionName(String),
+    Function { function: FunctionName },
 }
 
-/// Deserialize the tool choice from the JSON input or from the function name ("none" is allowed but mapped to None)
-mod deserialize_tool_choice {
-    use super::*;
-    use serde::de;
-    use serde::Deserializer;
-    use serde_json::Value;
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FunctionName {
+    pub name: String,
+}
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<ToolType>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(from = "ToolTypeDeserializer")]
+pub struct ToolChoice(pub Option<ToolType>);
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ToolTypeDeserializer {
+    None(Option<String>),
+    Some(ToolType),
+}
+
+impl From<ToolTypeDeserializer> for ToolChoice {
+    fn from(value: ToolTypeDeserializer) -> Self {
         match value {
-            Value::String(s) => match s.as_str() {
-                "none" => Ok(None),
-                "auto" => Ok(Some(ToolType::OneOf)),
-                _ => Ok(Some(ToolType::FunctionName(s))),
+            ToolTypeDeserializer::None(opt) => match opt.as_deref() {
+                Some("none") => ToolChoice(None),
+                Some("auto") => ToolChoice(Some(ToolType::OneOf)),
+                Some(s) => ToolChoice(Some(ToolType::FunctionName(s.to_string()))),
+                None => ToolChoice(Some(ToolType::OneOf)),
             },
-            Value::Object(map) => {
-                if let Some(content) = map
-                    .get("function")
-                    .and_then(|v| v.get("name"))
-                    .and_then(|v| v.as_str())
-                {
-                    Ok(Some(ToolType::FunctionName(content.to_string())))
-                } else {
-                    Err(de::Error::custom("function key not found in tool choice"))
-                }
-            }
-            Value::Null => Ok(Some(ToolType::OneOf)),
-            _ => Err(de::Error::custom("invalid token format")),
+            ToolTypeDeserializer::Some(tool_type) => ToolChoice(Some(tool_type)),
         }
     }
 }
@@ -950,26 +940,16 @@ pub(crate) struct ToolCall {
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
-struct Url {
+pub struct Url {
     url: String,
-}
-
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
-struct ImageUrl {
-    image_url: Url,
-}
-
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
-struct Text {
-    text: String,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
-enum MessageChunk {
-    Text(Text),
-    ImageUrl(ImageUrl),
+pub enum MessageChunk {
+    Text { text: String },
+    ImageUrl { image_url: Url },
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
@@ -977,35 +957,31 @@ pub struct Message {
     #[schema(example = "user")]
     role: String,
     #[schema(example = "My name is David and I")]
-    #[serde(deserialize_with = "message_content_serde::deserialize")]
-    content: Vec<MessageChunk>,
+    pub content: MessageContent,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     name: Option<String>,
 }
 
-mod message_content_serde {
-    use super::*;
-    use serde::{Deserialize, Deserializer};
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum MessageContent {
+    SingleText(String),
+    MultipleChunks(Vec<MessageChunk>),
+}
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<MessageChunk>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Message {
-            Text(String),
-            Chunks(Vec<MessageChunk>),
-        }
-        let message: Message = Deserialize::deserialize(deserializer)?;
-        let chunks = match message {
-            Message::Text(text) => {
-                vec![MessageChunk::Text(Text { text })]
+// Pushing a chunk to a single text message will convert it to a multiple chunks message
+impl MessageContent {
+    pub fn push(&mut self, chunk: MessageChunk) {
+        match self {
+            MessageContent::SingleText(text) => {
+                *self =
+                    MessageContent::MultipleChunks(vec![MessageChunk::Text { text: text.clone() }]);
             }
-            Message::Chunks(s) => s,
-        };
-        Ok(chunks)
+            MessageContent::MultipleChunks(chunks) => {
+                chunks.push(chunk);
+            }
+        }
     }
 }
 
@@ -1021,18 +997,17 @@ impl From<Message> for TextMessage {
     fn from(value: Message) -> Self {
         TextMessage {
             role: value.role,
-            content: value
-                .content
-                .into_iter()
-                .map(|c| match c {
-                    MessageChunk::Text(Text { text }) => text,
-                    MessageChunk::ImageUrl(image) => {
-                        let url = image.image_url.url;
-                        format!("![]({url})")
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(""),
+            content: match value.content {
+                MessageContent::SingleText(text) => text,
+                MessageContent::MultipleChunks(chunks) => chunks
+                    .into_iter()
+                    .map(|chunk| match chunk {
+                        MessageChunk::Text { text } => text,
+                        MessageChunk::ImageUrl { image_url } => format!("![]({})", image_url.url),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(""),
+            },
         }
     }
 }
@@ -1240,9 +1215,16 @@ mod tests {
         );
         assert_eq!(
             config.bos_token,
-            Some("<｜begin▁of▁sentence｜>".to_string())
+            Some(TokenizerConfigToken::String(
+                "<｜begin▁of▁sentence｜>".to_string()
+            ))
         );
-        assert_eq!(config.eos_token, Some("<｜end▁of▁sentence｜>".to_string()));
+        assert_eq!(
+            config.eos_token,
+            Some(TokenizerConfigToken::String(
+                "<｜end▁of▁sentence｜>".to_string()
+            ))
+        );
 
         // in this case we expect the tokens to be encoded as structured tokens
         // we want the content of the structured token
@@ -1275,9 +1257,16 @@ mod tests {
         );
         assert_eq!(
             config.bos_token,
-            Some("<｜begin▁of▁sentence｜>".to_string())
+            Some(TokenizerConfigToken::Object {
+                content: "<｜begin▁of▁sentence｜>".to_string()
+            })
         );
-        assert_eq!(config.eos_token, Some("<｜end▁of▁sentence｜>".to_string()));
+        assert_eq!(
+            config.eos_token,
+            Some(TokenizerConfigToken::Object {
+                content: "<｜end▁of▁sentence｜>".to_string()
+            })
+        );
     }
 
     #[test]
@@ -1295,9 +1284,7 @@ mod tests {
             request.messages[0],
             Message {
                 role: "user".to_string(),
-                content: vec![MessageChunk::Text(Text {
-                    text: "What is Deep Learning?".to_string()
-                }),],
+                content: MessageContent::SingleText("What is Deep Learning?".to_string()),
                 name: None
             }
         );
@@ -1321,10 +1308,10 @@ mod tests {
             request.messages[0],
             Message{
                 role: "user".to_string(),
-                content: vec![
-                    MessageChunk::Text(Text { text: "Whats in this image?".to_string() }),
-                    MessageChunk::ImageUrl(ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } })
-                ],
+                content: MessageContent::MultipleChunks(vec![
+                    MessageChunk::Text { text: "Whats in this image?".to_string() },
+                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
+                ]),
                 name: None
             }
         );
@@ -1334,10 +1321,10 @@ mod tests {
     fn text_message_convert() {
         let message = Message{
                 role: "user".to_string(),
-                content: vec![
-                    MessageChunk::Text(Text { text: "Whats in this image?".to_string() }),
-                    MessageChunk::ImageUrl(ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } })
-                ],
+                content: MessageContent::MultipleChunks(vec![
+                    MessageChunk::Text { text: "Whats in this image?".to_string() },
+                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
+                ]),
                 name: None
             };
         let textmsg: TextMessage = message.into();
