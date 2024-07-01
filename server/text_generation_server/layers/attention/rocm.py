@@ -1,6 +1,7 @@
 import os
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.models.globals import FLASH_DECODING
 from loguru import logger
 
 major, minor = torch.cuda.get_device_capability()
@@ -26,7 +27,14 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots, "auto", 1.0)
+    if FLASH_DECODING:
+        shape = key_cache.shape
+        key_cache.view(-1, shape[-2], shape[-1])[slots] = key
+        value_cache.view(-1, shape[-2], shape[-1])[slots] = value
+    else:
+        cache_ops.reshape_and_cache(
+            key, value, key_cache, value_cache, slots, "auto", 1.0
+        )
 
 
 def paged_attention(
@@ -37,7 +45,8 @@ def paged_attention(
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
-    input_lengths: torch.Tensor,
+    cu_seqlen_q: torch.Tensor,
+    cu_seqlen_k: torch.Tensor,
     max_s: int,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
@@ -61,6 +70,7 @@ def paged_attention(
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
+    input_lengths = cu_seqlen_k
 
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
@@ -119,6 +129,7 @@ def paged_attention(
             "auto",
             1.0,
         )
+    return out
 
 
 if ENGINE != "triton":
