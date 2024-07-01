@@ -629,9 +629,9 @@ mod tests {
         let post_processor = create_post_processor(&tokenizer, &tokenizer_config).unwrap();
 
         let expected = TemplateProcessing::builder()
-            .try_single("<s>:0 $A:0 <s>:1")
+            .try_single("<s>:0 $A:0")
             .unwrap()
-            .try_pair("<s>:0 $A:0 $B:1")
+            .try_pair("<s>:0 $A:0 <s>:1 $B:1")
             .unwrap()
             .special_tokens(vec![("<s>".to_string(), 1)])
             .build()
