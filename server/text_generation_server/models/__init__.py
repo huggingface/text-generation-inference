@@ -12,7 +12,6 @@ from pathlib import Path
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
-from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.bloom import BLOOMSharded
 from text_generation_server.models.mpt import MPTSharded
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
@@ -53,6 +52,7 @@ FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 FLASH_ATTENTION = True
 
 try:
+    from text_generation_server.models.flash_causal_lm import FlashCausalLM
     from text_generation_server.models.flash_rw import FlashRWSharded
     from text_generation_server.models.flash_gpt2 import FlashGPT2
     from text_generation_server.models.flash_neox import FlashNeoXSharded
@@ -92,6 +92,7 @@ except ImportError as e:
     FLASH_ATTENTION = False
 
 if FLASH_ATTENTION:
+    __all__.append(FlashCausalLM)
     __all__.append(FlashGPT2)
     __all__.append(FlashNeoXSharded)
     __all__.append(FlashRWSharded)

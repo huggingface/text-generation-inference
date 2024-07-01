@@ -33,6 +33,7 @@ from text_generation_server.layers.attention import (
     attention,
     reshape_and_cache,
 )
+from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -213,7 +214,7 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention(
+            attn_output = paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],
