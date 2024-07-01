@@ -1,23 +1,13 @@
 import os
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 from safetensors import safe_open, SafetensorError
 import torch
 from loguru import logger
 from huggingface_hub import hf_hub_download
 import json
+from text_generation_server.layers.gptq import GPTQParams
 from text_generation_server.utils.log import log_once
-
-
-@dataclass
-class _GPTQParams:
-    bits: int
-    checkpoint_format: Optional[str]
-    groupsize: int
-    desc_act: bool
-    quant_method: str
-    sym: bool
 
 
 class Weights:
@@ -212,6 +202,10 @@ class Weights:
         """
         if quantize in ["gptq", "awq"]:
             from text_generation_server.layers.gptq import GPTQWeight
+            from text_generation_server.layers.marlin import (
+                can_use_gptq_marlin,
+                repack_gptq_for_marlin,
+            )
 
             try:
                 qweight = self.get_packed_sharded(
@@ -221,17 +215,28 @@ class Weights:
                 raise RuntimeError(
                     f"Cannot load `{quantize}` weight, make sure the model is already quantized."
                 )
-
-            gptq_params = self._get_gptq_params()
-
-            qzeros = self.get_packed_sharded(
-                f"{prefix}.qzeros", dim=1, block_sizes=block_sizes
-            )
             scales = self.get_packed_sharded(
                 f"{prefix}.scales", dim=1, block_sizes=block_sizes
             )
             scales = scales.to(dtype=self.dtype)
 
+            gptq_params = self._get_gptq_params()
+            if can_use_gptq_marlin(gptq_params, quantize):
+                g_idx = self.get_tensor(f"{prefix}.g_idx")
+                return repack_gptq_for_marlin(
+                    qweight=qweight,
+                    scales=scales,
+                    g_idx=g_idx,
+                    bits=gptq_params.bits,
+                    desc_act=gptq_params.desc_act,
+                    groupsize=gptq_params.groupsize,
+                    sym=gptq_params.sym,
+                    sharded_infeatures=False,
+                )
+
+            qzeros = self.get_packed_sharded(
+                f"{prefix}.qzeros", dim=1, block_sizes=block_sizes
+            )
             if quantize == "gptq" and gptq_params.quant_method == "gptq":
                 g_idx = self.get_tensor(f"{prefix}.g_idx")
             elif quantize == "gptq" and gptq_params.quant_method == "awq":
@@ -269,7 +274,6 @@ class Weights:
                 repack_gptq_for_marlin,
             )
 
-            quant_method = getattr(self, "quant_method", "marlin")
             is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
             if is_marlin_24:
                 B = self.get_packed_sharded(
@@ -285,31 +289,6 @@ class Weights:
                 gptq_params = self._get_gptq_params()
                 weight = GPTQMarlin24Weight(
                     B=B, B_meta=B_meta, s=s, bits=gptq_params.bits
-                )
-            elif quant_method == "gptq":
-                gptq_params = self._get_gptq_params()
-                try:
-                    qweight = self.get_packed_sharded(
-                        f"{prefix}.qweight", dim=1, block_sizes=block_sizes
-                    )
-                except RuntimeError:
-                    raise RuntimeError(
-                        f"Cannot load `{quantize}` weight for GPTQ -> Marlin repacking, make sure the model is already quantized"
-                    )
-
-                scales = self.get_packed_sharded(
-                    f"{prefix}.scales", dim=1, block_sizes=block_sizes
-                )
-                g_idx = self.get_tensor(f"{prefix}.g_idx")
-                weight = repack_gptq_for_marlin(
-                    qweight=qweight,
-                    scales=scales,
-                    g_idx=g_idx,
-                    bits=gptq_params.bits,
-                    desc_act=gptq_params.desc_act,
-                    groupsize=gptq_params.groupsize,
-                    sym=gptq_params.sym,
-                    sharded_infeatures=False,
                 )
             else:
                 B = self.get_packed_sharded(
@@ -356,6 +335,10 @@ class Weights:
             raise ValueError("get_multi_weights_col is not supported for exl2")
         elif quantize in ["gptq", "awq"]:
             from text_generation_server.layers.gptq import GPTQWeight
+            from text_generation_server.layers.marlin import (
+                can_use_gptq_marlin,
+                repack_gptq_for_marlin,
+            )
 
             try:
                 qweight = torch.cat(
@@ -366,14 +349,31 @@ class Weights:
                     f"Cannot load `{quantize}` weight, make sure the model is already quantized"
                 )
 
-            qzeros = torch.cat(
-                [self.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1
-            )
             scales = torch.cat(
                 [self.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1
             )
 
             gptq_params = self._get_gptq_params()
+            if can_use_gptq_marlin(gptq_params, quantize):
+                w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
+                for w2 in w[1:]:
+                    torch.testing.assert_close(w2, w[0])
+                g_idx = w[0]
+
+                return repack_gptq_for_marlin(
+                    qweight=qweight,
+                    scales=scales,
+                    g_idx=g_idx,
+                    bits=gptq_params.bits,
+                    desc_act=gptq_params.desc_act,
+                    groupsize=gptq_params.groupsize,
+                    sym=gptq_params.sym,
+                    sharded_infeatures=False,
+                )
+
+            qzeros = torch.cat(
+                [self.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1
+            )
 
             from text_generation_server.layers.gptq import HAS_EXLLAMA
 
@@ -425,10 +425,8 @@ class Weights:
             from text_generation_server.layers.marlin import (
                 GPTQMarlin24Weight,
                 MarlinWeight,
-                repack_gptq_for_marlin,
             )
 
-            quant_method = getattr(self, "quant_method", "marlin")
             is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
             if is_marlin_24:
                 try:
@@ -451,36 +449,6 @@ class Weights:
                 gptq_params = self._get_gptq_params()
                 weight = GPTQMarlin24Weight(
                     B=B, B_meta=B_meta, s=s, bits=gptq_params.bits
-                )
-            elif quant_method == "gptq":
-                gptq_params = self._get_gptq_params()
-                try:
-                    qweight = torch.cat(
-                        [self.get_sharded(f"{p}.qweight", dim=1) for p in prefixes],
-                        dim=1,
-                    )
-                except RuntimeError:
-                    raise RuntimeError(
-                        f"Cannot load `{quantize}` weight for GPTQ -> Marlin repacking, make sure the model is already quantized"
-                    )
-
-                scales = torch.cat(
-                    [self.get_sharded(f"{p}.scales", dim=1) for p in prefixes], dim=1
-                )
-                w = [self.get_tensor(f"{p}.g_idx") for p in prefixes]
-                for w2 in w[1:]:
-                    torch.testing.assert_close(w2, w[0])
-                g_idx = w[0]
-
-                weight = repack_gptq_for_marlin(
-                    qweight=qweight,
-                    scales=scales,
-                    g_idx=g_idx,
-                    bits=gptq_params.bits,
-                    desc_act=gptq_params.desc_act,
-                    groupsize=gptq_params.groupsize,
-                    sym=gptq_params.sym,
-                    sharded_infeatures=False,
                 )
             else:
                 try:
@@ -544,9 +512,41 @@ class Weights:
             )
 
         elif quantize == "gptq":
-            use_exllama = True
-            gptq_params = self._get_gptq_params()
+            from text_generation_server.layers.marlin import (
+                can_use_gptq_marlin,
+                repack_gptq_for_marlin,
+            )
 
+            gptq_params = self._get_gptq_params()
+            if can_use_gptq_marlin(gptq_params, quantize):
+                log_once(logger.info, "Using GPTQ-Marlin kernels")
+                try:
+                    qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
+                except RuntimeError:
+                    raise RuntimeError(
+                        f"Cannot load `{quantize}` weight for GPTQ -> Marlin repacking, make sure the model is already quantized"
+                    )
+
+                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
+                if gptq_params.desc_act or gptq_params.groupsize == -1:
+                    scales = self.get_tensor(f"{prefix}.scales")
+                else:
+                    scales = self.get_sharded(f"{prefix}.scales", dim=0)
+
+                sharded_in_features = self.process_group.size() > 1
+
+                return repack_gptq_for_marlin(
+                    qweight=qweight,
+                    scales=scales,
+                    g_idx=g_idx,
+                    bits=gptq_params.bits,
+                    desc_act=gptq_params.desc_act,
+                    groupsize=gptq_params.groupsize,
+                    sym=gptq_params.sym,
+                    sharded_infeatures=sharded_in_features,
+                )
+
+            use_exllama = True
             if gptq_params.bits != 4:
                 use_exllama = False
 
@@ -672,10 +672,8 @@ class Weights:
             from text_generation_server.layers.marlin import (
                 GPTQMarlin24Weight,
                 MarlinWeight,
-                repack_gptq_for_marlin,
             )
 
-            quant_method = getattr(self, "quant_method", "marlin")
             is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
             if is_marlin_24:
                 try:
@@ -698,35 +696,6 @@ class Weights:
                 weight = GPTQMarlin24Weight(
                     B=B, B_meta=B_meta, s=s, bits=gptq_params.bits
                 )
-            elif quant_method == "gptq":
-                log_once(logger.info, "Converting GPTQ model to Marlin packing format.")
-                gptq_params = self._get_gptq_params()
-
-                try:
-                    qweight = self.get_sharded(f"{prefix}.qweight", dim=0)
-                except RuntimeError:
-                    raise RuntimeError(
-                        f"Cannot load `{quantize}` weight for GPTQ -> Marlin repacking, make sure the model is already quantized"
-                    )
-
-                g_idx = self.get_sharded(f"{prefix}.g_idx", dim=0)
-                if gptq_params.desc_act or gptq_params.groupsize == -1:
-                    scales = self.get_tensor(f"{prefix}.scales")
-                else:
-                    scales = self.get_sharded(f"{prefix}.scales", dim=0)
-
-                sharded_in_features = self.process_group.size() > 1
-
-                weight = repack_gptq_for_marlin(
-                    qweight=qweight,
-                    scales=scales,
-                    g_idx=g_idx,
-                    bits=gptq_params.bits,
-                    desc_act=gptq_params.desc_act,
-                    groupsize=gptq_params.groupsize,
-                    sym=gptq_params.sym,
-                    sharded_infeatures=sharded_in_features,
-                )
             else:
                 try:
                     B = self.get_sharded(f"{prefix}.B", dim=0)
@@ -743,18 +712,17 @@ class Weights:
                 else:
                     s = self.get_sharded(f"{prefix}.s", dim=0)
                 weight = MarlinWeight(B=B, s=s)
-
         else:
             weight = self.get_sharded(f"{prefix}.weight", dim=1)
         return weight
 
-    def _get_gptq_params(self) -> _GPTQParams:
+    def _get_gptq_params(self) -> GPTQParams:
         try:
             bits = self.get_tensor("gptq_bits").item()
             groupsize = self.get_tensor("gptq_groupsize").item()
             checkpoint_format = getattr(self, "gptq_checkpoint_format", None)
             desc_act = False
-            sym = True
+            sym = False
             quant_method = "gptq"
         except (SafetensorError, RuntimeError) as e:
             try:
@@ -767,7 +735,7 @@ class Weights:
             except Exception:
                 raise e
 
-        return _GPTQParams(
+        return GPTQParams(
             bits=bits,
             checkpoint_format=checkpoint_format,
             desc_act=desc_act,

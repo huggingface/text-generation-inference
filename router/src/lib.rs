@@ -61,6 +61,9 @@ pub struct HubTokenizerConfig {
     pub bos_token: Option<String>,
     #[serde(deserialize_with = "token_serde::deserialize")]
     pub eos_token: Option<String>,
+    pub tokenizer_class: Option<String>,
+    pub add_bos_token: Option<bool>,
+    pub add_eos_token: Option<bool>,
 }
 
 impl HubTokenizerConfig {
@@ -68,6 +71,25 @@ impl HubTokenizerConfig {
         let content = std::fs::read_to_string(filename).ok()?;
         serde_json::from_str(&content).ok()
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "processor_class")]
+pub enum HubPreprocessorConfig {
+    Idefics2Processor(Idefics2Preprocessor),
+}
+
+impl HubPreprocessorConfig {
+    pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Option<Self> {
+        let content = std::fs::read_to_string(filename).ok()?;
+        serde_json::from_str(&content).ok()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Idefics2Preprocessor {
+    #[serde(default)]
+    do_image_splitting: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
