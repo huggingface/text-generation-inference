@@ -166,35 +166,45 @@ def get_linear(weight, bias, quantize):
 
     elif quantize == "gptq":
         from text_generation_server.layers.gptq import GPTQWeight
+        from text_generation_server.layers.marlin import (
+            GPTQMarlinLinear,
+            GPTQMarlinWeight,
+        )
 
-        if not isinstance(weight, GPTQWeight):
+        if isinstance(weight, GPTQMarlinWeight):
+            linear = GPTQMarlinLinear(
+                weight=weight,
+                bias=bias,
+            )
+        elif isinstance(weight, GPTQWeight):
+            if weight.use_exllama:
+                try:
+                    from text_generation_server.layers.gptq import (
+                        ExllamaQuantLinear,
+                    )
+                except ImportError:
+                    raise NotImplementedError(
+                        f"Exllama gptq kernels are not installed. Install them `cd server/exllama_kernels && python setup.py install && cd ../exllamav2_kernels && python setup.py install`"
+                    )
+
+                linear = ExllamaQuantLinear(weight, bias)
+            else:
+                from text_generation_server.layers.gptq.quant_linear import QuantLinear
+
+                linear = QuantLinear(
+                    weight.qweight,
+                    weight.qzeros,
+                    weight.scales,
+                    weight.g_idx,
+                    bias,
+                    weight.bits,
+                    weight.groupsize,
+                )
+        else:
             raise NotImplementedError(
                 f"The passed weight is not `gptq` compatible, loader needs to be updated."
             )
 
-        if weight.use_exllama:
-            try:
-                from text_generation_server.layers.gptq import (
-                    ExllamaQuantLinear,
-                )
-            except ImportError:
-                raise NotImplementedError(
-                    f"Exllama gptq kernels are not installed. Install them `cd server/exllama_kernels && python setup.py install && cd ../exllamav2_kernels && python setup.py install`"
-                )
-
-            linear = ExllamaQuantLinear(weight, bias)
-        else:
-            from text_generation_server.layers.gptq.quant_linear import QuantLinear
-
-            linear = QuantLinear(
-                weight.qweight,
-                weight.qzeros,
-                weight.scales,
-                weight.g_idx,
-                bias,
-                weight.bits,
-                weight.groupsize,
-            )
     elif quantize == "awq":
         from text_generation_server.layers.gptq import GPTQWeight
 
@@ -226,18 +236,11 @@ def get_linear(weight, bias, quantize):
         from text_generation_server.layers.marlin import (
             GPTQMarlin24Linear,
             GPTQMarlin24Weight,
-            GPTQMarlinLinear,
-            GPTQMarlinWeight,
             MarlinLinear,
             MarlinWeight,
         )
 
-        if isinstance(weight, GPTQMarlinWeight):
-            linear = GPTQMarlinLinear(
-                weight=weight,
-                bias=bias,
-            )
-        elif isinstance(weight, GPTQMarlin24Weight):
+        if isinstance(weight, GPTQMarlin24Weight):
             linear = GPTQMarlin24Linear(
                 weight=weight,
                 bias=bias,

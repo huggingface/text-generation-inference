@@ -71,10 +71,12 @@ fn get_unpadded_features(
     let current_aspect_ratio: f64 = current_width as f64 / current_height as f64;
     let (current_height, current_width) = if aspect_ratio > current_aspect_ratio {
         let new_height = (height * current_width) / width;
-        (new_height, current_width)
+        let padding = (current_height - new_height) / 2;
+        (current_height - (2 * padding), current_width)
     } else {
         let new_width = (width * current_height) / height;
-        (current_height, new_width)
+        let padding = (current_width - new_width) / 2;
+        (current_height, current_width - (2 * padding))
     };
 
     let unpadded_features = current_height * current_width;
@@ -88,7 +90,9 @@ impl LlavaNext {
         let patch_size = self.vision_config.patch_size;
         assert!(image_size % patch_size == 0);
         let npatches = image_size / patch_size;
-        let (num_patch_height, num_patch_width) =
+        // Dimensions are intentionally swapped to be bug-compatible with
+        // upstream: https://github.com/LLaVA-VL/LLaVA-NeXT/issues/59
+        let (num_patch_width, num_patch_height) =
             get_anyres_image_grid_shape(height, width, &self.image_grid_pinpoints, image_size);
 
         let (unpadded_features, newline_features) =
@@ -112,7 +116,7 @@ pub struct Idefics2 {}
 
 impl Idefics2 {
     pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
-        320
+        64
     }
 }
 
@@ -158,6 +162,7 @@ pub enum Config {
     Baichuan,
     Paligemma(Paligemma),
     Gemma,
+    Gemma2,
     Cohere,
     Drbx,
     Falcon,

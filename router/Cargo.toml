@@ -22,9 +22,10 @@ text-generation-client = { path = "client" }
 clap = { version = "4.4.5", features = ["derive", "env"] }
 futures = "0.3.28"
 hf-hub = { workspace = true }
+itertools = "0.10"
 jsonschema = { version = "0.17.1", features = ["draft202012"] }
 metrics = "0.21.1"
-metrics-exporter-prometheus = { version = "0.12.1", features = [] }
+metrics-exporter-prometheus = { version = "0.15.1", features = [] }
 nohash-hasher = "0.2.0"
 opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
 opentelemetry-otlp = "0.13.0"
@@ -37,9 +38,9 @@ tokenizers = { workspace = true}
 tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tokio-stream = "0.1.14"
 tower-http = { version = "0.5.1", features = ["cors"] }
-tracing = "0.1.37"
+tracing = "0.1.40"
 tracing-opentelemetry = "0.21.0"
-tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
+tracing-subscriber = { version = "0.3.18", features = ["json", "env-filter"] }
 utoipa = { version = "4.2.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "6.0.0", features = ["axum"] }
 ngrok = { version = "0.13.1", features = ["axum"], optional = true }
