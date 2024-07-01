@@ -11,6 +11,9 @@ class Seqlen:
     cu_seqlen_k: Optional[torch.Tensor]
 
     def __init__(self, input_lengths):
+        self.set_input_lengths(input_lengths)
+
+    def set_input_lengths(self, input_lengths):
         self.input_lengths = input_lengths
         if FLASH_DECODING:
             device = self.input_lengths.device
@@ -20,8 +23,8 @@ class Seqlen:
                 device=device,
                 dtype=torch.int32,
             )
-            cu_seqlen_k = torch.empty(shape[-1] + 1, device=device, dtype=torch.int32)
-            cu_seqlen_k[0] = 0
+            cu_seqlen_k = torch.zeros(shape[-1] + 1, device=device, dtype=torch.int32)
+            # cu_seqlen_k[0] = 0
             torch.cumsum(self.input_lengths, -1, out=cu_seqlen_k[1:])
 
             self.cu_seqlen_q = cu_seqlen_q
