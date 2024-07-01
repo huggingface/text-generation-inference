@@ -6,7 +6,7 @@ from testing_utils import SYSTEM
 @pytest.fixture(scope="module")
 def flash_llama_marlin_handle(launcher):
     with launcher(
-        "neuralmagic/llama-2-7b-chat-marlin", num_shard=2, quantize="marlin"
+        "astronomer/Llama-3-8B-Instruct-GPTQ-4-Bit", num_shard=2, quantize="marlin"
     ) as handle:
         yield handle
 

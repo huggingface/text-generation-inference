@@ -13,7 +13,7 @@ REQUIRED_MODELS = {
     "openai-community/gpt2": "main",
     "turboderp/Llama-3-8B-Instruct-exl2": "2.5bpw",
     "huggingface/llama-7b-gptq": "main",
-    "neuralmagic/llama-2-7b-chat-marlin": "main",
+    "astronomer/Llama-3-8B-Instruct-GPTQ-4-Bit": "main",
     "huggingface/llama-7b": "main",
     "FasterDecoding/medusa-vicuna-7b-v1.3": "refs/pr/1",
     "mistralai/Mistral-7B-Instruct-v0.1": "main",
