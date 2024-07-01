@@ -29,3 +29,10 @@ class FlashMixtral(BaseFlashMistral):
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
+
+    @property
+    def supports_adapter_loading(self) -> bool:
+        # Mixtral cannot inherit loading adapters from FlashMistral
+        # since it does not have the same adapter layer mapping
+        # TODO: implement the loading of adapters for Mixtral
+        return False
