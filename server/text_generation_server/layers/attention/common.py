@@ -4,18 +4,16 @@ import torch
 from typing import Optional
 
 
-@dataclass
-class Seqlen:
-    input_lengths: torch.Tensor
-    cu_seqlen_q: Optional[torch.Tensor]
-    cu_seqlen_k: Optional[torch.Tensor]
+if FLASH_DECODING:
 
-    def __init__(self, input_lengths):
-        self.set_input_lengths(input_lengths)
+    @dataclass
+    class Seqlen:
+        input_lengths: torch.Tensor
+        cu_seqlen_q: Optional[torch.Tensor]
+        cu_seqlen_k: Optional[torch.Tensor]
 
-    def set_input_lengths(self, input_lengths):
-        self.input_lengths = input_lengths
-        if FLASH_DECODING:
+        def __init__(self, input_lengths):
+            self.input_lengths = input_lengths
             device = self.input_lengths.device
             shape = self.input_lengths.shape
             cu_seqlen_q = torch.arange(
@@ -24,11 +22,22 @@ class Seqlen:
                 dtype=torch.int32,
             )
             cu_seqlen_k = torch.zeros(shape[-1] + 1, device=device, dtype=torch.int32)
+            # cuda graphs don't like this and this is necessary to clamp within mistral
+            # Although FA2 might not want the clamping
             # cu_seqlen_k[0] = 0
             torch.cumsum(self.input_lengths, -1, out=cu_seqlen_k[1:])
 
             self.cu_seqlen_q = cu_seqlen_q
             self.cu_seqlen_k = cu_seqlen_k
-        else:
-            self.cu_seqlen_q = None
-            self.cu_seqlen_k = None
+
+        def clamp(self, max):
+            return Seqlen(torch.clamp(self.input_lengths, max=max))
+
+else:
+
+    @dataclass
+    class Seqlen:
+        input_lengths: torch.Tensor
+
+        def clamp(self, max):
+            return Seqlen(torch.clamp(self.input_lengths, max=max))
