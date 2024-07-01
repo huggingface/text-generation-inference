@@ -14,6 +14,7 @@ def attention(
     max_s,
     softmax_scale,
     window_size_left=-1,
+    causal=True,
 ):
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     return ipex.llm.functional.varlen_attention(
@@ -28,7 +29,7 @@ def attention(
         0.0,
         softmax_scale,
         False,
-        True,
+        causal,
         False,
         None,
     )
