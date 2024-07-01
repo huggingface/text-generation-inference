@@ -1,0 +1,25 @@
+services:
+  tgi:
+    command:
+      - "--hostname 0.0.0.0"
+      - "--port 80"
+      - "${CMD_ADDITIONAL_ARGUMENTS:-}"
+    container_name: tgi
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              count: all
+              driver: nvidia
+    env_file: .env
+    hostname: tgi
+    image: ghcr.io/huggingface/text-generation-inference:2.0 # 2.0.x
+    ports:
+      - "${PORT:-8080}:80"
+    restart: unless-stopped
+    shm_size: 1g
+    volumes:
+      - "${VOLUME:-./data}:/data"
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
