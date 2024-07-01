@@ -3460,10 +3460,12 @@ version = "2.0.5-dev0"
 dependencies = [
  "async-stream",
  "async-trait",
+ "clap",
  "cmake",
  "cxx",
  "cxx-build",
  "text-generation-router",
+ "thiserror",
  "tokio",
  "tokio-stream",
 ]

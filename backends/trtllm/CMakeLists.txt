@@ -29,13 +29,12 @@ include_directories("${trtllm_SOURCE_DIR}/cpp/include")
 message(STATUS "Found TensorRT-LLM: ${trtllm_SOURCE_DIR}")
 
 # TGI TRTLLM Backend definition
-add_library(tgi_trtllm_backend_impl include/backend.h lib/backend.cpp)
-
+add_library(tgi_trtllm_backend_impl STATIC include/backend.h lib/backend.cpp)
 target_include_directories(tgi_trtllm_backend_impl PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(tgi_trtllm_backend_impl PRIVATE spdlog)
+target_link_libraries(tgi_trtllm_backend_impl PUBLIC spdlog::spdlog)
 
 #### Unit Tests ####
 if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})

@@ -13,21 +13,13 @@
 //namespace tle = tensorrt_llm::executor;
 
 namespace huggingface::tgi::backends {
-    class TensorRtLlmBackendImpl {
+    class TensorRtLlmBackend {
     private:
 //        tle::Executor executor;
 
     public:
-        TensorRtLlmBackendImpl(std::filesystem::path &engineFolder);
+        TensorRtLlmBackend(const std::filesystem::path &engineFolder);
     };
-
-    /***
-     *
-     * @param engineFolder
-     * @return
-     */
-    std::unique_ptr<huggingface::tgi::backends::TensorRtLlmBackendImpl>
-    create_trtllm_backend(std::filesystem::path &engineFolder);
 }
 
 #endif //TGI_TRTLLM_BACKEND_H

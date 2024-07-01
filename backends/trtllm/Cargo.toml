@@ -12,6 +12,8 @@ cxx = "1.0"
 text-generation-router = { path = "../../router" }
 tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tokio-stream = "0.1.14"
+clap = { version = "4.5.4", features = ["derive"] }
+thiserror = "1.0.61"
 
 [build-dependencies]
 cmake = "0.1"
