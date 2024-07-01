@@ -387,8 +387,8 @@ class FlashCohereLayer(nn.Module):
         cu_seqlen_prefill,
         kv_cache,
         block_tables,
-        input_lengths,
         slots,
+        input_lengths,
         max_s,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -401,8 +401,8 @@ class FlashCohereLayer(nn.Module):
             cu_seqlen_prefill,
             kv_cache,
             block_tables,
-            input_lengths,
             slots,
+            input_lengths,
             max_s,
         )
 
@@ -475,8 +475,8 @@ class FlashCohereModel(torch.nn.Module):
                 cu_seqlen_prefill,
                 kv_cache[i],
                 block_tables,
-                input_lengths,
                 slots,
+                input_lengths,
                 max_s,
             )
 
