@@ -309,7 +309,7 @@ async fn main() -> Result<(), RouterError> {
         let mut tokenizer = Tokenizer::from_file(filename).ok();
         if let Some(tokenizer) = &mut tokenizer {
             if let Some(class) = &tokenizer_config.tokenizer_class {
-                if (class == "LlamaTokenizer" || class == "LlamaTokenizerFast") && tokenizer.get_post_processor().is_none() {
+                if class == "LlamaTokenizer" || class == "LlamaTokenizerFast"{
                     if let Ok(post_processor) = create_post_processor(tokenizer, &tokenizer_config) {
                         tracing::info!("Overriding LlamaTokenizer with TemplateProcessing to follow python override defined in https://github.com/huggingface/transformers/blob/4aa17d00690b7f82c95bb2949ea57e22c35b4336/src/transformers/models/llama/tokenization_llama_fast.py#L203-L205");
                         tokenizer.with_post_processor(post_processor);
@@ -577,7 +577,7 @@ pub fn create_post_processor(
 
     if add_bos_token {
         if let Some(bos) = bos_token {
-            single.push(format!("{}:1", bos.as_str()));
+            pair.push(format!("{}:1", bos.as_str()));
         }
     }
 

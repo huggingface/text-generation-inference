@@ -3,6 +3,8 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+
+from text_generation_server.layers.gptq import GPTQParams
 from text_generation_server.utils.import_utils import SYSTEM
 
 try:
@@ -20,6 +22,19 @@ except Exception:
 GPTQ_MARLIN_BITS = [4, 8]
 GPTQ_MARLIN_GROUP_SIZES = [-1, 32, 64, 128]
 MARLIN_TILE_SIZE = 16
+
+
+def can_use_gptq_marlin(gptq_params: GPTQParams, quantize: str) -> bool:
+    return (
+        SYSTEM == "cuda"
+        and marlin_kernels is not None
+        and has_sm_8_0
+        and quantize == "gptq"
+        and gptq_params.quant_method == "gptq"
+        and gptq_params.bits in GPTQ_MARLIN_BITS
+        and gptq_params.groupsize in GPTQ_MARLIN_GROUP_SIZES
+        and gptq_params.sym
+    )
 
 
 def _check_marlin_kernels():
