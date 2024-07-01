@@ -8,6 +8,16 @@ from text_generation_server.utils.import_utils import (
 
 
 @dataclass
+class GPTQParams:
+    bits: int
+    checkpoint_format: Optional[str]
+    groupsize: int
+    desc_act: bool
+    quant_method: str
+    sym: bool
+
+
+@dataclass
 class GPTQWeight:
     qweight: torch.Tensor
     qzeros: torch.Tensor
