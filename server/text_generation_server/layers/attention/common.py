@@ -31,7 +31,8 @@ if FLASH_DECODING:
             self.cu_seqlen_k = cu_seqlen_k
 
         def clamp(self, max):
-            return Seqlen(torch.clamp(self.input_lengths, max=max))
+            # Flash decoding doesn't need to clamp
+            return self
 
 else:
 
