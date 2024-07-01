@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
+from text_generation_server.utils.weights import Weights
 import torch
 import torch.nn as nn
 
@@ -22,6 +23,105 @@ except Exception:
 GPTQ_MARLIN_BITS = [4, 8]
 GPTQ_MARLIN_GROUP_SIZES = [-1, 32, 64, 128]
 MARLIN_TILE_SIZE = 16
+
+
+class MarlinWeights(Weights):
+    def get_weights_col_packed(
+        self, prefix: str, quantize: str, block_sizes: Union[int, List[int]]
+    ):
+        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
+        if is_marlin_24:
+            B = self.get_packed_sharded(
+                f"{prefix}.B_24", dim=1, block_sizes=block_sizes
+            )
+            B_meta = self.get_packed_sharded(
+                f"{prefix}.B_meta", dim=1, block_sizes=block_sizes
+            )
+            s = self.get_packed_sharded(f"{prefix}.s", dim=1, block_sizes=block_sizes)
+
+            gptq_params = self._get_gptq_params()
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=gptq_params.bits)
+        else:
+            B = self.get_packed_sharded(f"{prefix}.B", dim=1, block_sizes=block_sizes)
+            s = self.get_packed_sharded(f"{prefix}.s", dim=1, block_sizes=block_sizes)
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
+
+    def get_multi_weights_col(self, prefixes: List[str], quantize: str, dim: int):
+        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
+        if is_marlin_24:
+            try:
+                B = torch.cat(
+                    [self.get_sharded(f"{p}.B_24", dim=1) for p in prefixes], dim=1
+                )
+            except RuntimeError:
+                raise RuntimeError(
+                    f"Cannot load `{quantize}` weight, make sure the model is already quantized"
+                )
+
+            B_meta = torch.cat(
+                [self.get_sharded(f"{p}.B_meta", dim=1) for p in prefixes], dim=1
+            )
+
+            s = torch.cat([self.get_sharded(f"{p}.s", dim=1) for p in prefixes], dim=1)
+
+            gptq_params = self._get_gptq_params()
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=gptq_params.bits)
+        else:
+            try:
+                B = torch.cat(
+                    [self.get_sharded(f"{p}.B", dim=1) for p in prefixes], dim=1
+                )
+            except RuntimeError:
+                raise RuntimeError(
+                    f"Cannot load `{quantize}` weight, make sure the model is already quantized"
+                )
+            s = torch.cat([self.get_sharded(f"{p}.s", dim=1) for p in prefixes], dim=1)
+
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
+
+    def get_multi_weights_row(self, prefix: str, quantize: str):
+        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
+        if is_marlin_24:
+            try:
+                B = self.get_sharded(f"{prefix}.B_24", dim=0)
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` 2:4 sparsity weight, make sure the model is already quantized."
+                )
+
+            B_meta = self.get_sharded(f"{prefix}.B_meta", dim=0)
+            num_groups = self._get_slice(f"{prefix}.s").get_shape()[0]
+            if num_groups == 1:
+                # The number of groups is 1 when groupsize == -1. share
+                # scales between all shards in this case.
+                s = self.get_tensor(f"{prefix}.s")
+            else:
+                s = self.get_sharded(f"{prefix}.s", dim=0)
+
+            gptq_params = self._get_gptq_params()
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=gptq_params.bits)
+        else:
+            try:
+                B = self.get_sharded(f"{prefix}.B", dim=0)
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` weight, make sure the model is already quantized."
+                )
+
+            num_groups = self._get_slice(f"{prefix}.s").get_shape()[0]
+            if num_groups == 1:
+                # The number of groups is 1 when groupsize == -1. share
+                # scales between all shards in this case.
+                s = self.get_tensor(f"{prefix}.s")
+            else:
+                s = self.get_sharded(f"{prefix}.s", dim=0)
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
 
 
 def can_use_gptq_marlin(gptq_params: GPTQParams, quantize: str) -> bool:

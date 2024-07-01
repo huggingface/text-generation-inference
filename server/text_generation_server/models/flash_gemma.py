@@ -52,7 +52,13 @@ class FlashGemma(FlashCausalLM):
         torch.distributed.barrier(group=self.process_group)
 
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-        weights = Weights(filenames, device, dtype, process_group=self.process_group)
+        weights = Weights.open(
+            filenames,
+            device,
+            dtype,
+            quantize=quantize,
+            process_group=self.process_group,
+        )
         if config.quantize in ["gptq", "awq", "marlin"]:
             weights._set_gptq_params(model_id, revision)
 
