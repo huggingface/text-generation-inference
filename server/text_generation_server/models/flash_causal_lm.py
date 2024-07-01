@@ -32,7 +32,6 @@ from text_generation_server.models.globals import (
     MEM_POOL,
     CUDA_GRAPHS,
     get_adapter_to_index,
-    MODEL_ID,
 )
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
