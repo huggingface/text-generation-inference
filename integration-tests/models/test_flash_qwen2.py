@@ -9,7 +9,7 @@ def flash_qwen2_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_qwen2(flash_qwen2_handle):
-    await flash_qwen2_handle.health(300)
+    await flash_qwen2_handle.health()
     return flash_qwen2_handle.client
 
 

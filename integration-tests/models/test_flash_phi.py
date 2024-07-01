@@ -13,7 +13,7 @@ def flash_phi_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_phi(flash_phi_handle):
-    await flash_phi_handle.health(300)
+    await flash_phi_handle.health()
     return flash_phi_handle.client
 
 

@@ -11,7 +11,7 @@ def flash_starcoder_gptq_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_starcoder_gptq(flash_starcoder_gptq_handle):
-    await flash_starcoder_gptq_handle.health(300)
+    await flash_starcoder_gptq_handle.health()
     return flash_starcoder_gptq_handle.client
 
 

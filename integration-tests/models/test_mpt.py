@@ -9,7 +9,7 @@ def mpt_sharded_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def mpt_sharded(mpt_sharded_handle):
-    await mpt_sharded_handle.health(300)
+    await mpt_sharded_handle.health()
     return mpt_sharded_handle.client
 
 

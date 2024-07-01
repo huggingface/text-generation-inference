@@ -22,7 +22,7 @@ def flash_pali_gemma_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_pali_gemma(flash_pali_gemma_handle):
-    await flash_pali_gemma_handle.health(300)
+    await flash_pali_gemma_handle.health()
     return flash_pali_gemma_handle.client
 
 

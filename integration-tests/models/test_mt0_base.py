@@ -10,7 +10,7 @@ def mt0_base_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def mt0_base(mt0_base_handle):
-    await mt0_base_handle.health(300)
+    await mt0_base_handle.health()
     return mt0_base_handle.client
 
 

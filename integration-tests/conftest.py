@@ -30,6 +30,7 @@ from text_generation.types import (
     Response,
     Token,
 )
+from typing import Optional
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HF_TOKEN = os.getenv("HF_TOKEN", None)
@@ -268,7 +269,14 @@ class LauncherHandle:
     def _inner_health(self):
         raise NotImplementedError
 
-    async def health(self, timeout: int = 60):
+    async def health(self, timeout: Optional[int] = None):
+        if timeout is None:
+            if SYSTEM == "rocm":
+                # ROCm TunableOp might be quite slow if the picked GEMMs are not cached already in CSV.
+                timeout = 600
+            else:
+                timeout = 300
+
         assert timeout > 0
         for _ in range(timeout):
             if not self._inner_health():

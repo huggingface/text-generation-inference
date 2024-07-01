@@ -27,7 +27,7 @@ def flash_idefics2_next_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_idefics2_next(flash_idefics2_next_handle):
-    await flash_idefics2_next_handle.health(300)
+    await flash_idefics2_next_handle.health()
     return flash_idefics2_next_handle.client
 
 

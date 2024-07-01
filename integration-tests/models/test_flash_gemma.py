@@ -13,7 +13,7 @@ def flash_gemma_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_gemma(flash_gemma_handle):
-    await flash_gemma_handle.health(300)
+    await flash_gemma_handle.health()
     return flash_gemma_handle.client
 
 

@@ -29,7 +29,7 @@ except (ImportError, NotImplementedError):
 
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
-from text_generation_server.models.globals import set_model_id, set_adapter_to_index
+from text_generation_server.models.globals import set_adapter_to_index
 from text_generation_server.utils.adapter import (
     AdapterParameters,
 )
@@ -293,7 +293,6 @@ def serve(
         while signal_handler.KEEP_PROCESSING:
             await asyncio.sleep(0.5)
 
-    set_model_id(model_id)
     asyncio.run(
         serve_inner(
             model_id,

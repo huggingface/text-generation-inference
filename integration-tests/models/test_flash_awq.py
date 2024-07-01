@@ -23,7 +23,7 @@ def flash_llama_awq_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llama_awq(flash_llama_awq_handle):
-    await flash_llama_awq_handle.health(300)
+    await flash_llama_awq_handle.health()
     return flash_llama_awq_handle.client
 
 

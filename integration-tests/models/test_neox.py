@@ -11,7 +11,7 @@ def neox_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def neox(neox_handle):
-    await neox_handle.health(300)
+    await neox_handle.health()
     return neox_handle.client
 
 

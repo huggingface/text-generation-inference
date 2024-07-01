@@ -18,7 +18,7 @@ def flash_llama_exl2_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llama_exl2(flash_llama_exl2_handle):
-    await flash_llama_exl2_handle.health(300)
+    await flash_llama_exl2_handle.health()
     return flash_llama_exl2_handle.client
 
 

@@ -28,8 +28,8 @@ from text_generation_server.models.types import (
     GeneratedText,
 )
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
 import text_generation_server.models.globals as tgi_globals
+from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 from text_generation_server.utils.segments import SegmentConcatBuilder, find_segments
@@ -1017,7 +1017,7 @@ class FlashCausalLM(Model):
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
-                    f"tunableop_{tgi_globals.MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                    f"tunableop_{self.model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
                 logger.info(

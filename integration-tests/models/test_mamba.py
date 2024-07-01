@@ -11,7 +11,7 @@ def fused_kernel_mamba_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def fused_kernel_mamba(fused_kernel_mamba_handle):
-    await fused_kernel_mamba_handle.health(300)
+    await fused_kernel_mamba_handle.health()
     return fused_kernel_mamba_handle.client
 
 

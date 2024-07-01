@@ -16,7 +16,7 @@ async def flash_llama_marlin(flash_llama_marlin_handle):
     if SYSTEM != "cuda":
         pytest.skip(f"Marlin not supported on SYSTEM={SYSTEM}")
     else:
-        await flash_llama_marlin_handle.health(300)
+        await flash_llama_marlin_handle.health()
     return flash_llama_marlin_handle.client
 
 

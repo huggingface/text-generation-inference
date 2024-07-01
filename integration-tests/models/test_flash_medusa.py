@@ -11,7 +11,7 @@ def flash_medusa_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_medusa(flash_medusa_handle):
-    await flash_medusa_handle.health(300)
+    await flash_medusa_handle.health()
     return flash_medusa_handle.client
 
 

@@ -11,7 +11,7 @@ def flash_santacoder_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_santacoder(flash_santacoder_handle):
-    await flash_santacoder_handle.health(300)
+    await flash_santacoder_handle.health()
     return flash_santacoder_handle.client
 
 

@@ -13,7 +13,7 @@ def flash_gemma_gptq_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_gemma_gptq(flash_gemma_gptq_handle):
-    await flash_gemma_gptq_handle.health(300)
+    await flash_gemma_gptq_handle.health()
     return flash_gemma_gptq_handle.client
 
 

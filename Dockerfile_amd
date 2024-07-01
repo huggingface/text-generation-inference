@@ -125,6 +125,10 @@ ENV HIP_FORCE_DEV_KERNARG=1
 # However, Triton requires a tunning for each prompt length, which is prohibitive.
 ENV ROCM_USE_FLASH_ATTN_V2_TRITON=0
 
+# Although `torch.cuda.tunable.enable()`, there is a bug in TunableOp where GEMM benchmark is done again unless
+# this variable is set. TODO: probably remove once we bump to PyTorch 2.4
+ENV PYTORCH_TUNABLEOP_ENABLED=1
+
 FROM base AS kernel-builder
 
 # # Build vllm kernels

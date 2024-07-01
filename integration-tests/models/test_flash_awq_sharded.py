@@ -21,7 +21,7 @@ def flash_llama_awq_handle_sharded(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llama_awq_sharded(flash_llama_awq_handle_sharded):
-    await flash_llama_awq_handle_sharded.health(300)
+    await flash_llama_awq_handle_sharded.health()
     return flash_llama_awq_handle_sharded.client
 
 

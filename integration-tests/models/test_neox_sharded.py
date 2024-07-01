@@ -11,7 +11,7 @@ def neox_sharded_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def neox_sharded(neox_sharded_handle):
-    await neox_sharded_handle.health(300)
+    await neox_sharded_handle.health()
     return neox_sharded_handle.client
 
 

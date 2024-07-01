@@ -9,7 +9,7 @@ def flash_mistral_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_mistral(flash_mistral_handle):
-    await flash_mistral_handle.health(300)
+    await flash_mistral_handle.health()
     return flash_mistral_handle.client
 
 

@@ -24,7 +24,7 @@ def flash_llava_next_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llava_next(flash_llava_next_handle):
-    await flash_llava_next_handle.health(300)
+    await flash_llava_next_handle.health()
     return flash_llava_next_handle.client
 
 

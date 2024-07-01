@@ -12,7 +12,7 @@ def idefics_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def idefics(idefics_handle):
-    await idefics_handle.health(300)
+    await idefics_handle.health()
     return idefics_handle.client
 
 

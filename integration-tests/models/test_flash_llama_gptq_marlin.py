@@ -11,7 +11,7 @@ def flash_llama_gptq_marlin_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llama_gptq_marlin(flash_llama_gptq_marlin_handle):
-    await flash_llama_gptq_marlin_handle.health(300)
+    await flash_llama_gptq_marlin_handle.health()
     return flash_llama_gptq_marlin_handle.client
 
 
