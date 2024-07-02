@@ -10,7 +10,12 @@ import numpy as np
 from loguru import logger
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import PreTrainedTokenizerBase
+from transformers import (
+    PreTrainedTokenizerBase,
+    AutoConfig,
+    AutoTokenizer,
+    GenerationConfig,
+)
 from typing import Iterable, Optional, Tuple, List, Type, Dict
 
 from text_generation_server.adapters import AdapterBatchData, AdapterBatchMetadata
@@ -21,6 +26,12 @@ from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.dist import RANK
 from text_generation_server.utils.speculate import get_speculate
+from text_generation_server.utils import (
+    initialize_torch_distributed,
+    weight_files,
+    Weights,
+    hub,
+)
 from text_generation_server.models.types import (
     Batch,
     Tokens,
@@ -803,25 +814,88 @@ class FlashCausalLM(Model):
     def __init__(
         self,
         model_id: str,
-        model: torch.nn.Module,
-        tokenizer: PreTrainedTokenizerBase,
-        num_layers: int,
-        num_kv_heads: int,
-        head_size: int,
-        dtype: torch.dtype,
-        device: torch.device,
-        rank: int = 0,
-        world_size: int = 1,
-        sliding_window: Optional[int] = None,
+        model_class,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
+        lora_adapter_ids: Optional[list] = [],
+        tokenizer_class: PreTrainedTokenizerBase = AutoTokenizer,
+        default_dtype=torch.float16,
+        # self,
+        # model_id: str,
+        # model_class,
+        # tokenizer_class: PreTrainedTokenizerBase = AutoTokenizer,
+        # num_layers: int,
+        # num_kv_heads: int,
+        # head_size: int,
+        # dtype: torch.dtype,
+        # device: torch.device,
+        # rank: int = 0,
+        # world_size: int = 1,
+        # sliding_window: Optional[int] = None,
     ):
-        self.num_layers = num_layers
-        self.num_kv_heads = num_kv_heads
-        self.head_size = head_size
+        self.process_group, rank, world_size = initialize_torch_distributed()
+        if torch.cuda.is_available():
+            device = torch.device(f"cuda:{rank}")
+            dtype = default_dtype if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = default_dtype if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                # Float16 doesn't exist on target.
+                dtype = torch.bfloat16 if dtype is None else dtype
+        else:
+            raise NotImplementedError(f"{model_class} is only available on GPU")
+
+        tokenizer = tokenizer_class.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id, revision=revision, trust_remote_code=trust_remote_code
+            )
+            if isinstance(generation_config.eos_token_id, (list, set)):
+                # TODO Huge hack
+                tokenizer._eos_token_ids = set(generation_config.eos_token_id)
+        except Exception:
+            pass
+
+        config = AutoConfig.from_pretrained(
+            model_id, revision=revision, trust_remote_code=trust_remote_code
+        )
+        config.quantize = quantize
+        config.speculator = speculator
+        if getattr(config, "sliding_window", None) is not None:
+            set_sliding_window(config.sliding_window)
+        else:
+            config.sliding_window = None
+
+        torch.distributed.barrier(group=self.process_group)
+
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        weights = Weights(filenames, device, dtype, process_group=self.process_group)
+        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
+            weights._set_gptq_params(model_id, revision)
+
+        prefix = ""
+        model = model_class(prefix, config, weights)
+        torch.distributed.barrier(group=self.process_group)
+        self.num_layers = config.num_hidden_layers
+        self.num_kv_heads = config.num_key_value_heads
+        self.head_size = config.hidden_size // config.num_attention_heads
 
         self.cuda_graphs = {}
         self.kv_cache = []
 
-        super(FlashCausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,
@@ -830,7 +904,7 @@ class FlashCausalLM(Model):
             device=device,
             rank=rank,
             world_size=world_size,
-            sliding_window=sliding_window,
+            sliding_window=config.sliding_window,
         )
 
     @property
