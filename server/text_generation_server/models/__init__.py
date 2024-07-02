@@ -56,8 +56,12 @@ try:
     from text_generation_server.models.flash_rw import FlashRWSharded
     from text_generation_server.models.flash_gpt2 import FlashGPT2
     from text_generation_server.models.flash_neox import FlashNeoXSharded
-    from text_generation_server.models.flash_llama import (
-        FlashLlama,
+
+    # from text_generation_server.models.flash_llama import (
+    #     FlashLlama,
+    # )
+    from text_generation_server.models.custom_modeling.flash_llama_modeling import (
+        FlashLlamaForCausalLM,
     )
     from text_generation_server.models.flash_qwen2 import (
         FlashQwen2,
@@ -81,7 +85,9 @@ try:
     from text_generation_server.models.llava_next import LlavaNext
     from text_generation_server.models.idefics2 import Idefics2
     from text_generation_server.models.flash_mistral import FlashMistral
-    from text_generation_server.models.flash_mixtral import FlashMixtral
+    from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
+        FlashMistralForCausalLM,
+    )
     from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
     from text_generation_server.models.flash_dbrx import FlashDbrx
@@ -97,7 +103,7 @@ if FLASH_ATTENTION:
     __all__.append(FlashNeoXSharded)
     __all__.append(FlashRWSharded)
     __all__.append(FlashSantacoderSharded)
-    __all__.append(FlashLlama)
+    # __all__.append(FlashLlama)
     __all__.append(IDEFICSSharded)
     __all__.append(FlashMistral)
     __all__.append(FlashMixtral)
@@ -599,9 +605,10 @@ def get_model(
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
         if FLASH_ATTENTION:
-            return FlashLlama(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashLlamaForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
@@ -743,12 +750,14 @@ def get_model(
     if model_type == MISTRAL:
         if FLASH_ATTENTION:
             return FlashMistral(
-                model_id,
-                revision,
+                model_id=model_id,
+                model_class=FlashMistralForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mistral"))
