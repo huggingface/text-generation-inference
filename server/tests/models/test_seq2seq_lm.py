@@ -20,7 +20,7 @@ def mt0_small_tokenizer():
 
 @pytest.fixture(scope="session")
 def default_seq2seq_lm():
-    return Seq2SeqLM("bigscience/mt0-small")
+    return Seq2SeqLM.fallback("bigscience/mt0-small")
 
 
 @pytest.fixture
