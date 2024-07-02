@@ -8,8 +8,7 @@ from transformers import AutoTokenizer, AutoConfig
 from typing import Optional
 
 from text_generation_server.models.flash_mistral import (
-    BaseFlashMistral,
-    set_sliding_window,
+    FlashMistral,
 )
 from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
     Qwen2ForCausalLM,
@@ -24,7 +23,7 @@ from text_generation_server.utils.import_utils import SYSTEM
 tracer = trace.get_tracer(__name__)
 
 
-class FlashQwen2(BaseFlashMistral):
+class FlashQwen2(FlashMistral):
     def __init__(
         self,
         model_id: str,
@@ -62,10 +61,6 @@ class FlashQwen2(BaseFlashMistral):
         config.quantize = quantize
         config.speculator = speculator
 
-        # Set context windows
-        if config.sliding_window is not None:
-            set_sliding_window(config.sliding_window)
-
         torch.distributed.barrier(group=self.process_group)
 
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
@@ -78,7 +73,7 @@ class FlashQwen2(BaseFlashMistral):
         self.cuda_graphs = {}
 
         torch.distributed.barrier(group=self.process_group)
-        super(BaseFlashMistral, self).__init__(
+        super(FlashMistral, self).__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,
