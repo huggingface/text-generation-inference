@@ -72,6 +72,8 @@ struct Args {
     #[clap(long, env)]
     cors_allow_origin: Option<Vec<String>>,
     #[clap(long, env)]
+    api_key: Option<String>,
+    #[clap(long, env)]
     ngrok: bool,
     #[clap(long, env)]
     ngrok_authtoken: Option<String>,
@@ -113,6 +115,7 @@ async fn main() -> Result<(), RouterError> {
         otlp_endpoint,
         otlp_service_name,
         cors_allow_origin,
+        api_key,
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
@@ -379,6 +382,7 @@ async fn main() -> Result<(), RouterError> {
         validation_workers,
         addr,
         cors_allow_origin,
+        api_key,
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
