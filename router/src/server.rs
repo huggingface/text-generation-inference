@@ -1430,7 +1430,6 @@ pub async fn run(
     messages_api_enabled: bool,
     grammar_support: bool,
     max_client_batch_size: usize,
-    update_openapi_schema: bool,
 ) -> Result<(), WebServerError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -1499,25 +1498,6 @@ pub async fn run(
     )
     )]
     struct ApiDoc;
-
-    if update_openapi_schema {
-        use std::io::Write;
-        let cargo_workspace =
-            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-        println!("workspace {}", cargo_workspace);
-        let output_file = format!("{}/../docs/openapi.json", cargo_workspace);
-        println!("output file {}", output_file);
-
-        let openapi = ApiDoc::openapi();
-        let mut file = std::fs::File::create(output_file).expect("Unable to create file");
-        file.write_all(
-            openapi
-                .to_pretty_json()
-                .expect("Unable to serialize OpenAPI")
-                .as_bytes(),
-        )
-        .expect("Unable to write data");
-    }
 
     // Open connection, get model info and warmup
     let (scheduler, health_ext, shard_info, max_batch_total_tokens): (
