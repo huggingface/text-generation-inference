@@ -13,6 +13,7 @@ from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch
 from text_generation_server.models.flash_mistral import (
     FlashMistral,
 )
+from transformers import AutoProcessor
 
 tracer = trace.get_tracer(__name__)
 
@@ -240,9 +241,34 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
 
 class VlmCausalLM(FlashMistral):
+    def __init__(
+        self,
+        model_id: str,
+        *,
+        processor_class=AutoProcessor,
+        processor_kwargs=None,
+        batch_class=VlmCausalLMBatch,
+        revision,
+        trust_remote_code: bool,
+        **kwargs,
+    ):
+        if processor_kwargs is None:
+            processor_kwargs = {}
+        self.processor = processor_class.from_pretrained(
+            model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+            **processor_kwargs,
+        )
+        self.batch_class = batch_class
+        super().__init__(**kwargs)
+
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
-        return VlmCausalLMBatch
+        return self.batch_class
+
+    def max_past(self) -> Optional[int]:
+        return getattr(self.model.text_model, "max_past", None)
 
     def forward(
         self,
