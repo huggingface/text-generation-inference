@@ -146,7 +146,15 @@ def check_openapi(check: bool):
 
     if check:
         diff = subprocess.run(
-            ["diff", tmp_filename, filename], capture_output=True
+            [
+                "diff",
+                # allow for trailing whitespace since it's not significant
+                # and the precommit hook will remove it
+                "--ignore-trailing-space",
+                tmp_filename,
+                filename,
+            ],
+            capture_output=True,
         ).stdout.decode()
         os.remove(tmp_filename)
 
