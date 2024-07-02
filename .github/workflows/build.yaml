@@ -16,7 +16,6 @@ jobs:
   build-and-push:
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
-      base_docker_image: ${{ steps.final.outputs.base_docker_image }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
       docker_volume: ${{ steps.final.outputs.docker_volume}}
       runs_on: ${{ steps.final.outputs.runs_on }}
@@ -73,17 +72,13 @@ jobs:
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
           echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
 
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          slackChannel: ${{ secrets.SLACK_CIFEEDBACK_CHANNEL }}
-          slackToken: ${{ secrets.SLACK_CIFEEDBACK_BOT_TOKEN }}
-
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
+          config-inline: |
+            [registry."docker.io"]
+              mirrors = ["registry.github-runners.huggingface.tech"]
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -92,13 +87,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Login to internal Container Registry
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
-          password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
-          registry: registry.internal.huggingface.tech
 
       - name: Login to Azure Container Registry
         if: github.event_name != 'pull_request'
@@ -115,10 +103,9 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
           tags: |
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
-
       # If main, release or tag
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name != 'pull_request' }}
@@ -128,7 +115,7 @@ jobs:
           flavor: |
             latest=auto
           images: |
-            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
             ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
@@ -136,7 +123,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
             type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
-
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
@@ -150,29 +136,15 @@ jobs:
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
-          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
-
+          cache-from: type=registry,ref=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
+          cache-to: type=registry,ref=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
-
-          if [[ ${{ inputs.hardware }} == "rocm" ]]
-          then
-            echo "base_docker_image=rocm/dev-ubuntu-22.04:6.1.1_hip_update" >> "$GITHUB_OUTPUT"
-          elif [[ ${{ inputs.hardware }} == "cuda" ]]
-          then
-            echo "base_docker_image=nvidia/cuda:12.1.0-base-ubuntu22.04" >> "$GITHUB_OUTPUT"
-          elif [[ ${{ inputs.hardware }} == "xpu" ]]
-          then
-            echo "base_docker_image=intel/intel-extension-for-pytorch:2.1.30-xpu" >> "$GITHUB_OUTPUT"
-          else
-            exit 1
-          fi
 
           if [[ ${{ inputs.hardware }} == "rocm" ]]
           then
@@ -191,7 +163,7 @@ jobs:
     # Ideally, we would use the image from registry.internal.huggingface.tech but we can not login to the private registry outside of tailscale,
     # and even adding a previous job with tailscale login still results in `Docker login for 'registry.internal.huggingface.tech' failed with exit code 1`.
     container:
-      image: ${{ needs.build-and-push.outputs.base_docker_image }}
+      image: ${{ needs.build-and-push.outputs.docker_image }}
       options: --shm-size "16gb" --ipc host -v ${{ needs.build-and-push.outputs.docker_volume }}:/data
     steps:
       - name: Checkout repository
@@ -206,8 +178,6 @@ jobs:
             pwd
             echo "ls:"
             ls
-
-            pip3 install -U huggingface_hub
 
             python3 integration-tests/clean_cache_and_download.py --token ${{ secrets.HF_TOKEN }} --cache-dir /data
 
@@ -241,12 +211,6 @@ jobs:
       - name: Install
         run: |
           make install-integration-tests
-
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        if: needs.build-and-push.outputs.runs_on != 'amd-gpu-tgi'
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
       - name: Run tests
         run: |

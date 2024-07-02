@@ -33,6 +33,7 @@ from text_generation_server.layers.attention import (
     attention,
     reshape_and_cache,
 )
+from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -117,6 +118,11 @@ class FlashLlamaAttention(torch.nn.Module):
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
+        # Setting defaults for baichuan custom config which doesn't apply them.
+        config.rope_theta = getattr(config, "rope_theta", 10000)
+        config.num_key_value_heads = getattr(
+            config, "num_key_value_heads", config.num_attention_heads
+        )
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
             dim=self.head_size,
@@ -208,7 +214,7 @@ class FlashLlamaAttention(torch.nn.Module):
             )
         # Decode
         else:
-            paged_attention(
+            attn_output = paged_attention(
                 attn_output,
                 query,
                 kv_cache[0],

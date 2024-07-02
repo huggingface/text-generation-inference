@@ -30,9 +30,12 @@ from text_generation_server.models.types import (
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.globals import (
     MEM_POOL,
+    FLASH_DECODING,
+    BLOCK_SIZE,
     CUDA_GRAPHS,
     get_adapter_to_index,
 )
+from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 from text_generation_server.utils.segments import SegmentConcatBuilder, find_segments
@@ -45,7 +48,6 @@ from text_generation_server.utils.import_utils import (
 
 tracer = trace.get_tracer(__name__)
 
-BLOCK_SIZE: int = 16
 
 # Will be set in init
 SLIDING_WINDOW: Optional[int] = None
@@ -855,7 +857,23 @@ class FlashCausalLM(Model):
         else:
             x = BLOCK_SIZE // element_size
 
-        if SYSTEM == "ipex" and device == torch.device("cpu"):
+        if FLASH_DECODING:
+            self.kv_cache = [
+                (
+                    torch.empty(
+                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.empty(
+                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
+        elif SYSTEM == "ipex" and device == torch.device("cpu"):
             self.kv_cache = [
                 (
                     torch.empty(
@@ -907,6 +925,7 @@ class FlashCausalLM(Model):
             "slots": slots,
             "input_lengths": input_lengths,
         }
+        input_lengths_ = Seqlen(input_lengths=input_lengths)
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs]["graph"] = graph
 
@@ -919,7 +938,7 @@ class FlashCausalLM(Model):
             kv_cache=self.kv_cache,
             block_tables=block_tables,
             slots=slots,
-            input_lengths=input_lengths,
+            input_lengths=input_lengths_,
             max_s=max_s,
             prefill_cache_indices=None,
             lm_head_indices=None,
@@ -927,6 +946,7 @@ class FlashCausalLM(Model):
         torch.cuda.synchronize()
 
         with torch.cuda.graph(graph, pool=MEM_POOL):
+            input_lengths = Seqlen(input_lengths=input_lengths)
             logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
@@ -1066,6 +1086,7 @@ class FlashCausalLM(Model):
 
         # Dummy value, some models (starcoder2) don't accept `None`.
         input_lengths = torch.ones(seqlen, dtype=torch.int32, device=self.device)
+        input_lengths = Seqlen(input_lengths=input_lengths)
 
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
@@ -1152,6 +1173,7 @@ class FlashCausalLM(Model):
             cuda_graph = None
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
+            input_lengths = Seqlen(input_lengths=input_lengths)
             logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,

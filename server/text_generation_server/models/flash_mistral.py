@@ -153,7 +153,7 @@ class BaseFlashMistral(FlashCausalLM):
 
             # TODO: this is a hack to avoid the gate_proj for
             # FlashStarcoder2 that doesnt have these layers
-            if hasattr(layer.mlp, "gate_up_proj"):
+            if hasattr(layer, "mlp") and hasattr(layer.mlp, "gate_up_proj"):
                 layer_weights[(i, "gate_proj")] = (
                     f"{prefix}.{i}.mlp.gate_proj",
                     layer.mlp.gate_up_proj,
