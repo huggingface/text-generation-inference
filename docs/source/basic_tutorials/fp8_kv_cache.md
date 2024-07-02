@@ -60,8 +60,6 @@ docker run --gpus all --shm-size 64g -p 8080:80 -v $volume:/data \
     --kv-cache-dtype fp8
 ```
 
-We strongly suggest referring to the detailed [installation instructions](https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#installation-and-features) to learn more about supported hardware and data types!
-
 </hfoption>
 <hfoption id="AMD">
 
