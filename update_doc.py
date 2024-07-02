@@ -269,7 +269,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "openapi":
-        openapi(args)
+        openapi(args.check)
     elif args.command == "md":
         check_cli(args.check)
         check_supported_models(args.check)
