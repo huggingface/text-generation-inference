@@ -880,8 +880,11 @@ class FlashCausalLM(Model):
         prefix = ""
         model = model_class(prefix, config, weights)
         torch.distributed.barrier(group=self.process_group)
-        self.num_layers = config.num_hidden_layers
 
+        text_config = getattr(config, "text_config", None)
+        if text_config is not None:
+            config = text_config
+        self.num_layers = config.num_hidden_layers
         # Validation is done in the model itself
         self.num_kv_heads = config.num_key_value_heads // self.process_group.size()
         self.head_size = config.hidden_size // config.num_attention_heads
