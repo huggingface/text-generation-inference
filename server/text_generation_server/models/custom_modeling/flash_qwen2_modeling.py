@@ -368,7 +368,7 @@ class Qwen2ForCausalLM(torch.nn.Module):
         elif self.max_past is not None:
             # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
             # kernel requires the true values
-            input_lengths = torch.clamp(input_lengths, max=self.max_past_tensor)
+            input_lengths = input_lengths.clamp(max=self.max_past_tensor)
 
         hidden_states = self.model(
             input_ids,
