@@ -903,6 +903,16 @@
             "example": 0.1,
             "nullable": true
           },
+          "response_format": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "value": "string"
+            },
+            "description": "The constrained response format. 'type' can be 'regex' or 'json_object'.",
+            "example": "null",
+            "nullable": true
+          },
           "seed": {
             "type": "integer",
             "format": "int64",
