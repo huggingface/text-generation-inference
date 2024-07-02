@@ -87,6 +87,9 @@ try:
     from text_generation_server.models.pali_gemma import (
         PaliGemmaBatch,
     )
+    from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
+        PaliGemmaForConditionalGeneration,
+    )
     from text_generation_server.models.custom_modeling.flash_phi_modeling import (
         FlashPhiForCausalLM,
     )
@@ -489,6 +492,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 aliases={"transformer.wte.weight": ["lm_head.weight"]},
+                num_kv_heads=1,
             )
         elif sharded:
             raise NotImplementedError(
