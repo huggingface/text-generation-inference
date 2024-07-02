@@ -17,4 +17,4 @@ jobs:
     - name: Check launcher Docs are up-to-date
       run: |
         echo text-generation-launcher --help
-        python update_doc.py --check
+        python update_doc.py md --check
