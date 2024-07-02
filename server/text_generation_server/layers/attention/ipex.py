@@ -1,6 +1,7 @@
 import intel_extension_for_pytorch as ipex
 import torch
 from text_generation_server.models.flash_causal_lm import BLOCK_SIZE
+from text_generation_server.layers.attention import Seqlen
 
 SUPPORTS_WINDOWING = False
 
@@ -55,11 +56,10 @@ def paged_attention(
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
-    cu_seqlen_q: torch.Tensor,
-    cu_seqlen_k: torch.Tensor,
+    seqlen: Seqlen,
     max_s: int,
 ):
-    return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
+    ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
         out,
         query,
         key_cache,
@@ -67,8 +67,9 @@ def paged_attention(
         kv_head_mapping,
         softmax_scale,
         block_tables,
-        cu_seqlen_q,
+        seqlen.input_lengths,
         BLOCK_SIZE,
         max_s,
         None,
     )
+    return out
