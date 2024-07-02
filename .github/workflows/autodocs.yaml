@@ -14,7 +14,23 @@ jobs:
     - name: Install Launcher
       id: install-launcher
       run: cargo install --path launcher/
+
     - name: Check launcher Docs are up-to-date
       run: |
         echo text-generation-launcher --help
-        python update_doc.py --check
+        python update_doc.py md --check
+
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v1
+    - name: Clean unused files
+      run: |
+        sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
+        sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
+
+    - name: Install
+      run: |
+        make install-cpu
+
+    - name: Check that openapi schema is up-to-date
+      run: |
+        python update_doc.py openapi --check
