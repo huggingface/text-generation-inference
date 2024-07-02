@@ -237,12 +237,16 @@ def openapi(check: bool):
 
     except TimeoutError as e:
         print(f"Error: {e}")
+        raise SystemExit(1)
     except requests.RequestException as e:
         print(f"Error communicating with the server: {e}")
+        raise SystemExit(1)
     except json.JSONDecodeError:
         print("Error: Invalid JSON received from the server")
+        raise SystemExit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,10 @@ jobs:
         echo text-generation-launcher --help
         python update_doc.py md --check
 
+    - name: Install
+      run: |
+        make install-cpu
+
     - name: Check that openapi schema is up-to-date
       run: |
         python update_doc.py openapi --check
