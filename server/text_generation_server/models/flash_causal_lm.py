@@ -827,6 +827,7 @@ class FlashCausalLM(Model):
         aliases=None,
         # Used for Santacoder override of config
         num_kv_heads=None,
+        skip_special_tokens: bool = True,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():

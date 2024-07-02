@@ -627,10 +627,11 @@ class CausalLM(Model):
     def batch_type(self) -> Type[CausalLMBatch]:
         return CausalLMBatch
 
-    def decode(self, generated_ids: List[int]) -> str:
-        return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )
+    # This is not used anymore
+    # def decode(self, generated_ids: List[int]) -> str:
+    #     return self.tokenizer.decode(
+    #         generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    #     )
 
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
