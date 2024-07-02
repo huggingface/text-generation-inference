@@ -315,7 +315,9 @@ class MistralMLP(nn.Module):
                 dtype=hidden_states.dtype,
                 device="cuda",
             )
-            _custom_C.LLMM_Silu(self.gate_up_proj.linear.weight, hidden_states, out, 8)
+            _custom_C.LLMM_Silu(
+                self.gate_up_proj.base_layer.linear.weight, hidden_states, out, 8
+            )
             return self.down_proj(out, adapter_data)
         else:
             gate_up_states = self.gate_up_proj(hidden_states, adapter_data)
