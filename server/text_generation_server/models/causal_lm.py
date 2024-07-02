@@ -1,11 +1,22 @@
 import torch
 import time
+import torch.distributed
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    PreTrainedTokenizerBase,
+)
 from typing import Optional, Tuple, List, Type, Dict
 
+from text_generation_server.utils import (
+    initialize_torch_distributed,
+    weight_files,
+    Weights,
+)
 from text_generation_server.models import Model
 from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.tokens import batch_top_tokens
@@ -482,6 +493,67 @@ class CausalLM(Model):
     def __init__(
         self,
         model_id: str,
+        model_class,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
+        tokenizer_class=AutoTokenizer,
+        config_class=AutoConfig,
+    ):
+        self.process_group, rank, world_size = initialize_torch_distributed()
+        if torch.cuda.is_available():
+            device = torch.device(f"cuda:{rank}")
+            dtype = torch.float16 if dtype is None else dtype
+        else:
+            device = torch.device("cpu")
+            dtype = torch.float32 if dtype is None else dtype
+
+        tokenizer = tokenizer_class.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
+
+        config = config_class.from_pretrained(
+            model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+        )
+        config.quantize = quantize
+        config.speculator = speculator
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token_id = config.pad_token_id
+
+        torch.distributed.barrier(group=self.process_group)
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        weights = Weights(
+            filenames, device=device, dtype=dtype, process_group=self.process_group
+        )
+        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
+            weights._set_gptq_params(model_id, revision)
+
+        model = model_class(config, weights)
+
+        torch.distributed.barrier(group=self.process_group)
+        super().__init__(
+            model_id=model_id,
+            model=model,
+            tokenizer=tokenizer,
+            requires_padding=True,
+            dtype=dtype,
+            device=device,
+            rank=rank,
+            world_size=world_size,
+        )
+
+    @classmethod
+    def fallback(
+        cls,
+        model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
         speculator: Optional[str] = None,
@@ -537,7 +609,7 @@ class CausalLM(Model):
             else:
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
-        super(CausalLM, self).__init__(
+        super(CausalLM, cls).__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,
