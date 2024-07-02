@@ -466,6 +466,7 @@ class FlashSantacoderModel(nn.Module):
 class FlashSantacoderForCausalLM(nn.Module):
     def __init__(self, config, weights):
         super().__init__()
+        config.transpose = config.architectures[0].startswith("GPT2")
         self.transformer = FlashSantacoderModel(config, weights)
         self.lm_head = SpeculativeHead.load(
             config, prefix="transformer.wte", weights=weights

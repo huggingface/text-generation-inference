@@ -77,32 +77,6 @@ class PaliGemmaBatch(VlmCausalLMBatch):
 
 
 class PaliGemma(VlmCausalLM):
-    def __init__(
-        self,
-        model_id: str,
-        revision: Optional[str] = None,
-        quantize: Optional[str] = None,
-        speculator: Optional[str] = None,
-        dtype: Optional[torch.dtype] = None,
-        trust_remote_code: bool = False,
-    ):
-        self.processor = AutoProcessor.from_pretrained(
-            model_id,
-            revision=revision,
-            trust_remote_code=trust_remote_code,
-        )
-
-        super().__init__(
-            config_cls=AutoConfig,
-            model_cls=PaliGemmaForConditionalGeneration,
-            model_id=model_id,
-            revision=revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
     @property
     def batch_type(self):
         return PaliGemmaBatch

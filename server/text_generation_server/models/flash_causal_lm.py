@@ -822,19 +822,9 @@ class FlashCausalLM(Model):
         trust_remote_code: bool = False,
         lora_adapter_ids: Optional[list] = [],
         tokenizer_class: PreTrainedTokenizerBase = AutoTokenizer,
+        config_class: PreTrainedTokenizerBase = AutoConfig,
         default_dtype=torch.float16,
-        # self,
-        # model_id: str,
-        # model_class,
-        # tokenizer_class: PreTrainedTokenizerBase = AutoTokenizer,
-        # num_layers: int,
-        # num_kv_heads: int,
-        # head_size: int,
-        # dtype: torch.dtype,
-        # device: torch.device,
-        # rank: int = 0,
-        # world_size: int = 1,
-        # sliding_window: Optional[int] = None,
+        aliases=None,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -868,7 +858,7 @@ class FlashCausalLM(Model):
         except Exception:
             pass
 
-        config = AutoConfig.from_pretrained(
+        config = config_class.from_pretrained(
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
@@ -881,7 +871,9 @@ class FlashCausalLM(Model):
         torch.distributed.barrier(group=self.process_group)
 
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-        weights = Weights(filenames, device, dtype, process_group=self.process_group)
+        weights = Weights(
+            filenames, device, dtype, process_group=self.process_group, aliases=aliases
+        )
         if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
             weights._set_gptq_params(model_id, revision)
 
