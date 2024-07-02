@@ -825,6 +825,8 @@ class FlashCausalLM(Model):
         config_class: PreTrainedTokenizerBase = AutoConfig,
         default_dtype=torch.float16,
         aliases=None,
+        # Used for Santacoder override of config
+        num_kv_heads=None,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -886,7 +888,10 @@ class FlashCausalLM(Model):
             config = text_config
         self.num_layers = config.num_hidden_layers
         # Validation is done in the model itself
-        self.num_kv_heads = config.num_key_value_heads // self.process_group.size()
+        num_heads = getattr(config, "num_key_value_heads", config.n_head)
+        if num_kv_heads is None:
+            num_kv_heads = config.num_key_value_heads
+        self.num_kv_heads = num_kv_heads // self.process_group.size()
         self.head_size = config.hidden_size // config.num_attention_heads
 
         self.cuda_graphs = {}
