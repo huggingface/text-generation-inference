@@ -30,11 +30,18 @@ from text_generation.types import (
     Response,
     Token,
 )
+from typing import Optional
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
 HF_TOKEN = os.getenv("HF_TOKEN", None)
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 DOCKER_DEVICES = os.getenv("DOCKER_DEVICES")
+SYSTEM = os.getenv("SYSTEM", None)
+
+if SYSTEM is None:
+    raise ValueError(
+        "The environment variable `SYSTEM` needs to be set to run TGI integration tests (one of 'cuda', 'rocm', 'xpu')."
+    )
 
 
 def pytest_addoption(parser):
@@ -262,7 +269,14 @@ class LauncherHandle:
     def _inner_health(self):
         raise NotImplementedError
 
-    async def health(self, timeout: int = 60):
+    async def health(self, timeout: Optional[int] = None):
+        if timeout is None:
+            if SYSTEM == "rocm":
+                # ROCm TunableOp might be quite slow if the picked GEMMs are not cached already in CSV.
+                timeout = 600
+            else:
+                timeout = 300
+
         assert timeout > 0
         for _ in range(timeout):
             if not self._inner_health():
@@ -388,6 +402,7 @@ def launcher(event_loop):
         with tempfile.TemporaryFile("w+") as tmp:
             # We'll output stdout/stderr to a temporary file. Using a pipe
             # cause the process to block until stdout is read.
+            print("subprocess.Popen:", args)
             with subprocess.Popen(
                 args,
                 stdout=tmp,

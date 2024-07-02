@@ -17,7 +17,7 @@ def non_flash_llama_grammar_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def non_flash_llama_grammar(non_flash_llama_grammar_handle):
-    await non_flash_llama_grammar_handle.health(300)
+    await non_flash_llama_grammar_handle.health()
     return non_flash_llama_grammar_handle.client
 
 

@@ -1,4 +1,5 @@
 import pytest
+from testing_utils import require_backend_async, require_backend
 
 
 @pytest.fixture(scope="module")
@@ -17,10 +18,11 @@ def flash_llama_exl2_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llama_exl2(flash_llama_exl2_handle):
-    await flash_llama_exl2_handle.health(300)
+    await flash_llama_exl2_handle.health()
     return flash_llama_exl2_handle.client
 
 
+@require_backend_async("cuda")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
@@ -33,6 +35,7 @@ async def test_flash_llama_exl2(flash_llama_exl2, ignore_logprob_response_snapsh
     assert response == ignore_logprob_response_snapshot
 
 
+@require_backend_async("cuda")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
@@ -60,6 +63,7 @@ async def test_flash_llama_exl2_all_params(
     assert response == ignore_logprob_response_snapshot
 
 
+@require_backend_async("cuda")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private

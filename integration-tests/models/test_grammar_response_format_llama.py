@@ -18,7 +18,7 @@ def llama_grammar_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def llama_grammar(llama_grammar_handle):
-    await llama_grammar_handle.health(300)
+    await llama_grammar_handle.health()
     return llama_grammar_handle.client
 
 

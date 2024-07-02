@@ -14,7 +14,7 @@ def flash_llama_grammar_tools_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llama_grammar_tools(flash_llama_grammar_tools_handle):
-    await flash_llama_grammar_tools_handle.health(300)
+    await flash_llama_grammar_tools_handle.health()
     return flash_llama_grammar_tools_handle.client
 
 

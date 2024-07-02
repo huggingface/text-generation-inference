@@ -1,5 +1,9 @@
 import pytest
 
+from testing_utils import require_backend_async
+
+# These tests do not pass on ROCm, that does not support head_dim > 128 (2b model is 256).
+
 
 @pytest.fixture(scope="module")
 def flash_gemma_gptq_handle(launcher):
@@ -9,17 +13,20 @@ def flash_gemma_gptq_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_gemma_gptq(flash_gemma_gptq_handle):
-    await flash_gemma_gptq_handle.health(300)
+    await flash_gemma_gptq_handle.health()
     return flash_gemma_gptq_handle.client
 
 
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma_gptq(flash_gemma_gptq, ignore_logprob_response_snapshot):
     response = await flash_gemma_gptq.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
     )
+
+    print(f"response.generated_text `{response.generated_text}`")
 
     assert response.details.generated_tokens == 10
     assert response == ignore_logprob_response_snapshot
@@ -28,6 +35,7 @@ async def test_flash_gemma_gptq(flash_gemma_gptq, ignore_logprob_response_snapsh
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma_gptq_all_params(
     flash_gemma_gptq, ignore_logprob_response_snapshot
 ):
@@ -54,6 +62,7 @@ async def test_flash_gemma_gptq_all_params(
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_gemma_gptq_load(
     flash_gemma_gptq, generate_load, ignore_logprob_response_snapshot
 ):

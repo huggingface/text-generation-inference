@@ -9,7 +9,7 @@ def flash_gpt2_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_gpt2(flash_gpt2_handle):
-    await flash_gpt2_handle.health(300)
+    await flash_gpt2_handle.health()
     return flash_gpt2_handle.client
 
 

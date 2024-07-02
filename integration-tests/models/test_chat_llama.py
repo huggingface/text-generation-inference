@@ -14,7 +14,7 @@ def flash_llama_chat_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_llama_chat(flash_llama_chat_handle):
-    await flash_llama_chat_handle.health(300)
+    await flash_llama_chat_handle.health()
     return flash_llama_chat_handle.client
 
 

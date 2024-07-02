@@ -466,6 +466,16 @@ class Mamba(Model):
         return MambaBatch
 
     def warmup(self, batch) -> Optional[int]:
+        if SYSTEM == "rocm" and (
+            os.environ.get("PYTORCH_TUNABLEOP_ENABLED") is None
+            or os.environ.get("PYTORCH_TUNABLEOP_ENABLED") == "1"
+        ):
+            logger.info(
+                f"ROCm: Got PYTORCH_TUNABLEOP_ENABLED=1 but TunableOp is not supported for {self.model_id} (instance of {self.__class__.__name__}). Disabling TunableOp."
+            )
+            torch.cuda.tunable.tuning_enable(False)
+            torch.cuda.tunable.enable(False)
+
         # TODO: implement warmup for Mamba if needed
         if CUDA_GRAPHS:
             if self.speculate is None or self.speculate == 0:

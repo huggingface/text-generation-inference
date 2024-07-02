@@ -3,6 +3,10 @@ import requests
 import io
 import base64
 
+from testing_utils import require_backend_async
+
+# These tests do not pass on ROCm, that does not support head_dim > 128 (2b model is 256).
+
 
 @pytest.fixture(scope="module")
 def flash_pali_gemma_handle(launcher):
@@ -18,7 +22,7 @@ def flash_pali_gemma_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_pali_gemma(flash_pali_gemma_handle):
-    await flash_pali_gemma_handle.health(300)
+    await flash_pali_gemma_handle.health()
     return flash_pali_gemma_handle.client
 
 
@@ -37,6 +41,7 @@ def get_cow_beach():
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
+@require_backend_async("cuda", "xpu")
 async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot):
     cow = get_cow_beach()
     inputs = f"![]({cow})Where is the cow standing?\n"

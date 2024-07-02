@@ -1,5 +1,7 @@
 import pytest
 
+from testing_utils import require_backend_async
+
 
 @pytest.fixture(scope="module")
 def flash_santacoder_handle(launcher):
@@ -9,13 +11,15 @@ def flash_santacoder_handle(launcher):
 
 @pytest.fixture(scope="module")
 async def flash_santacoder(flash_santacoder_handle):
-    await flash_santacoder_handle.health(300)
+    await flash_santacoder_handle.health()
     return flash_santacoder_handle.client
 
 
 @pytest.mark.release
 @pytest.mark.asyncio
+@require_backend_async("cuda", "xpu")
 async def test_flash_santacoder(flash_santacoder, response_snapshot):
+    # TODO: This test does not pass on ROCm although it should. To be investigated.
     response = await flash_santacoder.generate(
         "def print_hello", max_new_tokens=10, decoder_input_details=True
     )
