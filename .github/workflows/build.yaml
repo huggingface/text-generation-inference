@@ -70,12 +70,6 @@ jobs:
           echo "LABEL=${label_extension}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
           echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          slackChannel: ${{ secrets.SLACK_CIFEEDBACK_CHANNEL }}
-          slackToken: ${{ secrets.SLACK_CIFEEDBACK_BOT_TOKEN }}
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
@@ -90,12 +84,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Login to internal Container Registry
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.TAILSCALE_DOCKER_USERNAME }}
-          password: ${{ secrets.TAILSCALE_DOCKER_PASSWORD }}
-          registry: registry.internal.huggingface.tech
       - name: Login to Azure Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -110,7 +98,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
           tags: |
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
       # If main, release or tag
@@ -122,7 +110,7 @@ jobs:
           flavor: |
             latest=auto
           images: |
-            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
             ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
@@ -143,12 +131,12 @@ jobs:
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
-          cache-to: type=registry,ref=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
+          cache-from: type=registry,ref=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
+          cache-to: type=registry,ref=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:cache${{ env.LABEL }},mode=min
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
@@ -173,11 +161,6 @@ jobs:
       - name: Install
         run: |
           make install-integration-tests
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        if: needs.build-and-push.outputs.runs_on != 'amd-gpu-tgi'
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
