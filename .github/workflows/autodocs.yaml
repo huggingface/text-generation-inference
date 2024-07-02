@@ -15,15 +15,10 @@ jobs:
       id: install-launcher
       run: cargo install --path launcher/
 
-    - name: Check launcher Docs are up-to-date
-      run: |
-        echo text-generation-launcher --help
-        python update_doc.py md --check
-
     - name: Install router
       id: install-router
       run: cargo install --path router/
 
-    - name: Check that openapi schema is up-to-date
+    - name: Check that documentation is up-to-date
       run: |
-        python update_doc.py openapi --check
+        python update_doc.py --check
