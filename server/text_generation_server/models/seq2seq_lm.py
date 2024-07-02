@@ -650,7 +650,11 @@ class Seq2SeqLM(Model):
         )
         tokenizer.bos_token_id = model.config.decoder_start_token_id
 
-        super(Seq2SeqLM, cls).__init__(
+        self = cls.__new__(
+            cls,
+        )
+        super().__init__(
+            self,
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,
@@ -658,6 +662,7 @@ class Seq2SeqLM(Model):
             dtype=dtype,
             device=device,
         )
+        return self
 
     @property
     def batch_type(self) -> Type[Seq2SeqLMBatch]:

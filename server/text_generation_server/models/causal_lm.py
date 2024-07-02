@@ -609,7 +609,11 @@ class CausalLM(Model):
             else:
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
-        super(CausalLM, cls).__init__(
+        self = cls.__new__(
+            cls,
+        )
+        super().__init__(
+            self,
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,
@@ -617,6 +621,7 @@ class CausalLM(Model):
             dtype=dtype,
             device=device,
         )
+        return self
 
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
