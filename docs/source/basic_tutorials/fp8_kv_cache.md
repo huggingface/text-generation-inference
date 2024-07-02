@@ -30,17 +30,59 @@ E4M3 offers higher precision for representing floating point numbers. However, d
 
 ## FP8 E5M2 KV Cache
 Example usage:
-```
-text-generation-launcher --model-id <> --kv-cache-dtype fp8_e5m2
+```bash
+model=meta-llama/Llama-2-70b-chat-hf
+volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+tag=<...> # TGI docker tag
+
+docker run --gpus all --shm-size 64g -p 8080:80 -v $volume:/data \
+    ghcr.io/huggingface/text-generation-inference:$tag \
+    --model-id $model \
+    --kv-cache-dtype fp8_e5m2
 ```
 
 ## FP8 E4M3 KV Cache
 While E4M3 offers higher precision, it requires careful handling of scaling factors to maintain accuracy. Therefore, it is recommended to provide KV cache scaling factors as part of the FP16 checkpoint. If scaling factors are not provided, a default factor of 1.0 is used, which may lead to accuracy loss.
 
 Example usage:
+<hfoptions id="usage">
+<hfoption id="NVIDIA">
+
+
+```bash
+model=mohitsha/Llama-2-70b-chat-hf-FP8-KV-AMMO
+volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+tag=<...> # TGI docker tag
+
+docker run --gpus all --shm-size 64g -p 8080:80 -v $volume:/data \
+    ghcr.io/huggingface/text-generation-inference:$tag \
+    --model-id $model \
+    --kv-cache-dtype fp8
 ```
-text-generation-launcher --model-id <> --kv-cache-dtype fp8
+
+We strongly suggest referring to the detailed [installation instructions](https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#installation-and-features) to learn more about supported hardware and data types!
+
+</hfoption>
+<hfoption id="AMD">
+
+```bash
+model=mohitsha/Llama-2-70b-chat-hf-FP8-KV-AMMO
+volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+tag=<...> # TGI docker tag
+
+docker run --rm -it --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
+    --device=/dev/kfd --device=/dev/dri --group-add video \
+    --ipc=host --shm-size 256g --net host -v $volume:/data \
+    ghcr.io/huggingface/text-generation-inference:$tag \
+    --model-id $model \
+    --kv-cache-dtype fp8
 ```
+
+</hfoption>
+</hfoptions>
+
+
+`mohitsha/Llama-2-70b-chat-hf-FP8-KV-AMMO`: LLama 70B model with FP8 KV scales generated using Nvidia AMMO.
 
 ### Checkpoint structure for KV scales
 The FP8 kv cache scaling factors, required in the model, are specified through the `.kv_scale` parameter present in the `Attention` module, such as:
