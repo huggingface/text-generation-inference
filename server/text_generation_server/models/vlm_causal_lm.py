@@ -11,7 +11,7 @@ from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch
 from text_generation_server.models.flash_mistral import (
-    BaseFlashMistral,
+    FlashMistral,
 )
 
 tracer = trace.get_tracer(__name__)
@@ -239,7 +239,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         return batch
 
 
-class VlmCausalLM(BaseFlashMistral):
+class VlmCausalLM(FlashMistral):
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
         return VlmCausalLMBatch

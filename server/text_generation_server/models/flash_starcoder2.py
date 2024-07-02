@@ -7,8 +7,7 @@ from typing import Optional
 from transformers.models.gpt2 import GPT2TokenizerFast
 
 from text_generation_server.models.flash_mistral import (
-    BaseFlashMistral,
-    set_sliding_window,
+    FlashMistral,
 )
 from text_generation_server.models.custom_modeling.flash_starcoder2_modeling import (
     Starcoder2Config,
@@ -22,7 +21,7 @@ from text_generation_server.utils import (
 
 
 # Starcoder2 has the same base as Mistral
-class FlashStarcoder2(BaseFlashMistral):
+class FlashStarcoder2(FlashMistral):
     def __init__(
         self,
         model_id: str,

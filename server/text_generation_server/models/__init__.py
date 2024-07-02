@@ -88,6 +88,9 @@ try:
     from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
         FlashMistralForCausalLM,
     )
+    from text_generation_server.models.custom_modeling.flash_mixtral_modeling import (
+        FlashMixtralForCausalLM,
+    )
     from text_generation_server.models.flash_phi import FlashPhi
     from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
     from text_generation_server.models.flash_dbrx import FlashDbrx
@@ -106,7 +109,6 @@ if FLASH_ATTENTION:
     # __all__.append(FlashLlama)
     __all__.append(IDEFICSSharded)
     __all__.append(FlashMistral)
-    __all__.append(FlashMixtral)
     __all__.append(FlashDbrx)
     __all__.append(FlashPhi)
     __all__.append(FlashQwen2)
@@ -773,13 +775,15 @@ def get_model(
 
     if model_type == MIXTRAL:
         if FLASH_ATTENTION:
-            return FlashMixtral(
-                model_id,
-                revision,
+            return FlashMistral(
+                model_id=model_id,
+                model_class=FlashMixtralForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mixtral"))
