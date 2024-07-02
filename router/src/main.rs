@@ -83,6 +83,8 @@ struct Args {
     disable_grammar_support: bool,
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
+    #[clap(long, env, default_value_t = false)]
+    update_openapi_schema: bool,
 }
 
 #[tokio::main]
@@ -119,6 +121,7 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
+        update_openapi_schema,
     } = args;
 
     // Launch Tokio runtime
@@ -388,6 +391,7 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
+        update_openapi_schema,
     )
     .await?;
     Ok(())
