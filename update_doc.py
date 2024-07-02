@@ -145,12 +145,13 @@ def start_server_and_wait():
                 print("Server is up and running!")
                 return process, log_file
         except requests.RequestException:
-            if time.time() - start_time > 60:
+            # timeout after 3 minutes (CI can be slow sometimes)
+            if time.time() - start_time > 180:
                 log_file.close()
-                with open("server_log.txt", "r") as f:
+                with open("/tmp/server_log.txt", "r") as f:
                     print("Server log:")
                     print(f.read())
-                os.remove("server_log.txt")
+                os.remove("/tmp/server_log.txt")
                 raise TimeoutError("Server didn't start within 60 seconds")
             time.sleep(1)
 
