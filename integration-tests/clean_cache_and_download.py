@@ -32,6 +32,7 @@ REQUIRED_MODELS = {
     "mosaicml/mpt-7b": "main",
     "bigscience/mt0-base": "main",
     "google/flan-t5-xxl": "main",
+    "lmsys/vicuna-7b-v1.3": "main",
 }
 
 
