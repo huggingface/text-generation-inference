@@ -15,6 +15,9 @@ from text_generation_server.utils.adapter import (
     AdapterParameters,
     AdapterSource,
 )
+from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.models.globals import CUDA_GRAPHS
+import os
 from loguru import logger
 
 
@@ -100,7 +103,23 @@ class Model(ABC):
         raise NotImplementedError
 
     def warmup(self, batch: B) -> Optional[int]:
+        if SYSTEM == "rocm" and (
+            os.environ.get("PYTORCH_TUNABLEOP_ENABLED") is None
+            or os.environ.get("PYTORCH_TUNABLEOP_ENABLED") == "1"
+        ):
+            logger.info(
+                f"ROCm: Got PYTORCH_TUNABLEOP_ENABLED=1 but TunableOp is not supported for {self.model_id} (instance of {self.__class__.__name__}). Disabling TunableOp."
+            )
+            torch.cuda.tunable.tuning_enable(False)
+            torch.cuda.tunable.enable(False)
+
         self.generate_token(batch)
+
+        if CUDA_GRAPHS:
+            logger.info(
+                f"Got CUDA_GRAPHS={CUDA_GRAPHS} but cuda graphs are not supported for {self.model_id} (instance of {self.__class__.__name__}). Cuda graphs will not be used."
+            )
+
         return None
 
     def decode_token(

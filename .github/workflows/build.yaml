@@ -265,4 +265,10 @@ jobs:
           echo "DOCKER_VOLUME:"
           echo $DOCKER_VOLUME
 
+          # TunableOp warmup is rather slow, do it only for a few seqlens.
+          if [[ ${{ inputs.hardware }} == "rocm" ]]
+          then
+            PYTORCH_TUNABLEOP_SEQLENS=2,4
+          fi
+
           pytest -s -vvvvv integration-tests ${PYTEST_FLAGS}
