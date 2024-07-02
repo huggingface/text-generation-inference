@@ -1499,6 +1499,8 @@ pub async fn run(
     )]
     struct ApiDoc;
 
+    // Create state
+
     // Open connection, get model info and warmup
     let (scheduler, health_ext, shard_info, max_batch_total_tokens): (
         Arc<dyn Scheduler + Send + Sync>,
