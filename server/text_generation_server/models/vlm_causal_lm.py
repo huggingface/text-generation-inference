@@ -261,7 +261,7 @@ class VlmCausalLM(FlashMistral):
             **processor_kwargs,
         )
         self.batch_class = batch_class
-        super().__init__(**kwargs)
+        super().__init__(model_id=model_id, **kwargs)
 
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
