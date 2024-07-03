@@ -16,6 +16,10 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
             tle::OrchestratorConfig(true, workerPath)
     ));
 
+
+    // TODO : Need to check for >= sm_80 (ampere)
+    // execConfig.setEnableChunkedContext(true)
+    execConfig.setKvCacheConfig(tle::KvCacheConfig(true));
     return execConfig;
 }
 
