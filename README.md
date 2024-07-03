@@ -49,7 +49,15 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    ```
    > For gated models such as [LLama](https://huggingface.co/meta-llama) or [StarCoder](https://huggingface.co/bigcode/starcoder), you will have to pass `-e HUGGING_FACE_HUB_TOKEN=<token>` to the `docker run` command above with a valid Hugging Face Hub read token.
 
-    ii. On 8 Gaudi/Gaudi2 cards:
+    ii. On 1 Gaudi/Gaudi2 card using pytorch eager mode with torch compile:
+   ```bash
+   model=meta-llama/Llama-2-7b-hf
+   volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+
+   docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e PT_HPU_LAZY_MODE=0 -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.0 --model-id $model --max-input-tokens 1024 --max-total-tokens 2048
+   ```
+
+    iii. On 8 Gaudi/Gaudi2 cards:
    ```bash
    model=meta-llama/Llama-2-70b-hf
    volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
