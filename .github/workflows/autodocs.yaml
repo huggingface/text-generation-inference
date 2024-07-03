@@ -11,10 +11,30 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+
+    - name: Install Protocol Buffers compiler
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler libprotobuf-dev
+
     - name: Install Launcher
       id: install-launcher
       run: cargo install --path launcher/
-    - name: Check launcher Docs are up-to-date
+
+    - name: Install router
+      id: install-router
+      run: cargo install --path router/
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Check that documentation is up-to-date
       run: |
-        echo text-generation-launcher --help
         python update_doc.py --check
