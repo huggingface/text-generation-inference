@@ -946,6 +946,38 @@
           }
         }
       },
+      "Chunk": {
+        "type": "object",
+        "required": [
+          "id",
+          "created",
+          "choices",
+          "model",
+          "system_fingerprint"
+        ],
+        "properties": {
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompletionComplete"
+            }
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "system_fingerprint": {
+            "type": "string"
+          }
+        }
+      },
       "CompatGenerateRequest": {
         "type": "object",
         "required": [
@@ -963,6 +995,55 @@
             "type": "boolean",
             "default": "false"
           }
+        }
+      },
+      "Completion": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Chunk"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "object"
+                ],
+                "properties": {
+                  "object": {
+                    "type": "string",
+                    "enum": [
+                      "text_completion"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CompletionFinal"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "object"
+                ],
+                "properties": {
+                  "object": {
+                    "type": "string",
+                    "enum": [
+                      "text_completion"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "discriminator": {
+          "propertyName": "object"
         }
       },
       "CompletionComplete": {
@@ -994,14 +1075,15 @@
           }
         }
       },
-      "CompletionCompleteChunk": {
+      "CompletionFinal": {
         "type": "object",
         "required": [
           "id",
           "created",
-          "choices",
           "model",
-          "system_fingerprint"
+          "system_fingerprint",
+          "choices",
+          "usage"
         ],
         "properties": {
           "choices": {
@@ -1013,16 +1095,21 @@
           "created": {
             "type": "integer",
             "format": "int64",
+            "example": "1706270835",
             "minimum": 0
           },
           "id": {
             "type": "string"
           },
           "model": {
-            "type": "string"
+            "type": "string",
+            "example": "mistralai/Mistral-7B-Instruct-v0.2"
           },
           "system_fingerprint": {
             "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
           }
         }
       },
@@ -1645,6 +1732,12 @@
             "type": "string",
             "example": "test"
           }
+        }
+      },
+      "Prompt": {
+        "type": "array",
+        "items": {
+          "type": "string"
         }
       },
       "SimpleToken": {
