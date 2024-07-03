@@ -677,12 +677,6 @@ class Seq2SeqLM(Model):
     def batch_type(self) -> Type[Seq2SeqLMBatch]:
         return Seq2SeqLMBatch
 
-    # Not used anymore
-    # def decode(self, decoder_ids: List[int]) -> str:
-    #     return self.tokenizer.decode(
-    #         decoder_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
-    #     )
-
     def forward(
         self,
         input_ids,
