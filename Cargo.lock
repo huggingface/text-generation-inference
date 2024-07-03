@@ -3466,6 +3466,7 @@ dependencies = [
  "cxx-build",
  "text-generation-router",
  "thiserror",
+ "tokenizers",
  "tokio",
  "tokio-stream",
 ]

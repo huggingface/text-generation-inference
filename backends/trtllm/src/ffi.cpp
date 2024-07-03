@@ -14,7 +14,7 @@ namespace huggingface::tgi::backends {
     */
     std::unique_ptr<TensorRtLlmBackend> create_trtllm_backend(rust::Str engineFolder) {
         const auto enginePath = std::string_view(engineFolder.begin(), engineFolder.end());
-        return std::make_unique<TensorRtLlmBackend>(enginePath);
+        return std::make_unique<TensorRtLlmBackend>(std::move(enginePath));
     }
 
 }

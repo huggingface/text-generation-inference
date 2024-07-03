@@ -10,6 +10,7 @@ async-trait = "0.1.74"
 async-stream = "0.3.5"
 cxx = "1.0"
 text-generation-router = { path = "../../router" }
+tokenizers = { version = "0.19", features = ["hf-hub"] }
 tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
 tokio-stream = "0.1.14"
 clap = { version = "4.5.4", features = ["derive"] }

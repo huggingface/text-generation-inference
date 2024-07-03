@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use clap::Parser;
+use tokenizers::{FromPretrainedParameters, Tokenizer};
 
 use text_generation_backends_trtllm::{errors::TensorRtLlmBackendError, TrtLLmBackend};
 use text_generation_router::server;
@@ -109,7 +112,15 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
     }
 
     // Run server
-    let backend = TrtLLmBackend::new(model_id)?;
+    let tokenizer = Tokenizer::from_pretrained(
+        tokenizer_name.clone(),
+        Some(FromPretrainedParameters {
+            revision: revision.clone().unwrap_or(String::from("main")),
+            user_agent: HashMap::new(),
+            auth_token,
+        }),
+    )?;
+    let backend = TrtLLmBackend::new(tokenizer, model_id)?;
     server::run(
         backend,
         max_concurrent_requests,

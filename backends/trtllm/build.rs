@@ -5,17 +5,53 @@ use cxx_build::CFG;
 
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
 
+// fn build_tensort_llm<P: AsRef<Path>>(tensorrt_llm_root_dir: P, is_debug: bool) -> PathBuf {
+//     let build_wheel_path = tensorrt_llm_root_dir
+//         .as_ref()
+//         .join("/scripts")
+//         .join("build_wheel.py");
+//
+//     let build_wheel_path_str = build_wheel_path.display().to_string();
+//     let mut build_wheel_args = vec![
+//         build_wheel_path_str.as_ref(),
+//         "--cpp_only",
+//         "--extra-cmake-vars BUILD_TESTS=OFF",
+//         "--extra-cmake-vars BUILD_BENCHMARKS=OFF",
+//     ];
+//
+//     if is_debug {
+//         build_wheel_args.push("--fast_build");
+//     }
+//
+//     let out = Command::new("python3")
+//         .args(build_wheel_args)
+//         .output()
+//         .expect("Failed to compile TensorRT-LLM");
+//     PathBuf::new().join(tensorrt_llm_root_dir)
+// }
+
 fn main() {
+    // Misc variables
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let build_profile = env::var("PROFILE").unwrap();
+    let is_debug = match build_profile.as_ref() {
+        "debug" => true,
+        _ => false,
+    };
+
+    // Compile TensorRT-LLM (as of today, it cannot be compiled from CMake)
+    // let trtllm_path = build_tensort_llm(
+    //     backend_path.join("build").join("_deps").join("trtllm-src"),
+    //     is_debug,
+    // );
 
     // Build the backend implementation through CMake
     let backend_path = cmake::Config::new(".")
         .uses_cxx11()
         .generator("Ninja")
-        .profile(match build_profile.as_ref() {
-            "release" => "Release",
-            _ => "Debug",
+        .profile(match is_debug {
+            true => "Debug",
+            false => "Release",
         })
         .build_target("tgi_trtllm_backend_impl")
         .build();
