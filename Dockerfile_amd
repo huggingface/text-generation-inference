@@ -4,7 +4,7 @@ WORKDIR /usr/src
 
 ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
-FROM chef as planner
+FROM chef AS planner
 COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
@@ -37,7 +37,7 @@ COPY launcher launcher
 RUN cargo build --profile release-opt
 
 # Text Generation Inference base image for RoCm
-FROM rocm/dev-ubuntu-22.04:6.1.1_hip_update as base
+FROM rocm/dev-ubuntu-22.04:6.1.1_hip_update AS base
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
@@ -115,7 +115,7 @@ ARG BUILD_CAFFE2="0" \
 
 RUN cd pytorch && python tools/amd_build/build_amd.py && python setup.py install
 
-# Set as recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
+# Set AS recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
 ENV HIP_FORCE_DEV_KERNARG=1
 
 # On MI250 and MI300, performances for flash with Triton FA are slightly better than CK.
@@ -143,26 +143,26 @@ COPY server/Makefile-flash-att-v2 Makefile
 RUN make build-flash-attention-v2-rocm
 
 # Build Transformers CUDA kernels (gpt-neox and bloom)
-FROM kernel-builder as custom-kernels-builder
+FROM kernel-builder AS custom-kernels-builder
 WORKDIR /usr/src
 COPY server/custom_kernels/ .
 RUN python setup.py build
 
 # Build exllama kernels
-FROM kernel-builder as exllama-kernels-builder
+FROM kernel-builder AS exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
 
 RUN python setup.py build
 
 # Build exllama v2 kernels
-FROM kernel-builder as exllamav2-kernels-builder
+FROM kernel-builder AS exllamav2-kernels-builder
 WORKDIR /usr/src
 COPY server/exllamav2_kernels/ .
 
 RUN python setup.py build
 
-FROM base as base-copy
+FROM base AS base-copy
 
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
@@ -201,7 +201,7 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 # AWS Sagemaker compatible image
-FROM base as sagemaker
+FROM base AS sagemaker
 
 COPY sagemaker-entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh

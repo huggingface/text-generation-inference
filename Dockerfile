@@ -4,7 +4,7 @@ WORKDIR /usr/src
 
 ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
-FROM chef as planner
+FROM chef AS planner
 COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
@@ -38,7 +38,7 @@ RUN cargo build --profile release-opt
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 as pytorch-install
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS pytorch-install
 
 ARG PYTORCH_VERSION=2.3.0
 ARG PYTHON_VERSION=3.10
@@ -81,7 +81,7 @@ RUN case ${TARGETPLATFORM} in \
     /opt/conda/bin/conda clean -ya
 
 # CUDA kernels builder image
-FROM pytorch-install as kernel-builder
+FROM pytorch-install AS kernel-builder
 
 ARG MAX_JOBS=8
 
@@ -90,7 +90,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         && rm -rf /var/lib/apt/lists/*
 
 # Build Flash Attention CUDA kernels
-FROM kernel-builder as flash-att-builder
+FROM kernel-builder AS flash-att-builder
 
 WORKDIR /usr/src
 
@@ -100,7 +100,7 @@ COPY server/Makefile-flash-att Makefile
 RUN make build-flash-attention
 
 # Build Flash Attention v2 CUDA kernels
-FROM kernel-builder as flash-att-v2-builder
+FROM kernel-builder AS flash-att-v2-builder
 
 WORKDIR /usr/src
 
@@ -110,14 +110,14 @@ COPY server/Makefile-flash-att-v2 Makefile
 RUN make build-flash-attention-v2-cuda
 
 # Build Transformers exllama kernels
-FROM kernel-builder as exllama-kernels-builder
+FROM kernel-builder AS exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
 
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 
 # Build Transformers exllama kernels
-FROM kernel-builder as exllamav2-kernels-builder
+FROM kernel-builder AS exllamav2-kernels-builder
 WORKDIR /usr/src
 COPY server/exllamav2_kernels/ .
 
@@ -125,42 +125,42 @@ COPY server/exllamav2_kernels/ .
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 
 # Build Transformers awq kernels
-FROM kernel-builder as awq-kernels-builder
+FROM kernel-builder AS awq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-awq Makefile
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-awq
 
 # Build eetq kernels
-FROM kernel-builder as eetq-kernels-builder
+FROM kernel-builder AS eetq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-eetq Makefile
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-eetq
 
 # Build marlin kernels
-FROM kernel-builder as marlin-kernels-builder
+FROM kernel-builder AS marlin-kernels-builder
 WORKDIR /usr/src
 COPY server/marlin/ .
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
 
 # Build Lorax Punica kernels
-FROM kernel-builder as lorax-punica-builder
+FROM kernel-builder AS lorax-punica-builder
 WORKDIR /usr/src
 COPY server/Makefile-lorax-punica Makefile
 # Build specific version of transformers
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-lorax-punica
 
 # Build Transformers CUDA kernels
-FROM kernel-builder as custom-kernels-builder
+FROM kernel-builder AS custom-kernels-builder
 WORKDIR /usr/src
 COPY server/custom_kernels/ .
 # Build specific version of transformers
 RUN python setup.py build
 
 # Build vllm CUDA kernels
-FROM kernel-builder as vllm-builder
+FROM kernel-builder AS vllm-builder
 
 WORKDIR /usr/src
 
@@ -172,13 +172,13 @@ COPY server/Makefile-vllm Makefile
 RUN make build-vllm-cuda
 
 # Build mamba kernels
-FROM kernel-builder as mamba-builder
+FROM kernel-builder AS mamba-builder
 WORKDIR /usr/src
 COPY server/Makefile-selective-scan Makefile
 RUN make build-all
 
 # Text Generation Inference base image
-FROM nvidia/cuda:12.1.0-base-ubuntu22.04 as base
+FROM nvidia/cuda:12.1.0-base-ubuntu22.04 AS base
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
@@ -260,7 +260,7 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/lo
 
 
 # AWS Sagemaker compatible image
-FROM base as sagemaker
+FROM base AS sagemaker
 
 COPY sagemaker-entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh
