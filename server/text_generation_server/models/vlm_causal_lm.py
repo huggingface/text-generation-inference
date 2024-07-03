@@ -9,9 +9,9 @@ from typing import Iterable, Optional, Tuple, List, Type, Dict
 from transformers import PreTrainedTokenizerBase
 from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch
-from text_generation_server.models.flash_mistral import (
-    FlashMistral,
+from text_generation_server.models.flash_causal_lm import (
+    FlashCausalLMBatch,
+    FlashCausalLM,
 )
 from transformers import AutoProcessor
 
@@ -240,7 +240,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         return batch
 
 
-class VlmCausalLM(FlashMistral):
+class VlmCausalLM(FlashCausalLM):
     def __init__(
         self,
         model_id: str,
