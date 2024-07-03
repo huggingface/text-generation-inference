@@ -19,8 +19,8 @@ use crate::{
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
     ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
-    ChatRequest, CompatGenerateRequest, Completion, CompletionComplete, CompletionCompleteChunk,
-    CompletionRequest, CompletionType, DeltaToolCall, Function, Tool, VertexRequest,
+    ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
+    CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
     VertexResponse,
 };
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolType};
@@ -706,7 +706,7 @@ async fn completions(
                         .as_secs();
 
                     event
-                        .json_data(CompletionCompleteChunk {
+                        .json_data(Completion::Chunk(Chunk {
                             id: "".to_string(),
                             created: current_time,
 
@@ -719,7 +719,7 @@ async fn completions(
 
                             model: model_id.clone(),
                             system_fingerprint: system_fingerprint.clone(),
-                        })
+                        }))
                         .unwrap_or_else(|_e| Event::default())
                 };
 
@@ -932,7 +932,7 @@ async fn completions(
             .collect::<Result<Vec<_>, _>>()
             .map_err(|(status, Json(err))| (status, Json(err)))?;
 
-        let response = Completion {
+        let response = Completion::Final(CompletionFinal {
             id: "".to_string(),
             created: current_time,
             model: info.model_id.clone(),
@@ -947,7 +947,7 @@ async fn completions(
                 completion_tokens,
                 total_tokens,
             },
-        };
+        });
 
         // headers similar to `generate` but aggregated
         let mut headers = HeaderMap::new();
@@ -1466,7 +1466,10 @@ pub async fn run(
     ChatCompletion,
     CompletionRequest,
     CompletionComplete,
-    CompletionCompleteChunk,
+    Chunk,
+    Completion,
+    CompletionFinal,
+    Prompt,
     GenerateParameters,
     PrefillToken,
     Token,
