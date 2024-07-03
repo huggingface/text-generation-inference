@@ -8,18 +8,30 @@
 #include <filesystem>
 #include <span>
 
+#include <nlohmann/json.hpp>
+#include <fmt/format.h>
+
 #include <tensorrt_llm/runtime/common.h>
 #include <tensorrt_llm/executor/executor.h>
+#include <tensorrt_llm/plugins/api/tllmPlugin.h>
 
+using json = nlohmann::json;
 namespace tle = tensorrt_llm::executor;
 
 namespace huggingface::tgi::backends {
+
+    tle::ExecutorConfig GetExecutorConfig(const json &config, const std::string &workerPath);
+
     class TensorRtLlmBackend {
     private:
+        const json config;
         tle::Executor executor;
 
     public:
-        explicit TensorRtLlmBackend(const std::filesystem::path &engineFolder);
+        explicit TensorRtLlmBackend(
+                const std::filesystem::path &engineFolder,
+                const std::filesystem::path &executorWorker
+        );
 
         /***
          * Indicate if the backend is ready to accept incoming request
@@ -57,5 +69,6 @@ namespace huggingface::tgi::backends {
         );
     };
 }
+
 
 #endif //TGI_TRTLLM_BACKEND_H
