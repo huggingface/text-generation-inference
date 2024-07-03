@@ -433,8 +433,17 @@ pub struct CompletionRequest {
     pub stop: Option<Vec<String>>,
 }
 
+#[derive(Clone, Serialize, ToSchema)]
+#[serde(tag = "object")]
+enum Completion {
+    #[serde(rename = "text_completion")]
+    Chunk(Chunk),
+    #[serde(rename = "text_completion")]
+    Final(CompletionFinal),
+}
+
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
-pub(crate) struct Completion {
+pub(crate) struct CompletionFinal {
     pub id: String,
     #[schema(example = "1706270835")]
     pub created: u64,
@@ -451,6 +460,15 @@ pub(crate) struct CompletionComplete {
     pub text: String,
     pub logprobs: Option<Vec<f32>>,
     pub finish_reason: String,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
+pub(crate) struct Chunk {
+    pub id: String,
+    pub created: u64,
+    pub choices: Vec<CompletionComplete>,
+    pub model: String,
+    pub system_fingerprint: String,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
@@ -614,15 +632,6 @@ impl ChatCompletion {
         }
     }
 }
-#[derive(Clone, Deserialize, Serialize, ToSchema)]
-pub(crate) struct CompletionCompleteChunk {
-    pub id: String,
-    pub created: u64,
-    pub choices: Vec<CompletionComplete>,
-    pub model: String,
-    pub system_fingerprint: String,
-}
-
 #[derive(Clone, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
