@@ -1,5 +1,6 @@
 use axum::http::HeaderValue;
 use clap::Parser;
+use clap::Subcommand;
 use hf_hub::api::tokio::{Api, ApiBuilder, ApiRepo};
 use hf_hub::{Cache, Repo, RepoType};
 use opentelemetry::sdk::propagation::TraceContextPropagator;
@@ -27,6 +28,9 @@ use tracing_subscriber::{filter::LevelFilter, EnvFilter, Layer};
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
     #[clap(default_value = "2", long, env)]
@@ -85,10 +89,15 @@ struct Args {
     max_client_batch_size: usize,
 }
 
+#[derive(Debug, Subcommand)]
+enum Commands {
+    PrintSchema,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), RouterError> {
-    // Get args
     let args = Args::parse();
+
     // Pattern match configuration
     let Args {
         max_concurrent_requests,
@@ -119,10 +128,17 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
+        command,
     } = args;
 
-    // Launch Tokio runtime
-    init_logging(otlp_endpoint, otlp_service_name, json_output);
+    let print_schema_command = match command {
+        Some(Commands::PrintSchema) => true,
+        None => {
+            // only init logging if we are not running the print schema command
+            init_logging(otlp_endpoint, otlp_service_name, json_output);
+            false
+        }
+    };
 
     // Validate args
     if max_input_tokens >= max_total_tokens {
@@ -388,6 +404,7 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
+        print_schema_command,
     )
     .await?;
     Ok(())
