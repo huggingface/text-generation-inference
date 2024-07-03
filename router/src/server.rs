@@ -1388,10 +1388,10 @@ async fn tokenize(
 
 /// Prometheus metrics scrape endpoint
 #[utoipa::path(
-get,
-tag = "Text Generation Inference",
-path = "/metrics",
-responses((status = 200, description = "Prometheus Metrics", body = String))
+    get,
+    tag = "Text Generation Inference",
+    path = "/metrics",
+    responses((status = 200, description = "Prometheus Metrics", body = String))
 )]
 async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
     prom_handle.render()
@@ -1432,6 +1432,7 @@ pub async fn run(
     messages_api_enabled: bool,
     grammar_support: bool,
     max_client_batch_size: usize,
+    print_schema_command: bool,
 ) -> Result<(), WebServerError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -1502,6 +1503,12 @@ pub async fn run(
     struct ApiDoc;
 
     // Create state
+    if print_schema_command {
+        let api_doc = ApiDoc::openapi();
+        let api_doc = serde_json::to_string_pretty(&api_doc).unwrap();
+        println!("{}", api_doc);
+        std::process::exit(0);
+    }
 
     // Open connection, get model info and warmup
     let (scheduler, health_ext, shard_info, max_batch_total_tokens): (
