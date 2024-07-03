@@ -489,6 +489,11 @@ class CausalLMBatch(Batch):
         return len(self.requests)
 
 
+@dataclass
+class CausalLMBatchKeysLast(Batch):
+    keys_head_dim_last: bool = False
+
+
 class CausalLM(Model):
     def __init__(
         self,
@@ -498,14 +503,25 @@ class CausalLM(Model):
         quantize: Optional[str] = None,
         speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
+        default_dtype=torch.float16,
         trust_remote_code: bool = False,
         tokenizer_class=AutoTokenizer,
         config_class=AutoConfig,
+        batch_class=CausalLMBatch,
     ):
+        self.batch_class = batch_class
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
-            dtype = torch.float16 if dtype is None else dtype
+            dtype = default_dtype if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = default_dtype if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                # Float16 doesn't exist on target.
+                dtype = torch.bfloat16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
             dtype = torch.float32 if dtype is None else dtype
@@ -612,6 +628,7 @@ class CausalLM(Model):
         self = cls.__new__(
             cls,
         )
+        self.batch_class = CausalLMBatch
         super().__init__(
             self,
             model_id=model_id,
@@ -625,7 +642,7 @@ class CausalLM(Model):
 
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
-        return CausalLMBatch
+        return self.batch
 
     # This is not used anymore
     # def decode(self, generated_ids: List[int]) -> str:

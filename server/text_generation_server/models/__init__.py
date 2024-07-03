@@ -11,17 +11,16 @@ from pathlib import Path
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
-from text_generation_server.models.causal_lm import CausalLM
+from text_generation_server.models.causal_lm import CausalLM, CausalLMBatchKeysLast
 from text_generation_server.models.custom_modeling.opt_modeling import OPTForCausalLM
 from text_generation_server.models.custom_modeling.mpt_modeling import (
     MPTForCausalLM,
 )
-from text_generation_server.models.bloom import BLOOMSharded
 from text_generation_server.models.custom_modeling.bloom_modeling import (
     BloomForCausalLM,
 )
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
-from text_generation_server.models.galactica import GalacticaSharded
+from text_generation_server.models.galactica import GalacticaCausalLMBatch
 from text_generation_server.models.custom_modeling.neox_modeling import (
     GPTNeoxForCausalLM,
 )
@@ -168,6 +167,11 @@ class ModelType(enum.Enum):
         "type": "gemma",
         "name": "Gemma",
         "url": "https://huggingface.co/google/gemma-7b",
+    }
+    PALIGEMMA = {
+        "type": "paligemma",
+        "name": "PaliGemma",
+        "url": "https://huggingface.co/google/paligemma-3b-pt-224",
     }
     GEMMA2 = {
         "type": "gemma2",
@@ -466,14 +470,16 @@ def get_model(
         )
 
     if model_id.startswith("facebook/galactica"):
-        return GalacticaSharded(
+        return CausalLM(
             model_id=model_id,
+            # Yes galactica is just an OPT model.
             model_class=OPTForCausalLM,
             revision=revision,
             quantize=quantize,
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+            batch_class=GalacticaCausalLMBatch,
         )
 
     if (
@@ -509,7 +515,7 @@ def get_model(
             )
 
     if model_type == BLOOM:
-        return BLOOMSharded(
+        return CausalLM(
             model_id=model_id,
             model_class=BloomForCausalLM,
             revision=revision,
@@ -517,6 +523,7 @@ def get_model(
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+            batch_class=CausalLMBatchKeysLast,
         )
     elif model_type == MPT:
         return CausalLM(
@@ -527,6 +534,7 @@ def get_model(
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+            batch_class=CausalLMBatchKeysLast,
         )
     elif model_type == GPT2:
         if FLASH_ATTENTION:
@@ -666,6 +674,8 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -689,6 +699,8 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -737,6 +749,8 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                # Dbrx works better in bfloat16.
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=DbrxConfig,
@@ -765,6 +779,10 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    aliases={
+                        "lm_head.weight": ["transformer.word_embeddings.weight"],
+                        "transformer.word_embeddings.weight": ["lm_head.weight"],
+                    },
                     trust_remote_code=trust_remote_code,
                     lora_adapter_ids=lora_adapter_ids,
                     config_class=RWConfig,
@@ -947,7 +965,7 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
-    if model_type == "paligemma":
+    if model_type == PALIGEMMA:
         if FLASH_ATTENTION:
             return VlmCausalLM(
                 model_id=model_id,
@@ -956,6 +974,8 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 batch_class=PaliGemmaBatch,

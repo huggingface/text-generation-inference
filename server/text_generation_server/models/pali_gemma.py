@@ -74,19 +74,3 @@ class PaliGemmaBatch(VlmCausalLMBatch):
         else:
             image_inputs = None
         return batch_tokenized_inputs, image_inputs
-
-
-class PaliGemma(VlmCausalLM):
-    @property
-    def batch_type(self):
-        return PaliGemmaBatch
-
-    def get_layer_config(self, model) -> Tuple[int, int, int]:
-        return (
-            len(model.text_model.model.layers),
-            model.text_model.model.num_key_value_heads,
-            model.text_model.model.head_size,
-        )
-
-    def max_past(self) -> Optional[int]:
-        return getattr(self.model.text_model, "max_past", None)
