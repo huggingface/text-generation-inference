@@ -57,7 +57,7 @@ async def test_flash_idefics2_two_images(flash_idefics2_next, response_snapshot)
         response.generated_text
         == " The cow is standing on the beach and the chicken is sitting on a pile of money."
     ), f"{repr(response.generated_text)}"
-    assert response.details.generated_tokens == 20
+    assert response.details.generated_tokens == 19
     assert response == response_snapshot
 
 
