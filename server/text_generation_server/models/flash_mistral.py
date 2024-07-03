@@ -28,9 +28,7 @@ class FlashMistral(FlashCausalLM):
 
         # This accounts for VLMs (e.g. LlavaNext, Idefics2)
         # that have a language_model inside of the larger model.
-        if hasattr(self.model, "language_model"):
-            _model = self.model.language_model
-        elif hasattr(self.model, "text_model"):
+        if hasattr(self.model, "text_model"):
             _model = self.model.text_model
         else:
             _model = self.model

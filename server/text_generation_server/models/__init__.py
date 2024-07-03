@@ -96,7 +96,8 @@ try:
     from text_generation_server.models.custom_modeling.llava_next import (
         LlavaNextForConditionalGeneration,
     )
-    from text_generation_server.models.flash_mistral import FlashMistral
+
+    # from text_generation_server.models.flash_mistral import FlashMistral
     from text_generation_server.models.custom_modeling.flash_santacoder_modeling import (
         FlashSantacoderForCausalLM,
     )
@@ -127,7 +128,7 @@ except ImportError as e:
 if FLASH_ATTENTION:
     __all__.append(FlashCausalLM)
     __all__.append(IDEFICSSharded)
-    __all__.append(FlashMistral)
+    # __all__.append(FlashMistral)
 
 MAMBA_AVAILABLE = True
 try:
@@ -813,7 +814,7 @@ def get_model(
 
     if model_type == MISTRAL:
         if FLASH_ATTENTION:
-            return FlashMistral(
+            return FlashCausalLM(
                 model_id=model_id,
                 model_class=FlashMistralForCausalLM,
                 revision=revision,
