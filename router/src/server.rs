@@ -20,7 +20,7 @@ use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
     ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
-    CompletionRequest, CompletionType, DeltaToolCall, Function, Tool, VertexRequest,
+    CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
     VertexResponse,
 };
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolType};
@@ -1467,6 +1467,7 @@ pub async fn run(
     Chunk,
     Completion,
     CompletionFinal,
+    Prompt,
     GenerateParameters,
     PrefillToken,
     Token,
