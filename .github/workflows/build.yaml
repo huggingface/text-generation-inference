@@ -23,7 +23,7 @@ jobs:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     # TODO see with @Glegendre to get CPU runner here instead
-    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
+    runs-on: [self-hosted, intel-cpu, 32-cpu, 256-ram, ci]
     permissions:
       contents: write
       packages: write
