@@ -19,6 +19,7 @@ from text_generation_server.utils import (
 )
 from text_generation_server.models import Model
 from text_generation_server.utils.chunks import concat_text_chunks
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models.types import (
     Batch,
