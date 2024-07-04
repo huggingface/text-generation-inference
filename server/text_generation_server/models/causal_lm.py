@@ -850,8 +850,11 @@ class CausalLM(Model):
             "attention_mask": attention_mask,
             "past_key_values": past_key_values,
             "token_idx": token_idx,
-            "lazy_mode": LAZY_MODE == 1,
         }
+
+        # Optimum Habana got "lazy_mode" key-val only supported for llama type of models
+        if self.model.config.model_type == "llama" :
+            kwargs["lazy_mode"] = LAZY_MODE == 1
 
         if self.has_position_ids:
             kwargs["position_ids"] = position_ids
