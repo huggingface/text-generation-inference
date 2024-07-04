@@ -162,7 +162,7 @@ def _load_gqa(config, prefix: str, weights):
 
 
 class FlashGemmaAttention(torch.nn.Module):
-    def __init__(self, prefix: str, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool = True):
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.head_size = config.head_dim
