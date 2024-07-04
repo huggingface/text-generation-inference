@@ -642,7 +642,7 @@ class CausalLM(Model):
 
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
-        return self.batch
+        return self.batch_class
 
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
