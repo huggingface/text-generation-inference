@@ -11,7 +11,7 @@ model=teknium/OpenHermes-2.5-Mistral-7B
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
 docker run --gpus all --shm-size 64g -p 8080:80 -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.1.0 \
+    ghcr.io/huggingface/text-generation-inference:2.1.1 \
     --model-id $model
 ```
 
