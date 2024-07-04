@@ -50,7 +50,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ../../Dockerfile
+          file: Dockerfile
           push: true
           platforms: 'linux/amd64'
           tags: ${{ steps.meta.outputs.tags }}
