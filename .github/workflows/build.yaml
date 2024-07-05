@@ -11,6 +11,11 @@ on:
           # - rocm
           # - intel
         required: true
+      release-tests:
+        description: "Run release integration tests"
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   build-and-push:
@@ -148,7 +153,7 @@ jobs:
     runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
     if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
     env:
-      PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main') && '--release' || '' }}
+      PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == 'true') && '--release' || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

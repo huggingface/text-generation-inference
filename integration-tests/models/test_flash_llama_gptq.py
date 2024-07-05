@@ -3,7 +3,9 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_llama_gptq_handle(launcher):
-    with launcher("huggingface/llama-7b-gptq", num_shard=2, quantize="gptq") as handle:
+    with launcher(
+        "astronomer/Llama-3-8B-Instruct-GPTQ-4-Bit", num_shard=2, quantize="gptq"
+    ) as handle:
         yield handle
 
 
