@@ -10,7 +10,7 @@ from text_generation_server.models.causal_lm import CausalLM, CausalLMBatch
 
 @pytest.fixture(scope="session")
 def default_causal_lm():
-    return CausalLM("gpt2")
+    return CausalLM.fallback("gpt2")
 
 
 @pytest.fixture(scope="session")
