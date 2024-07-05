@@ -60,7 +60,7 @@ class Model(ABC):
         self.layer_to_adapter_weights: Dict[str, LayerAdapterWeights] = defaultdict(
             LayerAdapterWeights
         )
-        self.target_to_layer = self.adapter_target_to_layer()
+        self.target_to_layer = None
         self.loaded_adapters = set()
         self.static_adapter_id = adapter_id
 
@@ -187,6 +187,8 @@ class Model(ABC):
         into model. Otherwise, the adapter weights are applied during the forward
         pass and stored separately from the base model parameters.
         """
+        if self.target_to_layer is None:
+            self.target_to_layer = self.adapter_target_to_layer()
         if adapter_index in self.loaded_adapters:
             # Adapter already loaded
             return
