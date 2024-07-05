@@ -31,7 +31,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 
 1. Pull the official Docker image with:
    ```bash
-   docker pull ghcr.io/huggingface/tgi-gaudi:2.0.0
+   docker pull ghcr.io/huggingface/tgi-gaudi:2.0.1
    ```
 > [!NOTE]
 > Alternatively, you can build the Docker image using the `Dockerfile` located in this folder with:
@@ -45,7 +45,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    model=meta-llama/Llama-2-7b-hf
    volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-   docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.0 --model-id $model --max-input-tokens 1024 --max-total-tokens 2048
+   docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.1 --model-id $model --max-input-tokens 1024 --max-total-tokens 2048
    ```
    > For gated models such as [LLama](https://huggingface.co/meta-llama) or [StarCoder](https://huggingface.co/bigcode/starcoder), you will have to pass `-e HUGGING_FACE_HUB_TOKEN=<token>` to the `docker run` command above with a valid Hugging Face Hub read token.
 
@@ -54,7 +54,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    model=meta-llama/Llama-2-7b-hf
    volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-   docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e PT_HPU_LAZY_MODE=0 -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.0 --model-id $model --max-input-tokens 1024 --max-total-tokens 2048
+   docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all -e PT_HPU_LAZY_MODE=0 -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.1 --model-id $model --max-input-tokens 1024 --max-total-tokens 2048
    ```
 
     iii. On 8 Gaudi/Gaudi2 cards:
@@ -62,7 +62,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    model=meta-llama/Llama-2-70b-hf
    volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
-   docker run -p 8080:80 -v $volume:/data --runtime=habana -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.0 --model-id $model --sharded true --num-shard 8 --max-input-tokens 1024 --max-total-tokens 2048
+   docker run -p 8080:80 -v $volume:/data --runtime=habana -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.1 --model-id $model --sharded true --num-shard 8 --max-input-tokens 1024 --max-total-tokens 2048
    ```
 3. You can then send a simple request:
    ```bash
@@ -139,7 +139,7 @@ docker run -p 8080:80 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=128 \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.0 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.1 \
    --model-id $model \
    --max-input-tokens 1024 \
    --max-batch-prefill-tokens 4096 \
@@ -169,7 +169,7 @@ docker run -p 8080:80 \
    -e QUANT_CONFIG=./quantization_config/maxabs_quant.json \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.0 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.1 \
    --model-id $model \
    --max-input-tokens 1024 \
    --max-batch-prefill-tokens 4096 \
@@ -197,7 +197,7 @@ docker run -p 8080:80 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=128 \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.0 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.1 \
    --model-id $model \
    --max-input-tokens 1024 \
    --max-batch-prefill-tokens 16384 \
@@ -231,7 +231,7 @@ docker run -p 8080:80 \
    -e QUANT_CONFIG=./quantization_config/maxabs_quant.json \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.0 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.1 \
    --model-id $model \
    --max-input-tokens 1024 \
    --max-batch-prefill-tokens 16384 \
