@@ -137,8 +137,8 @@ impl Client {
         let seq_bucket_size: u32 = read_env_var("PAD_SEQUENCE_TO_MULTIPLE_OF", 128);
         let mut seq_lengths: Vec<u32> = (seq_bucket_size..max_input_length+1).step_by(seq_bucket_size as usize).collect();
         if let Some(&last) = seq_lengths.last() {
-            if last < max_input_length {
-                seq_lengths.push(max_input_length);
+            if last < (max_input_length + 1) {
+                seq_lengths.push(max_input_length + 1);
             }
         }
 
