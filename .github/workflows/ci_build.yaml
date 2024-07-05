@@ -20,7 +20,14 @@ on:
       - "Dockerfile_amd"
       - "Dockerfile_intel"
     branches:
-      - 'main'
+      - "main"
+  workflow_dispatch:
+    inputs:
+      release-tests:
+        description: "Run release integration tests"
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   build:
@@ -33,4 +40,6 @@ jobs:
     uses: ./.github/workflows/build.yaml # calls the one above ^
     with:
       hardware: ${{ matrix.hardware }}
+      # https://github.com/actions/runner/issues/2206
+      release-tests: ${{ inputs.release-tests == true }}
     secrets: inherit

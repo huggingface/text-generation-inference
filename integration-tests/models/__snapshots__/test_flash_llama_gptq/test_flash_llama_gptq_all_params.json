@@ -5,85 +5,80 @@
     "generated_tokens": 10,
     "prefill": [
       {
-        "id": 1,
+        "id": 2323,
         "logprob": null,
-        "text": "<s>"
-      },
-      {
-        "id": 4321,
-        "logprob": -9.84375,
         "text": "Test"
       },
       {
-        "id": 2009,
-        "logprob": -9.6015625,
-        "text": "request"
+        "id": 1715,
+        "logprob": -11.34375,
+        "text": " request"
       }
     ],
     "seed": 0,
     "tokens": [
       {
-        "id": 29899,
-        "logprob": -1.5625,
+        "id": 13,
+        "logprob": -2.2539062,
         "special": false,
-        "text": "-"
+        "text": "."
       },
       {
-        "id": 1454,
-        "logprob": -0.20410156,
+        "id": 578,
+        "logprob": -0.15563965,
         "special": false,
-        "text": "for"
+        "text": " The"
       },
       {
-        "id": 29899,
+        "id": 3622,
+        "logprob": -0.8203125,
+        "special": false,
+        "text": " server"
+      },
+      {
+        "id": 706,
         "logprob": 0.0,
         "special": false,
-        "text": "-"
+        "text": " has"
       },
       {
-        "id": 9342,
+        "id": 539,
         "logprob": 0.0,
         "special": false,
-        "text": "comment"
+        "text": " not"
       },
       {
-        "id": 29901,
+        "id": 3686,
         "logprob": 0.0,
         "special": false,
-        "text": ":"
+        "text": " yet"
       },
       {
-        "id": 396,
-        "logprob": -0.27685547,
-        "special": false,
-        "text": " #"
-      },
-      {
-        "id": 29906,
-        "logprob": -0.4970703,
-        "special": false,
-        "text": "2"
-      },
-      {
-        "id": 29900,
-        "logprob": -0.80615234,
-        "special": false,
-        "text": "0"
-      },
-      {
-        "id": 29896,
+        "id": 3288,
         "logprob": 0.0,
         "special": false,
-        "text": "1"
+        "text": " sent"
       },
       {
-        "id": 29955,
-        "logprob": -1.0751953,
+        "id": 904,
+        "logprob": 0.0,
         "special": false,
-        "text": "7"
+        "text": " any"
+      },
+      {
+        "id": 828,
+        "logprob": 0.0,
+        "special": false,
+        "text": " data"
+      },
+      {
+        "id": 382,
+        "logprob": -1.5517578,
+        "special": false,
+        "text": ".\n\n"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request-for-comment: #2017"
+  "generated_text": "Test request. The server has not yet sent any data.\n\n"
 }
