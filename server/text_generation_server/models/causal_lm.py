@@ -553,7 +553,8 @@ class CausalLM(Model):
         if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
             weights._set_gptq_params(model_id, revision)
 
-        model = model_class(config, weights)
+        prefix = ""
+        model = model_class(prefix, config, weights)
 
         torch.distributed.barrier(group=self.process_group)
         super().__init__(

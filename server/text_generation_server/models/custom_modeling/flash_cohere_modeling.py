@@ -363,9 +363,9 @@ class CohereMLP(nn.Module):
 
 
 class FlashCohereLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
+        prefix = f"{prefix}.layers.{layer_id}"
         self.self_attn = FlashCohereAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
@@ -416,18 +416,19 @@ class FlashCohereLayer(nn.Module):
 
 
 class FlashCohereModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
+            prefix=f"{prefix}.embed_tokens", weights=weights
         )
         self.layers = nn.ModuleList(
             [
                 FlashCohereLayer(
+                    prefix,
                     layer_id,
                     config,
                     weights,
@@ -436,7 +437,7 @@ class FlashCohereModel(torch.nn.Module):
             ]
         )
         self.norm = FastLayerNorm.load_no_bias(
-            prefix="model.norm", weights=weights, eps=config.layer_norm_eps
+            prefix=f"{prefix}.norm", weights=weights, eps=config.layer_norm_eps
         )
 
         self.gradient_checkpointing = False
@@ -486,10 +487,15 @@ class FlashCohereModel(torch.nn.Module):
 
 
 class FlashCohereForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
-        self.model = FlashCohereModel(config, weights)
+        if not prefix:
+            prefix = "model"
+        else:
+            prefix = f"{prefix}.model"
+
+        self.model = FlashCohereModel(prefix, config, weights)
         try:
             self.lm_head = SpeculativeHead.load(
                 config,
@@ -499,7 +505,7 @@ class FlashCohereForCausalLM(torch.nn.Module):
         except RuntimeError:
             self.lm_head = SpeculativeHead.load(
                 config,
-                prefix="model.embed_tokens",
+                prefix=f"{prefix}.embed_tokens",
                 weights=weights,
             )
         self.logit_scale = config.logit_scale
