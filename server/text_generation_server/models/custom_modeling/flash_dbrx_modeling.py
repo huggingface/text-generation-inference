@@ -593,9 +593,9 @@ class DenseMoE(nn.Module):
 
 
 class DbrxLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
-        prefix = f"transformer.blocks.{layer_id}"
+        prefix = f"{prefix}.blocks.{layer_id}"
 
         self.attn = DbrxNormAttentionNorm(
             prefix=f"{prefix}.norm_attn_norm", config=config, weights=weights
@@ -637,16 +637,17 @@ class DbrxLayer(nn.Module):
 
 
 class DbrxModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="transformer.wte", weights=weights
+            prefix=f"{prefix}.wte", weights=weights
         )
 
         self.layers = nn.ModuleList(
             [
                 DbrxLayer(
+                    prefix,
                     layer_id,
                     config,
                     weights,
@@ -655,7 +656,7 @@ class DbrxModel(torch.nn.Module):
             ]
         )
         self.norm = FastLayerNorm.load_no_bias(
-            prefix="transformer.norm_f", weights=weights, eps=1e-5
+            prefix=f"{prefix}.norm_f", weights=weights, eps=1e-5
         )
 
         self.head_size = self.layers[0].attn.self_attn.head_size
@@ -702,8 +703,13 @@ class DbrxModel(torch.nn.Module):
 
 
 class FlashDbrxForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
+
+        if not prefix:
+            prefix = "transformer"
+        else:
+            prefix = f"{prefix}.transformer"
 
         self.model = DbrxModel(config, weights)
         self.lm_head = SpeculativeHead.load(

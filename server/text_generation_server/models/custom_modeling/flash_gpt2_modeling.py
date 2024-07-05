@@ -261,7 +261,7 @@ class FlashGPT2Attention(torch.nn.Module):
 
 
 class GPT2MLP(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         act = config.activation_function
         self.act = (
@@ -298,7 +298,7 @@ class GPT2MLP(nn.Module):
 
 
 class FlashGPT2Layer(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         self.self_attn = FlashGPT2Attention(
             prefix=f"{prefix}.attn", config=config, weights=weights
@@ -350,7 +350,7 @@ class FlashGPT2Layer(nn.Module):
 
 
 class FlashGPT2Model(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         process_group = weights.process_group
@@ -414,7 +414,7 @@ class FlashGPT2Model(torch.nn.Module):
 
 
 class FlashGPT2ForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
