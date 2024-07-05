@@ -248,16 +248,16 @@ class PhiBlock(nn.Module):
 
 # PhiModel implements the embedding layer and the transformer blocks.
 class PhiModel(nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         self.tp_rank = weights.process_group.rank()
         self.tp_world_size = weights.process_group.size()
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="transformer.embd.wte", weights=weights
+            prefix=f"{prefix}.embd.wte", weights=weights
         )
         self.blocks = nn.ModuleList(
             [
-                PhiBlock(f"transformer.h.{layer_id}", config, weights)
+                PhiBlock(f"{prefix}.h.{layer_id}", config, weights)
                 for layer_id in range(config.n_layer)
             ]
         )
@@ -289,9 +289,15 @@ class PhiModel(nn.Module):
 
 # PhiForCausalLM wraps the PhiModel and PhiCausalLMHead together and returns a CausalLMOutputWithPast object.
 class PhiForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
-        self.model = PhiModel(config, weights)
+
+        if not prefix:
+            prefix = "transformer"
+        else:
+            prefix = f"{prefix}.transformer"
+
+        self.model = PhiModel(prefix, config, weights)
         self.lm_head = PhiCausalLMHead(config, weights)
 
     def forward(
