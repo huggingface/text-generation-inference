@@ -61,7 +61,6 @@ def _load_qkv_gptq(config, prefix: str, weights):
     # Weights
     weight = weights.get_weights_col_packed_qkv(
         f"{prefix}.c_attn",
-        config.quantize,
         config.num_attention_heads,
         config.num_attention_heads,
     )
@@ -137,7 +136,7 @@ def load_row(config, prefix: str, weights, bias: bool):
     """load_row, but with transposed weight matrices."""
 
     if config.quantize == "gptq":
-        weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+        weight = weights.get_weights_row(prefix)
     else:
         weight = weights.get_sharded(f"{prefix}.weight", dim=0).T
 
@@ -155,9 +154,7 @@ def load_row(config, prefix: str, weights, bias: bool):
 def load_col(config, prefix: str, weights, bias: bool):
     """load_col, but with transposed weight matrices."""
     if config.quantize == "gptq":
-        weight = weights.get_multi_weights_col(
-            [prefix], quantize=config.quantize, dim=1
-        )
+        weight = weights.get_multi_weights_col([prefix], dim=1)
     else:
         weight = weights.get_sharded(f"{prefix}.weight", dim=1).T
 

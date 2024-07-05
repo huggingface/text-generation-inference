@@ -17,6 +17,7 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     get_linear,
 )
+from text_generation_server.layers.gptq import GPTQWeightsLoader
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -81,11 +82,13 @@ def _load_multi_mqa_gptq(
         qzeros = torch.cat([q_tensor, kv_tensor], dim=1)
         qzeros = qzeros.to(device=weights.device)
 
-        gptq_params = weights._get_gptq_params()
-        if gptq_params.quant_method == "gptq":
+        loader = weights.weights_loader
+        assert isinstance(loader, GPTQWeightsLoader)
+        loader._get_gptq_params(weights)
+        if loader.quant_method == "gptq":
             g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
             g_idx = g_idx.to(device=weights.device)
-        elif gptq_params.quant_method == "awq":
+        elif loader.quant_method == "awq":
             g_idx = None
             from text_generation_server.layers.awq.conversion_utils import (
                 fast_awq_to_gptq,
@@ -100,8 +103,8 @@ def _load_multi_mqa_gptq(
             qzeros=qzeros,
             scales=scales,
             g_idx=g_idx,
-            bits=gptq_params.bits,
-            groupsize=gptq_params.groupsize,
+            bits=loader.bits,
+            groupsize=loader.groupsize,
             use_exllama=HAS_EXLLAMA,
         )
 
@@ -197,9 +200,7 @@ def load_col(config, prefix: str, weights, bias: bool):
     if config.transpose:
         weight = weights.get_sharded(f"{prefix}.weight", dim=1).T
     else:
-        weight = weights.get_multi_weights_col(
-            [prefix], quantize=config.quantize, dim=0
-        )
+        weight = weights.get_multi_weights_col([prefix], dim=0)
 
     if bias:
         bias = weights.get_sharded(f"{prefix}.bias", dim=0)
@@ -212,7 +213,7 @@ def load_row(config, prefix: str, weights, bias: bool):
     if config.transpose:
         weight = weights.get_sharded(f"{prefix}.weight", dim=0).T
     else:
-        weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+        weight = weights.get_weights_row(prefix)
 
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
