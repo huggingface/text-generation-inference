@@ -30,9 +30,6 @@ except (ImportError, NotImplementedError):
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 from text_generation_server.models.globals import set_model_id, set_adapter_to_index
-from text_generation_server.utils.adapter import (
-    AdapterParameters,
-)
 
 
 class SignalHandler:
@@ -238,28 +235,8 @@ def serve(
                 dtype,
                 trust_remote_code,
                 max_input_tokens,
+                adapter_to_index,
             )
-
-            if len(lora_adapter_ids) > 0:
-                for index, adapter_id in enumerate(lora_adapter_ids):
-                    # TODO: improve non merged adapter loading and long term
-                    # improve adapter loading as a whole
-                    adapter_parameters = AdapterParameters(
-                        adapter_ids=[adapter_id],
-                        weights=None,  #  will be set to 1
-                        merge_strategy=0,
-                        density=1.0,
-                        majority_sign_method=0,
-                    )
-                    adapter_index = index + 1
-                    adapter_to_index[adapter_id] = adapter_index
-                    model.load_adapter(
-                        adapter_parameters,
-                        None,  # adapter_source
-                        adapter_index,
-                        None,  # api_token
-                        False,  # dynamic
-                    )
 
         except Exception:
             logger.exception("Error when initializing model")

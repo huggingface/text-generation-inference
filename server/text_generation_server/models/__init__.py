@@ -33,6 +33,15 @@ from text_generation_server.models.custom_modeling.t5_modeling import (
     T5ForConditionalGeneration,
 )
 
+
+from text_generation_server.utils.adapter import (
+    AdapterParameters,
+    build_layer_weight_lookup,
+    load_and_merge_adapters,
+)
+from text_generation_server.adapters.lora import LoraWeights
+
+
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_master
 
@@ -294,7 +303,7 @@ for data in ModelType:
     __GLOBALS[data.name] = data.value["type"]
 
 
-def get_model(
+def _get_model(
     model_id: str,
     lora_adapter_ids: Optional[List[str]],
     revision: Optional[str],
@@ -1110,3 +1119,114 @@ def get_model(
             )
 
     raise ValueError(f"Unsupported model type {model_type}")
+
+
+# get_model wraps the internal _get_model function and adds support for loading adapters
+# this provides a post model loading hook to load adapters into the model after the model has been loaded
+def get_model(
+    model_id: str,
+    lora_adapter_ids: Optional[List[str]],
+    revision: Optional[str],
+    sharded: bool,
+    quantize: Optional[str],
+    speculate: Optional[int],
+    dtype: Optional[str],
+    trust_remote_code: bool,
+    max_input_tokens: int,
+    adapter_to_index: dict[str, int],
+):
+    model = _get_model(
+        model_id,
+        lora_adapter_ids,
+        revision,
+        sharded,
+        quantize,
+        speculate,
+        dtype,
+        trust_remote_code,
+        max_input_tokens,
+    )
+
+    if len(lora_adapter_ids) > 0:
+        target_to_layer = build_layer_weight_lookup(model.model)
+
+        for index, adapter_id in enumerate(lora_adapter_ids):
+            # currenly we only load one adapter at a time but
+            # this can be extended to merge multiple adapters
+            adapter_parameters = AdapterParameters(
+                adapter_ids=[adapter_id],
+                weights=None,  #  will be set to 1
+                merge_strategy=0,
+                density=1.0,
+                majority_sign_method=0,
+            )
+
+            adapter_index = index + 1
+            adapter_to_index[adapter_id] = adapter_index
+
+            if adapter_index in model.loaded_adapters:
+                continue
+
+            logger.info(
+                f"Loading adapter weights into model: {','.join(adapter_parameters.adapter_ids)}"
+            )
+            weight_names = tuple([v[0] for v in target_to_layer.values()])
+            (
+                module_map,
+                adapter_config,
+                adapter_weight_names,
+                adapter_tokenizer,
+            ) = load_and_merge_adapters(
+                model.model_id,
+                adapter_parameters,
+                adapter_index,
+                weight_names,
+                False,
+            )
+
+            unused_weight_names = adapter_weight_names.copy()
+
+            adapter_layers = [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ]
+
+            for layer_name in adapter_layers:
+                nlayers = (
+                    1 if layer_name == "lm_head" else len(model.model.model.layers)
+                )
+                adapter_weights = LoraWeights.prepare_weights(
+                    config=adapter_config,
+                    module_map=module_map,
+                    layer_type=layer_name,
+                    unused_weight_names=unused_weight_names,
+                    nlayers=nlayers,
+                    dtype=model.dtype,
+                    world_size=model.world_size,
+                    process_group=model.process_group,
+                    target_to_layer=target_to_layer,
+                )
+
+                if adapter_weights is None:
+                    continue
+
+                model.layer_to_adapter_weights[layer_name].add_adapter(
+                    adapter_index, adapter_weights
+                )
+
+            if len(unused_weight_names) > 0:
+                logger.warning(
+                    f"{','.join(adapter_parameters.adapter_ids)} unused adapter weights: {unused_weight_names}"
+                )
+
+            if adapter_tokenizer is not None:
+                model.tokenizers.add_tokenizer(adapter_index, adapter_tokenizer)
+
+            model.loaded_adapters.add(adapter_index)
+
+    return model
