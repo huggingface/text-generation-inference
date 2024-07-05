@@ -1,13 +1,12 @@
 import pytest
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLMBatch
-from text_generation_server.models.santacoder import SantaCoder
+from text_generation_server.models.causal_lm import CausalLMBatch, CausalLM
 
 
 @pytest.fixture(scope="session")
 def default_santacoder():
-    return SantaCoder("bigcode/santacoder")
+    return CausalLM.fallback(model_id="bigcode/santacoder")
 
 
 @pytest.fixture

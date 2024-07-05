@@ -8,6 +8,9 @@ from text_generation_server.pb import generate_pb2
 from text_generation_server.models.causal_lm import CausalLMBatch
 from text_generation_server.utils import weight_hub_files, download_weights
 from text_generation_server.models.bloom import BloomCausalLMBatch, BLOOMSharded
+from text_generation_server.models.custom_modeling.bloom_modeling import (
+    BloomForCausalLM,
+)
 
 
 @pytest.fixture(scope="session")
@@ -16,7 +19,10 @@ def default_bloom():
     revision = "main"
     filenames = weight_hub_files(model_id, revision, ".safetensors")
     download_weights(filenames, model_id, revision)
-    return BLOOMSharded(model_id)
+    return BLOOMSharded(
+        model_id,
+        model_class=BloomForCausalLM,
+    )
 
 
 @pytest.fixture(scope="session")
