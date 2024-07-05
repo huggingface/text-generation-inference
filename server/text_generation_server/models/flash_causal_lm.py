@@ -878,10 +878,6 @@ class FlashCausalLM(Model):
         )
         config.quantize = quantize
         config.speculator = speculator
-        if getattr(config, "sliding_window", None) is not None:
-            set_sliding_window(config.sliding_window)
-        else:
-            config.sliding_window = None
 
         torch.distributed.barrier(group=self.process_group)
 
@@ -900,13 +896,22 @@ class FlashCausalLM(Model):
         text_config = getattr(config, "text_config", None)
         if text_config is not None:
             config = text_config
+
+        if getattr(config, "sliding_window", None) is not None:
+            set_sliding_window(config.sliding_window)
+        else:
+            config.sliding_window = None
+
         self.num_layers = config.num_hidden_layers
         # Validation is done in the model itself
         if num_kv_heads is None:
-            num_kv_heads = getattr(config, "num_key_value_heads", None)
+            # Order is important here.
+            for attr in ["num_key_value_heads", "num_key_value_heads", "n_head"]:
+                num_kv_heads = getattr(config, "num_attention_heads", None)
+                if num_kv_heads is not None:
+                    break
             if num_kv_heads is None:
-                # Final overide for GPT2
-                num_kv_heads = config.n_head
+                raise ValueError("Cannot get the number of key/value heads")
         self.num_kv_heads = num_kv_heads // self.process_group.size()
         self.head_size = config.hidden_size // config.num_attention_heads
 

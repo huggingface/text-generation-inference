@@ -248,7 +248,7 @@ class MistralAttention(torch.nn.Module):
 
 
 class MistralMLP(nn.Module):
-    def __init__(self, prefix, config, weights, layer_id):
+    def __init__(self, prefix: str, config, weights, layer_id):
         super().__init__()
         self.hidden_act = config.hidden_act
         self.act = (
@@ -328,7 +328,7 @@ class MistralMLP(nn.Module):
 
 
 class MistralLayer(nn.Module):
-    def __init__(self, prefix, config, weights, layer_id):
+    def __init__(self, prefix: str, config, weights, layer_id):
         super().__init__()
         self.self_attn = MistralAttention(
             prefix=f"{prefix}.self_attn",
@@ -392,7 +392,7 @@ class MistralLayer(nn.Module):
 
 
 class MistralModel(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         process_group = weights.process_group
@@ -462,7 +462,7 @@ class MistralModel(torch.nn.Module):
 
 
 class FlashMistralForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights, name=None):
+    def __init__(self, prefix: str, config, weights, name=None):
         if name is None:
             name = "model"
         super().__init__()

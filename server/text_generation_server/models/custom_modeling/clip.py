@@ -446,7 +446,7 @@ class CLIPEncoder(nn.Module):
 
 
 class CLIPTextTransformer(nn.Module):
-    def __init__(self, config: CLIPTextConfig):
+    def __init__(self, prefix: str, config: CLIPTextConfig):
         super().__init__()
         self.config = config
         embed_dim = config.hidden_size
@@ -536,9 +536,9 @@ class CLIPTextModel(CLIPPreTrainedModel):
 
     _no_split_modules = ["CLIPTextEmbeddings", "CLIPEncoderLayer"]
 
-    def __init__(self, config: CLIPTextConfig):
+    def __init__(self, prefix, config: CLIPTextConfig):
         super().__init__(config)
-        self.text_model = CLIPTextTransformer(config)
+        self.text_model = CLIPTextTransformer(prefix, config)
         # Initialize weights and apply final processing
         self.post_init()
 

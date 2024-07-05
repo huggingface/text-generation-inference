@@ -783,7 +783,7 @@ class MPTPreTrainedModel(PreTrainedModel):
 
 
 class MPTModel(MPTPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         # config._validate_config()
         super().__init__(config)
         self.world_size = weights.process_group.size()
@@ -809,13 +809,13 @@ class MPTModel(MPTPreTrainedModel):
                 f"Requested norm type ({config.norm_type}) is not implemented within this repo."
             )
 
-        self.wte = TensorParallelEmbedding("transformer.wte", weights)
+        self.wte = TensorParallelEmbedding(f"{prefix}.wte", weights)
 
         if not self.alibi:
-            self.wpe = TensorParallelEmbedding("transformer.wpe", weights)
+            self.wpe = TensorParallelEmbedding(f"{prefix}.wpe", weights)
         self.blocks = nn.ModuleList(
             [
-                MPTBlock(config, prefix=f"transformer.blocks.{i}", weights=weights)
+                MPTBlock(config, prefix=f"{prefix}.blocks.{i}", weights=weights)
                 for i in range(config.n_layers)
             ]
         )
@@ -1085,13 +1085,19 @@ class MPTModel(MPTPreTrainedModel):
 
 
 class MPTForCausalLM(MPTPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__(config)
+
+        if not prefix:
+            prefix = "transformer"
+        else:
+            prefix = f"{prefix}.transformer"
+
         if not config.tie_word_embeddings:
             raise ValueError("MPTForCausalLM only supports tied word embeddings")
-        self.transformer = MPTModel(config, weights)
+        self.transformer = MPTModel(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
-            config, prefix="transformer.wte", weights=weights
+            config, prefix=f"{prefix}.wte", weights=weights
         )
         self.logit_scale = None
         if config.logit_scale is not None:

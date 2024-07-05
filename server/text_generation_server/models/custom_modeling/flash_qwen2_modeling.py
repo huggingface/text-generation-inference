@@ -203,9 +203,9 @@ class Qwen2MLP(nn.Module):
 
 
 class Qwen2Layer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix, layer_id, config, weights):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
+        prefix = f"{prefix}.layers.{layer_id}"
         self.self_attn = Qwen2Attention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
@@ -260,17 +260,18 @@ class Qwen2Layer(nn.Module):
 
 
 class Qwen2Model(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
+            prefix=f"{prefix}.embed_tokens", weights=weights
         )
         self.layers = nn.ModuleList(
             [
                 Qwen2Layer(
+                    prefix,
                     layer_id,
                     config,
                     weights,
@@ -279,7 +280,7 @@ class Qwen2Model(torch.nn.Module):
             ]
         )
         self.norm = FastRMSNorm.load(
-            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
+            prefix=f"{prefix}.norm", weights=weights, eps=config.rms_norm_eps
         )
 
         self.gradient_checkpointing = False
@@ -331,10 +332,15 @@ class Qwen2Model(torch.nn.Module):
 
 
 class Qwen2ForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
-        self.model = Qwen2Model(config, weights)
+        if not prefix:
+            prefix = "model"
+        else:
+            prefix = f"{prefix}.model"
+
+        self.model = Qwen2Model(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
             config,
             prefix="lm_head",

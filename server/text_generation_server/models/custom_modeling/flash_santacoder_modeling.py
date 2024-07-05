@@ -346,9 +346,9 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
-        prefix = f"transformer.h.{layer_id}"
+        prefix = f"{prefix}.h.{layer_id}"
         self.ln_1 = FastLayerNorm.load(
             prefix=f"{prefix}.ln_1", weights=weights, eps=config.layer_norm_epsilon
         )
@@ -396,18 +396,18 @@ class Block(nn.Module):
 
 
 class FlashSantacoderModel(nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         self.config = config
 
         self.process_group = weights.process_group
         self.wte = TensorParallelEmbedding(
-            prefix="transformer.wte",
+            prefix=f"{prefix}.wte",
             weights=weights,
             reduce=False,
         )
         self.wpe = TensorParallelEmbedding(
-            prefix="transformer.wpe",
+            prefix=f"{prefix}.wpe",
             weights=weights,
             reduce=False,
         )
@@ -415,6 +415,7 @@ class FlashSantacoderModel(nn.Module):
         self.layers = nn.ModuleList(
             [
                 Block(
+                    prefix,
                     layer_id,
                     config,
                     weights,
@@ -466,10 +467,16 @@ class FlashSantacoderModel(nn.Module):
 class FlashSantacoderForCausalLM(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
+
+        if not prefix:
+            prefix = "transformer"
+        else:
+            prefix = f"{prefix}.transformer"
+
         config.transpose = config.architectures[0].startswith("GPT2")
-        self.model = FlashSantacoderModel(config, weights)
+        self.model = FlashSantacoderModel(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
-            config, prefix="transformer.wte", weights=weights
+            config, prefix=f"{prefix}.wte", weights=weights
         )
 
     def forward(

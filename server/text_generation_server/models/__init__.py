@@ -16,6 +16,7 @@ from text_generation_server.models.custom_modeling.opt_modeling import OPTForCau
 from text_generation_server.models.custom_modeling.mpt_modeling import (
     MPTForCausalLM,
 )
+from text_generation_server.models.bloom import BloomCausalLMBatch
 from text_generation_server.models.custom_modeling.bloom_modeling import (
     BloomForCausalLM,
 )
@@ -522,7 +523,7 @@ def get_model(
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
-            batch_class=CausalLMBatchKeysLast,
+            batch_class=BloomCausalLMBatch,
         )
     elif model_type == MPT:
         return CausalLM(
