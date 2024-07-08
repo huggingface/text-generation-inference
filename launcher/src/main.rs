@@ -110,9 +110,6 @@ impl std::fmt::Display for Quantization {
             Quantization::Marlin => {
                 write!(f, "marlin")
             }
-            Quantization::FP8marlin => {
-                write!(f,"fp8-marlin")
-            }
             Quantization::Awq => {
                 write!(f, "awq")
             }
