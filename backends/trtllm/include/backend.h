@@ -8,8 +8,8 @@
 #include <filesystem>
 #include <span>
 
-#include <nlohmann/json.hpp>
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 
 #include <tensorrt_llm/runtime/common.h>
 #include <tensorrt_llm/executor/executor.h>
@@ -20,8 +20,24 @@ namespace tle = tensorrt_llm::executor;
 
 namespace huggingface::tgi::backends {
 
+    /**
+     * Initialize all the components required by TRTLLM.
+     * It is required to call this function before attempting to load any engine
+     */
+    void InitializeBackend();
+
+    /**
+     *
+     * @param config
+     * @param workerPath
+     * @param channel
+     * @return
+     */
     tle::ExecutorConfig GetExecutorConfig(const json &config, const std::string &workerPath);
 
+    /**
+     *
+     */
     class TensorRtLlmBackend {
     private:
         const json config;
@@ -50,23 +66,30 @@ namespace huggingface::tgi::backends {
          * @param temperature
          * @param minLength
          * @param repetitionPenalty
-         * @param frequencePenalty
+         * @param frequencyPenalty
          * @param seed
          * @param nTopTokens
          * @return
          */
         [[nodiscard]] tle::IdType Submit(
-                std::vector<tle::TokenIdType> &tokens,
+                const std::vector<tle::TokenIdType> &tokens,
                 int32_t maxNewTokens,
-                float_t topK,
+                int32_t topK,
                 float_t topP,
                 float_t temperature,
                 int32_t minLength,
                 std::optional<float_t> repetitionPenalty = std::nullopt,
-                std::optional<float_t> frequencePenalty = std::nullopt,
+                std::optional<float_t> frequencyPenalty = std::nullopt,
                 std::optional<uint32_t> seed = std::nullopt,
                 std::optional<uint32_t> nTopTokens = std::nullopt
         );
+
+        /***
+         *
+         * @param reqId
+         * @return
+         */
+        std::vector<tle::Response> Poll(tle::IdType reqId);
     };
 }
 
