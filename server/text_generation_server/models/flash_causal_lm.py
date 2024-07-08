@@ -905,13 +905,12 @@ class FlashCausalLM(Model):
         self.num_layers = config.num_hidden_layers
         # Validation is done in the model itself
         if num_kv_heads is None:
-            # Order is important here.
-            for attr in ["num_key_value_heads", "num_attention_heads", "n_head"]:
-                num_kv_heads = getattr(config, attr, None)
-                if num_kv_heads is not None:
-                    break
+            num_kv_heads = getattr(config, "num_key_value_heads", None)
+            # GPT-2 workaround
             if num_kv_heads is None:
-                raise ValueError("Cannot get the number of key/value heads")
+                num_kv_heads = getattr(config, "n_head", None)
+        if num_kv_heads is None:
+            raise ValueError("Cannot get the number of key/value heads")
         self.num_kv_heads = (
             num_kv_heads // self.process_group.size()
             if num_kv_heads > 1
