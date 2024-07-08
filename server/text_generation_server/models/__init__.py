@@ -797,6 +797,10 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    aliases={
+                        "lm_head.weight": ["transformer.word_embeddings.weight"],
+                        "transformer.word_embeddings.weight": ["lm_head.weight"],
+                    },
                     trust_remote_code=trust_remote_code,
                     lora_adapter_ids=lora_adapter_ids,
                     config_class=RWConfig,
