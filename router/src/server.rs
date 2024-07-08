@@ -598,6 +598,7 @@ async fn completions(
     metrics::counter!("tgi_request_count").increment(1);
 
     let CompletionRequest {
+        model,
         max_tokens,
         seed,
         stop,
@@ -666,7 +667,7 @@ async fn completions(
                 seed,
                 top_n_tokens: None,
                 grammar: None,
-                ..Default::default()
+                adapter_id: model.as_ref().filter(|m| *m != "tgi").map(String::from),
             },
         })
         .collect();
@@ -1002,6 +1003,7 @@ async fn chat_completions(
     let span = tracing::Span::current();
     metrics::counter!("tgi_request_count").increment(1);
     let ChatRequest {
+        model,
         logprobs,
         max_tokens,
         messages,
@@ -1107,7 +1109,7 @@ async fn chat_completions(
             seed,
             top_n_tokens: req.top_logprobs,
             grammar,
-            ..Default::default()
+            adapter_id: model.filter(|m| *m != "tgi").map(String::from),
         },
     };
 
