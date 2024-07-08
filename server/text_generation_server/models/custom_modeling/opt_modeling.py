@@ -757,7 +757,7 @@ class OPTForCausalLM(OPTPreTrainedModel):
         else:
             prefix = f"{prefix}.model"
 
-        self.model = OPTModel(config, weights)
+        self.model = OPTModel(prefix, config, weights)
 
         self.lm_head = SpeculativeHead.load(
             config, prefix=f"{prefix}.decoder.embed_tokens", weights=weights
