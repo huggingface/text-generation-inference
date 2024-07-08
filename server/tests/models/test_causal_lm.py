@@ -10,7 +10,7 @@ from text_generation_server.models.causal_lm import CausalLM, CausalLMBatch
 
 @pytest.fixture(scope="session")
 def default_causal_lm():
-    return CausalLM("gpt2")
+    return CausalLM.fallback("gpt2")
 
 
 @pytest.fixture(scope="session")
@@ -25,6 +25,7 @@ def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="Test",
+        input_chunks=generate_pb2.Input(chunks=[generate_pb2.InputChunk(text="Test")]),
         prefill_logprobs=True,
         truncate=100,
         parameters=default_pb_parameters,
@@ -99,7 +100,9 @@ def test_causal_lm_batch_type(default_causal_lm):
 
 def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     sequence_length = len(default_causal_lm_batch.all_input_ids[0])
-    generations, next_batch = default_causal_lm.generate_token(default_causal_lm_batch)
+    generations, next_batch, _ = default_causal_lm.generate_token(
+        default_causal_lm_batch
+    )
 
     assert len(generations) == len(next_batch)
     assert isinstance(next_batch, CausalLMBatch)
@@ -129,8 +132,20 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     )
     assert all([generation.generated_text is None for generation in generations])
     assert all([len(generation.prefill_tokens) == 1 for generation in generations])
-    assert all([generation.token_id.item() == 13 for generation in generations])
-    assert all([generation.token_text == "." for generation in generations])
+    assert all(
+        [
+            token_id.item() == 13
+            for generation in generations
+            for token_id in generation.tokens.token_ids
+        ]
+    )
+    assert all(
+        [
+            token_text == "."
+            for generation in generations
+            for token_text in generation.tokens.texts
+        ]
+    )
     assert generations[0].request_id == 0
 
 
@@ -139,10 +154,10 @@ def test_causal_lm_generate_token_completion(
 ):
     next_batch = default_causal_lm_batch
     for _ in range(default_causal_lm_batch.stopping_criterias[0].max_new_tokens - 1):
-        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
@@ -162,10 +177,10 @@ def test_causal_lm_generate_token_completion_multi(
     for i in range(
         default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 1
     ):
-        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 2
@@ -188,10 +203,10 @@ def test_causal_lm_generate_token_completion_multi(
     for _ in range(
         stopping_criterias[0].max_new_tokens - stopping_criterias[1].max_new_tokens - 1
     ):
-        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1
@@ -210,11 +225,11 @@ def test_batch_concatenate(
     default_causal_lm, default_causal_lm_batch, default_multi_requests_causal_lm_batch
 ):
     next_batch_0 = default_causal_lm_batch
-    _, next_batch_0 = default_causal_lm.generate_token(next_batch_0)
-    _, next_batch_0 = default_causal_lm.generate_token(next_batch_0)
+    _, next_batch_0, _ = default_causal_lm.generate_token(next_batch_0)
+    _, next_batch_0, _ = default_causal_lm.generate_token(next_batch_0)
 
     next_batch_1 = default_multi_requests_causal_lm_batch
-    _, next_batch_1 = default_causal_lm.generate_token(next_batch_1)
+    _, next_batch_1, _ = default_causal_lm.generate_token(next_batch_1)
 
     # Clone past_key_values before concatenating to compare after,
     # because they are removed from the concatenated batches
@@ -273,10 +288,10 @@ def test_batch_concatenate(
     for _ in range(
         default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens - 2
     ):
-        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 3
@@ -299,10 +314,10 @@ def test_batch_concatenate(
         - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
         - 2
     ):
-        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
     assert next_batch is not None
 
     assert len(generations) == 2
@@ -321,10 +336,10 @@ def test_batch_concatenate(
         - default_multi_requests_causal_lm_batch.stopping_criterias[1].max_new_tokens
         - 4
     ):
-        generations, next_batch = default_causal_lm.generate_token(next_batch)
+        generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
         assert len(generations) == len(next_batch)
 
-    generations, next_batch = default_causal_lm.generate_token(next_batch)
+    generations, next_batch, _ = default_causal_lm.generate_token(next_batch)
     assert next_batch is None
 
     assert len(generations) == 1

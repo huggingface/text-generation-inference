@@ -27,19 +27,23 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.models.gpt_neox import GPTNeoXConfig
 from typing import Optional, List, Tuple
 
-# vllm imports
-import vllm_cache_ops
-import vllm_attention_ops
-
-from text_generation_server.utils.flash_attn import attention
-from text_generation_server.utils.layers import (
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+)
+from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    TensorParallelHead,
-    FastLayerNorm,
-    PositionRotaryEmbedding,
+    SpeculativeHead,
     get_linear,
+)
+from text_generation_server.layers.layernorm import (
+    FastLayerNorm,
+)
+from text_generation_server.layers.rotary import (
+    PositionRotaryEmbedding,
 )
 
 
@@ -94,6 +98,8 @@ class FlashNeoxAttention(torch.nn.Module):
         self.hidden_size = hidden_size
         self.head_size = hidden_size // num_heads
 
+        self.rotary_dim = int(config.rotary_pct * self.head_size)
+
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
@@ -101,8 +107,11 @@ class FlashNeoxAttention(torch.nn.Module):
             )
         self.num_heads = self.num_heads // weights.process_group.size()
 
-        self.rotary_emb = PositionRotaryEmbedding.load(
-            config=config, prefix=f"{prefix}.rotary_emb", weights=weights
+        self.rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=self.rotary_dim,
+            base=config.rotary_emb_base,
+            device=weights.device,
         )
 
         self.softmax_scale = self.head_size ** (-0.5)
@@ -138,12 +147,9 @@ class FlashNeoxAttention(torch.nn.Module):
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
 
         # Inplace rotary
-        self.rotary_emb(qkv[:, 0], cos, sin)
-        self.rotary_emb(qkv[:, 1], cos, sin)
+        self.rotary_emb(qkv[:, 0], qkv[:, 1], cos, sin)
 
-        vllm_cache_ops.reshape_and_cache(
-            qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots
-        )
+        reshape_and_cache(qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots)
 
         # output tensor
         attn_output = torch.empty_like(qkv[:, 0])
@@ -162,9 +168,7 @@ class FlashNeoxAttention(torch.nn.Module):
             )
         # Decode
         else:
-            # kv_cache[1] => [num_blocks, num_heads, head_size, block_size]
-            block_size = kv_cache[1].shape[3]
-            vllm_attention_ops.single_query_cached_kv_attention(
+            attn_output = paged_attention(
                 attn_output,
                 qkv[:, 0],
                 kv_cache[0],
@@ -173,7 +177,6 @@ class FlashNeoxAttention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 input_lengths,
-                block_size,
                 max_s,
             )
 
@@ -189,9 +192,9 @@ class FlashMLP(nn.Module):
             if "gelu" not in act
             else lambda x: torch.nn.functional.gelu(
                 x,
-                approximate="tanh"
-                if act in ["gelu_fast", "gelu_pytorch_tanh"]
-                else "none",
+                approximate=(
+                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                ),
             )
         )
 
@@ -302,12 +305,12 @@ class FlashGPTNeoXPreTrainedModel(PreTrainedModel):
 
 
 class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__(config)
         self.config = config
 
         self.embed_in = TensorParallelEmbedding(
-            prefix="gpt_neox.embed_in", weights=weights
+            prefix=f"{prefix}.embed_in", weights=weights
         )
 
         self.layers = nn.ModuleList(
@@ -317,7 +320,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             ]
         )
         self.final_layer_norm = FastLayerNorm.load(
-            prefix="gpt_neox.final_layer_norm",
+            prefix=f"{prefix}.final_layer_norm",
             weights=weights,
             eps=config.layer_norm_eps,
         )
@@ -367,11 +370,17 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
 
 class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__(config)
-        self.gpt_neox = FlashGPTNeoXModel(config, weights)
 
-        self.embed_out = TensorParallelHead.load(
+        if not prefix:
+            prefix = "gpt_neox"
+        else:
+            prefix = f"{prefix}.gpt_neox"
+
+        self.gpt_neox = FlashGPTNeoXModel(prefix, config, weights)
+
+        self.embed_out = SpeculativeHead.load(
             config, prefix="embed_out", weights=weights
         )
 
@@ -385,7 +394,9 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         slots: torch.Tensor,
         input_lengths: torch.Tensor,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         hidden_states = self.gpt_neox(
             input_ids,

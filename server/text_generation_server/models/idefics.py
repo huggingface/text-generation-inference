@@ -31,6 +31,7 @@ class IDEFICSSharded(IdeficsCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -39,10 +40,10 @@ class IDEFICSSharded(IdeficsCausalLM):
             device = torch.device(f"cuda:{rank}")
             # 9b seems to work correctly enough in float16, but 80b seems
             # to be really saturating for f16.
-            dtype = torch.bfloat16 if dtype is None else dtype
+            dtype = torch.float16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
         self.device, self.dtype = device, dtype
 
         config = IdeficsConfig.from_pretrained(
@@ -51,6 +52,7 @@ class IDEFICSSharded(IdeficsCausalLM):
             trust_remote_code=trust_remote_code,
         )
         config.quantize = quantize
+        config.speculator = speculator
         config.vision_config.quantize = quantize
 
         tokenizer = LlamaTokenizerFast.from_pretrained(
@@ -81,6 +83,7 @@ class IDEFICSSharded(IdeficsCausalLM):
 
         torch.distributed.barrier(group=self.process_group)
         super(IdeficsCausalLM, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,

@@ -1,19 +1,31 @@
-from text_generation_server.utils.tokens import batch_top_tokens
 import torch
-import inspect
+import time
+import torch.distributed
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    PreTrainedTokenizerBase,
+)
 from typing import Optional, Tuple, List, Type, Dict
 
+from text_generation_server.utils import (
+    initialize_torch_distributed,
+    weight_files,
+    Weights,
+)
 from text_generation_server.models import Model
+from text_generation_server.utils.chunks import concat_text_chunks
+from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models.types import (
     Batch,
-    PrefillTokens,
+    Tokens,
     Generation,
     GeneratedText,
-    TopTokens,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
@@ -87,8 +99,11 @@ class CausalLMBatch(Batch):
         max_decode_tokens = 0
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
-            inputs.append(r.inputs)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
+            inputs.append(concat_text_chunks(r.input_chunks.chunks))
+
+            next_token_choosers.append(
+                NextTokenChooser.from_pb(r.parameters, device, tokenizer)
+            )
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
@@ -414,14 +429,14 @@ class CausalLMBatch(Batch):
                 # We slice the keys to remove the padding from previous batches
                 past_seq_len = batch.max_input_length - 1
                 if batch.keys_head_dim_last:
-                    padded_past_keys[
-                        start_index:end_index, :, -past_seq_len:, :
-                    ] = past_keys[:, :, -past_seq_len:, :]
+                    padded_past_keys[start_index:end_index, :, -past_seq_len:, :] = (
+                        past_keys[:, :, -past_seq_len:, :]
+                    )
                 else:
                     # BLOOM case
-                    padded_past_keys[
-                        start_index:end_index, :, :, -past_seq_len:
-                    ] = past_keys[:, :, :, -past_seq_len:]
+                    padded_past_keys[start_index:end_index, :, :, -past_seq_len:] = (
+                        past_keys[:, :, :, -past_seq_len:]
+                    )
                 del past_keys
 
                 start_index = end_index
@@ -439,9 +454,9 @@ class CausalLMBatch(Batch):
                 end_index = start_index + len(batch)
                 # We slice the past values to remove the padding from previous batches
                 past_seq_len = batch.max_input_length - 1
-                padded_past_values[
-                    start_index:end_index, :, -past_seq_len:, :
-                ] = past_values[:, :, -past_seq_len:, :]
+                padded_past_values[start_index:end_index, :, -past_seq_len:, :] = (
+                    past_values[:, :, -past_seq_len:, :]
+                )
                 del past_values
 
                 # Update values
@@ -475,15 +490,97 @@ class CausalLMBatch(Batch):
         return len(self.requests)
 
 
+@dataclass
+class CausalLMBatchKeysLast(Batch):
+    keys_head_dim_last: bool = False
+
+
 class CausalLM(Model):
     def __init__(
         self,
         model_id: str,
+        model_class,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        default_dtype=torch.float16,
+        trust_remote_code: bool = False,
+        tokenizer_class=AutoTokenizer,
+        config_class=AutoConfig,
+        batch_class=CausalLMBatch,
+    ):
+        self.batch_class = batch_class
+        self.process_group, rank, world_size = initialize_torch_distributed()
+        if torch.cuda.is_available():
+            device = torch.device(f"cuda:{rank}")
+            dtype = default_dtype if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = default_dtype if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                # Float16 doesn't exist on target.
+                dtype = torch.bfloat16 if dtype is None else dtype
+        else:
+            device = torch.device("cpu")
+            dtype = torch.float32 if dtype is None else dtype
+
+        tokenizer = tokenizer_class.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
+
+        config = config_class.from_pretrained(
+            model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+        )
+        config.quantize = quantize
+        config.speculator = speculator
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token_id = config.pad_token_id
+
+        torch.distributed.barrier(group=self.process_group)
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        weights = Weights(
+            filenames, device=device, dtype=dtype, process_group=self.process_group
+        )
+        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
+            weights._set_gptq_params(model_id, revision)
+
+        prefix = ""
+        model = model_class(prefix, config, weights)
+
+        torch.distributed.barrier(group=self.process_group)
+        super().__init__(
+            model_id=model_id,
+            model=model,
+            tokenizer=tokenizer,
+            requires_padding=True,
+            dtype=dtype,
+            device=device,
+            rank=rank,
+            world_size=world_size,
+        )
+
+    @classmethod
+    def fallback(
+        cls,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        if speculator:
+            raise RuntimeError("Speculator decoding is not enabled for AutoModel")
+
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype
@@ -492,7 +589,7 @@ class CausalLM(Model):
                 raise ValueError("quantization is not available on CPU")
 
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
@@ -505,13 +602,19 @@ class CausalLM(Model):
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map="auto"
-            if torch.cuda.is_available() and torch.cuda.device_count() > 1
-            else None,
+            device_map=(
+                "auto"
+                if torch.cuda.is_available() and torch.cuda.device_count() > 1
+                else None
+            ),
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
-        if torch.cuda.is_available() and torch.cuda.device_count() == 1:
+        if (
+            torch.cuda.is_available()
+            and torch.cuda.device_count() == 1
+            and quantize != "bitsandbytes"
+        ):
             model = model.cuda()
 
         if tokenizer.pad_token_id is None:
@@ -524,26 +627,30 @@ class CausalLM(Model):
             else:
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
-        super(CausalLM, self).__init__(
+        self = cls.__new__(
+            cls,
+        )
+        self.batch_class = CausalLMBatch
+        super().__init__(
+            self,
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
         )
+        return self
 
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
-        return CausalLMBatch
-
-    def decode(self, generated_ids: List[int]) -> str:
-        return self.tokenizer.decode(
-            generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )
+        return self.batch_class
 
     def forward(
         self, input_ids, attention_mask, position_ids, past_key_values: Optional = None
-    ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
+    ) -> Tuple[
+        torch.Tensor, Optional[torch.Tensor], List[Tuple[torch.Tensor, torch.Tensor]]
+    ]:
         # Model Forward
         kwargs = {
             "input_ids": input_ids,
@@ -556,16 +663,21 @@ class CausalLM(Model):
             kwargs["position_ids"] = position_ids
 
         outputs = self.model.forward(**kwargs)
-        return outputs.logits, outputs.past_key_values
+        if isinstance(outputs, tuple):
+            outputs, speculative_logits = outputs
+        else:
+            speculative_logits = None
+        return outputs.logits, speculative_logits, outputs.past_key_values
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: CausalLMBatch
-    ) -> Tuple[List[Generation], Optional[CausalLMBatch]]:
+    ) -> Tuple[List[Generation], Optional[CausalLMBatch], Tuple[int, int]]:
+        start = time.time_ns()
         # slice the attention mask to the correct shape
         attention_mask = batch.attention_mask[:, : -batch.padding_right_offset]
 
-        logits, past = self.forward(
+        logits, speculative_logits, past = self.forward(
             batch.input_ids,
             attention_mask,
             batch.position_ids,
@@ -576,11 +688,16 @@ class CausalLM(Model):
         generations: List[Generation] = []
         stopped = True
 
+        # Speculation is not active for causal
+        accepted_ids = torch.ones_like(batch.input_ids)[:, 0]
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens,
             batch.top_n_tokens_tensor,
-            torch.softmax(logits[:, -1], -1),
+            torch.log_softmax(logits[:, -1], -1),
+            accepted_ids,
         )
+
+        start_decode = time.time_ns()
 
         # Zipped iterator
         iterator = zip(
@@ -641,8 +758,14 @@ class CausalLM(Model):
             if i % self.world_size == self.rank:
                 if stop:
                     # Decode generated tokens
-                    output_text = self.decode(
-                        all_input_ids[-stopping_criteria.current_tokens :, 0]
+                    output_text, _, _ = self.decode_token(
+                        all_input_ids[:, 0],
+                        prefix_offset=len(all_input_ids)
+                        - stopping_criteria.current_tokens
+                        - 1,
+                        read_offset=len(all_input_ids)
+                        - stopping_criteria.current_tokens,
+                        skip_special_tokens=True,
                     )
                     # Get seed
                     if isinstance(next_token_chooser.choice, Sampling):
@@ -670,37 +793,49 @@ class CausalLM(Model):
                         clean_up_tokenization_spaces=False,
                         skip_special_tokens=False,
                     )
-                    prefill_tokens = PrefillTokens(
-                        prefill_token_ids, prefill_logprobs, prefill_texts
+                    prefill_tokens = Tokens(
+                        prefill_token_ids,
+                        prefill_logprobs,
+                        prefill_texts,
+                        is_special=[],
                     )
                 else:
                     prefill_tokens = None
 
                 if top_n_tokens > 0:
-                    toptoken_texts = self.tokenizer.batch_decode(
-                        top_token_ids,
-                        clean_up_tokenization_spaces=False,
-                        skip_special_tokens=False,
-                    )
-                    special_toptokens = [
-                        token_id in self.all_special_ids for token_id in top_token_ids
-                    ]
-                    top_tokens = TopTokens(
-                        top_token_ids,
-                        top_token_logprobs,
-                        toptoken_texts,
-                        special_toptokens,
-                    )
+                    all_top_tokens = []
+                    for top_token_ids, top_token_logprobs in zip(
+                        top_token_ids, top_token_logprobs
+                    ):
+                        toptoken_texts = self.tokenizer.batch_decode(
+                            top_token_ids,
+                            clean_up_tokenization_spaces=False,
+                            skip_special_tokens=False,
+                        )
+                        special_toptokens = [
+                            token_id in self.all_special_ids
+                            for token_id in top_token_ids
+                        ]
+                        top_tokens = Tokens(
+                            top_token_ids,
+                            top_token_logprobs,
+                            toptoken_texts,
+                            special_toptokens,
+                        )
+                        all_top_tokens.append(top_tokens)
+                    top_tokens = all_top_tokens
                 else:
                     top_tokens = None
 
                 generation = Generation(
                     request.id,
                     prefill_tokens,
-                    next_token_id_squeezed,
-                    next_token_logprob,
-                    next_token_text,
-                    next_token_id_squeezed.item() in self.all_special_ids,
+                    Tokens(
+                        [next_token_id_squeezed],
+                        [next_token_logprob],
+                        [next_token_text],
+                        [next_token_id_squeezed.item() in self.all_special_ids],
+                    ),
                     generated_text,
                     top_tokens,
                 )
@@ -708,6 +843,9 @@ class CausalLM(Model):
                 generations.append(generation)
 
             # Update values
+            batch.next_token_choosers[i] = batch.next_token_choosers[i].advance_grammar(
+                next_token_id_squeezed.item()
+            )
             batch.input_ids[i, 0] = next_token_id
             batch.all_input_ids[i] = all_input_ids
             batch.input_lengths[i] = new_input_length
@@ -717,7 +855,9 @@ class CausalLM(Model):
 
         # We finished all generations in the batch; there is no next batch
         if stopped:
-            return generations, None
+            forward_ns = start_decode - start
+            decode_ns = time.time_ns() - start_decode
+            return generations, None, (forward_ns, decode_ns)
 
         # Slice unused values from prefill
         batch.input_ids = batch.input_ids[:, :1]
@@ -733,4 +873,6 @@ class CausalLM(Model):
         # Update past key values
         batch.past_key_values = past
 
-        return generations, batch
+        forward_ns = start_decode - start
+        decode_ns = time.time_ns() - start_decode
+        return generations, batch, (forward_ns, decode_ns)

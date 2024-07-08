@@ -28,7 +28,7 @@ this is controlled by the client, and therefore the amount of batching is decide
 beforehand.
 
 For text-generation, and LLMs which are memory bound we can try to be much more
-efficient with the available compute, by having client sending us single queries, 
+efficient with the available compute, by having client sending us single queries,
 and let the router mix&match queries into or out of batches to make the use the
 compute the most efficiently. This is possible because for LLMs the total compute
 for running the model is much bigger than doing mix&match of the batches themselves.
@@ -89,5 +89,5 @@ most critical perceived quality of an LLM API.
 With token streaming, the server can start answering after the first `prefill` pass
 directly, without waiting for all the generation to be done. For extremely long queries
 this means clients can start to see something happening orders of magnitude before
-the work is done. Seeing something in progress allows them to cut short if it's not 
+the work is done. Seeing something in progress allows them to cut short if it's not
 what's wanted but also it "feels" better.

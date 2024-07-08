@@ -29,9 +29,15 @@ def _remove_duplicate_names(
             [name for name in shared if _is_complete(state_dict[name])]
         )
         if not complete_names:
-            raise RuntimeError(
-                f"Error while trying to find names to remove to save state dict, but found no suitable name to keep for saving amongst: {shared}. None is covering the entire storage.Refusing to save/load the model since you could be storing much more memory than needed. Please refer to https://huggingface.co/docs/safetensors/torch_shared_tensors for more information. Or open an issue."
-            )
+            if len(shared) == 1:
+                # Force contiguous
+                name = list(shared)[0]
+                state_dict[name] = state_dict[name].clone()
+                complete_names = {name}
+            else:
+                raise RuntimeError(
+                    f"Error while trying to find names to remove to save state dict, but found no suitable name to keep for saving amongst: {shared}. None is covering the entire storage.Refusing to save/load the model since you could be storing much more memory than needed. Please refer to https://huggingface.co/docs/safetensors/torch_shared_tensors for more information. Or open an issue."
+                )
 
         keep_name = sorted(list(complete_names))[0]
 
@@ -62,7 +68,7 @@ def convert_file(pt_file: Path, sf_file: Path, discard_names: List[str]):
     Forcing us to check for potentially different keys during load when looking
     for specific tensors (making tensor sharing explicit).
     """
-    loaded = torch.load(pt_file, map_location="cpu")
+    loaded = torch.load(pt_file, map_location="cpu", weights_only=True)
     if "state_dict" in loaded:
         loaded = loaded["state_dict"]
     to_removes = _remove_duplicate_names(loaded, discard_names=discard_names)

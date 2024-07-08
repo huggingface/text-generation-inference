@@ -1,0 +1,99 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 2502,
+        "logprob": null,
+        "text": " red"
+      },
+      {
+        "id": 13,
+        "logprob": -2.734375,
+        "text": ","
+      },
+      {
+        "id": 8862,
+        "logprob": -3.6875,
+        "text": " yellow"
+      },
+      {
+        "id": 13,
+        "logprob": -0.40234375,
+        "text": ","
+      },
+      {
+        "id": 209,
+        "logprob": -8.25,
+        "text": " "
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 187,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 395,
+        "logprob": -0.3125,
+        "special": false,
+        "text": "and"
+      },
+      {
+        "id": 4797,
+        "logprob": 0.0,
+        "special": false,
+        "text": " blue"
+      },
+      {
+        "id": 9830,
+        "logprob": -1.65625,
+        "special": false,
+        "text": " colors"
+      },
+      {
+        "id": 15,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 329,
+        "logprob": -2.4375,
+        "special": false,
+        "text": " A"
+      },
+      {
+        "id": 1180,
+        "logprob": -1.953125,
+        "special": false,
+        "text": " number"
+      },
+      {
+        "id": 273,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 1027,
+        "logprob": -1.5546875,
+        "special": false,
+        "text": " different"
+      },
+      {
+        "id": 3295,
+        "logprob": -0.97265625,
+        "special": false,
+        "text": " color"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "blue, red, yellow, \nand blue colors. A number of different color"
+}

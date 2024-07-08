@@ -1,0 +1,13 @@
+eetq_commit := 1657b1504faa359e2ce0ac02999439d7ac8c74c0
+
+eetq:
+    # Clone eetq
+	pip install packaging
+	git clone https://github.com/NetEase-FuXi/EETQ.git eetq
+
+build-eetq: eetq
+	cd eetq && git fetch && git checkout $(eetq_commit) && git submodule update --init --recursive
+	cd eetq && python setup.py build
+
+install-eetq: build-eetq
+	cd eetq && python setup.py install

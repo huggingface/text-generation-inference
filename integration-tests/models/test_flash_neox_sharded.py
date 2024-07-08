@@ -13,6 +13,7 @@ async def flash_neox_sharded(flash_neox_sharded_handle):
     return flash_neox_sharded_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_neox(flash_neox_sharded, response_snapshot):
     response = await flash_neox_sharded.generate(
@@ -25,6 +26,7 @@ async def test_flash_neox(flash_neox_sharded, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_flash_neox_load(flash_neox_sharded, generate_load, response_snapshot):
     responses = await generate_load(

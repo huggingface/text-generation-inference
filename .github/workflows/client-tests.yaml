@@ -22,4 +22,5 @@ jobs:
       - name: Run tests
         run: |
           pip install pytest pytest-asyncio
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
           make python-client-tests

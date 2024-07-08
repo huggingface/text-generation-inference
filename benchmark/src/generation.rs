@@ -1,8 +1,9 @@
 use std::time::{Duration, Instant};
-use text_generation_client::{
-    Batch, CachedBatch, ClientError, NextTokenChooserParameters, Request, ShardedClient,
+use text_generation_client::v3::{
+    Batch, CachedBatch, NextTokenChooserParameters, Request, ShardedClient,
     StoppingCriteriaParameters,
 };
+use text_generation_client::{Chunk, ClientError, Input};
 use tokenizers::{Tokenizer, TruncationDirection};
 use tokio::sync::{broadcast, mpsc};
 
@@ -142,6 +143,9 @@ async fn prefill(
         .map(|id| Request {
             id: id.into(),
             prefill_logprobs: false,
+            input_chunks: Some(Input {
+                chunks: vec![Chunk::Text(sequence.clone()).into()],
+            }),
             inputs: sequence.clone(),
             truncate: sequence_length,
             parameters: Some(parameters.clone()),
@@ -151,6 +155,9 @@ async fn prefill(
                 ignore_eos_token: true, // Will not stop even if a eos token is generated
             }),
             top_n_tokens: top_n_tokens.unwrap_or(0),
+            blocks: vec![],
+            slots: vec![],
+            adapter_id: None,
         })
         .collect();
 
@@ -159,11 +166,12 @@ async fn prefill(
         requests,
         size: batch_size,
         max_tokens: batch_size * (sequence_length + decode_length),
+        max_blocks: 0,
     };
 
     // Run prefill
     let start_time = Instant::now();
-    let (_, decode_batch) = client.prefill(batch.clone()).await?;
+    let (_, decode_batch, _) = client.prefill(batch.clone()).await?;
 
     // Get latency
     let latency = start_time.elapsed();

@@ -1,10 +1,14 @@
-# Installation
+# Installation from source
 
-This section explains how to install the CLI tool as well as installing TGI from source. **The strongly recommended approach is to use Docker, as it does not require much setup. Check [the Quick Tour](./quicktour) to learn how to run TGI with Docker.**
+<Tip warning={true}>
+
+Installing TGI from source is not the recommended usage. We strongly recommend to use TGI through Docker, check the [Quick Tour](./quicktour), [Installation for Nvidia GPUs](./installation_nvidia) and [Installation for AMD GPUs](./installation_amd) to learn how to use TGI with Docker.
+
+</Tip>
 
 ## Install CLI
 
-You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters. 
+You can use TGI command-line interface (CLI) to download weights, serve and quantize models, or get information on serving parameters.
 
 To install the CLI, you need to first clone the TGI repository and then run `make`.
 
@@ -23,7 +27,7 @@ BUILD_EXTENSIONS=True make install
 
 Before you start, you will need to setup your environment, and install Text Generation Inference. Text Generation Inference is tested on **Python 3.9+**.
 
-Text Generation Inference is available on pypi, conda and GitHub. 
+Text Generation Inference is available on pypi, conda and GitHub.
 
 To install and launch locally, first [install Rust](https://rustup.rs/) and create a Python virtual environment with at least
 Python 3.9, e.g. using conda:

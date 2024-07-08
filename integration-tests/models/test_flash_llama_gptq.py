@@ -3,7 +3,9 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_llama_gptq_handle(launcher):
-    with launcher("huggingface/llama-7b-gptq", num_shard=2, quantize="gptq") as handle:
+    with launcher(
+        "astronomer/Llama-3-8B-Instruct-GPTQ-4-Bit", num_shard=2, quantize="gptq"
+    ) as handle:
         yield handle
 
 
@@ -13,6 +15,7 @@ async def flash_llama_gptq(flash_llama_gptq_handle):
     return flash_llama_gptq_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_gptq(flash_llama_gptq, response_snapshot):
@@ -24,6 +27,7 @@ async def test_flash_llama_gptq(flash_llama_gptq, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_gptq_all_params(flash_llama_gptq, response_snapshot):
@@ -46,6 +50,7 @@ async def test_flash_llama_gptq_all_params(flash_llama_gptq, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_gptq_load(

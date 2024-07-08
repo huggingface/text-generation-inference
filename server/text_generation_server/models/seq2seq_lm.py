@@ -1,18 +1,30 @@
-from text_generation_server.utils.tokens import batch_top_tokens
 import torch
+import torch.distributed
+import time
 
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, PreTrainedTokenizerBase
+from transformers import (
+    AutoTokenizer,
+    AutoModelForSeq2SeqLM,
+    PreTrainedTokenizerBase,
+    AutoConfig,
+)
 from typing import Optional, Tuple, List, Type, Dict
 
+from text_generation_server.utils import (
+    initialize_torch_distributed,
+    weight_files,
+    Weights,
+)
+from text_generation_server.utils.chunks import concat_text_chunks
+from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
     GeneratedText,
     Batch,
     Generation,
-    PrefillTokens,
-    TopTokens,
+    Tokens,
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
@@ -93,10 +105,12 @@ class Seq2SeqLMBatch(Batch):
         padding_right_offset = 0
         max_decode_tokens = 0
         for i, r in enumerate(pb.requests):
-            inputs.append(r.inputs)
+            inputs.append(concat_text_chunks(r.input_chunks.chunks))
             requests_idx_mapping[r.id] = i
             decoder_input_lengths.append(1)
-            next_token_choosers.append(NextTokenChooser.from_pb(r.parameters, device))
+            next_token_choosers.append(
+                NextTokenChooser.from_pb(r.parameters, device, tokenizer)
+            )
             stopping_criteria = StoppingCriteria.from_pb(
                 r.stopping_parameters, tokenizer
             )
@@ -351,9 +365,9 @@ class Seq2SeqLMBatch(Batch):
                     (total_batch_size, max_input_length),
                 )
             # Copy to correct indices
-            attention_mask[
-                start_index:end_index, -batch.max_input_length :
-            ] = batch.attention_mask[:, -batch.max_input_length :]
+            attention_mask[start_index:end_index, -batch.max_input_length :] = (
+                batch.attention_mask[:, -batch.max_input_length :]
+            )
 
             # Create padded tensor
             if decoder_input_ids is None:
@@ -528,11 +542,89 @@ class Seq2SeqLM(Model):
     def __init__(
         self,
         model_id: str,
+        model_class,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        default_dtype=torch.float16,
+        trust_remote_code: bool = False,
+        config_class=AutoConfig,
+        tokenizer_class=AutoTokenizer,
+        aliases=None,
+    ):
+        self.process_group, rank, world_size = initialize_torch_distributed()
+        if torch.cuda.is_available():
+            device = torch.device(f"cuda:{rank}")
+            dtype = default_dtype if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = default_dtype if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                # Float16 doesn't exist on target.
+                dtype = torch.bfloat16 if dtype is None else dtype
+        else:
+            device = torch.device("cpu")
+            dtype = torch.float32 if dtype is None else dtype
+
+        config = config_class.from_pretrained(
+            model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+        )
+        config.quantize = quantize
+        config.speculator = speculator
+
+        tokenizer = tokenizer_class.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
+        tokenizer.bos_token_id = config.decoder_start_token_id
+
+        torch.distributed.barrier(group=self.process_group)
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        weights = Weights(
+            filenames,
+            device=device,
+            dtype=dtype,
+            process_group=self.process_group,
+            aliases=aliases,
+        )
+        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
+            weights._set_gptq_params(model_id, revision)
+
+        model = model_class(config, weights)
+
+        torch.distributed.barrier(group=self.process_group)
+        super().__init__(
+            model_id=model_id,
+            model=model,
+            tokenizer=tokenizer,
+            requires_padding=True,
+            dtype=dtype,
+            device=device,
+            rank=rank,
+            world_size=world_size,
+        )
+
+    @classmethod
+    def fallback(
+        cls,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        if speculator:
+            raise RuntimeError("Speculator decoding is not enabled for AutoModel")
+
         if torch.cuda.is_available():
             device = torch.device("cuda")
             dtype = torch.float16 if dtype is None else dtype
@@ -541,15 +633,17 @@ class Seq2SeqLM(Model):
                 raise ValueError("quantization is not available on CPU")
 
             device = torch.device("cpu")
-            dtype = torch.float32
+            dtype = torch.float32 if dtype is None else dtype
 
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map="auto"
-            if torch.cuda.is_available() and torch.cuda.device_count() > 1
-            else None,
+            device_map=(
+                "auto"
+                if torch.cuda.is_available() and torch.cuda.device_count() > 1
+                else None
+            ),
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
@@ -565,22 +659,23 @@ class Seq2SeqLM(Model):
         )
         tokenizer.bos_token_id = model.config.decoder_start_token_id
 
-        super(Seq2SeqLM, self).__init__(
+        self = cls.__new__(
+            cls,
+        )
+        super().__init__(
+            self,
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
         )
+        return self
 
     @property
     def batch_type(self) -> Type[Seq2SeqLMBatch]:
         return Seq2SeqLMBatch
-
-    def decode(self, decoder_ids: List[int]) -> str:
-        return self.tokenizer.decode(
-            decoder_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )
 
     def forward(
         self,
@@ -592,6 +687,7 @@ class Seq2SeqLM(Model):
         past_key_values: Optional = None,
     ) -> Tuple[
         torch.Tensor,
+        Optional[torch.Tensor],
         torch.Tensor,
         List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
     ]:
@@ -605,8 +701,15 @@ class Seq2SeqLM(Model):
             past_key_values=past_key_values,
             use_cache=True,
         )
+        if isinstance(outputs, tuple):
+            # Our custom models
+            outputs, speculative_logits = outputs
+        else:
+            # Generic transformers models
+            speculative_logits = None
         return (
             outputs.logits,
+            speculative_logits,
             outputs.encoder_last_hidden_state,
             outputs.past_key_values,
         )
@@ -614,7 +717,8 @@ class Seq2SeqLM(Model):
     @tracer.start_as_current_span("generate_token")
     def generate_token(
         self, batch: Seq2SeqLMBatch
-    ) -> Tuple[List[Generation], Optional[Seq2SeqLMBatch]]:
+    ) -> Tuple[List[Generation], Optional[Seq2SeqLMBatch], Tuple[int, int]]:
+        start = time.time_ns()
         if batch.decoder_attention_mask is not None:
             # slice to the correct shape
             decoder_attention_mask = batch.decoder_attention_mask[
@@ -630,7 +734,7 @@ class Seq2SeqLM(Model):
         else:
             encoder_last_hidden_state = None
 
-        logits, encoder_last_hidden_state, past = self.forward(
+        logits, speculative_logits, encoder_last_hidden_state, past = self.forward(
             batch.input_ids,
             batch.attention_mask,
             batch.decoder_input_ids,
@@ -639,11 +743,16 @@ class Seq2SeqLM(Model):
             batch.past_key_values,
         )
 
+        # Speculation is not active for seq2seq
+        accepted_ids = torch.ones_like(batch.decoder_input_ids)[:, 0]
         batch_top_token_ids, batch_top_token_logprobs = batch_top_tokens(
             batch.top_n_tokens,
             batch.top_n_tokens_tensor,
-            torch.softmax(logits[:, -1], -1),
+            torch.log_softmax(logits[:, -1], -1),
+            accepted_ids,
         )
+
+        start_decode = time.time_ns()
 
         # Finished requests
         generations: List[Generation] = []
@@ -710,8 +819,13 @@ class Seq2SeqLM(Model):
                 if stop:
                     # Slice with decoder_input_length to remove padding
                     # Decode all tokens
-                    output_text = self.decode(
-                        all_decoder_input_ids[-decoder_input_length:]
+                    output_text, _, _ = self.decode_token(
+                        all_decoder_input_ids,
+                        prefix_offset=len(all_decoder_input_ids)
+                        - decoder_input_length
+                        - 1,
+                        read_offset=len(all_decoder_input_ids) - decoder_input_length,
+                        skip_special_tokens=True,
                     )
 
                     # Get seed
@@ -728,39 +842,49 @@ class Seq2SeqLM(Model):
 
                 # Prefill
                 if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
-                    prefill_tokens = PrefillTokens(
+                    prefill_tokens = Tokens(
                         [self.tokenizer.bos_token_id],
                         [float("nan")],
                         [self.tokenizer.bos_token],
+                        [False],
                     )
                 else:
                     prefill_tokens = None
 
                 if top_n_tokens > 0:
-                    toptoken_texts = self.tokenizer.batch_decode(
-                        top_token_ids,
-                        clean_up_tokenization_spaces=False,
-                        skip_special_tokens=False,
-                    )
-                    special_toptokens = [
-                        token_id in self.all_special_ids for token_id in top_token_ids
-                    ]
-                    top_tokens = TopTokens(
-                        top_token_ids,
-                        top_token_logprobs,
-                        toptoken_texts,
-                        special_toptokens,
-                    )
+                    all_top_tokens = []
+                    for top_token_ids, top_token_logprobs in zip(
+                        top_token_ids, top_token_logprobs
+                    ):
+                        toptoken_texts = self.tokenizer.batch_decode(
+                            top_token_ids,
+                            clean_up_tokenization_spaces=False,
+                            skip_special_tokens=False,
+                        )
+                        special_toptokens = [
+                            token_id in self.all_special_ids
+                            for token_id in top_token_ids
+                        ]
+                        top_tokens = Tokens(
+                            top_token_ids,
+                            top_token_logprobs,
+                            toptoken_texts,
+                            special_toptokens,
+                        )
+                        all_top_tokens.append(top_tokens)
+                    top_tokens = all_top_tokens
                 else:
                     top_tokens = None
 
                 generation = Generation(
                     request.id,
                     prefill_tokens,
-                    next_token_id_squeezed,
-                    next_token_logprob,
-                    next_token_text,
-                    next_token_id_squeezed.item() in self.all_special_ids,
+                    Tokens(
+                        [next_token_id_squeezed],
+                        [next_token_logprob],
+                        [next_token_text],
+                        [next_token_id_squeezed.item() in self.all_special_ids],
+                    ),
                     generated_text,
                     top_tokens,
                 )
@@ -768,6 +892,9 @@ class Seq2SeqLM(Model):
                 generations.append(generation)
 
             # Update values
+            batch.next_token_choosers[i] = batch.next_token_choosers[i].advance_grammar(
+                next_token_id_squeezed.item()
+            )
             batch.decoder_input_ids[i] = next_token_id
             batch.all_decoder_input_ids[i] = all_decoder_input_ids
             batch.input_lengths[i] = input_length
@@ -781,7 +908,9 @@ class Seq2SeqLM(Model):
 
         # We finished all generations in the batch; there is no next batch
         if stopped:
-            return generations, None
+            forward_ns = start_decode - start
+            decode_ns = time.time_ns() - start_decode
+            return generations, None, (forward_ns, decode_ns)
 
         # We don't need input_ids after the prefill forward
         batch.input_ids = None
@@ -792,4 +921,6 @@ class Seq2SeqLM(Model):
             batch.decoder_attention_mask[:, -batch.padding_right_offset] = 1
         batch.padding_right_offset -= 1
 
-        return generations, batch
+        forward_ns = start_decode - start
+        decode_ns = time.time_ns() - start_decode
+        return generations, batch, (forward_ns, decode_ns)

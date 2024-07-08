@@ -1,0 +1,418 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1724,
+          "logprob": -7.6914062,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -1.4746094,
+          "text": "is"
+        },
+        {
+          "id": 21784,
+          "logprob": -9.390625,
+          "text": "Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -1.8623047,
+          "text": "Learning"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.7558594,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 13,
+          "logprob": -1.9228516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 5618,
+          "logprob": -2.4609375,
+          "special": false,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -0.57177734,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 278,
+          "logprob": -1.5722656,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 4328,
+          "logprob": -1.5859375,
+          "special": false,
+          "text": " difference"
+        },
+        {
+          "id": 1546,
+          "logprob": -0.02633667,
+          "special": false,
+          "text": " between"
+        },
+        {
+          "id": 21784,
+          "logprob": -1.4335938,
+          "special": false,
+          "text": " Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -0.15991211,
+          "special": false,
+          "text": " Learning"
+        },
+        {
+          "id": 322,
+          "logprob": -0.17456055,
+          "special": false,
+          "text": " and"
+        },
+        {
+          "id": 6189,
+          "logprob": -0.62060547,
+          "special": false,
+          "text": " Machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\nWhat is the difference between Deep Learning and Machine"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1724,
+          "logprob": -7.6914062,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -1.4746094,
+          "text": "is"
+        },
+        {
+          "id": 21784,
+          "logprob": -9.390625,
+          "text": "Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -1.8623047,
+          "text": "Learning"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.7558594,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 13,
+          "logprob": -1.9228516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 5618,
+          "logprob": -2.4609375,
+          "special": false,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -0.57177734,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 278,
+          "logprob": -1.5722656,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 4328,
+          "logprob": -1.5859375,
+          "special": false,
+          "text": " difference"
+        },
+        {
+          "id": 1546,
+          "logprob": -0.02633667,
+          "special": false,
+          "text": " between"
+        },
+        {
+          "id": 21784,
+          "logprob": -1.4335938,
+          "special": false,
+          "text": " Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -0.15991211,
+          "special": false,
+          "text": " Learning"
+        },
+        {
+          "id": 322,
+          "logprob": -0.17456055,
+          "special": false,
+          "text": " and"
+        },
+        {
+          "id": 6189,
+          "logprob": -0.62060547,
+          "special": false,
+          "text": " Machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\nWhat is the difference between Deep Learning and Machine"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1724,
+          "logprob": -7.6914062,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -1.4746094,
+          "text": "is"
+        },
+        {
+          "id": 21784,
+          "logprob": -9.390625,
+          "text": "Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -1.8623047,
+          "text": "Learning"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.7558594,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 13,
+          "logprob": -1.9228516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 5618,
+          "logprob": -2.4609375,
+          "special": false,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -0.57177734,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 278,
+          "logprob": -1.5722656,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 4328,
+          "logprob": -1.5859375,
+          "special": false,
+          "text": " difference"
+        },
+        {
+          "id": 1546,
+          "logprob": -0.02633667,
+          "special": false,
+          "text": " between"
+        },
+        {
+          "id": 21784,
+          "logprob": -1.4335938,
+          "special": false,
+          "text": " Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -0.15991211,
+          "special": false,
+          "text": " Learning"
+        },
+        {
+          "id": 322,
+          "logprob": -0.17456055,
+          "special": false,
+          "text": " and"
+        },
+        {
+          "id": 6189,
+          "logprob": -0.62060547,
+          "special": false,
+          "text": " Machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\nWhat is the difference between Deep Learning and Machine"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 1724,
+          "logprob": -7.6914062,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -1.4746094,
+          "text": "is"
+        },
+        {
+          "id": 21784,
+          "logprob": -9.390625,
+          "text": "Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -1.8623047,
+          "text": "Learning"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.7558594,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 13,
+          "logprob": -1.9228516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 5618,
+          "logprob": -2.4609375,
+          "special": false,
+          "text": "What"
+        },
+        {
+          "id": 338,
+          "logprob": -0.57177734,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 278,
+          "logprob": -1.5722656,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 4328,
+          "logprob": -1.5859375,
+          "special": false,
+          "text": " difference"
+        },
+        {
+          "id": 1546,
+          "logprob": -0.02633667,
+          "special": false,
+          "text": " between"
+        },
+        {
+          "id": 21784,
+          "logprob": -1.4335938,
+          "special": false,
+          "text": " Deep"
+        },
+        {
+          "id": 29257,
+          "logprob": -0.15991211,
+          "special": false,
+          "text": " Learning"
+        },
+        {
+          "id": 322,
+          "logprob": -0.17456055,
+          "special": false,
+          "text": " and"
+        },
+        {
+          "id": 6189,
+          "logprob": -0.62060547,
+          "special": false,
+          "text": " Machine"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\nWhat is the difference between Deep Learning and Machine"
+  }
+]

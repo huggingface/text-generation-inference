@@ -4,7 +4,7 @@
 /// and: https://github.com/orhun/rust-tui-template
 use clap::Parser;
 use std::path::Path;
-use text_generation_client::ShardedClient;
+use text_generation_client::v3::ShardedClient;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -87,6 +87,11 @@ struct Args {
     /// Generation parameter in case you want to specifically test/debug particular
     /// decoding strategies, for full doc refer to the `text-generation-server`
     #[clap(long, env)]
+    frequency_penalty: Option<f32>,
+
+    /// Generation parameter in case you want to specifically test/debug particular
+    /// decoding strategies, for full doc refer to the `text-generation-server`
+    #[clap(long, env)]
     watermark: bool,
 
     /// Generation parameter in case you want to specifically test/debug particular
@@ -119,6 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         top_p,
         typical_p,
         repetition_penalty,
+        frequency_penalty,
         watermark,
         do_sample,
         master_shard_uds_path,
@@ -141,7 +147,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             tracing::info!("Downloading tokenizer");
 
             // Parse Huggingface hub token
-            let auth_token = std::env::var("HUGGING_FACE_HUB_TOKEN").ok();
+            let auth_token = std::env::var("HF_TOKEN")
+                .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
+                .ok();
 
             // Download and instantiate tokenizer
             // We need to download it outside of the Tokio runtime
@@ -187,6 +195,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 top_p,
                 typical_p,
                 repetition_penalty,
+                frequency_penalty,
                 watermark,
                 do_sample,
                 sharded_client,

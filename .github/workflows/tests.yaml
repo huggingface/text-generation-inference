@@ -33,11 +33,17 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.71.0
+          # Released on: 02 May, 2024
+          # https://releases.rs/docs/1.78.0/
+          toolchain: 1.79.0
           override: true
           components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
+      - name: Clean unused files
+        run: |
+          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
+          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Install sccache
         run: |
           curl -fsSL https://github.com/mozilla/sccache/releases/download/v$SCCACHE/sccache-v$SCCACHE-x86_64-unknown-linux-musl.tar.gz | tar -xzv --strip-components=1 -C /usr/local/bin sccache-v$SCCACHE-x86_64-unknown-linux-musl/sccache
@@ -62,18 +68,17 @@ jobs:
             ~/.cargo/git
       - name: Install
         run: |
-          make install
+          make install-cpu
       - name: Run server tests
         run: |
           pip install pytest
-          export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
           pytest -s -vv server/tests
-      - name: Run Rust fmt
+      - name: Pre-commit checks
         run: |
-          cargo fmt --check
-      - name: Run Rust clippy
-        run: |
-          cargo clippy
+          pip install pre-commit
+          pre-commit install
+          pre-commit run --all-files
       - name: Run Rust tests
         run: |
           cargo test

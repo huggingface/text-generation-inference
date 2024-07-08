@@ -17,6 +17,11 @@ class Quantization(str, Enum):
     bitsandbytes_nf4 = "bitsandbytes-nf4"
     bitsandbytes_fp4 = "bitsandbytes-fp4"
     gptq = "gptq"
+    awq = "awq"
+    eetq = "eetq"
+    exl2 = "exl2"
+    fp8 = "fp8"
+    marlin = "marlin"
 
 
 class Dtype(str, Enum):
@@ -30,12 +35,15 @@ def serve(
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: Optional[Quantization] = None,
+    speculate: Optional[int] = None,
     dtype: Optional[Dtype] = None,
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
+    otlp_service_name: str = "text-generation-inference.server",
+    max_input_tokens: Optional[int] = None,
 ):
     if sharded:
         assert (
@@ -69,17 +77,43 @@ def serve(
 
     # Setup OpenTelemetry distributed tracing
     if otlp_endpoint is not None:
-        setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
+        setup_tracing(otlp_service_name=otlp_service_name, otlp_endpoint=otlp_endpoint)
+
+    lora_adapter_ids = os.getenv("LORA_ADAPTERS", None)
+
+    # split on comma and strip whitespace
+    lora_adapter_ids = (
+        [x.strip() for x in lora_adapter_ids.split(",")] if lora_adapter_ids else []
+    )
+
+    if len(lora_adapter_ids) > 0:
+        logger.warning(
+            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
+        )
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = None if dtype is None else dtype.value
-    if dtype is not None and quantize is not None:
+    if dtype is not None and quantize not in {
+        None,
+        "bitsandbytes",
+        "bitsandbytes-nf4",
+        "bitsandbytes-fp4",
+    }:
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
     server.serve(
-        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path
+        model_id,
+        lora_adapter_ids,
+        revision,
+        sharded,
+        quantize,
+        speculate,
+        dtype,
+        trust_remote_code,
+        uds_path,
+        max_input_tokens,
     )
 
 
@@ -92,6 +126,7 @@ def download_weights(
     logger_level: str = "INFO",
     json_output: bool = False,
     trust_remote_code: bool = False,
+    merge_lora: bool = False,
 ):
     # Remove default handler
     logger.remove()
@@ -114,7 +149,7 @@ def download_weights(
         logger.info("Files are already present on the host. " "Skipping download.")
         return
     # Local files not found
-    except (utils.LocalEntryNotFoundError, FileNotFoundError):
+    except (utils.LocalEntryNotFoundError, FileNotFoundError, utils.EntryNotFoundError):
         pass
 
     is_local_model = (Path(model_id).exists() and Path(model_id).is_dir()) or os.getenv(
@@ -122,12 +157,53 @@ def download_weights(
     ) is not None
 
     if not is_local_model:
+        # TODO: maybe reverse the default value of merge_lora?
+        # currently by default we don't merge the weights with the base model
+        if merge_lora:
+            try:
+                adapter_config_filename = hf_hub_download(
+                    model_id, revision=revision, filename="adapter_config.json"
+                )
+                utils.download_and_unload_peft(
+                    model_id, revision, trust_remote_code=trust_remote_code
+                )
+                is_local_model = True
+                utils.weight_files(model_id, revision, extension)
+                return
+            except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+                pass
+        else:
+            try:
+                utils.peft.download_peft(
+                    model_id, revision, trust_remote_code=trust_remote_code
+                )
+            except Exception:
+                pass
+
         try:
-            adapter_config_filename = hf_hub_download(model_id, revision=revision, filename="adapter_config.json")
-            utils.download_and_unload_peft(model_id, revision, trust_remote_code=trust_remote_code)
-            is_local_model = True
-            utils.weight_files(model_id, revision, extension)
-            return
+            import json
+
+            config = hf_hub_download(
+                model_id, revision=revision, filename="config.json"
+            )
+            with open(config, "r") as f:
+                config = json.load(f)
+
+            base_model_id = config.get("base_model_name_or_path", None)
+            if base_model_id and base_model_id != model_id:
+                try:
+                    logger.info(f"Downloading parent model {base_model_id}")
+                    download_weights(
+                        model_id=base_model_id,
+                        revision="main",
+                        extension=extension,
+                        auto_convert=auto_convert,
+                        logger_level=logger_level,
+                        json_output=json_output,
+                        trust_remote_code=trust_remote_code,
+                    )
+                except Exception:
+                    pass
         except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
             pass
 
@@ -144,13 +220,53 @@ def download_weights(
             if not extension == ".safetensors" or not auto_convert:
                 raise e
 
+    elif (Path(model_id) / "adapter_config.json").exists():
+        # Try to load as a local PEFT model
+        try:
+            utils.download_and_unload_peft(
+                model_id, revision, trust_remote_code=trust_remote_code
+            )
+            utils.weight_files(model_id, revision, extension)
+            return
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+            pass
+    elif (Path(model_id) / "config.json").exists():
+        # Try to load as a local Medusa model
+        try:
+            import json
+
+            config = Path(model_id) / "config.json"
+            with open(config, "r") as f:
+                config = json.load(f)
+
+            base_model_id = config.get("base_model_name_or_path", None)
+            if base_model_id:
+                try:
+                    logger.info(f"Downloading parent model {base_model_id}")
+                    download_weights(
+                        model_id=base_model_id,
+                        revision="main",
+                        extension=extension,
+                        auto_convert=auto_convert,
+                        logger_level=logger_level,
+                        json_output=json_output,
+                        trust_remote_code=trust_remote_code,
+                    )
+                except Exception:
+                    pass
+        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+            pass
+
     # Try to see if there are local pytorch weights
     try:
         # Get weights for a local model, a hub cached model and inside the WEIGHTS_CACHE_OVERRIDE
-        local_pt_files = utils.weight_files(model_id, revision, ".bin")
+        try:
+            local_pt_files = utils.weight_files(model_id, revision, ".bin")
+        except Exception:
+            local_pt_files = utils.weight_files(model_id, revision, ".pt")
 
     # No local pytorch weights
-    except utils.LocalEntryNotFoundError:
+    except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
         if extension == ".safetensors":
             logger.warning(
                 f"No safetensors weights found for model {model_id} at revision {revision}. "
@@ -163,6 +279,13 @@ def download_weights(
         local_pt_files = utils.download_weights(pt_filenames, model_id, revision)
 
     if auto_convert:
+        if not trust_remote_code:
+            logger.warning(
+                f"🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
+                f"Pickle files are unsafe and can essentially contain remote code execution!"
+                f"Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
+            )
+
         logger.warning(
             f"No safetensors weights found for model {model_id} at revision {revision}. "
             f"Converting PyTorch weights to safetensors."
@@ -177,8 +300,12 @@ def download_weights(
             import transformers
             import json
 
-
-            config_filename = hf_hub_download(model_id, revision=revision, filename="config.json")
+            if is_local_model:
+                config_filename = os.path.join(model_id, "config.json")
+            else:
+                config_filename = hf_hub_download(
+                    model_id, revision=revision, filename="config.json"
+                )
             with open(config_filename, "r") as f:
                 config = json.load(f)
             architecture = config["architectures"][0]
@@ -187,7 +314,6 @@ def download_weights(
 
             # Name for this varible depends on transformers version.
             discard_names = getattr(class_, "_tied_weights_keys", [])
-            discard_names.extend(getattr(class_, "_keys_to_ignore_on_load_missing", []))
 
         except Exception as e:
             discard_names = []
@@ -215,7 +341,7 @@ def quantize(
         logger_level=logger_level,
         json_output=json_output,
     )
-    from text_generation_server.utils.gptq.quantize import quantize
+    from text_generation_server.layers.gptq.quantize import quantize
 
     quantize(
         model_id=model_id,

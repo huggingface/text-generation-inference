@@ -13,6 +13,7 @@ async def mpt_sharded(mpt_sharded_handle):
     return mpt_sharded_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_mpt(mpt_sharded, response_snapshot):
     response = await mpt_sharded.generate(
@@ -29,6 +30,7 @@ async def test_mpt(mpt_sharded, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 async def test_mpt_load(mpt_sharded, generate_load, response_snapshot):
     responses = await generate_load(

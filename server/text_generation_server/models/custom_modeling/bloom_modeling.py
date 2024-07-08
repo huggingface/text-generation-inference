@@ -32,15 +32,18 @@ from transformers.modeling_outputs import (
 )
 from transformers import BloomConfig, PreTrainedModel
 
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,
-    TensorParallelHead,
+    SpeculativeHead,
 )
 
 CUSTOM_KERNELS_ENABLED = False
-if not os.environ.get("DISABLE_CUSTOM_KERNELS", "False") == "True":
+if (
+    torch.cuda.is_available()
+    and not os.environ.get("DISABLE_CUSTOM_KERNELS", "False") == "True"
+):
     try:
         from custom_kernels import fused_bloom_attention_cuda
 
@@ -813,11 +816,11 @@ class BloomModel(BloomPreTrainedModel):
 
 
 class BloomForCausalLM(BloomPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__(config)
         self.transformer = BloomModel(config, weights)
 
-        self.lm_head = TensorParallelHead.load(
+        self.lm_head = SpeculativeHead.load(
             config,
             prefix="word_embeddings",
             weights=weights,
@@ -867,7 +870,7 @@ class BloomForCausalLM(BloomPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         **deprecated_arguments,
-    ) -> Union[Tuple[torch.Tensor], CausalLMOutputWithCrossAttentions]:
+    ) -> Union[Tuple, CausalLMOutputWithCrossAttentions]:
         r"""
         labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
             Labels for language modeling. Note that the labels **are shifted** inside the model, i.e. you can set
@@ -901,17 +904,20 @@ class BloomForCausalLM(BloomPreTrainedModel):
         )
         hidden_states = transformer_outputs[0]
 
-        lm_logits = self.lm_head(hidden_states)
+        logits, speculative_logits = self.lm_head(hidden_states)
         loss = None
 
         if not return_dict:
             output = (lm_logits,) + transformer_outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
-        return CausalLMOutputWithCrossAttentions(
-            loss=loss,
-            logits=lm_logits,
-            past_key_values=transformer_outputs.past_key_values,
-            hidden_states=transformer_outputs.hidden_states,
-            attentions=transformer_outputs.attentions,
+        return (
+            CausalLMOutputWithCrossAttentions(
+                loss=loss,
+                logits=logits,
+                past_key_values=transformer_outputs.past_key_values,
+                hidden_states=transformer_outputs.hidden_states,
+                attentions=transformer_outputs.attentions,
+            ),
+            speculative_logits,
         )

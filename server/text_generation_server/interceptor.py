@@ -23,6 +23,10 @@ class ExceptionInterceptor(AsyncServerInterceptor):
             method_name = method_name.split("/")[-1]
             logger.exception(f"Method {method_name} encountered an error.")
 
+            # Runtime Error cannot be recovered from
+            if isinstance(err, RuntimeError):
+                exit(1)
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 

@@ -1,0 +1,45 @@
+name: CI build
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - ".github/workflows/build.yaml"
+      - "integration-tests/**"
+      - "server/**"
+      - "proto/**"
+      - "router/**"
+      - "launcher/**"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "Dockerfile"
+      - "Dockerfile_amd"
+      - "Dockerfile_intel"
+    branches:
+      - "main"
+  workflow_dispatch:
+    inputs:
+      release-tests:
+        description: "Run release integration tests"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    strategy:
+      # super important if you want to see all results, even if one fails
+      # fail-fast is true by default
+      fail-fast: false
+      matrix:
+        hardware: ["cuda", "rocm", "intel"]
+    uses: ./.github/workflows/build.yaml # calls the one above ^
+    with:
+      hardware: ${{ matrix.hardware }}
+      # https://github.com/actions/runner/issues/2206
+      release-tests: ${{ inputs.release-tests == true }}
+    secrets: inherit

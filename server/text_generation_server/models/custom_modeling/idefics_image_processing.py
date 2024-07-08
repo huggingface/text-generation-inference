@@ -20,7 +20,12 @@ import numpy as np
 from PIL import Image
 
 from transformers.image_processing_utils import BaseImageProcessor, BatchFeature
-from transformers.image_transforms import resize, to_channel_dimension_format, rescale, normalize
+from transformers.image_transforms import (
+    resize,
+    to_channel_dimension_format,
+    rescale,
+    normalize,
+)
 from transformers.image_utils import (
     ChannelDimension,
     ImageInput,
@@ -30,6 +35,7 @@ from transformers.image_utils import (
     valid_images,
 )
 from io import BytesIO
+import base64
 import requests
 from transformers import TensorType, is_torch_available
 
@@ -121,7 +127,11 @@ class IdeficsImageProcessor(BaseImageProcessor):
             a PyTorch tensor of the processed images
         """
         image_size = image_size if image_size is not None else self.image_size
-        image_num_channels = image_num_channels if image_num_channels is not None else self.image_num_channels
+        image_num_channels = (
+            image_num_channels
+            if image_num_channels is not None
+            else self.image_num_channels
+        )
         image_mean = image_mean if image_mean is not None else self.image_mean
         image_std = image_std if image_std is not None else self.image_std
         size = (image_size, image_size)
@@ -160,9 +170,13 @@ class IdeficsImageProcessor(BaseImageProcessor):
         images = [resize(x, size, resample=PILImageResampling.BICUBIC) for x in images]
         images = [self.rescale(image=image, scale=1 / 255) for image in images]
         images = [self.normalize(x, mean=image_mean, std=image_std) for x in images]
-        images = [to_channel_dimension_format(x, ChannelDimension.FIRST) for x in images]
+        images = [
+            to_channel_dimension_format(x, ChannelDimension.FIRST) for x in images
+        ]
         # TODO: this converts to torch tensors - switch to convert_to_tensors once it becomes available
-        images = BatchFeature(data={"pixel_values": images}, tensor_type=TensorType.PYTORCH)["pixel_values"]
+        images = BatchFeature(
+            data={"pixel_values": images}, tensor_type=TensorType.PYTORCH
+        )["pixel_values"]
 
         return images
 
@@ -181,11 +195,32 @@ class IdeficsImageProcessor(BaseImageProcessor):
         if isinstance(image_url_or_urls, list):
             return [self.fetch_images(x) for x in image_url_or_urls]
         elif isinstance(image_url_or_urls, str):
-            response = requests.get(image_url_or_urls, stream=True, headers=headers)
-            response.raise_for_status()
-            return Image.open(BytesIO(response.content))
+            image = image_url_or_urls
+
+            if image.startswith("http://") or image.startswith("https://"):
+                response = requests.get(
+                    image_url_or_urls, stream=True, headers=headers, timeout=(1, 5)
+                )
+                response.raise_for_status()
+                content = response.content
+            elif image.startswith("data:"):
+                # https://stackoverflow.com/questions/17090571/is-there-a-way-to-set-background-image-as-a-base64-encoded-image
+                # data:image/png;base64,xxx
+                image = image.split(",")[-1]
+                content = base64.b64decode(image)
+            else:
+                raise ValueError(f"Unrecognized image {image}")
+
+            try:
+                image = Image.open(BytesIO(content))
+                # image.verify()
+            except Exception:
+                raise ValueError(f"Could not load image from url {image_url_or_urls}")
+            return image
         else:
-            raise ValueError(f"only a single or a list of entries is supported but got type={type(image_url_or_urls)}")
+            raise ValueError(
+                f"only a single or a list of entries is supported but got type={type(image_url_or_urls)}"
+            )
 
     def rescale(
         self,
@@ -255,10 +290,9 @@ class IdeficsImageProcessor(BaseImageProcessor):
             `np.ndarray`: The normalized image.
         """
         # TODO 4.32
-        return normalize(
-            image, mean=mean, std=std, data_format=data_format, **kwargs
-        )
+        return normalize(image, mean=mean, std=std, data_format=data_format, **kwargs)
 
 
 import transformers
+
 transformers.IdeficsImageProcessor = IdeficsImageProcessor

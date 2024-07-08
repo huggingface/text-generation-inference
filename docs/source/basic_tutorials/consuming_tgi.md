@@ -23,7 +23,7 @@ You can simply install `huggingface-hub` package with pip.
 pip install huggingface-hub
 ```
 
-Once you start the TGI server, instantiate `InferenceClient()` with the URL to the endpoint serving the model. You can then call `text_generation()` to hit the endpoint through Python. 
+Once you start the TGI server, instantiate `InferenceClient()` with the URL to the endpoint serving the model. You can then call `text_generation()` to hit the endpoint through Python.
 
 ```python
 from huggingface_hub import InferenceClient
@@ -83,8 +83,8 @@ Gradio is a Python library that helps you build web applications for your machin
 pip install huggingface-hub gradio
 ```
 
-Assume you are serving your model on port 8080, we will query through [InferenceClient](consuming_tgi#inference-client). 
- 
+Assume you are serving your model on port 8080, we will query through [InferenceClient](consuming_tgi#inference-client).
+
 ```python
 import gradio as gr
 from huggingface_hub import InferenceClient
@@ -110,30 +110,30 @@ gr.ChatInterface(
 ).queue().launch()
 ```
 
-The UI looks like this 👇 
+The UI looks like this 👇
 
 <div class="flex justify-center">
-    <img 
-        class="block dark:hidden" 
+    <img
+        class="block dark:hidden"
         src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/gradio-tgi.png"
     />
-    <img 
-        class="hidden dark:block" 
+    <img
+        class="hidden dark:block"
         src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/tgi/gradio-tgi-dark.png"
     />
 </div>
 
-You can try the demo directly here 👇 
+You can try the demo directly here 👇
 
 <div class="block dark:hidden">
-	<iframe 
+	<iframe
         src="https://merve-gradio-tgi-2.hf.space?__theme=light"
         width="850"
         height="750"
     ></iframe>
 </div>
 <div class="hidden dark:block">
-    <iframe 
+    <iframe
         src="https://merve-gradio-tgi-2.hf.space?__theme=dark"
         width="850"
         height="750"
@@ -152,4 +152,4 @@ You can read more about how to customize a `ChatInterface` [here](https://www.gr
 
 ## API documentation
 
-You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route. The Swagger UI is also available [here](https://huggingface.github.io/text-generation-inference). 
+You can consult the OpenAPI documentation of the `text-generation-inference` REST API using the `/docs` route. The Swagger UI is also available [here](https://huggingface.github.io/text-generation-inference).

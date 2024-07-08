@@ -3,6 +3,7 @@ import torch
 
 from datetime import timedelta
 from loguru import logger
+from text_generation_server.utils.import_utils import SYSTEM
 
 # Tensor Parallelism settings
 RANK = int(os.getenv("RANK", "0"))
@@ -68,13 +69,24 @@ def initialize_torch_distributed():
 
         if not torch.distributed.is_initialized():
             # Call the init process.
-            torch.distributed.init_process_group(
-                backend=backend,
-                world_size=WORLD_SIZE,
-                rank=RANK,
-                timeout=timedelta(seconds=60),
-                pg_options=options,
-            )
+            if SYSTEM == "ipex":
+                import intel_extension_for_pytorch as ipex
+
+                ipex.distributed.init_process_group(
+                    backend="ccl",
+                    world_size=WORLD_SIZE,
+                    rank=RANK,
+                    timeout=timedelta(seconds=60),
+                    pg_options=options,
+                )
+            else:
+                torch.distributed.init_process_group(
+                    backend=backend,
+                    world_size=WORLD_SIZE,
+                    rank=RANK,
+                    timeout=timedelta(seconds=60),
+                    pg_options=options,
+                )
         else:
             logger.warning("torch.distributed is already initialized.")
 
