@@ -24,7 +24,7 @@ futures = "0.3.28"
 hf-hub = { workspace = true }
 itertools = "0.10"
 jsonschema = { version = "0.17.1", features = ["draft202012"] }
-metrics = "0.21.1"
+metrics = "0.23.0"
 metrics-exporter-prometheus = { version = "0.15.1", features = [] }
 nohash-hasher = "0.2.0"
 opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }

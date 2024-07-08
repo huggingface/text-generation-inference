@@ -157,7 +157,7 @@ impl Validation {
                 ));
             }
 
-            metrics::histogram!("tgi_request_input_length", input_length as f64);
+            metrics::histogram!("tgi_request_input_length").record(input_length as f64);
             Ok((inputs, input_length, max_new_tokens))
         }
         // Return inputs without validation
@@ -384,7 +384,7 @@ impl Validation {
             ignore_eos_token: false,
         };
 
-        metrics::histogram!("tgi_request_max_new_tokens", max_new_tokens as f64);
+        metrics::histogram!("tgi_request_max_new_tokens").record(max_new_tokens as f64);
 
         Ok(ValidGenerateRequest {
             inputs,
