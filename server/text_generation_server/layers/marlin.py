@@ -229,7 +229,6 @@ class GPTQMarlinLinear(nn.Module):
         return C
 
 
-
 GPTQ_MARLIN_24_MIN_THREAD_N = 128
 GPTQ_MARLIN_24_MIN_THREAD_K = 128
 GPTQ_MARLIN_24_MAX_PARALLEL = 64
