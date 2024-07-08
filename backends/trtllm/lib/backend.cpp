@@ -1,11 +1,12 @@
 #include <fmt/std.h>
+#include <nvml.h>
 #include <spdlog/spdlog.h>
 
 #include "backend.h"
 
 void huggingface::tgi::backends::InitializeBackend() {
     SPDLOG_INFO("Initializing Backend...");
-
+    nvmlInit_v2();
     initTrtLlmPlugins();
 }
 
@@ -13,7 +14,15 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
     tle::ExecutorConfig execConfig(1);
 
     // TODO : Need to check for >= sm_80 (ampere)
-    // execConfig.setEnableChunkedContext(true)
+    nvmlDevice_t device;
+    int32_t cudaComputeCapabilitiesMajor, cudaComputeCapabilitiesMinor;
+
+    if(nvmlDeviceGetHandleByIndex_v2(0, &device) == NVML_SUCCESS) {
+        if(nvmlDeviceGetCudaComputeCapability(device, &cudaComputeCapabilitiesMajor, &cudaComputeCapabilitiesMinor) == NVML_SUCCESS) {
+            SPDLOG_INFO(FMT_STRING("Detected sm_{:d}{:d} compute capabilities"), cudaComputeCapabilitiesMajor, cudaComputeCapabilitiesMinor);
+            execConfig.setEnableChunkedContext(cudaComputeCapabilitiesMajor >= 8);
+        }
+    }
     execConfig.setKvCacheConfig(tle::KvCacheConfig(true));
 
     if(config["/pretrained_config/mapping/world_size"_json_pointer].get<uint8_t>() == 1){
@@ -65,7 +74,7 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         std::optional<uint32_t> nTopTokens
 ) {
     spdlog::debug(
-            "Submitting inference over {:d} tokens to the executor {:d}",
+            FMT_STRING("Submitting inference over {:d} tokens to the executor {:d}"),
             tokens.size(),
             executor.getLatestIterationStats().back().numActiveRequests
     );
@@ -92,7 +101,7 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
 }
 
 std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::Poll(const tle::IdType reqId) {
-    SPDLOG_DEBUG("Polling request {:d}", reqId);
+    SPDLOG_DEBUG(FMT_STRING("Polling request {:d}"), reqId);
     const auto responses = executor.awaitResponses(reqId);
     return responses;
 }
