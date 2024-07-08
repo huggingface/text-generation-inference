@@ -1,6 +1,8 @@
 import subprocess
 import argparse
 import ast
+import json
+import os
 
 TEMPLATE = """
 # Supported Models and Hardware
@@ -122,6 +124,53 @@ def check_supported_models(check: bool):
             f.write(final_doc)
 
 
+def get_openapi_schema():
+    try:
+        output = subprocess.check_output(["text-generation-router", "print-schema"])
+        return json.loads(output)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running text-generation-router print-schema: {e}")
+        raise SystemExit(1)
+    except json.JSONDecodeError:
+        print("Error: Invalid JSON received from text-generation-router print-schema")
+        raise SystemExit(1)
+
+
+def check_openapi(check: bool):
+    new_openapi_data = get_openapi_schema()
+    filename = "docs/openapi.json"
+    tmp_filename = "openapi_tmp.json"
+
+    with open(tmp_filename, "w") as f:
+        json.dump(new_openapi_data, f, indent=2)
+
+    if check:
+        diff = subprocess.run(
+            [
+                "diff",
+                # allow for trailing whitespace since it's not significant
+                # and the precommit hook will remove it
+                "--ignore-trailing-space",
+                tmp_filename,
+                filename,
+            ],
+            capture_output=True,
+        ).stdout.decode()
+        os.remove(tmp_filename)
+
+        if diff:
+            print(diff)
+            raise Exception(
+                "OpenAPI documentation is not up-to-date, run `python update_doc.py` in order to update it"
+            )
+
+        return True
+    else:
+        os.rename(tmp_filename, filename)
+        print("OpenAPI documentation updated.")
+        return True
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
@@ -130,6 +179,7 @@ def main():
 
     check_cli(args.check)
     check_supported_models(args.check)
+    check_openapi(args.check)
 
 
 if __name__ == "__main__":

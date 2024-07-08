@@ -102,7 +102,7 @@ class Gemma2Config(PretrainedConfig):
 
 class Gemma2FastRMSNorm(FastRMSNorm):
     @classmethod
-    def load(cls, prefix, weights, eps=1e-6):
+    def load(cls, prefix: str, weights, eps=1e-6):
         dtype = weights.dtype
         weights.dtype = torch.float32
         weight = weights.get_tensor(f"{prefix}.weight") + 1
@@ -123,7 +123,7 @@ class Gemma2FastRMSNorm(FastRMSNorm):
         return hidden_states.to(self.dtype), residual
 
 
-def load_attention(config, prefix, weights):
+def load_attention(config, prefix: str, weights):
     if config.num_attention_heads != config.num_key_value_heads:
         return _load_gqa(config, prefix, weights)
     else:
@@ -305,7 +305,7 @@ class Gemma2MLP(nn.Module):
 
 
 class FlashGemma2Layer(nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool, is_sliding: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool, is_sliding: bool):
         super().__init__()
         self.self_attn = FlashGemma2Attention(
             prefix=f"{prefix}.self_attn",
@@ -376,7 +376,7 @@ class FlashGemma2Layer(nn.Module):
 
 
 class FlashGemma2Model(torch.nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool):
         super().__init__()
 
         process_group = weights.process_group
@@ -442,7 +442,7 @@ class FlashGemma2Model(torch.nn.Module):
 
 
 class FlashGemma2ForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, *, causal: bool = True):
         super().__init__()
 
         embed_norm = config.hidden_size**0.5

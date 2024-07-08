@@ -10,7 +10,12 @@ import numpy as np
 from loguru import logger
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import PreTrainedTokenizerBase
+from transformers import (
+    PreTrainedTokenizerBase,
+    AutoConfig,
+    AutoTokenizer,
+    GenerationConfig,
+)
 from typing import Iterable, Optional, Tuple, List, Type, Dict
 
 from text_generation_server.adapters import AdapterBatchData, AdapterBatchMetadata
@@ -21,6 +26,12 @@ from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.dist import RANK
 from text_generation_server.utils.speculate import get_speculate
+from text_generation_server.utils import (
+    initialize_torch_distributed,
+    weight_files,
+    Weights,
+    hub,
+)
 from text_generation_server.models.types import (
     Batch,
     Tokens,
@@ -798,29 +809,120 @@ class FlashCausalLMBatch(Batch):
         return len(self.requests)
 
 
+ADAPTER_LAYERS = [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+]
+ROW_PARALLEL = {"o_proj", "down_proj", "lm_head"}
+
+
 class FlashCausalLM(Model):
     def __init__(
         self,
         model_id: str,
-        model: torch.nn.Module,
-        tokenizer: PreTrainedTokenizerBase,
-        num_layers: int,
-        num_kv_heads: int,
-        head_size: int,
-        dtype: torch.dtype,
-        device: torch.device,
-        rank: int = 0,
-        world_size: int = 1,
-        sliding_window: Optional[int] = None,
+        model_class,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
+        lora_adapter_ids: Optional[list] = [],
+        tokenizer_class: PreTrainedTokenizerBase = AutoTokenizer,
+        config_class: PreTrainedTokenizerBase = AutoConfig,
+        default_dtype=torch.float16,
+        aliases=None,
+        # Used for Santacoder override of config
+        num_kv_heads=None,
+        skip_special_tokens: bool = True,
     ):
-        self.num_layers = num_layers
-        self.num_kv_heads = num_kv_heads
-        self.head_size = head_size
+        self.process_group, rank, world_size = initialize_torch_distributed()
+        if torch.cuda.is_available():
+            device = torch.device(f"cuda:{rank}")
+            dtype = default_dtype if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = default_dtype if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                # Float16 doesn't exist on target.
+                dtype = torch.bfloat16 if dtype is None else dtype
+        else:
+            raise NotImplementedError(f"{model_class} is only available on GPU")
+
+        tokenizer = tokenizer_class.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id, revision=revision, trust_remote_code=trust_remote_code
+            )
+            if isinstance(generation_config.eos_token_id, (list, set)):
+                # TODO Huge hack
+                tokenizer._eos_token_ids = set(generation_config.eos_token_id)
+        except Exception:
+            pass
+
+        config = config_class.from_pretrained(
+            model_id, revision=revision, trust_remote_code=trust_remote_code
+        )
+        config.quantize = quantize
+        config.speculator = speculator
+
+        torch.distributed.barrier(group=self.process_group)
+
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        weights = Weights(
+            filenames, device, dtype, process_group=self.process_group, aliases=aliases
+        )
+        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
+            weights._set_gptq_params(model_id, revision)
+
+        prefix = ""
+        model = model_class(prefix, config, weights)
+        torch.distributed.barrier(group=self.process_group)
+
+        # VLM models define the config we care about in their text_config
+        text_config = getattr(config, "text_config", None)
+        if text_config is not None:
+            config = text_config
+
+        if getattr(config, "sliding_window", None) is not None:
+            set_sliding_window(config.sliding_window)
+        else:
+            config.sliding_window = None
+
+        self.num_layers = config.num_hidden_layers
+        # Validation is done in the model itself
+        if num_kv_heads is None:
+            # Order is important here.
+            for attr in ["num_key_value_heads", "num_attention_heads", "n_head"]:
+                num_kv_heads = getattr(config, attr, None)
+                if num_kv_heads is not None:
+                    break
+            if num_kv_heads is None:
+                raise ValueError("Cannot get the number of key/value heads")
+        self.num_kv_heads = (
+            num_kv_heads // self.process_group.size()
+            if num_kv_heads > 1
+            else num_kv_heads
+        )
+        assert self.num_kv_heads > 0
+        self.head_size = config.hidden_size // config.num_attention_heads
 
         self.cuda_graphs = {}
         self.kv_cache = []
 
-        super(FlashCausalLM, self).__init__(
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,
@@ -829,7 +931,7 @@ class FlashCausalLM(Model):
             device=device,
             rank=rank,
             world_size=world_size,
-            sliding_window=sliding_window,
+            sliding_window=config.sliding_window,
         )
 
     @property
@@ -1577,3 +1679,72 @@ class FlashCausalLM(Model):
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)
+
+    @property
+    def supports_adapter_loading(self) -> bool:
+        return True
+
+    def adapter_target_to_layer(self) -> Dict[str, Tuple[str, torch.Tensor]]:
+        layer_weights = {}
+
+        prefix = "model.layers"
+
+        # This accounts for VLMs (e.g. LlavaNext, Idefics2)
+        # that have a language_model inside of the larger model.
+        if hasattr(self.model, "language_model"):
+            _model = self.model.language_model
+        elif hasattr(self.model, "text_model"):
+            _model = self.model.text_model
+        else:
+            _model = self.model
+
+        for i, layer in enumerate(_model.model.layers):
+            layer_weights[(i, "q_proj")] = (
+                f"{prefix}.{i}.self_attn.q_proj",
+                layer.self_attn.query_key_value,
+            )
+            layer_weights[(i, "k_proj")] = (
+                f"{prefix}.{i}.self_attn.k_proj",
+                layer.self_attn.query_key_value,
+            )
+            layer_weights[(i, "v_proj")] = (
+                f"{prefix}.{i}.self_attn.v_proj",
+                layer.self_attn.query_key_value,
+            )
+            layer_weights[(i, "o_proj")] = (
+                f"{prefix}.{i}.self_attn.o_proj",
+                layer.self_attn.o_proj,
+            )
+
+            # TODO: this is a hack to avoid the gate_proj for
+            # FlashStarcoder2 that doesnt have these layers
+            if hasattr(layer, "mlp") and hasattr(layer.mlp, "gate_up_proj"):
+                layer_weights[(i, "gate_proj")] = (
+                    f"{prefix}.{i}.mlp.gate_proj",
+                    layer.mlp.gate_up_proj,
+                )
+                layer_weights[(i, "up_proj")] = (
+                    f"{prefix}.{i}.mlp.up_proj",
+                    layer.mlp.gate_up_proj,
+                )
+                layer_weights[(i, "down_proj")] = (
+                    f"{prefix}.{i}.mlp.down_proj",
+                    layer.mlp.down_proj,
+                )
+
+        layer_weights[(0, "lm_head")] = ("lm_head", _model.lm_head)
+        return layer_weights
+
+    @property
+    def adapter_layers(self) -> List[str]:
+        return ADAPTER_LAYERS
+
+    @property
+    def default_traced_adapter_layers(self) -> List[str]:
+        return ["q_proj", "v_proj"]
+
+    def get_num_layers_for_type(self, layer_type: str) -> int:
+        return 1 if layer_type == "lm_head" else len(self.model.model.layers)
+
+    def is_row_parallel(self, layer_type: str) -> bool:
+        return layer_type in ROW_PARALLEL

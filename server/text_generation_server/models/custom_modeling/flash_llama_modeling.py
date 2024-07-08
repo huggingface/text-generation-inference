@@ -54,7 +54,7 @@ if SYSTEM == "rocm":
         raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
 
-def load_attention(config, prefix, weights, layer_id):
+def load_attention(config, prefix: str, weights, layer_id):
     # Only defined in granite.
     bias = getattr(config, "attention_bias", False)
     head_size = config.hidden_size // config.num_attention_heads
@@ -467,7 +467,7 @@ class FlashLlamaModel(torch.nn.Module):
 
 
 class FlashLlamaForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(

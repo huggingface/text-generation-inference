@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 4321,
+        "logprob": -9.7890625,
+        "text": "Test"
+      },
+      {
+        "id": 2009,
+        "logprob": -9.625,
+        "text": "request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 29899,
+        "logprob": -1.4980469,
+        "special": false,
+        "text": "-"
+      },
+      {
+        "id": 1454,
+        "logprob": -0.19433594,
+        "special": false,
+        "text": "for"
+      },
+      {
+        "id": 29899,
+        "logprob": 0.0,
+        "special": false,
+        "text": "-"
+      },
+      {
+        "id": 9342,
+        "logprob": 0.0,
+        "special": false,
+        "text": "comment"
+      },
+      {
+        "id": 29901,
+        "logprob": 0.0,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 396,
+        "logprob": -0.27392578,
+        "special": false,
+        "text": " #"
+      },
+      {
+        "id": 29906,
+        "logprob": -0.49389648,
+        "special": false,
+        "text": "2"
+      },
+      {
+        "id": 29900,
+        "logprob": -0.81103516,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 29896,
+        "logprob": 0.0,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 29955,
+        "logprob": -1.0800781,
+        "special": false,
+        "text": "7"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request-for-comment: #2017"
+}
