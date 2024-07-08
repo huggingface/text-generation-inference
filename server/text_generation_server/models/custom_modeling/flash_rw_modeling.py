@@ -42,6 +42,7 @@ class RWConfig(PretrainedConfig):
     attribute_map = {
         "num_hidden_layers": "n_layer",
         "num_attention_heads": "n_head",
+        "num_key_value_heads": "n_head_kv",
     }
 
     def __init__(
