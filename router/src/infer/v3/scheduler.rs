@@ -154,8 +154,8 @@ pub(crate) async fn batching_task(
                 let batch_size = batch.size;
                 let batch_max_tokens = batch.max_tokens;
                 let mut batches = vec![batch];
-                metrics::gauge!("tgi_batch_current_size", batch_size as f64);
-                metrics::gauge!("tgi_batch_current_max_tokens", batch_max_tokens as f64);
+                metrics::gauge!("tgi_batch_current_size").set(batch_size as f64);
+                metrics::gauge!("tgi_batch_current_max_tokens").set(batch_max_tokens as f64);
 
                 let min_size = if waiting_tokens >= max_waiting_tokens {
                     // If we didn't onboard any new requests since >= max_waiting_tokens, we try
@@ -176,9 +176,11 @@ pub(crate) async fn batching_task(
                 {
                     // Tracking metrics
                     if min_size.is_some() {
-                        metrics::increment_counter!("tgi_batch_concat", "reason" => "backpressure");
+                        metrics::counter!("tgi_batch_concat", "reason" => "backpressure")
+                            .increment(1);
                     } else {
-                        metrics::increment_counter!("tgi_batch_concat", "reason" => "wait_exceeded");
+                        metrics::counter!("tgi_batch_concat", "reason" => "wait_exceeded")
+                            .increment(1);
                     }
 
                     entries.iter_mut().for_each(|(_, entry)| {
@@ -225,8 +227,8 @@ pub(crate) async fn batching_task(
                     .await;
                 waiting_tokens += 1;
             }
-            metrics::gauge!("tgi_batch_current_size", 0.0);
-            metrics::gauge!("tgi_batch_current_max_tokens", 0.0);
+            metrics::gauge!("tgi_batch_current_size").set(0.0);
+            metrics::gauge!("tgi_batch_current_max_tokens").set(0.0);
         }
     }
 }
@@ -240,7 +242,7 @@ async fn prefill(
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
-    metrics::increment_counter!("tgi_batch_inference_count", "method" => "prefill");
+    metrics::counter!("tgi_batch_inference_count", "method" => "prefill").increment(1);
 
     match client.prefill(batch).await {
         Ok((generations, next_batch, timings)) => {
@@ -254,11 +256,15 @@ async fn prefill(
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
 
-            metrics::histogram!("tgi_batch_forward_duration", timings.forward.as_secs_f64(), "method" => "prefill");
-            metrics::histogram!("tgi_batch_decode_duration", timings.decode.as_secs_f64(), "method" => "prefill");
-            metrics::histogram!("tgi_batch_filter_duration", start_filtering_time.elapsed().as_secs_f64(), "method" => "prefill");
-            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "prefill");
-            metrics::increment_counter!("tgi_batch_inference_success", "method" => "prefill");
+            metrics::histogram!("tgi_batch_forward_duration","method" => "prefill")
+                .record(timings.forward.as_secs_f64());
+            metrics::histogram!("tgi_batch_decode_duration", "method" => "prefill")
+                .record(timings.decode.as_secs_f64());
+            metrics::histogram!("tgi_batch_filter_duration", "method" => "prefill")
+                .record(start_filtering_time.elapsed().as_secs_f64());
+            metrics::histogram!("tgi_batch_inference_duration", "method" => "prefill")
+                .record(start_time.elapsed().as_secs_f64());
+            metrics::counter!("tgi_batch_inference_success", "method" => "prefill").increment(1);
             next_batch
         }
         // If we have an error, we discard the whole batch
@@ -267,7 +273,7 @@ async fn prefill(
             generation_health.store(false, Ordering::SeqCst);
             let _ = client.clear_cache(Some(batch_id)).await;
             send_errors(err, entries);
-            metrics::increment_counter!("tgi_batch_inference_failure", "method" => "prefill");
+            metrics::counter!("tgi_batch_inference_failure", "method" => "prefill").increment(1);
             None
         }
     }
@@ -282,7 +288,7 @@ async fn decode(
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
-    metrics::increment_counter!("tgi_batch_inference_count", "method" => "decode");
+    metrics::counter!("tgi_batch_inference_count", "method" => "decode").increment(1);
 
     match client.decode(batches).await {
         Ok((generations, next_batch, timings)) => {
@@ -297,13 +303,18 @@ async fn decode(
             let next_batch = filter_batch(client, next_batch, entries).await;
 
             if let Some(concat_duration) = timings.concat {
-                metrics::histogram!("tgi_batch_concat_duration", concat_duration.as_secs_f64(), "method" => "decode");
+                metrics::histogram!("tgi_batch_concat_duration", "method" => "decode")
+                    .record(concat_duration.as_secs_f64());
             }
-            metrics::histogram!("tgi_batch_forward_duration", timings.forward.as_secs_f64(), "method" => "decode");
-            metrics::histogram!("tgi_batch_decode_duration", timings.decode.as_secs_f64(), "method" => "decode");
-            metrics::histogram!("tgi_batch_filter_duration", start_filtering_time.elapsed().as_secs_f64(), "method" => "decode");
-            metrics::histogram!("tgi_batch_inference_duration", start_time.elapsed().as_secs_f64(), "method" => "decode");
-            metrics::increment_counter!("tgi_batch_inference_success", "method" => "decode");
+            metrics::histogram!("tgi_batch_forward_duration", "method" => "decode")
+                .record(timings.forward.as_secs_f64());
+            metrics::histogram!("tgi_batch_decode_duration", "method" => "decode")
+                .record(timings.decode.as_secs_f64());
+            metrics::histogram!("tgi_batch_filter_duration", "method" => "decode")
+                .record(start_filtering_time.elapsed().as_secs_f64());
+            metrics::histogram!("tgi_batch_inference_duration", "method" => "decode")
+                .record(start_time.elapsed().as_secs_f64());
+            metrics::counter!("tgi_batch_inference_success", "method" => "decode").increment(1);
             next_batch
         }
         // If we have an error, we discard the whole batch
@@ -313,7 +324,7 @@ async fn decode(
                 let _ = client.clear_cache(Some(id)).await;
             }
             send_errors(err, entries);
-            metrics::increment_counter!("tgi_batch_inference_failure", "method" => "decode");
+            metrics::counter!("tgi_batch_inference_failure", "method" => "decode").increment(1);
             None
         }
     }
@@ -371,7 +382,7 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
         // request and we need to stop generating hence why we unwrap_or(true)
         let stopped = send_responses(generation, entry).map_err(|err| {
             tracing::error!("Entry response channel error.");
-            metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+            metrics::counter!("tgi_request_failure", "err" => "dropped").increment(1);
             err
         }).unwrap_or(true);
         if stopped {
@@ -387,7 +398,7 @@ fn send_responses(
 ) -> Result<bool, Box<SendError<Result<InferStreamResponse, InferError>>>> {
     // Return directly if the channel is disconnected
     if entry.response_tx.is_closed() {
-        metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+        metrics::counter!("tgi_request_failure", "err" => "dropped").increment(1);
         return Ok(true);
     }
 
@@ -413,7 +424,7 @@ fn send_responses(
     // Create last Token
     let tokens_ = generation.tokens.expect("Non empty tokens in generation");
     let n = tokens_.ids.len();
-    metrics::histogram!("tgi_request_skipped_tokens", (n - 1) as f64);
+    metrics::histogram!("tgi_request_skipped_tokens").record((n - 1) as f64);
     let mut iterator = tokens_
         .ids
         .into_iter()
@@ -478,7 +489,7 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
         // Create and enter a span to link this function back to the entry
         let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
         let err = InferError::GenerationError(error.to_string());
-        metrics::increment_counter!("tgi_request_failure", "err" => "generation");
+        metrics::counter!("tgi_request_failure", "err" => "generation").increment(1);
         tracing::error!("{err}");
 
         // unwrap_or is valid here as we don't care if the receiver is gone.
