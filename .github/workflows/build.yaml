@@ -21,6 +21,7 @@ jobs:
   build-and-push:
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
+      base_docker_image: ${{ steps.final.outputs.base_docker_image }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
       docker_volume: ${{ steps.final.outputs.docker_volume}}
       runs_on: ${{ steps.final.outputs.runs_on }}
@@ -153,6 +154,19 @@ jobs:
 
           if [[ ${{ inputs.hardware }} == "rocm" ]]
           then
+            echo "base_docker_image=rocm/dev-ubuntu-22.04:6.1.1_hip_update" >> "$GITHUB_OUTPUT"
+          elif [[ ${{ inputs.hardware }} == "cuda" ]]
+          then
+            echo "base_docker_image=nvidia/cuda:12.1.0-base-ubuntu22.04" >> "$GITHUB_OUTPUT"
+          elif [[ ${{ inputs.hardware }} == "xpu" ]]
+          then
+            echo "base_docker_image=intel/intel-extension-for-pytorch:2.1.30-xpu" >> "$GITHUB_OUTPUT"
+          else
+            exit 1
+          fi
+
+          if [[ ${{ inputs.hardware }} == "rocm" ]]
+          then
             echo "docker_volume=/data/cache/.cache/huggingface/hub" >> "$GITHUB_OUTPUT"
           else
             echo "docker_volume=/mnt/cache" >> "$GITHUB_OUTPUT"
@@ -168,7 +182,7 @@ jobs:
     # Ideally, we would use the image from registry.internal.huggingface.tech but we can not login to the private registry outside of tailscale,
     # and even adding a previous job with tailscale login still results in `Docker login for 'registry.internal.huggingface.tech' failed with exit code 1`.
     container:
-      image: ${{ needs.build-and-push.outputs.docker_image }}
+      image: ${{ needs.build-and-push.outputs.base_docker_image }}
       options: --shm-size "16gb" --ipc host -v ${{ needs.build-and-push.outputs.docker_volume }}:/data
     steps:
       - name: Checkout repository
