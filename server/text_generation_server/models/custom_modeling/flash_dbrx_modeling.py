@@ -711,7 +711,7 @@ class FlashDbrxForCausalLM(torch.nn.Module):
         else:
             prefix = f"{prefix}.transformer"
 
-        self.model = DbrxModel(config, weights)
+        self.model = DbrxModel(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
             config,
             prefix="lm_head",
