@@ -252,66 +252,6 @@ class GPTQMarlinLinear(nn.Module):
         return C
 
 
-class FP8MarlinLinear(nn.Module):
-    """
-    Linear layer for GPTQ weights that were converted for the GPTQ-Marlin
-    kernels.
-    """
-
-    def __init__(
-        self,
-        *,
-        weight: GPTQMarlinWeight,
-        bias: Optional[torch.Tensor],
-    ):
-        super().__init__()
-
-        _check_marlin_kernels()
-        assert marlin_kernels is not None
-
-        self.in_features = weight.qweight.shape[0] * MARLIN_TILE_SIZE
-        self.out_features = weight.scales.shape[1]
-        _check_valid_shape(in_features=self.in_features, out_features=self.out_features)
-
-        self.bits = weight.bits
-        self.is_full_k = weight.is_full_k
-
-        self.qweight = pack_fp8_to_int32(weight.qweight)
-        self.scales = weight.scales
-        self.g_idx = weight.g_idx
-        self.perm = weight.perm
-        if bias is not None:
-            self.bias = bias
-        else:
-            self.bias = None
-
-        self.workspace = torch.zeros(
-            out_features // 64 * 16, dtype=torch.int, device=weight.qweight.device
-        )
-
-    def forward(self, A: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
-
-        reshaped_a = A.reshape(-1, A.shape[-1])
-        out_shape = A.shape[:-1] + (self.out_features, )
-
-        output = marlin_kernels.fp8_marlin_gemm(
-            a=reshaped_a,
-            b_q_weight=self.qweight,
-            b_scales=self.scales,
-            workspace=self.workspace,
-            num_bits=8,
-            size_m=reshaped_a.shape[0],
-            size_n=self.out_features,
-            size_k=self.in_features,
-        )
-
-        if bias is not None:
-            output.add_(bias)  # In-place add
-
-        return output.reshape(out_shape)
-
-
 
 GPTQ_MARLIN_24_MIN_THREAD_N = 128
 GPTQ_MARLIN_24_MIN_THREAD_K = 128

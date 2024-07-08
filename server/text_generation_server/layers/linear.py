@@ -251,9 +251,6 @@ def get_linear(weight, bias, quantize):
             raise NotImplementedError(
                 f"The passed weight is not `marlin` compatible, loader needs to be updated."
             )
-    elif quantize == "fp8-marlin":
-        from text_generation_server.layers.marlin import FP8MarlinLinear
-        linear = FP8MarlinLinear(weight, bias)
     else:
         raise NotImplementedError(f"Quantization `{quantize}` is not implemented yet.")
     return linear
