@@ -66,6 +66,7 @@ enum Quantization {
     Gptq,
     /// 4 bit quantization. Requires a specific Marlin quantized model: <https://hf.co/models?search=marlin>.
     Marlin,
+    FP8marlin,
     /// Bitsandbytes 8bit. Can be applied on any model, will cut the memory requirement in half,
     /// but it is known that the model will be much slower to run than the native f16.
     #[deprecated(
@@ -109,6 +110,9 @@ impl std::fmt::Display for Quantization {
             }
             Quantization::Marlin => {
                 write!(f, "marlin")
+            }
+            Quantization::FP8marlin => {
+                write!(f,"fp8-marlin")
             }
             Quantization::Awq => {
                 write!(f, "awq")
