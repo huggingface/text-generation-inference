@@ -492,12 +492,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Completion"
+                  "$ref": "#/components/schemas/CompletionFinal"
                 }
               },
               "text/event-stream": {
                 "schema": {
-                  "$ref": "#/components/schemas/CompletionCompleteChunk"
+                  "$ref": "#/components/schemas/Chunk"
                 }
               }
             }
@@ -1324,6 +1324,17 @@
           }
         }
       },
+      "FunctionName": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "GenerateParameters": {
         "type": "object",
         "properties": {
@@ -1476,8 +1487,7 @@
             "default": "null",
             "example": 0.95,
             "nullable": true,
-            "maximum": 1,
-            "exclusiveMinimum": 0
+            "maximum": 1
           },
           "watermark": {
             "type": "boolean",
@@ -1764,6 +1774,16 @@
           }
         ]
       },
+      "OutputMessage": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TextMessage"
+          },
+          {
+            "$ref": "#/components/schemas/ToolCallMessage"
+          }
+        ]
+      },
       "PrefillToken": {
         "type": "object",
         "required": [
@@ -1890,6 +1910,23 @@
           }
         }
       },
+      "TextMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "My name is David and I"
+          },
+          "role": {
+            "type": "string",
+            "example": "user"
+          }
+        }
+      },
       "Token": {
         "type": "object",
         "required": [
@@ -1962,6 +1999,41 @@
           }
         }
       },
+      "ToolCallDelta": {
+        "type": "object",
+        "required": [
+          "role",
+          "tool_calls"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "example": "assistant"
+          },
+          "tool_calls": {
+            "$ref": "#/components/schemas/DeltaToolCall"
+          }
+        }
+      },
+      "ToolCallMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "tool_calls"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "example": "assistant"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            }
+          }
+        }
+      },
       "ToolType": {
         "oneOf": [
           {
@@ -1984,6 +2056,17 @@
             }
           }
         ]
+      },
+      "Url": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
       },
       "Usage": {
         "type": "object",
