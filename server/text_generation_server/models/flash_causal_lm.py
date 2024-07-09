@@ -50,6 +50,7 @@ from text_generation_server.models.globals import (
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
+from text_generation_server.utils.quantization import get_loader
 from text_generation_server.utils.segments import SegmentConcatBuilder, find_segments
 
 from text_generation_server.utils.import_utils import (
@@ -881,12 +882,16 @@ class FlashCausalLM(Model):
 
         torch.distributed.barrier(group=self.process_group)
 
+        weights_loader = get_loader(quantize, model_id, revision)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(
-            filenames, device, dtype, process_group=self.process_group, aliases=aliases
+            filenames,
+            device,
+            dtype,
+            process_group=self.process_group,
+            aliases=aliases,
+            weights_loader=weights_loader,
         )
-        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
-            weights._set_gptq_params(model_id, revision)
 
         prefix = ""
         model = model_class(prefix, config, weights)

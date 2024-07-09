@@ -16,6 +16,8 @@ from text_generation_server.layers.gptq.quant_linear import QuantLinear
 from loguru import logger
 from typing import Optional
 
+from text_generation_server.utils.weights import DefaultWeightsLoader
+
 DEV = torch.device("cuda:0")
 
 
@@ -891,6 +893,7 @@ def quantize(
         dtype=torch.float16,
         process_group=process_group,
         aliases={"embed_tokens.weight": ["lm_head.weight"]},
+        weights_loader=DefaultWeightsLoader(),
     )
     hooks = []
     for name, module in model.named_modules():

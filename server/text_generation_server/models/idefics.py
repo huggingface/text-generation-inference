@@ -23,6 +23,7 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
+from text_generation_server.utils.quantization import get_loader
 
 
 class IDEFICSSharded(IdeficsCausalLM):
@@ -70,6 +71,9 @@ class IDEFICSSharded(IdeficsCausalLM):
             trust_remote_code=trust_remote_code,
         )
 
+        weights_loader = get_loader(
+            quantize=quantize, model_id=model_id, revision=revision
+        )
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(
@@ -77,6 +81,7 @@ class IDEFICSSharded(IdeficsCausalLM):
             device=device,
             dtype=dtype,
             process_group=self.process_group,
+            weights_loader=weights_loader,
         )
 
         model = IdeficsForVisionText2Text(config, weights)
