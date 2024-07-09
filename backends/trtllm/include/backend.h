@@ -20,6 +20,8 @@ namespace tle = tensorrt_llm::executor;
 
 namespace huggingface::tgi::backends {
 
+    using TokenStreamingCallback = void(tle::TokenIdType);
+
     /**
      * Initialize all the components required by TRTLLM.
      * It is required to call this function before attempting to load any engine
@@ -28,9 +30,8 @@ namespace huggingface::tgi::backends {
 
     /**
      *
-     * @param config
-     * @param workerPath
-     * @param channel
+     * @param config TensorRT-LLM configuration object
+     * @param workerPath Path to the "executorWorker" provided by TensorRT-LLM when using orchestrator mode
      * @return
      */
     tle::ExecutorConfig GetExecutorConfig(const json &config, const std::string &workerPath);
@@ -58,7 +59,7 @@ namespace huggingface::tgi::backends {
         }
 
         /***
-         *
+         * Submit a new generation task to the executor
          * @param tokens
          * @param maxNewTokens
          * @param topK
@@ -69,7 +70,7 @@ namespace huggingface::tgi::backends {
          * @param frequencyPenalty
          * @param seed
          * @param nTopTokens
-         * @return
+         * @return Request id related to this generation for reference
          */
         [[nodiscard]] tle::IdType Submit(
                 const std::vector<tle::TokenIdType> &tokens,
@@ -85,11 +86,13 @@ namespace huggingface::tgi::backends {
         );
 
         /***
-         *
-         * @param reqId
-         * @return
+         * Unroll the token generation until end of stream is reached.
+         * Every generated token is streamed back through the provided callback for further processing
+         * @param reqId The request id to unroll
+         * @param cb The callback to stream token back
+         * @return Global number of generated tokens for this request id
          */
-        std::vector<tle::Response> Poll(tle::IdType reqId);
+        size_t Stream(tle::IdType reqId, const std::function<TokenStreamingCallback>& cb);
     };
 }
 
