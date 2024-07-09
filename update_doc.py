@@ -177,7 +177,9 @@ def check_openapi(check: bool):
         ],
         capture_output=True,
     ).stderr.decode("utf-8")
-    if errors:
+    # The openapi specs fails on `exclusive_minimum` which is expected to be a boolean where
+    # utoipa outputs a value instead: https://github.com/juhaku/utoipa/issues/969
+    if not errors.startswith("Swagger schema validation failed."):
         print(errors)
         raise Exception(
             f"OpenAPI documentation is invalid, `swagger-cli validate` showed some error:\n {errors}"

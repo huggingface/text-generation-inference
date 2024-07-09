@@ -62,7 +62,9 @@ Options:
           Possible values:
           - awq:              4 bit quantization. Requires a specific AWQ quantized model: <https://hf.co/models?search=awq>. Should replace GPTQ models wherever possible because of the better latency
           - eetq:             8 bit quantization, doesn't require specific model. Should be a drop-in replacement to bitsandbytes with much better performance. Kernels are from <https://github.com/NetEase-FuXi/EETQ.git>
+          - exl2:             Variable bit quantization. Requires a specific EXL2 quantized model: <https://hf.co/models?search=exl2>. Requires exllama2 kernels and does not support tensor parallelism (num_shard > 1)
           - gptq:             4 bit quantization. Requires a specific GTPQ quantized model: <https://hf.co/models?search=gptq>. text-generation-inference will use exllama (faster) kernels wherever possible, and use triton kernel (wider support) when it's not. AWQ has faster kernels
+          - marlin:           4 bit quantization. Requires a specific Marlin quantized model: <https://hf.co/models?search=marlin>
           - bitsandbytes:     Bitsandbytes 8bit. Can be applied on any model, will cut the memory requirement in half, but it is known that the model will be much slower to run than the native f16
           - bitsandbytes-nf4: Bitsandbytes 4bit. Can be applied on any model, will cut the memory requirement by 4x, but it is known that the model will be much slower to run than the native f16
           - bitsandbytes-fp4: Bitsandbytes 4bit. nf4 should be preferred in most cases but maybe this one has better perplexity performance for you model
@@ -124,7 +126,7 @@ Options:
 ## MAX_TOP_N_TOKENS
 ```shell
       --max-top-n-tokens <MAX_TOP_N_TOKENS>
-          This is the maximum allowed value for clients to set `top_n_tokens`. `top_n_tokens is used to return information about the the `n` most likely tokens at each generation step, instead of just the sampled token. This information can be used for downstream tasks like for classification or ranking
+          This is the maximum allowed value for clients to set `top_n_tokens`. `top_n_tokens` is used to return information about the the `n` most likely tokens at each generation step, instead of just the sampled token. This information can be used for downstream tasks like for classification or ranking
           
           [env: MAX_TOP_N_TOKENS=]
           [default: 5]
@@ -335,6 +337,13 @@ Options:
           [env: OTLP_ENDPOINT=]
 
 ```
+## OTLP_SERVICE_NAME
+```shell
+      --otlp-service-name <OTLP_SERVICE_NAME>
+          [env: OTLP_SERVICE_NAME=]
+          [default: text-generation-inference.router]
+
+```
 ## CORS_ALLOW_ORIGIN
 ```shell
       --cors-allow-origin <CORS_ALLOW_ORIGIN>
@@ -406,6 +415,14 @@ Options:
           
           [env: MAX_CLIENT_BATCH_SIZE=]
           [default: 4]
+
+```
+## LORA_ADAPTERS
+```shell
+      --lora-adapters <LORA_ADAPTERS>
+          Lora Adapters a list of adapter ids i.e. `repo/adapter1,repo/adapter2` to load during startup that will be available to callers via the `adapter_id` field in a request
+          
+          [env: LORA_ADAPTERS=]
 
 ```
 ## HELP
