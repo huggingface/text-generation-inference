@@ -28,7 +28,7 @@ jobs:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     # TODO see with @Glegendre to get CPU runner here instead
-    runs-on: [self-hosted, intel-cpu, 32-cpu, 256-ram, ci]
+    runs-on: aws-east1-intel-32-cpu-256-ram
     permissions:
       contents: write
       packages: write
@@ -103,7 +103,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
+            registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference
           tags: |
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
       # If main, release or tag
@@ -115,7 +115,7 @@ jobs:
           flavor: |
             latest=auto
           images: |
-            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
+            registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference
             ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
@@ -141,7 +141,7 @@ jobs:
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
