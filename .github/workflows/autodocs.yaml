@@ -41,5 +41,5 @@ jobs:
 
     - name: Check that documentation is up-to-date
       run: |
-        npm install -g swagger-ui
+        npm install -g swagger-cli
         python update_doc.py --check

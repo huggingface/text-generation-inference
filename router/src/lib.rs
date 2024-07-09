@@ -848,7 +848,7 @@ pub enum ToolType {
     Function { function: FunctionName },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct FunctionName {
     pub name: String,
 }
