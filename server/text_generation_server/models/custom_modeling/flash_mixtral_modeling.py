@@ -135,7 +135,6 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 

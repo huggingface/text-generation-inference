@@ -2,6 +2,7 @@ import torch
 from text_generation_server.layers import (
     TensorParallelEmbedding,
 )
+from text_generation_server.utils.weights import DefaultWeightsLoader
 
 
 class ProcessGroup:
@@ -42,7 +43,12 @@ class Weights:
 def test_weight_hub_files_offline_error():
 
     vocab_size = 17
-    weights = Weights(rank=0, world_size=1, vocab_size=vocab_size, hidden_dim=256)
+    weights = Weights(
+        rank=0,
+        world_size=1,
+        vocab_size=vocab_size,
+        hidden_dim=256,
+    )
     embeddings = TensorParallelEmbedding("", weights)
 
     input_ids = torch.arange(vocab_size)

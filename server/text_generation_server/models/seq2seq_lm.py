@@ -18,6 +18,7 @@ from text_generation_server.utils import (
     Weights,
 )
 from text_generation_server.utils.chunks import concat_text_chunks
+from text_generation_server.utils.quantization import get_loader
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models import Model
 from text_generation_server.models.types import (
@@ -586,6 +587,9 @@ class Seq2SeqLM(Model):
         )
         tokenizer.bos_token_id = config.decoder_start_token_id
 
+        weights_loader = get_loader(
+            quantize=quantize, model_id=model_id, revision=revision
+        )
         torch.distributed.barrier(group=self.process_group)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(
@@ -594,6 +598,7 @@ class Seq2SeqLM(Model):
             dtype=dtype,
             process_group=self.process_group,
             aliases=aliases,
+            weights_loader=weights_loader,
         )
         if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
             weights._set_gptq_params(model_id, revision)
