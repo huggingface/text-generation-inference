@@ -1487,7 +1487,8 @@
             "default": "null",
             "example": 0.95,
             "nullable": true,
-            "maximum": 1
+            "maximum": 1,
+            "exclusiveMinimum": 0
           },
           "watermark": {
             "type": "boolean",
