@@ -6,7 +6,7 @@ from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pathlib import Path
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
@@ -38,6 +38,7 @@ from text_generation_server.utils.adapter import (
     AdapterParameters,
     build_layer_weight_lookup,
     load_and_merge_adapters,
+    AdapterInfo,
 )
 from text_generation_server.adapters.lora import LoraWeights
 
@@ -1125,7 +1126,7 @@ def _get_model(
 # this provides a post model loading hook to load adapters into the model after the model has been loaded
 def get_model(
     model_id: str,
-    lora_adapter_ids: Optional[List[str]],
+    lora_adapters: Optional[List[AdapterInfo]],
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
@@ -1133,8 +1134,9 @@ def get_model(
     dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
-    adapter_to_index: dict[str, int],
+    adapter_to_index: Dict[str, int],
 ):
+    lora_adapter_ids = [adapter.id for adapter in lora_adapters]
     model = _get_model(
         model_id,
         lora_adapter_ids,
@@ -1147,14 +1149,14 @@ def get_model(
         max_input_tokens,
     )
 
-    if len(lora_adapter_ids) > 0:
+    if len(lora_adapters) > 0:
         target_to_layer = build_layer_weight_lookup(model.model)
 
-        for index, adapter_id in enumerate(lora_adapter_ids):
+        for index, adapter in enumerate(lora_adapters):
             # currenly we only load one adapter at a time but
             # this can be extended to merge multiple adapters
             adapter_parameters = AdapterParameters(
-                adapter_ids=[adapter_id],
+                adapter_info=[adapter],
                 weights=None,  #  will be set to 1
                 merge_strategy=0,
                 density=1.0,
@@ -1162,13 +1164,13 @@ def get_model(
             )
 
             adapter_index = index + 1
-            adapter_to_index[adapter_id] = adapter_index
+            adapter_to_index[adapter.id] = adapter_index
 
             if adapter_index in model.loaded_adapters:
                 continue
 
             logger.info(
-                f"Loading adapter weights into model: {','.join(adapter_parameters.adapter_ids)}"
+                f"Loading adapter weights into model: {','.join([adapter.id for adapter in adapter_parameters.adapter_info])}"
             )
             weight_names = tuple([v[0] for v in target_to_layer.values()])
             (

@@ -290,10 +290,6 @@ class BatchLoraWeights(BatchAdapterWeights):
         )
 
     @classmethod
-    def key(cls) -> str:
-        return "lora"
-
-    @classmethod
     def load(
         self,
         adapter_weights: Dict[int, AdapterWeights],

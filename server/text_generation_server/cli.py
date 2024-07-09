@@ -4,9 +4,10 @@ import typer
 
 from pathlib import Path
 from loguru import logger
-from typing import Optional
+from typing import Optional, List, Dict
 from enum import Enum
 from huggingface_hub import hf_hub_download
+from text_generation_server.utils.adapter import parse_lora_adapters
 
 from text_generation_server.utils.log import log_master
 
@@ -80,22 +81,16 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(otlp_service_name=otlp_service_name, otlp_endpoint=otlp_endpoint)
 
-    lora_adapter_ids = os.getenv("LORA_ADAPTERS", None)
+    lora_adapters = parse_lora_adapters(os.environ.get("LORA_ADAPTERS", None))
 
-    # split on comma and strip whitespace
-    lora_adapter_ids = (
-        [x.strip() for x in lora_adapter_ids.split(",")] if lora_adapter_ids else []
-    )
-
-    if len(lora_adapter_ids) > 0:
-        log_master(
-            logger.warning,
-            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected.",
+    if len(lora_adapters) > 0:
+        logger.warning(
+            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
         )
 
     # TODO: enable lora with cuda graphs. for now disable cuda graphs if lora is enabled
     # and warn the user
-    if len(lora_adapter_ids) > 0 and os.getenv("CUDA_GRAPHS", None) is not None:
+    if len(lora_adapters) > 0 and os.getenv("CUDA_GRAPHS", None) is not None:
         log_master(
             logger.warning,
             f"LoRa adapter are not supported with CUDA Graphs. Disabling CUDA Graphs.",
@@ -117,7 +112,7 @@ def serve(
         )
     server.serve(
         model_id,
-        lora_adapter_ids,
+        lora_adapters,
         revision,
         sharded,
         quantize,

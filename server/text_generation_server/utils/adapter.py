@@ -5,7 +5,7 @@
 import warnings
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import TYPE_CHECKING, Set, Tuple
+from typing import TYPE_CHECKING, Set, Tuple, Optional, List
 
 from safetensors.torch import load_file
 from transformers import AutoConfig, AutoTokenizer, PreTrainedTokenizer
@@ -24,8 +24,14 @@ BASE_MODEL_ADAPTER_ID = "__base_model__"
 
 
 @dataclass
+class AdapterInfo:
+    id: str
+    path: Optional[str]
+
+
+@dataclass
 class AdapterParameters:
-    adapter_ids: Tuple[str]
+    adapter_info: Tuple[AdapterInfo]
     weights: Tuple[float]
     merge_strategy: NotImplemented
     density: float
@@ -39,6 +45,22 @@ class AdapterSource:
     revision: str
 
 
+def parse_lora_adapters(lora_adapters: Optional[str]) -> List[AdapterInfo]:
+    if not lora_adapters:
+        return []
+
+    adapter_list = []
+    for adapter in lora_adapters.split(","):
+        parts = adapter.strip().split("=")
+        if len(parts) == 1:
+            adapter_list.append(AdapterInfo(id=parts[0], path=None))
+        elif len(parts) == 2:
+            adapter_list.append(AdapterInfo(id=parts[0], path=parts[1]))
+        else:
+            raise ValueError(f"Invalid LoRA adapter format: {adapter}")
+    return adapter_list
+
+
 def load_and_merge_adapters(
     model_id: str,
     adapter_parameters: AdapterParameters,
@@ -46,10 +68,13 @@ def load_and_merge_adapters(
     weight_names: Tuple[str],
     trust_remote_code: bool = False,
 ) -> Tuple["ModuleMap", "AdapterConfig", Set[str], PreTrainedTokenizer]:
-    if len(adapter_parameters.adapter_ids) == 1:
+
+    if len(adapter_parameters.adapter_info) == 1:
+        adapter_info = next(iter(adapter_parameters.adapter_info))
         return load_module_map(
             model_id,
-            adapter_parameters.adapter_ids[0],
+            adapter_info.id,
+            adapter_info.path,
             weight_names,
             trust_remote_code,
         )
@@ -79,14 +104,15 @@ def _load_and_merge(
     adapters_to_merge = []
     merged_weight_names = set()
     tokenizer = None
-    for adapter_id in params.adapter_ids:
-        if adapter_id == BASE_MODEL_ADAPTER_ID:
+    for adapter in params.adapter_info:
+        if adapter.id == BASE_MODEL_ADAPTER_ID:
             raise ValueError("Base model adapter cannot be merged.")
 
         module_map, adapter_config, adapter_weight_names, adapter_tokenizer = (
             load_module_map(
                 model_id,
-                adapter_id,
+                adapter.id,
+                adapter.path,
                 weight_names,
                 trust_remote_code,
             )
@@ -146,17 +172,23 @@ def check_architectures(
 def load_module_map(
     model_id: str,
     adapter_id: str,
+    adapter_path: Optional[str],
     weight_names: Tuple[str],
     trust_remote_code: bool = False,
 ) -> Tuple["ModuleMap", "AdapterConfig", Set[str], PreTrainedTokenizer]:
     revision = "main"
 
-    adapter_config = LoraConfig.load(adapter_id, None)
-    if adapter_config.base_model_name_or_path != model_id:
+    adapter_config = LoraConfig.load(adapter_path or adapter_id, None)
+
+    if not adapter_path and adapter_config.base_model_name_or_path != model_id:
         check_architectures(model_id, adapter_id, adapter_config, trust_remote_code)
 
-    adapter_filenames = hub._cached_adapter_weight_files(
-        adapter_id, revision=revision, extension=".safetensors"
+    adapter_filenames = (
+        hub._adapter_weight_files_from_dir(adapter_path, extension=".safetensors")
+        if adapter_path
+        else hub._cached_adapter_weight_files(
+            adapter_id, revision=revision, extension=".safetensors"
+        )
     )
 
     try:

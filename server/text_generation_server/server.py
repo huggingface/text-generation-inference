@@ -9,11 +9,12 @@ from loguru import logger
 
 from grpc_reflection.v1alpha import reflection
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model
+from text_generation_server.utils.adapter import AdapterInfo
 
 try:
     from text_generation_server.models.pali_gemma import PaliGemmaBatch
@@ -192,7 +193,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
 def serve(
     model_id: str,
-    lora_adapter_ids: Optional[List[str]],
+    lora_adapters: Optional[List[AdapterInfo]],
     revision: Optional[str],
     sharded: bool,
     quantize: Optional[str],
@@ -204,7 +205,7 @@ def serve(
 ):
     async def serve_inner(
         model_id: str,
-        lora_adapter_ids: Optional[List[str]],
+        lora_adapters: Optional[List[AdapterInfo]],
         revision: Optional[str],
         sharded: bool = False,
         quantize: Optional[str] = None,
@@ -227,7 +228,7 @@ def serve(
         try:
             model = get_model(
                 model_id,
-                lora_adapter_ids,
+                lora_adapters,
                 revision,
                 sharded,
                 quantize,
@@ -274,7 +275,7 @@ def serve(
     asyncio.run(
         serve_inner(
             model_id,
-            lora_adapter_ids,
+            lora_adapters,
             revision,
             sharded,
             quantize,
