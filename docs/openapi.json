@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "2.1.1-dev0"
+    "version": "2.1.2-dev0"
   },
   "paths": {
     "/": {
@@ -809,7 +809,6 @@
       "ChatRequest": {
         "type": "object",
         "required": [
-          "model",
           "messages"
         ],
         "properties": {
@@ -854,7 +853,8 @@
           "model": {
             "type": "string",
             "description": "[UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
-            "example": "mistralai/Mistral-7B-Instruct-v0.2"
+            "example": "mistralai/Mistral-7B-Instruct-v0.2",
+            "nullable": true
           },
           "n": {
             "type": "integer",
@@ -946,55 +946,7 @@
           }
         }
       },
-      "CompatGenerateRequest": {
-        "type": "object",
-        "required": [
-          "inputs"
-        ],
-        "properties": {
-          "inputs": {
-            "type": "string",
-            "example": "My name is Olivier and I"
-          },
-          "parameters": {
-            "$ref": "#/components/schemas/GenerateParameters"
-          },
-          "stream": {
-            "type": "boolean",
-            "default": "false"
-          }
-        }
-      },
-      "CompletionComplete": {
-        "type": "object",
-        "required": [
-          "index",
-          "text",
-          "finish_reason"
-        ],
-        "properties": {
-          "finish_reason": {
-            "type": "string"
-          },
-          "index": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 0
-          },
-          "logprobs": {
-            "type": "array",
-            "items": {
-              "type": "number",
-              "format": "float"
-            },
-            "nullable": true
-          },
-          "text": {
-            "type": "string"
-          }
-        }
-      },
-      "CompletionCompleteChunk": {
+      "Chunk": {
         "type": "object",
         "required": [
           "id",
@@ -1026,10 +978,144 @@
           }
         }
       },
+      "CompatGenerateRequest": {
+        "type": "object",
+        "required": [
+          "inputs"
+        ],
+        "properties": {
+          "inputs": {
+            "type": "string",
+            "example": "My name is Olivier and I"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/GenerateParameters"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": "false"
+          }
+        }
+      },
+      "Completion": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Chunk"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "object"
+                ],
+                "properties": {
+                  "object": {
+                    "type": "string",
+                    "enum": [
+                      "text_completion"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CompletionFinal"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "object"
+                ],
+                "properties": {
+                  "object": {
+                    "type": "string",
+                    "enum": [
+                      "text_completion"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "discriminator": {
+          "propertyName": "object"
+        }
+      },
+      "CompletionComplete": {
+        "type": "object",
+        "required": [
+          "index",
+          "text",
+          "finish_reason"
+        ],
+        "properties": {
+          "finish_reason": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "logprobs": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "float"
+            },
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "CompletionFinal": {
+        "type": "object",
+        "required": [
+          "id",
+          "created",
+          "model",
+          "system_fingerprint",
+          "choices",
+          "usage"
+        ],
+        "properties": {
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompletionComplete"
+            }
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64",
+            "example": "1706270835",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string",
+            "example": "mistralai/Mistral-7B-Instruct-v0.2"
+          },
+          "system_fingerprint": {
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
       "CompletionRequest": {
         "type": "object",
         "required": [
-          "model",
           "prompt"
         ],
         "properties": {
@@ -1051,7 +1137,8 @@
           "model": {
             "type": "string",
             "description": "UNUSED\nID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
-            "example": "mistralai/Mistral-7B-Instruct-v0.2"
+            "example": "mistralai/Mistral-7B-Instruct-v0.2",
+            "nullable": true
           },
           "prompt": {
             "$ref": "#/components/schemas/Prompt"
@@ -1645,6 +1732,12 @@
             "type": "string",
             "example": "test"
           }
+        }
+      },
+      "Prompt": {
+        "type": "array",
+        "items": {
+          "type": "string"
         }
       },
       "SimpleToken": {
