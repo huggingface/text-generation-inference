@@ -13,8 +13,8 @@ use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
     GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig, Info,
-    Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse,
-    Usage, Validation,
+    Message, MessageChunk, MessageContent, PrefillToken, SimpleToken, StreamDetails,
+    StreamResponse, Token, TokenizeResponse, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -1446,6 +1446,8 @@ pub async fn run(
     GrammarType,
     ChatRequest,
     Message,
+    MessageContent,
+    MessageChunk,
     ChatCompletionComplete,
     ChatCompletionChoice,
     ChatCompletionDelta,
