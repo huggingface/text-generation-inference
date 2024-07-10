@@ -81,7 +81,7 @@ jobs:
           install: true
           config-inline: |
             [registry."docker.io"]
-              mirrors = ["registry.github-runners.huggingface.tech"]
+              mirrors = ["registry-us-east-1.prod.aws.ci.huggingface.tech"]
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
