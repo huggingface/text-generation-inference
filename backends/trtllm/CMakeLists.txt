@@ -17,17 +17,20 @@ include(cmake/json.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/trtllm.cmake)
 
+add_subdirectory("${trtllm_SOURCE_DIR}/cpp" "${trtllm_SOURCE_DIR}/..")
+
 find_package(CUDAToolkit REQUIRED COMPONENTS CUDA::nvml)
 
 # TGI TRTLLM Backend definition
 add_library(tgi_trtllm_backend_impl STATIC include/backend.h lib/backend.cpp)
+include_directories(${TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR})
 target_include_directories(tgi_trtllm_backend_impl PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
-include_directories(${TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR})
-target_link_libraries(tgi_trtllm_backend_impl PUBLIC tensorrt_llm nvinfer_plugin_tensorrt_llm)
-target_link_libraries(tgi_trtllm_backend_impl PRIVATE nlohmann_json::nlohmann_json spdlog::spdlog CUDA::nvml)
+target_include_directories(tgi_trtllm_backend_impl PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
+target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm CUDA::nvml)
+target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
 
 
 #### Unit Tests ####
