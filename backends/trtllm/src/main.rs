@@ -122,7 +122,8 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
             user_agent: HashMap::new(),
             auth_token,
         }),
-    )?;
+    ).map_err(|e| TensorRtLlmBackendError::Tokenizer(e.to_string()))?;
+
     let backend = TrtLLmBackend::new(tokenizer, model_id)?;
     server::run(
         backend,

@@ -4,6 +4,8 @@ use text_generation_router::server;
 
 #[derive(Debug, Error)]
 pub enum TensorRtLlmBackendError {
+    #[error("Tokenizer error: {0}")]
+    Tokenizer(String),
     #[error("Argument validation error: {0}")]
     ArgumentValidation(String),
     #[error("WebServer error: {0}")]
