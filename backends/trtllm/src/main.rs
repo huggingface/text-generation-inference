@@ -52,6 +52,8 @@ struct Args {
     messages_api_enabled: bool,
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
+    #[clap(long, env)]
+    auth_token: Option<String>
 }
 
 #[tokio::main]
@@ -81,6 +83,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         cors_allow_origin,
         messages_api_enabled,
         max_client_batch_size,
+        auth_token
     } = args;
 
     // Launch Tokio runtime
