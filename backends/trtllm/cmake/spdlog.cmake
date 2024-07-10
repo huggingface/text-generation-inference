@@ -1,15 +1,17 @@
 set(SPDLOG_USE_FMT ON)
+set(SPDLOG_BUILD_SHARED OFF)
 
 # Define the level at which SPDLOG_ compilation level is defined
-if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     add_compile_definitions(SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG)
-else()
+else ()
     add_compile_definitions(SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO)
-endif()
+endif ()
 
 fetchcontent_declare(
         spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
-        GIT_TAG v2.x
+        GIT_TAG v1.14.1
 )
 fetchcontent_makeavailable(spdlog)
+include_directories("${spdlog_SOURCE_DIR}/include")
