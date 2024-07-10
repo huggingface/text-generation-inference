@@ -17,10 +17,6 @@ class MLPSpeculatorLayerNorm(nn.Module):
     ----
     normalized_shape : int
         Dimensionality of input data (size of final tensor axis)
-    elementwise_scale_weight : torch.Tensor
-        learned scaling term after normalization?
-    elementwise_shift_bias : torch.Tensor
-        learned bias term after normalization?
     eps : float
         Safety term to prevent division by zero. Make sure the chosen value fits in the range of your encoding scheme (i.e. fp16 requires eps >= 6e-8).
     elementwise_scale_and_shift : bool
