@@ -23,12 +23,10 @@ add_compile_definitions(NDEBUG OFF)
 fetchcontent_declare(
         trtllm
         GIT_REPOSITORY https://github.com/nvidia/tensorrt-llm.git
-        GIT_TAG 9dbc5b38baba399c5517685ecc5b66f57a177a4c
+        GIT_TAG a96cccafcf6365c128f004f779160951f8c0801c
         GIT_SHALLOW TRUE
 )
 fetchcontent_makeavailable(trtllm)
 message(STATUS "Found TensorRT-LLM: ${trtllm_SOURCE_DIR}")
 execute_process(COMMAND git lfs install WORKING_DIRECTORY "${trtllm_SOURCE_DIR}/")
 execute_process(COMMAND git lfs pull WORKING_DIRECTORY "${trtllm_SOURCE_DIR}/")
-add_subdirectory("${trtllm_SOURCE_DIR}/cpp")
-include_directories("${trtllm_SOURCE_DIR}/cpp/include")
