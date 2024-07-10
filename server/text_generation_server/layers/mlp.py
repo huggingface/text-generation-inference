@@ -7,6 +7,7 @@ from text_generation_server.layers import TensorParallelEmbedding, FastLinear
 from text_generation_server.layers.tensor_parallel import TensorParallelHead
 from text_generation_server.utils.speculate import get_speculate
 
+SQRT2 = 2**0.5
 
 class MLPSpeculatorLayerNorm(nn.Module):
     """
@@ -22,6 +23,8 @@ class MLPSpeculatorLayerNorm(nn.Module):
         learned bias term after normalization?
     eps : float
         Safety term to prevent division by zero. Make sure the chosen value fits in the range of your encoding scheme (i.e. fp16 requires eps >= 6e-8).
+    elementwise_scale_and_shift : bool
+        Include a learned scaling and shift term after normalization.
     """
 
     def __init__(
@@ -30,18 +33,22 @@ class MLPSpeculatorLayerNorm(nn.Module):
         config,
         weights,
         eps=1e-06,
+        elementwise_scale_and_shift=True
     ):
         super(MLPSpeculatorLayerNorm, self).__init__()
-        self.weight = weights.get_tensor(f"{prefix}.weight")
-        self.bias = weights.get_tensor(f"{prefix}.bias")
+        self.elementwise_scale_and_shift = elementwise_scale_and_shift
+        if self.elementwise_scale_and_shift:
+            self.weight = weights.get_tensor(f"{prefix}.weight")
+            self.bias = weights.get_tensor(f"{prefix}.bias")
         self.eps = eps
 
     def forward(self, x):
         xf = x
         xf = xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + self.eps)
         x = xf.type_as(x)
-        x = self.weight * x
-        x = x + self.bias
+        if self.elementwise_scale_and_shift:
+            x = self.weight * x
+            x = x + self.bias
         return x
 
 
@@ -51,37 +58,72 @@ class MLPSpeculatorModel(torch.nn.Module):
         self.config = config
         self.n_predict = get_speculate()
         self.hidden_size = config.hidden_size
-        self.emb = nn.ModuleList(
-            [
-                TensorParallelEmbedding(f"{prefix}.emb.{i}", weights)
-                for i in range(self.n_predict)
-            ]
-        )
-        self.proj = [
-            FastLinear.load(
+        self.tie_weights = config.speculator_config.get("tie_weights", False)
+        self.scale_input = config.speculator_config.get("scale_input", False)
+        if self.tie_weights:
+            embedding = TensorParallelEmbedding(f"{prefix}.emb.0", weights)
+            self.emb = nn.ModuleList([embedding] * self.n_predict)
+
+            proj_first = FastLinear.load(
                 config,
-                prefix=f"{prefix}.proj.{i}",
+                prefix=f"{prefix}.proj.0",
                 weights=weights,
                 bias=False,
             )
-            for i in range(self.n_predict)
-        ]
-        self.head = nn.ModuleList(
-            [
-                FastLinear.load(config, f"{prefix}.head.{i}", weights, bias=False)
-                for i in range(self.n_predict)
-            ]
-        )
-        self.ln = nn.ModuleList(
-            [
-                MLPSpeculatorLayerNorm(
-                    prefix=f"{prefix}.ln.{i}",
-                    config=config,
+            proj_tied = FastLinear.load(
+                config,
+                prefix=f"{prefix}.proj.1",
+                weights=weights,
+                bias=False,
+            )
+            self.proj = nn.ModuleList([proj_first] + [proj_tied] *
+                                      (self.n_predict - 1))
+            head = FastLinear.load(config, f"{prefix}.head.0", weights, bias=False)
+            self.head = nn.ModuleList([head] * self.n_predict)
+
+            ln = MLPSpeculatorLayerNorm(
+                prefix=f"{prefix}.ln.0",
+                config=config,
+                weights=weights,
+                elementwise_scale_and_shift=True
+            )
+            self.ln = nn.ModuleList([ln] * self.n_predict)
+        else:
+            self.emb = nn.ModuleList(
+                [
+                    TensorParallelEmbedding(f"{prefix}.emb.{i}", weights)
+                    for i in range(self.n_predict)
+                ]
+            )
+            self.proj = [
+                FastLinear.load(
+                    config,
+                    prefix=f"{prefix}.proj.{i}",
                     weights=weights,
+                    bias=False,
                 )
                 for i in range(self.n_predict)
             ]
-        )
+            self.head = nn.ModuleList(
+                [
+                    FastLinear.load(config, f"{prefix}.head.{i}", weights, bias=False)
+                    for i in range(self.n_predict)
+                ]
+            )
+            self.ln = nn.ModuleList(
+                [
+                    MLPSpeculatorLayerNorm(
+                        prefix=f"{prefix}.ln.{i}",
+                        config=config,
+                        weights=weights,
+                        elementwise_scale_and_shift=True
+                    )
+                    for i in range(self.n_predict)
+                ]
+            )
+
+        if self.scale_input:
+            self.ln0 = MLPSpeculatorLayerNorm(self.hidden_size, elementwise_scale_and_shift=False)
 
         # Weights ensure that state_0 accounts for 50% of state magnitude by final head in expectation
         self.state_weight = 0.5 ** (0.5 / self.n_predict)
@@ -102,6 +144,10 @@ class MLPSpeculatorModel(torch.nn.Module):
         # k indicates # of candidates
         # h indicates # of generated tokens
         state = hidden_states
+
+        if self.scale_input:
+            state = self.ln0(state) / SQRT2
+
         b = state.size(0)
         ind = input_ids.unsqueeze(0)
         all_probs = torch.empty(

@@ -410,8 +410,11 @@ def get_model(
                     revision=mlp_revision,
                     filename=filename,
                 )
+            speculator_dir_path = Path(mlp_speculator_config).parent
+            # if these are downloaded, they get converted to safetensors
+            filenames = [p for p in os.listdir(speculator_dir_path) if p.endswith(extension)]
             speculator = {
-                "path": Path(mlp_speculator_config).parent,
+                "path": speculator_dir_path,
                 "model_paths": filenames,
             }
         else:
