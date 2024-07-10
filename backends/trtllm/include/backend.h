@@ -8,7 +8,7 @@
 #include <filesystem>
 #include <span>
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <nlohmann/json.hpp>
 
 #include <tensorrt_llm/runtime/common.h>
@@ -92,7 +92,7 @@ namespace huggingface::tgi::backends {
          * @param cb The callback to stream token back
          * @return Global number of generated tokens for this request id
          */
-        size_t Stream(tle::IdType reqId, const std::function<TokenStreamingCallback>& cb);
+        size_t Stream(tle::IdType reqId, const std::function<TokenStreamingCallback> &cb);
     };
 }
 
