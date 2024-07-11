@@ -138,6 +138,35 @@ jobs:
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}          
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+      # If main, trigger sync registry
+      - name: Extract metadata (tags, labels) for Internal Registry
+        if: ${{ github.event_name != 'pull_request' }}
+        id: meta-internal-registry
+        uses: docker/metadata-action@v4.3.0
+        with:
+          flavor: |
+            latest=auto
+          images: |
+            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+          tags: |
+            type=semver,pattern={{version}}${{ env.LABEL }}
+            type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
+            type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+      - name: Sync to internal registry
+        if: ${{ github.event_name != 'pull_request' }}
+        id: sync-internal-registry
+        uses: aurelien-baudet/workflow-dispatch@v2
+        with:
+          workflow: Copy to internal registry
+          repo: ${{ secrets.SYNC_REGISTRY_REPO }}
+          wait-for-completion: true
+          wait-for-completion-interval: 10s
+          display-workflow-run-url-interval: 10s
+          ref: refs/heads/main
+          token: ${{ secrets.SYNC_REGISTRY_TOKEN }}
+          inputs: '{"source_image": "registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}", "destination_image": ${{ join(steps.meta-internal-registry.outputs.tags,',') }} }'
+
       - name: Final
         id: final
         run: |
