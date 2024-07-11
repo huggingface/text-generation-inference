@@ -7,6 +7,7 @@ include(FetchContent)
 include(ExternalProject)
 
 option(TGI_TRTLLM_BACKEND_BUILD_TESTS "Enable building the unittests suite" OFF)
+option(TGI_TRTLLM_BACKEND_BUILD_EXAMPLES "Enable building the examples suite" OFF)
 set(TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST "89-real" CACHE STRING "List of CUDA architectures to support")
 set(TGI_TRTLLM_BACKEND_TRT_ROOT "/usr/local/tensorrt" CACHE PATH "Path where TensorRT libraries and headers are located")
 set(TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/include" CACHE PATH "Path where TensorRT headers are located")
@@ -31,6 +32,12 @@ target_include_directories(tgi_trtllm_backend_impl PRIVATE
 target_include_directories(tgi_trtllm_backend_impl PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
 target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm CUDA::nvml)
 target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
+
+if (${TGI_TRTLLM_BACKEND_BUILD_EXAMPLES})
+    add_executable(tgi_trtllm_backend_example bin/example.cpp)
+    target_link_libraries(tgi_trtllm_backend_example PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tgi_trtllm_backend_impl)
+    target_link_libraries(tgi_trtllm_backend_example PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
+endif ()
 
 install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm spdlog)
 

@@ -1,34 +1,8 @@
+use cxx_build::CFG;
 use std::env;
 use std::path::PathBuf;
 
-use cxx_build::CFG;
-
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
-
-// fn build_tensort_llm<P: AsRef<Path>>(tensorrt_llm_root_dir: P, is_debug: bool) -> PathBuf {
-//     let build_wheel_path = tensorrt_llm_root_dir
-//         .as_ref()
-//         .join("/scripts")
-//         .join("build_wheel.py");
-//
-//     let build_wheel_path_str = build_wheel_path.display().to_string();
-//     let mut build_wheel_args = vec![
-//         build_wheel_path_str.as_ref(),
-//         "--cpp_only",
-//         "--extra-cmake-vars BUILD_TESTS=OFF",
-//         "--extra-cmake-vars BUILD_BENCHMARKS=OFF",
-//     ];
-//
-//     if is_debug {
-//         build_wheel_args.push("--fast_build");
-//     }
-//
-//     let out = Command::new("python3")
-//         .args(build_wheel_args)
-//         .output()
-//         .expect("Failed to compile TensorRT-LLM");
-//     PathBuf::new().join(tensorrt_llm_root_dir)
-// }
 
 fn main() {
     // Misc variables
@@ -39,12 +13,6 @@ fn main() {
         _ => false,
     };
 
-    // Compile TensorRT-LLM (as of today, it cannot be compiled from CMake)
-    // let trtllm_path = build_tensort_llm(
-    //     backend_path.join("build").join("_deps").join("trtllm-src"),
-    //     is_debug,
-    // );
-
     // Build the backend implementation through CMake
     let backend_path = cmake::Config::new(".")
         .uses_cxx11()
@@ -53,13 +21,30 @@ fn main() {
             true => "Debug",
             false => "Release",
         })
-        .build_target("tgi_trtllm_backend_impl")
+        .define("CMAKE_CUDA_COMPILER", "/usr/local/cuda/bin/nvcc")
         .build();
+
+    // Additional transitive CMake dependencies
+    let deps_folder = out_dir.join("build").join("_deps");
+
+    for dependency in ADDITIONAL_BACKEND_LINK_LIBRARIES {
+        let dep_name = match build_profile.as_ref() {
+            "debug" => format!("{}d", dependency),
+            _ => String::from(dependency),
+        };
+        println!("cargo:rustc-link-lib=static={}", dep_name);
+    }
 
     // Build the FFI layer calling the backend above
     CFG.include_prefix = "backends/trtllm";
     cxx_build::bridge("src/lib.rs")
         .static_flag(true)
+        .include(deps_folder.join("fmt-src").join("include"))
+        .include(deps_folder.join("spdlog-src").join("include"))
+        .include(deps_folder.join("json-src").join("include"))
+        .include(deps_folder.join("trtllm-src").join("cpp").join("include"))
+        .include("/usr/local/cuda/include")
+        .include("/usr/local/tensorrt/include")
         .file("src/ffi.cpp")
         .std("c++20")
         .compile("tgi_trtllm_backend");
@@ -69,31 +54,55 @@ fn main() {
     println!("cargo:rerun-if-changed=lib/backend.cpp");
     println!("cargo:rerun-if-changed=src/ffi.cpp");
 
-    // Additional transitive CMake dependencies
-    for dependency in ADDITIONAL_BACKEND_LINK_LIBRARIES {
-        let dep_folder = out_dir
-            .join("build")
-            .join("_deps")
-            .join(format!("{}-build", dependency));
-
-        let dep_name = match build_profile.as_ref() {
-            "debug" => format!("{}d", dependency),
-            _ => String::from(dependency),
-        };
-        println!("cargo:warning={}", dep_folder.display());
-        println!("cargo:rustc-link-search=native={}", dep_folder.display());
-        println!("cargo:rustc-link-lib=static={}", dep_name);
-    }
-
     // Emit linkage information
     // - tgi_trtllm_backend (i.e. FFI layer - src/ffi.cpp)
-    println!(r"cargo:rustc-link-search=native={}", backend_path.display());
-    println!("cargo:rustc-link-lib=static=tgi_trtllm_backend");
+    let trtllm_lib_path = deps_folder
+        .join("trtllm-src")
+        .join("cpp")
+        .join("tensorrt_llm");
 
-    // - tgi_trtllm_backend_impl (i.e. C++ code base to run inference include/backend.h)
+    let trtllm_executor_linker_search_path =
+        trtllm_lib_path.join("executor").join("x86_64-linux-gnu");
+
+    // TRTLLM libtensorrt_llm_nvrtc_wrapper.so
+    let trtllm_nvrtc_linker_search_path = trtllm_lib_path
+        .join("kernels")
+        .join("decoderMaskedMultiheadAttention")
+        .join("decoderXQAImplJIT")
+        .join("nvrtcWrapper")
+        .join("x86_64-linux-gnu");
+
+    println!(r"cargo:rustc-link-search=native=/usr/local/cuda/lib64");
+    println!(r"cargo:rustc-link-search=native=/usr/local/cuda/lib64/stubs");
+    println!(r"cargo:rustc-link-search=native=/usr/local/tensorrt/lib");
+    println!(r"cargo:rustc-link-search=native={}", backend_path.display());
+    // println!(
+    //     r"cargo:rustc-link-search=native={}/build",
+    //     backend_path.display()
+    // );
     println!(
-        r"cargo:rustc-link-search=native={}/build",
-        backend_path.display()
+        r"cargo:rustc-link-search=native={}",
+        backend_path.join("lib").display()
     );
+    println!(
+        r"cargo:rustc-link-search=native={}",
+        trtllm_executor_linker_search_path.display()
+    );
+    println!(
+        r"cargo:rustc-link-search=native={}",
+        trtllm_nvrtc_linker_search_path.display()
+    );
+    println!("cargo:rustc-link-lib=dylib=cuda");
+    println!("cargo:rustc-link-lib=dylib=cudart");
+    println!("cargo:rustc-link-lib=dylib=cublas");
+    println!("cargo:rustc-link-lib=dylib=cublasLt");
+    println!("cargo:rustc-link-lib=dylib=mpi");
+    println!("cargo:rustc-link-lib=dylib=nvidia-ml");
+    println!("cargo:rustc-link-lib=dylib=nvinfer");
+    println!("cargo:rustc-link-lib=dylib=nvinfer_plugin_tensorrt_llm");
+    println!("cargo:rustc-link-lib=dylib=tensorrt_llm_nvrtc_wrapper");
+    println!("cargo:rustc-link-lib=static=tensorrt_llm_executor_static");
+    println!("cargo:rustc-link-lib=dylib=tensorrt_llm");
     println!("cargo:rustc-link-lib=static=tgi_trtllm_backend_impl");
+    println!("cargo:rustc-link-lib=static=tgi_trtllm_backend");
 }
