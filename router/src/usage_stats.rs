@@ -1,4 +1,4 @@
-use crate::{config::Config, HubTokenizerConfig};
+use crate::config::Config;
 use reqwest::header::HeaderMap;
 use serde::Serialize;
 use uuid::Uuid;
