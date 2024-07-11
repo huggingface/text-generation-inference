@@ -106,9 +106,9 @@ def get_linear(weight, bias, quantize):
                 "Please install EETQ from https://github.com/NetEase-FuXi/EETQ"
             )
     elif quantize == "fp8":
-        from text_generation_server.layers.fp8 import Fp8Linear
+        from text_generation_server.layers.fp8 import get_fp8_linear
 
-        linear = Fp8Linear(weight, bias)
+        linear = get_fp8_linear()(weight, bias)
     elif quantize == "bitsandbytes":
         try:
             from text_generation_server.layers.bnb import (
