@@ -3813,7 +3813,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "sysinfo",
  "thiserror",
  "tracing",
  "tracing-subscriber",
