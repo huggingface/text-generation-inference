@@ -1,4 +1,5 @@
-#include <fmt/std.h>
+#include <fstream>
+
 #include <nvml.h>
 #include <spdlog/spdlog.h>
 
@@ -17,15 +18,17 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
     // Get the compute capabilities of the current hardware
     nvmlDevice_t device;
     int32_t cudaComputeCapabilitiesMajor = 0, cudaComputeCapabilitiesMinor = 0;
-    if(nvmlDeviceGetHandleByIndex_v2(0, &device) == NVML_SUCCESS) {
+    if (nvmlDeviceGetHandleByIndex_v2(0, &device) == NVML_SUCCESS) {
         SPDLOG_DEBUG("Successfully acquired nvmlDevice_t = 0");
-        if(nvmlDeviceGetCudaComputeCapability(device, &cudaComputeCapabilitiesMajor, &cudaComputeCapabilitiesMinor) == NVML_SUCCESS) {
-            SPDLOG_INFO(FMT_STRING("Detected sm_{:d}{:d} compute capabilities"), cudaComputeCapabilitiesMajor, cudaComputeCapabilitiesMinor);
+        if (nvmlDeviceGetCudaComputeCapability(device, &cudaComputeCapabilitiesMajor, &cudaComputeCapabilitiesMinor) ==
+            NVML_SUCCESS) {
+            SPDLOG_INFO(FMT_STRING("Detected sm_{:d}{:d} compute capabilities"), cudaComputeCapabilitiesMajor,
+                        cudaComputeCapabilitiesMinor);
         }
     }
 
     // Single engine (TP = PP = 1) -> using leader mode (no MPI involved)
-    if(config["/pretrained_config/mapping/world_size"_json_pointer].get<uint8_t>() == 1){
+    if (config["/pretrained_config/mapping/world_size"_json_pointer].get<uint8_t>() == 1) {
         SPDLOG_INFO("Detected single engine deployment, using leader mode");
         execConfig.setParallelConfig(tle::ParallelConfig(
                 tle::CommunicationType::kMPI,
@@ -54,15 +57,18 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
 huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
         const std::filesystem::path &enginesFolder,
         const std::filesystem::path &executorWorker
-):
-    config(json::parse(std::ifstream(enginesFolder / "config.json"))),
-    executor(
-        enginesFolder,
-        tensorrt_llm::executor::ModelType::kDECODER_ONLY,
-        GetExecutorConfig(config, executorWorker.string()
-    ))
-{
-    SPDLOG_INFO(FMT_STRING("Engine (version={})"), config["/version"_json_pointer].get_ref<const std::string&>());
+) :
+        config(json::parse(std::ifstream(enginesFolder / "config.json"))),
+        executor(
+                enginesFolder,
+                tensorrt_llm::executor::ModelType::kDECODER_ONLY,
+                GetExecutorConfig(config, executorWorker.string()
+                )) {
+    SPDLOG_INFO(FMT_STRING("Engine (version={})"), config["/version"_json_pointer].get_ref<const std::string &>());
+}
+
+bool huggingface::tgi::backends::TensorRtLlmBackend::IsReady() const {
+    return executor.canEnqueueRequests();
 }
 
 [[nodiscard("Returned request id needs to be provided back to gather generated tokens")]]
@@ -72,11 +78,7 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const int32_t topK,
         const float_t topP,
         const float_t temperature,
-        const int32_t minLength,
-        std::optional<float_t> repetitionPenalty,
-        std::optional<float_t> frequencyPenalty,
-        std::optional<uint32_t> seed,
-        std::optional<uint32_t> nTopTokens
+        const uint64_t seed
 ) {
     SPDLOG_DEBUG(
             FMT_STRING("Submitting inference over {:d} tokens to the executor ({:d} already in-flight)"),
@@ -92,27 +94,23 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
             std::nullopt,
             std::nullopt,
             seed,
+            std::nullopt,
             temperature,
-            minLength,
             std::nullopt,
-            repetitionPenalty,
-            std::nullopt,
-            frequencyPenalty,
     };
-    const auto output = tle::OutputConfig{false, false, nTopTokens.value_or(1) > 1};
-    const auto request = tle::Request{tokens, maxNewTokens, true, sampling, output};
-
-    return executor.enqueueRequest(request);
+    const auto output = tle::OutputConfig{false, false, false};
+    return executor.enqueueRequest(tle::Request{tokens, maxNewTokens, true, sampling, output});
 }
 
-size_t huggingface::tgi::backends::TensorRtLlmBackend::Stream(const tle::IdType reqId, const std::function<TokenStreamingCallback>& cb) {
+uint32_t huggingface::tgi::backends::TensorRtLlmBackend::Stream(const tle::IdType reqId,
+                                                                std::function<TokenStreamingCallback> &cb) {
     bool isFinal = false;
     size_t generatedTokens = 0;
 
     do {
         const auto responses = executor.awaitResponses(reqId);
-        for (const auto &response: responses){
-            if(response.hasError()) {
+        for (const auto &response: responses) {
+            if (response.hasError()) {
                 SPDLOG_WARN("Caught error during generation: {}", response.getErrorMsg());
                 isFinal = true;
             } else {
@@ -128,8 +126,12 @@ size_t huggingface::tgi::backends::TensorRtLlmBackend::Stream(const tle::IdType 
             }
         }
 
-    } while(!isFinal);
+    } while (!isFinal);
 
     // Return the number of generated tokens
     return generatedTokens;
+}
+
+std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::Poll(const tle::IdType requestId) {
+    return executor.awaitResponses(requestId);
 }
