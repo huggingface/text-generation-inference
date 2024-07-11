@@ -1171,6 +1171,11 @@ async fn chat_completions(
             span,
         )
         .await;
+
+        let response_stream = response_stream.chain(futures::stream::once(async {
+            Ok(Event::default().data("[DONE]"))
+        }));
+
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
