@@ -9,4 +9,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("gptq_marlin_repack", &gptq_marlin_repack,
         "Repack GPTQ parameters for Marlin");
   m.def("marlin_gemm", &marlin_gemm, "Marlin gemm");
+  // fp8_marlin Optimized Quantized GEMM for FP8 weight-only.
+  m.def("fp8_marlin_gemm", &fp8_marlin_gemm);
 }

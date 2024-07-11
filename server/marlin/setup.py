@@ -9,6 +9,7 @@ setup(
         CUDAExtension(
             name="marlin_kernels",
             sources=[
+                "marlin_kernels/fp8_marlin.cu",
                 "marlin_kernels/gptq_marlin.cu",
                 "marlin_kernels/gptq_marlin_repack.cu",
                 "marlin_kernels/marlin_cuda_kernel.cu",

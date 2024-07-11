@@ -1,4 +1,23 @@
+from enum import Enum, auto
+
 import torch
+from text_generation_server.utils.import_utils import SYSTEM
+
+
+def get_fp8_linear() -> torch.nn.Module:
+    """
+    Return an FP8 linear `Module` that is compatible with the current system.
+    """
+
+    if SYSTEM == "cuda":
+        major, minor = torch.cuda.get_device_capability()
+        if major == 8 and minor < 9:
+            from text_generation_server.layers.marlin import GPTQMarlinFP8Linear
+
+            return GPTQMarlinFP8Linear
+
+    # On other systems let Torch decide if the hardware supports FP8.
+    return Fp8Linear
 
 
 def fp8_quantize(weight, qdtype=torch.float8_e4m3fn):
