@@ -165,7 +165,7 @@ jobs:
           display-workflow-run-url-interval: 10s
           ref: refs/heads/main
           token: ${{ secrets.SYNC_REGISTRY_TOKEN }}
-          inputs: '{"source_image": "registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}", "destination_image": "${{ join(steps.meta-internal-registry.outputs.tags,',') }}" }'
+          inputs: '{"source_image": "registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}", "destination_image": "${{ join(steps.meta-internal-registry.outputs.tags,'','') }}" }'
 
       - name: Final
         id: final
