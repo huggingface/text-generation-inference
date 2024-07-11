@@ -7,6 +7,8 @@ mod validation;
 #[cfg(feature = "kserve")]
 mod kserve;
 
+pub mod usage_stats;
+
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use utoipa::ToSchema;
@@ -40,13 +42,13 @@ pub struct HubModelInfo {
     pub pipeline_tag: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChatTemplate {
     name: String,
     template: String,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum ChatTemplateVersions {
     Single(String),
@@ -55,7 +57,7 @@ pub enum ChatTemplateVersions {
 
 use std::path::Path;
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize ,Deserialize, Default)]
 pub struct HubTokenizerConfig {
     pub chat_template: Option<ChatTemplateVersions>,
     pub completion_template: Option<String>,

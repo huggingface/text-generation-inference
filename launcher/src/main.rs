@@ -457,6 +457,14 @@ struct Args {
     /// startup that will be available to callers via the `adapter_id` field in a request.
     #[clap(long, env)]
     lora_adapters: Option<String>,
+
+    /// Disable sending of all usage statistics
+    #[clap(default_value = "false", long, env)]
+    disable_usage_stats: bool,
+
+    /// Disable sending of crash reports, but allow anonymous usage statistics
+    #[clap(default_value = "false", long, env)]
+    disable_crash_reports: bool,
 }
 
 #[derive(Debug)]
@@ -1199,7 +1207,19 @@ fn spawn_webserver(
         format!("{}-0", args.shard_uds_path),
         "--tokenizer-name".to_string(),
         args.model_id,
+        "--disable-usage-stats".to_string(),
+        args.disable_usage_stats.to_string(),
+        "--disable-crash-reports".to_string(),
+        args.disable_crash_reports.to_string(),
     ];
+
+    // Pass usage stats flags to router
+    if args.disable_usage_stats {
+        router_args.push("--usage-stats".to_string());
+    }
+    if args.disable_crash_reports {
+        router_args.push("--crash-reports".to_string());
+    }
 
     // Grammar support
     if args.disable_grammar_support {

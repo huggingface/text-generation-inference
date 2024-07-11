@@ -3424,9 +3424,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.118"
+version = "1.0.120"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d947f6b3163d8857ea16c4fa0dd4840d52f3041039a85decd46867eb1abef2e4"
+checksum = "4e0d21c9a8cae1235ad58a00c11cb40d4b1e5c784f1ef2c537876ed6ffd8b7c5"
 dependencies = [
  "itoa",
  "ryu",
@@ -3672,15 +3672,16 @@ checksum = "a7065abeca94b6a8a577f9bd45aa0867a2238b74e8eb67cf10d492bc39351394"
 
 [[package]]
 name = "sysinfo"
-version = "0.30.12"
+version = "0.30.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "732ffa00f53e6b2af46208fba5718d9662a421049204e156328b66791ffa15ae"
+checksum = "0a5b4ddaee55fb2bea2bf0e5000747e5f5c0de765e5a5ff87f4cd106439f4bb3"
 dependencies = [
  "cfg-if",
  "core-foundation-sys",
  "libc",
  "ntapi",
  "once_cell",
+ "rayon",
  "windows",
 ]
 
@@ -3762,7 +3763,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "2.1.1-dev0"
+version = "2.1.2-dev0"
 dependencies = [
  "average",
  "clap",
@@ -3783,7 +3784,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "2.1.1-dev0"
+version = "2.1.2-dev0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3801,7 +3802,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "2.1.1-dev0"
+version = "2.1.2-dev0"
 dependencies = [
  "clap",
  "ctrlc",
@@ -3812,6 +3813,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sysinfo",
  "thiserror",
  "tracing",
  "tracing-subscriber",
@@ -3820,7 +3822,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "2.1.1-dev0"
+version = "2.1.2-dev0"
 dependencies = [
  "async-stream",
  "axum 0.7.5",
@@ -3848,6 +3850,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sysinfo",
  "text-generation-client",
  "thiserror",
  "tokenizers",
@@ -3859,6 +3862,7 @@ dependencies = [
  "tracing-subscriber",
  "utoipa",
  "utoipa-swagger-ui",
+ "uuid",
  "vergen",
 ]
 
@@ -4530,9 +4534,25 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.9.1"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de17fd2f7da591098415cff336e12965a28061ddace43b59cb3c430179c9439"
+checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
+dependencies = [
+ "getrandom",
+ "rand",
+ "uuid-macro-internal",
+]
+
+[[package]]
+name = "uuid-macro-internal"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee1cd046f83ea2c4e920d6ee9f7c3537ef928d75dce5d84a87c2c5d6b3999a3a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.68",
+]
 
 [[package]]
 name = "v_frame"
