@@ -7,7 +7,7 @@ Data is sent twice 1) on server startup and 2) and when server stops. Also, usag
 
 ## What data is collected
 
-The code that collects the data is available [here](https://github.com/huggingface/text-generation-inference/blob/main/launcher/src/usage_stats.rs).
+The code that collects the data is available [here](https://github.com/huggingface/text-generation-inference/blob/main/router/src/usage_stats.rs).
 As of release 2.1.2 this is an example of the data collected:
 
 - From the TGI configuration:
