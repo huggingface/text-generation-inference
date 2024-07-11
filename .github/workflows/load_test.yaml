@@ -3,6 +3,7 @@ name: Nightly load test
 on:
   schedule:
     - cron: '0 0 * * 1-5'
+  workflow_call:
 
   pull_request:
     paths:
@@ -10,33 +11,92 @@ on:
     branches:
       - 'main'
 
+env:
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: ${{ secrets.S3_AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_AWS_SECRET_ACCESS_KEY }}
+
 jobs:
   load-tests:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    runs-on: [self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci]
+    runs-on: [ self-hosted, nvidia-gpu , multi-gpu, 4-a10, ci ]
     env:
       DOCKER_VOLUME: /cache
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install k6
+      - name: Install awscli
         run: |
-          curl https://github.com/grafana/k6/releases/download/v0.44.0/k6-v0.44.0-linux-amd64.tar.gz -L | tar xvz --strip-components 1
+          sudo apt-get update
+          sudo apt-get install -y awscli
 
-      - name: Start starcoder
+      - name: Install poetry
         run: |
-          docker run --name tgi-starcoder --rm --gpus all -p 3000:80 -v /mnt/cache:/data -e HF_TOKEN=${{ secrets.HF_TOKEN }} --pull always -d ghcr.io/huggingface/text-generation-inference:latest --model-id bigcode/starcoder --num-shard 2 --max-batch-total-tokens 32768
-          sleep 10
-          wget --timeout 10 --retry-on-http-error --waitretry=1 --tries=240 http://localhost:3000/health
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"
+          poetry --version
 
-      - name: Run k6
+      - name: Install texlive minimal
         run: |
-          ./k6 run load_tests/starcoder_load.js
+          sudo apt-get update
+          sudo apt-get install -y texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
-      - name: Stop starcoder
-        if: ${{ always() }}
+      - name: Install Go 1.21
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.21
+
+      - name: Install Python 3.11
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
+
+      - name: Download artifacts from previous runs
+        uses: actions/github-script@v6
+        continue-on-error: true
+        env:
+          WORKFLOW_FILENAME: load_test.yaml
+          ARTIFACT_NAME: benchmark_results_csv
+          ARTIFACT_FILENAME: benchmark_results_csv.zip
+          UNZIP_DIR: /tmp/artifacts
+        with:
+          script: |
+            const script = require('./load_tests/download_artifact.js')
+            await script({github, context, core})
+
+      - name: Run load test
         run: |
-          docker stop tgi-starcoder || true
+          cd load_tests
+          make load-test
+        shell: bash
+
+      - name: Archive test results artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark_results_plots
+          path: |
+            load_tests/output/*
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp load_tests/output/ s3://text-generation-inference-ci/${{ github.sha }} --recursive
+
+      - uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 Load test results are in:\n\n'+
+                '## Variable length prompts\n'+
+                '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/sharegpt_conversations_constant_arrival_rate.png" width=200>\n' +
+                '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/sharegpt_conversations_constant_vus.png" width=200>\n\n' +
+                '## Constant length prompts\n'+
+                '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/constant_tokens_constant_vus.png" width=200>\n' +
+                '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/constant_tokens_constant_arrival_rate.png" width=200>\n'
+            })

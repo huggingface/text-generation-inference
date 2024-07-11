@@ -1,0 +1,131 @@
+import {check, fail} from 'k6';
+import sse from "k6/x/sse"
+import {scenario} from 'k6/execution';
+import http from 'k6/http';
+import {Trend, Counter} from 'k6/metrics';
+
+const host = "127.0.0.1:8080";
+const model_id = "Qwen/Qwen2-72B";
+
+const endToEndLatency = new Trend('end_to_end_latency', true);
+const requestThroughput = new Counter('request_throughput');
+const tokenThroughput = new Counter('tokens_throughput');
+
+const timeToFirstToken = new Trend('time_to_first_token', true);
+const interTokenLatency = new Trend('inter_token_latency', true); // is microseconds
+
+const tokensReceived = new Trend('tokens_received');
+
+const max_new_tokens = {{ max_new_tokens }};
+
+const shareGPT = JSON.parse(open("{{ cwd }}/{{ input_filename }}"))
+
+export function handleSummary(data) {
+    return {
+        'summary.json': JSON.stringify(data),
+    };
+}
+
+function generate_payload(gpt, max_new_tokens) {
+    let input = gpt["message"];
+    return {
+        "messages": [{"role": "user", "content": input}],
+        "temperature": 0,
+        "model": `${model_id}`,
+        "max_tokens": max_new_tokens,
+        "stream": true
+    };
+}
+
+export const options = get_options();
+
+export default function run() {
+    const headers = {'Content-Type': 'application/json'};
+    const query = shareGPT[scenario.iterationInTest % shareGPT.length];
+    const payload = JSON.stringify(generate_payload(query, max_new_tokens));
+    const url = `http://${host}/v1/chat/completions`;
+    const params = {
+        method: 'POST',
+        body: payload,
+        headers
+    }
+
+    const startTime = Date.now();
+    let firstTokenTime = null;
+    let lastTokenTime = null;
+    let tokensCount = 0;
+    let response = ""
+
+    const res = sse.open(url, params, function (client) {
+        client.on('event', function (event) {
+            // console.log(event.data)
+            if (parseInt(event.id) === 4) {
+                client.close()
+            }
+            if (event.data.includes("[DONE]") || event.data === "") {
+                return
+            }
+            try {
+                const data = JSON.parse(event.data);
+                if (!'choices' in data) {
+                    fail('http_200')
+                    return;
+                }
+                const content = data['choices'][0]['delta']['content']
+                if (content !== undefined) {
+                    response += data['choices'][0]['delta']['content']
+                    tokensCount += 1;
+                }
+
+                // Measure time to first token
+                if (!firstTokenTime) {
+                    firstTokenTime = Date.now();
+                    timeToFirstToken.add(firstTokenTime - startTime);
+                }
+
+                // Measure inter-token latency
+                const currentTime = Date.now();
+                if (lastTokenTime) {
+                    interTokenLatency.add((currentTime - lastTokenTime) * 1000.);
+                }
+                lastTokenTime = currentTime;
+
+                if ('finish_reason' in data['choices'][0]) {
+                    if (data['choices'][0]['finish_reason'] != null) {
+                        const endTime = Date.now();
+                        const deltaMs = endTime - startTime;
+                        endToEndLatency.add(deltaMs)
+                        requestThroughput.add(1);
+                        tokenThroughput.add(tokensCount);
+                        tokensReceived.add(tokensCount);
+                    }
+                }
+            } catch (e) {
+                // catch any errors that occur during the event processing
+                // increase the fail count of the 'http_200' check
+                check(true, {
+                    'http_200': (val) => false,
+                })
+                fail('http_200')
+            }
+        })
+
+        client.on('error', function (e) {
+            console.log('An unexpected error occurred: ', e.error())
+        })
+    })
+
+    if (tokensCount === 0) {
+        // something went wrong with generation
+        fail('http_200')
+    }
+
+    if (res.status >= 400 && res.status < 500) {
+        return;
+    }
+
+    check(res, {
+        'http_200': (res) => res.status === 200,
+    });
+
+}

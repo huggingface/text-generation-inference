@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "tgi-benchmarks"
+version = "0.1.0"
+description = ""
+authors = ["Hugo Larcher <hugo.larcher@huggingface.co>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+numpy = "<2.0"
+pandas = "^2.2.2"
+scienceplots = "^2.1.1"
+docker = "^7.1.0"
+loguru = "^0.7.2"
+psutil = "^6.0.0"
+jinja2 = "^3.1.4"
+transformers = "^4.42.3"
+gputil = "^1.4.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
