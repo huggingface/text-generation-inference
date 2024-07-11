@@ -33,15 +33,7 @@ As of release 2.1.2 this is an example of the data collected:
   },
   "ngrok": false,
   "revision": null,
-  "tokenizer_config": {
-      "add_bos_token": null,
-      "add_eos_token": null,
-      "bos_token": "<s>",
-      "chat_template": null,
-      "completion_template": null,
-      "eos_token": "</s>",
-      "tokenizer_class": "BloomTokenizerFast"
-  },
+  "tokenizer_class": "BloomTokenizerFast",
   "validation_workers": 2,
   "waiting_served_ratio": 1.2,
   "docker_label": "latest",

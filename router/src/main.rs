@@ -327,6 +327,7 @@ async fn main() -> Result<(), RouterError> {
         tracing::warn!("Could not find tokenizer config locally and no API specified");
         HubTokenizerConfig::default()
     });
+    let tokenizer_class = tokenizer_config.tokenizer_class.clone();
 
     let tokenizer: Option<Tokenizer> = tokenizer_filename.and_then(|filename| {
         let mut tokenizer = Tokenizer::from_file(filename).ok();
@@ -387,7 +388,7 @@ async fn main() -> Result<(), RouterError> {
     let user_agent = if !disable_usage_stats && is_docker {
         let reducded_args = usage_stats::Args::new(
             config.clone(),
-            tokenizer_config.clone(),
+            tokenizer_class,
             max_concurrent_requests,
             max_best_of,
             max_stop_sequences,

@@ -60,7 +60,7 @@ impl UsageStatsEvent {
 #[derive(Debug, Clone, Serialize)]
 pub struct Args {
     model_config: Option<Config>,
-    tokenizer_config: HubTokenizerConfig,
+    tokenizer_config: Option<String>,
     max_concurrent_requests: usize,
     max_best_of: usize,
     max_stop_sequences: usize,
@@ -86,7 +86,7 @@ pub struct Args {
 impl Args {
     pub fn new(
         model_config: Option<Config>,
-        tokenizer_config: HubTokenizerConfig,
+        tokenizer_config: Option<String>,
         max_concurrent_requests: usize,
         max_best_of: usize,
         max_stop_sequences: usize,
