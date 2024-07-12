@@ -295,9 +295,6 @@ async fn main() -> Result<(), RouterError> {
             )
         }
     };
-
-
-
     let config: Option<Config> = config_filename.and_then(|filename| {
         std::fs::read_to_string(filename)
             .ok()
@@ -354,7 +351,6 @@ async fn main() -> Result<(), RouterError> {
         tracing::warn!("Could not find a fast tokenizer implementation for {tokenizer_name}");
         tracing::warn!("Rust input length validation and truncation is disabled");
     }
-
 
     // if pipeline-tag == text-generation we default to return_full_text = true
     let compat_return_full_text = match &model_info.pipeline_tag {
