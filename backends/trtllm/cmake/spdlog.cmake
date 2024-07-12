@@ -1,5 +1,6 @@
 set(SPDLOG_USE_FMT ON)
 set(SPDLOG_BUILD_SHARED OFF)
+set(SPDLOG_FMT_EXTERNAL ON)
 
 # Define the level at which SPDLOG_ compilation level is defined
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
@@ -14,4 +15,3 @@ fetchcontent_declare(
         GIT_TAG v1.14.1
 )
 fetchcontent_makeavailable(spdlog)
-include_directories("${spdlog_SOURCE_DIR}/include")

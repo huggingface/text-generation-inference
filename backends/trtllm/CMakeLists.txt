@@ -14,6 +14,7 @@ set(TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/include" 
 set(TGI_TRTLLM_BACKEND_TRT_LIB_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/lib" CACHE PATH "Path where TensorRT libraries are located")
 
 #### External dependencies ####
+include(cmake/fmt.cmake)
 include(cmake/json.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/trtllm.cmake)
@@ -31,15 +32,17 @@ target_include_directories(tgi_trtllm_backend_impl PRIVATE
 )
 target_include_directories(tgi_trtllm_backend_impl PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
 target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm CUDA::nvml)
-target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
+target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
 
 if (${TGI_TRTLLM_BACKEND_BUILD_EXAMPLES})
     add_executable(tgi_trtllm_backend_example bin/example.cpp)
     target_link_libraries(tgi_trtllm_backend_example PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tgi_trtllm_backend_impl)
-    target_link_libraries(tgi_trtllm_backend_example PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
+    target_link_libraries(tgi_trtllm_backend_example PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
 endif ()
 
-install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm spdlog)
+# TODO: need to find why we can't install fmt (include not found...)
+#install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm spdlog fmt)
+install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm)
 
 #### Unit Tests ####
 if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
@@ -52,7 +55,7 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     FetchContent_MakeAvailable(Catch2)
 
     add_executable(tgi_trtllm_backend_tests tests/infer_test.cpp)
-    target_link_libraries(tgi_trtllm_backend_tests PRIVATE tgi_trtllm_backend_impl Catch2::Catch2WithMain nlohmann_json::nlohmann_json spdlog::spdlog)
+    target_link_libraries(tgi_trtllm_backend_tests PRIVATE tgi_trtllm_backend_impl Catch2::Catch2WithMain nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
 
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(CTest)
