@@ -296,7 +296,6 @@ async fn main() -> Result<(), RouterError> {
         }
     };
 
-    println!("tokenizer_filename: {:?}", tokenizer_filename);
 
 
     let config: Option<Config> = config_filename.and_then(|filename| {
@@ -356,7 +355,6 @@ async fn main() -> Result<(), RouterError> {
         tracing::warn!("Rust input length validation and truncation is disabled");
     }
 
-    println!("Using config {config:?}");
 
     // if pipeline-tag == text-generation we default to return_full_text = true
     let compat_return_full_text = match &model_info.pipeline_tag {
