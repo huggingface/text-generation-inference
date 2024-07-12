@@ -1,6 +1,7 @@
-use cxx_build::CFG;
 use std::env;
 use std::path::PathBuf;
+
+use cxx_build::CFG;
 
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
 
@@ -52,6 +53,7 @@ fn main() {
     println!("cargo:rerun-if-changed=CMakeLists.txt");
     println!("cargo:rerun-if-changed=include/backend.h");
     println!("cargo:rerun-if-changed=lib/backend.cpp");
+    println!("cargo:rerun-if-changed=include/ffi.h");
     println!("cargo:rerun-if-changed=src/ffi.cpp");
 
     // Emit linkage information
