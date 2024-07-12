@@ -210,7 +210,11 @@ async fn main() -> Result<(), RouterError> {
     }
     let api = if use_api {
         if std::env::var("HF_HUB_OFFLINE") == Ok("1".to_string()) {
-            let cache = Cache::default();
+            let cache = std::env::var("HUGGINGFACE_HUB_CACHE")
+                .map_err(|_| ())
+                .map(|cache_dir| Cache::new(cache_dir.into()))
+                .unwrap_or_else(|_| Cache::default());
+            
             tracing::warn!("Offline mode active using cache defaults");
             Type::Cache(cache)
         } else {
@@ -291,6 +295,10 @@ async fn main() -> Result<(), RouterError> {
             )
         }
     };
+
+    println!("tokenizer_filename: {:?}", tokenizer_filename);
+
+
     let config: Option<Config> = config_filename.and_then(|filename| {
         std::fs::read_to_string(filename)
             .ok()
@@ -347,6 +355,8 @@ async fn main() -> Result<(), RouterError> {
         tracing::warn!("Could not find a fast tokenizer implementation for {tokenizer_name}");
         tracing::warn!("Rust input length validation and truncation is disabled");
     }
+
+    println!("Using config {config:?}");
 
     // if pipeline-tag == text-generation we default to return_full_text = true
     let compat_return_full_text = match &model_info.pipeline_tag {
