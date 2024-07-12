@@ -871,6 +871,7 @@ def quantize(
     upload_to_model_id: Optional[str],
     percdamp: float,
     act_order: bool,
+    sym: bool,
 ):
     print("loading model")
     config = AutoConfig.from_pretrained(
@@ -946,6 +947,7 @@ def quantize(
         percdamp=percdamp,
         act_order=act_order,
         hooks=hooks,
+        sym=sym,
     )
     print(time.time() - tick)
 
@@ -957,6 +959,7 @@ def quantize(
     state_dict = {k: v.cpu().contiguous() for k, v in state_dict.items()}
     state_dict["gptq_bits"] = torch.LongTensor([bits])
     state_dict["gptq_groupsize"] = torch.LongTensor([groupsize])
+    state_dict["gptq_sym"] = torch.BoolTensor([sym])
 
     max_shard_size = "10GB"
     shards, index = shard_checkpoint(
