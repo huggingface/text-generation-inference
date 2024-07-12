@@ -1,10 +1,16 @@
 pub use backend::TrtLLmBackend;
 
+use crate::backend::GenerationContext;
+
 mod backend;
 pub mod errors;
 
 #[cxx::bridge(namespace = "huggingface::tgi::backends")]
 mod ffi {
+    extern "Rust" {
+        type GenerationContext;
+    }
+
     unsafe extern "C++" {
         include!("backends/trtllm/src/ffi.cpp");
 
@@ -25,7 +31,8 @@ mod ffi {
         /// ```
         ///
         /// ```
-        fn create_trtllm_backend(
+        #[rust_name = "create_tensorrt_llm_backend"]
+        fn CreateTensorRtLlmBackend(
             engine_folder: &str,
             executor_worker: &str,
         ) -> UniquePtr<TensorRtLlmBackendImpl>;
@@ -44,12 +51,12 @@ mod ffi {
             seed: u64,
         ) -> u64;
 
-        // #[rust_name = "stream"]
-        // fn Stream(
-        //     self: Pin<&mut TensorRtLlmBackendImpl>,
-        //     request_id: u64,
-        //     ctx: Box<GenerationContext>,
-        //     callback: fn(u32, u32, bool),
-        // ) -> u32;
+        #[rust_name = "stream"]
+        fn Stream(
+            self: Pin<&mut TensorRtLlmBackendImpl>,
+            ctx: Box<GenerationContext>,
+            request_id: u64,
+            callback: fn(Box<GenerationContext>, u32, u32, bool),
+        ) -> u32;
     }
 }
