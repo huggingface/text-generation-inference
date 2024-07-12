@@ -84,6 +84,7 @@ pub struct Args {
 }
 
 impl Args {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         model_config: Option<Config>,
         tokenizer_config: Option<String>,
@@ -186,6 +187,12 @@ impl fmt::Display for SystemInfo {
         writeln!(f, "Architecture: {}", self.architecture)?;
         writeln!(f, "Platform: {}", self.platform)?;
         Ok(())
+    }
+}
+
+impl Default for Env {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
