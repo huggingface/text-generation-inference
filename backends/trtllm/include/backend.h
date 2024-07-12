@@ -10,7 +10,6 @@
 #include <span>
 #include <vector>
 
-#include <spdlog/fmt/fmt.h>
 #include <nlohmann/json.hpp>
 
 #include <tensorrt_llm/runtime/common.h>

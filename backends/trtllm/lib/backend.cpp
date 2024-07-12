@@ -1,6 +1,7 @@
 #include <fstream>
 
 #include <nvml.h>
+#include "fmt/format.h"
 #include <spdlog/spdlog.h>
 
 #include "backend.h"
