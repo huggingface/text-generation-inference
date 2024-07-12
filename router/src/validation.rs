@@ -247,7 +247,7 @@ impl Validation {
         // for the user
         let top_p = top_p
             .map(|value| {
-                if value <= 0.0 || value >= 1.0 {
+                if value < 0.0 || value > 1.0 {
                     return Err(ValidationError::TopP);
                 }
                 Ok(value)
