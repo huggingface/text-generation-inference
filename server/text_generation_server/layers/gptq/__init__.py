@@ -393,11 +393,15 @@ class GPTQWeightsLoader(WeightsLoader):
         )
 
     def _get_gptq_params(self, weights: Weights):
-        try:
+        if weights._has_tensor("gptq_bits") and weights._has_tensor("gptq_groupsize"):
             self.bits = weights.get_tensor("gptq_bits").item()
             self.groupsize = weights.get_tensor("gptq_groupsize").item()
             self.desc_act = False
-            self.sym = False
+            # `server quantize` used asymmetric quantization unconditionally
+            # before the `gptq_sym` setting tensor was added.
+            self.sym = (
+                weights.get_tensor("gptq_sym").item()
+                if weights._has_tensor("gptq_sym")
+                else False
+            )
             self.quant_method = "gptq"
-        except (SafetensorError, RuntimeError) as e:
-            pass
