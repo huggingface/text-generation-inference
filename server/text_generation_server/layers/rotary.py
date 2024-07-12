@@ -102,7 +102,7 @@ class PositionRotaryEmbedding(nn.Module):
                     max_position_embeddings=rope_scaling[
                         "original_max_position_embeddings"
                     ],
-                    base=10000.0,
+                    base=base,
                     device=inv_freq.device,
                     scaling_factor=scaling_factor,
                     extrapolation_factor=1,
