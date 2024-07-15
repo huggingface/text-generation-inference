@@ -11,6 +11,8 @@
     title: Using TGI with Intel Gaudi
   - local: installation_inferentia
     title: Using TGI with AWS Inferentia
+  - local: installation_intel
+    title: Using TGI with Intel GPUs
   - local: installation
     title: Installation from source
   - local: supported_models

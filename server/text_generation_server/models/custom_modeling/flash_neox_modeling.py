@@ -48,7 +48,7 @@ from text_generation_server.layers.rotary import (
 
 
 def load_row(config, prefix: str, weights, bias: bool):
-    weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+    weight = weights.get_weights_row(prefix)
 
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
@@ -64,7 +64,7 @@ def load_row(config, prefix: str, weights, bias: bool):
 
 
 def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
-    weight = weights.get_multi_weights_col([prefix], quantize=config.quantize, dim=0)
+    weight = weights.get_multi_weights_col([prefix], dim=0)
     if isinstance(weight, torch.Tensor):
         # Only on non quantized versions
         weight = (
@@ -305,12 +305,12 @@ class FlashGPTNeoXPreTrainedModel(PreTrainedModel):
 
 
 class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__(config)
         self.config = config
 
         self.embed_in = TensorParallelEmbedding(
-            prefix="gpt_neox.embed_in", weights=weights
+            prefix=f"{prefix}.embed_in", weights=weights
         )
 
         self.layers = nn.ModuleList(
@@ -320,7 +320,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             ]
         )
         self.final_layer_norm = FastLayerNorm.load(
-            prefix="gpt_neox.final_layer_norm",
+            prefix=f"{prefix}.final_layer_norm",
             weights=weights,
             eps=config.layer_norm_eps,
         )
@@ -370,9 +370,15 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
 
 class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__(config)
-        self.gpt_neox = FlashGPTNeoXModel(config, weights)
+
+        if not prefix:
+            prefix = "gpt_neox"
+        else:
+            prefix = f"{prefix}.gpt_neox"
+
+        self.gpt_neox = FlashGPTNeoXModel(prefix, config, weights)
 
         self.embed_out = SpeculativeHead.load(
             config, prefix="embed_out", weights=weights

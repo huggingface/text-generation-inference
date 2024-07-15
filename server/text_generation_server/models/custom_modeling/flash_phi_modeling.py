@@ -85,7 +85,6 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 
@@ -258,9 +257,9 @@ class PhiMLP(nn.Module):
 
 
 class FlashPhiLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
+        prefix = f"{prefix}.layers.{layer_id}"
         self.self_attn = FlashPhiAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
@@ -307,18 +306,19 @@ class FlashPhiLayer(nn.Module):
 
 
 class FlashPhiModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
+            prefix=f"{prefix}.embed_tokens", weights=weights
         )
         self.layers = nn.ModuleList(
             [
                 FlashPhiLayer(
+                    prefix,
                     layer_id,
                     config,
                     weights,
@@ -378,10 +378,15 @@ class FlashPhiModel(torch.nn.Module):
 
 
 class FlashPhiForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
-        self.model = FlashPhiModel(config, weights)
+        if not prefix:
+            prefix = "model"
+        else:
+            prefix = f"{prefix}.model"
+
+        self.model = FlashPhiModel(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
             config,
             prefix="lm_head",

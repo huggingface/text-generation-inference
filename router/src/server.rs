@@ -11,10 +11,11 @@ use crate::kserve::{
 };
 use crate::validation::ValidationError;
 use crate::{
-    BestOfSequence, Details, ErrorResponse, FinishReason, GenerateParameters, GenerateRequest,
-    GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig, HubTokenizerConfig, Info,
-    Message, PrefillToken, SimpleToken, StreamDetails, StreamResponse, Token, TokenizeResponse,
-    Usage, Validation,
+    BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName, GenerateParameters,
+    GenerateRequest, GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig,
+    HubTokenizerConfig, Info, Message, MessageChunk, MessageContent, OutputMessage, PrefillToken,
+    SimpleToken, StreamDetails, StreamResponse, TextMessage, Token, TokenizeResponse,
+    ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -185,7 +186,7 @@ pub(crate) async fn generate_internal(
     span: tracing::Span,
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
-    metrics::increment_counter!("tgi_request_count");
+    metrics::counter!("tgi_request_count").increment(1);
 
     // Do not long ultra long inputs, like image payloads.
     tracing::debug!("Input: {}", &req.inputs[..1000.min(req.inputs.len())]);
@@ -301,25 +302,15 @@ pub(crate) async fn generate_internal(
     );
 
     // Metrics
-    metrics::increment_counter!("tgi_request_success");
-    metrics::histogram!("tgi_request_duration", total_time.as_secs_f64());
-    metrics::histogram!(
-        "tgi_request_validation_duration",
-        validation_time.as_secs_f64()
-    );
-    metrics::histogram!("tgi_request_queue_duration", queue_time.as_secs_f64());
-    metrics::histogram!(
-        "tgi_request_inference_duration",
-        inference_time.as_secs_f64()
-    );
-    metrics::histogram!(
-        "tgi_request_mean_time_per_token_duration",
-        time_per_token.as_secs_f64()
-    );
-    metrics::histogram!(
-        "tgi_request_generated_tokens",
-        response.generated_text.generated_tokens as f64
-    );
+    metrics::counter!("tgi_request_success").increment(1);
+    metrics::histogram!("tgi_request_duration").record(total_time.as_secs_f64());
+    metrics::histogram!("tgi_request_validation_duration").record(validation_time.as_secs_f64());
+    metrics::histogram!("tgi_request_queue_duration").record(queue_time.as_secs_f64());
+    metrics::histogram!("tgi_request_inference_duration").record(inference_time.as_secs_f64());
+    metrics::histogram!("tgi_request_mean_time_per_token_duration")
+        .record(time_per_token.as_secs_f64());
+    metrics::histogram!("tgi_request_generated_tokens")
+        .record(response.generated_text.generated_tokens as f64);
 
     // Send response
     let mut output_text = response.generated_text.text;
@@ -399,7 +390,7 @@ async fn generate_stream_internal(
     span: tracing::Span,
 ) -> (HeaderMap, impl Stream<Item = Result<Event, Infallible>>) {
     let start_time = Instant::now();
-    metrics::increment_counter!("tgi_request_count");
+    metrics::counter!("tgi_request_count").increment(1);
 
     tracing::debug!("Input: {}", req.inputs);
 
@@ -427,12 +418,12 @@ async fn generate_stream_internal(
         let best_of = req.parameters.best_of.unwrap_or(1);
         if best_of != 1 {
             let err = InferError::from(ValidationError::BestOfStream);
-            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
             tracing::error!("{err}");
             yield Ok(Event::from(err));
         } else if req.parameters.decoder_input_details {
             let err = InferError::from(ValidationError::PrefillDetailsStream);
-            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
             tracing::error!("{err}");
             yield Ok(Event::from(err));
         } else {
@@ -500,13 +491,13 @@ async fn generate_stream_internal(
                                         span.record("seed", format!("{:?}", generated_text.seed));
 
                                         // Metrics
-                                        metrics::increment_counter!("tgi_request_success");
-                                        metrics::histogram!("tgi_request_duration", total_time.as_secs_f64());
-                                        metrics::histogram!("tgi_request_validation_duration", validation_time.as_secs_f64());
-                                        metrics::histogram!("tgi_request_queue_duration", queue_time.as_secs_f64());
-                                        metrics::histogram!("tgi_request_inference_duration", inference_time.as_secs_f64());
-                                        metrics::histogram!("tgi_request_mean_time_per_token_duration", time_per_token.as_secs_f64());
-                                        metrics::histogram!("tgi_request_generated_tokens", generated_text.generated_tokens as f64);
+                                        metrics::counter!("tgi_request_success").increment(1);
+                                        metrics::histogram!("tgi_request_duration").record(total_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_validation_duration").record(validation_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_queue_duration").record(queue_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_inference_duration").record(inference_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_mean_time_per_token_duration").record(time_per_token.as_secs_f64());
+                                        metrics::histogram!("tgi_request_generated_tokens").record(generated_text.generated_tokens as f64);
 
                                         // StreamResponse
                                         end_reached = true;
@@ -553,7 +544,7 @@ async fn generate_stream_internal(
             // Skip if we already sent an error
             if !end_reached && !error {
                 let err = InferError::IncompleteGeneration;
-                metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
+                metrics::counter!("tgi_request_failure", "err" => "incomplete").increment(1);
                 tracing::error!("{err}");
                 yield Ok(Event::from(err));
             }
@@ -572,8 +563,8 @@ request_body = CompletionRequest,
 responses(
 (status = 200, description = "Generated Chat Completion",
 content(
-("application/json" = Completion),
-("text/event-stream" = CompletionCompleteChunk),
+("application/json" = CompletionFinal),
+("text/event-stream" = Chunk),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
 example = json ! ({"error": "Request failed during generation"})),
@@ -604,9 +595,10 @@ async fn completions(
     Json(req): Json<CompletionRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
-    metrics::increment_counter!("tgi_request_count");
+    metrics::counter!("tgi_request_count").increment(1);
 
     let CompletionRequest {
+        model,
         max_tokens,
         seed,
         stop,
@@ -625,7 +617,7 @@ async fn completions(
 
     // if suffix is present throw an error
     if req.suffix.is_some() {
-        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+        metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorResponse {
@@ -637,7 +629,7 @@ async fn completions(
     }
 
     if req.prompt.0.len() > info.max_client_batch_size {
-        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+        metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorResponse {
@@ -675,7 +667,7 @@ async fn completions(
                 seed,
                 top_n_tokens: None,
                 grammar: None,
-                ..Default::default()
+                adapter_id: model.as_ref().filter(|m| *m != "tgi").map(String::from),
             },
         })
         .collect();
@@ -819,6 +811,10 @@ async fn completions(
                 }
             }
         };
+
+        let stream = stream.chain(futures::stream::once(async {
+            Ok(Event::default().data("[DONE]"))
+        }));
 
         let sse = Sse::new(stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
@@ -1009,8 +1005,9 @@ async fn chat_completions(
     Json(req): Json<ChatRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
-    metrics::increment_counter!("tgi_request_count");
+    metrics::counter!("tgi_request_count").increment(1);
     let ChatRequest {
+        model,
         logprobs,
         max_tokens,
         messages,
@@ -1039,7 +1036,7 @@ async fn chat_completions(
 
     // response_format and tools are mutually exclusive
     if response_format.is_some() && tools.as_ref().is_some() {
-        metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+        metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorResponse {
@@ -1053,7 +1050,7 @@ async fn chat_completions(
     let tool_grammar = match ToolGrammar::apply(tools, tool_choice) {
         Ok(grammar) => grammar,
         Err(err) => {
-            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
             tracing::error!("{err}");
             return Err((
                 StatusCode::UNPROCESSABLE_ENTITY,
@@ -1082,7 +1079,7 @@ async fn chat_completions(
     let inputs = match infer.apply_chat_template(messages, tools_grammar_prompt) {
         Ok(inputs) => inputs,
         Err(err) => {
-            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
             tracing::error!("{err}");
             return Err((
                 StatusCode::UNPROCESSABLE_ENTITY,
@@ -1116,7 +1113,7 @@ async fn chat_completions(
             seed,
             top_n_tokens: req.top_logprobs,
             grammar,
-            ..Default::default()
+            adapter_id: model.filter(|m| *m != "tgi").map(String::from),
         },
     };
 
@@ -1178,6 +1175,11 @@ async fn chat_completions(
             span,
         )
         .await;
+
+        let response_stream = response_stream.chain(futures::stream::once(async {
+            Ok(Event::default().data("[DONE]"))
+        }));
+
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
@@ -1280,7 +1282,7 @@ async fn vertex_compatibility(
     Json(req): Json<VertexRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
-    metrics::increment_counter!("tgi_request_count");
+    metrics::counter!("tgi_request_count").increment(1);
 
     // check that theres at least one instance
     if req.instances.is_empty() {
@@ -1454,6 +1456,14 @@ pub async fn run(
     GrammarType,
     ChatRequest,
     Message,
+    MessageContent,
+    MessageChunk,
+    Url,
+    FunctionName,
+    OutputMessage,
+    TextMessage,
+    ToolCallMessage,
+    ToolCallDelta,
     ChatCompletionComplete,
     ChatCompletionChoice,
     ChatCompletionDelta,

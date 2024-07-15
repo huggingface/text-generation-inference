@@ -91,14 +91,14 @@ impl Infer {
             .limit_concurrent_requests
             .try_acquire_owned()
             .map_err(|err| {
-                metrics::increment_counter!("tgi_request_failure", "err" => "overloaded");
+                metrics::counter!("tgi_request_failure", "err" => "overloaded").increment(1);
                 tracing::error!("{err}");
                 err
             })?;
 
         // Validate request
         let valid_request = self.validation.validate(request).await.map_err(|err| {
-            metrics::increment_counter!("tgi_request_failure", "err" => "validation");
+            metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
             tracing::error!("{err}");
             err
         })?;
@@ -140,7 +140,7 @@ impl Infer {
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
             .apply(messages, grammar_with_prompt)
             .map_err(|e| {
-                metrics::increment_counter!("tgi_request_failure", "err" => "template");
+                metrics::counter!("tgi_request_failure", "err" => "template").increment(1);
                 tracing::error!("{e}");
                 e
             })
@@ -214,7 +214,7 @@ impl Infer {
             })
         } else {
             let err = InferError::IncompleteGeneration;
-            metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
+            metrics::counter!("tgi_request_failure", "err" => "incomplete").increment(1);
             tracing::error!("{err}");
             Err(err)
         }

@@ -102,7 +102,7 @@ class GemmaConfig(PretrainedConfig):
 
 class GemmaFastRMSNorm(FastRMSNorm):
     @classmethod
-    def load(cls, prefix, weights, eps=1e-6):
+    def load(cls, prefix: str, weights, eps=1e-6):
         dtype = weights.dtype
         weights.dtype = torch.float32
         weight = weights.get_tensor(f"{prefix}.weight") + 1
@@ -123,7 +123,7 @@ class GemmaFastRMSNorm(FastRMSNorm):
         return hidden_states.to(self.dtype), residual
 
 
-def load_attention(config, prefix, weights):
+def load_attention(config, prefix: str, weights):
     if config.num_attention_heads != config.num_key_value_heads:
         return _load_gqa(config, prefix, weights)
     else:
@@ -141,7 +141,6 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 
@@ -261,7 +260,7 @@ class FlashGemmaAttention(torch.nn.Module):
 
 
 class GemmaMLP(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         act = config.hidden_act
         self.act = (
@@ -299,7 +298,7 @@ class GemmaMLP(nn.Module):
 
 
 class FlashGemmaLayer(nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool):
         super().__init__()
         self.self_attn = FlashGemmaAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights, causal=causal
@@ -354,7 +353,7 @@ class FlashGemmaLayer(nn.Module):
 
 
 class FlashGemmaModel(torch.nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool):
         super().__init__()
 
         process_group = weights.process_group
@@ -419,7 +418,7 @@ class FlashGemmaModel(torch.nn.Module):
 
 
 class FlashGemmaForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, *, causal: bool = True):
         super().__init__()
 
         embed_norm = config.hidden_size**0.5

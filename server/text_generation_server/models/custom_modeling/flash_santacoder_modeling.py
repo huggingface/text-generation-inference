@@ -17,6 +17,7 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     get_linear,
 )
+from text_generation_server.layers.gptq import GPTQWeightsLoader
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -81,11 +82,13 @@ def _load_multi_mqa_gptq(
         qzeros = torch.cat([q_tensor, kv_tensor], dim=1)
         qzeros = qzeros.to(device=weights.device)
 
-        gptq_params = weights._get_gptq_params()
-        if gptq_params.quant_method == "gptq":
+        loader = weights.weights_loader
+        assert isinstance(loader, GPTQWeightsLoader)
+        loader._get_gptq_params(weights)
+        if loader.quant_method == "gptq":
             g_idx = weights.get_tensor(f"{prefix}.c_attn.g_idx")
             g_idx = g_idx.to(device=weights.device)
-        elif gptq_params.quant_method == "awq":
+        elif loader.quant_method == "awq":
             g_idx = None
             from text_generation_server.layers.awq.conversion_utils import (
                 fast_awq_to_gptq,
@@ -100,8 +103,8 @@ def _load_multi_mqa_gptq(
             qzeros=qzeros,
             scales=scales,
             g_idx=g_idx,
-            bits=gptq_params.bits,
-            groupsize=gptq_params.groupsize,
+            bits=loader.bits,
+            groupsize=loader.groupsize,
             use_exllama=HAS_EXLLAMA,
         )
 
@@ -197,9 +200,7 @@ def load_col(config, prefix: str, weights, bias: bool):
     if config.transpose:
         weight = weights.get_sharded(f"{prefix}.weight", dim=1).T
     else:
-        weight = weights.get_multi_weights_col(
-            [prefix], quantize=config.quantize, dim=0
-        )
+        weight = weights.get_multi_weights_col([prefix], dim=0)
 
     if bias:
         bias = weights.get_sharded(f"{prefix}.bias", dim=0)
@@ -212,7 +213,7 @@ def load_row(config, prefix: str, weights, bias: bool):
     if config.transpose:
         weight = weights.get_sharded(f"{prefix}.weight", dim=0).T
     else:
-        weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+        weight = weights.get_weights_row(prefix)
 
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
@@ -346,16 +347,16 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
-        prefix = f"transformer.h.{layer_id}"
+        prefix = f"{prefix}.h.{layer_id}"
         self.ln_1 = FastLayerNorm.load(
             prefix=f"{prefix}.ln_1", weights=weights, eps=config.layer_norm_epsilon
         )
         self.ln_2 = FastLayerNorm.load(
             prefix=f"{prefix}.ln_2", weights=weights, eps=config.layer_norm_epsilon
         )
-        self.attn = FlashMQAttention(
+        self.self_attn = FlashMQAttention(
             prefix=f"{prefix}.attn",
             config=config,
             weights=weights,
@@ -378,7 +379,7 @@ class Block(nn.Module):
         max_s,
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
-        hidden_states = self.attn(
+        hidden_states = self.self_attn(
             hidden_states,
             cu_seqlen_prefill,
             kv_cache,
@@ -396,25 +397,26 @@ class Block(nn.Module):
 
 
 class FlashSantacoderModel(nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         self.config = config
 
         self.process_group = weights.process_group
         self.wte = TensorParallelEmbedding(
-            prefix="transformer.wte",
+            prefix=f"{prefix}.wte",
             weights=weights,
             reduce=False,
         )
         self.wpe = TensorParallelEmbedding(
-            prefix="transformer.wpe",
+            prefix=f"{prefix}.wpe",
             weights=weights,
             reduce=False,
         )
 
-        self.h = nn.ModuleList(
+        self.layers = nn.ModuleList(
             [
                 Block(
+                    prefix,
                     layer_id,
                     config,
                     weights,
@@ -426,8 +428,8 @@ class FlashSantacoderModel(nn.Module):
             prefix="transformer.ln_f", weights=weights, eps=config.layer_norm_epsilon
         )
 
-        self.head_size = self.h[0].attn.head_size
-        self.num_heads = self.h[0].attn.num_heads
+        self.head_size = self.layers[0].self_attn.head_size
+        self.num_heads = self.layers[0].self_attn.num_heads
 
     def forward(
         self,
@@ -446,7 +448,7 @@ class FlashSantacoderModel(nn.Module):
             torch.distributed.all_reduce(hidden_states, group=self.process_group)
 
         residual = None
-        for i, layer in enumerate(self.h):
+        for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
                 residual,
@@ -464,11 +466,18 @@ class FlashSantacoderModel(nn.Module):
 
 
 class FlashSantacoderForCausalLM(nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
-        self.transformer = FlashSantacoderModel(config, weights)
+
+        if not prefix:
+            prefix = "transformer"
+        else:
+            prefix = f"{prefix}.transformer"
+
+        config.transpose = config.architectures[0].startswith("GPT2")
+        self.model = FlashSantacoderModel(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
-            config, prefix="transformer.wte", weights=weights
+            config, prefix=f"{prefix}.wte", weights=weights
         )
 
     def forward(
@@ -485,7 +494,7 @@ class FlashSantacoderForCausalLM(nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        hidden_states = self.transformer(
+        hidden_states = self.model(
             input_ids,
             position_ids,
             cu_seqlen_prefill,

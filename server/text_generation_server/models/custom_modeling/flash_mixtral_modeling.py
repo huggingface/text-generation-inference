@@ -116,7 +116,7 @@ def promote_scalar(x: torch.Tensor) -> torch.Tensor:
     return x.view(1) if len(x.size()) == 0 else x
 
 
-def load_attention(config, prefix, weights):
+def load_attention(config, prefix: str, weights):
     if config.num_attention_heads != config.num_key_value_heads:
         return _load_gqa(config, prefix, weights)
     else:
@@ -135,7 +135,6 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 
@@ -155,7 +154,7 @@ def _load_gqa(config, prefix: str, weights):
     )
 
 
-def _load_experts(config, prefix, mat, weights):
+def _load_experts(config, prefix: str, mat, weights):
     if config.quantize is not None:
         raise NotImplementedError("Mixtral does not support weight quantization yet.")
 
@@ -475,7 +474,7 @@ class DenseMoE(nn.Module):
 
 
 class MixtralLayer(nn.Module):
-    def __init__(self, prefix, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
         prefix = f"{prefix}.layers.{layer_id}"
 
@@ -536,7 +535,7 @@ class MixtralLayer(nn.Module):
 
 
 class MixtralModel(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
@@ -610,7 +609,7 @@ class MixtralModel(torch.nn.Module):
 
 
 class FlashMixtralForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.model = MixtralModel(prefix, config, weights)

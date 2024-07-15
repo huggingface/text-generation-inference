@@ -11,17 +11,27 @@ from pathlib import Path
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
-from text_generation_server.models.causal_lm import CausalLM
-from text_generation_server.models.bloom import BLOOMSharded
-from text_generation_server.models.mpt import MPTSharded
+from text_generation_server.models.causal_lm import CausalLM, CausalLMBatchKeysLast
+from text_generation_server.models.custom_modeling.opt_modeling import OPTForCausalLM
+from text_generation_server.models.custom_modeling.mpt_modeling import (
+    MPTForCausalLM,
+)
+from text_generation_server.models.bloom import BloomCausalLMBatch
+from text_generation_server.models.custom_modeling.bloom_modeling import (
+    BloomForCausalLM,
+)
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
-from text_generation_server.models.rw import RW
-from text_generation_server.models.opt import OPTSharded
-from text_generation_server.models.galactica import GalacticaSharded
-from text_generation_server.models.santacoder import SantaCoder
-from text_generation_server.models.t5 import T5Sharded
-from text_generation_server.models.gpt_neox import GPTNeoxSharded
-from text_generation_server.models.phi import Phi
+from text_generation_server.models.galactica import GalacticaCausalLMBatch
+from text_generation_server.models.custom_modeling.neox_modeling import (
+    GPTNeoxForCausalLM,
+)
+from text_generation_server.models.custom_modeling.phi_modeling import (
+    PhiConfig,
+    PhiForCausalLM,
+)
+from text_generation_server.models.custom_modeling.t5_modeling import (
+    T5ForConditionalGeneration,
+)
 
 from text_generation_server.utils.import_utils import SYSTEM
 
@@ -41,9 +51,6 @@ __all__ = [
     "CausalLM",
     "GalacticaSharded",
     "Seq2SeqLM",
-    "SantaCoder",
-    "OPTSharded",
-    "T5Sharded",
     "get_model",
 ]
 
@@ -53,38 +60,65 @@ FLASH_ATTENTION = True
 
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
-    from text_generation_server.models.flash_rw import FlashRWSharded
-    from text_generation_server.models.flash_gpt2 import FlashGPT2
-    from text_generation_server.models.flash_neox import FlashNeoXSharded
-    from text_generation_server.models.flash_llama import (
-        FlashLlama,
+    from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+    from text_generation_server.models.custom_modeling.flash_llama_modeling import (
+        FlashLlamaForCausalLM,
     )
-    from text_generation_server.models.flash_qwen2 import (
-        FlashQwen2,
+    from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
+        FlashCohereForCausalLM,
     )
-    from text_generation_server.models.flash_cohere import (
-        FlashCohere,
+    from text_generation_server.models.custom_modeling.flash_gemma_modeling import (
+        FlashGemmaForCausalLM,
     )
-    from text_generation_server.models.flash_gemma import (
-        FlashGemma,
+    from text_generation_server.models.custom_modeling.flash_gemma2_modeling import (
+        FlashGemma2ForCausalLM,
     )
-    from text_generation_server.models.flash_gemma2 import (
-        FlashGemma2,
+    from text_generation_server.models.custom_modeling.flash_dbrx_modeling import (
+        FlashDbrxForCausalLM,
+        DbrxConfig,
+    )
+    from text_generation_server.models.custom_modeling.flash_rw_modeling import (
+        RWConfig,
+        FlashRWForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_neox_modeling import (
+        FlashGPTNeoXForCausalLM,
     )
     from text_generation_server.models.pali_gemma import (
-        PaliGemma,
+        PaliGemmaBatch,
     )
-    from text_generation_server.models.flash_santacoder import (
-        FlashSantacoderSharded,
+    from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
+        PaliGemmaForConditionalGeneration,
+    )
+    from text_generation_server.models.custom_modeling.flash_phi_modeling import (
+        FlashPhiForCausalLM,
     )
     from text_generation_server.models.idefics import IDEFICSSharded
-    from text_generation_server.models.llava_next import LlavaNext
-    from text_generation_server.models.idefics2 import Idefics2
-    from text_generation_server.models.flash_mistral import FlashMistral
-    from text_generation_server.models.flash_mixtral import FlashMixtral
-    from text_generation_server.models.flash_phi import FlashPhi
-    from text_generation_server.models.flash_starcoder2 import FlashStarcoder2
-    from text_generation_server.models.flash_dbrx import FlashDbrx
+    from text_generation_server.models.custom_modeling.llava_next import (
+        LlavaNextForConditionalGeneration,
+    )
+
+    from text_generation_server.models.custom_modeling.flash_santacoder_modeling import (
+        FlashSantacoderForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_starcoder2_modeling import (
+        FlashStarcoder2ForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
+        Qwen2ForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
+        FlashMistralForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_mixtral_modeling import (
+        FlashMixtralForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_gpt2_modeling import (
+        FlashGPT2ForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.idefics2 import (
+        Idefics2ForConditionalGeneration,
+    )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
     logger.warning(f"Could not import Flash Attention enabled models: {e}")
@@ -93,21 +127,7 @@ except ImportError as e:
 
 if FLASH_ATTENTION:
     __all__.append(FlashCausalLM)
-    __all__.append(FlashGPT2)
-    __all__.append(FlashNeoXSharded)
-    __all__.append(FlashRWSharded)
-    __all__.append(FlashSantacoderSharded)
-    __all__.append(FlashLlama)
     __all__.append(IDEFICSSharded)
-    __all__.append(FlashMistral)
-    __all__.append(FlashMixtral)
-    __all__.append(FlashDbrx)
-    __all__.append(FlashPhi)
-    __all__.append(FlashQwen2)
-    __all__.append(FlashStarcoder2)
-    __all__.append(FlashGemma)
-    __all__.append(FlashGemma2)
-    __all__.append(FlashCohere)
 
 MAMBA_AVAILABLE = True
 try:
@@ -147,6 +167,11 @@ class ModelType(enum.Enum):
         "type": "gemma",
         "name": "Gemma",
         "url": "https://huggingface.co/google/gemma-7b",
+    }
+    PALIGEMMA = {
+        "type": "paligemma",
+        "name": "PaliGemma",
+        "url": "https://huggingface.co/google/paligemma-3b-pt-224",
     }
     GEMMA2 = {
         "type": "gemma2",
@@ -445,13 +470,16 @@ def get_model(
         )
 
     if model_id.startswith("facebook/galactica"):
-        return GalacticaSharded(
-            model_id,
-            revision,
+        return CausalLM(
+            model_id=model_id,
+            # Yes galactica is just an OPT model.
+            model_class=OPTForCausalLM,
+            revision=revision,
             quantize=quantize,
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+            batch_class=GalacticaCausalLMBatch,
         )
 
     if (
@@ -460,22 +488,26 @@ def get_model(
         and model_id.startswith("bigcode/")
     ):
         if FLASH_ATTENTION:
-            return FlashSantacoderSharded(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashSantacoderForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                aliases={"transformer.wte.weight": ["lm_head.weight"]},
+                num_kv_heads=1,
             )
         elif sharded:
             raise NotImplementedError(
                 FLASH_ATT_ERROR_MESSAGE.format("Sharded Santacoder")
             )
         else:
-            return SantaCoder(
-                model_id,
-                revision,
+            return CausalLM.fallback(
+                model_id=model_id,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
@@ -483,38 +515,44 @@ def get_model(
             )
 
     if model_type == BLOOM:
-        return BLOOMSharded(
-            model_id,
-            revision,
+        return CausalLM(
+            model_id=model_id,
+            model_class=BloomForCausalLM,
+            revision=revision,
             quantize=quantize,
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+            batch_class=BloomCausalLMBatch,
         )
     elif model_type == MPT:
-        return MPTSharded(
-            model_id,
-            revision,
+        return CausalLM(
+            model_id=model_id,
+            model_class=MPTForCausalLM,
+            revision=revision,
             quantize=quantize,
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+            batch_class=CausalLMBatchKeysLast,
         )
     elif model_type == GPT2:
         if FLASH_ATTENTION:
             try:
-                return FlashGPT2(
-                    model_id,
-                    revision,
+                return FlashCausalLM(
+                    model_id=model_id,
+                    model_class=FlashGPT2ForCausalLM,
+                    revision=revision,
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
                     trust_remote_code=trust_remote_code,
+                    lora_adapter_ids=lora_adapter_ids,
                 )
             except RuntimeError as e:
                 # Lots of legacy models with various weight names.
                 logger.warning(f"Couldn't load flash gpt2 variant: {e}")
-                return CausalLM(
+                return CausalLM.fallback(
                     model_id,
                     revision,
                     quantize=quantize,
@@ -525,7 +563,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-2"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -535,25 +573,28 @@ def get_model(
             )
     elif model_type == GPT_NEOX:
         if FLASH_ATTENTION:
-            return FlashNeoXSharded(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashGPTNeoXForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
-            return GPTNeoxSharded(
-                model_id,
-                revision,
+            return CausalLM(
+                model_id=model_id,
+                model_class=GPTNeoxForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -564,16 +605,18 @@ def get_model(
 
     elif model_type == PHI:
         if FLASH_ATTENTION:
-            return FlashPhi(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashPhiForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -588,9 +631,11 @@ def get_model(
                 "Legacy phi-msft is not supported with Flash Attention"
             )
         else:
-            return Phi(
-                model_id,
-                revision,
+            return CausalLM(
+                model_id=model_id,
+                model_class=PhiForCausalLM,
+                config_class=PhiConfig,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
@@ -599,9 +644,10 @@ def get_model(
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
         if FLASH_ATTENTION:
-            return FlashLlama(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashLlamaForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
@@ -611,7 +657,7 @@ def get_model(
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -621,18 +667,22 @@ def get_model(
             )
     if model_type == GEMMA:
         if FLASH_ATTENTION:
-            return FlashGemma(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashGemmaForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -642,18 +692,22 @@ def get_model(
             )
     elif model_type == GEMMA2:
         if FLASH_ATTENTION:
-            return FlashGemma2(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashGemma2ForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma2"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -664,18 +718,20 @@ def get_model(
 
     if model_type == COHERE:
         if FLASH_ATTENTION:
-            return FlashCohere(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashCohereForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Cohere"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -686,18 +742,23 @@ def get_model(
 
     if model_type == DBRX:
         if FLASH_ATTENTION:
-            return FlashDbrx(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashDbrxForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                # Dbrx works better in bfloat16.
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=DbrxConfig,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded DBRX"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -711,27 +772,41 @@ def get_model(
             if FLASH_ATTENTION:
                 if config_dict.get("alibi", False):
                     raise NotImplementedError("sharded is not supported for this model")
-                return FlashRWSharded(
-                    model_id,
-                    revision,
+                return FlashCausalLM(
+                    model_id=model_id,
+                    model_class=FlashRWForCausalLM,
+                    revision=revision,
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    aliases={
+                        "lm_head.weight": ["transformer.word_embeddings.weight"],
+                        "transformer.word_embeddings.weight": ["lm_head.weight"],
+                    },
                     trust_remote_code=trust_remote_code,
+                    lora_adapter_ids=lora_adapter_ids,
+                    config_class=RWConfig,
                 )
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Falcon"))
         else:
             if FLASH_ATTENTION and not config_dict.get("alibi", False):
-                return FlashRWSharded(
-                    model_id,
-                    revision,
+                return FlashCausalLM(
+                    model_id=model_id,
+                    model_class=FlashRWForCausalLM,
+                    revision=revision,
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    aliases={
+                        "lm_head.weight": ["transformer.word_embeddings.weight"],
+                        "transformer.word_embeddings.weight": ["lm_head.weight"],
+                    },
                     trust_remote_code=trust_remote_code,
+                    lora_adapter_ids=lora_adapter_ids,
+                    config_class=RWConfig,
                 )
             else:
-                return RW(
+                return CausalLM.fallback(
                     model_id,
                     revision,
                     quantize=quantize,
@@ -742,18 +817,20 @@ def get_model(
 
     if model_type == MISTRAL:
         if FLASH_ATTENTION:
-            return FlashMistral(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashMistralForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mistral"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -764,18 +841,20 @@ def get_model(
 
     if model_type == MIXTRAL:
         if FLASH_ATTENTION:
-            return FlashMixtral(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashMixtralForCausalLM,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mixtral"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -786,19 +865,22 @@ def get_model(
 
     if model_type == STARCODER2:
         if FLASH_ATTENTION:
-            return FlashStarcoder2(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashStarcoder2ForCausalLM,
+                revision=revision,
                 quantize=quantize,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(
                 FLASH_ATT_ERROR_MESSAGE.format("Sharded Starcoder2")
             )
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -809,17 +891,20 @@ def get_model(
 
     if model_type == QWEN2:
         if FLASH_ATTENTION:
-            return FlashQwen2(
-                model_id,
-                revision,
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=Qwen2ForCausalLM,
+                revision=revision,
                 quantize=quantize,
+                speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Qwen2"))
         else:
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -829,9 +914,10 @@ def get_model(
             )
 
     if model_type == OPT:
-        return OPTSharded(
-            model_id,
-            revision,
+        return CausalLM(
+            model_id=model_id,
+            model_class=OPTForCausalLM,
+            revision=revision,
             quantize=quantize,
             speculator=speculator,
             dtype=dtype,
@@ -839,13 +925,20 @@ def get_model(
         )
 
     if model_type == T5:
-        return T5Sharded(
-            model_id,
-            revision,
+        return Seq2SeqLM(
+            model_id=model_id,
+            model_class=T5ForConditionalGeneration,
+            revision=revision,
             quantize=quantize,
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+            aliases={
+                "shared.weight": [
+                    "encoder.embed_tokens.weight",
+                    "decoder.embed_tokens.weight",
+                ]
+            },
         )
     if model_type == IDEFICS:
         if FLASH_ATTENTION:
@@ -861,34 +954,45 @@ def get_model(
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == IDEFICS2:
         if FLASH_ATTENTION:
-            return Idefics2(
-                model_id,
-                revision,
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Idefics2ForConditionalGeneration,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                # XXX: Extremely important to cap resolution in order to limit
+                # VRAM usage.
+                processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
-    if model_type == "paligemma":
+    if model_type == PALIGEMMA:
         if FLASH_ATTENTION:
-            return PaliGemma(
-                model_id,
-                revision,
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=PaliGemmaForConditionalGeneration,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                batch_class=PaliGemmaBatch,
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
 
     if model_type == LLAVA_NEXT:
         if FLASH_ATTENTION:
-            return LlavaNext(
-                model_id,
-                revision,
+            return VlmCausalLM(
+                model_class=LlavaNextForConditionalGeneration,
+                model_id=model_id,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
@@ -912,7 +1016,7 @@ def get_model(
     elif quantize == "exl2":
         raise NotImplementedError("exl2 quantization is not supported for AutoModel")
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        return CausalLM(
+        return CausalLM.fallback(
             model_id,
             revision,
             quantize=quantize,
@@ -921,7 +1025,7 @@ def get_model(
             trust_remote_code=trust_remote_code,
         )
     if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
-        return Seq2SeqLM(
+        return Seq2SeqLM.fallback(
             model_id,
             revision,
             quantize=quantize,
@@ -933,7 +1037,7 @@ def get_model(
     auto_map = config_dict.get("auto_map", None)
     if trust_remote_code and auto_map is not None:
         if "AutoModelForCausalLM" in auto_map.keys():
-            return CausalLM(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -942,7 +1046,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
         if "AutoModelForSeq2SeqLM" in auto_map.keys():
-            return Seq2SeqLM(
+            return Seq2SeqLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,

@@ -102,7 +102,7 @@ class PositionRotaryEmbedding(nn.Module):
                     max_position_embeddings=rope_scaling[
                         "original_max_position_embeddings"
                     ],
-                    base=10000.0,
+                    base=base,
                     device=inv_freq.device,
                     scaling_factor=scaling_factor,
                     extrapolation_factor=1,
@@ -110,7 +110,7 @@ class PositionRotaryEmbedding(nn.Module):
                     beta_fast=32,
                     beta_slow=1,
                 )
-            elif rope_scaling["type"] == "su":
+            elif rope_scaling["type"] in ["su", "longrope"]:
                 short_factor = torch.tensor(
                     rope_scaling["short_factor"], dtype=torch.float32, device=device
                 )

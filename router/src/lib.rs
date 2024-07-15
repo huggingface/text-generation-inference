@@ -386,7 +386,7 @@ pub struct CompletionRequest {
     /// UNUSED
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
-    pub model: String,
+    pub model: Option<String>,
 
     /// The prompt to generate completions for.
     #[schema(example = "What is Deep Learning?")]
@@ -733,7 +733,7 @@ impl ChatCompletionChunk {
 pub(crate) struct ChatRequest {
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// [UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
-    pub model: String,
+    pub model: Option<String>,
 
     /// A list of messages comprising the conversation so far.
     #[schema(example = "[{\"role\": \"user\", \"content\": \"What is Deep Learning?\"}]")]
@@ -850,7 +850,7 @@ pub enum ToolType {
     Function { function: FunctionName },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct FunctionName {
     pub name: String,
 }
