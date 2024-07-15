@@ -190,7 +190,7 @@ struct PrefixBlockState {
 }
 
 #[derive(Debug)]
-pub struct PrefixCache {
+pub struct PrefixCacheAllocator {
     /// Size of a paged attention block.
     block_size: usize,
 
@@ -210,9 +210,13 @@ pub struct PrefixCache {
     time: u64,
 }
 
-impl PrefixCache {
-    pub fn new(block_size: usize, n_blocks: usize) -> Self {
-        PrefixCache {
+impl PrefixCacheAllocator {
+    pub fn new(block_size: usize, n_blocks: usize, window_size: Option<u32>) -> Self {
+        if window_size.is_some() {
+            unimplemented!("Window size not supported in the prefix-caching block allocator yet");
+        }
+
+        PrefixCacheAllocator {
             block_size,
             cache_blocks: HashMap::new(),
             free_blocks: (1..n_blocks as u32).collect(),
@@ -386,11 +390,11 @@ impl PrefixCache {
 mod tests {
     use crate::infer::v3::block_allocator::BlockAllocationWithCache;
 
-    use super::PrefixCache;
+    use super::PrefixCacheAllocator;
 
     #[test]
     fn test_prefix_cache() {
-        let mut cache = PrefixCache::new(4, 3);
+        let mut cache = PrefixCacheAllocator::new(4, 3, None);
         let allocation = cache.alloc(8, &[0, 1, 2, 3]);
         assert_eq!(
             allocation,
@@ -413,7 +417,7 @@ mod tests {
 
     #[test]
     fn test_older_prefixes_are_collected_first() {
-        let mut cache = PrefixCache::new(2, 4);
+        let mut cache = PrefixCacheAllocator::new(2, 4, None);
         let allocation1 = cache.alloc(4, &[0, 1, 2, 3]);
         assert_eq!(
             allocation1,
