@@ -333,6 +333,8 @@ def launcher(event_loop):
         max_input_length: Optional[int] = None,
         max_batch_prefill_tokens: Optional[int] = None,
         max_total_tokens: Optional[int] = None,
+        lora_adapters: Optional[List[str]] = None,
+        cuda_graphs: Optional[List[int]] = None,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -379,6 +381,14 @@ def launcher(event_loop):
         if max_total_tokens:
             args.append("--max-total-tokens")
             args.append(str(max_total_tokens))
+        if lora_adapters:
+            args.append("--lora-adapters")
+            args.append(",".join(lora_adapters))
+        if cuda_graphs:
+            args.append("--cuda-graphs")
+            args.append(",".join(map(str, cuda_graphs)))
+
+        print(" ".join(args), file=sys.stderr)
 
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
 
@@ -418,6 +428,8 @@ def launcher(event_loop):
         max_input_length: Optional[int] = None,
         max_batch_prefill_tokens: Optional[int] = None,
         max_total_tokens: Optional[int] = None,
+        lora_adapters: Optional[List[str]] = None,
+        cuda_graphs: Optional[List[int]] = None,
     ):
         port = random.randint(8000, 10_000)
 
@@ -447,6 +459,12 @@ def launcher(event_loop):
         if max_total_tokens:
             args.append("--max-total-tokens")
             args.append(str(max_total_tokens))
+        if lora_adapters:
+            args.append("--lora-adapters")
+            args.append(",".join(lora_adapters))
+        if cuda_graphs:
+            args.append("--cuda-graphs")
+            args.append(",".join(map(str, cuda_graphs)))
 
         client = docker.from_env()
 
