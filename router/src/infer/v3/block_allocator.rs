@@ -1,8 +1,6 @@
-use itertools::Itertools;
 use std::{
-    borrow::BorrowMut,
-    cmp::{min, Reverse},
-    collections::{hash_map::Entry, BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet},
+    cmp::min,
+    collections::{hash_map::Entry, BTreeSet, HashMap},
     hash::{DefaultHasher, Hash, Hasher},
 };
 use tokio::sync::{mpsc, oneshot};
@@ -80,53 +78,84 @@ async fn block_allocator_task(
     window_size: Option<u32>,
     mut receiver: mpsc::UnboundedReceiver<BlockAllocatorCommand>,
 ) {
-    // Block 0 is reserved for health checks
-    let mut free_blocks: Vec<u32> = (1..blocks).collect();
+    let mut allocator = SimpleAllocator::new(blocks, block_size, window_size);
     while let Some(cmd) = receiver.recv().await {
         match cmd {
-            BlockAllocatorCommand::Free { blocks } => free_blocks.extend(blocks),
+            BlockAllocatorCommand::Free { blocks } => allocator.free(blocks),
             BlockAllocatorCommand::Allocate {
                 tokens,
                 response_sender,
             } => {
-                // Apply window size
-                let (required_blocks, repeats) = {
-                    let (tokens, repeats) = match window_size {
-                        None => (tokens, 1),
-                        Some(window_size) => {
-                            let repeats = (tokens + window_size - 1) / window_size;
-                            let tokens = min(tokens, window_size);
-                            (tokens, repeats as usize)
-                        }
-                    };
-                    // Pad to a multiple of block size
-                    let required_blocks = (tokens + block_size - 1) / block_size;
-                    (required_blocks, repeats)
-                };
-
-                let tokens = tokens as usize;
-                let allocation = if required_blocks > free_blocks.len() as u32 {
-                    None
-                } else {
-                    let blocks =
-                        free_blocks.split_off(free_blocks.len() - required_blocks as usize);
-                    let mut slots = Vec::with_capacity(
-                        (required_blocks * block_size * repeats as u32) as usize,
-                    );
-
-                    'slots: for block_id in blocks.repeat(repeats).iter() {
-                        for s in (block_id * block_size)..((block_id + 1) * block_size) {
-                            slots.push(s);
-                            if slots.len() == tokens {
-                                break 'slots;
-                            }
-                        }
-                    }
-                    Some((blocks, slots))
-                };
-                response_sender.send(allocation).unwrap();
+                response_sender.send(allocator.allocate(tokens)).unwrap();
             }
         }
+    }
+}
+
+pub trait Allocator {
+    fn allocate(&mut self, tokens: u32) -> Option<(Vec<u32>, Vec<u32>)>;
+
+    fn free(&mut self, blocks: Vec<u32>);
+}
+
+pub struct SimpleAllocator {
+    free_blocks: Vec<u32>,
+    block_size: u32,
+    window_size: Option<u32>,
+}
+
+impl SimpleAllocator {
+    fn new(blocks: u32, block_size: u32, window_size: Option<u32>) -> Self {
+        SimpleAllocator {
+            block_size,
+            // Block 0 is reserved for health checks
+            free_blocks: (1..blocks).collect(),
+            window_size,
+        }
+    }
+}
+
+impl Allocator for SimpleAllocator {
+    fn allocate(&mut self, tokens: u32) -> Option<(Vec<u32>, Vec<u32>)> {
+        // Apply window size
+        let (required_blocks, repeats) = {
+            let (tokens, repeats) = match self.window_size {
+                None => (tokens, 1),
+                Some(window_size) => {
+                    let repeats = (tokens + window_size - 1) / window_size;
+                    let tokens = min(tokens, window_size);
+                    (tokens, repeats as usize)
+                }
+            };
+            // Pad to a multiple of block size
+            let required_blocks = (tokens + self.block_size - 1) / self.block_size;
+            (required_blocks, repeats)
+        };
+
+        let tokens = tokens as usize;
+        if required_blocks > self.free_blocks.len() as u32 {
+            None
+        } else {
+            let blocks = self
+                .free_blocks
+                .split_off(self.free_blocks.len() - required_blocks as usize);
+            let mut slots =
+                Vec::with_capacity((required_blocks * self.block_size * repeats as u32) as usize);
+
+            'slots: for block_id in blocks.repeat(repeats).iter() {
+                for s in (block_id * self.block_size)..((block_id + 1) * self.block_size) {
+                    slots.push(s);
+                    if slots.len() == tokens {
+                        break 'slots;
+                    }
+                }
+            }
+            Some((blocks, slots))
+        }
+    }
+
+    fn free(&mut self, blocks: Vec<u32>) {
+        self.free_blocks.extend(blocks)
     }
 }
 
