@@ -57,7 +57,7 @@ pub enum ChatTemplateVersions {
 
 use std::path::Path;
 
-#[derive(Debug, Clone, Serialize ,Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HubTokenizerConfig {
     pub chat_template: Option<ChatTemplateVersions>,
     pub completion_template: Option<String>,

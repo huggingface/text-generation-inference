@@ -1,8 +1,8 @@
 use crate::config::Config;
 use reqwest::header::HeaderMap;
 use serde::Serialize;
-use uuid::Uuid;
 use std::{fmt, process::Command, time::Duration};
+use uuid::Uuid;
 
 const TELEMETRY_URL: &str = "https://huggingface.co/api/telemetry/tgi";
 
@@ -24,7 +24,7 @@ impl UserAgent {
 }
 
 #[derive(Serialize, Debug)]
-pub enum  EventType {
+pub enum EventType {
     Start,
     Stop,
     Error(String),
@@ -48,14 +48,14 @@ impl UsageStatsEvent {
         headers.insert("Content-Type", "application/json".parse().unwrap());
         let body = serde_json::to_string(&self).unwrap();
         let client = reqwest::Client::new();
-        let _ = client.post(TELEMETRY_URL)
+        let _ = client
+            .post(TELEMETRY_URL)
             .body(body)
             .timeout(Duration::from_secs(5))
             .send()
             .await;
     }
 }
-
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Args {
@@ -164,7 +164,8 @@ impl SystemInfo {
         let cpu_type = system.cpus()[0].brand().to_string();
         let total_memory = system.total_memory();
         let architecture = std::env::consts::ARCH.to_string();
-        let platform = format!("{}-{}-{}",
+        let platform = format!(
+            "{}-{}-{}",
             std::env::consts::OS,
             std::env::consts::FAMILY,
             std::env::consts::ARCH

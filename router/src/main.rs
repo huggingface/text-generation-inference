@@ -14,6 +14,7 @@ use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use text_generation_router::config::Config;
+use text_generation_router::usage_stats;
 use text_generation_router::{
     server, HubModelInfo, HubPreprocessorConfig, HubProcessorConfig, HubTokenizerConfig,
 };
@@ -23,7 +24,6 @@ use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter, Layer};
-use text_generation_router::usage_stats;
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -137,7 +137,7 @@ async fn main() -> Result<(), RouterError> {
         disable_crash_reports,
         command,
     } = args;
- 
+
     let print_schema_command = match command {
         Some(Commands::PrintSchema) => true,
         None => {
@@ -411,18 +411,18 @@ async fn main() -> Result<(), RouterError> {
             disable_crash_reports,
         );
         Some(usage_stats::UserAgent::new(reducded_args))
-    }
-    else {
+    } else {
         None
     };
-    
+
     if let Some(ref ua) = user_agent {
-        let start_event = usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Start);
+        let start_event =
+            usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Start);
         tokio::spawn(async move {
             start_event.send().await;
         });
-    }; 
-    
+    };
+
     // Run server
     let result = server::run(
         master_shard_uds_path,
@@ -456,11 +456,12 @@ async fn main() -> Result<(), RouterError> {
         print_schema_command,
     )
     .await;
-    
+
     match result {
         Ok(_) => {
             if let Some(ref ua) = user_agent {
-                let stop_event = usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Stop);
+                let stop_event =
+                    usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Stop);
                 stop_event.send().await;
             };
             Ok(())
@@ -468,7 +469,10 @@ async fn main() -> Result<(), RouterError> {
         Err(e) => {
             if let Some(ref ua) = user_agent {
                 if !disable_crash_reports {
-                    let error_event = usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Error(e.to_string()));
+                    let error_event = usage_stats::UsageStatsEvent::new(
+                        ua.clone(),
+                        usage_stats::EventType::Error(e.to_string()),
+                    );
                     error_event.send().await;
                 }
             };
