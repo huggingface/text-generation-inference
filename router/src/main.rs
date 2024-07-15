@@ -210,7 +210,11 @@ async fn main() -> Result<(), RouterError> {
     }
     let api = if use_api {
         if std::env::var("HF_HUB_OFFLINE") == Ok("1".to_string()) {
-            let cache = Cache::default();
+            let cache = std::env::var("HUGGINGFACE_HUB_CACHE")
+                .map_err(|_| ())
+                .map(|cache_dir| Cache::new(cache_dir.into()))
+                .unwrap_or_else(|_| Cache::default());
+
             tracing::warn!("Offline mode active using cache defaults");
             Type::Cache(cache)
         } else {
