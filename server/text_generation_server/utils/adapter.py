@@ -231,17 +231,34 @@ def get_attn_weights(i, layer):
 
 def get_mlp_weights(i, layer):
     weights = {}
-
-    if hasattr(layer, "mlp") and hasattr(layer.mlp, "gate_up_proj"):
-        gup = layer.mlp.gate_up_proj
-
-        for k in ["gate", "up", "down"]:
-            key = (i, f"{k}_proj")
-            value = (
-                f"model.layers.{i}.mlp.{k}_proj",
-                gup if k != "down" else layer.mlp.down_proj,
+    if hasattr(layer, "mlp"):
+        mlp = layer.mlp
+        if hasattr(mlp, "gate_up_proj"):
+            # handle combined gate_up_proj (e.g., for some LLaMA variants)
+            weights.update(
+                {
+                    (i, "gate_proj"): (
+                        f"model.layers.{i}.mlp.gate_proj",
+                        mlp.gate_up_proj,
+                    ),
+                    (i, "up_proj"): (f"model.layers.{i}.mlp.up_proj", mlp.gate_up_proj),
+                }
             )
-            weights[key] = value
+        else:
+            # handle separate gate_proj, up_proj, and down_proj (e.g., for Gemma)
+            if hasattr(mlp, "gate_proj"):
+                weights[(i, "gate_proj")] = (
+                    f"model.layers.{i}.mlp.gate_proj",
+                    mlp.gate_proj,
+                )
+            if hasattr(mlp, "up_proj"):
+                weights[(i, "up_proj")] = (f"model.layers.{i}.mlp.up_proj", mlp.up_proj)
+
+        if hasattr(mlp, "down_proj"):
+            weights[(i, "down_proj")] = (
+                f"model.layers.{i}.mlp.down_proj",
+                mlp.down_proj,
+            )
 
     return weights
 
