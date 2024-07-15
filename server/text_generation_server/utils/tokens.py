@@ -29,7 +29,7 @@ class NextTokenChooser:
         temperature: float = 1.0,
         repetition_penalty: float = 1.0,
         frequency_penalty: float = 0.0,
-        no_repeat_ngram_size: int = 0,
+        no_repeat_ngram_size: Optional[int] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
         typical_p: Optional[float] = None,
