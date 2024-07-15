@@ -214,7 +214,7 @@ async fn main() -> Result<(), RouterError> {
                 .map_err(|_| ())
                 .map(|cache_dir| Cache::new(cache_dir.into()))
                 .unwrap_or_else(|_| Cache::default());
-            
+
             tracing::warn!("Offline mode active using cache defaults");
             Type::Cache(cache)
         } else {
