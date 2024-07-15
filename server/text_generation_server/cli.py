@@ -91,6 +91,15 @@ def serve(
             f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
         )
 
+    # TODO: enable lora with cuda graphs. for now disable cuda graphs if lora is enabled
+    # and warn the user
+    if len(lora_adapter_ids) > 0 and os.getenv("CUDA_GRAPHS", None) is not None:
+        logger.warning(
+            f"LoRa adapter are not supported with CUDA Graphs. Disabling CUDA Graphs."
+        )
+        global CUDA_GRAPHS
+        CUDA_GRAPHS = None
+
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = None if dtype is None else dtype.value
