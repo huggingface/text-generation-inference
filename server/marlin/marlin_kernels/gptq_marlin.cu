@@ -1465,7 +1465,7 @@ bool is_valid_cache_size(thread_config_t const& th_config, int max_m_blocks,
 
     max_m_blocks--;
     if (max_m_blocks == 0) {
-      TORCH_CHECK(false, "Unexpected m_blocks = ", m_blocks);
+      //TORCH_CHECK(false, "Unexpected m_blocks = ", m_blocks);
     }
   }
 
@@ -1583,7 +1583,7 @@ void marlin_mm_f16i4(const void* A, const void* B, void* C, void* s,
                      int thread_n, int sms, int max_par) {
   TORCH_CHECK(num_bits == 4 || num_bits == 8,
               "num_bits must be 4 or 8. Got = ", num_bits);
-  TORCH_CHECK(prob_m > 0 && prob_n > 0 && prob_k > 0, "Invalid MNK = [", prob_m,
+  TORCH_CHECK(prob_m >= 0 && prob_n > 0 && prob_k > 0, "Invalid MNK = [", prob_m,
               ", ", prob_n, ", ", prob_k, "]");
 
   int tot_m = prob_m;
