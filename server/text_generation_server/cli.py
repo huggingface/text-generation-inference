@@ -81,22 +81,19 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(otlp_service_name=otlp_service_name, otlp_endpoint=otlp_endpoint)
 
-    lora_adapters = parse_lora_adapters(os.environ.get("LORA_ADAPTERS", None))
-
-    if len(lora_adapters) > 0:
-        logger.warning(
-            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
-        )
+    lora_adapters = parse_lora_adapters(os.getenv("LORA_ADAPTERS"))
 
     # TODO: enable lora with cuda graphs. for now disable cuda graphs if lora is enabled
     # and warn the user
-    if len(lora_adapters) > 0 and os.getenv("CUDA_GRAPHS", None) is not None:
-        log_master(
-            logger.warning,
-            f"LoRa adapter are not supported with CUDA Graphs. Disabling CUDA Graphs.",
-        )
-        global CUDA_GRAPHS
-        CUDA_GRAPHS = None
+    if lora_adapters:
+        logger.warning("LoRA adapters enabled (experimental feature).")
+
+        if "CUDA_GRAPHS" in os.environ:
+            logger.warning(
+                "LoRA adapters incompatible with CUDA Graphs. Disabling CUDA Graphs."
+            )
+            global CUDA_GRAPHS
+            CUDA_GRAPHS = None
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
