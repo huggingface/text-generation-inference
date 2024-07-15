@@ -92,6 +92,11 @@ namespace huggingface::tgi::backends {
          * @return Global number of generated tokens for this request id
          */
         uint32_t Stream(RequestId reqId, std::function<TokenStreamingCallback> &cb);
+
+        /***
+         * Stop the underlying executor
+         */
+        void Shutdown();
     };
 }
 

@@ -136,3 +136,9 @@ uint32_t huggingface::tgi::backends::TensorRtLlmBackend::Stream(const tle::IdTyp
 std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::Poll(const tle::IdType requestId) {
     return executor.awaitResponses(requestId);
 }
+
+
+void huggingface::tgi::backends::TensorRtLlmBackend::Shutdown() {
+    SPDLOG_INFO("Shutting down executor");
+    executor.shutdown();
+}

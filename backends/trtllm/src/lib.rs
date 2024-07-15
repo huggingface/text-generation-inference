@@ -1,4 +1,4 @@
-pub use backend::TrtLLmBackend;
+pub use backend::TensorRtLlmBackend;
 
 use crate::backend::GenerationContext;
 
@@ -58,5 +58,8 @@ mod ffi {
             request_id: u64,
             callback: fn(Box<GenerationContext>, u32, u32, bool),
         ) -> u32;
+
+        #[rust_name = "shutdown"]
+        fn Shutdown(self: Pin<&mut TensorRtLlmBackendImpl>);
     }
 }
