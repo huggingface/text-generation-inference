@@ -29,6 +29,7 @@ class NextTokenChooser:
         temperature: float = 1.0,
         repetition_penalty: float = 1.0,
         frequency_penalty: float = 0.0,
+        no_repeat_ngram_size: int = 0,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
         typical_p: Optional[float] = None,
@@ -65,10 +66,11 @@ class NextTokenChooser:
             or (top_k is not None and top_k != 0)
             or (top_p is not None and top_p < 1.0)
             or (typical_p is not None and typical_p < 1.0)
+            or (no_repeat_ngram_size is not None and no_repeat_ngram_size > 0)
         )
         if has_warpers:
             self.static_warper = static_warper(
-                temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p
+                temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p, no_repeat_ngram_size=no_repeat_ngram_size
             )
         else:
             self.static_warper = None
@@ -117,6 +119,7 @@ class NextTokenChooser:
             temperature=pb.temperature,
             repetition_penalty=pb.repetition_penalty,
             frequency_penalty=pb.frequency_penalty,
+            no_repeat_ngram_size=pb.no_repeat_ngram_size,
             top_k=pb.top_k,
             top_p=pb.top_p,
             typical_p=pb.typical_p,

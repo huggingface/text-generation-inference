@@ -226,6 +226,13 @@ pub(crate) struct GenerateParameters {
     )]
     pub frequency_penalty: Option<f32>,
 
+    /// n-grams are groups of "n" consecutive words, characters, or tokens taken from a sequence of text. Given the
+    /// sentence: "She runs fast", the bi-grams (n=2) would be ("she", "runs") and ("runs", "fast"). Set this to avoid
+    /// generating the same n-grams in the completion.
+    #[serde(default)]
+    #[schema(nullable = true, example = "12")]
+    pub no_repeat_ngram_size: Option<u32>,
+
     /// The number of highest probability vocabulary tokens to keep for top-k-filtering.
     #[serde(default)]
     #[schema(exclusive_minimum = 0, nullable = true, default = "null", example = 10)]
@@ -330,6 +337,7 @@ fn default_parameters() -> GenerateParameters {
         temperature: None,
         repetition_penalty: None,
         frequency_penalty: None,
+        no_repeat_ngram_size: None,
         top_k: None,
         top_p: None,
         typical_p: None,
@@ -426,6 +434,13 @@ pub struct CompletionRequest {
     #[serde(default)]
     #[schema(example = "1.0")]
     pub frequency_penalty: Option<f32>,
+
+    /// n-grams are groups of "n" consecutive words, characters, or tokens taken from a sequence of text. Given the
+    /// sentence: "She runs fast", the bi-grams (n=2) would be ("she", "runs") and ("runs", "fast"). Set this to avoid
+    /// generating the same n-grams in the completion.
+    #[serde(default)]
+    #[schema(nullable = true, example = "12")]
+    pub no_repeat_ngram_size: Option<u32>,
 
     /// Up to 4 sequences where the API will stop generating further tokens.
     #[serde(default)]
@@ -742,6 +757,13 @@ pub(crate) struct ChatRequest {
     #[serde(default)]
     #[schema(example = "1.0")]
     pub frequency_penalty: Option<f32>,
+
+    /// n-grams are groups of "n" consecutive words, characters, or tokens taken from a sequence of text. Given the
+    /// sentence: "She runs fast", the bi-grams (n=2) would be ("she", "runs") and ("runs", "fast"). Set this to avoid
+    /// generating the same n-grams in the completion.
+    #[serde(default)]
+    #[schema(nullable = true, example = "12")]
+    pub no_repeat_ngram_size: Option<u32>,
 
     /// UNUSED
     /// Modify the likelihood of specified tokens appearing in the completion. Accepts a JSON object that maps tokens
