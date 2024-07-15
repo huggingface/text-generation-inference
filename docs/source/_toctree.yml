@@ -55,6 +55,8 @@
     title: Messages API
   - local: reference/metrics
     title: Exported Metrics
+  - local: reference/api_reference
+    title: API Reference
   title: Reference
 - sections:
   - local: conceptual/streaming
