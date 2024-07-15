@@ -132,6 +132,10 @@ class Parameters:
     # Penalize new tokens based on their existing frequency in the text so far,
     # decreasing the model's likelihood to repeat the same line verbatim.
     frequency_penalty: Optional[float]
+    # n-grams are groups of "n" consecutive words, characters, or tokens taken from a sequence of text. Given the
+    # sentence: "She runs fast", the bi-grams (n=2) would be ("she", "runs") and ("runs", "fast"). Set this to avoid
+    # generating the same n-grams in the completion.
+    no_repeat_ngram_size: Optional[int]
     # Whether to prepend the prompt to the generated text
     return_full_text: bool
     # Stop generating tokens if a member of `stop_sequences` is generated

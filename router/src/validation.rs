@@ -651,6 +651,8 @@ pub(crate) struct ValidParameters {
     pub repetition_penalty: f32,
     /// / frequency penalty
     pub frequency_penalty: f32,
+    /// / no_repeat_ngram_size
+    pub no_repeat_ngram_size: u32,
     /// / token watermarking using "A Watermark for Large Language Models"
     pub watermark: bool,
     /// / grammar (applied if not empty)

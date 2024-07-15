@@ -1379,6 +1379,15 @@
             "nullable": true,
             "exclusiveMinimum": -2
           },
+          "no_repeat_ngram_size": {
+            "type": "integer",
+            "format": "int32",
+            "description": "If set to int > 0, all ngrams of that size can only occur once.",
+            "default": "null",
+            "example": 12,
+            "nullable": true,
+            "minimum": 0
+          },
           "grammar": {
             "allOf": [
               {
