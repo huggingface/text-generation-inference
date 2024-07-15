@@ -13,7 +13,7 @@ As of release 2.1.2 this is an example of the data collected:
 - From the TGI configuration:
 ```json
 {
-  "event_type": "start",           
+  "event_type": "start",
   "disable_grammar_support": false,
   "json_output": false,
   "max_batch_prefill_tokens": 4096,
