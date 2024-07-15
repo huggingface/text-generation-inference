@@ -63,7 +63,7 @@ def check_cli(check: bool):
     final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
     block = []
 
-    filename = "docs/source/basic_tutorials/launcher.md"
+    filename = "docs/source/reference/launcher.md"
     if check:
         with open(filename, "r") as f:
             doc = f.read()
