@@ -51,8 +51,6 @@
     title: Internal Architecture
   - local: reference/launcher
     title: All TGI CLI options
-  - local: messages_api
-    title: Messages API
   - local: reference/metrics
     title: Exported Metrics
   - local: reference/api_reference
