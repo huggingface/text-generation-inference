@@ -77,7 +77,11 @@ def _get_quantizer_config(model_id, revision):
                 if "version" in data and data["version"] == "GEMM":
                     quant_method = "awq"
             except Exception:
-                pass
+                if self.quant_method is None:
+                    if "awq" in model_id.lower():
+                        self.quant_method = "awq"
+                    elif "gptq" in model_id.lower():
+                        self.quant_method = "gptq"
 
     return _QuantizerConfig(
         bits=bits,
