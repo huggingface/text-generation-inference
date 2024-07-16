@@ -21,13 +21,14 @@ gen-server:
 install-server: gen-server
 	pip install pip --upgrade
 	pip install -r requirements_cuda.txt
-	pip install -e ".[bnb, accelerate, quantize, peft, outlines]"
+	pip install -e ".[accelerate, quantize, peft, outlines]"
 
 
 install: install-cuda
 	echo "Installed server"
 
 install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention
+	pip install -e ".[bnb]"
 
 install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm
 
@@ -35,5 +36,5 @@ run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded
 
 export-requirements:
-	poetry export -o requirements_cuda.txt --without-hashes
+	poetry export -o requirements_cuda.txt --without-hashes --with cuda
 	poetry export -o requirements_rocm.txt --without-hashes

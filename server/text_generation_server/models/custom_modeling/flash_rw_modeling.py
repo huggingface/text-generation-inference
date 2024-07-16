@@ -23,7 +23,7 @@ from text_generation_server.layers.attention import (
 
 
 def load_row(config, prefix: str, weights, bias: bool):
-    weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+    weight = weights.get_weights_row(prefix)
 
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
@@ -42,6 +42,7 @@ class RWConfig(PretrainedConfig):
     attribute_map = {
         "num_hidden_layers": "n_layer",
         "num_attention_heads": "n_head",
+        "num_key_value_heads": "n_head_kv",
     }
 
     def __init__(

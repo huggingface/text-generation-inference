@@ -48,7 +48,7 @@ from text_generation_server.layers.rotary import (
 
 
 def load_row(config, prefix: str, weights, bias: bool):
-    weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+    weight = weights.get_weights_row(prefix)
 
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
@@ -64,7 +64,7 @@ def load_row(config, prefix: str, weights, bias: bool):
 
 
 def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
-    weight = weights.get_multi_weights_col([prefix], quantize=config.quantize, dim=0)
+    weight = weights.get_multi_weights_col([prefix], dim=0)
     if isinstance(weight, torch.Tensor):
         # Only on non quantized versions
         weight = (

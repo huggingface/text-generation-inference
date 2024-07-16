@@ -492,12 +492,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Completion"
+                  "$ref": "#/components/schemas/CompletionFinal"
                 }
               },
               "text/event-stream": {
                 "schema": {
-                  "$ref": "#/components/schemas/CompletionCompleteChunk"
+                  "$ref": "#/components/schemas/Chunk"
                 }
               }
             }
@@ -809,7 +809,6 @@
       "ChatRequest": {
         "type": "object",
         "required": [
-          "model",
           "messages"
         ],
         "properties": {
@@ -854,7 +853,8 @@
           "model": {
             "type": "string",
             "description": "[UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
-            "example": "mistralai/Mistral-7B-Instruct-v0.2"
+            "example": "mistralai/Mistral-7B-Instruct-v0.2",
+            "nullable": true
           },
           "n": {
             "type": "integer",
@@ -1116,7 +1116,6 @@
       "CompletionRequest": {
         "type": "object",
         "required": [
-          "model",
           "prompt"
         ],
         "properties": {
@@ -1138,7 +1137,8 @@
           "model": {
             "type": "string",
             "description": "UNUSED\nID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
-            "example": "mistralai/Mistral-7B-Instruct-v0.2"
+            "example": "mistralai/Mistral-7B-Instruct-v0.2",
+            "nullable": true
           },
           "prompt": {
             "$ref": "#/components/schemas/Prompt"
@@ -1319,6 +1319,17 @@
             "type": "string",
             "nullable": true
           },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "FunctionName": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
           "name": {
             "type": "string"
           }
@@ -1708,6 +1719,72 @@
           }
         }
       },
+      "MessageChunk": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "text",
+              "type"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "text"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "image_url",
+              "type"
+            ],
+            "properties": {
+              "image_url": {
+                "$ref": "#/components/schemas/Url"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "image_url"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
+      "MessageContent": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageChunk"
+            }
+          }
+        ]
+      },
+      "OutputMessage": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TextMessage"
+          },
+          {
+            "$ref": "#/components/schemas/ToolCallMessage"
+          }
+        ]
+      },
       "PrefillToken": {
         "type": "object",
         "required": [
@@ -1834,6 +1911,23 @@
           }
         }
       },
+      "TextMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "My name is David and I"
+          },
+          "role": {
+            "type": "string",
+            "example": "user"
+          }
+        }
+      },
       "Token": {
         "type": "object",
         "required": [
@@ -1906,6 +2000,41 @@
           }
         }
       },
+      "ToolCallDelta": {
+        "type": "object",
+        "required": [
+          "role",
+          "tool_calls"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "example": "assistant"
+          },
+          "tool_calls": {
+            "$ref": "#/components/schemas/DeltaToolCall"
+          }
+        }
+      },
+      "ToolCallMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "tool_calls"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "example": "assistant"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            }
+          }
+        }
+      },
       "ToolType": {
         "oneOf": [
           {
@@ -1928,6 +2057,17 @@
             }
           }
         ]
+      },
+      "Url": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
       },
       "Usage": {
         "type": "object",
