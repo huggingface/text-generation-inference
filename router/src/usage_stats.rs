@@ -3,6 +3,7 @@ use reqwest::header::HeaderMap;
 use serde::Serialize;
 use std::{fmt, process::Command, time::Duration};
 use uuid::Uuid;
+use csv::ReaderBuilder;
 
 const TELEMETRY_URL: &str = "https://huggingface.co/api/telemetry/tgi";
 
@@ -135,9 +136,83 @@ impl Args {
 pub struct Env {
     git_sha: &'static str,
     docker_label: &'static str,
-    nvidia_env: String,
+    nvidia_info: Option<NvidiaSmiInfo>,
     xpu_env: String,
     system_env: SystemInfo,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct NvidiaSmiInfo {
+    name: String,
+    pci_bus_id: String,
+    driver_version: String,
+    pstate: String,
+    pcie_link_gen_max: String,
+    pcie_link_gen_current: String,
+    temperature_gpu: String,
+    utilization_gpu: String,
+    utilization_memory: String,
+    memory_total: String,
+    memory_free: String,
+    memory_used: String,
+    reset_status_reset_required: String,
+    reset_status_drain_and_reset_recommended: String,
+    compute_cap: String,
+    ecc_errors_corrected_volatile_total: String,
+    mig_mode_current: String,
+    power_draw_instant: String,
+    power_limit: String,
+}
+
+impl NvidiaSmiInfo {
+    fn new() -> Option<Vec<NvidiaSmiInfo>> {
+        let output = Command::new("nvidia-smi")
+            .args(&[
+                "--query-gpu=name,pci.bus_id,driver_version,pstate,pcie.link.gen.max,pcie.link.gen.gpucurrent,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used,reset_status.reset_required,reset_status.drain_and_reset_recommended,compute_cap,ecc.errors.corrected.volatile.total,mig.mode.current,power.draw.instant,power.limit",
+                "--format=csv"
+            ])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let stdout = String::from_utf8(output.stdout).ok()?;
+
+        let mut rdr = ReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(stdout.as_bytes());
+
+        let mut infos = Vec::new();
+
+        for result in rdr.records() {
+            let record = result.ok()?;
+            infos.push(NvidiaSmiInfo {
+                name: record[0].to_string(),
+                pci_bus_id: record[1].to_string(),
+                driver_version: record[2].to_string(),
+                pstate: record[3].to_string(),
+                pcie_link_gen_max: record[4].to_string(),
+                pcie_link_gen_current: record[5].to_string(),
+                temperature_gpu: record[6].to_string(),
+                utilization_gpu: record[7].to_string(),
+                utilization_memory: record[8].to_string(),
+                memory_total: record[9].to_string(),
+                memory_free: record[10].to_string(),
+                memory_used: record[11].to_string(),
+                reset_status_reset_required: record[12].to_string(),
+                reset_status_drain_and_reset_recommended: record[13].to_string(),
+                compute_cap: record[14].to_string(),
+                ecc_errors_corrected_volatile_total: record[15].to_string(),
+                mig_mode_current: record[16].to_string(),
+                power_draw_instant: record[17].to_string(),
+                power_limit: record[18].to_string(),
+            });
+        }
+
+        Some(infos)
+    }
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -174,17 +249,6 @@ impl SystemInfo {
     }
 }
 
-impl fmt::Display for SystemInfo {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "CPU Count: {}", self.cpu_count)?;
-        writeln!(f, "CPU Type: {}", self.cpu_type)?;
-        writeln!(f, "Total Memory: {}", self.total_memory)?;
-        writeln!(f, "Architecture: {}", self.architecture)?;
-        writeln!(f, "Platform: {}", self.platform)?;
-        Ok(())
-    }
-}
-
 impl Default for Env {
     fn default() -> Self {
         Self::new()
@@ -193,13 +257,11 @@ impl Default for Env {
 
 impl Env {
     pub fn new() -> Self {
-        let nvidia_env = nvidia_smi();
         let xpu_env = xpu_smi();
-        let system_env = SystemInfo::new();
 
         Self {
-            system_env,
-            nvidia_env: nvidia_env.unwrap_or("N/A".to_string()),
+            system_env: SystemInfo::new(),
+            nvidia_info: NvidiaSmiInfo::new(),
             xpu_env: xpu_env.unwrap_or("N/A".to_string()),
             git_sha: option_env!("VERGEN_GIT_SHA").unwrap_or("N/A"),
             docker_label: option_env!("DOCKER_LABEL").unwrap_or("N/A"),
