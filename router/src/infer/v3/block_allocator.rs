@@ -420,4 +420,14 @@ mod tests {
         assert_eq!(allocation3.blocks, vec![3, 2]);
         assert_eq!(allocation3.slots, vec![6, 7, 4, 5]);
     }
+
+    #[test]
+    fn test_overlapping_prefixes_in_flight() {
+        let mut cache = PrefixCacheAllocator::new(2, 5, None);
+        let allocation1 = cache.alloc(4, &[0, 1, 2, 3]).unwrap();
+        let allocation2 = cache.alloc(4, &[0, 1, 2, 3]).unwrap();
+
+        cache.free(&allocation2.blocks, &allocation2.prefix_hashes);
+        cache.free(&allocation1.blocks, &allocation1.prefix_hashes);
+    }
 }
