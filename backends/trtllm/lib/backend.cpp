@@ -1,7 +1,7 @@
 #include <fstream>
 
 #include <nvml.h>
-#include "fmt/format.h"
+#include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
 
 #include "backend.h"
@@ -72,20 +72,31 @@ bool huggingface::tgi::backends::TensorRtLlmBackend::IsReady() const {
     return executor.canEnqueueRequests();
 }
 
+size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const {
+    return executor.getNumResponsesReady();
+}
+
 [[nodiscard("Returned request id needs to be provided back to gather generated tokens")]]
 tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const std::vector<tle::TokenIdType> &tokens,
-        const int32_t maxNewTokens,
         const int32_t topK,
         const float_t topP,
         const float_t temperature,
         const uint64_t seed
 ) {
-    SPDLOG_DEBUG(
+#ifndef NDEBUG
+    SPDLOG_INFO(
             FMT_STRING("Submitting inference over {:d} tokens to the executor ({:d} already in-flight)"),
             tokens.size(),
             executor.getLatestIterationStats().back().numActiveRequests
     );
+#else
+    SPDLOG_INFO(
+            FMT_STRING("Submitting inference [{}] to the executor ({:d} already in-flight)"),
+            fmt::join(tokens, ", "),
+            executor.getLatestIterationStats().back().numActiveRequests
+    );
+#endif
 
     const auto sampling = tle::SamplingConfig{
             1,
@@ -100,40 +111,13 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
             std::nullopt,
     };
     const auto output = tle::OutputConfig{false, false, false};
-    return executor.enqueueRequest(tle::Request{tokens, maxNewTokens, true, sampling, output});
+    return executor.enqueueRequest(
+            tle::Request{tokens, std::numeric_limits<tle::SizeType32>::max(), true, sampling, output});
 }
 
-uint32_t huggingface::tgi::backends::TensorRtLlmBackend::Stream(const tle::IdType reqId,
-                                                                std::function<TokenStreamingCallback> &cb) {
-    bool isFinal = false;
-    size_t generatedTokens = 0;
-
-    do {
-        const auto responses = executor.awaitResponses(reqId);
-        for (const auto &response: responses) {
-            if (response.hasError()) {
-                SPDLOG_WARN("Caught error during generation: {}", response.getErrorMsg());
-                isFinal = true;
-            } else {
-                const auto generation = response.getResult();
-                const auto token = generation.outputTokenIds[0][0];
-
-                // Update the end of stream detection and overall number of generated tokens
-                isFinal = generation.isFinal;
-                ++generatedTokens;
-
-                // Send the token back through the callback function for further processing
-                cb(token);
-            }
-        }
-
-    } while (!isFinal);
-
-    // Return the number of generated tokens
-    return generatedTokens;
-}
-
+[[nodiscard("Generated tokens result must be used")]]
 std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::Poll(const tle::IdType requestId) {
+    SPDLOG_INFO("Polling status for request {}", requestId);
     return executor.awaitResponses(requestId);
 }
 

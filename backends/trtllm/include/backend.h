@@ -59,6 +59,12 @@ namespace huggingface::tgi::backends {
         [[nodiscard]] bool IsReady() const;
 
         /***
+         * Query the executor for the number of token available for pulling
+         * @return
+         */
+        [[nodiscard]] size_t NumResponsesReady() const;
+
+        /***
          * Submit a new generation task to the executor
          * @param tokens
          * @param maxNewTokens
@@ -70,7 +76,6 @@ namespace huggingface::tgi::backends {
          */
         [[nodiscard]] RequestId Submit(
                 const std::vector<TokenId> &tokens,
-                int32_t maxNewTokens,
                 int32_t topK,
                 float_t topP,
                 float_t temperature,
@@ -83,15 +88,6 @@ namespace huggingface::tgi::backends {
          * @return
          */
         std::vector<tle::Response> Poll(RequestId requestId);
-
-        /***
-         * Unroll the token generation until end of stream is reached.
-         * Every generated token is streamed back through the provided callback for further processing
-         * @param reqId The request id to unroll
-         * @param cb The callback to stream token back
-         * @return Global number of generated tokens for this request id
-         */
-        uint32_t Stream(RequestId reqId, std::function<TokenStreamingCallback> &cb);
 
         /***
          * Stop the underlying executor
