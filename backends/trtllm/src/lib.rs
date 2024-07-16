@@ -17,7 +17,7 @@ mod ffi {
         /// Represent an instance of the underlying TensorRT-LLM backend
         type TensorRtLlmBackendImpl;
 
-        /// Create an instance backed behind an std::unique_ptr to manage the lifespan of the backend
+        /// Create an instance backed behind a std::unique_ptr to manage the lifespan of the backend
         ///
         /// # Arguments
         ///
@@ -37,29 +37,31 @@ mod ffi {
             executor_worker: &str,
         ) -> UniquePtr<TensorRtLlmBackendImpl>;
 
-        #[rust_name = "is_ready"]
-        fn IsReady(self: &TensorRtLlmBackendImpl) -> bool;
+        // #[rust_name = "is_ready"]
+        // fn IsReady(self: &TensorRtLlmBackendImpl) -> bool;
+
+        #[rust_name = "num_responses_ready"]
+        fn NumResponsesReady(self: &TensorRtLlmBackendImpl) -> usize;
 
         #[rust_name = "submit"]
         fn Submit(
             self: Pin<&mut TensorRtLlmBackendImpl>,
             tokens: &[u32],
-            max_new_tokens: i32,
             top_k: i32,
             top_p: f32,
             temperature: f32,
             seed: u64,
         ) -> u64;
 
-        #[rust_name = "stream"]
-        fn Stream(
+        #[rust_name = "stream_tokens"]
+        fn StreamTokens(
             self: Pin<&mut TensorRtLlmBackendImpl>,
-            ctx: Box<GenerationContext>,
             request_id: u64,
-            callback: fn(Box<GenerationContext>, u32, u32, bool),
-        ) -> u32;
+            ctx: Box<GenerationContext>,
+            cb: fn(Box<GenerationContext>, u32, f32, bool),
+        ) -> usize;
 
-        #[rust_name = "shutdown"]
-        fn Shutdown(self: Pin<&mut TensorRtLlmBackendImpl>);
+        // #[rust_name = "shutdown"]
+        // fn Shutdown(self: Pin<&mut TensorRtLlmBackendImpl>);
     }
 }

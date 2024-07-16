@@ -33,6 +33,8 @@ fn main() {
             "debug" => format!("{}d", dependency),
             _ => String::from(dependency),
         };
+        let dep_path = deps_folder.join(format!("{}-build", dependency));
+        println!("cargo:rustc-link-search={}", dep_path.display());
         println!("cargo:rustc-link-lib=static={}", dep_name);
     }
 

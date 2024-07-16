@@ -5,7 +5,7 @@
 #ifndef TGI_TRTLLM_BACKEND_FFI_H
 #define TGI_TRTLLM_BACKEND_FFI_H
 
-//#include "rust/cxx.h"
+#include <cstddef>
 #include "backend.h"
 
 namespace huggingface::tgi::backends {
@@ -17,9 +17,9 @@ namespace huggingface::tgi::backends {
 
 namespace huggingface::tgi::backends {
 
-    struct GenerationContext;
+//    struct GenerationContext;
 
-    class TensorRtLlmBackendImpl : TensorRtLlmBackend {
+    class TensorRtLlmBackendImpl : public TensorRtLlmBackend {
     public:
         /***
          *
@@ -37,7 +37,6 @@ namespace huggingface::tgi::backends {
         /***
          *
          * @param tokens
-         * @param maxNewTokens
          * @param topK
          * @param topP
          * @param temperature
@@ -45,17 +44,20 @@ namespace huggingface::tgi::backends {
          * @return
          */
         [[nodiscard("returned request id should be used to refer to the request's generation result later on")]]
-        uint64_t Submit(rust::Slice<const uint32_t> tokens, int32_t maxNewTokens, int32_t topK, float_t topP, float_t temperature, uint64_t seed);
+        uint64_t
+        Submit(rust::Slice<const uint32_t> tokens, int32_t topK, float_t topP, float_t temperature, uint64_t seed);
 
         /***
          *
          * @param requestId
-         * @param handler
+         * @param ctx
+         * @param callback
          * @return
          */
-        uint32_t Stream(rust::Box <GenerationContext> ctx,
-                        uint64_t requestId,
-                        rust::Fn<void(rust::Box<GenerationContext>, uint32_t, uint32_t, bool)> handler);
+        size_t StreamTokens(
+                const RequestId requestId,
+                rust::Box<huggingface::tgi::backends::GenerationContext> ctx,
+                rust::Fn<void(rust::Box<huggingface::tgi::backends::GenerationContext>, uint32_t, float_t, bool)> callback);
     };
 
     /***

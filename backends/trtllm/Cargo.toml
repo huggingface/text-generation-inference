@@ -15,6 +15,10 @@ tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot"
 tokio-stream = "0.1.14"
 clap = { version = "4.5.4", features = ["derive"] }
 thiserror = "1.0.61"
+tracing = "0.1"
+tracing-opentelemetry = "0.24"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+log = { version = "0.4.21", features = [] }
 
 [build-dependencies]
 cmake = "0.1"

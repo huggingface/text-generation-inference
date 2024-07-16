@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use clap::Parser;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 
-use text_generation_backends_trtllm::{errors::TensorRtLlmBackendError, TrtLLmBackend};
+use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
+use text_generation_backends_trtllm::TensorRtLlmBackend;
 use text_generation_router::server;
 
 /// App Configuration
@@ -53,7 +55,13 @@ struct Args {
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
     #[clap(long, env)]
-    auth_token: Option<String>
+    auth_token: Option<String>,
+    #[clap(
+        long,
+        env,
+        help = "Path to the TensorRT-LLM Orchestrator Worker binary"
+    )]
+    executor_worker: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -83,7 +91,8 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         cors_allow_origin,
         messages_api_enabled,
         max_client_batch_size,
-        auth_token
+        auth_token,
+        executor_worker,
     } = args;
 
     // Launch Tokio runtime
@@ -114,6 +123,15 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         }
     }
 
+    if let Some(ref executor_worker) = executor_worker {
+        if !executor_worker.exists() {
+            return Err(TensorRtLlmBackendError::ArgumentValidation(format!(
+                "`executor_work` specified path doesn't exists: {}",
+                executor_worker.display()
+            )));
+        }
+    }
+
     // Run server
     let tokenizer = Tokenizer::from_pretrained(
         tokenizer_name.clone(),
@@ -122,9 +140,10 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
             user_agent: HashMap::new(),
             auth_token,
         }),
-    ).map_err(|e| TensorRtLlmBackendError::Tokenizer(e.to_string()))?;
+    )
+    .map_err(|e| TensorRtLlmBackendError::Tokenizer(e.to_string()))?;
 
-    let backend = TrtLLmBackend::new(tokenizer, model_id)?;
+    let backend = TensorRtLlmBackend::new(tokenizer, model_id, executor_worker)?;
     server::run(
         backend,
         max_concurrent_requests,

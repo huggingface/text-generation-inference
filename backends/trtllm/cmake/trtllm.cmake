@@ -17,14 +17,11 @@ else ()
     set(FAST_BUILD OFF)
 endif ()
 
-# This line turn off DEBUG in TRTLLM logger which is quite spammy
-add_compile_definitions(NDEBUG OFF)
-
 fetchcontent_declare(
         trtllm
-        GIT_REPOSITORY https://github.com/nvidia/tensorrt-llm.git
-        GIT_TAG a96cccafcf6365c128f004f779160951f8c0801c
-        GIT_SHALLOW TRUE
+        GIT_REPOSITORY https://github.com/NVIDIA/TensorRT-LLM.git
+        GIT_TAG 9691e12bce7ae1c126c435a049eb516eb119486c
+        GIT_SHALLOW FALSE
 )
 fetchcontent_makeavailable(trtllm)
 message(STATUS "Found TensorRT-LLM: ${trtllm_SOURCE_DIR}")
