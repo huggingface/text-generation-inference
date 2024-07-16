@@ -474,6 +474,11 @@ async fn main() -> Result<(), RouterError> {
                         usage_stats::EventType::Error(e.to_string()),
                     );
                     error_event.send().await;
+                } else {
+                    let unknow_error_event = usage_stats::UsageStatsEvent::new(
+                        ua.clone(),
+                        usage_stats::EventType::Error("unknow_error".to_string()));
+                    unknow_error_event.send().await;
                 }
             };
             Err(RouterError::WebServer(e))
