@@ -966,9 +966,9 @@ class CausalLM(Model):
             batch = batch.__class__.recombine([batch], self.tokenizer.pad_token_id)
 
         scenario = 'PREFILL' if prefill else 'GENERATE'
-        if self.enable_hpu_graph and batch.batch_size != self.prev_bs:
+        if self.enable_hpu_graph and self.limit_hpu_graph and round_up(batch.batch_size, BATCH_BUCKET_SIZE) != self.prev_bs:
             self.model.clear_cache()
-            self.prev_bs = batch.batch_size
+            self.prev_bs = round_up(batch.batch_size, BATCH_BUCKET_SIZE)
         dbg_trace(
             scenario, f'bs:{batch.batch_size} num_reqs:{len(batch.requests)} seq_len:{batch.seq_length} padding:{batch.right_padding}')
         assert batch.right_padding > 0, 'No more room for next token!'
