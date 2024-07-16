@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 from safetensors import safe_open
@@ -305,6 +306,20 @@ class Weights:
 
     def get_weights_row(self, prefix: str):
         return self.weights_loader.get_weights_row(self, prefix)
+
+    @contextmanager
+    def use_loader(self, weights_loader: WeightsLoader):
+        """
+        This method is a context manager that can be used to use `Weights` with
+        a different loader for the duration of the context.
+        """
+
+        old_loader = self.weights_loader
+        self.weights_loader = weights_loader
+        try:
+            yield
+        finally:
+            self.weights_loader = old_loader
 
 
 def _blocks_to_block_sizes(total_size: int, blocks: Union[int, List[int]]) -> List[int]:
