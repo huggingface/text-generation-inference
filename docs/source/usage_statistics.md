@@ -28,24 +28,44 @@ As of release 2.1.2 this is an example of the data collected:
   "max_waiting_tokens": 20,
   "messages_api_enabled": false,
   "model_config": {
-      "model_type": "bloom"
+    "model_type": "Bloom"
   },
   "revision": null,
   "tokenizer_class": "BloomTokenizerFast",
   "validation_workers": 2,
   "waiting_served_ratio": 1.2,
   "docker_label": "latest",
-  "git_sha": "245d3de94877d4910ea7876f6bd19b4d7d4a47d9",
-  "nvidia_env": "N/A",
-  "system_env": {
-      "architecture": "aarch64",
-      "cpu_count": 16,
-      "cpu_type": "Apple M3",
-      "platform": "macos-unix-aarch64",
-      "total_memory": 25769803767
+  "git_sha": "cfc118704880453d29bcbe4fbbd91dda501cf5fe",
+  "nvidia_env": {
+    "name": "NVIDIA A10G",
+    "pci_bus_id": "00000000:00:1E.0",
+    "driver_version": "535.183.01",
+    "pstate": "P8",
+    "pcie_link_gen_max": "4",
+    "pcie_link_gen_current": "1",
+    "temperature_gpu": "31",
+    "utilization_gpu": "0 %",
+    "utilization_memory": "0 %",
+    "memory_total": "23028 MiB",
+    "memory_free": "22515 MiB",
+    "memory_used": "0 MiB",
+    "reset_status_reset_required": "No",
+    "reset_status_drain_and_reset_recommended": "No",
+    "compute_cap": "8.6",
+    "ecc_errors_corrected_volatile_total": "0",
+    "mig_mode_current": "[N/A]",
+    "power_draw_instant": "10.86 W",
+    "power_limit": "300.00 W"
   },
-  "xpu_env": "N/A"
+  "system_env": {
+    "cpu_count": 16,
+    "cpu_type": "AMD EPYC 7R32",
+    "total_memory": 66681196544,
+    "architecture": "x86_64",
+    "platform": "linux-unix-x86_64"
+  }
 }
+
 ```
 
 ## How to opt-out
