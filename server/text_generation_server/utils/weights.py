@@ -261,7 +261,6 @@ class Weights:
     def get_weights_col_packed_qkv(
         self,
         prefix: str,
-        quantize: str,
         num_heads: int,
         num_key_value_heads: int,
     ):
