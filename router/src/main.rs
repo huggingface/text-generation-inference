@@ -410,7 +410,7 @@ async fn main() -> Result<(), RouterError> {
             disable_usage_stats,
             disable_crash_reports,
         );
-        Some(usage_stats::UserAgent::new(reducded_args))
+        Some(usage_stats::UserAgent::new(reduced_args))
     } else {
         None
     };
