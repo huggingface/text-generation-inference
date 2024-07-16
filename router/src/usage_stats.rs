@@ -1,9 +1,15 @@
 use crate::config::Config;
+use csv::ReaderBuilder;
 use reqwest::header::HeaderMap;
 use serde::Serialize;
-use std::{fs::File, io::{self, BufRead}, path::Path, process::Command, time::Duration};
+use std::{
+    fs::File,
+    io::{self, BufRead},
+    path::Path,
+    process::Command,
+    time::Duration,
+};
 use uuid::Uuid;
-use csv::ReaderBuilder;
 
 const TELEMETRY_URL: &str = "https://huggingface.co/api/telemetry/tgi";
 
@@ -229,11 +235,9 @@ impl XpuSmiInfo {
     fn new() -> Option<Vec<XpuSmiInfo>> {
         let output = Command::new("xpu-smi")
             .args(&[
-                "dump",
-                "-d", "-1",
-                "-m", "0,1,3,17", // Metrics IDs: GPU Utilization, GPU Power, GPU Core Temperature, GPU Memory Bandwidth Utilization
-                "-n", "1",
-                "-j",
+                "dump", "-d", "-1", "-m",
+                "0,1,3,17", // Metrics IDs: GPU Utilization, GPU Power, GPU Core Temperature, GPU Memory Bandwidth Utilization
+                "-n", "1", "-j",
             ])
             .output()
             .ok()?;
@@ -247,7 +251,7 @@ impl XpuSmiInfo {
 
         let json_data: serde_json::Value = match serde_json::from_str(&stdout) {
             Ok(data) => data,
-            Err(_) => { return None }
+            Err(_) => return None,
         };
 
         if let Some(metrics_data) = json_data.as_array() {
@@ -270,9 +274,7 @@ impl XpuSmiInfo {
 
         Some(infos)
     }
-
 }
-
 
 #[derive(Serialize, Debug, Clone)]
 pub struct SystemInfo {
@@ -334,10 +336,14 @@ pub fn is_container() -> io::Result<bool> {
     for line in reader.lines() {
         let line = line?;
         // Check for common container runtimes
-        if line.contains("/docker/") || line.contains("/docker-") ||
-           line.contains("/kubepods/") || line.contains("/kubepods-") ||
-           line.contains("containerd") || line.contains("crio") ||
-           line.contains("podman") {
+        if line.contains("/docker/")
+            || line.contains("/docker-")
+            || line.contains("/kubepods/")
+            || line.contains("/kubepods-")
+            || line.contains("containerd")
+            || line.contains("crio")
+            || line.contains("podman")
+        {
             return Ok(true);
         }
     }

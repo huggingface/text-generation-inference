@@ -475,7 +475,8 @@ async fn main() -> Result<(), RouterError> {
                 } else {
                     let unknow_error_event = usage_stats::UsageStatsEvent::new(
                         ua.clone(),
-                        usage_stats::EventType::Error("unknow_error".to_string()));
+                        usage_stats::EventType::Error("unknow_error".to_string()),
+                    );
                     unknow_error_event.send().await;
                 }
             };
