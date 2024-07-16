@@ -15,7 +15,6 @@ As of release 2.1.2 this is an example of the data collected:
 {
   "event_type": "start",
   "disable_grammar_support": false,
-  "json_output": false,
   "max_batch_prefill_tokens": 4096,
   "max_batch_size": null,
   "max_batch_total_tokens": null,
@@ -31,7 +30,6 @@ As of release 2.1.2 this is an example of the data collected:
   "model_config": {
       "model_type": "bloom"
   },
-  "ngrok": false,
   "revision": null,
   "tokenizer_class": "BloomTokenizerFast",
   "validation_workers": 2,

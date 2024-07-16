@@ -402,8 +402,6 @@ async fn main() -> Result<(), RouterError> {
             max_batch_size,
             revision,
             validation_workers,
-            json_output,
-            ngrok,
             messages_api_enabled,
             disable_grammar_support,
             max_client_batch_size,
