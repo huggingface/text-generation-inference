@@ -401,7 +401,9 @@ impl PrefixCacheAllocator {
                     // A concurrent request added the prefix to the cache. We'll
                     // only update the last accessed time.
                     let state = entry.get_mut();
-                    // TODO: also update the time in the LRU set.
+                    if self.leaves.remove(&(state.last_accessed, prefix_hash)) {
+                        self.leaves.insert((self.time, prefix_hash));
+                    }
                     state.last_accessed = self.time;
                 }
                 Entry::Vacant(entry) => {
@@ -424,6 +426,8 @@ impl PrefixCacheAllocator {
         for block in &blocks[allocation.cache_prefixes.len() + allocation.new_prefixes.len()..] {
             self.free_blocks.push(*block);
         }
+
+        self.time += 1;
     }
 }
 
