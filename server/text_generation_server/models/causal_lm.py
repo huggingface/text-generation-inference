@@ -985,6 +985,10 @@ class CausalLM(Model):
                 batch.past_key_values,
                 bypass_hpu_graph=prefill and self.limit_hpu_graph if self.enable_hpu_graph else None,
             )
+        elif all([req.stopping_criteria.max_new_tokens == 1 for req in batch.requests]):
+            # Don't schedule next forward if max_new_tokens for all requests equals 1 
+            # - we've already generated the first and only needed token in the prefill phase
+            pass
         else:
             token_idx = torch.tensor(batch.attention_mask.shape[-1] - batch.right_padding).to(self.device)
             input_ids = torch.index_select(batch.input_ids, 1, token_idx - 1)
