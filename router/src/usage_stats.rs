@@ -136,8 +136,8 @@ impl Args {
 pub struct Env {
     git_sha: &'static str,
     docker_label: &'static str,
-    nvidia_info: Option<NvidiaSmiInfo>,
-    xpu_env: String,
+    nvidia_info: Option<Vec<NvidiaSmiInfo>>,
+    xpu_info: Option<Vec<XpuSmiInfo>>,
     system_env: SystemInfo,
 }
 
@@ -215,6 +215,65 @@ impl NvidiaSmiInfo {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
+struct XpuSmiInfo {
+    device_id: usize,
+    gpu_utilization: f32,
+    gpu_power: f32,
+    gpu_core_temperature: f32,
+    gpu_memory_bandwidth_utilization: f32,
+}
+
+impl XpuSmiInfo {
+    /// based on this https://github.com/intel/xpumanager/blob/master/doc/smi_user_guide.md#dump-the-device-statistics-in-csv-format
+    fn new() -> Option<Vec<XpuSmiInfo>> {
+        let output = Command::new("xpu-smi")
+            .args(&[
+                "dump",
+                "-d", "-1",
+                "-m", "0,1,3,17", // Metrics IDs: GPU Utilization, GPU Power, GPU Core Temperature, GPU Memory Bandwidth Utilization
+                "-n", "1",
+                "-j",
+            ])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let stdout = String::from_utf8(output.stdout).ok()?;
+        let mut infos = Vec::new();
+
+        let json_data: serde_json::Value = match serde_json::from_str(&stdout) {
+            Ok(data) => data,
+            Err(_) => { return None }
+        };
+
+        if let Some(metrics_data) = json_data.as_array() {
+            for entry in metrics_data {
+                let device_id = entry["deviceId"].as_u64()? as usize;
+                let gpu_utilization = entry["metrics"][0].as_f64()? as f32;
+                let gpu_power = entry["metrics"][1].as_f64()? as f32;
+                let gpu_core_temperature = entry["metrics"][2].as_f64()? as f32;
+                let gpu_memory_bandwidth_utilization = entry["metrics"][3].as_f64()? as f32;
+
+                infos.push(XpuSmiInfo {
+                    device_id,
+                    gpu_utilization,
+                    gpu_power,
+                    gpu_core_temperature,
+                    gpu_memory_bandwidth_utilization,
+                });
+            }
+        }
+
+        Some(infos)
+    }
+
+}
+
+
 #[derive(Serialize, Debug, Clone)]
 pub struct SystemInfo {
     cpu_count: usize,
@@ -257,43 +316,14 @@ impl Default for Env {
 
 impl Env {
     pub fn new() -> Self {
-        let xpu_env = xpu_smi();
-
         Self {
             system_env: SystemInfo::new(),
             nvidia_info: NvidiaSmiInfo::new(),
-            xpu_env: xpu_env.unwrap_or("N/A".to_string()),
+            xpu_info: XpuSmiInfo::new(),
             git_sha: option_env!("VERGEN_GIT_SHA").unwrap_or("N/A"),
             docker_label: option_env!("DOCKER_LABEL").unwrap_or("N/A"),
         }
     }
-}
-
-impl fmt::Display for Env {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "Runtime environment:")?;
-        writeln!(f, "Commit sha: {}", self.git_sha)?;
-        writeln!(f, "Docker label: {}", self.docker_label)?;
-        writeln!(f, "nvidia-smi:\n{}", self.nvidia_env)?;
-        write!(f, "xpu-smi:\n{}\n", self.xpu_env)?;
-        write!(f, "System:\n{}", self.system_env)?;
-
-        Ok(())
-    }
-}
-
-fn nvidia_smi() -> Option<String> {
-    let output = Command::new("nvidia-smi").output().ok()?;
-    let nvidia_smi = String::from_utf8(output.stdout).ok()?;
-    let output = nvidia_smi.replace('\n', "\n   ");
-    Some(output.trim().to_string())
-}
-
-fn xpu_smi() -> Option<String> {
-    let output = Command::new("xpu-smi").arg("discovery").output().ok()?;
-    let xpu_smi = String::from_utf8(output.stdout).ok()?;
-    let output = xpu_smi.replace('\n', "\n   ");
-    Some(output.trim().to_string())
 }
 
 pub fn is_container() -> io::Result<bool> {
