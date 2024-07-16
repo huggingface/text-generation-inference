@@ -23,7 +23,6 @@
     title: Internal Architecture
   - local: usage_statistics
     title: Usage Statistics
-  title: Getting started
 - sections:
   - local: basic_tutorials/consuming_tgi
     title: Consuming TGI
@@ -47,8 +46,6 @@
     title: Train Medusa
   title: Tutorials
 - sections:
-  - local: architecture
-    title: Internal Architecture
   - local: reference/launcher
     title: All TGI CLI options
   - local: reference/metrics
