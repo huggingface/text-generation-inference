@@ -386,7 +386,7 @@ async fn main() -> Result<(), RouterError> {
     let is_docker = option_env!("DOCKER_LABEL").is_some();
 
     let user_agent = if !disable_usage_stats && is_docker {
-        let reducded_args = usage_stats::Args::new(
+        let reduced_args = usage_stats::Args::new(
             config.clone(),
             tokenizer_class,
             max_concurrent_requests,
