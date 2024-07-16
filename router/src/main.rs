@@ -382,8 +382,8 @@ async fn main() -> Result<(), RouterError> {
         }
     };
 
-    // Only send usage stats when TGI is run in container
-    let is_container = usage_stats::is_container();
+    // Only send usage stats when TGI is run in container and the function returns Some
+    let is_container = matches!(usage_stats::is_container(), Ok(true));
 
     let user_agent = if !disable_usage_stats && is_container {
         let reduced_args = usage_stats::Args::new(
