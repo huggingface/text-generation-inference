@@ -36,6 +36,7 @@ def parse_json_files(directory: str, test_type: TestType) -> pd.DataFrame:
                         'rate': data['k6_config']['rate'],
                         'duration': data['k6_config']['duration']
                     }
+                entry['input_type'] = data['k6_config']['input_type']
                 entry['test_duration'] = data['state']['testRunDurationMs'] / 1000.
                 entry['requests_ok'] = data['root_group']['checks'][0]['passes']
                 entry['requests_fail'] = data['root_group']['checks'][0]['fails']

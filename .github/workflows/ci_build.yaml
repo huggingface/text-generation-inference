@@ -43,5 +43,3 @@ jobs:
       # https://github.com/actions/runner/issues/2206
       release-tests: ${{ inputs.release-tests == true }}
     secrets: inherit
-  load_tests:
-    uses: ./.github/workflows/load_test.yaml

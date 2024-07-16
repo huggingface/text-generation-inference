@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '0 0 * * 1-5'
   workflow_call:
+  workflow_dispatch:
 
   pull_request:
     paths:
@@ -15,6 +16,7 @@ env:
   AWS_DEFAULT_REGION: us-east-1
   AWS_ACCESS_KEY_ID: ${{ secrets.S3_AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_AWS_SECRET_ACCESS_KEY }}
+  LOAD_TEST_ISSUE: 2235
 
 jobs:
   load-tests:
@@ -76,7 +78,7 @@ jobs:
       - name: Archive test results artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark_results_plots
+          name: benchmark_results
           path: |
             load_tests/output/*
 
@@ -88,15 +90,22 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           script: |
+            let content=require('fs').readFileSync('load_tests/output/benchmark_avg_delta.md', 'utf-8');
             github.rest.issues.createComment({
-              issue_number: context.issue.number,
+              issue_number: process.env.LOAD_TEST_ISSUE,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '🚀 Load test results are in:\n\n'+
+              body: '🚀 Load test results are in for commit [${{ github.sha }}](https://github.com/huggingface/text-generation-inference/commit/${{ github.sha }})\n\n'+
                 '## Variable length prompts\n'+
+                '<p float="left">\n'+
                 '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/sharegpt_conversations_constant_arrival_rate.png" width=200>\n' +
-                '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/sharegpt_conversations_constant_vus.png" width=200>\n\n' +
+                '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/sharegpt_conversations_constant_vus.png" width=200>\n' +
+                '</p>\n\n' +
                 '## Constant length prompts\n'+
+                '<p float="left">\n'+
                 '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/constant_tokens_constant_vus.png" width=200>\n' +
-                '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/constant_tokens_constant_arrival_rate.png" width=200>\n'
+                '<img src="http://text-generation-inference-ci.s3-website-us-east-1.amazonaws.com/${{github.sha}}/constant_tokens_constant_arrival_rate.png" width=200>\n'+
+                '</p>\n\n' +
+                '## Delta to last release\n\n'+
+                content
             })

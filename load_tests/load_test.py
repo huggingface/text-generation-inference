@@ -41,6 +41,48 @@ def merge_previous_results(csv_path: str, df: pd.DataFrame, version_id: str) -> 
     return df
 
 
+def percentage_diff(x):
+    # in case we have no value to compare
+    if len(x) < 2:
+        return 0
+    xsum = (x[1] + x[0])
+    if xsum == 0:
+        return 0
+    return abs(x[1] - x[0]) / (xsum / 2) * 100
+
+
+def compute_avg_delta(df: pd.DataFrame, metric: str, test_type: TestType) -> float:
+    if test_type == TestType.CONSTANT_VUS:
+        param = 'vus'
+    elif test_type == TestType.CONSTANT_ARRIVAL_RATE:
+        param = 'rate'
+    else:
+        return 0.0
+    filtered = df[df[param].notna()].groupby(param)[metric]
+    return filtered.apply(lambda x: percentage_diff(sorted(x.values))).mean()
+
+
+def compute_avg_table(df: pd.DataFrame):
+    # only keep the current version and semver rows for comparison
+    df = df[df['name'].str.startswith(('tgi', 'v'))]
+    # compute the average delta for each metric and test type
+    avg_table = pd.DataFrame()
+    for input_type in [ExecutorInputType.SHAREGPT_CONVERSATIONS, ExecutorInputType.CONSTANT_TOKENS]:
+        df_avg = df[df['input_type'] == input_type.value]
+        for test_type in [TestType.CONSTANT_VUS, TestType.CONSTANT_ARRIVAL_RATE]:
+            for metric in df.columns:
+                if metric in ['inter_token_latency', 'time_to_first_token', 'end_to_end_latency',
+                              'tokens_throughput', 'requests_ok', 'error_rate']:
+                    avg_delta = compute_avg_delta(df_avg, metric, test_type)
+                    avg_table = pd.concat([avg_table, pd.DataFrame(
+                        {'metric': metric, 'input_type': input_type.value, 'test_type': test_type.value,
+                         'avg_delta': avg_delta}, index=[0])])
+    # write the result to a markdown formatted table in a file
+    path = os.path.join(os.getcwd(), 'output', f'benchmark_avg_delta.md')
+    avg_table.to_markdown(path, index=False, tablefmt='github',
+                          headers=['Metric', 'Input Type', 'Test Type', 'Avg Delta (%)'])
+
+
 def main():
     model = 'Qwen/Qwen2-7B'
     runner = TGIDockerRunner(model)
@@ -59,6 +101,7 @@ def main():
         runner.stop()
         time.sleep(5)
 
+    all_dfs = pd.DataFrame()
     for input_type in [ExecutorInputType.SHAREGPT_CONVERSATIONS, ExecutorInputType.CONSTANT_TOKENS]:
         for test_type in [TestType.CONSTANT_VUS, TestType.CONSTANT_ARRIVAL_RATE]:
             directory = os.path.join('results', input_type.value.lower(), test_type.value.lower())
@@ -84,12 +127,15 @@ def main():
                             if f.endswith(f'{input_type.value.lower()}_{test_type.value.lower()}.csv'):
                                 csv_path = os.path.join('/tmp/artifacts', d, f)
                                 # only keep short commit hash
-                                d = d[:7]
+                                if len(d) > 7:
+                                    d = d[:7]
                                 dfs = merge_previous_results(csv_path, dfs, d)
             except Exception as e:
                 logger.error(f'Error while merging previous results, skipping: {e}')
             plot_metrics(f'{model} {get_gpu_names()}', dfs, test_type,
                          f'output/{input_type.value.lower()}_{test_type.value.lower()}')
+            all_dfs = pd.concat([all_dfs, dfs])
+    compute_avg_table(all_dfs)
 
 
 def get_gpu_names() -> str:
