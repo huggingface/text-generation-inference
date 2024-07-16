@@ -341,6 +341,7 @@ def quantize(
     upload_to_model_id: Optional[str] = None,
     percdamp: float = 0.01,
     act_order: bool = False,
+    groupsize: int = 128,
 ):
     if revision is None:
         revision = "main"
@@ -355,7 +356,7 @@ def quantize(
     quantize(
         model_id=model_id,
         bits=4,
-        groupsize=128,
+        groupsize=groupsize,
         output_dir=output_dir,
         revision=revision,
         trust_remote_code=trust_remote_code,
