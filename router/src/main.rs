@@ -382,10 +382,10 @@ async fn main() -> Result<(), RouterError> {
         }
     };
 
-    // Only send usage stats when TGI is run in docker
-    let is_docker = option_env!("DOCKER_LABEL").is_some();
+    // Only send usage stats when TGI is run in container
+    let is_container = usage_stats::is_container();
 
-    let user_agent = if !disable_usage_stats && is_docker {
+    let user_agent = if !disable_usage_stats && is_container {
         let reduced_args = usage_stats::Args::new(
             config.clone(),
             tokenizer_class,

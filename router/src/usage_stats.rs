@@ -233,3 +233,21 @@ fn xpu_smi() -> Option<String> {
     let output = xpu_smi.replace('\n', "\n   ");
     Some(output.trim().to_string())
 }
+
+pub fn is_container() -> io::Result<bool> {
+    let path = Path::new("/proc/self/cgroup");
+    let file = File::open(&path)?;
+    let reader = io::BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line?;
+        // Check for common container runtimes
+        if line.contains("/docker/") || line.contains("/docker-") ||
+           line.contains("/kubepods/") || line.contains("/kubepods-") ||
+           line.contains("containerd") || line.contains("crio") ||
+           line.contains("podman") {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
