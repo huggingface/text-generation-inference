@@ -173,7 +173,7 @@ struct NvidiaSmiInfo {
 impl NvidiaSmiInfo {
     fn new() -> Option<Vec<NvidiaSmiInfo>> {
         let output = Command::new("nvidia-smi")
-            .args(&[
+            .args([
                 "--query-gpu=name,pci.bus_id,driver_version,pstate,pcie.link.gen.max,pcie.link.gen.gpucurrent,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used,reset_status.reset_required,reset_status.drain_and_reset_recommended,compute_cap,ecc.errors.corrected.volatile.total,mig.mode.current,power.draw.instant,power.limit",
                 "--format=csv"
             ])
@@ -234,7 +234,7 @@ impl XpuSmiInfo {
     /// based on this https://github.com/intel/xpumanager/blob/master/doc/smi_user_guide.md#dump-the-device-statistics-in-csv-format
     fn new() -> Option<Vec<XpuSmiInfo>> {
         let output = Command::new("xpu-smi")
-            .args(&[
+            .args([
                 "dump", "-d", "-1", "-m",
                 "0,1,3,17", // Metrics IDs: GPU Utilization, GPU Power, GPU Core Temperature, GPU Memory Bandwidth Utilization
                 "-n", "1", "-j",
@@ -330,7 +330,7 @@ impl Env {
 
 pub fn is_container() -> io::Result<bool> {
     let path = Path::new("/proc/self/cgroup");
-    let file = File::open(&path)?;
+    let file = File::open(path)?;
     let reader = io::BufReader::new(file);
 
     for line in reader.lines() {
