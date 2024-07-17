@@ -82,7 +82,6 @@ impl Stream for Generation {
                         });
                         Poll::Pending
                     } else {
-                        info!("Ready: {}", ready);
                         let waker = ctx.waker().clone();
                         tokio::spawn(async {
                             sleep(Duration::from_millis(100)).await;
