@@ -44,12 +44,12 @@ size_t huggingface::tgi::backends::TensorRtLlmBackendImpl::StreamTokens(
 
             const auto token = decoded.outputTokenIds[0][0];
             const auto isFinal = decoded.isFinal;
-//            const auto logProb = decoded.logProbs.value()[0][0];
+            const auto logProb = decoded.logProbs.value()[0][0];
 
             ++numTokens;
 
             SPDLOG_DEBUG(FMT_STRING("\tStreamTokens -> {:d} {:.2f} (final = {})"), token, logProb, isFinal);
-            callback(std::move(ctx), token, 1.0, isFinal);
+            callback(std::move(ctx), token, logProb, isFinal);
             SPDLOG_DEBUG("\tStreamTokens -> Post callback");
         } else {
             // TODO : Return rest::Result with error
