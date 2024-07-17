@@ -242,16 +242,16 @@ pub struct PrefixCacheAllocator {
 }
 
 impl PrefixCacheAllocator {
-    pub fn new(block_size: usize, n_blocks: usize, window_size: Option<u32>) -> Self {
+    pub fn new(block_size: u32, n_blocks: u32, window_size: Option<u32>) -> Self {
         if window_size.is_some() {
             unimplemented!("Window size not supported in the prefix-caching block allocator yet");
         }
 
         PrefixCacheAllocator {
             allocations: HashMap::new(),
-            block_size,
+            block_size: block_size as usize,
             cache_blocks: HashMap::new(),
-            free_blocks: (1..n_blocks as u32).collect(),
+            free_blocks: (1..n_blocks).collect(),
             leaves: BTreeSet::new(),
             time: 0,
         }
