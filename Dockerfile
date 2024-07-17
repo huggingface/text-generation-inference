@@ -74,5 +74,5 @@ COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/
 # Final image
 FROM base
 
-#ENTRYPOINT ["text-generation-launcher"]
-#CMD ["--json-output"]
+ENTRYPOINT ["text-generation-launcher"]
+CMD ["--json-output"]
