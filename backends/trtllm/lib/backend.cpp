@@ -57,10 +57,9 @@ tle::SamplingConfig huggingface::tgi::backends::GetSamplingConfig(
         uint32_t topK,
         float_t topP,
         float_t temperature,
-        uint64_t seed,
-        std::optional<int32_t> beamWidth = std::nullopt) {
+        uint64_t seed) {
     return tle::SamplingConfig(
-            beamWidth.value_or(1),
+            1,  // TGI only use a single beam
             topK,
             topP,
             std::nullopt,
@@ -116,11 +115,11 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
     );
 #endif
 
-    const auto maxNumTokens = config["max_num_tokens"_json_pointer].get<size_t>();
+    const auto maxNumTokens = config["/build_config/max_num_tokens"_json_pointer].get<size_t>();
     const auto maxNewTokens = static_cast<int32_t>(std::max(1ul, maxNumTokens - tokens.size()));
 
     const auto sampling = GetSamplingConfig(topK, topP, temperature, seed);
-    const auto output = tle::OutputConfig(false, false, false, true, false);
+    const auto output = tle::OutputConfig(true, false, false, true, false);
     return executor.enqueueRequest(
             tle::Request{tokens, maxNewTokens, true, sampling, output});
 }

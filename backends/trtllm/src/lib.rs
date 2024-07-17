@@ -54,11 +54,11 @@ mod ffi {
         ) -> u64;
 
         #[rust_name = "stream_tokens"]
-        fn StreamTokens(
+        unsafe fn StreamTokens(
             self: Pin<&mut TensorRtLlmBackendImpl>,
             request_id: u64,
-            ctx: Box<GenerationContext>,
-            cb: fn(Box<GenerationContext>, u32, f32, bool),
+            ctx: *mut GenerationContext,
+            cb: unsafe fn(*mut GenerationContext, u32, f32, bool),
         ) -> usize;
 
         // #[rust_name = "shutdown"]

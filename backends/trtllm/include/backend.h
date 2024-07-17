@@ -50,8 +50,7 @@ namespace huggingface::tgi::backends {
             uint32_t topK,
             float_t topP,
             float_t temperature,
-            uint64_t seed,
-            std::optional<int32_t> beamWidth
+            uint64_t seed
     );
 
     /**

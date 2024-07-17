@@ -56,8 +56,8 @@ namespace huggingface::tgi::backends {
          */
         size_t StreamTokens(
                 const RequestId requestId,
-                rust::Box<huggingface::tgi::backends::GenerationContext> ctx,
-                rust::Fn<void(rust::Box<huggingface::tgi::backends::GenerationContext>, uint32_t, float_t, bool)> callback);
+                huggingface::tgi::backends::GenerationContext *ctx,
+                rust::Fn<void(huggingface::tgi::backends::GenerationContext *, uint32_t, float_t, bool)> callback);
     };
 
     /***

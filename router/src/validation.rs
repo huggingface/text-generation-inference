@@ -777,6 +777,9 @@ pub enum ValidationError {
     InvalidImageContent(String),
     #[error("Could not fetch image: {0}")]
     FailedFetchImage(#[from] reqwest::Error),
+    #[error("{0} modality is not supported")]
+    UnsupportedModality(&'static str)
+
 }
 
 #[cfg(test)]

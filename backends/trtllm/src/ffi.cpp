@@ -33,8 +33,8 @@ uint64_t huggingface::tgi::backends::TensorRtLlmBackendImpl::Submit(
 
 size_t huggingface::tgi::backends::TensorRtLlmBackendImpl::StreamTokens(
         const uint64_t requestId,
-        rust::Box<huggingface::tgi::backends::GenerationContext> ctx,
-        rust::Fn<void(rust::Box<huggingface::tgi::backends::GenerationContext>, uint32_t, float_t, bool)> callback) {
+        huggingface::tgi::backends::GenerationContext *ctx,
+        rust::Fn<void(huggingface::tgi::backends::GenerationContext *, uint32_t, float_t, bool)> callback) {
 
     size_t numTokens = 0;
     for (const auto &item: Poll(requestId)) {
@@ -44,12 +44,12 @@ size_t huggingface::tgi::backends::TensorRtLlmBackendImpl::StreamTokens(
 
             const auto token = decoded.outputTokenIds[0][0];
             const auto isFinal = decoded.isFinal;
-            const auto logProb = decoded.logProbs.value()[0][0];
+//            const auto logProb = decoded.logProbs.value()[0][0];
 
             ++numTokens;
 
             SPDLOG_DEBUG(FMT_STRING("\tStreamTokens -> {:d} {:.2f} (final = {})"), token, logProb, isFinal);
-            callback(std::move(ctx), token, logProb, isFinal);
+            callback(std::move(ctx), token, 1.0, isFinal);
             SPDLOG_DEBUG("\tStreamTokens -> Post callback");
         } else {
             // TODO : Return rest::Result with error
