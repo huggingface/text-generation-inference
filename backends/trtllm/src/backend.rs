@@ -156,7 +156,7 @@ impl Backend for TensorRtLlmBackend {
                     );
 
                     info!("Releasing lock for submit");
-                    return request_id;
+                    request_id
                 })
                 .await;
 

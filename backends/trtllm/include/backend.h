@@ -22,7 +22,6 @@ namespace tle = tensorrt_llm::executor;
 namespace huggingface::tgi::backends {
     using RequestId = tle::IdType;
     using TokenId = tle::TokenIdType;
-    using TokenStreamingCallback = void(tle::TokenIdType);
 
     /**
      * Initialize all the components required by TRTLLM.
@@ -39,6 +38,23 @@ namespace huggingface::tgi::backends {
     tle::ExecutorConfig GetExecutorConfig(const json &config, const std::string &workerPath);
 
     /**
+     * Get the sampling configuration from the parameters provided by TGI
+     * @param topK
+     * @param topP
+     * @param temperature
+     * @param seed
+     * @param beamWidth
+     * @return
+     */
+    tle::SamplingConfig GetSamplingConfig(
+            uint32_t topK,
+            float_t topP,
+            float_t temperature,
+            uint64_t seed,
+            std::optional<int32_t> beamWidth
+    );
+
+    /**
      *
      */
     class TensorRtLlmBackend {
@@ -52,19 +68,19 @@ namespace huggingface::tgi::backends {
                 const std::filesystem::path &executorWorker
         );
 
-        /***
+        /**
          * Indicate if the backend is ready to accept incoming request
          * @return true if ready, false otherwise
          */
         [[nodiscard]] bool IsReady() const;
 
-        /***
+        /**
          * Query the executor for the number of token available for pulling
          * @return
          */
         [[nodiscard]] size_t NumResponsesReady() const;
 
-        /***
+        /**
          * Submit a new generation task to the executor
          * @param tokens
          * @param maxNewTokens
@@ -82,14 +98,14 @@ namespace huggingface::tgi::backends {
                 uint64_t seed
         );
 
-        /***
+        /**
          *
          * @param requestId The request id to poll the generation results
          * @return
          */
         std::vector<tle::Response> Poll(RequestId requestId);
 
-        /***
+        /**
          * Stop the underlying executor
          */
         void Shutdown();

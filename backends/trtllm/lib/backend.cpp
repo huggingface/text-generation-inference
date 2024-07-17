@@ -18,13 +18,11 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
 
     // Get the compute capabilities of the current hardware
     nvmlDevice_t device;
-    int32_t cudaComputeCapabilitiesMajor = 0, cudaComputeCapabilitiesMinor = 0;
+    int32_t cudaComputeMajor = 0, cudaComputeMinor = 0;
     if (nvmlDeviceGetHandleByIndex_v2(0, &device) == NVML_SUCCESS) {
         SPDLOG_DEBUG("Successfully acquired nvmlDevice_t = 0");
-        if (nvmlDeviceGetCudaComputeCapability(device, &cudaComputeCapabilitiesMajor, &cudaComputeCapabilitiesMinor) ==
-            NVML_SUCCESS) {
-            SPDLOG_INFO(FMT_STRING("Detected sm_{:d}{:d} compute capabilities"), cudaComputeCapabilitiesMajor,
-                        cudaComputeCapabilitiesMinor);
+        if (nvmlDeviceGetCudaComputeCapability(device, &cudaComputeMajor, &cudaComputeMinor) == NVML_SUCCESS) {
+            SPDLOG_DEBUG(FMT_STRING("Detected sm_{:d}{:d} compute capabilities"), cudaComputeMajor, cudaComputeMinor);
         }
     }
 
@@ -51,8 +49,28 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
 
     // Define some configuration variables
     execConfig.setKvCacheConfig(tle::KvCacheConfig(true));
-    execConfig.setEnableChunkedContext(cudaComputeCapabilitiesMajor >= 8);
+    execConfig.setEnableChunkedContext(cudaComputeMajor >= 8);
     return execConfig;
+}
+
+tle::SamplingConfig huggingface::tgi::backends::GetSamplingConfig(
+        uint32_t topK,
+        float_t topP,
+        float_t temperature,
+        uint64_t seed,
+        std::optional<int32_t> beamWidth = std::nullopt) {
+    return tle::SamplingConfig(
+            beamWidth.value_or(1),
+            topK,
+            topP,
+            std::nullopt,
+            std::nullopt,
+            std::nullopt,
+            seed,
+            std::nullopt,
+            temperature,
+            std::nullopt
+    );
 }
 
 huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
@@ -84,40 +102,32 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const float_t temperature,
         const uint64_t seed
 ) {
-#ifndef NDEBUG
-    SPDLOG_INFO(
+#ifdef NDEBUG
+    SPDLOG_DEBUG(
             FMT_STRING("Submitting inference over {:d} tokens to the executor ({:d} already in-flight)"),
             tokens.size(),
             executor.getLatestIterationStats().back().numActiveRequests
     );
 #else
-    SPDLOG_INFO(
+    SPDLOG_DEBUG(
             FMT_STRING("Submitting inference [{}] to the executor ({:d} already in-flight)"),
             fmt::join(tokens, ", "),
-            executor.getLatestIterationStats().back().numActiveRequests
+            executor.getLatestIterationStats().front().numActiveRequests
     );
 #endif
 
-    const auto sampling = tle::SamplingConfig{
-            1,
-            topK,
-            topP,
-            std::nullopt,
-            std::nullopt,
-            std::nullopt,
-            seed,
-            std::nullopt,
-            temperature,
-            std::nullopt,
-    };
-    const auto output = tle::OutputConfig{false, false, false};
+    const auto maxNumTokens = config["max_num_tokens"_json_pointer].get<size_t>();
+    const auto maxNewTokens = static_cast<int32_t>(std::max(1ul, maxNumTokens - tokens.size()));
+
+    const auto sampling = GetSamplingConfig(topK, topP, temperature, seed);
+    const auto output = tle::OutputConfig(false, false, false, true, false);
     return executor.enqueueRequest(
-            tle::Request{tokens, std::numeric_limits<tle::SizeType32>::max(), true, sampling, output});
+            tle::Request{tokens, maxNewTokens, true, sampling, output});
 }
 
 [[nodiscard("Generated tokens result must be used")]]
 std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::Poll(const tle::IdType requestId) {
-    SPDLOG_INFO("Polling status for request {}", requestId);
+    SPDLOG_DEBUG(FMT_STRING("Polling status for request {:d}"), requestId);
     return executor.awaitResponses(requestId);
 }
 
