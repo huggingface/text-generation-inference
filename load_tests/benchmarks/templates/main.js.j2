@@ -58,7 +58,6 @@ export default function run() {
 
     const res = sse.open(url, params, function (client) {
         client.on('event', function (event) {
-            // console.log(event.data)
             if (parseInt(event.id) === 4) {
                 client.close()
             }
