@@ -182,4 +182,4 @@ jobs:
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
-          pytest -s -vv integration-tests ${PYTEST_FLAGS}
+          pytest -x -s -vv integration-tests ${PYTEST_FLAGS}
