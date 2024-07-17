@@ -43,7 +43,6 @@ namespace huggingface::tgi::backends {
      * @param topP
      * @param temperature
      * @param seed
-     * @param beamWidth
      * @return
      */
     tle::SamplingConfig GetSamplingConfig(
@@ -82,7 +81,6 @@ namespace huggingface::tgi::backends {
         /**
          * Submit a new generation task to the executor
          * @param tokens
-         * @param maxNewTokens
          * @param topK
          * @param topP
          * @param temperature
