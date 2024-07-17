@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from enum import Enum
 import pandas as pd
 from loguru import logger
@@ -13,6 +14,20 @@ plt.style.use('science')
 class TestType(Enum):
     CONSTANT_VUS = "constant_vus"
     CONSTANT_ARRIVAL_RATE = "constant_arrival_rate"
+
+
+def get_nested(obj, path, default=None):
+    for key in path.split("."):
+        if obj is None:
+            return default
+        if re.match(r"\d+", key):
+            key = int(key)
+            if key >= len(obj):
+                return default
+            obj = obj[key]
+        else:
+            obj = obj.get(key, default)
+    return obj
 
 
 def parse_json_files(directory: str, test_type: TestType) -> pd.DataFrame:
@@ -38,10 +53,9 @@ def parse_json_files(directory: str, test_type: TestType) -> pd.DataFrame:
                     }
                 entry['input_type'] = data['k6_config']['input_type']
                 entry['test_duration'] = data['state']['testRunDurationMs'] / 1000.
-                entry['requests_ok'] = data['root_group']['checks'][0]['passes']
-                entry['requests_fail'] = data['root_group']['checks'][0]['fails']
-                entry['dropped_iterations'] = data['metrics']['dropped_iterations']['values'][
-                    'count'] if 'dropped_iterations' in data['metrics'] else 0
+                entry['requests_ok'] = get_nested(data, 'root_group.checks.0.passes', 0)
+                entry['requests_fail'] = get_nested(data, 'root_group.checks.0.fails', 0)
+                entry['dropped_iterations'] = get_nested(data, 'metrics.dropped_iterations.values.count', 0)
                 # add up requests_fail and dropped_iterations to get total dropped requests
                 entry['dropped_requests'] = entry['requests_fail'] + entry['dropped_iterations']
                 entry['error_rate'] = entry['dropped_requests'] / (
@@ -60,7 +74,7 @@ def parse_json_files(directory: str, test_type: TestType) -> pd.DataFrame:
     return df
 
 
-def plot_metrics(model_name:str, df: pd.DataFrame, test_type: TestType, save_name: str):
+def plot_metrics(model_name: str, df: pd.DataFrame, test_type: TestType, save_name: str):
     vus_param = ''
     if test_type == TestType.CONSTANT_VUS:
         vus_param = 'vus'
