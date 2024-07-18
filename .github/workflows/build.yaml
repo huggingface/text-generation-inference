@@ -210,8 +210,7 @@ jobs:
           export DOCKER_IMAGE=registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference:sha-c55c43e
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
-          pytest -x -s -vv integration-tests ${PYTEST_FLAGS} &
-          watch docker ps
+          pytest -x -s -vv integration-tests ${PYTEST_FLAGS}
       - name: Setup tmate session
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
