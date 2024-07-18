@@ -824,7 +824,7 @@ pub(crate) struct ChatRequest {
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
-    pub tool_choice: Option<ToolType>,
+    pub tool_choice: ToolChoice,
 
     /// Response format constraints for the generation.
     ///
@@ -840,16 +840,13 @@ fn default_tool_prompt() -> Option<String> {
     )
 }
 
-#[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[serde(untagged)]
 pub enum ToolType {
-    #[default]
-    #[serde(alias = "auto")]
     OneOf,
     FunctionName(String),
-    Function {
-        function: FunctionName,
-    },
+    Function { function: FunctionName },
+    NoTool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -857,27 +854,26 @@ pub struct FunctionName {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(from = "ToolTypeDeserializer")]
 pub struct ToolChoice(pub Option<ToolType>);
 
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum ToolTypeDeserializer {
-    None(Option<String>),
-    Some(ToolType),
+    String(String),
+    ToolType(ToolType),
 }
 
 impl From<ToolTypeDeserializer> for ToolChoice {
     fn from(value: ToolTypeDeserializer) -> Self {
         match value {
-            ToolTypeDeserializer::None(opt) => match opt.as_deref() {
-                Some("none") => ToolChoice(None),
-                Some("auto") => ToolChoice(Some(ToolType::OneOf)),
-                Some(s) => ToolChoice(Some(ToolType::FunctionName(s.to_string()))),
-                None => ToolChoice(Some(ToolType::OneOf)),
+            ToolTypeDeserializer::String(s) => match s.as_str() {
+                "none" => ToolChoice(Some(ToolType::NoTool)),
+                "auto" => ToolChoice(Some(ToolType::OneOf)),
+                _ => ToolChoice(Some(ToolType::FunctionName(s))),
             },
-            ToolTypeDeserializer::Some(tool_type) => ToolChoice(Some(tool_type)),
+            ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
     }
 }
@@ -1374,5 +1370,48 @@ mod tests {
             serialized,
             r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
         );
+    }
+    #[test]
+    fn tool_deserialize() {
+        // Test ToolCall deserialization
+        let json = r#"{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}"#;
+        let tool: ToolCall = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            tool,
+            ToolCall {
+                id: "0".to_string(),
+                r#type: "function".to_string(),
+                function: FunctionDefinition {
+                    description: None,
+                    name: "myfn".to_string(),
+                    arguments: json!({
+                        "format": "csv"
+                    }),
+                },
+            }
+        );
+
+        // Test ToolChoice deserialization with "auto"
+        let auto_json = r#""auto""#;
+        let auto_choice: ToolChoice = serde_json::from_str(auto_json).unwrap();
+        assert_eq!(auto_choice, ToolChoice(Some(ToolType::OneOf)));
+
+        // Test ToolChoice deserialization with "none"
+        let none_json = r#""none""#;
+        let none_choice: ToolChoice = serde_json::from_str(none_json).unwrap();
+        assert_eq!(none_choice, ToolChoice(None));
+
+        // Test ToolChoice deserialization with a specific function name
+        let function_json = r#""my_function""#;
+        let function_choice: ToolChoice = serde_json::from_str(function_json).unwrap();
+        assert_eq!(
+            function_choice,
+            ToolChoice(Some(ToolType::FunctionName("my_function".to_string())))
+        );
+
+        // Test ToolChoice deserialization with no value (should default to OneOf)
+        let default_json = r#"null"#;
+        let default_choice: ToolChoice = serde_json::from_str(default_json).unwrap();
+        assert_eq!(default_choice, ToolChoice(Some(ToolType::OneOf)));
     }
 }
