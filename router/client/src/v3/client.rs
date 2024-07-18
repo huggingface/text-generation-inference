@@ -166,6 +166,7 @@ impl Client {
                     seed: 0,
                     repetition_penalty: 1.2,
                     frequency_penalty: 0.1,
+                    no_repeat_ngram_size: 0,
                     watermark: true,
                     grammar: String::new(),
                     grammar_type: GrammarType::None as i32,
