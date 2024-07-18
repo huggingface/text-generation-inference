@@ -18,8 +18,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
-
 import torch
 import torch.distributed
 
@@ -33,14 +31,11 @@ from text_generation_server.layers.attention import (
     attention,
     reshape_and_cache,
 )
-from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     SpeculativeHead,
-    TensorParallelMultiAdapterLinear,
-    TensorParallelAdapterRowLinear,
 )
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
@@ -58,8 +53,6 @@ def load_attention(config, prefix: str, weights, layer_id):
     # Only defined in granite.
     bias = getattr(config, "attention_bias", False)
     head_size = config.hidden_size // config.num_attention_heads
-    sizes = None
-    prefixes = None
 
     if config.model_type == "phi3":
         prefix = f"{prefix}.qkv_proj"
@@ -82,27 +75,21 @@ def load_attention(config, prefix: str, weights, layer_id):
             num_key_value_heads=config.num_key_value_heads,
         )
     else:
-        prefixes = ["q_proj", "k_proj", "v_proj"]
-        sizes = [
-            head_size * config.num_attention_heads,
-            head_size * config.num_key_value_heads,
-            head_size * config.num_key_value_heads,
-        ]
+
         base_layer = TensorParallelColumnLinear.load_multi(
             config,
             prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
             dim=0,
             weights=weights,
             bias=bias,
+            sizes=[
+                head_size * config.num_attention_heads,
+                head_size * config.num_key_value_heads,
+                head_size * config.num_key_value_heads,
+            ],
+            layer_id=layer_id,
         )
-
-    return TensorParallelMultiAdapterLinear.load(
-        base_layer=base_layer,
-        layer_id=layer_id,
-        layer_names=prefixes,
-        sizes=sizes,
-        process_group=weights.process_group,
-    )
+    return base_layer
 
 
 class FlashLlamaAttention(torch.nn.Module):
@@ -150,18 +137,11 @@ class FlashLlamaAttention(torch.nn.Module):
         self.query_key_value = load_attention(config, prefix, weights, index)
         self.index = index
 
-        o_proj = TensorParallelRowLinear.load(
+        self.o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
             bias=False,
-        )
-
-        self.o_proj = TensorParallelAdapterRowLinear.load(
-            o_proj,
-            index,
-            "o_proj",
-            process_group=weights.process_group,
         )
 
         self.num_groups = self.num_heads // self.num_key_value_heads
@@ -247,52 +227,35 @@ class LlamaMLP(nn.Module):
                 ),
             )
         )
-        prefixes = None
-        sizes = None
 
         # Fuse gate and up proj
         bias = getattr(config, "mlp_bias", False)
         if config.model_type == "phi3":
-            gate_up_proj = TensorParallelColumnLinear.load_gate_up(
+            self.gate_up_proj = TensorParallelColumnLinear.load_gate_up(
                 config,
                 prefix=f"{prefix}.gate_up_proj",
                 weights=weights,
                 bias=bias,
             )
         else:
-            prefixes = [f"gate_proj", f"up_proj"]
-            sizes = [
-                config.intermediate_size,
-                config.intermediate_size,
-            ]
-            gate_up_proj = TensorParallelColumnLinear.load_multi(
+            self.gate_up_proj = TensorParallelColumnLinear.load_multi(
                 config,
                 prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
                 weights=weights,
                 dim=0,
                 bias=bias,
+                sizes=[
+                    config.intermediate_size,
+                    config.intermediate_size,
+                ],
+                layer_id=index,
             )
 
-        self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
-            gate_up_proj,
-            index,
-            layer_names=prefixes,
-            sizes=sizes,
-            process_group=weights.process_group,
-        )
-
-        down_proj = TensorParallelRowLinear.load(
+        self.down_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.down_proj",
             weights=weights,
             bias=bias,
-        )
-
-        self.down_proj = TensorParallelAdapterRowLinear.load(
-            down_proj,
-            index,
-            "down_proj",
-            process_group=weights.process_group,
         )
 
         self.intermediate_size = (

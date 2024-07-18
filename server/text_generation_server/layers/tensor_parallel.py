@@ -4,6 +4,7 @@ from typing import Iterable, List
 from text_generation_server.layers.linear import get_linear, FastLinear
 from text_generation_server.layers.exl2 import Exl2Weight
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.layers.lora import forward_layer_type
 
 if SYSTEM == "ipex":
     import intel_extension_for_pytorch as ipex
@@ -126,6 +127,20 @@ class TensorParallelHead(SuperLayer):
 
 
 class TensorParallelColumnLinear(SuperLayer):
+    def __init__(
+        self,
+        linear,
+        process_group: torch.distributed.ProcessGroup = None,
+        layer_names: List[str] = None,
+        sizes: List[int] = None,
+        layer_id: str = None,
+    ):
+        super().__init__(linear)
+        self.process_group = process_group
+        self.layer_names = layer_names
+        self.sizes = sizes
+        self.layer_id = layer_id
+
     @classmethod
     def load_gate_up(cls, config, prefix: str, weights, bias: bool):
         """Specific method when the QKV was joined after the fact"""
@@ -171,7 +186,18 @@ class TensorParallelColumnLinear(SuperLayer):
         return cls(linear)
 
     @classmethod
-    def load_multi(cls, config, prefixes: List[str], weights, bias: bool, dim: int):
+    def load_multi(
+        cls,
+        config,
+        prefixes: List[str],
+        weights,
+        bias: bool,
+        dim: int,
+        sizes: List[int] = None,
+        layer_id: str = None,
+    ):
+        # infer layer_names from prefixes
+        layer_names = [prefix.split(".")[-1] for prefix in prefixes]
         if config.quantize == "exl2":
             linears = []
             for prefix in prefixes:
@@ -187,17 +213,75 @@ class TensorParallelColumnLinear(SuperLayer):
             else:
                 bias = None
             linear = get_linear(weight, bias, config.quantize)
-        return cls(linear)
+
+        return cls(
+            linear,
+            process_group=weights.process_group,
+            layer_names=layer_names,
+            sizes=sizes,
+            layer_id=layer_id,
+        )
+
+    def forward(self, input: torch.Tensor, adapter_data=None) -> torch.Tensor:
+        result = super().forward(input)
+
+        # noop if no lora data is provided
+        if adapter_data is None:
+            return result
+
+        # handle models like Bloom that have inputs of shape
+        # (batch_size, sequence_length, hidden_size)
+        # we need to reshape them to (batch_size * sequence_length, hidden_size)
+        # for the LoRA computation, then reshape back
+        prev_shape = result.shape
+        is_3d = len(input.shape) >= 3
+        if is_3d:
+            input = input.reshape(-1, input.shape[-1])
+            result = result.reshape(-1, result.shape[-1])
+
+        offset = 0
+        for i, layer_name in enumerate(self.layer_names):
+            start_idx = offset // self.process_group.size()
+            # The 'sizes' parameter is essential in tensor-parallel setups for handling multiple
+            # projection layers (q_proj, k_proj, v_proj) by defining their output dimensions. It
+            # ensures correct slicing of the result tensor, accommodating variations like grouped-query
+            # attention where k_proj and v_proj differ from q_proj. This allows precise application of
+            # LoRA adapters to each sub-component of the multi-head attention mechanism, managing the
+            # different projection sizes across layers and model architectures.
+            if self.sizes is not None:
+                offset += self.sizes[i]
+                end_idx = offset // self.process_group.size()
+            else:
+                end_idx = result.shape[1]
+
+            result = forward_layer_type(
+                process_group=self.process_group,
+                layer_id=self.layer_id,
+                result=result,
+                input=input,
+                adapter_data=adapter_data,
+                layer_type=layer_name,
+                start_idx=start_idx,
+                end_idx=end_idx,
+                use_all_gather=True,
+            )
+
+        if is_3d:
+            result = result.reshape(prev_shape)
+
+        return result
 
 
 class TensorParallelRowLinear(SuperLayer):
-    def __init__(self, linear, process_group):
+    def __init__(self, linear, process_group, layer_name):
         super().__init__(linear)
         self.process_group = process_group
+        self.layer_name = layer_name
 
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
         weight = weights.get_weights_row(prefix)
+        layer_name = prefix.split(".")[-1]
 
         if bias and weights.process_group.rank() == 0:
             # Rank is only on the first rank process
@@ -207,16 +291,41 @@ class TensorParallelRowLinear(SuperLayer):
         return cls(
             get_linear(weight, bias, config.quantize),
             process_group=weights.process_group,
+            layer_name=layer_name,
         )
 
-    def forward(self, input: torch.Tensor, reduce: bool = True) -> torch.Tensor:
+    def forward(
+        self, input: torch.Tensor, adapter_data=None, reduce: bool = True
+    ) -> torch.Tensor:
         out = super().forward(input)
         if self.process_group.size() > 1 and reduce:
             if SYSTEM == "ipex":
                 ipex.distributed.all_reduce(out, group=self.process_group)
             else:
                 torch.distributed.all_reduce(out, group=self.process_group)
-        return out
+
+        # noop if no lora data is provided
+        if adapter_data is None:
+            return out
+
+        # Fused all-gather + all-reduce from S-LoRA paper: https://arxiv.org/abs/2311.03285
+        stride = out.shape[-1] // self.process_group.size()
+        start_idx = self.process_group.rank() * stride
+        end_idx = (self.process_group.rank() + 1) * stride
+
+        res = forward_layer_type(
+            process_group=self.process_group,
+            layer_id=self.layer_name,
+            result=out,
+            input=input,
+            adapter_data=adapter_data,
+            layer_type=self.layer_name,
+            start_idx=start_idx,
+            end_idx=end_idx,
+            use_all_gather=False,
+        )
+
+        return res
 
 
 class TensorParallelEmbedding(torch.nn.Module):
