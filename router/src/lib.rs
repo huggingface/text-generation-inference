@@ -854,7 +854,7 @@ pub struct FunctionName {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, ToSchema)]
 #[serde(from = "ToolTypeDeserializer")]
 pub struct ToolChoice(pub Option<ToolType>);
 

@@ -24,7 +24,7 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
     VertexResponse,
 };
-use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolType};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -1492,6 +1492,7 @@ pub async fn run(
     ToolCall,
     Function,
     FunctionDefinition,
+    ToolChoice,
     )
     ),
     tags(
