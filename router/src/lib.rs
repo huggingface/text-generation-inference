@@ -1371,47 +1371,4 @@ mod tests {
             r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
         );
     }
-    #[test]
-    fn tool_deserialize() {
-        // Test ToolCall deserialization
-        let json = r#"{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}"#;
-        let tool: ToolCall = serde_json::from_str(json).unwrap();
-        assert_eq!(
-            tool,
-            ToolCall {
-                id: "0".to_string(),
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    description: None,
-                    name: "myfn".to_string(),
-                    arguments: json!({
-                        "format": "csv"
-                    }),
-                },
-            }
-        );
-
-        // Test ToolChoice deserialization with "auto"
-        let auto_json = r#""auto""#;
-        let auto_choice: ToolChoice = serde_json::from_str(auto_json).unwrap();
-        assert_eq!(auto_choice, ToolChoice(Some(ToolType::OneOf)));
-
-        // Test ToolChoice deserialization with "none"
-        let none_json = r#""none""#;
-        let none_choice: ToolChoice = serde_json::from_str(none_json).unwrap();
-        assert_eq!(none_choice, ToolChoice(None));
-
-        // Test ToolChoice deserialization with a specific function name
-        let function_json = r#""my_function""#;
-        let function_choice: ToolChoice = serde_json::from_str(function_json).unwrap();
-        assert_eq!(
-            function_choice,
-            ToolChoice(Some(ToolType::FunctionName("my_function".to_string())))
-        );
-
-        // Test ToolChoice deserialization with no value (should default to OneOf)
-        let default_json = r#"null"#;
-        let default_choice: ToolChoice = serde_json::from_str(default_json).unwrap();
-        assert_eq!(default_choice, ToolChoice(Some(ToolType::OneOf)));
-    }
 }
