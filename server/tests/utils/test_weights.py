@@ -2,6 +2,7 @@ import pytest
 import torch
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
+    UnquantizedWeight,
     Weights,
     WeightsLoader,
 )
@@ -363,7 +364,10 @@ class MockWeights(Weights):
         self.process_group = process_group
         self.prefix = prefix
         self.weights_loader = (
-            DefaultWeightsLoader() if weights_loader is None else weights_loader
+            # We don't need to get linear layers, so just wrap raw tensors.
+            DefaultWeightsLoader(lambda x: x)
+            if weights_loader is None
+            else weights_loader
         )
         self._handles = {}
 
@@ -632,6 +636,7 @@ def test_get_weights_col_awq(gptq_weights_loader_awq):
         g_idx=None,
         bits=8.0,
         groupsize=2.0,
+        use_awq_kernel=True,
         use_exllama=False,
     )
 
@@ -641,6 +646,7 @@ def test_get_weights_col_awq(gptq_weights_loader_awq):
     assert w.g_idx == expected_weight.g_idx, "g_idx mismatch"
     assert w.bits == expected_weight.bits, "bits mismatch"
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
+    assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 
@@ -669,6 +675,7 @@ def test_get_weights_col_gtpq(gptq_weights_loader):
         g_idx=torch.tensor([0, 1, 0, 1], dtype=torch.int32),
         bits=8.0,
         groupsize=2.0,
+        use_awq_kernel=False,
         use_exllama=False,
     )
 
@@ -678,6 +685,7 @@ def test_get_weights_col_gtpq(gptq_weights_loader):
     assert torch.allclose(w.g_idx, expected_weight.g_idx), "g_idx mismatch"
     assert w.bits == expected_weight.bits, "bits mismatch"
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
+    assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 
@@ -774,6 +782,7 @@ def test_get_weights_col_packed_awq(gptq_weights_loader_awq):
         g_idx=None,
         bits=8.0,
         groupsize=2.0,
+        use_awq_kernel=True,
         use_exllama=False,
     )
 
@@ -783,6 +792,7 @@ def test_get_weights_col_packed_awq(gptq_weights_loader_awq):
     assert w.g_idx == expected_weight.g_idx, "g_idx mismatch"
     assert w.bits == expected_weight.bits, "bits mismatch"
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
+    assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 
@@ -851,6 +861,7 @@ def test_get_weights_col_packed_gptq(gptq_weights_loader):
         g_idx=torch.tensor([0, 1, 0, 1], dtype=torch.int32),
         bits=8.0,
         groupsize=2.0,
+        use_awq_kernel=False,
         use_exllama=False,
     )
 
@@ -860,6 +871,7 @@ def test_get_weights_col_packed_gptq(gptq_weights_loader):
     assert torch.allclose(w.g_idx, expected_weight.g_idx), "g_idx mismatch"
     assert w.bits == expected_weight.bits, "bits mismatch"
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
+    assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 
@@ -922,6 +934,7 @@ def test_get_multi_weights_col_awq(gptq_weights_loader_awq):
         g_idx=None,
         bits=8.0,
         groupsize=2.0,
+        use_awq_kernel=True,
         use_exllama=False,
     )
 
@@ -931,6 +944,7 @@ def test_get_multi_weights_col_awq(gptq_weights_loader_awq):
     assert w.g_idx == expected_weight.g_idx, "g_idx mismatch"
     assert w.bits == expected_weight.bits, "bits mismatch"
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
+    assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 
@@ -983,6 +997,7 @@ def test_get_multi_weights_col_gptq(gptq_weights_loader):
         g_idx=torch.tensor([0, 1, 0, 1], dtype=torch.int32),
         bits=8.0,
         groupsize=2.0,
+        use_awq_kernel=False,
         use_exllama=False,
     )
 
@@ -992,6 +1007,7 @@ def test_get_multi_weights_col_gptq(gptq_weights_loader):
     assert torch.allclose(w.g_idx, expected_weight.g_idx), "g_idx mismatch"
     assert w.bits == expected_weight.bits, "bits mismatch"
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
+    assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 
@@ -1051,6 +1067,7 @@ def test_get_weights_row_awq(gptq_weights_loader_awq):
         g_idx=None,
         bits=8.0,
         groupsize=2.0,
+        use_awq_kernel=True,
         use_exllama=False,
     )
 
@@ -1060,6 +1077,7 @@ def test_get_weights_row_awq(gptq_weights_loader_awq):
     assert w.g_idx == expected_weight.g_idx, "g_idx mismatch"
     assert w.bits == expected_weight.bits, "bits mismatch"
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
+    assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 
@@ -1125,6 +1143,7 @@ def test_get_weights_row_gptq(gptq_weights_loader):
         g_idx=torch.tensor([0, 1, 0, 1], dtype=torch.int32),
         bits=8.0,
         groupsize=2.0,
+        use_awq_kernel=False,
         use_exllama=False,
     )
 
@@ -1134,6 +1153,7 @@ def test_get_weights_row_gptq(gptq_weights_loader):
     assert torch.allclose(w.g_idx, expected_weight.g_idx), "g_idx mismatch"
     assert w.bits == expected_weight.bits, "bits mismatch"
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
+    assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 

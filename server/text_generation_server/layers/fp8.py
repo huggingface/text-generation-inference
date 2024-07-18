@@ -1,7 +1,8 @@
-from enum import Enum, auto
+from dataclasses import dataclass
 
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.weights import Weight
 
 
 def get_fp8_linear() -> torch.nn.Module:
@@ -35,6 +36,14 @@ def fp8_quantize(weight, qdtype=torch.float8_e4m3fn):
     qweight = qweight.to(qdtype)
     scale = scale.float().reciprocal()
     return qweight, scale
+
+
+@dataclass
+class Fp8Weight(Weight):
+    weight: torch.Tensor
+
+    def get_linear(self, bias: torch.Tensor):
+        return get_fp8_linear()(self.weight, bias)
 
 
 class Fp8Linear(torch.nn.Module):

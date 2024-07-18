@@ -1,12 +1,12 @@
-import torch
-from typing import List, Union
 from dataclasses import dataclass
+from typing import List, Union
 
-from text_generation_server.utils.weights import WeightsLoader, Weights
+import torch
+from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 
 @dataclass
-class Exl2Weight:
+class Exl2Weight(Weight):
     """
     Exllama2 exl2 quantized weights.
     """
@@ -24,6 +24,11 @@ class Exl2Weight:
     @property
     def device(self) -> torch.device:
         return self.q_weight.device
+
+    def get_linear(self, bias: torch.Tensor):
+        from text_generation_server.layers.gptq import ExllamaQuantLinear
+
+        return ExllamaQuantLinear(self, bias)
 
 
 class Exl2WeightsLoader(WeightsLoader):

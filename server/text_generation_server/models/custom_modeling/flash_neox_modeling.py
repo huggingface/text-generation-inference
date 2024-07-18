@@ -56,7 +56,7 @@ def load_row(config, prefix: str, weights, bias: bool):
     else:
         bias = None
 
-    linear = get_linear(weight, bias, config.quantize)
+    linear = get_linear(weight, bias)
     if config.use_parallel_residual:
         return linear
     else:
@@ -81,7 +81,7 @@ def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
     bias = weights.get_sharded(f"{prefix}.bias", dim=0)
     bias = bias.view(num_heads, 3, head_size).permute(1, 0, 2).reshape(-1)
 
-    linear = get_linear(weight, bias, config.quantize)
+    linear = get_linear(weight, bias)
     if config.use_parallel_residual:
         return linear
     else:

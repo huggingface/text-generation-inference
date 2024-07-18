@@ -1,11 +1,14 @@
-from typing import Optional
-import os
 import json
+import os
 from dataclasses import dataclass
+from typing import Optional
 
 from huggingface_hub import hf_hub_download
-
-from text_generation_server.utils.weights import DefaultWeightsLoader, WeightsLoader
+from text_generation_server.utils.weights import (
+    DefaultWeightsLoader,
+    UnquantizedWeight,
+    WeightsLoader,
+)
 
 
 @dataclass
@@ -104,10 +107,30 @@ def get_loader(
             quantize=quantize,
             sym=quantizer_config.sym,
         )
+    elif quantize == "bitsandbytes":
+        from text_generation_server.layers.bnb import BNBWeight
+
+        return DefaultWeightsLoader(BNBWeight)
+    elif quantize == "bitsandbytes-fp4":
+        from text_generation_server.layers.bnb import BNBFP4Weight
+
+        return DefaultWeightsLoader(BNBFP4Weight)
+    elif quantize == "bitsandbytes-nf4":
+        from text_generation_server.layers.bnb import BNBNF4Weight
+
+        return DefaultWeightsLoader(BNBNF4Weight)
+    elif quantize == "eetq":
+        from text_generation_server.layers.eetq import EETQWeight
+
+        return DefaultWeightsLoader(EETQWeight)
     elif quantize == "exl2":
         from text_generation_server.layers.exl2 import Exl2WeightsLoader
 
         return Exl2WeightsLoader()
+    elif quantize == "fp8":
+        from text_generation_server.layers.fp8 import Fp8Weight
+
+        return DefaultWeightsLoader(Fp8Weight)
     elif quantize == "marlin":
         from text_generation_server.layers.marlin import MarlinWeightsLoader
 
@@ -115,5 +138,7 @@ def get_loader(
             bits=quantizer_config.bits,
             is_marlin_24=quantizer_config.checkpoint_format == "marlin_24",
         )
+    elif quantize is None:
+        return DefaultWeightsLoader(UnquantizedWeight)
     else:
-        return DefaultWeightsLoader()
+        raise ValueError(f"Unknown quantization method: {quantize}")

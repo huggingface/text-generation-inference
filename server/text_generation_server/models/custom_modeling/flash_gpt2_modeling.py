@@ -82,7 +82,7 @@ def _load_qkv_gptq(config, prefix: str, weights):
     bias = torch.cat(tensors, dim=0)
     bias = bias.to(device=weights.device)
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 def _load_qkv(config, prefix: str, weights, head_size, num_heads):
@@ -129,7 +129,7 @@ def _load_qkv(config, prefix: str, weights, head_size, num_heads):
         3 * num_heads * head_size
     ], f"{weight.shape} != {[3 * num_heads * head_size]}"
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 def load_row(config, prefix: str, weights, bias: bool):
@@ -147,7 +147,7 @@ def load_row(config, prefix: str, weights, bias: bool):
         bias = None
 
     return TensorParallelRowLinear(
-        get_linear(weight, bias, config.quantize), process_group=weights.process_group
+        get_linear(weight, bias), process_group=weights.process_group
     )
 
 
@@ -163,7 +163,7 @@ def load_col(config, prefix: str, weights, bias: bool):
     else:
         bias = None
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 class FlashGPT2Attention(torch.nn.Module):

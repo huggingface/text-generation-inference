@@ -105,6 +105,7 @@ def _load_multi_mqa_gptq(
             g_idx=g_idx,
             bits=loader.bits,
             groupsize=loader.groupsize,
+            use_awq_kernel=loader.quantize == "awq",
             use_exllama=HAS_EXLLAMA,
         )
 
@@ -121,7 +122,7 @@ def _load_multi_mqa_gptq(
             bias = torch.cat([q_tensor, kv_tensor], dim=0)
             bias = bias.to(device=weights.device)
 
-        return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+        return TensorParallelColumnLinear(get_linear(weight, bias))
     else:
         raise NotImplementedError("Gptq loading with santacoder is not implemented")
 
@@ -193,7 +194,7 @@ def _load_multi_mqa(
         assert list(bias.shape) == [
             (num_heads + 2) * head_size
         ], f"{weight.shape} != {[(num_heads + 2) * head_size]}"
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 def load_col(config, prefix: str, weights, bias: bool):
@@ -206,7 +207,7 @@ def load_col(config, prefix: str, weights, bias: bool):
         bias = weights.get_sharded(f"{prefix}.bias", dim=0)
     else:
         bias = None
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 def load_row(config, prefix: str, weights, bias: bool):
@@ -221,7 +222,7 @@ def load_row(config, prefix: str, weights, bias: bool):
     else:
         bias = None
     return TensorParallelRowLinear(
-        get_linear(weight, bias, config.quantize), process_group=weights.process_group
+        get_linear(weight, bias), process_group=weights.process_group
     )
 
 
