@@ -28,7 +28,7 @@ jobs:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     runs-on:
-      group: aws-use1-r7i-8xlarge-priv
+      group: aws-r7i-8xlarge-priv
     permissions:
       contents: write
       packages: write
@@ -49,7 +49,7 @@ jobs:
                 export dockerfile="Dockerfile"
                 export label_extension=""
                 export docker_devices=""
-                export runs_on="aws-use1-g5-12xlarge"
+                export runs_on="aws-g5-12xlarge"
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
@@ -182,4 +182,4 @@ jobs:
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
-          pytest -s -vv integration-tests ${PYTEST_FLAGS}
+          pytest -x -s -vv integration-tests ${PYTEST_FLAGS}
