@@ -1,12 +1,20 @@
-pub use backend::TensorRtLlmBackend;
-
-use crate::backend::GenerationContext;
+pub use backend::{GenerationContext, TensorRtLlmBackend};
 
 mod backend;
 pub mod errors;
 
 #[cxx::bridge(namespace = "huggingface::tgi::backends")]
 mod ffi {
+
+    /// Struct used as shared type between rust and C++ to represent the result
+    /// of a single decoding iteration
+    #[derive(Copy, Clone)]
+    pub struct GenerationStep {
+        token_id: u32,
+        log_prob: f32,
+        is_final: bool,
+    }
+
     extern "Rust" {
         type GenerationContext;
     }
@@ -60,7 +68,7 @@ mod ffi {
             self: Pin<&mut TensorRtLlmBackendImpl>,
             request_id: u64,
             ctx: *mut GenerationContext,
-            cb: unsafe fn(*mut GenerationContext, u32, f32, bool),
+            cb: unsafe fn(*mut GenerationContext, GenerationStep),
         ) -> usize;
 
         // #[rust_name = "shutdown"]

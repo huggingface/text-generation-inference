@@ -6,6 +6,7 @@
 #include <cmath>
 #include <exception>
 #include <filesystem>
+#include <limits>
 #include <iterator>
 #include <vector>
 
@@ -36,10 +37,12 @@ uint64_t huggingface::tgi::backends::TensorRtLlmBackendImpl::Submit(
 size_t huggingface::tgi::backends::TensorRtLlmBackendImpl::StreamTokens(
         const uint64_t requestId,
         huggingface::tgi::backends::GenerationContext *ctx,
-        rust::Fn<void(huggingface::tgi::backends::GenerationContext *, uint32_t, float_t, bool)> callback) {
+        rust::Fn<void(huggingface::tgi::backends::GenerationContext *,
+                      huggingface::tgi::backends::GenerationStep)> callback) {
 
     size_t numTokens = 0;
     for (const auto &item: Poll(requestId)) {
+        GenerationStep step;
         if (!item.hasError()) {
             SPDLOG_DEBUG("\tStreamTokens -> Decoding token...");
             const auto decoded = item.getResult();
@@ -51,13 +54,15 @@ size_t huggingface::tgi::backends::TensorRtLlmBackendImpl::StreamTokens(
             ++numTokens;
 
             SPDLOG_DEBUG(FMT_STRING("\tStreamTokens -> {:d} {:.2f} (final = {})"), token, logProb, isFinal);
-            callback(std::move(ctx), token, logProb, isFinal);
+            step = huggingface::tgi::backends::GenerationStep{static_cast<uint32_t>(token), logProb, isFinal};
             SPDLOG_DEBUG("\tStreamTokens -> Post callback");
         } else {
             // TODO : Return rest::Result with error
             SPDLOG_WARN("\tStreamTokens -> Got error while decoding: {}", item.getErrorMsg());
-            callback(std::move(ctx), 0, 0.0, true);
+            step = huggingface::tgi::backends::GenerationStep{std::numeric_limits<uint32_t>::max(), 0.0, true};
         }
+
+        callback(std::move(ctx), std::move(step));
     }
 
     return numTokens;

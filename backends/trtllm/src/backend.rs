@@ -20,13 +20,11 @@ use tracing::{instrument, Level, span};
 
 use text_generation_router::{FinishReason, Token};
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
-use text_generation_router::validation::{
-    Chunk, ValidationError, ValidGenerateRequest, ValidParameters,
-};
+use text_generation_router::validation::{Chunk, ValidationError, ValidGenerateRequest};
 use text_generation_router::validation::ValidationError::UnsupportedModality;
 
 use crate::errors::TensorRtLlmBackendError;
-use crate::ffi::{create_tensorrt_llm_backend, TensorRtLlmBackendImpl};
+use crate::ffi::{create_tensorrt_llm_backend, GenerationStep, TensorRtLlmBackendImpl};
 
 // Value used to poll the state of the generation stream
 static POLLING_INTERVAL_US: OnceLock<u64> = OnceLock::new();
@@ -208,14 +206,11 @@ impl TensorRtLlmBackend {
                             executor_w.pin_mut().stream_tokens(
                                 request_id,
                                 ctx_,
-                                |ctx: *mut GenerationContext,
-                                 token_id: u32,
-                                 logprob: f32,
-                                 is_final: bool| {
+                                |ctx: *mut GenerationContext, step: GenerationStep| {
                                     let inner_ctx = &mut *ctx;
 
                                     // Insert the latest generated token to the tracker
-                                    inner_ctx.tokens.push(token_id);
+                                    inner_ctx.tokens.push(step.token_id);
 
                                     // Update the timestamp at which the request started effectively
                                     // Can be a bit off, would need to be before the callback, let's see
@@ -224,7 +219,7 @@ impl TensorRtLlmBackend {
                                     // Decode the token
                                     let text = inner_ctx
                                         .tokenizer
-                                        .decode(&[token_id], true)
+                                        .decode(&[step.token_id], true)
                                         .expect("Failed to decode token");
 
                                     let special = inner_ctx
@@ -234,13 +229,13 @@ impl TensorRtLlmBackend {
 
                                     // Create the structure holding the token
                                     let token = Token {
-                                        id: token_id,
+                                        id: step.token_id,
                                         text,
-                                        logprob,
+                                        logprob: step.log_prob,
                                         special,
                                     };
 
-                                    let out = if is_final {
+                                    let out = if step.is_final {
                                         inner_ctx.done.store(true, Ordering::Relaxed);
                                         let generated_text = inner_ctx
                                             .tokenizer
