@@ -13,8 +13,13 @@ from text_generation_server.layers.speculative import SpeculativeHead
 from text_generation_server.layers.layernorm import load_layer_norm
 from text_generation_server.layers.conv import load_conv2d
 
-from text_generation_server.layers.lora import (
-    LoraLinear,
-    TensorParallelMultiAdapterLinear,
-    TensorParallelAdapterRowLinear,
-)
+__all__ = [
+    "TensorParallelColumnLinear",
+    "TensorParallelRowLinear",
+    "TensorParallelEmbedding",
+    "get_linear",
+    "FastLinear",
+    "SpeculativeHead",
+    "load_layer_norm",
+    "load_conv2d",
+]

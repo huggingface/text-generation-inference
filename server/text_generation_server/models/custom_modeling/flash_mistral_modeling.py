@@ -28,7 +28,6 @@ from typing import Optional, List, Tuple
 
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
-    Seqlen,
     paged_attention,
     attention,
     reshape_and_cache,
@@ -38,9 +37,6 @@ from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     SpeculativeHead,
-    get_linear,
-    TensorParallelMultiAdapterLinear,
-    TensorParallelAdapterRowLinear,
 )
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
@@ -138,38 +134,25 @@ class MistralAttention(torch.nn.Module):
             config.num_key_value_heads // weights.process_group.size()
         )
 
-        query_key_value = TensorParallelColumnLinear.load_multi(
+        head_size = config.hidden_size // config.num_attention_heads
+        self.query_key_value = TensorParallelColumnLinear.load_multi(
             config,
             prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
             dim=0,
             weights=weights,
             bias=False,
-        )
-
-        head_size = config.hidden_size // config.num_attention_heads
-        self.query_key_value = TensorParallelMultiAdapterLinear.load(
-            query_key_value,
-            layer_id,
-            ["q_proj", "k_proj", "v_proj"],
             sizes=[
                 head_size * config.num_attention_heads,
                 head_size * config.num_key_value_heads,
                 head_size * config.num_key_value_heads,
             ],
-            process_group=weights.process_group,
+            layer_id=layer_id,
         )
-
-        o_proj = TensorParallelRowLinear.load(
+        self.o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
             bias=False,
-        )
-        self.o_proj = TensorParallelAdapterRowLinear.load(
-            o_proj,
-            layer_id,
-            "o_proj",
-            process_group=weights.process_group,
         )
         self.num_groups = self.num_heads // self.num_key_value_heads
         self.kv_head_mapping = torch.arange(
@@ -264,36 +247,23 @@ class MistralMLP(nn.Module):
             )
         )
         # Fuse gate and up proj
-        gate_up_proj = TensorParallelColumnLinear.load_multi(
+        self.gate_up_proj = TensorParallelColumnLinear.load_multi(
             config,
             prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
             weights=weights,
             dim=0,
             bias=False,
-        )
-        self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
-            gate_up_proj,
-            layer_id,
-            ["gate_proj", "up_proj"],
             sizes=[
                 config.intermediate_size,
                 config.intermediate_size,
             ],
-            process_group=weights.process_group,
+            layer_id=layer_id,
         )
-
-        down_proj = TensorParallelRowLinear.load(
+        self.down_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.down_proj",
             weights=weights,
             bias=False,
-        )
-
-        self.down_proj = TensorParallelAdapterRowLinear.load(
-            down_proj,
-            layer_id,
-            "down_proj",
-            process_group=weights.process_group,
         )
         self.intermediate_size = (
             config.intermediate_size // weights.process_group.size()

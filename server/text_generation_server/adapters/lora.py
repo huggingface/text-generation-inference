@@ -208,7 +208,7 @@ class LoraWeights(AdapterWeights):
         for layer_id in range(nlayers):
             key = (layer_id, layer_type)
             weight_name, layer = model.target_to_layer[key]
-            base_weight = layer.base_layer.linear.weight
+            base_weight = layer.linear.weight
             base_device = base_weight.device
 
             if weight_name not in module_map:
