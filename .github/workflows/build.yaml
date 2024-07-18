@@ -183,3 +183,7 @@ jobs:
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
           pytest -x -s -vv integration-tests ${PYTEST_FLAGS}
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 30
