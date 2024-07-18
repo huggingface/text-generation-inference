@@ -466,7 +466,8 @@ def launcher(event_loop):
             args.append("--cuda-graphs")
             args.append(",".join(map(str, cuda_graphs)))
 
-        client = docker.from_env()
+        client = docker.from_env(timeout=180)
+        client.ping()
 
         container_name = f"tgi-tests-{model_id.split('/')[-1]}-{num_shard}-{quantize}"
 
