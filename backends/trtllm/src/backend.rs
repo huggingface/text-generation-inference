@@ -41,7 +41,6 @@ pub struct GenerationContext {
     tokens: Vec<u32>,
     done: Arc<AtomicBool>,
     start: Instant,
-    span: Span,
 }
 
 impl Stream for Generation {
@@ -94,6 +93,9 @@ unsafe impl Sync for TensorRtLlmBackendImpl {}
 /// Implements the logic to execute generation with TensorRT-LLM executor API in background
 pub struct TensorRtLlmBackend {
     tokenizer: Arc<Tokenizer>,
+
+    // Backing the backend behind a RwLock to allow concurrent read access to retrieve
+    // the number of available tokens (read only) in the Generation stream
     backend: Arc<RwLock<UniquePtr<TensorRtLlmBackendImpl>>>,
 }
 
@@ -140,8 +142,8 @@ impl TensorRtLlmBackend {
         temperature: f32,
         seed: u64,
     ) {
-        let tokenizer = self.tokenizer.clone();
-        let executor = self.backend.clone();
+        let tokenizer = Arc::clone(&self.tokenizer);
+        let executor = Arc::clone(&self.backend);
 
         // Let's push this in async context
         tokio::spawn(async move {
@@ -155,11 +157,10 @@ impl TensorRtLlmBackend {
             // TODO(asap): Do we really need so many shared-ownership?
             let ctx = Box::new(GenerationContext {
                 sender: sender.clone(),
-                tokenizer: tokenizer.clone(),
+                tokenizer,
                 tokens: vec![],
                 done: Arc::clone(&generation.done),
                 start: Instant::now(),
-                span: Span::current(),
             });
 
             // We are leaking the context on-purpose to avoid the box being dropped while there are
