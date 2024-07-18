@@ -50,6 +50,8 @@ mod ffi {
             top_k: i32,
             top_p: f32,
             temperature: f32,
+            repetition_penalty: f32,
+            frequency_penalty: f32,
             seed: u64,
         ) -> u64;
 

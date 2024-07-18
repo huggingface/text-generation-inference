@@ -140,6 +140,8 @@ impl TensorRtLlmBackend {
         top_k: u32,
         top_p: f32,
         temperature: f32,
+        repetition_penalty: f32,
+        frequency_penalty: f32,
         seed: u64,
     ) {
         let tokenizer = Arc::clone(&self.tokenizer);
@@ -174,10 +176,15 @@ impl TensorRtLlmBackend {
                 .in_scope(|| async {
                     debug!("Acquiring lock for submit");
                     let mut handle = executor.write().await;
-                    let request_id =
-                        handle
-                            .pin_mut()
-                            .submit(&tokens, top_k as i32, top_p, temperature, seed);
+                    let request_id = handle.pin_mut().submit(
+                        &tokens,
+                        top_k as i32,
+                        top_p,
+                        temperature,
+                        repetition_penalty,
+                        frequency_penalty,
+                        seed,
+                    );
 
                     debug!("Releasing lock for submit");
                     request_id

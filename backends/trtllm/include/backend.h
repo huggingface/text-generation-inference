@@ -42,6 +42,8 @@ namespace huggingface::tgi::backends {
      * @param topK
      * @param topP
      * @param temperature
+     * @param repetition_penalty
+     * @param frequency_penalty
      * @param seed
      * @return
      */
@@ -49,6 +51,8 @@ namespace huggingface::tgi::backends {
             uint32_t topK,
             float_t topP,
             float_t temperature,
+            float_t repetition_penalty,
+            float_t frequency_penalty,
             uint64_t seed
     );
 
@@ -84,6 +88,8 @@ namespace huggingface::tgi::backends {
          * @param topK
          * @param topP
          * @param temperature
+         * @param repetition_penalty
+         * @param frequency_penalty
          * @param seed
          * @return Request id related to this generation for reference
          */
@@ -92,6 +98,8 @@ namespace huggingface::tgi::backends {
                 int32_t topK,
                 float_t topP,
                 float_t temperature,
+                float_t repetition_penalty,
+                float_t frequency_penalty,
                 uint64_t seed
         );
 

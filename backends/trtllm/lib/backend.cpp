@@ -57,6 +57,8 @@ tle::SamplingConfig huggingface::tgi::backends::GetSamplingConfig(
         uint32_t topK,
         float_t topP,
         float_t temperature,
+        float_t repetition_penalty,
+        float_t frequency_penalty,
         uint64_t seed) {
     return tle::SamplingConfig(
             1,  // TGI only use a single beam
@@ -66,9 +68,12 @@ tle::SamplingConfig huggingface::tgi::backends::GetSamplingConfig(
             std::nullopt,
             std::nullopt,
             seed,
-            std::nullopt,
             temperature,
-            std::nullopt
+            temperature,
+            std::nullopt,
+            repetition_penalty,
+            std::nullopt,
+            frequency_penalty
     );
 }
 
@@ -99,6 +104,8 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const int32_t topK,
         const float_t topP,
         const float_t temperature,
+        const float_t repetition_penalty,
+        const float_t frequency_penalty,
         const uint64_t seed
 ) {
 #ifdef NDEBUG
@@ -118,7 +125,7 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
     const auto maxNumTokens = config["/build_config/max_num_tokens"_json_pointer].get<size_t>();
     const auto maxNewTokens = static_cast<int32_t>(std::max(1ul, maxNumTokens - tokens.size()));
 
-    const auto sampling = GetSamplingConfig(topK, topP, temperature, seed);
+    const auto sampling = GetSamplingConfig(topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
     const auto output = tle::OutputConfig(true, false, false, true, false);
     return executor.enqueueRequest(
             tle::Request{tokens, maxNewTokens, true, sampling, output});
