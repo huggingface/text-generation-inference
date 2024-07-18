@@ -54,12 +54,17 @@ size_t huggingface::tgi::backends::TensorRtLlmBackendImpl::StreamTokens(
             ++numTokens;
 
             SPDLOG_DEBUG(FMT_STRING("\tStreamTokens -> {:d} {:.2f} (final = {})"), token, logProb, isFinal);
-            step = huggingface::tgi::backends::GenerationStep{static_cast<uint32_t>(token), logProb, isFinal};
+            step = huggingface::tgi::backends::GenerationStep{
+                    static_cast<uint32_t>(token), logProb, isFinal, false, std::move(std::string())
+            };
             SPDLOG_DEBUG("\tStreamTokens -> Post callback");
         } else {
             // TODO : Return rest::Result with error
-            SPDLOG_WARN("\tStreamTokens -> Got error while decoding: {}", item.getErrorMsg());
-            step = huggingface::tgi::backends::GenerationStep{std::numeric_limits<uint32_t>::max(), 0.0, true};
+            const auto what = item.getErrorMsg();
+            SPDLOG_WARN("\tStreamTokens -> Got error while decoding: {}", what);
+            step = huggingface::tgi::backends::GenerationStep{
+                    std::numeric_limits<uint32_t>::max(), 0.0, true, true, std::move(what)
+            };
         }
 
         callback(std::move(ctx), std::move(step));

@@ -8,11 +8,12 @@ mod ffi {
 
     /// Struct used as shared type between rust and C++ to represent the result
     /// of a single decoding iteration
-    #[derive(Copy, Clone)]
     pub struct GenerationStep {
         token_id: u32,
         log_prob: f32,
         is_final: bool,
+        has_error: bool,
+        error_msg: String,
     }
 
     extern "Rust" {
