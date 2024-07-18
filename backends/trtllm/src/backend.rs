@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use cxx::UniquePtr;
-use log::{debug, warn};
+use log::{error, warn};
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::RwLock;
@@ -261,6 +261,7 @@ impl TensorRtLlmBackend {
                                             })
                                         }
                                     } else {
+                                        error!("Error caught while decoding: {}", &step.error_msg);
                                         Err(InferError::GenerationError(step.error_msg))
                                     };
 
