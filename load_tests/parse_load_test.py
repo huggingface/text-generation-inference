@@ -20,12 +20,13 @@ def get_nested(obj, path, default=None):
     for key in path.split("."):
         if obj is None:
             return default
-        if re.match(r"\d+", key):
-            key = int(key)
-            if key >= len(obj):
+        if isinstance(obj, list):
+            try:
+                key = int(key)
+            except ValueError:
                 return default
             obj = obj[key]
-        else:
+        elif isinstance(obj, dict):
             obj = obj.get(key, default)
     return obj
 
