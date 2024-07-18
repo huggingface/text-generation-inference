@@ -187,3 +187,31 @@ jobs:
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
         timeout-minutes: 30
+  integration_tests2:
+    runs-on:
+      group: aws-g5-12xlarge
+    env:
+      PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == true) && '--release' || '' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install
+        run: |
+          make install-integration-tests
+      - name: Run tests
+        run: |
+          export DOCKER_VOLUME=/mnt/cache
+          export DOCKER_IMAGE=registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference:sha-c55c43e
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
+          echo $DOCKER_IMAGE
+          pytest -x -s -vv integration-tests ${PYTEST_FLAGS}
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 30
