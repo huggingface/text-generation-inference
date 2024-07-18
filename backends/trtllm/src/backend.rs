@@ -179,7 +179,6 @@ impl TensorRtLlmBackend {
             // Submit the request to the batcher
             let request_id = span!(Level::DEBUG, "submit")
                 .in_scope(|| async {
-                    debug!("Acquiring lock for submit");
                     let mut handle = executor.write().await;
                     let request_id = handle.pin_mut().submit(
                         &tokens,
@@ -191,7 +190,6 @@ impl TensorRtLlmBackend {
                         seed,
                     );
 
-                    debug!("Releasing lock for submit");
                     request_id
                 })
                 .await;
@@ -200,7 +198,6 @@ impl TensorRtLlmBackend {
                 let mut executor_w = executor.write().await;
                 let executor = executor_w.pin_mut();
 
-                debug!("Acquired write lock stream");
                 span!(Level::DEBUG, "decode")
                     .in_scope(|| async {
                         unsafe {
@@ -275,7 +272,6 @@ impl TensorRtLlmBackend {
                                 },
                             );
                         }
-                        debug!("Releasing write lock stream");
                     })
                     .await;
             }
