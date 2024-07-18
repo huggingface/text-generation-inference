@@ -35,7 +35,6 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
 )
 from text_generation_server.utils.weights import DefaultWeightsLoader
-from text_generation_server.layers.attention import Seqlen
 
 
 def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -825,7 +824,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
             inputs_embeds = self._merge_input_ids_with_image_features(
                 input_ids, inputs_embeds, image_hidden_states
             )
-        input_lengths = Seqlen(input_lengths=input_lengths)
+
         hidden_states = self.text_model.model(
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,

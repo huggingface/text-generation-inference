@@ -24,7 +24,6 @@ from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
     load_vision_model,
 )
-from text_generation_server.layers.attention import Seqlen
 
 
 class PaliGemmaForConditionalGeneration(nn.Module):
@@ -93,7 +92,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
 
             # insert image features into input embeddings
             inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
-        input_lengths = Seqlen(input_lengths=input_lengths)
+
         hidden_states = self.text_model.model(
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,
