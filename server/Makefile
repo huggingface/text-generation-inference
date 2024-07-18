@@ -20,7 +20,7 @@ gen-server:
 
 install-server: gen-server
 	pip install pip --upgrade
-	pip install -r requirements_cuda.txt
+	pip install -r requirements_intel.txt
 	pip install -e ".[accelerate, quantize, peft, outlines]"
 
 
@@ -28,7 +28,8 @@ install: install-cuda
 	echo "Installed server"
 
 install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention
-	pip install -e ".[bnb]"
+	pip install -r requirements_cuda.txt
+	pip install -e ".[cuda, bnb]"
 
 install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm
 
