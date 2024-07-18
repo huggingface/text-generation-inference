@@ -4,6 +4,13 @@ import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import Weight
 
+try:
+    import fbgemm_gpu.experimental.gen_ai
+
+    HAS_FBGEMM = True
+except (ImportError, ModuleNotFoundError):
+    HAS_FBGEMM = False
+
 
 def get_fp8_linear() -> torch.nn.Module:
     """
@@ -21,12 +28,20 @@ def get_fp8_linear() -> torch.nn.Module:
     return Fp8Linear
 
 
-def fp8_quantize(weight, qdtype=torch.float8_e4m3fn):
-    device = weight.device
+def fp8_quantize(weight, scale_upper_bound=None, qdtype=torch.float8_e4m3fn):
+    if HAS_FBGEMM:
+        if scale_upper_bound.device != weight.device:
+            scale_upper_bound = scale_upper_bound.to(weight.device)
+
+        qweight, scale = torch.ops.fbgemm.quantize_fp8_per_row(
+            weight, bs=None, scale_ub=scale_upper_bound, output_dtype=qdtype
+        )
+        return qweight, scale
+
     # weight, scale = quant_weights(weight, torch.int8, False)
     finfo = torch.finfo(qdtype)
     # Calculate the scale as dtype max divided by absmax
-    scale = finfo.max / weight.abs().max().clamp(min=1e-12)
+    scale = finfo.max / weight.abs().max().clamp(min=1e-12, max=scale_upper_bound)
     # scale and clamp the tensor to bring it to
     # the representative range of float8 data type
     # (as default cast is unsaturated)
@@ -59,6 +74,29 @@ class Fp8Linear(torch.nn.Module):
         self.bias = bias if bias is not None else None
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        if HAS_FBGEMM:
+            global default_activation_scale_upper_bound
+
+            device = input.device
+            if default_activation_scale_upper_bound.device != device:
+                default_activation_scale_upper_bound = (
+                    default_activation_scale_upper_bound.to(device)
+                )
+
+            qinput, scale = fp8_quantize(
+                input, scale_upper_bound=default_activation_scale_upper_bound
+            )
+
+            y = torch.ops.fbgemm.f8f8bf16_rowwise(
+                qinput,
+                self.weight,
+                scale,
+                self.scale,
+                use_fast_accum=True,
+                bias=self.bias,
+            )
+            return y.to(self.dtype)
+
         qinput, scale = fp8_quantize(input)
         output, _ = torch._scaled_mm(
             qinput,

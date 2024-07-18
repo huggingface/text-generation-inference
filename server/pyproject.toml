@@ -37,9 +37,11 @@ pillow = "^10.0.0"
 outlines= { version = "^0.0.34", optional = true }
 prometheus-client = "^0.20.0"
 py-cpuinfo = "^9.0.0"
+fbgemm-gpu = { version = "0.8.0rc4", optional = true }
 
 [tool.poetry.extras]
 torch = ["torch"]
+cuda = ["fbgemm-gpu"]
 accelerate = ["accelerate"]
 bnb = ["bitsandbytes"]
 peft = ["peft"]
