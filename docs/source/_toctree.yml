@@ -43,6 +43,8 @@
     title: Monitoring TGI with Prometheus and Grafana
   - local: basic_tutorials/train_medusa
     title: Train Medusa
+  - local: development.md
+    title: Developing TGI
   title: Tutorials
 - sections:
   - local: conceptual/streaming

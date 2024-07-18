@@ -1,10 +1,28 @@
 # Developing TGI
 
+<!-- TOC -->
+* [Developing TGI](#developing-tgi)
+  * [Developing Python server](#developing-python-server)
+    * [Raw - no IDE](#raw---no-ide)
+      * [Using the docker image](#using-the-docker-image)
+        * [Consuming the docker image](#consuming-the-docker-image)
+      * [Running the docker image in interactive mode](#running-the-docker-image-in-interactive-mode)
+      * [With a manual installation](#with-a-manual-installation)
+    * [VS Code](#vs-code)
+    * [IntelliJ IDEA/PyCharm](#intellij-ideapycharm)
+  * [Developing Rust launcher and router](#developing-rust-launcher-and-router)
+    * [Raw - no IDE](#raw---no-ide-1)
+    * [VS Code](#vs-code-1)
+    * [IntelliJ IDEA/RustRover](#intellij-idearustrover)
+<!-- TOC -->
+
 If you're interested in contributing to TGI, you will need to have an installation that allows for quick edits and 
 testing.
 
 This part of the documentation revolves around setting up the project for you to get up and running quickly. There are
-two main components of the project: the launcher and router, in rust, and the server, in Python. 
+two main components of the project: the launcher and router, in Rust, and the server, in Python. 
+
+## Developing Python server
 
 We'll first take a look at setting up a Python workspace using TGI as an *editable* installation. There are several
 ways to get this done:
@@ -14,15 +32,15 @@ ways to get this done:
 
 Different IDEs can be setup differently to achieve this, so we'll split this document per IDE.
 
-## Raw - no IDE
+### Raw - no IDE
 
-### Using the docker image
+#### Using the docker image
 
 The docker image differs according to your hardware, please refer to the following guides to see which docker image
 to us ([NVIDIA](./installation_nvidia), [AMD](./installation_amd), [Gaudi](./installation_gaudi), 
 [Inferentia](./installation_inferentia)). We'll refer to the docker image as `$docker_image` in the following snippets.
 
-#### Consuming the docker image
+##### Consuming the docker image
 
 You can consume the docker image easily with `docker run`:
 
@@ -77,13 +95,15 @@ root@47cd8a15e612:/usr/src# pip install -e /tgi/server
 
 This is good for quick inspection but it's recommended to setup an IDE for longer term/deeper changes.
 
-### With a manual installation
+#### With a manual installation
 
-A manual installation 
+Following the [local installation guide](../../README.md#local-install), you can get TGI up and running on your machine.
+Once installed, you can update the server code and see the changes reflected in the server.
 
-## VS Code
 
-In order to develop on TGI on the long term, we recommend setting up an IDE like vscode.
+### VS Code
+
+In order to develop on TGI on the long term, we recommend setting up an IDE like VSCode.
 
 Once again there are two ways to go about it: manual, or using docker. In order to use a manual install, we recommend
 following the [section above](#With-a-manual-installation) and having VS Code point to that folder.
@@ -129,3 +149,58 @@ by doing `Cmd + Shift + P` (or `Ctrl + Shift + P` on non-MacOS devices) and runn
 ```
 
 You should find the running container and use it as your dev container.
+
+### IntelliJ IDEA/PyCharm
+
+IntelliJ IDEA can be used to develop TGI. It can be setup in a similar way to VS Code, by using manual installation or
+the Docker plugin.
+For manual installation, you can follow the [section above](#With-a-manual-installation) and have IntelliJ IDEA point to
+the folder where TGI is installed.
+
+For the Docker plugin, you can follow the [Docker plugin](https://www.jetbrains.com/help/idea/docker.html) guide to setup
+a Docker container as a remote interpreter.
+
+Then follow the same steps as for VS Code to start TGI container. Container will appear in the `Services` tab in the
+IDE, and you can attach to it.
+
+## Developing Rust launcher and router
+
+The Rust part of TGI cannot be run from Docker image and requires a manual installation.
+Follow the [local installation guide](../../README.md#local-install), to get TGI up and running on your machine.
+
+
+### Raw - no IDE
+
+Once installed, first run the server, update the Rust code and run the router:
+    
+```shell
+# in one terminal
+$ make server-dev
+# [...]
+# Server started at unix:///tmp/text-generation-server-1
+# Server started at unix:///tmp/text-generation-server-0
+
+# in another terminal
+$ make router-dev
+# [...]
+# 2024-07-18T15:05:20.554954Z  INFO text_generation_router::server: router/src/server.rs:1868: Connected
+```
+
+### VS Code
+
+Install the [Rust Analyzer](https://marketplace.visualstudio.com/items?itemName=matklad.rust-analyzer) extension in
+VS Code. This extension will provide you with code completion, syntax highlighting, and other features.
+Open the project in VS Code and run the server from the terminal.
+
+```shell
+$ make server-dev
+# [...]
+```
+
+You can now start editing the Rust code and run the router by opening `main.rs`, locating `main()` and clicking
+on `Run`.
+
+### IntelliJ IDEA/RustRover
+
+Cargo configuration is automatically detected by IntelliJ IDEA and RustRover, so you can open the project and start
+developing right away using `Run configurations` and `Debug configurations`.
