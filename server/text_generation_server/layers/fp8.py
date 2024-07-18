@@ -1,6 +1,7 @@
+import torch
+
 from dataclasses import dataclass
 
-import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import Weight
 
@@ -64,27 +65,41 @@ class Fp8Weight(Weight):
 class Fp8Linear(torch.nn.Module):
     def __init__(
         self,
-        weight,
+        qweight,
+        scale,
+        scale_upper_bound,
         bias,
+        dtype,
     ) -> None:
         super().__init__()
-        self.dtype = weight.dtype
-        self.qweight, self.scale = fp8_quantize(weight)
+        self.dtype = dtype
+        self.qweight = qweight
+        self.scale = scale
+        self.scale_upper_bound = scale_upper_bound
 
         self.bias = bias if bias is not None else None
 
+    @classmethod
+    def from_unquant(cls, weight, bias, dtype):
+        qweight, scale = fp8_quantize(weight)
+        return cls(
+            qweight=qweight, scale=scale, scale_upper_bound=None, bias=bias, dtype=dtype
+        )
+
+    @classmethod
+    def from_fp8(cls, weight, bias, dtype):
+        return cls(
+            qweight=weight.weight,
+            scale=weight.weight_scale,
+            scale_upper_bound=weight.input_scale,
+            bias=bias,
+            dtype=dtype,
+        )
+
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if HAS_FBGEMM:
-            global default_activation_scale_upper_bound
-
-            device = input.device
-            if default_activation_scale_upper_bound.device != device:
-                default_activation_scale_upper_bound = (
-                    default_activation_scale_upper_bound.to(device)
-                )
-
             qinput, scale = fp8_quantize(
-                input, scale_upper_bound=default_activation_scale_upper_bound
+                input, scale_upper_bound=self.scale_upper_bound
             )
 
             y = torch.ops.fbgemm.f8f8bf16_rowwise(

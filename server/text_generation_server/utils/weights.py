@@ -1,3 +1,5 @@
+import torch
+
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -5,9 +7,9 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-import torch
-from safetensors import safe_open
 from text_generation_server.utils.import_utils import SYSTEM
+from safetensors import safe_open
+from dataclasses import dataclass
 
 
 class WeightsLoader(ABC):
@@ -127,14 +129,44 @@ class DefaultWeightsLoader(WeightsLoader):
             ),
         )
 
+        w = weights.get_packed_sharded(
+            f"{prefix}.weight", dim=0, block_sizes=block_sizes
+        )
+        # FP8 branch
+        if w.dtype == torch.float8_e4m3fn:
+            scale = weights.get_packed_sharded(
+                f"{prefix}.weight_scale", dim=0, block_sizes=block_sizes
+            )
+            input_scale = weights.get_tensor(f"{prefix}.input_scale")
+            return FP8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
+        return w
+
     def get_multi_weights_col(self, weights: "Weights", prefixes: List[str], dim: int):
         w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
         return self.weight_class(torch.cat(w, dim=dim))
+
+        w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
+        w = torch.cat(w, dim=dim)
+        # FP8 branch
+        if w.dtype == torch.float8_e4m3fn:
+            scale = [weights.get_sharded(f"{p}.weight_scale", dim=0) for p in prefixes]
+            scale = torch.cat(scale, dim=0)
+            input_scale = weights.get_tensor(f"{prefixes[0]}.input_scale")
+            return FP8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
+        return w
 
     def get_weights_row(self, weights: "Weights", prefix: str):
         return self.weight_class(
             weights.get_sharded(f"{prefix}.weight", dim=1),
         )
+
+        w = weights.get_sharded(f"{prefix}.weight", dim=1)
+        # FP8 branch
+        if w.dtype == torch.float8_e4m3fn:
+            scale = weights.get_sharded(f"{prefix}.weight_scale", dim=0)
+            input_scale = weights.get_tensor(f"{prefix}.input_scale")
+            return FP8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
+        return w
 
 
 class Weights:
@@ -214,8 +246,13 @@ class Weights:
         tensor = f.get_tensor(tensor_name)
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32. Exl2 uses int16
-        # as well.
-        if tensor.dtype not in [torch.int16, torch.int32, torch.int64]:
+        # as well. FP8 uses torch.float8_e4m3fn
+        if tensor.dtype not in [
+            torch.float8_e4m3fn,
+            torch.int16,
+            torch.int32,
+            torch.int64,
+        ]:
             tensor = tensor.to(dtype=self.dtype)
         if to_device:
             tensor = tensor.to(device=self.device)
@@ -241,7 +278,8 @@ class Weights:
             raise NotImplementedError("Let's make that generic when needed")
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32. exl2 uses int16.
-        if tensor.dtype not in (torch.int16, torch.int32):
+        # FP8 uses torch.float8_e4m3fn.
+        if tensor.dtype not in (torch.float8_e4m3fn, torch.int16, torch.int32):
             tensor = tensor.to(dtype=self.dtype)
         tensor = tensor.to(device=self.device)
         return tensor
@@ -304,7 +342,12 @@ class Weights:
         tensor = tensor.to(device=self.device)
 
         # Avoid casting quantizer dtypes.
-        if tensor.dtype not in [torch.int16, torch.int32, torch.int64]:
+        if tensor.dtype not in [
+            torch.float8_e4m3fn,
+            torch.int16,
+            torch.int32,
+            torch.int64,
+        ]:
             tensor = tensor.to(dtype=self.dtype)
 
         return tensor
