@@ -259,8 +259,8 @@ class FlashCohereAttention(torch.nn.Module):
         cu_seqlen_prefill,
         kv_cache,
         block_tables,
-        input_lengths,
         slots,
+        input_lengths,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
