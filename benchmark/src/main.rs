@@ -92,6 +92,11 @@ struct Args {
     /// Generation parameter in case you want to specifically test/debug particular
     /// decoding strategies, for full doc refer to the `text-generation-server`
     #[clap(long, env)]
+    no_repeat_ngram_size: Option<u32>,
+
+    /// Generation parameter in case you want to specifically test/debug particular
+    /// decoding strategies, for full doc refer to the `text-generation-server`
+    #[clap(long, env)]
     watermark: bool,
 
     /// Generation parameter in case you want to specifically test/debug particular
@@ -125,6 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         typical_p,
         repetition_penalty,
         frequency_penalty,
+        no_repeat_ngram_size,
         watermark,
         do_sample,
         master_shard_uds_path,
@@ -196,6 +202,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 typical_p,
                 repetition_penalty,
                 frequency_penalty,
+                no_repeat_ngram_size,
                 watermark,
                 do_sample,
                 sharded_client,

@@ -31,6 +31,7 @@ pub async fn run(
     typical_p: Option<f32>,
     repetition_penalty: Option<f32>,
     frequency_penalty: Option<f32>,
+    no_repeat_ngram_size: Option<u32>,
     watermark: bool,
     do_sample: bool,
     client: ShardedClient,
@@ -44,6 +45,7 @@ pub async fn run(
         seed: 0,
         repetition_penalty: repetition_penalty.unwrap_or(1.0),
         frequency_penalty: frequency_penalty.unwrap_or(0.0),
+        no_repeat_ngram_size: no_repeat_ngram_size.unwrap_or(0),
         watermark,
         grammar: String::new(),
         grammar_type: GrammarType::None as i32,
@@ -145,6 +147,7 @@ pub async fn run(
         typical_p,
         repetition_penalty,
         frequency_penalty,
+        no_repeat_ngram_size,
         watermark,
         do_sample,
     );
