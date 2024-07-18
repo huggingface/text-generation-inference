@@ -1153,11 +1153,15 @@ def get_model(
         target_to_layer = build_layer_weight_lookup(model.model)
 
         for index, adapter in enumerate(lora_adapters):
-            # currenly we only load one adapter at a time but
-            # this can be extended to merge multiple adapters
+            # The AdapterParameters object allows for merging multiple adapters into a single adapter.
+            # At the moment, we only support loading a single adapter into the model, but we keep the
+            # AdapterParameters object for easier extension in the future.
             adapter_parameters = AdapterParameters(
                 adapter_info=[adapter],
-                weights=None,  #  will be set to 1
+                # when merging multiple adapters we can weight them differently
+                # if this is not set, all adapters will be weighted equally
+                # see: text_generation_server.utils.merges.strategies for impl
+                weights=None,
                 merge_strategy=0,
                 density=1.0,
                 majority_sign_method=0,
@@ -1165,9 +1169,6 @@ def get_model(
 
             adapter_index = index + 1
             adapter_to_index[adapter.id] = adapter_index
-
-            if adapter_index in model.loaded_adapters:
-                continue
 
             logger.info(
                 f"Loading adapter weights into model: {','.join([adapter.id for adapter in adapter_parameters.adapter_info])}"
