@@ -840,12 +840,16 @@ fn default_tool_prompt() -> Option<String> {
     )
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[serde(untagged)]
 pub enum ToolType {
+    #[default]
+    #[serde(alias = "auto")]
     OneOf,
     FunctionName(String),
-    Function { function: FunctionName },
+    Function {
+        function: FunctionName,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]

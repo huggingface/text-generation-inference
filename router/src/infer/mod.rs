@@ -336,8 +336,14 @@ impl ToolGrammar {
         tools: Option<Vec<Tool>>,
         tool_choice: Option<ToolType>,
     ) -> Result<Option<Tools>, InferError> {
-        if let Some((req_tools, tool_choice)) = tools.zip(tool_choice) {
-            // let tool_prompt = tool_prompt.unwrap_or_default();
+        if let Some(req_tools) = tools {
+            let tool_choice = tool_choice
+                .map(|t| match t {
+                    ToolType::FunctionName(name) if name == "auto" => ToolType::OneOf,
+                    _ => t,
+                })
+                .unwrap_or_default();
+
             let tools_to_use = match tool_choice {
                 ToolType::FunctionName(name) => {
                     vec![req_tools
