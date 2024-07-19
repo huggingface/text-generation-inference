@@ -261,7 +261,12 @@ class VlmCausalLM(FlashCausalLM):
             **processor_kwargs,
         )
         self.batch_class = batch_class
-        super().__init__(model_id=model_id, **kwargs)
+        super().__init__(
+            model_id=model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+            **kwargs,
+        )
 
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
