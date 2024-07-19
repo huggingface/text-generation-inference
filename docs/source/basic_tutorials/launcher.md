@@ -440,7 +440,6 @@ Options:
           
           [env: DISABLE_CRASH_REPORTS=]
 
-
 ```
 ## HELP
 ```shell
