@@ -56,12 +56,8 @@ struct Args {
     max_client_batch_size: usize,
     #[clap(long, env)]
     auth_token: Option<String>,
-    #[clap(
-        long,
-        env,
-        help = "Path to the TensorRT-LLM Orchestrator Worker binary"
-    )]
-    executor_worker: Option<PathBuf>,
+    #[clap(long, env, help = "Path to the TensorRT-LLM Orchestrator worker")]
+    executor_worker: PathBuf,
 }
 
 #[tokio::main]
@@ -123,13 +119,11 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         }
     }
 
-    if let Some(ref executor_worker) = executor_worker {
-        if !executor_worker.exists() {
-            return Err(TensorRtLlmBackendError::ArgumentValidation(format!(
-                "`executor_work` specified path doesn't exists: {}",
-                executor_worker.display()
-            )));
-        }
+    if !executor_worker.exists() {
+        return Err(TensorRtLlmBackendError::ArgumentValidation(format!(
+            "`executor_work` specified path doesn't exists: {}",
+            executor_worker.display()
+        )));
     }
 
     // Run server

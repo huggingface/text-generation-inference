@@ -103,13 +103,13 @@ impl TensorRtLlmBackend {
     pub fn new<P: AsRef<Path> + Send + 'static, PP: AsRef<Path> + Send + 'static>(
         tokenizer: Tokenizer,
         engine_folder: P,
-        _executor_worker_path: Option<PP>,
+        executor_worker_path: PP,
     ) -> Result<Self, TensorRtLlmBackendError> {
         Ok(TensorRtLlmBackend {
             tokenizer: Arc::new(tokenizer),
             backend: Arc::new(RwLock::new(create_tensorrt_llm_backend(
                 engine_folder.as_ref().to_str().unwrap(),
-                "",
+                executor_worker_path.as_ref().to_str().unwrap(),
             ))),
         })
     }
