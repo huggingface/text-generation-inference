@@ -2,7 +2,6 @@ import os
 import math
 import torch
 from torch import nn
-from loguru import logger
 
 # Inverse dim formula to find dim based on number of rotations
 import math

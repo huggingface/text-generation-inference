@@ -39,6 +39,12 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 
+if SYSTEM == "rocm":
+    try:
+        from vllm import _custom_C
+    except Exception as e:
+        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
+
 
 class DeepseekV2Config(PretrainedConfig):
     def __init__(
