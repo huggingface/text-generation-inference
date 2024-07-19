@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use cxx_build::CFG;
 
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
+const CUDA_ARCH_LIST: Option<&str> = option_env!("CUDA_ARCH_LIST");
+const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
 
 fn main() {
     // Misc variables
@@ -22,7 +24,15 @@ fn main() {
             true => "Debug",
             false => "Release",
         })
+        .define(
+            "TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST",
+            CUDA_ARCH_LIST.unwrap_or("90-real"), // Hopper by default
+        )
         .define("CMAKE_CUDA_COMPILER", "/usr/local/cuda/bin/nvcc")
+        .define(
+            "TGI_TRTLLM_BACKEND_TRT_ROOT",
+            TENSORRT_ROOT_DIR.unwrap_or("/usr/local/tensorrt"),
+        )
         .build();
 
     // Additional transitive CMake dependencies
