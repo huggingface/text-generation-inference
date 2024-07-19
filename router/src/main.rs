@@ -458,8 +458,11 @@ async fn main() -> Result<(), RouterError> {
     match result {
         Ok(_) => {
             if let Some(ref ua) = user_agent {
-                let stop_event =
-                    usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Stop, None);
+                let stop_event = usage_stats::UsageStatsEvent::new(
+                    ua.clone(),
+                    usage_stats::EventType::Stop,
+                    None,
+                );
                 stop_event.send().await;
             };
             Ok(())
