@@ -61,6 +61,10 @@ FLASH_ATTENTION = True
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
     from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+    from text_generation_server.models.custom_modeling.flash_deepseek_v2_modeling import (
+        FlashDeepseekV2ForCausalLM,
+        DeepseekV2Config,
+    )
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
     )
@@ -141,6 +145,11 @@ if MAMBA_AVAILABLE:
 
 
 class ModelType(enum.Enum):
+    DEEPSEEK_V2 = {
+        "type": "deepseek_v2",
+        "name": "Deepseek V2",
+        "url": "https://huggingface.co/deepseek-ai/DeepSeek-V2",
+    }
     IDEFICS2 = {
         "type": "idefics2",
         "name": "Idefics 2",
@@ -459,7 +468,40 @@ def get_model(
             f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
         )
 
-    if model_type == MAMBA:
+    if model_type == DEEPSEEK_V2:
+        if FLASH_ATTENTION:
+            head_size = max(
+                config_dict.get("qk_nope_dim", 128)
+                + config_dict.get("qk_rope_dim", 64),
+                config_dict.get("v_head_dim", 128),
+            )
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashDeepseekV2ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                default_dtype=torch.bfloat16,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=DeepseekV2Config,
+                head_size=head_size,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Deepseek V2")
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == MAMBA:
         return Mamba(
             model_id,
             revision,
