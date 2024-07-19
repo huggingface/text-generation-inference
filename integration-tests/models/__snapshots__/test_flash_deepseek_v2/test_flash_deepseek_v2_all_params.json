@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 100000,
+        "logprob": null,
+        "text": "<｜begin▁of▁sentence｜>"
+      },
+      {
+        "id": 3533,
+        "logprob": -9.625,
+        "text": "Test"
+      },
+      {
+        "id": 3102,
+        "logprob": -11.1875,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 2143,
+        "logprob": -1.828125,
+        "special": false,
+        "text": " sent"
+      },
+      {
+        "id": 10081,
+        "logprob": -0.36914062,
+        "special": false,
+        "text": " successfully"
+      },
+      {
+        "id": 13,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 185,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 1380,
+        "logprob": -0.38671875,
+        "special": false,
+        "text": "We"
+      },
+      {
+        "id": 543,
+        "logprob": -0.12695312,
+        "special": false,
+        "text": " will"
+      },
+      {
+        "id": 752,
+        "logprob": -0.20117188,
+        "special": false,
+        "text": " get"
+      },
+      {
+        "id": 279,
+        "logprob": 0.0,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 5402,
+        "logprob": 0.0,
+        "special": false,
+        "text": " touch"
+      },
+      {
+        "id": 366,
+        "logprob": 0.0,
+        "special": false,
+        "text": " with"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request sent successfully.\nWe will get in touch with"
+}

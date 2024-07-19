@@ -33,6 +33,35 @@ class MarlinWeightsLoader(WeightsLoader):
         self.bits = bits
         self.is_marlin_24 = is_marlin_24
 
+    def get_weights(self, weights: "Weights", prefix: str):
+        """
+        Get weights at the given prefix and apply without tensor paralllism.
+        """
+        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
+        if is_marlin_24:
+            try:
+                B = weights.get_tensor(f"{prefix}.B_24")
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` 2:4 sparsity weight, make sure the model is already quantized."
+                )
+
+            B_meta = weights.get_tensor(f"{prefix}.B_meta")
+            s = weights.get_tensor(f"{prefix}.s")
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+        else:
+            try:
+                B = weights.get_tensor(f"{prefix}.B")
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` weight, make sure the model is already quantized."
+                )
+
+            s = weights.get_tensor(f"{prefix}.s")
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
+
     def get_weights_col_packed(
         self,
         weights: Weights,

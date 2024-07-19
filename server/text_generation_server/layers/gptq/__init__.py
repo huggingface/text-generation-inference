@@ -134,6 +134,115 @@ class GPTQWeightsLoader(WeightsLoader):
         self.quantize = quantize
         self.sym = sym
 
+    def get_weights(self, weights: Weights, prefix: str):
+        from text_generation_server.layers.marlin import (
+            can_use_gptq_marlin,
+            repack_gptq_for_marlin,
+        )
+
+        self._get_gptq_params(weights)
+        if can_use_gptq_marlin(
+            bits=self.bits,
+            groupsize=self.groupsize,
+            quant_method=self.quant_method,
+            quantize=self.quantize,
+            sym=self.sym,
+        ):
+            log_once(logger.info, "Using GPTQ-Marlin kernels")
+            try:
+                qweight = weights.get_tensor(f"{prefix}.qweight")
+            except RuntimeError:
+                raise RuntimeError(
+                    f"Cannot load `{self.quantize}` weight for GPTQ -> Marlin repacking, make sure the model is already quantized"
+                )
+
+            g_idx = weights.get_tensor(f"{prefix}.g_idx")
+            scales = weights.get_tensor(f"{prefix}.scales")
+
+            return repack_gptq_for_marlin(
+                qweight=qweight,
+                scales=scales,
+                g_idx=g_idx,
+                bits=self.bits,
+                desc_act=self.desc_act,
+                groupsize=self.groupsize,
+                sym=self.sym,
+                sharded_infeatures=False,
+            )
+
+        use_exllama = True
+        if self.bits != 4:
+            use_exllama = False
+
+        if self.desc_act:
+            log_once(logger.warning, "Disabling exllama because desc_act=True")
+            use_exllama = False
+
+        try:
+            qweight = weights.get_tensor(f"{prefix}.qweight")
+        except RuntimeError:
+            raise RuntimeError(
+                "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+            )
+
+        if self.quantize == "gptq" and self.quant_method == "gptq":
+            g_idx = weights.get_tensor(f"{prefix}.g_idx")
+        else:
+            g_idx = None
+
+        from text_generation_server.layers.gptq import (
+            HAS_EXLLAMA,
+            CAN_EXLLAMA,
+            GPTQWeight,
+        )
+
+        if use_exllama:
+            if not HAS_EXLLAMA:
+                if CAN_EXLLAMA:
+                    log_once(
+                        logger.warning,
+                        "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True",
+                    )
+                use_exllama = False
+            else:
+                log_once(logger.info, f"Using exllama kernels v{HAS_EXLLAMA}")
+
+        qzeros = weights.get_tensor(f"{prefix}.qzeros")
+        scales = weights.get_tensor(f"{prefix}.scales")
+
+        if use_exllama and g_idx is not None:
+            g_idx = g_idx - g_idx[0]
+
+        if self.quantize == "gptq" and self.quant_method == "awq":
+            log_once(
+                logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
+            )
+            from text_generation_server.layers.awq.conversion_utils import (
+                fast_awq_to_gptq,
+            )
+
+            qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
+            if use_exllama:
+                g_idx = None
+            else:
+                g_idx = (
+                    torch.arange(
+                        qweight.shape[0] * (32 // self.bits),
+                        device=qweight.device,
+                    )
+                    // self.groupsize
+                ).to(dtype=torch.int32)
+
+        return GPTQWeight(
+            qweight=qweight,
+            qzeros=qzeros,
+            scales=scales,
+            g_idx=g_idx,
+            bits=self.bits,
+            groupsize=self.groupsize,
+            use_exllama=use_exllama,
+        )
+
     def get_weights_col_packed(
         self,
         weights: Weights,
