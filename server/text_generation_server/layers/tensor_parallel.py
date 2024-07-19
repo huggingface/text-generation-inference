@@ -77,7 +77,7 @@ class TensorParallelHead(SuperLayer):
             quantize = config.quantize
 
         return TensorParallelHead(
-            get_linear(weight, bias=None, quantize=quantize),
+            get_linear(weight, bias=None),
             process_group=weights.process_group,
             should_gather=should_gather,
         )
@@ -134,7 +134,7 @@ class TensorParallelColumnLinear(SuperLayer):
             raise NotImplementedError("packed_gate_up only implemented without bias")
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
@@ -157,7 +157,7 @@ class TensorParallelColumnLinear(SuperLayer):
             raise NotImplementedError("packed_qkv only implemented for baichuan")
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
@@ -167,7 +167,7 @@ class TensorParallelColumnLinear(SuperLayer):
             bias = weights.get_sharded(f"{prefix}.bias", dim=0)
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
@@ -177,7 +177,7 @@ class TensorParallelColumnLinear(SuperLayer):
             for prefix in prefixes:
                 weight = weights.get_weights_col(prefix)
                 b = weights.get_tensor(f"{prefix}.bias") if bias else None
-                linears.append(get_linear(weight, b, config.quantize))
+                linears.append(get_linear(weight, b))
             linear = LayerConcat(linears)
         else:
             weight = weights.get_multi_weights_col(prefixes, dim=dim)
@@ -186,7 +186,7 @@ class TensorParallelColumnLinear(SuperLayer):
                 bias = torch.cat(b, dim=dim)
             else:
                 bias = None
-            linear = get_linear(weight, bias, config.quantize)
+            linear = get_linear(weight, bias)
         return cls(linear)
 
 
@@ -205,7 +205,7 @@ class TensorParallelRowLinear(SuperLayer):
         else:
             bias = None
         return cls(
-            get_linear(weight, bias, config.quantize),
+            get_linear(weight, bias),
             process_group=weights.process_group,
         )
 

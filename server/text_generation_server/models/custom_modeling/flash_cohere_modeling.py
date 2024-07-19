@@ -186,9 +186,7 @@ def _load_gqa(config, prefix: str, weights):
     else:
         bias = None
 
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=bias, quantize=config.quantize)
-    )
+    return TensorParallelColumnLinear(get_linear(weight, bias=bias))
 
 
 class FlashCohereAttention(torch.nn.Module):
