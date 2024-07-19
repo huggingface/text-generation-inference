@@ -826,7 +826,7 @@ pub(crate) struct ChatRequest {
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
-    pub tool_choice: Option<ToolType>,
+    pub tool_choice: ToolChoice,
 
     /// Response format constraints for the generation.
     ///
@@ -848,6 +848,7 @@ pub enum ToolType {
     OneOf,
     FunctionName(String),
     Function { function: FunctionName },
+    NoTool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -855,27 +856,26 @@ pub struct FunctionName {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, ToSchema)]
 #[serde(from = "ToolTypeDeserializer")]
 pub struct ToolChoice(pub Option<ToolType>);
 
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum ToolTypeDeserializer {
-    None(Option<String>),
-    Some(ToolType),
+    String(String),
+    ToolType(ToolType),
 }
 
 impl From<ToolTypeDeserializer> for ToolChoice {
     fn from(value: ToolTypeDeserializer) -> Self {
         match value {
-            ToolTypeDeserializer::None(opt) => match opt.as_deref() {
-                Some("none") => ToolChoice(None),
-                Some("auto") => ToolChoice(Some(ToolType::OneOf)),
-                Some(s) => ToolChoice(Some(ToolType::FunctionName(s.to_string()))),
-                None => ToolChoice(Some(ToolType::OneOf)),
+            ToolTypeDeserializer::String(s) => match s.as_str() {
+                "none" => ToolChoice(Some(ToolType::NoTool)),
+                "auto" => ToolChoice(Some(ToolType::OneOf)),
+                _ => ToolChoice(Some(ToolType::FunctionName(s))),
             },
-            ToolTypeDeserializer::Some(tool_type) => ToolChoice(Some(tool_type)),
+            ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
     }
 }
