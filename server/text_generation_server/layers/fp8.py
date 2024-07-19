@@ -57,14 +57,15 @@ def fp8_quantize(weight, scale_upper_bound=None, qdtype=torch.float8_e4m3fn):
 @dataclass
 class Fp8Weight:
     weight: torch.Tensor
+    dtype: torch.dtype
     weight_scale: Optional[torch.Tensor] = None
     input_scale: Optional[torch.Tensor] = None
 
     def get_linear(self, bias: torch.Tensor):
         if self.weight_scale is None:
-            return get_fp8_linear().from_unquant(self.weight, bias)
+            return get_fp8_linear().from_unquant(self.weight, bias, self.dtype)
         return get_fp8_linear().from_fp8(
-            self.weight, self.weight_scale, self.input_scale, bias, bias.dtype
+            self.weight, self.weight_scale, self.input_scale, bias, self.dtype
         )
 
 
@@ -110,7 +111,7 @@ class Fp8Linear(torch.nn.Module):
 
             y = torch.ops.fbgemm.f8f8bf16_rowwise(
                 qinput,
-                self.weight,
+                self.qweight,
                 scale,
                 self.scale,
                 use_fast_accum=True,

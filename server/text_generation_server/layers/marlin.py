@@ -530,13 +530,13 @@ class GPTQMarlinFP8Linear(nn.Module):
         )
 
     @classmethod
-    def from_unquant(cls, weight, bias):
+    def from_unquant(cls, weight, bias, _dtype):
         qweight, scale = fp8_quantize(weight)
         return cls(qweight=qweight, scale=scale, bias=bias)
 
     @classmethod
-    def from_fp8(cls, weight, bias):
-        return cls(qweight=weight.weight, scale=weight.weight_scale, bias=bias)
+    def from_fp8(cls, weight, scale, _input_scale, bias, _dtype):
+        return cls(qweight=weight, scale=scale, bias=bias)
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
         assert marlin_kernels is not None
