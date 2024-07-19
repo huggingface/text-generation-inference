@@ -167,6 +167,9 @@ FROM kernel-builder AS fbgemm-builder
 WORKDIR /usr/src
 
 COPY server/Makefile-fbgemm Makefile
+COPY server/fbgemm_remove_unused.patch fbgemm_remove_unused.patch
+COPY server/fix_torch90a.sh fix_torch90a.sh
+
 RUN make build-fbgemm
 
 # Build vllm CUDA kernels
