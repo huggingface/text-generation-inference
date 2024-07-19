@@ -1,11 +1,9 @@
 import os
-import requests
 import tempfile
 
 import pytest
 
 import huggingface_hub.constants
-from huggingface_hub import hf_api
 
 import text_generation_server.utils.hub
 from text_generation_server.utils.hub import (

@@ -4,10 +4,13 @@ import torch
 from torch import nn
 from loguru import logger
 
+# Inverse dim formula to find dim based on number of rotations
+import math
+
+
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "cuda":
-    from flash_attn.layers.rotary import RotaryEmbedding
     import rotary_emb
 elif SYSTEM == "rocm":
     from vllm._C import ops

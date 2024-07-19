@@ -2,8 +2,16 @@ import copy
 from abc import ABC
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, List, Tuple, Type, Union
-
+from text_generation_server.utils.merges.utils import (
+    calculate_majority_sign_mask,
+    disjoint_merge,
+    prune,
+)
 import torch
+
+if TYPE_CHECKING:
+    from text_generation_server.adapters.lora import LoraConfig
+    from text_generation_server.utils.adapter import ModuleMap
 
 
 class AdapterParameters:
@@ -15,17 +23,6 @@ class AdapterParameters:
         self.merge_strategy = merge_strategy
         self.density = density
         self.majority_sign_method = majority_sign_method
-
-
-from text_generation_server.utils.merges.utils import (
-    calculate_majority_sign_mask,
-    disjoint_merge,
-    prune,
-)
-
-if TYPE_CHECKING:
-    from text_generation_server.adapters.lora import LoraConfig
-    from text_generation_server.utils.adapter import ModuleMap
 
 
 def _apply_weights(

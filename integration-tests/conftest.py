@@ -4,7 +4,6 @@ import json
 import math
 import os
 import random
-import re
 import shutil
 import subprocess
 import sys
@@ -271,7 +270,7 @@ class LauncherHandle:
             try:
                 await self.client.generate("test")
                 return
-            except (ClientConnectorError, ClientOSError, ServerDisconnectedError) as e:
+            except (ClientConnectorError, ClientOSError, ServerDisconnectedError):
                 time.sleep(1)
         raise RuntimeError("Health check failed")
 

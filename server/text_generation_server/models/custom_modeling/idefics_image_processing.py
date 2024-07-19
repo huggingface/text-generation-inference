@@ -19,6 +19,7 @@ import numpy as np
 
 from PIL import Image
 
+import transformers
 from transformers.image_processing_utils import BaseImageProcessor, BatchFeature
 from transformers.image_transforms import (
     resize,
@@ -292,7 +293,5 @@ class IdeficsImageProcessor(BaseImageProcessor):
         # TODO 4.32
         return normalize(image, mean=mean, std=std, data_format=data_format, **kwargs)
 
-
-import transformers
 
 transformers.IdeficsImageProcessor = IdeficsImageProcessor

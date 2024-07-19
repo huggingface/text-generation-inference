@@ -908,7 +908,7 @@ class BloomForCausalLM(BloomPreTrainedModel):
         loss = None
 
         if not return_dict:
-            output = (lm_logits,) + transformer_outputs[1:]
+            output = (logits,) + transformer_outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
         return (

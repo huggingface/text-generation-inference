@@ -2,7 +2,6 @@ import pytest
 import torch
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
-    UnquantizedWeight,
     Weights,
     WeightsLoader,
 )
@@ -77,15 +76,6 @@ dummy_file_system = {
         ),
     },
     "test_get_multi_weights_col": {
-        "weight.weight": torch.tensor(
-            [
-                [1, 2],
-                [3, 4],
-                [5, 6],
-                [7, 8],
-            ],
-            dtype=torch.float32,
-        ),
         "weight.weight": torch.tensor(
             [
                 [1, 2],
@@ -966,7 +956,7 @@ def test_get_multi_weights_col_exl2():
     prefix = "weight"
 
     try:
-        w = weights.get_multi_weights_col(
+        weights.get_multi_weights_col(
             prefixes=[prefix],
             dim=0,
         )

@@ -165,7 +165,7 @@ def download_weights(
         # currently by default we don't merge the weights with the base model
         if merge_lora:
             try:
-                adapter_config_filename = hf_hub_download(
+                hf_hub_download(
                     model_id, revision=revision, filename="adapter_config.json"
                 )
                 utils.download_and_unload_peft(
@@ -285,9 +285,9 @@ def download_weights(
     if auto_convert:
         if not trust_remote_code:
             logger.warning(
-                f"🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
-                f"Pickle files are unsafe and can essentially contain remote code execution!"
-                f"Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
+                "🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
+                "Pickle files are unsafe and can essentially contain remote code execution!"
+                "Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
             )
 
         logger.warning(
@@ -319,7 +319,7 @@ def download_weights(
             # Name for this varible depends on transformers version.
             discard_names = getattr(class_, "_tied_weights_keys", [])
 
-        except Exception as e:
+        except Exception:
             discard_names = []
         # Convert pytorch weights to safetensors
         utils.convert_files(local_pt_files, local_st_files, discard_names)

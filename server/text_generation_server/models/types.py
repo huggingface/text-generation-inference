@@ -1,4 +1,3 @@
-from functools import total_ordering
 import torch
 
 from abc import ABC, abstractmethod

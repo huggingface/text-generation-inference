@@ -50,7 +50,7 @@ class TensorParallelHead(SuperLayer):
                 # If the piece and LM head embeddings are shared, we have
                 # non-quantized weights...
                 weight = weights.get_tensor(f"{prefix}.weight")
-            except:
+            except Exception:
                 # ...otherwise they are quantized.
                 weight = weights.get_weights_col(prefix)
             should_gather = weights.process_group.size() > 1
@@ -69,12 +69,12 @@ class TensorParallelHead(SuperLayer):
 
         # GPTQ,AWQ,EETQ don't quantize heads (nor embeddings)
         if config.quantize in ["gptq", "awq", "eetq", "marlin"]:
-            quantize = None
+            pass
         # See above, exl2 LM head can be quantized or not.
         elif config.quantize == "exl2" and not isinstance(weight, Exl2Weight):
-            quantize = None
+            pass
         else:
-            quantize = config.quantize
+            pass
 
         return TensorParallelHead(
             get_linear(weight, bias=None),

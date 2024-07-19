@@ -15,6 +15,7 @@ from text_generation_server.utils.hub import weight_files
 from text_generation_server.layers.gptq.quant_linear import QuantLinear
 from loguru import logger
 from typing import Optional
+from text_generation_server.layers.gptq.utils import torch_snr_error
 
 from text_generation_server.utils.weights import DefaultWeightsLoader
 
@@ -372,7 +373,7 @@ def get_wikitext2(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -404,7 +405,7 @@ def get_ptb(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -448,7 +449,7 @@ def get_c4(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -504,7 +505,7 @@ def get_ptb_new(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -546,7 +547,7 @@ def get_c4_new(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -700,6 +701,8 @@ def sequential(
                 pass
 
             def add_batch(name):
+                nonlocal gptq
+
                 def tmp(_, inp, out):
                     gptq[name].add_batch(inp[0].data, out.data)
 

@@ -1,13 +1,8 @@
 import torch
 import torch.distributed
 
-from typing import List, Optional, Tuple
+from typing import Optional
 
-from transformers import (
-    AutoTokenizer,
-    AutoConfig,
-    AutoProcessor,
-)
 
 from text_generation_server.models.custom_modeling.idefics_config import IdeficsConfig
 from text_generation_server.models.custom_modeling.idefics_processing import (

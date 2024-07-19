@@ -28,9 +28,6 @@ from transformers.tokenization_utils_base import (
     TruncationStrategy,
 )
 from transformers.utils import TensorType, is_torch_available
-from text_generation_server.models.custom_modeling.idefics_image_processing import (
-    IdeficsImageProcessor,
-)
 
 
 if is_torch_available():

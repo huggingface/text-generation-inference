@@ -30,7 +30,6 @@ from text_generation_server.layers.attention import (
     attention,
     reshape_and_cache,
 )
-from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers import (
     TensorParallelRowLinear,
