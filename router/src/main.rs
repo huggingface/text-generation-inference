@@ -415,7 +415,7 @@ async fn main() -> Result<(), RouterError> {
 
     if let Some(ref ua) = user_agent {
         let start_event =
-            usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Start);
+            usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Start, None);
         tokio::spawn(async move {
             start_event.send().await;
         });
@@ -459,7 +459,7 @@ async fn main() -> Result<(), RouterError> {
         Ok(_) => {
             if let Some(ref ua) = user_agent {
                 let stop_event =
-                    usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Stop);
+                    usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Stop, None);
                 stop_event.send().await;
             };
             Ok(())
@@ -469,13 +469,15 @@ async fn main() -> Result<(), RouterError> {
                 if !disable_crash_reports {
                     let error_event = usage_stats::UsageStatsEvent::new(
                         ua.clone(),
-                        usage_stats::EventType::Error(e.to_string()),
+                        usage_stats::EventType::Error,
+                        Some(e.to_string()),
                     );
                     error_event.send().await;
                 } else {
                     let unknow_error_event = usage_stats::UsageStatsEvent::new(
                         ua.clone(),
-                        usage_stats::EventType::Error("unknow_error".to_string()),
+                        usage_stats::EventType::Error,
+                        Some("unknow_error".to_string()),
                     );
                     unknow_error_event.send().await;
                 }

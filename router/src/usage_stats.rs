@@ -34,20 +34,23 @@ impl UserAgent {
 pub enum EventType {
     Start,
     Stop,
-    Error(String),
+    Error,
 }
 
 #[derive(Debug, Serialize)]
 pub struct UsageStatsEvent {
     user_agent: UserAgent,
     event_type: EventType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_reason: Option<String>,
 }
 
 impl UsageStatsEvent {
-    pub fn new(user_agent: UserAgent, event_type: EventType) -> Self {
+    pub fn new(user_agent: UserAgent, event_type: EventType, error_reason: Option<String>) -> Self {
         Self {
             user_agent,
             event_type,
+            error_reason,
         }
     }
     pub async fn send(&self) {
