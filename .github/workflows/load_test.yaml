@@ -4,11 +4,11 @@ on:
   schedule:
     - cron: '0 0 * * 1-5'
 
-  pull_request:
-    paths:
-      - ".github/workflows/load_test.yaml"
-    branches:
-      - 'main'
+  # pull_request:
+  #   paths:
+  #     - ".github/workflows/load_test.yaml"
+  #   branches:
+  #     - 'main'
 
 jobs:
   load-tests:
