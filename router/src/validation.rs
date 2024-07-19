@@ -200,6 +200,7 @@ impl Validation {
             temperature,
             repetition_penalty,
             frequency_penalty,
+            no_repeat_ngram_size,
             top_k,
             top_p,
             typical_p,
@@ -242,6 +243,8 @@ impl Validation {
         if !(-2.0..=2.0).contains(&frequency_penalty) {
             return Err(ValidationError::FrequencyPenalty);
         }
+
+        let no_repeat_ngram_size = no_repeat_ngram_size.unwrap_or(0);
 
         // Different because the proto default value is not a valid value
         // for the user
@@ -370,6 +373,7 @@ impl Validation {
             temperature,
             repetition_penalty,
             frequency_penalty,
+            no_repeat_ngram_size,
             top_k,
             top_p,
             typical_p,
