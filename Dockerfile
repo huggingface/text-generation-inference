@@ -41,7 +41,7 @@ RUN cargo build --profile release-opt
 FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS pytorch-install
 
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
-ARG PYTORCH_VERSION=2.3.0
+ARG PYTORCH_VERSION=2.4.0
 
 ARG PYTHON_VERSION=3.10
 # Keep in sync with `server/pyproject.toml
