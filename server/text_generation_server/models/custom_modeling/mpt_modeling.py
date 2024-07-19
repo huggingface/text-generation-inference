@@ -75,7 +75,7 @@ def load_col(config, prefix, weights, bias):
         bias = bias.to(device=weights.device)
     else:
         bias = None
-    linear = get_linear(weight, bias, config.quantize)
+    linear = get_linear(weight, bias)
     return TensorParallelColumnLinear(linear)
 
 

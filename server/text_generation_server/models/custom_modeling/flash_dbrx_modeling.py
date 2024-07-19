@@ -247,10 +247,10 @@ def _load_experts_quantized(config, prefix, weights, cls):
 
         if cls == TensorParallelRowLinear:
             expert_slice = expert_slice.t().contiguous()
-            linear = get_linear(expert_slice, None, config.quantize)
+            linear = get_linear(expert_slice, None)
             experts.append(cls(linear, weights.process_group))
         else:
-            linear = get_linear(expert_slice, None, config.quantize)
+            linear = get_linear(expert_slice, None)
             experts.append(cls(linear))
 
     return experts

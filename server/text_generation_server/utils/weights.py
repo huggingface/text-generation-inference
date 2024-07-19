@@ -1,9 +1,13 @@
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import Enum, auto
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-from safetensors import safe_open
+
 import torch
+from safetensors import safe_open
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 class WeightsLoader(ABC):
@@ -62,7 +66,39 @@ class WeightsLoader(ABC):
         ...
 
 
+class Weight(ABC):
+    """Instances of this type implement unquantized/quantized/to-be
+    quantized weights."""
+
+    @abstractmethod
+    def get_linear(self, bias: torch.Tensor):
+        """Create a linear layer from this weight."""
+        ...
+
+
+@dataclass
+class UnquantizedWeight:
+    weight: torch.Tensor
+
+    def get_linear(self, bias: torch.Tensor):
+        from text_generation_server.layers.linear import FastLinear, FastLinearROCm
+
+        if SYSTEM == "rocm":
+            return FastLinearROCm(self.weight, bias)
+        else:
+            return FastLinear(self.weight, bias)
+
+
 class DefaultWeightsLoader(WeightsLoader):
+    """Weight loader that loads (unquantized) Torch tensors."""
+
+    def __init__(self, weight_class):
+        """Create a loader. Weights will be wrapped using the given `weights_class`,
+        normally this will be `UnquantizedWeight`, but a quantizer-specific class
+        such as `Fp8Weight` can be used to quantize the weights during loading.
+        """
+        self.weight_class = weight_class
+
     """
     Loader that uses tensors as-is with the exception of applying sharding
     and/or concatenation.
@@ -74,16 +110,21 @@ class DefaultWeightsLoader(WeightsLoader):
         prefix: str,
         block_sizes: Union[int, List[int]],
     ):
-        return weights.get_packed_sharded(
-            f"{prefix}.weight", dim=0, block_sizes=block_sizes
+
+        return self.weight_class(
+            weights.get_packed_sharded(
+                f"{prefix}.weight", dim=0, block_sizes=block_sizes
+            ),
         )
 
     def get_multi_weights_col(self, weights: "Weights", prefixes: List[str], dim: int):
         w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
-        return torch.cat(w, dim=dim)
+        return self.weight_class(torch.cat(w, dim=dim))
 
     def get_weights_row(self, weights: "Weights", prefix: str):
-        return weights.get_sharded(f"{prefix}.weight", dim=1)
+        return self.weight_class(
+            weights.get_sharded(f"{prefix}.weight", dim=1),
+        )
 
 
 class Weights:
