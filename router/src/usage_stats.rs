@@ -57,6 +57,7 @@ impl UsageStatsEvent {
         let client = reqwest::Client::new();
         let _ = client
             .post(TELEMETRY_URL)
+            .headers(headers)
             .body(body)
             .timeout(Duration::from_secs(5))
             .send()
