@@ -206,7 +206,7 @@ jobs:
           make install-integration-tests
       - name: Run tests
         run: |
-          export DOCKER_VOLUME=/mnt/cache
+          export DOCKER_VOLUME=/tmp
           export DOCKER_IMAGE=registry-us-east-1.prod.aws.ci.huggingface.tech/api-inference/community/text-generation-inference:sha-c55c43e
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
