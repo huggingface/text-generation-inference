@@ -139,6 +139,6 @@ def get_loader(
             is_marlin_24=quantizer_config.checkpoint_format == "marlin_24",
         )
     elif quantize is None:
-        return DefaultWeightsLoader(UnquantizedWeight)
+        return DefaultWeightsLoader()
     else:
         raise ValueError(f"Unknown quantization method: {quantize}")

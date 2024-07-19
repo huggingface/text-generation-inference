@@ -2,14 +2,13 @@ import torch
 
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from dataclasses import dataclass
-from enum import Enum, auto
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-
-from text_generation_server.utils.import_utils import SYSTEM
 from safetensors import safe_open
 from dataclasses import dataclass
+
+from text_generation_server.layers.fp8 import Fp8Weight
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 class WeightsLoader(ABC):
@@ -101,7 +100,7 @@ class UnquantizedWeight:
 class DefaultWeightsLoader(WeightsLoader):
     """Weight loader that loads (unquantized) Torch tensors."""
 
-    def __init__(self, weight_class):
+    def __init__(self, weight_class: Optional = None):
         """Create a loader. Weights will be wrapped using the given `weights_class`,
         normally this will be `UnquantizedWeight`, but a quantizer-specific class
         such as `Fp8Weight` can be used to quantize the weights during loading.
@@ -122,51 +121,63 @@ class DefaultWeightsLoader(WeightsLoader):
         prefix: str,
         block_sizes: Union[int, List[int]],
     ):
-
-        return self.weight_class(
-            weights.get_packed_sharded(
-                f"{prefix}.weight", dim=0, block_sizes=block_sizes
-            ),
-        )
-
         w = weights.get_packed_sharded(
             f"{prefix}.weight", dim=0, block_sizes=block_sizes
         )
-        # FP8 branch
+
         if w.dtype == torch.float8_e4m3fn:
+            if self.weight_class is not None and self.weight_class != Fp8Weight:
+                raise RuntimeError(
+                    f"Deserialized quantised fp8 weights but weight class is {self.weight_class}"
+                )
+
+            # FP8 branch
             scale = weights.get_packed_sharded(
                 f"{prefix}.weight_scale", dim=0, block_sizes=block_sizes
             )
             input_scale = weights.get_tensor(f"{prefix}.input_scale")
-            return FP8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
-        return w
+            return Fp8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
+
+        if self.weight_class is None:
+            return UnquantizedWeight(w)
+        return self.weight_class(w)
 
     def get_multi_weights_col(self, weights: "Weights", prefixes: List[str], dim: int):
         w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
-        return self.weight_class(torch.cat(w, dim=dim))
-
-        w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
         w = torch.cat(w, dim=dim)
+
         # FP8 branch
         if w.dtype == torch.float8_e4m3fn:
+            if self.weight_class is not None and self.weight_class != Fp8Weight:
+                raise RuntimeError(
+                    f"Deserialized quantised fp8 weights but weight class is {self.weight_class}"
+                )
+
             scale = [weights.get_sharded(f"{p}.weight_scale", dim=0) for p in prefixes]
             scale = torch.cat(scale, dim=0)
             input_scale = weights.get_tensor(f"{prefixes[0]}.input_scale")
-            return FP8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
-        return w
+            return Fp8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
+
+        if self.weight_class is None:
+            return UnquantizedWeight(w)
+        return self.weight_class(w)
 
     def get_weights_row(self, weights: "Weights", prefix: str):
-        return self.weight_class(
-            weights.get_sharded(f"{prefix}.weight", dim=1),
-        )
-
         w = weights.get_sharded(f"{prefix}.weight", dim=1)
         # FP8 branch
         if w.dtype == torch.float8_e4m3fn:
+            if self.weight_class is not None and self.weight_class != Fp8Weight:
+                raise RuntimeError(
+                    f"Deserialized quantised fp8 weights but weight class is {self.weight_class}"
+                )
+
             scale = weights.get_sharded(f"{prefix}.weight_scale", dim=0)
             input_scale = weights.get_tensor(f"{prefix}.input_scale")
-            return FP8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
-        return w
+            return Fp8Weight(weight=w, weight_scale=scale, input_scale=input_scale)
+
+        if self.weight_class is None:
+            return UnquantizedWeight(w)
+        return self.weight_class(w)
 
 
 class Weights:

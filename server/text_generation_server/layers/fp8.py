@@ -1,16 +1,19 @@
 import torch
 
 from dataclasses import dataclass
+from typing import Optional
 
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.utils.weights import Weight
 
 try:
     import fbgemm_gpu.experimental.gen_ai
 
-    HAS_FBGEMM = True
+    major, _ = torch.cuda.get_device_capability()
+    HAS_FBGEMM_MM = major == 9
+    HAS_FBGEMM_DYN = major >= 8
 except (ImportError, ModuleNotFoundError):
-    HAS_FBGEMM = False
+    HAS_FBGEMM_MM = False
+    HAS_FBGEMM_DYN = False
 
 
 def get_fp8_linear() -> torch.nn.Module:
@@ -30,10 +33,7 @@ def get_fp8_linear() -> torch.nn.Module:
 
 
 def fp8_quantize(weight, scale_upper_bound=None, qdtype=torch.float8_e4m3fn):
-    if HAS_FBGEMM:
-        if scale_upper_bound.device != weight.device:
-            scale_upper_bound = scale_upper_bound.to(weight.device)
-
+    if HAS_FBGEMM_DYN:
         qweight, scale = torch.ops.fbgemm.quantize_fp8_per_row(
             weight, bs=None, scale_ub=scale_upper_bound, output_dtype=qdtype
         )
@@ -55,11 +55,17 @@ def fp8_quantize(weight, scale_upper_bound=None, qdtype=torch.float8_e4m3fn):
 
 
 @dataclass
-class Fp8Weight(Weight):
+class Fp8Weight:
     weight: torch.Tensor
+    weight_scale: Optional[torch.Tensor] = None
+    input_scale: Optional[torch.Tensor] = None
 
     def get_linear(self, bias: torch.Tensor):
-        return get_fp8_linear()(self.weight, bias)
+        if self.weight_scale is None:
+            return get_fp8_linear().from_unquant(self.weight, bias)
+        return get_fp8_linear().from_fp8(
+            self.weight, self.weight_scale, self.input_scale, bias, bias.dtype
+        )
 
 
 class Fp8Linear(torch.nn.Module):
@@ -87,17 +93,17 @@ class Fp8Linear(torch.nn.Module):
         )
 
     @classmethod
-    def from_fp8(cls, weight, bias, dtype):
+    def from_fp8(cls, weight, scale, input_scale, bias, dtype):
         return cls(
-            qweight=weight.weight,
-            scale=weight.weight_scale,
-            scale_upper_bound=weight.input_scale,
+            qweight=weight,
+            scale=scale,
+            scale_upper_bound=input_scale,
             bias=bias,
             dtype=dtype,
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if HAS_FBGEMM:
+        if HAS_FBGEMM_MM:
             qinput, scale = fp8_quantize(
                 input, scale_upper_bound=self.scale_upper_bound
             )

@@ -34,14 +34,12 @@ peft = { version = "^0.10", optional = true }
 torch = { version = "^2.3.0", optional = true }
 scipy = "^1.11.1"
 pillow = "^10.0.0"
-outlines= { version = "^0.0.46", optional = true }
+outlines= { version = "^0.0.34", optional = true }
 prometheus-client = "^0.20.0"
 py-cpuinfo = "^9.0.0"
-fbgemm-gpu = { version = "0.8.0rc4", optional = true }
 
 [tool.poetry.extras]
 torch = ["torch"]
-cuda = ["fbgemm-gpu"]
 accelerate = ["accelerate"]
 bnb = ["bitsandbytes"]
 peft = ["peft"]
