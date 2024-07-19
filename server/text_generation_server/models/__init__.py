@@ -573,6 +573,10 @@ def get_model(
             )
     elif model_type == GPT_NEOX:
         if FLASH_ATTENTION:
+            from text_generation_server.models.custom_modeling.flash_neox_modeling import (
+                GPTNeoXConfig,
+            )
+
             return FlashCausalLM(
                 model_id=model_id,
                 model_class=FlashGPTNeoXForCausalLM,
@@ -582,6 +586,7 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                config_class=GPTNeoXConfig,
             )
         elif sharded:
             return CausalLM(
