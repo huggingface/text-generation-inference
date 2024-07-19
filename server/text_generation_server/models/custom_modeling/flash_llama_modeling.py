@@ -18,6 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
 from typing import List, Optional, Tuple
 
 import torch
@@ -25,7 +26,6 @@ import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-from typing import Optional, List, Tuple
 
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
@@ -42,9 +42,15 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
+from text_generation_server.layers.fp8 import Fp8Weight
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
+)
+from text_generation_server.utils.weights import (
+    DefaultWeightsLoader,
+    UnquantizedWeight,
+    Weights,
 )
 
 if SYSTEM == "rocm":
@@ -103,6 +109,19 @@ def load_attention(config, prefix: str, weights, layer_id):
         sizes=sizes,
         process_group=weights.process_group,
     )
+
+
+@contextmanager
+def no_fp8(weights: Weights):
+    weights_loader = weights.weights_loader
+    if (
+        isinstance(weights_loader, DefaultWeightsLoader)
+        and weights_loader.weight_class is Fp8Weight
+    ):
+        weights_loader = DefaultWeightsLoader(UnquantizedWeight)
+
+    with weights.use_loader(weights_loader):
+        yield
 
 
 class FlashLlamaAttention(torch.nn.Module):
@@ -330,12 +349,15 @@ class LlamaMLP(nn.Module):
 class FlashLlamaLayer(nn.Module):
     def __init__(self, index, prefix, config, weights):
         super().__init__()
-        self.self_attn = FlashLlamaAttention(
-            index=index,
-            prefix=f"{prefix}.self_attn",
-            config=config,
-            weights=weights,
-        )
+
+        with no_fp8(weights):
+            self.self_attn = FlashLlamaAttention(
+                index=index,
+                prefix=f"{prefix}.self_attn",
+                config=config,
+                weights=weights,
+            )
+
         self.mlp = LlamaMLP(
             prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
         )
@@ -470,23 +492,27 @@ class FlashLlamaForCausalLM(torch.nn.Module):
     def __init__(self, prefix: str, config, weights):
         super().__init__()
 
-        self.embed_tokens = TensorParallelEmbedding(
-            prefix=(
-                "model.embed_tokens" if not prefix else f"{prefix}.model.embed_tokens"
-            ),
-            weights=weights,
-        )
+        with no_fp8(weights):
+            self.embed_tokens = TensorParallelEmbedding(
+                prefix=(
+                    "model.embed_tokens"
+                    if not prefix
+                    else f"{prefix}.model.embed_tokens"
+                ),
+                weights=weights,
+            )
         self.model = FlashLlamaModel(prefix, config, weights)
         if config.tie_word_embeddings:
             suffix = "model.embed_tokens"
         else:
             suffix = "lm_head"
 
-        self.lm_head = SpeculativeHead.load(
-            config,
-            prefix=suffix if not prefix else f"{prefix}.{suffix}",
-            weights=weights,
-        )
+        with no_fp8(weights):
+            self.lm_head = SpeculativeHead.load(
+                config,
+                prefix=suffix if not prefix else f"{prefix}.{suffix}",
+                weights=weights,
+            )
 
     def forward(
         self,

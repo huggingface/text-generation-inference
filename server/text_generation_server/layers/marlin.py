@@ -7,7 +7,7 @@ from loguru import logger
 from text_generation_server.layers.fp8 import fp8_quantize
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
-from text_generation_server.utils.weights import Weights, WeightsLoader
+from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 try:
     import marlin_kernels
@@ -63,8 +63,7 @@ class MarlinWeightsLoader(WeightsLoader):
         return weight
 
     def get_multi_weights_col(self, weights: Weights, prefixes: List[str], dim: int):
-        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
-        if is_marlin_24:
+        if self.is_marlin_24:
             try:
                 B = torch.cat(
                     [weights.get_sharded(f"{p}.B_24", dim=1) for p in prefixes], dim=1
@@ -101,8 +100,7 @@ class MarlinWeightsLoader(WeightsLoader):
         return weight
 
     def get_weights_row(self, weights: Weights, prefix: str):
-        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
-        if is_marlin_24:
+        if self.is_marlin_24:
             try:
                 B = weights.get_sharded(f"{prefix}.B_24", dim=0)
             except RuntimeError:
@@ -201,7 +199,7 @@ def permute_scales(scales: torch.Tensor):
 
 
 @dataclass
-class GPTQMarlinWeight:
+class GPTQMarlinWeight(Weight):
     """
     Repacked GPTQ Marlin weights.
     """
@@ -218,6 +216,12 @@ class GPTQMarlinWeight:
         assert self.scales.dtype == torch.float16
         assert self.g_idx.dtype == torch.int32
         assert self.perm.dtype == torch.int32
+
+    def get_linear(self, bias: torch.Tensor):
+        return GPTQMarlinLinear(
+            weight=self,
+            bias=bias,
+        )
 
 
 def repack_gptq_for_marlin(
@@ -375,6 +379,12 @@ class GPTQMarlin24Weight:
         assert self.B.dtype == torch.int32
         assert self.B_meta.dtype == torch.int16
         assert self.s.dtype == torch.float16
+
+    def get_linear(self, bias: torch.Tensor):
+        return GPTQMarlin24Linear(
+            weight=self,
+            bias=bias,
+        )
 
 
 class GPTQMarlin24Linear(nn.Module):
@@ -567,7 +577,7 @@ def repack_fp8_for_marlin(weight: torch.Tensor, scale: torch.Tensor):
 
 
 @dataclass
-class MarlinWeight:
+class MarlinWeight(Weight):
     """
     Marlin weights.
 
@@ -582,6 +592,9 @@ class MarlinWeight:
     def __post_init__(self):
         assert self.B.dtype == torch.int32
         assert self.s.dtype == torch.float16
+
+    def get_linear(self, bias: torch.Tensor):
+        return MarlinLinear(weight=self, bias=bias)
 
 
 class MarlinLinear(nn.Module):

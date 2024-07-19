@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 4321,
+        "logprob": -9.0859375,
+        "text": "Test"
+      },
+      {
+        "id": 2009,
+        "logprob": -16.359375,
+        "text": "request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 5229,
+        "logprob": -0.6645508,
+        "special": false,
+        "text": " failed"
+      },
+      {
+        "id": 29901,
+        "logprob": 0.0,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 6527,
+        "logprob": -2.2324219,
+        "special": false,
+        "text": " Could"
+      },
+      {
+        "id": 451,
+        "logprob": 0.0,
+        "special": false,
+        "text": " not"
+      },
+      {
+        "id": 6088,
+        "logprob": -1.6074219,
+        "special": false,
+        "text": " parse"
+      },
+      {
+        "id": 1243,
+        "logprob": -1.6298828,
+        "special": false,
+        "text": " test"
+      },
+      {
+        "id": 1206,
+        "logprob": -0.72558594,
+        "special": false,
+        "text": " case"
+      },
+      {
+        "id": 1024,
+        "logprob": -0.40429688,
+        "special": false,
+        "text": " name"
+      },
+      {
+        "id": 515,
+        "logprob": 0.0,
+        "special": false,
+        "text": " from"
+      },
+      {
+        "id": 525,
+        "logprob": -1.2519531,
+        "special": false,
+        "text": " '"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request failed: Could not parse test case name from '"
+}
