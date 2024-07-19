@@ -22,6 +22,13 @@ class WeightsLoader(ABC):
     """
 
     @abstractmethod
+    def get_weights(self, weights: "Weights", prefix: str):
+        """
+        Get weights at the given prefix and apply without tensor paralllism.
+        """
+        ...
+
+    @abstractmethod
     def get_weights_col_packed(
         self,
         weights: "Weights",
@@ -103,6 +110,9 @@ class DefaultWeightsLoader(WeightsLoader):
     Loader that uses tensors as-is with the exception of applying sharding
     and/or concatenation.
     """
+
+    def get_weights(self, weights: "Weights", prefix: str):
+        return weights.get_tensor(f"{prefix}.weight")
 
     def get_weights_col_packed(
         self,
@@ -298,6 +308,9 @@ class Weights:
             tensor = tensor.to(dtype=self.dtype)
 
         return tensor
+
+    def get_weights(self, prefix: str):
+        return self.weights_loader.get_weights(self, prefix)
 
     def get_weights_col_packed_qkv(
         self,

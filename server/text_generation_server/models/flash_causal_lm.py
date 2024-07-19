@@ -839,7 +839,9 @@ class FlashCausalLM(Model):
         default_dtype=torch.float16,
         aliases=None,
         # Used for Santacoder override of config
-        num_kv_heads=None,
+        num_kv_heads: Optional[int] = None,
+        # Deepseek V2 uses different QK and V dims.
+        head_size: Optional[int] = None,
         skip_special_tokens: bool = True,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
@@ -922,7 +924,11 @@ class FlashCausalLM(Model):
             else num_kv_heads
         )
         assert self.num_kv_heads > 0
-        self.head_size = config.hidden_size // config.num_attention_heads
+
+        if head_size is None:
+            self.head_size = config.hidden_size // config.num_attention_heads
+        else:
+            self.head_size = head_size
 
         self.cuda_graphs = {}
         self.kv_cache = []

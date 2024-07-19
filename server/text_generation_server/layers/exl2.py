@@ -34,6 +34,30 @@ class Exl2Weight(Weight):
 class Exl2WeightsLoader(WeightsLoader):
     """Loader for exl2-quantized weights."""
 
+    def get_weights(self, weights: "Weights", prefix: str):
+        """
+        Get weights at the given prefix and apply without tensor paralllism.
+        """
+        try:
+            q_weight = weights.get_tensor(f"{prefix}.q_weight")
+        except RuntimeError:
+            raise RuntimeError(
+                "Cannot load `exl2`-quantized weight, make sure the model is already quantized."
+            )
+
+        q_scale = weights.get_tensor(f"{prefix}.q_scale")
+        q_invperm = weights.get_tensor(f"{prefix}.q_invperm")
+        q_scale_max = weights.get_tensor(f"{prefix}.q_scale_max")
+        q_groups = weights.get_tensor(f"{prefix}.q_groups")
+
+        return Exl2Weight(
+            q_weight=q_weight,
+            q_scale=q_scale,
+            q_invperm=q_invperm,
+            q_scale_max=q_scale_max,
+            q_groups=q_groups,
+        )
+
     def get_weights_col_packed(
         self,
         weights: Weights,
@@ -43,46 +67,12 @@ class Exl2WeightsLoader(WeightsLoader):
         raise RuntimeError("Column-packed weights are not supported for exl")
 
     def get_weights_col(self, weights: Weights, prefix: str):
-        try:
-            q_weight = weights.get_tensor(f"{prefix}.q_weight")
-        except RuntimeError:
-            raise RuntimeError(
-                "Cannot load `exl2`-quantized weight, make sure the model is already quantized."
-            )
-
-        q_scale = weights.get_tensor(f"{prefix}.q_scale")
-        q_invperm = weights.get_tensor(f"{prefix}.q_invperm")
-        q_scale_max = weights.get_tensor(f"{prefix}.q_scale_max")
-        q_groups = weights.get_tensor(f"{prefix}.q_groups")
-
-        return Exl2Weight(
-            q_weight=q_weight,
-            q_scale=q_scale,
-            q_invperm=q_invperm,
-            q_scale_max=q_scale_max,
-            q_groups=q_groups,
-        )
+        # Sharding is not yet supported, so we return the weights as-is.
+        return self.get_weights(weights, prefix)
 
     def get_multi_weights_col(self, weights: Weights, prefixes: List[str], dim: int):
         raise ValueError("get_multi_weights_col is not supported for exl2")
 
     def get_weights_row(self, weights: Weights, prefix: str):
-        try:
-            q_weight = weights.get_tensor(f"{prefix}.q_weight")
-        except RuntimeError:
-            raise RuntimeError(
-                "Cannot load `exl2`-quantized weight, make sure the model is already quantized."
-            )
-
-        q_scale = weights.get_tensor(f"{prefix}.q_scale")
-        q_invperm = weights.get_tensor(f"{prefix}.q_invperm")
-        q_scale_max = weights.get_tensor(f"{prefix}.q_scale_max")
-        q_groups = weights.get_tensor(f"{prefix}.q_groups")
-
-        return Exl2Weight(
-            q_weight=q_weight,
-            q_scale=q_scale,
-            q_invperm=q_invperm,
-            q_scale_max=q_scale_max,
-            q_groups=q_groups,
-        )
+        # Sharding is not yet supported, so we return the weights as-is.
+        return self.get_weights(weights, prefix)
