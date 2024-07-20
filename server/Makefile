@@ -5,6 +5,7 @@ include Makefile-awq
 include Makefile-eetq
 include Makefile-selective-scan
 include Makefile-lorax-punica
+include Makefile-fbgemm
 
 unit-tests:
 	pytest -s -vv -m "not private" tests
@@ -27,8 +28,9 @@ install-server: gen-server
 install: install-cuda
 	echo "Installed server"
 
-install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention
+install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention install-fbgemm
 	pip install -e ".[bnb]"
+	pip install nvidia-nccl-cu12==2.22.3
 
 install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm
 
@@ -36,5 +38,6 @@ run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded
 
 export-requirements:
-	poetry export -o requirements_cuda.txt --without-hashes --with cuda
+	poetry export -o requirements_cuda.txt --without-hashes
 	poetry export -o requirements_rocm.txt --without-hashes
+	poetry export -o requirements_intel.txt --without-hashes

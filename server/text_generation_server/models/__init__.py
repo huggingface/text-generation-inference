@@ -34,6 +34,7 @@ from text_generation_server.models.custom_modeling.t5_modeling import (
 )
 
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.log import log_master
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -47,9 +48,7 @@ torch.set_grad_enabled(False)
 
 __all__ = [
     "Model",
-    "BLOOMSharded",
     "CausalLM",
-    "GalacticaSharded",
     "Seq2SeqLM",
     "get_model",
 ]
@@ -125,7 +124,7 @@ try:
     )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
-    logger.warning(f"Could not import Flash Attention enabled models: {e}")
+    log_master(logger.warning, f"Could not import Flash Attention enabled models: {e}")
     SUPPORTS_WINDOWING = False
     FLASH_ATTENTION = False
 
@@ -137,7 +136,7 @@ MAMBA_AVAILABLE = True
 try:
     from text_generation_server.models.mamba import Mamba
 except ImportError as e:
-    logger.warning(f"Could not import Mamba: {e}")
+    log_master(logger.warning, f"Could not import Mamba: {e}")
     MAMBA_AVAILABLE = False
 
 if MAMBA_AVAILABLE:
@@ -311,6 +310,12 @@ def get_model(
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
             # These quantizers only work with float16 params.
             dtype = torch.float16
+        elif quantize == "fp8":
+            from text_generation_server.layers.fp8 import FBGEMM_MM_AVAILABLE
+
+            if FBGEMM_MM_AVAILABLE:
+                # fbgemm kernels are fp8xfp8->bf16
+                dtype = torch.bfloat16
         else:
             # Keep it as default for now and let
             # every model resolve their own default dtype.
@@ -433,7 +438,9 @@ def get_model(
 
     speculate = get_speculate()
     if speculate > 0:
-        logger.info(f"Using speculation {method} with {speculate} input ids.")
+        log_master(
+            logger.info, f"Using speculation {method} with {speculate} input ids."
+        )
 
     if model_type is None:
         # TODO: fix how we determine model type for Mamba
@@ -448,10 +455,10 @@ def get_model(
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
         if method in {"gptq", "awq", "exl2"}:
-            logger.info(f"Auto selecting quantization method {method}")
+            log_master(logger.info, f"Auto selecting quantization method {method}")
             quantize = method
         else:
-            logger.info(f"Unknown quantization method {method}")
+            log_master(logger.warning, f"Unknown quantization method {method}")
 
     if quantize == "exl2" and sharded:
         raise RuntimeError(
@@ -593,7 +600,7 @@ def get_model(
                 )
             except RuntimeError as e:
                 # Lots of legacy models with various weight names.
-                logger.warning(f"Couldn't load flash gpt2 variant: {e}")
+                log_master(logger.warning, f"Couldn't load flash gpt2 variant: {e}")
                 return CausalLM.fallback(
                     model_id,
                     revision,
