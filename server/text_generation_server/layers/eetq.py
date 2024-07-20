@@ -2,11 +2,11 @@ from dataclasses import dataclass
 
 import torch
 from EETQ import quant_weights, w8_a16_gemm
-from text_generation_server.utils.weights import Weight
+from text_generation_server.utils.weights import UnquantizedWeight
 
 
 @dataclass
-class EETQWeight(Weight):
+class EETQWeight(UnquantizedWeight):
     weight: torch.Tensor
 
     def get_linear(self, bias: torch.Tensor):
