@@ -3,6 +3,7 @@ import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.layers.attention import Seqlen
+from text_generation_server.utils.log import log_master
 from loguru import logger
 
 major, minor = torch.cuda.get_device_capability()
@@ -136,7 +137,10 @@ if ENGINE != "triton":
     try:
         import flash_attn_2_cuda
 
-        logger.info("ROCm: using Flash Attention 2 Composable Kernel implementation.")
+        log_master(
+            logger.info,
+            "ROCm: using Flash Attention 2 Composable Kernel implementation.",
+        )
     except ImportError as e:
         if major >= 8:
             architecture_suffix = f"-{SYSTEM}"

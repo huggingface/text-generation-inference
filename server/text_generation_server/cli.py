@@ -8,6 +8,7 @@ from typing import Optional
 from enum import Enum
 from huggingface_hub import hf_hub_download
 
+from text_generation_server.utils.log import log_master
 
 app = typer.Typer()
 
@@ -87,15 +88,17 @@ def serve(
     )
 
     if len(lora_adapter_ids) > 0:
-        logger.warning(
-            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
+        log_master(
+            logger.warning,
+            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected.",
         )
 
     # TODO: enable lora with cuda graphs. for now disable cuda graphs if lora is enabled
     # and warn the user
     if len(lora_adapter_ids) > 0 and os.getenv("CUDA_GRAPHS", None) is not None:
-        logger.warning(
-            f"LoRa adapter are not supported with CUDA Graphs. Disabling CUDA Graphs."
+        log_master(
+            logger.warning,
+            f"LoRa adapter are not supported with CUDA Graphs. Disabling CUDA Graphs.",
         )
         global CUDA_GRAPHS
         CUDA_GRAPHS = None

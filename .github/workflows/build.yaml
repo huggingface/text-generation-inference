@@ -183,4 +183,3 @@ jobs:
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
           pytest -s -vv integration-tests ${PYTEST_FLAGS}
-

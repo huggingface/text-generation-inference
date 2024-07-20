@@ -1,4 +1,3 @@
-from itertools import repeat
 import torch
 from PIL import Image
 from io import BytesIO
@@ -13,6 +12,7 @@ from text_generation_server.models.flash_causal_lm import (
     FlashCausalLMBatch,
     FlashCausalLM,
 )
+from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
 
 tracer = trace.get_tracer(__name__)
@@ -56,8 +56,9 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         num_features = get_number_of_features(height, width, config)
         from loguru import logger
 
-        logger.info(
-            f"Found {num_features} features in image of resolution {height}x{width}"
+        log_master(
+            logger.info,
+            f"Found {num_features} features in image of resolution {height}x{width}",
         )
         return "<image>" * num_features
 

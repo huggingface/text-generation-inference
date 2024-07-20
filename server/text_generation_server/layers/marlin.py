@@ -503,7 +503,8 @@ class GPTQMarlinFP8Linear(nn.Module):
 
     def __init__(
         self,
-        weight: torch.Tensor,
+        qweight: torch.Tensor,
+        scale: torch.Tensor,
         bias: Optional[torch.Tensor],
     ) -> None:
         super().__init__()
@@ -513,7 +514,6 @@ class GPTQMarlinFP8Linear(nn.Module):
 
         log_once(logger.info, "GPU does not support FP8, using Marlin FP8 kernel")
 
-        qweight, scale = fp8_quantize(weight)
         scale = scale.to(torch.float16)
         qweight, scales = repack_fp8_for_marlin(qweight, scale)
 
@@ -528,6 +528,15 @@ class GPTQMarlinFP8Linear(nn.Module):
         self.workspace = torch.zeros(
             out_features // 64 * 16, dtype=torch.int, device=qweight.device
         )
+
+    @classmethod
+    def from_unquant(cls, weight, bias, _dtype):
+        qweight, scale = fp8_quantize(weight)
+        return cls(qweight=qweight, scale=scale, bias=bias)
+
+    @classmethod
+    def from_fp8(cls, weight, scale, _input_scale, bias, _dtype):
+        return cls(qweight=weight, scale=scale, bias=bias)
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
         assert marlin_kernels is not None
