@@ -3,7 +3,7 @@ import torch
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Type
 from safetensors import safe_open
 from dataclasses import dataclass
 
@@ -84,9 +84,8 @@ class Weight(ABC):
 
 
 @dataclass
-class UnquantizedWeight:
+class UnquantizedWeight(Weight):
     weight: torch.Tensor
-    dtype: torch.dtype
 
     def get_linear(self, bias: torch.Tensor):
         from text_generation_server.layers.linear import FastLinear, FastLinearROCm
@@ -100,7 +99,7 @@ class UnquantizedWeight:
 class DefaultWeightsLoader(WeightsLoader):
     """Weight loader that loads (unquantized) Torch tensors."""
 
-    def __init__(self, weight_class: Optional = None):
+    def __init__(self, weight_class: Type[UnquantizedWeight]):
         """Create a loader. Weights will be wrapped using the given `weights_class`,
         normally this will be `UnquantizedWeight`, but a quantizer-specific class
         such as `Fp8Weight` can be used to quantize the weights during loading.
@@ -121,92 +120,21 @@ class DefaultWeightsLoader(WeightsLoader):
         prefix: str,
         block_sizes: Union[int, List[int]],
     ):
-        w = weights.get_packed_sharded(
-            f"{prefix}.weight", dim=0, block_sizes=block_sizes
+
+        return self.weight_class(
+            weights.get_packed_sharded(
+                f"{prefix}.weight", dim=0, block_sizes=block_sizes
+            ),
         )
-
-        if w.dtype == torch.float8_e4m3fn:
-            # FIXME: here to avoid circular import
-            from text_generation_server.layers.fp8 import Fp8Weight
-
-            if self.weight_class is not None and self.weight_class != Fp8Weight:
-                raise RuntimeError(
-                    f"Deserialized quantised fp8 weights but weight class is {self.weight_class}"
-                )
-            # FIXME: here to avoid circular import
-            from text_generation_server.layers.fp8 import Fp8Weight
-
-            # FP8 branch
-            scale = weights.get_packed_sharded(
-                f"{prefix}.weight_scale", dim=0, block_sizes=block_sizes, cast=False
-            )
-            input_scale = weights.get_tensor(f"{prefix}.input_scale", cast=False)
-            return Fp8Weight(
-                weight=w,
-                weight_scale=scale,
-                input_scale=input_scale,
-                dtype=weights.dtype,
-            )
-
-        if self.weight_class is None:
-            return UnquantizedWeight(w, dtype=weights.dtype)
-        return self.weight_class(w, dtype=weights.dtype)
 
     def get_multi_weights_col(self, weights: "Weights", prefixes: List[str], dim: int):
         w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
-        w = torch.cat(w, dim=dim)
-
-        # FP8 branch
-        if w.dtype == torch.float8_e4m3fn:
-            # FIXME: here to avoid circular import
-            from text_generation_server.layers.fp8 import Fp8Weight
-
-            if self.weight_class is not None and self.weight_class != Fp8Weight:
-                raise RuntimeError(
-                    f"Deserialized quantised fp8 weights but weight class is {self.weight_class}"
-                )
-
-            scale = [
-                weights.get_sharded(f"{p}.weight_scale", dim=0, cast=False)
-                for p in prefixes
-            ]
-            scale = torch.cat(scale, dim=0)
-            input_scale = weights.get_tensor(f"{prefixes[0]}.input_scale", cast=False)
-            return Fp8Weight(
-                weight=w,
-                weight_scale=scale,
-                input_scale=input_scale,
-                dtype=weights.dtype,
-            )
-
-        if self.weight_class is None:
-            return UnquantizedWeight(w, dtype=weights.dtype)
-        return self.weight_class(w, dtype=weights.dtype)
+        return self.weight_class(torch.cat(w, dim=dim))
 
     def get_weights_row(self, weights: "Weights", prefix: str):
-        w = weights.get_sharded(f"{prefix}.weight", dim=1)
-        # FP8 branch
-        if w.dtype == torch.float8_e4m3fn:
-            # FIXME: here to avoid circular import
-            from text_generation_server.layers.fp8 import Fp8Weight
-
-            if self.weight_class is not None and self.weight_class != Fp8Weight:
-                raise RuntimeError(
-                    f"Deserialized quantised fp8 weights but weight class is {self.weight_class}"
-                )
-
-            scale = weights.get_sharded(f"{prefix}.weight_scale", dim=0, cast=False)
-            input_scale = weights.get_tensor(f"{prefix}.input_scale", cast=False)
-            return Fp8Weight(
-                weight=w,
-                weight_scale=scale,
-                input_scale=input_scale,
-                dtype=weights.dtype,
-            )
-
-        if self.weight_class is None:
-            return UnquantizedWeight(w, dtype=weights.dtype)
-        return self.weight_class(w, dtype=weights.dtype)
+        return self.weight_class(
+            weights.get_sharded(f"{prefix}.weight", dim=1),
+        )
 
 
 class Weights:
@@ -280,7 +208,7 @@ class Weights:
     def get_shape(self, tensor_name: str):
         return self._get_slice(tensor_name).get_shape()
 
-    def get_tensor(self, tensor_name: str, to_device=True, cast=True):
+    def get_tensor(self, tensor_name: str, to_device=True, to_dtype=True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         tensor = f.get_tensor(tensor_name)
@@ -295,14 +223,14 @@ class Weights:
                 torch.int32,
                 torch.int64,
             ]
-            and cast
+            and to_dtype
         ):
             tensor = tensor.to(dtype=self.dtype)
         if to_device:
             tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_partial_sharded(self, tensor_name: str, dim: int, cast=True):
+    def get_partial_sharded(self, tensor_name: str, dim: int, to_dtype=True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
@@ -323,12 +251,15 @@ class Weights:
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32. exl2 uses int16.
         # FP8 uses torch.float8_e4m3fn.
-        if tensor.dtype not in (torch.float8_e4m3fn, torch.int16, torch.int32) and cast:
+        if (
+            tensor.dtype not in (torch.float8_e4m3fn, torch.int16, torch.int32)
+            and to_dtype
+        ):
             tensor = tensor.to(dtype=self.dtype)
         tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_sharded(self, tensor_name: str, dim: int, cast=True):
+    def get_sharded(self, tensor_name: str, dim: int, to_dtype=True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
@@ -337,10 +268,14 @@ class Weights:
         assert (
             size % world_size == 0
         ), f"The choosen size {size} is not compatible with sharding on {world_size} shards"
-        return self.get_partial_sharded(tensor_name, dim, cast=cast)
+        return self.get_partial_sharded(tensor_name, dim, to_dtype=to_dtype)
 
     def get_packed_sharded(
-        self, tensor_name: str, dim: int, block_sizes: Union[int, List[int]], cast=True
+        self,
+        tensor_name: str,
+        dim: int,
+        block_sizes: Union[int, List[int]],
+        to_dtype=True,
     ) -> torch.Tensor:
         """
         Get a shard from a tensor that packs multiple tensors.
@@ -394,7 +329,7 @@ class Weights:
                 torch.int32,
                 torch.int64,
             ]
-            and cast
+            and to_dtype
         ):
             tensor = tensor.to(dtype=self.dtype)
 

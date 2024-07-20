@@ -418,7 +418,22 @@ class FlashLlamaModel(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        self.layers = nn.ModuleList(
+
+        # Skip fp8 quant for first and last layers
+        self.layers = nn.ModuleList()
+        with no_fp8(weights):
+            self.layers.append(
+                FlashLlamaLayer(
+                    index=0,
+                    prefix=(
+                        "model.layers.0" if not prefix else "{prefix}.model.layers.0"
+                    ),
+                    config=config,
+                    weights=weights,
+                )
+            )
+
+        self.layers.extend(
             [
                 FlashLlamaLayer(
                     index=layer_id,
@@ -430,9 +445,26 @@ class FlashLlamaModel(torch.nn.Module):
                     config=config,
                     weights=weights,
                 )
-                for layer_id in range(config.num_hidden_layers)
+                # Skip first and last layers
+                for layer_id in range(1, config.num_hidden_layers - 1)
             ]
         )
+
+        with no_fp8(weights):
+            last_layer_id = config.num_hidden_layers - 1
+            self.layers.append(
+                FlashLlamaLayer(
+                    index=last_layer_id,
+                    prefix=(
+                        f"model.layers.{last_layer_id}"
+                        if not prefix
+                        else f"{prefix}.model.layers.{last_layer_id}"
+                    ),
+                    config=config,
+                    weights=weights,
+                )
+            )
+
         self.norm = FastRMSNorm.load(
             prefix="model.norm" if not prefix else f"{prefix}.model.norm",
             weights=weights,

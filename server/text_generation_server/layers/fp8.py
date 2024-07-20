@@ -1,19 +1,29 @@
 import torch
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union, List
+from loguru import logger
 
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.weights import (
+    Weight,
+    WeightsLoader,
+    UnquantizedWeight,
+    Weights,
+)
+from text_generation_server.utils.log import log_master, log_once
 
+FBGEMM_MM_AVAILABLE = False
+FBGEMM_DYN_AVAILABLE = False
 try:
     import fbgemm_gpu.experimental.gen_ai
 
-    major, _ = torch.cuda.get_device_capability()
-    HAS_FBGEMM_MM = major == 9
-    HAS_FBGEMM_DYN = major >= 8
+    if SYSTEM == "cuda":
+        major, _ = torch.cuda.get_device_capability()
+        FBGEMM_MM_AVAILABLE = major == 9
+        FBGEMM_DYN_AVAILABLE = major >= 8
 except (ImportError, ModuleNotFoundError):
-    HAS_FBGEMM_MM = False
-    HAS_FBGEMM_DYN = False
+    log_master(logger.warning, "FBGEMM fp8 kernels are not installed.")
 
 
 def get_fp8_linear() -> torch.nn.Module:
@@ -33,7 +43,7 @@ def get_fp8_linear() -> torch.nn.Module:
 
 
 def fp8_quantize(weight, scale_upper_bound=None, qdtype=torch.float8_e4m3fn):
-    if HAS_FBGEMM_DYN:
+    if FBGEMM_DYN_AVAILABLE:
         qweight, scale = torch.ops.fbgemm.quantize_fp8_per_row(
             weight, bs=None, scale_ub=scale_upper_bound, output_dtype=qdtype
         )
@@ -54,18 +64,83 @@ def fp8_quantize(weight, scale_upper_bound=None, qdtype=torch.float8_e4m3fn):
     return qweight, scale
 
 
+class HybridFP8UnquantLoader(WeightsLoader):
+    """Weight loader that loads FP8 and unquantized Torch tensors."""
+
+    def __init__(self, activation_scale_ub: Optional[float]):
+        self.activation_scale_ub = activation_scale_ub
+
+    def get_weights_col_packed(
+        self,
+        weights: Weights,
+        prefix: str,
+        block_sizes: Union[int, List[int]],
+    ):
+        w = weights.get_packed_sharded(
+            f"{prefix}.weight", dim=0, block_sizes=block_sizes
+        )
+
+        if w.dtype == torch.float8_e4m3fn:
+            # FP8 branch
+            scale = weights.get_packed_sharded(
+                f"{prefix}.weight_scale", dim=0, block_sizes=block_sizes, to_dtype=False
+            )
+            return Fp8Weight(
+                weight=w,
+                weight_scale=scale,
+                activation_scale_ub=self.activation_scale_ub,
+                dtype=weights.dtype,
+            )
+
+        return UnquantizedWeight(w)
+
+    def get_multi_weights_col(self, weights: "Weights", prefixes: List[str], dim: int):
+        w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
+        w = torch.cat(w, dim=dim)
+
+        # FP8 branch
+        if w.dtype == torch.float8_e4m3fn:
+            scale = [
+                weights.get_sharded(f"{p}.weight_scale", dim=0, to_dtype=False)
+                for p in prefixes
+            ]
+            scale = torch.cat(scale, dim=0)
+            return Fp8Weight(
+                weight=w,
+                weight_scale=scale,
+                activation_scale_ub=self.activation_scale_ub,
+                dtype=weights.dtype,
+            )
+
+        return UnquantizedWeight(w)
+
+    def get_weights_row(self, weights: "Weights", prefix: str):
+        w = weights.get_sharded(f"{prefix}.weight", dim=1)
+        # FP8 branch
+        if w.dtype == torch.float8_e4m3fn:
+            scale = weights.get_sharded(f"{prefix}.weight_scale", dim=0, to_dtype=False)
+            return Fp8Weight(
+                weight=w,
+                weight_scale=scale,
+                activation_scale_ub=self.activation_scale_ub,
+                dtype=weights.dtype,
+            )
+
+        return UnquantizedWeight(w)
+
+
 @dataclass
-class Fp8Weight:
+class Fp8Weight(Weight):
     weight: torch.Tensor
     dtype: torch.dtype
     weight_scale: Optional[torch.Tensor] = None
-    input_scale: Optional[torch.Tensor] = None
+    activation_scale_ub: Optional[float] = None
 
     def get_linear(self, bias: torch.Tensor):
         if self.weight_scale is None:
             return get_fp8_linear().from_unquant(self.weight, bias, self.dtype)
         return get_fp8_linear().from_fp8(
-            self.weight, self.weight_scale, self.input_scale, bias, self.dtype
+            self.weight, self.weight_scale, self.activation_scale_ub, bias, self.dtype
         )
 
 
@@ -82,7 +157,13 @@ class Fp8Linear(torch.nn.Module):
         self.dtype = dtype
         self.qweight = qweight
         self.scale = scale
-        self.scale_upper_bound = scale_upper_bound
+        self.scale_upper_bound = (
+            torch.tensor(
+                [scale_upper_bound], dtype=torch.float32, device=qweight.device
+            )
+            if scale_upper_bound is not None
+            else None
+        )
 
         self.bias = bias if bias is not None else None
 
@@ -104,7 +185,9 @@ class Fp8Linear(torch.nn.Module):
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if HAS_FBGEMM_MM:
+        if FBGEMM_MM_AVAILABLE:
+            log_once(logger.info, "Using FBGEMM fp8 kernels")
+
             qinput, scale = fp8_quantize(
                 input, scale_upper_bound=self.scale_upper_bound
             )
