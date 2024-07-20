@@ -172,6 +172,6 @@ def get_loader(
         if isinstance(quantizer_config, _FP8QuantizerConfig):
             activation_scale_ub = quantizer_config.activation_scale_ub
 
-        return HybridFP8UnquantLoader(activation_scale_ub)
+        return HybridFP8UnquantLoader(activation_scale_ub, to_fp8=quantize == "fp8")
     else:
         raise ValueError(f"Unknown quantization method: {quantize}")

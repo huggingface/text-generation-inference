@@ -67,8 +67,9 @@ def fp8_quantize(weight, scale_upper_bound=None, qdtype=torch.float8_e4m3fn):
 class HybridFP8UnquantLoader(WeightsLoader):
     """Weight loader that loads FP8 and unquantized Torch tensors."""
 
-    def __init__(self, activation_scale_ub: Optional[float]):
+    def __init__(self, activation_scale_ub: Optional[float], to_fp8: bool):
         self.activation_scale_ub = activation_scale_ub
+        self.to_fp8 = to_fp8
 
     def get_weights_col_packed(
         self,
@@ -91,6 +92,8 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 activation_scale_ub=self.activation_scale_ub,
                 dtype=weights.dtype,
             )
+        if self.to_fp8:
+            return Fp8Weight(weight=w, dtype=weights.dtype)
 
         return UnquantizedWeight(w)
 
@@ -111,6 +114,8 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 activation_scale_ub=self.activation_scale_ub,
                 dtype=weights.dtype,
             )
+        if self.to_fp8:
+            return Fp8Weight(weight=w, dtype=weights.dtype)
 
         return UnquantizedWeight(w)
 
@@ -125,6 +130,8 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 activation_scale_ub=self.activation_scale_ub,
                 dtype=weights.dtype,
             )
+        if self.to_fp8:
+            return Fp8Weight(weight=w, dtype=weights.dtype)
 
         return UnquantizedWeight(w)
 
@@ -186,8 +193,6 @@ class Fp8Linear(torch.nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if FBGEMM_MM_AVAILABLE:
-            log_once(logger.info, "Using FBGEMM fp8 kernels")
-
             qinput, scale = fp8_quantize(
                 input, scale_upper_bound=self.scale_upper_bound
             )

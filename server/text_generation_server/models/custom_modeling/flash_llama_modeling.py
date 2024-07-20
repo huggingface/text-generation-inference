@@ -33,7 +33,6 @@ from text_generation_server.layers.attention import (
     attention,
     reshape_and_cache,
 )
-from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -42,16 +41,15 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
-from text_generation_server.layers.fp8 import Fp8Weight
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
 from text_generation_server.utils.weights import (
-    DefaultWeightsLoader,
     UnquantizedWeight,
     Weights,
 )
+from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
 
 if SYSTEM == "rocm":
     try:
@@ -113,12 +111,12 @@ def load_attention(config, prefix: str, weights, layer_id):
 
 @contextmanager
 def no_fp8(weights: Weights):
+    """De-activate fp8 auto conversion for the duration of this context manager"""
     weights_loader = weights.weights_loader
-    if (
-        isinstance(weights_loader, DefaultWeightsLoader)
-        and weights_loader.weight_class is Fp8Weight
-    ):
-        weights_loader = DefaultWeightsLoader(UnquantizedWeight)
+    if isinstance(weights_loader, HybridFP8UnquantLoader) and weights_loader.to_fp8:
+        weights_loader = HybridFP8UnquantLoader(
+            weights_loader.activation_scale_ub, to_fp8=False
+        )
 
     with weights.use_loader(weights_loader):
         yield
