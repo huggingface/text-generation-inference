@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 128000,
+        "logprob": null,
+        "text": "<|begin_of_text|>"
+      },
+      {
+        "id": 2323,
+        "logprob": -9.421875,
+        "text": "Test"
+      },
+      {
+        "id": 1715,
+        "logprob": -10.546875,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 25,
+        "logprob": -0.8535156,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 2209,
+        "logprob": -2.4804688,
+        "special": false,
+        "text": " Is"
+      },
+      {
+        "id": 279,
+        "logprob": -0.7167969,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 734,
+        "logprob": -2.625,
+        "special": false,
+        "text": " function"
+      },
+      {
+        "id": 330,
+        "logprob": -0.35131836,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 4110,
+        "logprob": -2.4101562,
+        "special": false,
+        "text": "Create"
+      },
+      {
+        "id": 264,
+        "logprob": -0.23181152,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 502,
+        "logprob": -0.25512695,
+        "special": false,
+        "text": " new"
+      },
+      {
+        "id": 1052,
+        "logprob": -1.2792969,
+        "special": false,
+        "text": " file"
+      },
+      {
+        "id": 1,
+        "logprob": -1.2529297,
+        "special": false,
+        "text": "\""
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request: Is the function \"Create a new file\""
+}
