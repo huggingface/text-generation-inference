@@ -306,20 +306,45 @@ def get_model(
     max_input_tokens: int,
 ) -> Model:
     global FLASH_ATTENTION
+
+    config_dict, _ = PretrainedConfig.get_config_dict(
+        model_id, revision=revision, trust_remote_code=trust_remote_code
+    )
+    model_type = config_dict.get("model_type", None)
+
+    quantization_config = config_dict.get("quantization_config", None)
+    if quantization_config is not None and quantize is None:
+        method = quantization_config.get("quant_method", None)
+        if method in {"gptq", "awq", "exl2"}:
+            log_master(logger.info, f"Auto selecting quantization method {method}")
+            quantize = method
+        elif method == "fbgemm_fp8":
+            log_master(logger.info, "Auto selecting quantization method fp8")
+            quantize = "fp8"
+        else:
+            log_master(logger.warning, f"Unknown quantization method {method}")
+
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
             # These quantizers only work with float16 params.
             dtype = torch.float16
         elif quantize == "fp8":
-            from text_generation_server.layers.fp8 import FBGEMM_MM_AVAILABLE
+            from text_generation_server.layers.fp8 import FBGEMM_DYN_AVAILABLE
 
-            if FBGEMM_MM_AVAILABLE:
+            if FBGEMM_DYN_AVAILABLE:
                 # fbgemm kernels are fp8xfp8->bf16
                 dtype = torch.bfloat16
         else:
-            # Keep it as default for now and let
-            # every model resolve their own default dtype.
-            dtype = None
+            config_dtype = config_dict.get("torch_dtype", None)
+            # Only use the config dtype if its one of TGI's supported dtype
+            if config_dtype == "float16":
+                dtype = torch.float16
+            elif config_dtype == "bfloat16":
+                dtype = torch.bfloat16
+            else:
+                # Keep it as default for now and let
+                # every model resolve their own default dtype.
+                dtype = None
     elif dtype == "float16":
         dtype = torch.float16
     elif dtype == "bfloat16":
@@ -331,11 +356,6 @@ def get_model(
         set_speculate(speculate)
     else:
         set_speculate(0)
-
-    config_dict, _ = PretrainedConfig.get_config_dict(
-        model_id, revision=revision, trust_remote_code=trust_remote_code
-    )
-    model_type = config_dict.get("model_type", None)
 
     speculator = None
     if "medusa_num_heads" in config_dict:
@@ -451,14 +471,6 @@ def get_model(
             raise RuntimeError(
                 f"Could not determine model type for {model_id} revision {revision}"
             )
-    quantization_config = config_dict.get("quantization_config", None)
-    if quantization_config is not None and quantize is None:
-        method = quantization_config.get("quant_method", None)
-        if method in {"gptq", "awq", "exl2"}:
-            log_master(logger.info, f"Auto selecting quantization method {method}")
-            quantize = method
-        else:
-            log_master(logger.warning, f"Unknown quantization method {method}")
 
     if quantize == "exl2" and sharded:
         raise RuntimeError(

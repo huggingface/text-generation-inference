@@ -115,8 +115,12 @@ class HybridFP8UnquantLoader(WeightsLoader):
         return UnquantizedWeight(w)
 
     def get_multi_weights_col(self, weights: "Weights", prefixes: List[str], dim: int):
-        w = [weights.get_sharded(f"{p}.weight", dim=0) for p in prefixes]
-        w = torch.cat(w, dim=dim)
+        # FIXME: Force to_device to false as fp8 weights do not support torch.cat on device yet
+        w = [
+            weights.get_sharded(f"{p}.weight", dim=0, to_device=False) for p in prefixes
+        ]
+        # Concat then send to the device
+        w = torch.cat(w, dim=dim).to(weights.device)
 
         # FP8 branch
         if w.dtype == torch.float8_e4m3fn:
