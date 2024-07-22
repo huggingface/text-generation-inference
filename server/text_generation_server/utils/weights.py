@@ -230,7 +230,9 @@ class Weights:
             tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_partial_sharded(self, tensor_name: str, dim: int, to_dtype=True):
+    def get_partial_sharded(
+        self, tensor_name: str, dim: int, to_device=True, to_dtype=True
+    ):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
@@ -256,10 +258,11 @@ class Weights:
             and to_dtype
         ):
             tensor = tensor.to(dtype=self.dtype)
-        tensor = tensor.to(device=self.device)
+        if to_device:
+            tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_sharded(self, tensor_name: str, dim: int, to_dtype=True):
+    def get_sharded(self, tensor_name: str, dim: int, to_device=True, to_dtype=True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
@@ -268,7 +271,9 @@ class Weights:
         assert (
             size % world_size == 0
         ), f"The choosen size {size} is not compatible with sharding on {world_size} shards"
-        return self.get_partial_sharded(tensor_name, dim, to_dtype=to_dtype)
+        return self.get_partial_sharded(
+            tensor_name, dim, to_device=to_device, to_dtype=to_dtype
+        )
 
     def get_packed_sharded(
         self,
