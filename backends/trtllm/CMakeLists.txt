@@ -46,7 +46,10 @@ if (${TGI_TRTLLM_BACKEND_BUILD_EXAMPLES})
 endif ()
 
 # This install all the artifacts in CMAKE_INSTALL_PREFIX under include/ lib/ bin/ to make easy to link / find it back
+message(STATUS "nvrtc ${TRTLLM_NVRTC_LIBRARY_NAME}")
+message(STATUS "Installation nvrtc ${TRTLLM_NVRTC_WRAPPER_PATH}")
 install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm executorWorker)
+install(FILES ${TRTLLM_NVRTC_WRAPPER_PATH} TYPE LIB)
 
 #### Unit Tests ####
 if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
