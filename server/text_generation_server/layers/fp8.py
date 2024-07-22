@@ -203,7 +203,7 @@ class Fp8Linear(torch.nn.Module):
 
     @classmethod
     def from_unquant(cls, weight, bias, dtype):
-        qweight, scale = fp8_quantize(weight)
+        qweight, scale = fp8_quantize(weight, scalar=not FBGEMM_MM_AVAILABLE)
         return cls(
             qweight=qweight, scale=scale, scale_upper_bound=None, bias=bias, dtype=dtype
         )
