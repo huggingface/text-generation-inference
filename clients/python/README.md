@@ -1,3 +1,6 @@
+# Legacy warning ⚠️
+The inference clients from [huggingface_hub](https://huggingface.co/docs/huggingface_hub/guides/inference) are recommended over `text_generation`.
+
 # Text Generation
 
 The Hugging Face Text Generation Python library provides a convenient way of interfacing with a
