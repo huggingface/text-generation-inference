@@ -25,6 +25,7 @@ mod env_runtime;
 struct RawConfig {
     max_position_embeddings: Option<usize>,
     n_positions: Option<usize>,
+    model_type: Option<String>,
     max_seq_len: Option<usize>,
 }
 
@@ -1418,6 +1419,11 @@ fn main() -> Result<(), LauncherError> {
 
         let content = std::fs::read_to_string(filename)?;
         let config: RawConfig = serde_json::from_str(&content)?;
+
+        if config.model_type == Some("gemma2".to_string()) {
+            tracing::info!("Forcing flash decoding because of softcap usage");
+            std::env::set_var("FLASH_DECODING", "1");
+        }
         let config: Config = config.into();
 
         // Quantization usually means you're even more RAM constrained.

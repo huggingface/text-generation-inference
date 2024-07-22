@@ -925,7 +925,11 @@ class FlashCausalLM(Model):
         assert self.num_kv_heads > 0
 
         if head_size is None:
-            self.head_size = config.hidden_size // config.num_attention_heads
+            if getattr(config, "head_dim", None):
+                # hidden_size / num_attention_heads is wrong in `google/gemma-2-9b-it`
+                self.head_size = config.head_dim
+            else:
+                self.head_size = config.hidden_size // config.num_attention_heads
         else:
             self.head_size = head_size
 
