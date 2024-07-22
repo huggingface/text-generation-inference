@@ -44,7 +44,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
 
 # Build actual TGI
-ENV PKG_CONFIG_PATH="/usr/local/mpi/lib:$PKG_CONFIG_PATH"
+ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
 ENV CMAKE_INSTALL_PREFIX="/usr/local/tgi"
 COPY . .
 RUN mkdir /usr/local/tgi && mkdir /usr/local/tgi/include && mkdir /usr/local/tgi/lib && \
