@@ -2,6 +2,7 @@ import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING, BLOCK_SIZE
 from text_generation_server.layers.attention import Seqlen
+from typing import Optional
 
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
@@ -43,6 +44,7 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
+    softcap: Optional[float] = None,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -82,6 +84,8 @@ def paged_attention(
         # by the current path
         # https://github.com/Dao-AILab/flash-attention/blob/320fb59487658f033f56711efd3d61b7c7a6f8f3/csrc/flash_attn/flash_api.cpp#L577
         # This fails becuase we're using causal, therefore window_right is set to 0 and the split logic is never applied.
+        if softcap is None:
+            softcap = 0.0
         out2 = flash_attn_2_cuda.varlen_fwd(
             query,
             key_cache,
@@ -89,6 +93,7 @@ def paged_attention(
             None,
             seqlen.cu_seqlen_q,
             seqlen.cu_seqlen_k,
+            None,  # pad_k
             None,
             block_tables,
             None,
@@ -100,11 +105,14 @@ def paged_attention(
             True,  # causal
             -1,  # Window_left
             -1,  # Window right
+            softcap,
             False,  # return softmax
             None,  # generator
         )
         return out2[0]
     else:
+        if softcap is not None:
+            raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths
         from vllm._C import ops
 
@@ -205,6 +213,7 @@ if V2:
         softmax_scale,
         window_size_left=-1,
         causal=True,
+        softcap=0.0,
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
@@ -218,6 +227,7 @@ if V2:
             None,
             None,
             None,
+            None,
             max_s,
             max_s,
             0.0,
@@ -226,6 +236,7 @@ if V2:
             causal,
             window_size_left,
             0,
+            softcap,
             False,
             None,
         )
@@ -241,11 +252,14 @@ else:
         max_s,
         softmax_scale,
         window_size_left=-1,
+        softcap=None,
     ):
         if window_size_left != -1:
             raise NotImplementedError(
                 "window_size_left is only available with flash attn v2"
             )
+        if softcap is not None:
+            raise NotImplementedError("softcap is only available with flash attn v2")
 
         # Flash attention v1 requires q, k and v to have the same number of heads
         if k.shape[1] != q.shape[1]:
