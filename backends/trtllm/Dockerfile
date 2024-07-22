@@ -53,7 +53,7 @@ RUN mkdir /usr/local/tgi && mkdir /usr/local/tgi/include && mkdir /usr/local/tgi
 FROM nvcr.io/nvidia/pytorch:24.05-py3
 WORKDIR /usr/local/tgi/bin
 
-ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:$LD_LIBRARY_PATH"
+ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ln -s /usr/local/cuda/lib64/stubs/libnvidia-ml.so /usr/local/cuda/lib64/stubs/libnvidia-ml.so.1
@@ -61,3 +61,6 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
 COPY --from=cuda-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=cuda-builder /usr/local/tgi /usr/local/tgi
 COPY --from=cuda-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
+
+ENTRYPOINT ["text-generation-launcher"]
+CMD ["--executor-worker", "/usr/local/tgi/bin/executorWorker"]
