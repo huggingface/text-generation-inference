@@ -504,7 +504,7 @@ class GPTQMarlinFP8Linear(nn.Module):
     def __init__(
         self,
         qweight: torch.Tensor,
-        scale: torch.Tensor,
+        scales: torch.Tensor,
         bias: Optional[torch.Tensor],
     ) -> None:
         super().__init__()
@@ -514,8 +514,11 @@ class GPTQMarlinFP8Linear(nn.Module):
 
         log_once(logger.info, "GPU does not support FP8, using Marlin FP8 kernel")
 
-        scale = scale.to(torch.float16)
-        qweight, scales = repack_fp8_for_marlin(qweight, scale)
+        scales = scales.unsqueeze(0)
+        if scales.shape[1] == 1:
+            out_features, in_features = qweight.shape
+            scales = scales.repeat(1, out_features)
+        qweight, scales = repack_fp8_for_marlin(qweight, scales)
 
         in_features = qweight.shape[0] * MARLIN_TILE_SIZE
         out_features = scales.shape[1]
@@ -530,13 +533,13 @@ class GPTQMarlinFP8Linear(nn.Module):
         )
 
     @classmethod
-    def from_unquant(cls, weight, bias, _dtype):
-        qweight, scale = fp8_quantize(weight)
-        return cls(qweight=qweight, scale=scale, bias=bias)
+    def from_unquant(cls, weight, bias, dtype):
+        qweight, scales = fp8_quantize(weight)
+        return cls(qweight=qweight, scales=scales.to(dtype), bias=bias)
 
     @classmethod
-    def from_fp8(cls, weight, scale, _input_scale, bias, _dtype):
-        return cls(qweight=weight, scale=scale, bias=bias)
+    def from_fp8(cls, weight, scale, _input_scale, bias, dtype):
+        return cls(qweight=weight, scales=scale.to(dtype), bias=bias)
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
         assert marlin_kernels is not None
@@ -591,7 +594,7 @@ def pack_fp8_as_int32(fp8_tensor: torch.Tensor) -> torch.Tensor:
     return packed
 
 
-def repack_fp8_for_marlin(weight: torch.Tensor, scale: torch.Tensor):
+def repack_fp8_for_marlin(weight: torch.Tensor, scales: torch.Tensor):
     """
     Repack FP8 tensor for GPTQ-Marlin.
     """
@@ -608,7 +611,6 @@ def repack_fp8_for_marlin(weight: torch.Tensor, scale: torch.Tensor):
         qweight, perm, in_features, out_features, 8
     )
 
-    scales = scale.reshape(1, 1).repeat(1, out_features)
     scales = permute_scales(scales)
 
     return repacked, scales
@@ -621,7 +623,7 @@ class MarlinWeight(Weight):
 
     Attributes:
         B (torch.Tensor): int4-quantized weights packed into int32.
-        s (torch.Tensor): float16 scales.
+        s (torch.Tensor): bfloat16/float16 scales.
     """
 
     B: torch.Tensor
@@ -629,7 +631,7 @@ class MarlinWeight(Weight):
 
     def __post_init__(self):
         assert self.B.dtype == torch.int32
-        assert self.s.dtype == torch.float16
+        assert self.s.dtype in [torch.float16, torch.bfloat16]
 
     def get_linear(self, bias: torch.Tensor):
         return MarlinLinear(weight=self, bias=bias)
