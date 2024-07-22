@@ -24,9 +24,9 @@ fn main() {
     // Misc variables
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let build_profile = env::var("PROFILE").unwrap();
-    let is_debug = match build_profile.as_ref() {
-        "debug" => true,
-        _ => false,
+    let (is_debug, opt_level) = match build_profile.as_ref() {
+        "debug" => (true, "0"),
+        _ => (false, "3"),
     };
 
     // Build the backend implementation through CMake
@@ -37,7 +37,7 @@ fn main() {
             true => "Debug",
             false => "Release",
         })
-        .env("OPT_LEVEL", "3")
+        .env("OPT_LEVEL", opt_level)
         .out_dir(INSTALL_PREFIX.unwrap_or("/usr/local/tgi"))
         .define("CMAKE_CUDA_COMPILER", "/usr/local/cuda/bin/nvcc")
         .define(
@@ -93,7 +93,7 @@ fn main() {
 
     // TensorRT
     println!(r"cargo:rustc-link-search=native=/usr/local/tensorrt/lib");
-    println!(r"cargo:rustc-link-search=native={}", backend_path.display());
+    println!("cargo:rustc-link-lib=dylib=nvinfer");
 
     // TensorRT-LLM
     println!(
