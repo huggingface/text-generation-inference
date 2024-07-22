@@ -1727,6 +1727,8 @@ pub async fn run(
         .install_recorder()
         .expect("failed to install metrics recorder");
 
+    metrics::counter!("max_token_capacity").increment(u64::from(max_batch_total_tokens));
+    
     // CORS layer
     let allow_origin = allow_origin.unwrap_or(AllowOrigin::any());
     let cors_layer = CorsLayer::new()
