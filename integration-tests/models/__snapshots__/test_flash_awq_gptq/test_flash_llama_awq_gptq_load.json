@@ -1,0 +1,338 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2323,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 1715,
+          "logprob": -12.328125,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 311,
+          "logprob": -2.5585938,
+          "special": false,
+          "text": " to"
+        },
+        {
+          "id": 279,
+          "logprob": -2.0253906,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 3622,
+          "logprob": -1.3125,
+          "special": false,
+          "text": " server"
+        },
+        {
+          "id": 627,
+          "logprob": -2.171875,
+          "special": false,
+          "text": ".\n"
+        },
+        {
+          "id": 262,
+          "logprob": -1.6396484,
+          "special": false,
+          "text": "   "
+        },
+        {
+          "id": 3270,
+          "logprob": -1.1884766,
+          "special": false,
+          "text": " \"\"\"\n"
+        },
+        {
+          "id": 262,
+          "logprob": -0.0073013306,
+          "special": false,
+          "text": "   "
+        },
+        {
+          "id": 711,
+          "logprob": -1.7568359,
+          "special": false,
+          "text": " def"
+        },
+        {
+          "id": 1328,
+          "logprob": -1.0595703,
+          "special": false,
+          "text": " __"
+        },
+        {
+          "id": 2381,
+          "logprob": -0.018676758,
+          "special": false,
+          "text": "init"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " to the server.\n    \"\"\"\n    def __init"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2323,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 1715,
+          "logprob": -12.3046875,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 311,
+          "logprob": -2.5527344,
+          "special": false,
+          "text": " to"
+        },
+        {
+          "id": 279,
+          "logprob": -2.0253906,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 3622,
+          "logprob": -1.3027344,
+          "special": false,
+          "text": " server"
+        },
+        {
+          "id": 627,
+          "logprob": -2.1757812,
+          "special": false,
+          "text": ".\n"
+        },
+        {
+          "id": 262,
+          "logprob": -1.6445312,
+          "special": false,
+          "text": "   "
+        },
+        {
+          "id": 3270,
+          "logprob": -1.1875,
+          "special": false,
+          "text": " \"\"\"\n"
+        },
+        {
+          "id": 262,
+          "logprob": -0.00730896,
+          "special": false,
+          "text": "   "
+        },
+        {
+          "id": 711,
+          "logprob": -1.7587891,
+          "special": false,
+          "text": " def"
+        },
+        {
+          "id": 1328,
+          "logprob": -1.0605469,
+          "special": false,
+          "text": " __"
+        },
+        {
+          "id": 2381,
+          "logprob": -0.01890564,
+          "special": false,
+          "text": "init"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " to the server.\n    \"\"\"\n    def __init"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2323,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 1715,
+          "logprob": -12.3125,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 311,
+          "logprob": -2.5585938,
+          "special": false,
+          "text": " to"
+        },
+        {
+          "id": 279,
+          "logprob": -2.0292969,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 3622,
+          "logprob": -1.3095703,
+          "special": false,
+          "text": " server"
+        },
+        {
+          "id": 627,
+          "logprob": -2.1816406,
+          "special": false,
+          "text": ".\n"
+        },
+        {
+          "id": 262,
+          "logprob": -1.6396484,
+          "special": false,
+          "text": "   "
+        },
+        {
+          "id": 3270,
+          "logprob": -1.1875,
+          "special": false,
+          "text": " \"\"\"\n"
+        },
+        {
+          "id": 262,
+          "logprob": -0.007194519,
+          "special": false,
+          "text": "   "
+        },
+        {
+          "id": 711,
+          "logprob": -1.765625,
+          "special": false,
+          "text": " def"
+        },
+        {
+          "id": 1328,
+          "logprob": -1.0537109,
+          "special": false,
+          "text": " __"
+        },
+        {
+          "id": 2381,
+          "logprob": -0.018432617,
+          "special": false,
+          "text": "init"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " to the server.\n    \"\"\"\n    def __init"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 2323,
+          "logprob": null,
+          "text": "Test"
+        },
+        {
+          "id": 1715,
+          "logprob": -12.296875,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 311,
+          "logprob": -2.5585938,
+          "special": false,
+          "text": " to"
+        },
+        {
+          "id": 279,
+          "logprob": -2.0136719,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 3622,
+          "logprob": -1.3164062,
+          "special": false,
+          "text": " server"
+        },
+        {
+          "id": 627,
+          "logprob": -2.1601562,
+          "special": false,
+          "text": ".\n"
+        },
+        {
+          "id": 262,
+          "logprob": -1.6455078,
+          "special": false,
+          "text": "   "
+        },
+        {
+          "id": 3270,
+          "logprob": -1.1865234,
+          "special": false,
+          "text": " \"\"\"\n"
+        },
+        {
+          "id": 262,
+          "logprob": -0.0071907043,
+          "special": false,
+          "text": "   "
+        },
+        {
+          "id": 711,
+          "logprob": -1.7568359,
+          "special": false,
+          "text": " def"
+        },
+        {
+          "id": 1328,
+          "logprob": -1.0605469,
+          "special": false,
+          "text": " __"
+        },
+        {
+          "id": 2381,
+          "logprob": -0.018585205,
+          "special": false,
+          "text": "init"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " to the server.\n    \"\"\"\n    def __init"
+  }
+]
