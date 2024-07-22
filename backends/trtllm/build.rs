@@ -1,5 +1,5 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{absolute, PathBuf};
 
 use cxx_build::CFG;
 use pkg_config;
@@ -14,23 +14,24 @@ const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
 macro_rules! probe {
     ($name: literal, $version: expr) => {
         if let Err(_) = pkg_config::probe_library($name) {
-            pkg_config::probe_library(&format!("cuda-{}", $version))
+            pkg_config::probe_library(&format!("{}-{}", $name, $version))
                 .expect(&format!("Failed to locate {}", $name));
         }
     };
 }
 
-fn main() {
-    // Misc variables
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let build_profile = env::var("PROFILE").unwrap();
-    let (is_debug, opt_level) = match build_profile.as_ref() {
-        "debug" => (true, "0"),
-        _ => (false, "3"),
-    };
-
+fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf, PathBuf) {
     // Build the backend implementation through CMake
-    let backend_path = cmake::Config::new(".")
+    let install_path = INSTALL_PREFIX.unwrap_or("/usr/local/tgi");
+    let tensorrt_path = TENSORRT_ROOT_DIR.unwrap_or("/usr/local/tensorrt");
+    let cuda_arch_list = CUDA_ARCH_LIST.unwrap_or("90-real"); // Hopper by default
+
+    let mut install_path = PathBuf::from(install_path);
+    if !install_path.is_absolute() {
+        install_path = absolute(out_dir).expect("cannot happen").join(install_path);
+    }
+
+    let _ = cmake::Config::new(".")
         .uses_cxx11()
         .generator("Ninja")
         .profile(match is_debug {
@@ -38,31 +39,37 @@ fn main() {
             false => "Release",
         })
         .env("OPT_LEVEL", opt_level)
-        .out_dir(INSTALL_PREFIX.unwrap_or("/usr/local/tgi"))
+        .define("CMAKE_INSTALL_PREFIX", &install_path)
         .define("CMAKE_CUDA_COMPILER", "/usr/local/cuda/bin/nvcc")
-        .define(
-            "TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST",
-            CUDA_ARCH_LIST.unwrap_or("90-real"), // Hopper by default
-        )
-        .define(
-            "TGI_TRTLLM_BACKEND_TRT_ROOT",
-            TENSORRT_ROOT_DIR.unwrap_or("/usr/local/tensorrt"),
-        )
+        .define("TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST", cuda_arch_list)
+        .define("TGI_TRTLLM_BACKEND_TRT_ROOT", tensorrt_path)
         .build();
 
     // Additional transitive CMake dependencies
     let deps_folder = out_dir.join("build").join("_deps");
     for dependency in ADDITIONAL_BACKEND_LINK_LIBRARIES {
-        let dep_name = match build_profile.as_ref() {
-            "debug" => format!("{}d", dependency),
-            _ => String::from(dependency),
+        let dep_name = match is_debug {
+            true => format!("{}d", dependency),
+            false => String::from(dependency),
         };
         let dep_path = deps_folder.join(format!("{}-build", dependency));
         println!("cargo:rustc-link-search={}", dep_path.display());
         println!("cargo:rustc-link-lib=static={}", dep_name);
     }
 
-    // Build the FFI layer calling the backend above
+    // Emit linkage information from the artifacts we just built
+    let install_lib_path = install_path.join("lib");
+
+    println!(
+        r"cargo:warning=Adding link search path: {}",
+        install_lib_path.display()
+    );
+    println!(r"cargo:rustc-link-search={}", install_lib_path.display());
+
+    (PathBuf::from(install_path), deps_folder)
+}
+
+fn build_ffi_layer(deps_folder: &PathBuf) {
     CFG.include_prefix = "backends/trtllm";
     cxx_build::bridge("src/lib.rs")
         .static_flag(true)
@@ -81,6 +88,22 @@ fn main() {
     println!("cargo:rerun-if-changed=lib/backend.cpp");
     println!("cargo:rerun-if-changed=include/ffi.h");
     println!("cargo:rerun-if-changed=src/ffi.cpp");
+}
+
+fn main() {
+    // Misc variables
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let build_profile = env::var("PROFILE").unwrap();
+    let (is_debug, opt_level) = match build_profile.as_ref() {
+        "debug" => (true, "0"),
+        _ => (false, "3"),
+    };
+
+    // Build the backend
+    let (_backend_path, deps_folder) = build_backend(is_debug, opt_level, &out_dir);
+
+    // Build the FFI layer calling the backend above
+    build_ffi_layer(&deps_folder);
 
     // Emit linkage search path
     probe!("ompi", MPI_REQUIRED_VERSION);
@@ -92,14 +115,13 @@ fn main() {
     probe!("nvidia-ml", CUDA_REQUIRED_VERSION);
 
     // TensorRT
-    println!(r"cargo:rustc-link-search=native=/usr/local/tensorrt/lib");
+    println!(
+        r"cargo:rustc-link-search=native={}",
+        TENSORRT_ROOT_DIR.unwrap_or("/usr/local/tensorrt/lib")
+    );
     println!("cargo:rustc-link-lib=dylib=nvinfer");
 
     // TensorRT-LLM
-    println!(
-        r"cargo:rustc-link-search=native={}",
-        backend_path.join("lib").display()
-    );
     println!("cargo:rustc-link-lib=dylib=tensorrt_llm");
     println!("cargo:rustc-link-lib=static=tensorrt_llm_executor_static");
     println!("cargo:rustc-link-lib=dylib=nvinfer_plugin_tensorrt_llm");

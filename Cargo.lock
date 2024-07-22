@@ -3499,6 +3499,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "log",
+ "pkg-config",
  "text-generation-router",
  "thiserror",
  "tokenizers",

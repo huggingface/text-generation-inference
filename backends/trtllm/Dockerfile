@@ -1,4 +1,6 @@
 ARG CUDA_ARCH_LIST="75-real;80-real;86-real;89-real;90-real"
+ARG INSTALL_PREFIX="/usr/local/tgi
+ARG TENSORRT_ROOT_DIR="/usr/local/tensorrt
 
 # Build dependencies resolver stage
 FROM lukemathwalker/cargo-chef:latest as chef
@@ -29,21 +31,28 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y &&
     chmod -R a+w $HOME/.rustup && \
     chmod -R a+w $HOME/.cargo
 
-ENV PATH="$HOME/.cargo/bin:$PATH"
-RUN $HOME/.cargo/bin/cargo install cargo-chef
+ENV PATH="/root/.cargo/bin:$PATH"
+RUN cargo install cargo-chef
 
 # Backend build step
 WORKDIR /usr/src/text-generation-inference
 
 # Cache dependencies
 COPY --from=planner /usr/src/text-generation-inference/recipe.json .
-RUN $HOME/.cargo/bin/cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
 
 # Build actual TGI
+ENV PKG_CONFIG_PATH="/usr/local/mpi/lib:$PKG_CONFIG_PATH"
+ENV CMAKE_INSTALL_PREFIX="/usr/local/tgi"
 COPY . .
-RUN $HOME/.cargo/bin/cargo build --release --bin text-generation-backends-trtllm
+RUN mkdir /usr/local/tgi && mkdir /usr/local/tgi/include && mkdir /usr/local/tgi/lib && \
+    cargo build --release --bin text-generation-backends-trtllm
 
 FROM nvcr.io/nvidia/pytorch:24.05-py3
 WORKDIR /opt
+
 COPY --from=cuda-builder /usr/local/tensorrt /usr/local/tensorrt
-COPY --from=cuda-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /opt/text-generation-launcher
+COPY --from=cuda-builder /usr/local/tgi /usr/local/tgi
+COPY --from=cuda-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
