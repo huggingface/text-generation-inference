@@ -2,4 +2,5 @@ aml
 target
 server/transformers
 server/flash-attention
-cmake-build*
+cmake-build-debug/
+cmake-build-release/

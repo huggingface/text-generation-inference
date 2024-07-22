@@ -13,15 +13,20 @@ set(TGI_TRTLLM_BACKEND_TRT_ROOT "/usr/local/tensorrt" CACHE STRING "Path where T
 set(TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/include" CACHE STRING "Path where TensorRT headers are located")
 set(TGI_TRTLLM_BACKEND_TRT_LIB_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/lib" CACHE STRING "Path where TensorRT libraries are located")
 
+# We are using nvidia-ml to query at runtime device information to enable some architecture-specific features
+find_package(CUDAToolkit REQUIRED COMPONENTS CUDA::nvml)
+
 #### External dependencies ####
 include(cmake/fmt.cmake)
 include(cmake/json.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/trtllm.cmake)
 
+# Let's build TRTLLM as part of CMake
 add_subdirectory("${trtllm_SOURCE_DIR}/cpp" "${trtllm_SOURCE_DIR}/..")
 
-find_package(CUDAToolkit REQUIRED COMPONENTS CUDA::nvml)
+# Tell CMake to need try to override the RPATH for executorWorker as it has not information on how to do so
+set_target_properties(executorWorker PROPERTIES SKIP_BUILD_RPATH TRUE)
 
 # TGI TRTLLM Backend definition
 add_library(tgi_trtllm_backend_impl STATIC include/backend.h lib/backend.cpp)
@@ -31,7 +36,7 @@ target_include_directories(tgi_trtllm_backend_impl PRIVATE
         $<INSTALL_INTERFACE:include>
 )
 target_include_directories(tgi_trtllm_backend_impl PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
-target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm CUDA::nvml)
+target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper CUDA::nvml)
 target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
 
 if (${TGI_TRTLLM_BACKEND_BUILD_EXAMPLES})
@@ -40,9 +45,8 @@ if (${TGI_TRTLLM_BACKEND_BUILD_EXAMPLES})
     target_link_libraries(tgi_trtllm_backend_example PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
 endif ()
 
-# TODO: need to find why we can't install fmt (include not found...)
-#install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm spdlog fmt)
-install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm)
+# This install all the artifacts in CMAKE_INSTALL_PREFIX under include/ lib/ bin/ to make easy to link / find it back
+install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm executorWorker)
 
 #### Unit Tests ####
 if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})

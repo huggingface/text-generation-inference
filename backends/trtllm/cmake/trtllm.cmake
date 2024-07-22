@@ -26,6 +26,7 @@ fetchcontent_declare(
         GIT_SHALLOW FALSE
 )
 fetchcontent_makeavailable(trtllm)
+
 message(STATUS "Found TensorRT-LLM: ${trtllm_SOURCE_DIR}")
 execute_process(COMMAND git lfs install WORKING_DIRECTORY "${trtllm_SOURCE_DIR}/")
 execute_process(COMMAND git lfs pull WORKING_DIRECTORY "${trtllm_SOURCE_DIR}/")
