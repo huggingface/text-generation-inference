@@ -1,24 +1,23 @@
-from dataclasses import dataclass
-from loguru import logger
 import os
+from dataclasses import dataclass
 from typing import List, Optional, Union
-from safetensors import SafetensorError
-from text_generation_server.utils.weights import Weights, WeightsLoader
+
 import torch
-from text_generation_server.utils.import_utils import (
-    SYSTEM,
-)
+from loguru import logger
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
+from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 
 @dataclass
-class GPTQWeight:
+class GPTQWeight(Weight):
     qweight: torch.Tensor
     qzeros: torch.Tensor
     scales: torch.Tensor
     g_idx: Optional[torch.Tensor]
     bits: int
     groupsize: int
+    use_awq_kernel: bool
     use_exllama: bool
 
     def __post_init__(self):
@@ -28,6 +27,50 @@ class GPTQWeight:
     @property
     def device(self) -> torch.device:
         return self.qweight.device
+
+    def get_linear(self, bias: torch.Tensor):
+        if self.use_awq_kernel:
+            if SYSTEM == "rocm":
+                raise NotImplementedError(
+                    "AWQ GEMM kernel can't be used on ROCm systems, please use `--quantize gptq` instead "
+                    "to use Exllama/GPTQ kernels for AWQ inference."
+                )
+            try:
+                from text_generation_server.layers.awq.quantize.qmodule import WQLinear
+
+                return WQLinear(
+                    w_bit=self.bits,
+                    group_size=self.groupsize,
+                    qweight=self.qweight,
+                    qzeros=self.qzeros,
+                    scales=self.scales,
+                    bias=bias,
+                )
+            except ImportError:
+                raise NotImplementedError(
+                    "You do not seem to have awq installed, either install it (cd server &&  make install-awq), or try using GPTQ `---quantize gptq` a conversion AWQ->GPTQ will happen on the fly"
+                )
+        elif self.use_exllama:
+            try:
+                from text_generation_server.layers.gptq import ExllamaQuantLinear
+            except ImportError:
+                raise NotImplementedError(
+                    f"Exllama gptq kernels are not installed. Install them `cd server/exllama_kernels && python setup.py install && cd ../exllamav2_kernels && python setup.py install`"
+                )
+
+            return ExllamaQuantLinear(self, bias)
+        else:
+            from text_generation_server.layers.gptq.quant_linear import QuantLinear
+
+            return QuantLinear(
+                self.qweight,
+                self.qzeros,
+                self.scales,
+                self.g_idx,
+                bias,
+                self.bits,
+                self.groupsize,
+            )
 
 
 try:
@@ -45,6 +88,8 @@ elif CAN_EXLLAMA:
         if V2:
             from text_generation_server.layers.gptq.exllamav2 import (
                 QuantLinear as ExllamaQuantLinear,
+            )
+            from text_generation_server.layers.gptq.exllamav2 import (
                 create_exllama_buffers,
                 set_device,
             )
@@ -53,6 +98,8 @@ elif CAN_EXLLAMA:
         else:
             from text_generation_server.layers.gptq.exllama import (
                 Ex4bitLinear as ExllamaQuantLinear,
+            )
+            from text_generation_server.layers.gptq.exllama import (
                 create_exllama_buffers,
                 set_device,
             )
@@ -86,6 +133,115 @@ class GPTQWeightsLoader(WeightsLoader):
         self.quant_method = quant_method
         self.quantize = quantize
         self.sym = sym
+
+    def get_weights(self, weights: Weights, prefix: str):
+        from text_generation_server.layers.marlin import (
+            can_use_gptq_marlin,
+            repack_gptq_for_marlin,
+        )
+
+        self._get_gptq_params(weights)
+        if can_use_gptq_marlin(
+            bits=self.bits,
+            groupsize=self.groupsize,
+            quant_method=self.quant_method,
+            quantize=self.quantize,
+            sym=self.sym,
+        ):
+            log_once(logger.info, "Using GPTQ-Marlin kernels")
+            try:
+                qweight = weights.get_tensor(f"{prefix}.qweight")
+            except RuntimeError:
+                raise RuntimeError(
+                    f"Cannot load `{self.quantize}` weight for GPTQ -> Marlin repacking, make sure the model is already quantized"
+                )
+
+            g_idx = weights.get_tensor(f"{prefix}.g_idx")
+            scales = weights.get_tensor(f"{prefix}.scales")
+
+            return repack_gptq_for_marlin(
+                qweight=qweight,
+                scales=scales,
+                g_idx=g_idx,
+                bits=self.bits,
+                desc_act=self.desc_act,
+                groupsize=self.groupsize,
+                sym=self.sym,
+                sharded_infeatures=False,
+            )
+
+        use_exllama = True
+        if self.bits != 4:
+            use_exllama = False
+
+        if self.desc_act:
+            log_once(logger.warning, "Disabling exllama because desc_act=True")
+            use_exllama = False
+
+        try:
+            qweight = weights.get_tensor(f"{prefix}.qweight")
+        except RuntimeError:
+            raise RuntimeError(
+                "Cannot load `gptq` weight, make sure the model is already quantized, or quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
+            )
+
+        if self.quantize == "gptq" and self.quant_method == "gptq":
+            g_idx = weights.get_tensor(f"{prefix}.g_idx")
+        else:
+            g_idx = None
+
+        from text_generation_server.layers.gptq import (
+            HAS_EXLLAMA,
+            CAN_EXLLAMA,
+            GPTQWeight,
+        )
+
+        if use_exllama:
+            if not HAS_EXLLAMA:
+                if CAN_EXLLAMA:
+                    log_once(
+                        logger.warning,
+                        "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True",
+                    )
+                use_exllama = False
+            else:
+                log_once(logger.info, f"Using exllama kernels v{HAS_EXLLAMA}")
+
+        qzeros = weights.get_tensor(f"{prefix}.qzeros")
+        scales = weights.get_tensor(f"{prefix}.scales")
+
+        if use_exllama and g_idx is not None:
+            g_idx = g_idx - g_idx[0]
+
+        if self.quantize == "gptq" and self.quant_method == "awq":
+            log_once(
+                logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
+            )
+            from text_generation_server.layers.awq.conversion_utils import (
+                fast_awq_to_gptq,
+            )
+
+            qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
+            if use_exllama:
+                g_idx = None
+            else:
+                g_idx = (
+                    torch.arange(
+                        qweight.shape[0] * (32 // self.bits),
+                        device=qweight.device,
+                    )
+                    // self.groupsize
+                ).to(dtype=torch.int32)
+
+        return GPTQWeight(
+            qweight=qweight,
+            qzeros=qzeros,
+            scales=scales,
+            g_idx=g_idx,
+            bits=self.bits,
+            groupsize=self.groupsize,
+            use_exllama=use_exllama,
+        )
 
     def get_weights_col_packed(
         self,
@@ -162,6 +318,7 @@ class GPTQWeightsLoader(WeightsLoader):
             g_idx=g_idx,
             bits=self.bits,
             groupsize=self.groupsize,
+            use_awq_kernel=self.quantize == "awq",
             use_exllama=False,
         )
 
@@ -255,6 +412,7 @@ class GPTQWeightsLoader(WeightsLoader):
             g_idx=g_idx,
             bits=self.bits,
             groupsize=self.groupsize,
+            use_awq_kernel=self.quantize == "awq",
             use_exllama=use_exllama,
         )
 
@@ -336,8 +494,8 @@ class GPTQWeightsLoader(WeightsLoader):
                     use_exllama = False
 
         from text_generation_server.layers.gptq import (
-            HAS_EXLLAMA,
             CAN_EXLLAMA,
+            HAS_EXLLAMA,
             GPTQWeight,
         )
 
@@ -389,6 +547,7 @@ class GPTQWeightsLoader(WeightsLoader):
             g_idx=g_idx,
             bits=self.bits,
             groupsize=self.groupsize,
+            use_awq_kernel=self.quantize == "awq",
             use_exllama=use_exllama,
         )
 

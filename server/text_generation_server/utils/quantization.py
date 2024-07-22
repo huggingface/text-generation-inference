@@ -1,13 +1,17 @@
-from typing import Optional
-import os
 import json
+import os
 from dataclasses import dataclass
+from typing import Optional
 
 from huggingface_hub import hf_hub_download
+from text_generation_server.utils.weights import (
+    DefaultWeightsLoader,
+    UnquantizedWeight,
+    WeightsLoader,
+)
 
-from text_generation_server.utils.weights import DefaultWeightsLoader, WeightsLoader
 
-
+# TODO: Split this config to have a single config type per quant method
 @dataclass
 class _QuantizerConfig:
     bits: int
@@ -16,6 +20,11 @@ class _QuantizerConfig:
     groupsize: int
     quant_method: str
     sym: bool
+
+
+@dataclass
+class _FP8QuantizerConfig:
+    activation_scale_ub: float
 
 
 # We should probably do this with Pytantic JSON deserialization,
@@ -36,6 +45,13 @@ def _get_quantizer_config(model_id, revision):
             filename = hf_hub_download(model_id, filename=filename, revision=revision)
         with open(filename, "r") as f:
             data = json.load(f)
+
+        # FP8 config
+        if data["quantization_config"]["quant_method"] == "fbgemm_fp8":
+            return _FP8QuantizerConfig(
+                activation_scale_ub=data["quantization_config"]["activation_scale_ub"]
+            )
+
         bits = data["quantization_config"]["bits"]
         groupsize = data["quantization_config"]["group_size"]
         # Order is important here, desc_act is missing on some real models
@@ -96,6 +112,12 @@ def get_loader(
     if quantize in {"awq", "gptq"}:
         from text_generation_server.layers.gptq import GPTQWeightsLoader
 
+        # TODO: improve check once we have one config type per quantize value
+        if not isinstance(quantizer_config, _QuantizerConfig):
+            raise ValueError(
+                f"Quantize is set to `{quantize}` but received a `{quantizer_config.__class__.__name__}` config."
+            )
+
         return GPTQWeightsLoader(
             bits=quantizer_config.bits,
             desc_act=quantizer_config.desc_act,
@@ -104,6 +126,22 @@ def get_loader(
             quantize=quantize,
             sym=quantizer_config.sym,
         )
+    elif quantize == "bitsandbytes":
+        from text_generation_server.layers.bnb import BNBWeight
+
+        return DefaultWeightsLoader(BNBWeight)
+    elif quantize == "bitsandbytes-fp4":
+        from text_generation_server.layers.bnb import BNBFP4Weight
+
+        return DefaultWeightsLoader(BNBFP4Weight)
+    elif quantize == "bitsandbytes-nf4":
+        from text_generation_server.layers.bnb import BNBNF4Weight
+
+        return DefaultWeightsLoader(BNBNF4Weight)
+    elif quantize == "eetq":
+        from text_generation_server.layers.eetq import EETQWeight
+
+        return DefaultWeightsLoader(EETQWeight)
     elif quantize == "exl2":
         from text_generation_server.layers.exl2 import Exl2WeightsLoader
 
@@ -111,9 +149,25 @@ def get_loader(
     elif quantize == "marlin":
         from text_generation_server.layers.marlin import MarlinWeightsLoader
 
+        # TODO: improve check once we have one config type per quantize value
+        if not isinstance(quantizer_config, _QuantizerConfig):
+            raise ValueError(
+                f"Quantize is set to `{quantize}` but received a `{quantizer_config.__class__.__name__}` config."
+            )
+
         return MarlinWeightsLoader(
             bits=quantizer_config.bits,
             is_marlin_24=quantizer_config.checkpoint_format == "marlin_24",
         )
+    elif quantize == "fp8" or quantize is None:
+        from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
+
+        # Since the default for the quantize config is _QuantizerConfig,
+        # we need to add this check to not get an attribute error
+        activation_scale_ub = None
+        if isinstance(quantizer_config, _FP8QuantizerConfig):
+            activation_scale_ub = quantizer_config.activation_scale_ub
+
+        return HybridFP8UnquantLoader(activation_scale_ub, to_fp8=quantize == "fp8")
     else:
-        return DefaultWeightsLoader()
+        raise ValueError(f"Unknown quantization method: {quantize}")

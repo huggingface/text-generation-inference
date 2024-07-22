@@ -7,7 +7,7 @@ from loguru import logger
 from text_generation_server.layers.fp8 import fp8_quantize
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
-from text_generation_server.utils.weights import Weights, WeightsLoader
+from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 try:
     import marlin_kernels
@@ -32,6 +32,35 @@ class MarlinWeightsLoader(WeightsLoader):
     def __init__(self, *, bits: int, is_marlin_24: bool):
         self.bits = bits
         self.is_marlin_24 = is_marlin_24
+
+    def get_weights(self, weights: "Weights", prefix: str):
+        """
+        Get weights at the given prefix and apply without tensor paralllism.
+        """
+        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
+        if is_marlin_24:
+            try:
+                B = weights.get_tensor(f"{prefix}.B_24")
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` 2:4 sparsity weight, make sure the model is already quantized."
+                )
+
+            B_meta = weights.get_tensor(f"{prefix}.B_meta")
+            s = weights.get_tensor(f"{prefix}.s")
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+        else:
+            try:
+                B = weights.get_tensor(f"{prefix}.B")
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` weight, make sure the model is already quantized."
+                )
+
+            s = weights.get_tensor(f"{prefix}.s")
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
 
     def get_weights_col_packed(
         self,
@@ -63,8 +92,7 @@ class MarlinWeightsLoader(WeightsLoader):
         return weight
 
     def get_multi_weights_col(self, weights: Weights, prefixes: List[str], dim: int):
-        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
-        if is_marlin_24:
+        if self.is_marlin_24:
             try:
                 B = torch.cat(
                     [weights.get_sharded(f"{p}.B_24", dim=1) for p in prefixes], dim=1
@@ -101,8 +129,7 @@ class MarlinWeightsLoader(WeightsLoader):
         return weight
 
     def get_weights_row(self, weights: Weights, prefix: str):
-        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
-        if is_marlin_24:
+        if self.is_marlin_24:
             try:
                 B = weights.get_sharded(f"{prefix}.B_24", dim=0)
             except RuntimeError:
@@ -201,7 +228,7 @@ def permute_scales(scales: torch.Tensor):
 
 
 @dataclass
-class GPTQMarlinWeight:
+class GPTQMarlinWeight(Weight):
     """
     Repacked GPTQ Marlin weights.
     """
@@ -218,6 +245,12 @@ class GPTQMarlinWeight:
         assert self.scales.dtype == torch.float16
         assert self.g_idx.dtype == torch.int32
         assert self.perm.dtype == torch.int32
+
+    def get_linear(self, bias: torch.Tensor):
+        return GPTQMarlinLinear(
+            weight=self,
+            bias=bias,
+        )
 
 
 def repack_gptq_for_marlin(
@@ -376,6 +409,12 @@ class GPTQMarlin24Weight:
         assert self.B_meta.dtype == torch.int16
         assert self.s.dtype == torch.float16
 
+    def get_linear(self, bias: torch.Tensor):
+        return GPTQMarlin24Linear(
+            weight=self,
+            bias=bias,
+        )
+
 
 class GPTQMarlin24Linear(nn.Module):
     def __init__(self, *, weight: GPTQMarlin24Weight, bias: Optional[torch.Tensor]):
@@ -464,7 +503,8 @@ class GPTQMarlinFP8Linear(nn.Module):
 
     def __init__(
         self,
-        weight: torch.Tensor,
+        qweight: torch.Tensor,
+        scale: torch.Tensor,
         bias: Optional[torch.Tensor],
     ) -> None:
         super().__init__()
@@ -474,7 +514,6 @@ class GPTQMarlinFP8Linear(nn.Module):
 
         log_once(logger.info, "GPU does not support FP8, using Marlin FP8 kernel")
 
-        qweight, scale = fp8_quantize(weight)
         scale = scale.to(torch.float16)
         qweight, scales = repack_fp8_for_marlin(qweight, scale)
 
@@ -489,6 +528,15 @@ class GPTQMarlinFP8Linear(nn.Module):
         self.workspace = torch.zeros(
             out_features // 64 * 16, dtype=torch.int, device=qweight.device
         )
+
+    @classmethod
+    def from_unquant(cls, weight, bias, _dtype):
+        qweight, scale = fp8_quantize(weight)
+        return cls(qweight=qweight, scale=scale, bias=bias)
+
+    @classmethod
+    def from_fp8(cls, weight, scale, _input_scale, bias, _dtype):
+        return cls(qweight=weight, scale=scale, bias=bias)
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
         assert marlin_kernels is not None
@@ -567,7 +615,7 @@ def repack_fp8_for_marlin(weight: torch.Tensor, scale: torch.Tensor):
 
 
 @dataclass
-class MarlinWeight:
+class MarlinWeight(Weight):
     """
     Marlin weights.
 
@@ -582,6 +630,9 @@ class MarlinWeight:
     def __post_init__(self):
         assert self.B.dtype == torch.int32
         assert self.s.dtype == torch.float16
+
+    def get_linear(self, bias: torch.Tensor):
+        return MarlinLinear(weight=self, bias=bias)
 
 
 class MarlinLinear(nn.Module):

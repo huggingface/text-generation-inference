@@ -492,7 +492,7 @@ class CausalLMBatch(Batch):
 
 
 @dataclass
-class CausalLMBatchKeysLast(Batch):
+class CausalLMBatchKeysLast(CausalLMBatch):
     keys_head_dim_last: bool = False
 
 
@@ -544,7 +544,12 @@ class CausalLM(Model):
         config.quantize = quantize
         config.speculator = speculator
         if tokenizer.pad_token_id is None:
-            tokenizer.pad_token_id = config.pad_token_id
+            if config.pad_token_id is not None:
+                tokenizer.pad_token_id = config.pad_token_id
+            elif config.eos_token_id is not None:
+                tokenizer.pad_token_id = config.eos_token_id
+            elif tokenizer.eos_token_id is not None:
+                tokenizer.pad_token_id = tokenizer.eos_token_id
 
         torch.distributed.barrier(group=self.process_group)
         weights_loader = get_loader(

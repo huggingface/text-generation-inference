@@ -52,6 +52,10 @@ regex = "1.10.3"
 once_cell = "1.19.0"
 image = "0.25.1"
 base64 = { workspace = true }
+sysinfo = "0.30.13"
+uuid = { version = "1.9.1", default-features = false, features = ["v4", "fast-rng", "macro-diagnostics"] }
+csv = "1.3.0"
+
 
 [build-dependencies]
 vergen = { version = "8.2.5", features = ["build", "git", "gitcl"] }

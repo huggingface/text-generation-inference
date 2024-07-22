@@ -56,7 +56,7 @@ def initialize_torch_distributed():
         backend = "nccl"
         options = ProcessGroupNCCL.Options()
         options.is_high_priority_stream = True
-        options._timeout = timedelta(seconds=60)
+        options._timeout = timedelta(seconds=120)
     else:
         backend = "gloo"
         options = None
@@ -76,7 +76,7 @@ def initialize_torch_distributed():
                     backend="ccl",
                     world_size=WORLD_SIZE,
                     rank=RANK,
-                    timeout=timedelta(seconds=60),
+                    timeout=timedelta(seconds=120),
                     pg_options=options,
                 )
             else:
@@ -84,7 +84,7 @@ def initialize_torch_distributed():
                     backend=backend,
                     world_size=WORLD_SIZE,
                     rank=RANK,
-                    timeout=timedelta(seconds=60),
+                    timeout=timedelta(seconds=120),
                     pg_options=options,
                 )
         else:

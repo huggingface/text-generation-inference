@@ -14,6 +14,7 @@ use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use text_generation_router::config::Config;
+use text_generation_router::usage_stats;
 use text_generation_router::{
     server, HubModelInfo, HubPreprocessorConfig, HubProcessorConfig, HubTokenizerConfig,
 };
@@ -87,6 +88,10 @@ struct Args {
     disable_grammar_support: bool,
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
+    #[clap(long, env, default_value_t)]
+    disable_usage_stats: bool,
+    #[clap(long, env, default_value_t)]
+    disable_crash_reports: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -128,6 +133,8 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
+        disable_usage_stats,
+        disable_crash_reports,
         command,
     } = args;
 
@@ -324,6 +331,7 @@ async fn main() -> Result<(), RouterError> {
         tracing::warn!("Could not find tokenizer config locally and no API specified");
         HubTokenizerConfig::default()
     });
+    let tokenizer_class = tokenizer_config.tokenizer_class.clone();
 
     let tokenizer: Option<Tokenizer> = tokenizer_filename.and_then(|filename| {
         let mut tokenizer = Tokenizer::from_file(filename).ok();
@@ -378,8 +386,47 @@ async fn main() -> Result<(), RouterError> {
         }
     };
 
+    // Only send usage stats when TGI is run in container and the function returns Some
+    let is_container = matches!(usage_stats::is_container(), Ok(true));
+
+    let user_agent = if !disable_usage_stats && is_container {
+        let reduced_args = usage_stats::Args::new(
+            config.clone(),
+            tokenizer_class,
+            max_concurrent_requests,
+            max_best_of,
+            max_stop_sequences,
+            max_top_n_tokens,
+            max_input_tokens,
+            max_total_tokens,
+            waiting_served_ratio,
+            max_batch_prefill_tokens,
+            max_batch_total_tokens,
+            max_waiting_tokens,
+            max_batch_size,
+            revision,
+            validation_workers,
+            messages_api_enabled,
+            disable_grammar_support,
+            max_client_batch_size,
+            disable_usage_stats,
+            disable_crash_reports,
+        );
+        Some(usage_stats::UserAgent::new(reduced_args))
+    } else {
+        None
+    };
+
+    if let Some(ref ua) = user_agent {
+        let start_event =
+            usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Start, None);
+        tokio::spawn(async move {
+            start_event.send().await;
+        });
+    };
+
     // Run server
-    server::run(
+    let result = server::run(
         master_shard_uds_path,
         model_info,
         compat_return_full_text,
@@ -410,8 +457,41 @@ async fn main() -> Result<(), RouterError> {
         max_client_batch_size,
         print_schema_command,
     )
-    .await?;
-    Ok(())
+    .await;
+
+    match result {
+        Ok(_) => {
+            if let Some(ref ua) = user_agent {
+                let stop_event = usage_stats::UsageStatsEvent::new(
+                    ua.clone(),
+                    usage_stats::EventType::Stop,
+                    None,
+                );
+                stop_event.send().await;
+            };
+            Ok(())
+        }
+        Err(e) => {
+            if let Some(ref ua) = user_agent {
+                if !disable_crash_reports {
+                    let error_event = usage_stats::UsageStatsEvent::new(
+                        ua.clone(),
+                        usage_stats::EventType::Error,
+                        Some(e.to_string()),
+                    );
+                    error_event.send().await;
+                } else {
+                    let unknow_error_event = usage_stats::UsageStatsEvent::new(
+                        ua.clone(),
+                        usage_stats::EventType::Error,
+                        Some("unknow_error".to_string()),
+                    );
+                    unknow_error_event.send().await;
+                }
+            };
+            Err(RouterError::WebServer(e))
+        }
+    }
 }
 
 /// Init logging using env variables LOG_LEVEL and LOG_FORMAT:

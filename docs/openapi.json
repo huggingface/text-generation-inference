@@ -909,7 +909,7 @@
           "tool_choice": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ToolType"
+                "$ref": "#/components/schemas/ToolChoice"
               }
             ],
             "nullable": true
@@ -2035,6 +2035,14 @@
           }
         }
       },
+      "ToolChoice": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ToolType"
+          }
+        ],
+        "nullable": true
+      },
       "ToolType": {
         "oneOf": [
           {
@@ -2055,6 +2063,11 @@
                 "$ref": "#/components/schemas/FunctionName"
               }
             }
+          },
+          {
+            "type": "object",
+            "default": null,
+            "nullable": true
           }
         ]
       },
