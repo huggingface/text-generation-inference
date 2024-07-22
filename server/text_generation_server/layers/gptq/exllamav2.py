@@ -9,11 +9,12 @@ from loguru import logger
 
 from text_generation_server.layers.exl2 import Exl2Weight
 from text_generation_server.layers.gptq import GPTQWeight
+from text_generation_server.utils.log import log_master
 
 try:
     from exllamav2_kernels import make_q_matrix, gemm_half_q_half
 except ImportError:
-    logger.error("exllamav2_kernels not installed.")
+    log_master(logger.warning, "exllamav2_kernels not installed.")
     raise
 
 # Dummy tensor to pass instead of g_idx since there is no way to pass "None" to a C++ extension

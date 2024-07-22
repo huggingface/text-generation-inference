@@ -52,7 +52,7 @@ class TensorParallelHead(SuperLayer):
                 weight = weights.get_tensor(f"{prefix}.weight")
             except:
                 # ...otherwise they are quantized.
-                weight = weights.get_weights_col(prefix, config.quantize)
+                weight = weights.get_weights_col(prefix)
             should_gather = weights.process_group.size() > 1
         elif weights.process_group.size() > 1:
             try:
@@ -77,7 +77,7 @@ class TensorParallelHead(SuperLayer):
             quantize = config.quantize
 
         return TensorParallelHead(
-            get_linear(weight, bias=None, quantize=quantize),
+            get_linear(weight, bias=None),
             process_group=weights.process_group,
             should_gather=should_gather,
         )
@@ -129,14 +129,12 @@ class TensorParallelColumnLinear(SuperLayer):
     @classmethod
     def load_gate_up(cls, config, prefix: str, weights, bias: bool):
         """Specific method when the QKV was joined after the fact"""
-        weight = weights.get_weights_col_packed_gate_up(
-            prefix, quantize=config.quantize
-        )
+        weight = weights.get_weights_col_packed_gate_up(prefix)
         if bias:
             raise NotImplementedError("packed_gate_up only implemented without bias")
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
@@ -152,7 +150,6 @@ class TensorParallelColumnLinear(SuperLayer):
         """Specific method when the QKV was joined after the fact"""
         weight = weights.get_weights_col_packed_qkv(
             prefix,
-            quantize=config.quantize,
             num_heads=num_heads,
             num_key_value_heads=num_key_value_heads,
         )
@@ -160,17 +157,17 @@ class TensorParallelColumnLinear(SuperLayer):
             raise NotImplementedError("packed_qkv only implemented for baichuan")
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
-        weight = weights.get_weights_col(prefix, config.quantize)
+        weight = weights.get_weights_col(prefix)
         if bias:
             bias = weights.get_sharded(f"{prefix}.bias", dim=0)
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
@@ -178,20 +175,18 @@ class TensorParallelColumnLinear(SuperLayer):
         if config.quantize == "exl2":
             linears = []
             for prefix in prefixes:
-                weight = weights.get_weights_col(prefix, config.quantize)
+                weight = weights.get_weights_col(prefix)
                 b = weights.get_tensor(f"{prefix}.bias") if bias else None
-                linears.append(get_linear(weight, b, config.quantize))
+                linears.append(get_linear(weight, b))
             linear = LayerConcat(linears)
         else:
-            weight = weights.get_multi_weights_col(
-                prefixes, quantize=config.quantize, dim=dim
-            )
+            weight = weights.get_multi_weights_col(prefixes, dim=dim)
             if bias:
                 b = [weights.get_sharded(f"{p}.bias", dim=0) for p in prefixes]
                 bias = torch.cat(b, dim=dim)
             else:
                 bias = None
-            linear = get_linear(weight, bias, config.quantize)
+            linear = get_linear(weight, bias)
         return cls(linear)
 
 
@@ -202,7 +197,7 @@ class TensorParallelRowLinear(SuperLayer):
 
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
-        weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+        weight = weights.get_weights_row(prefix)
 
         if bias and weights.process_group.rank() == 0:
             # Rank is only on the first rank process
@@ -210,7 +205,7 @@ class TensorParallelRowLinear(SuperLayer):
         else:
             bias = None
         return cls(
-            get_linear(weight, bias, config.quantize),
+            get_linear(weight, bias),
             process_group=weights.process_group,
         )
 

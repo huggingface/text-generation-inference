@@ -111,7 +111,7 @@ async fn queue_task(
         match cmd {
             QueueCommand::Append(entry, span) => {
                 span.in_scope(|| state.append(*entry));
-                metrics::increment_gauge!("tgi_queue_size", 1.0);
+                metrics::gauge!("tgi_queue_size").increment(1.0);
             }
             QueueCommand::NextBatch {
                 min_size,
@@ -124,7 +124,7 @@ async fn queue_task(
                 let next_batch =
                     state.next_batch(min_size, max_size, prefill_token_budget, token_budget);
                 response_sender.send(next_batch).unwrap();
-                metrics::gauge!("tgi_queue_size", state.entries.len() as f64);
+                metrics::gauge!("tgi_queue_size").set(state.entries.len() as f64);
             }),
         }
     }
@@ -226,7 +226,7 @@ impl State {
             // Filter entries where the response receiver was dropped (== entries where the request
             // was dropped by the client)
             if entry.response_tx.is_closed() {
-                metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
+                metrics::counter!("tgi_request_failure", "err" => "dropped").increment(1);
                 tracing::debug!("Dropping entry");
                 continue;
             }
@@ -336,7 +336,7 @@ impl State {
         // Increment batch id
         self.next_batch_id += 1;
 
-        metrics::histogram!("tgi_batch_next_size", batch.size as f64);
+        metrics::histogram!("tgi_batch_next_size").record(batch.size as f64);
 
         Some((batch_entries, batch, next_batch_span))
     }

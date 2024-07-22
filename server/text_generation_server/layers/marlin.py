@@ -1,11 +1,13 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-
-from text_generation_server.layers.gptq import GPTQParams
+from loguru import logger
+from text_generation_server.layers.fp8 import fp8_quantize
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.log import log_once
+from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 try:
     import marlin_kernels
@@ -24,16 +26,159 @@ GPTQ_MARLIN_GROUP_SIZES = [-1, 32, 64, 128]
 MARLIN_TILE_SIZE = 16
 
 
-def can_use_gptq_marlin(gptq_params: GPTQParams, quantize: str) -> bool:
+class MarlinWeightsLoader(WeightsLoader):
+    """Loader for Marlin-quantized weights."""
+
+    def __init__(self, *, bits: int, is_marlin_24: bool):
+        self.bits = bits
+        self.is_marlin_24 = is_marlin_24
+
+    def get_weights(self, weights: "Weights", prefix: str):
+        """
+        Get weights at the given prefix and apply without tensor paralllism.
+        """
+        is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
+        if is_marlin_24:
+            try:
+                B = weights.get_tensor(f"{prefix}.B_24")
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` 2:4 sparsity weight, make sure the model is already quantized."
+                )
+
+            B_meta = weights.get_tensor(f"{prefix}.B_meta")
+            s = weights.get_tensor(f"{prefix}.s")
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+        else:
+            try:
+                B = weights.get_tensor(f"{prefix}.B")
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` weight, make sure the model is already quantized."
+                )
+
+            s = weights.get_tensor(f"{prefix}.s")
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
+
+    def get_weights_col_packed(
+        self,
+        weights: Weights,
+        prefix: str,
+        block_sizes: Union[int, List[int]],
+    ):
+        if self.is_marlin_24:
+            B = weights.get_packed_sharded(
+                f"{prefix}.B_24", dim=1, block_sizes=block_sizes
+            )
+            B_meta = weights.get_packed_sharded(
+                f"{prefix}.B_meta", dim=1, block_sizes=block_sizes
+            )
+            s = weights.get_packed_sharded(
+                f"{prefix}.s", dim=1, block_sizes=block_sizes
+            )
+
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+        else:
+            B = weights.get_packed_sharded(
+                f"{prefix}.B", dim=1, block_sizes=block_sizes
+            )
+            s = weights.get_packed_sharded(
+                f"{prefix}.s", dim=1, block_sizes=block_sizes
+            )
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
+
+    def get_multi_weights_col(self, weights: Weights, prefixes: List[str], dim: int):
+        if self.is_marlin_24:
+            try:
+                B = torch.cat(
+                    [weights.get_sharded(f"{p}.B_24", dim=1) for p in prefixes], dim=1
+                )
+            except RuntimeError:
+                raise RuntimeError(
+                    f"Cannot load `marlin` weight, make sure the model is already quantized"
+                )
+
+            B_meta = torch.cat(
+                [weights.get_sharded(f"{p}.B_meta", dim=1) for p in prefixes], dim=1
+            )
+
+            s = torch.cat(
+                [weights.get_sharded(f"{p}.s", dim=1) for p in prefixes], dim=1
+            )
+
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+        else:
+            try:
+                B = torch.cat(
+                    [weights.get_sharded(f"{p}.B", dim=1) for p in prefixes], dim=1
+                )
+            except RuntimeError:
+                raise RuntimeError(
+                    f"Cannot load `marlin` weight, make sure the model is already quantized"
+                )
+            s = torch.cat(
+                [weights.get_sharded(f"{p}.s", dim=1) for p in prefixes], dim=1
+            )
+
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
+
+    def get_weights_row(self, weights: Weights, prefix: str):
+        if self.is_marlin_24:
+            try:
+                B = weights.get_sharded(f"{prefix}.B_24", dim=0)
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` 2:4 sparsity weight, make sure the model is already quantized."
+                )
+
+            B_meta = weights.get_sharded(f"{prefix}.B_meta", dim=0)
+            num_groups = weights._get_slice(f"{prefix}.s").get_shape()[0]
+            if num_groups == 1:
+                # The number of groups is 1 when groupsize == -1. share
+                # scales between all shards in this case.
+                s = weights.get_tensor(f"{prefix}.s")
+            else:
+                s = weights.get_sharded(f"{prefix}.s", dim=0)
+
+            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+        else:
+            try:
+                B = weights.get_sharded(f"{prefix}.B", dim=0)
+            except RuntimeError:
+                raise RuntimeError(
+                    "Cannot load `marlin` weight, make sure the model is already quantized."
+                )
+
+            num_groups = weights._get_slice(f"{prefix}.s").get_shape()[0]
+            if num_groups == 1:
+                # The number of groups is 1 when groupsize == -1. share
+                # scales between all shards in this case.
+                s = weights.get_tensor(f"{prefix}.s")
+            else:
+                s = weights.get_sharded(f"{prefix}.s", dim=0)
+            weight = MarlinWeight(B=B, s=s)
+
+        return weight
+
+
+def can_use_gptq_marlin(
+    *, bits: int, groupsize: int, quant_method: str, quantize: str, sym: bool
+) -> bool:
     return (
         SYSTEM == "cuda"
         and marlin_kernels is not None
         and has_sm_8_0
         and quantize == "gptq"
-        and gptq_params.quant_method == "gptq"
-        and gptq_params.bits in GPTQ_MARLIN_BITS
-        and gptq_params.groupsize in GPTQ_MARLIN_GROUP_SIZES
-        and gptq_params.sym
+        and quant_method == "gptq"
+        and bits in GPTQ_MARLIN_BITS
+        and groupsize in GPTQ_MARLIN_GROUP_SIZES
+        and sym
     )
 
 
@@ -83,7 +228,7 @@ def permute_scales(scales: torch.Tensor):
 
 
 @dataclass
-class GPTQMarlinWeight:
+class GPTQMarlinWeight(Weight):
     """
     Repacked GPTQ Marlin weights.
     """
@@ -100,6 +245,12 @@ class GPTQMarlinWeight:
         assert self.scales.dtype == torch.float16
         assert self.g_idx.dtype == torch.int32
         assert self.perm.dtype == torch.int32
+
+    def get_linear(self, bias: torch.Tensor):
+        return GPTQMarlinLinear(
+            weight=self,
+            bias=bias,
+        )
 
 
 def repack_gptq_for_marlin(
@@ -258,6 +409,12 @@ class GPTQMarlin24Weight:
         assert self.B_meta.dtype == torch.int16
         assert self.s.dtype == torch.float16
 
+    def get_linear(self, bias: torch.Tensor):
+        return GPTQMarlin24Linear(
+            weight=self,
+            bias=bias,
+        )
+
 
 class GPTQMarlin24Linear(nn.Module):
     def __init__(self, *, weight: GPTQMarlin24Weight, bias: Optional[torch.Tensor]):
@@ -339,8 +496,126 @@ class GPTQMarlin24Linear(nn.Module):
         return C
 
 
+class GPTQMarlinFP8Linear(nn.Module):
+    """
+    FP8 GPTQ-Marlin linear layer.
+    """
+
+    def __init__(
+        self,
+        qweight: torch.Tensor,
+        scale: torch.Tensor,
+        bias: Optional[torch.Tensor],
+    ) -> None:
+        super().__init__()
+
+        _check_marlin_kernels()
+        assert marlin_kernels is not None
+
+        log_once(logger.info, "GPU does not support FP8, using Marlin FP8 kernel")
+
+        scale = scale.to(torch.float16)
+        qweight, scales = repack_fp8_for_marlin(qweight, scale)
+
+        in_features = qweight.shape[0] * MARLIN_TILE_SIZE
+        out_features = scales.shape[1]
+        _check_valid_shape(in_features=in_features, out_features=out_features)
+
+        self.qweight = qweight
+        self.scales = scales
+        self.bias = bias if bias is not None else None
+
+        self.workspace = torch.zeros(
+            out_features // 64 * 16, dtype=torch.int, device=qweight.device
+        )
+
+    @classmethod
+    def from_unquant(cls, weight, bias, _dtype):
+        qweight, scale = fp8_quantize(weight)
+        return cls(qweight=qweight, scale=scale, bias=bias)
+
+    @classmethod
+    def from_fp8(cls, weight, scale, _input_scale, bias, _dtype):
+        return cls(qweight=weight, scale=scale, bias=bias)
+
+    def forward(self, A: torch.Tensor) -> torch.Tensor:
+        assert marlin_kernels is not None
+
+        A_flat = A.view(-1, A.shape[-1])
+        C = marlin_kernels.fp8_marlin_gemm(
+            A_flat,
+            self.qweight,
+            self.scales,
+            self.workspace,
+            8,
+            A_flat.shape[0],
+            self.scales.shape[1],
+            A_flat.shape[1],
+        )
+        C = C.reshape(A.shape[:-1] + (self.scales.shape[1],))
+
+        if self.bias is not None:
+            C += self.bias
+
+        return C
+
+
+def pack_fp8_as_int32(fp8_tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Repack FP8 weights to gptq format (packed int32 elements).
+    """
+    assert fp8_tensor.dtype == torch.float8_e4m3fn
+
+    if fp8_tensor.shape[0] % 4 != 0:
+        raise ValueError(
+            f"Leading tensor dimension is not divisable by 4: {fp8_tensor.shape[0]}"
+        )
+
+    # Reshape to prepare for packing
+    reshaped = fp8_tensor.reshape(-1, 4, *fp8_tensor.shape[1:])
+
+    # Convert fp8 to uint8 (byte) representation
+    byte_tensor = reshaped.view(torch.uint8)
+
+    # Pack 4 uint8 values into one int32
+    packed = torch.zeros(
+        fp8_tensor.shape[0] // 4,
+        fp8_tensor.shape[1],
+        dtype=torch.int32,
+        device=fp8_tensor.device,
+    )
+
+    for i in range(4):
+        packed.bitwise_or_(byte_tensor[:, i].to(torch.int32) << i * 8)
+
+    return packed
+
+
+def repack_fp8_for_marlin(weight: torch.Tensor, scale: torch.Tensor):
+    """
+    Repack FP8 tensor for GPTQ-Marlin.
+    """
+
+    out_features, in_features = weight.shape
+
+    # Torch linear layers weights with shape [out_features, in_features],
+    # GPTQ-quantized weights use [in_feateres/pack_factor, in_features],
+    # so transpose before packing.
+    qweight = pack_fp8_as_int32(weight.t())
+
+    perm = torch.empty(0, dtype=torch.int, device=qweight.device)
+    repacked = marlin_kernels.gptq_marlin_repack(
+        qweight, perm, in_features, out_features, 8
+    )
+
+    scales = scale.reshape(1, 1).repeat(1, out_features)
+    scales = permute_scales(scales)
+
+    return repacked, scales
+
+
 @dataclass
-class MarlinWeight:
+class MarlinWeight(Weight):
     """
     Marlin weights.
 
@@ -355,6 +630,9 @@ class MarlinWeight:
     def __post_init__(self):
         assert self.B.dtype == torch.int32
         assert self.s.dtype == torch.float16
+
+    def get_linear(self, bias: torch.Tensor):
+        return MarlinLinear(weight=self, bias=bias)
 
 
 class MarlinLinear(nn.Module):

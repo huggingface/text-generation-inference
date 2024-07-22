@@ -155,7 +155,7 @@ def check_openapi(check: bool):
                 filename,
             ],
             capture_output=True,
-        ).stdout.decode()
+        ).stdout.decode("utf-8")
         os.remove(tmp_filename)
 
         if diff:
@@ -164,11 +164,27 @@ def check_openapi(check: bool):
                 "OpenAPI documentation is not up-to-date, run `python update_doc.py` in order to update it"
             )
 
-        return True
     else:
         os.rename(tmp_filename, filename)
         print("OpenAPI documentation updated.")
-        return True
+    errors = subprocess.run(
+        [
+            "swagger-cli",
+            # allow for trailing whitespace since it's not significant
+            # and the precommit hook will remove it
+            "validate",
+            filename,
+        ],
+        capture_output=True,
+    ).stderr.decode("utf-8")
+    # The openapi specs fails on `exclusive_minimum` which is expected to be a boolean where
+    # utoipa outputs a value instead: https://github.com/juhaku/utoipa/issues/969
+    if not errors.startswith("Swagger schema validation failed."):
+        print(errors)
+        raise Exception(
+            f"OpenAPI documentation is invalid, `swagger-cli validate` showed some error:\n {errors}"
+        )
+    return True
 
 
 def main():

@@ -105,6 +105,12 @@ class DbrxFFNConfig(PretrainedConfig):
 
 
 class DbrxConfig(PretrainedConfig):
+    attribute_map = {
+        "hidden_size": "d_model",
+        "num_attention_heads": "n_heads",
+        "num_hidden_layers": "n_layers",
+    }
+
     def __init__(
         self,
         d_model: int = 2048,
@@ -156,6 +162,12 @@ class DbrxConfig(PretrainedConfig):
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
+
+    @property
+    def num_key_value_heads(self):
+        # We can't use the attribute map, since this the number of KV
+        # heads is not top-level.
+        return self.attn_config.kv_n_heads
 
 
 def promote_scalar(x: torch.Tensor) -> torch.Tensor:
@@ -235,10 +247,10 @@ def _load_experts_quantized(config, prefix, weights, cls):
 
         if cls == TensorParallelRowLinear:
             expert_slice = expert_slice.t().contiguous()
-            linear = get_linear(expert_slice, None, config.quantize)
+            linear = get_linear(expert_slice, None)
             experts.append(cls(linear, weights.process_group))
         else:
-            linear = get_linear(expert_slice, None, config.quantize)
+            linear = get_linear(expert_slice, None)
             experts.append(cls(linear))
 
     return experts

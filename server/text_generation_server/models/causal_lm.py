@@ -20,6 +20,7 @@ from text_generation_server.utils import (
 from text_generation_server.models import Model
 from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.quantization import get_loader
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models.types import (
     Batch,
@@ -491,7 +492,7 @@ class CausalLMBatch(Batch):
 
 
 @dataclass
-class CausalLMBatchKeysLast(Batch):
+class CausalLMBatchKeysLast(CausalLMBatch):
     keys_head_dim_last: bool = False
 
 
@@ -543,15 +544,25 @@ class CausalLM(Model):
         config.quantize = quantize
         config.speculator = speculator
         if tokenizer.pad_token_id is None:
-            tokenizer.pad_token_id = config.pad_token_id
+            if config.pad_token_id is not None:
+                tokenizer.pad_token_id = config.pad_token_id
+            elif config.eos_token_id is not None:
+                tokenizer.pad_token_id = config.eos_token_id
+            elif tokenizer.eos_token_id is not None:
+                tokenizer.pad_token_id = tokenizer.eos_token_id
 
         torch.distributed.barrier(group=self.process_group)
+        weights_loader = get_loader(
+            quantize=quantize, model_id=model_id, revision=revision
+        )
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(
-            filenames, device=device, dtype=dtype, process_group=self.process_group
+            filenames,
+            device=device,
+            dtype=dtype,
+            process_group=self.process_group,
+            weights_loader=weights_loader,
         )
-        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
-            weights._set_gptq_params(model_id, revision)
 
         prefix = ""
         model = model_class(prefix, config, weights)

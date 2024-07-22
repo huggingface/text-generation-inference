@@ -61,7 +61,6 @@ def _load_qkv_gptq(config, prefix: str, weights):
     # Weights
     weight = weights.get_weights_col_packed_qkv(
         f"{prefix}.c_attn",
-        config.quantize,
         config.num_attention_heads,
         config.num_attention_heads,
     )
@@ -83,7 +82,7 @@ def _load_qkv_gptq(config, prefix: str, weights):
     bias = torch.cat(tensors, dim=0)
     bias = bias.to(device=weights.device)
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 def _load_qkv(config, prefix: str, weights, head_size, num_heads):
@@ -130,14 +129,14 @@ def _load_qkv(config, prefix: str, weights, head_size, num_heads):
         3 * num_heads * head_size
     ], f"{weight.shape} != {[3 * num_heads * head_size]}"
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 def load_row(config, prefix: str, weights, bias: bool):
     """load_row, but with transposed weight matrices."""
 
     if config.quantize == "gptq":
-        weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+        weight = weights.get_weights_row(prefix)
     else:
         weight = weights.get_sharded(f"{prefix}.weight", dim=0).T
 
@@ -148,16 +147,14 @@ def load_row(config, prefix: str, weights, bias: bool):
         bias = None
 
     return TensorParallelRowLinear(
-        get_linear(weight, bias, config.quantize), process_group=weights.process_group
+        get_linear(weight, bias), process_group=weights.process_group
     )
 
 
 def load_col(config, prefix: str, weights, bias: bool):
     """load_col, but with transposed weight matrices."""
     if config.quantize == "gptq":
-        weight = weights.get_multi_weights_col(
-            [prefix], quantize=config.quantize, dim=1
-        )
+        weight = weights.get_multi_weights_col([prefix], dim=1)
     else:
         weight = weights.get_sharded(f"{prefix}.weight", dim=1).T
 
@@ -166,7 +163,7 @@ def load_col(config, prefix: str, weights, bias: bool):
     else:
         bias = None
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 class FlashGPT2Attention(torch.nn.Module):

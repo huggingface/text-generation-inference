@@ -34,6 +34,7 @@ from text_generation_server.models.custom_modeling.t5_modeling import (
 )
 
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.log import log_master
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -47,9 +48,7 @@ torch.set_grad_enabled(False)
 
 __all__ = [
     "Model",
-    "BLOOMSharded",
     "CausalLM",
-    "GalacticaSharded",
     "Seq2SeqLM",
     "get_model",
 ]
@@ -61,6 +60,10 @@ FLASH_ATTENTION = True
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
     from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+    from text_generation_server.models.custom_modeling.flash_deepseek_v2_modeling import (
+        FlashDeepseekV2ForCausalLM,
+        DeepseekV2Config,
+    )
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
     )
@@ -121,7 +124,7 @@ try:
     )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
-    logger.warning(f"Could not import Flash Attention enabled models: {e}")
+    log_master(logger.warning, f"Could not import Flash Attention enabled models: {e}")
     SUPPORTS_WINDOWING = False
     FLASH_ATTENTION = False
 
@@ -133,7 +136,7 @@ MAMBA_AVAILABLE = True
 try:
     from text_generation_server.models.mamba import Mamba
 except ImportError as e:
-    logger.warning(f"Could not import Mamba: {e}")
+    log_master(logger.warning, f"Could not import Mamba: {e}")
     MAMBA_AVAILABLE = False
 
 if MAMBA_AVAILABLE:
@@ -141,6 +144,11 @@ if MAMBA_AVAILABLE:
 
 
 class ModelType(enum.Enum):
+    DEEPSEEK_V2 = {
+        "type": "deepseek_v2",
+        "name": "Deepseek V2",
+        "url": "https://huggingface.co/deepseek-ai/DeepSeek-V2",
+    }
     IDEFICS2 = {
         "type": "idefics2",
         "name": "Idefics 2",
@@ -302,6 +310,12 @@ def get_model(
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
             # These quantizers only work with float16 params.
             dtype = torch.float16
+        elif quantize == "fp8":
+            from text_generation_server.layers.fp8 import FBGEMM_MM_AVAILABLE
+
+            if FBGEMM_MM_AVAILABLE:
+                # fbgemm kernels are fp8xfp8->bf16
+                dtype = torch.bfloat16
         else:
             # Keep it as default for now and let
             # every model resolve their own default dtype.
@@ -424,7 +438,9 @@ def get_model(
 
     speculate = get_speculate()
     if speculate > 0:
-        logger.info(f"Using speculation {method} with {speculate} input ids.")
+        log_master(
+            logger.info, f"Using speculation {method} with {speculate} input ids."
+        )
 
     if model_type is None:
         # TODO: fix how we determine model type for Mamba
@@ -439,10 +455,10 @@ def get_model(
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
         if method in {"gptq", "awq", "exl2"}:
-            logger.info(f"Auto selecting quantization method {method}")
+            log_master(logger.info, f"Auto selecting quantization method {method}")
             quantize = method
         else:
-            logger.info(f"Unknown quantization method {method}")
+            log_master(logger.warning, f"Unknown quantization method {method}")
 
     if quantize == "exl2" and sharded:
         raise RuntimeError(
@@ -459,7 +475,40 @@ def get_model(
             f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
         )
 
-    if model_type == MAMBA:
+    if model_type == DEEPSEEK_V2:
+        if FLASH_ATTENTION:
+            head_size = max(
+                config_dict.get("qk_nope_dim", 128)
+                + config_dict.get("qk_rope_dim", 64),
+                config_dict.get("v_head_dim", 128),
+            )
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashDeepseekV2ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                default_dtype=torch.bfloat16,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=DeepseekV2Config,
+                head_size=head_size,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Deepseek V2")
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == MAMBA:
         return Mamba(
             model_id,
             revision,
@@ -551,7 +600,7 @@ def get_model(
                 )
             except RuntimeError as e:
                 # Lots of legacy models with various weight names.
-                logger.warning(f"Couldn't load flash gpt2 variant: {e}")
+                log_master(logger.warning, f"Couldn't load flash gpt2 variant: {e}")
                 return CausalLM.fallback(
                     model_id,
                     revision,
@@ -573,6 +622,10 @@ def get_model(
             )
     elif model_type == GPT_NEOX:
         if FLASH_ATTENTION:
+            from text_generation_server.models.custom_modeling.flash_neox_modeling import (
+                GPTNeoXConfig,
+            )
+
             return FlashCausalLM(
                 model_id=model_id,
                 model_class=FlashGPTNeoXForCausalLM,
@@ -582,6 +635,7 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                config_class=GPTNeoXConfig,
             )
         elif sharded:
             return CausalLM(
@@ -797,6 +851,10 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    aliases={
+                        "lm_head.weight": ["transformer.word_embeddings.weight"],
+                        "transformer.word_embeddings.weight": ["lm_head.weight"],
+                    },
                     trust_remote_code=trust_remote_code,
                     lora_adapter_ids=lora_adapter_ids,
                     config_class=RWConfig,

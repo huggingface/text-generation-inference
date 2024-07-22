@@ -8,6 +8,7 @@ from typing import Optional
 from enum import Enum
 from huggingface_hub import hf_hub_download
 
+from text_generation_server.utils.log import log_master
 
 app = typer.Typer()
 
@@ -87,9 +88,20 @@ def serve(
     )
 
     if len(lora_adapter_ids) > 0:
-        logger.warning(
-            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
+        log_master(
+            logger.warning,
+            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected.",
         )
+
+    # TODO: enable lora with cuda graphs. for now disable cuda graphs if lora is enabled
+    # and warn the user
+    if len(lora_adapter_ids) > 0 and os.getenv("CUDA_GRAPHS", None) is not None:
+        log_master(
+            logger.warning,
+            f"LoRa adapter are not supported with CUDA Graphs. Disabling CUDA Graphs.",
+        )
+        global CUDA_GRAPHS
+        CUDA_GRAPHS = None
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
@@ -332,6 +344,7 @@ def quantize(
     upload_to_model_id: Optional[str] = None,
     percdamp: float = 0.01,
     act_order: bool = False,
+    groupsize: int = 128,
 ):
     if revision is None:
         revision = "main"
@@ -346,13 +359,14 @@ def quantize(
     quantize(
         model_id=model_id,
         bits=4,
-        groupsize=128,
+        groupsize=groupsize,
         output_dir=output_dir,
         revision=revision,
         trust_remote_code=trust_remote_code,
         upload_to_model_id=upload_to_model_id,
         percdamp=percdamp,
         act_order=act_order,
+        sym=True,
     )
 
 

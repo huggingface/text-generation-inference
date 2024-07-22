@@ -59,3 +59,18 @@ def marlin_gemm(
     Matrix multiplication using Marlin kernels.
     """
     ...
+
+# fp8 marlin
+def fp8_marlin_gemm(
+    a: torch.Tensor,
+    b_q_weight: torch.Tensor,
+    b_scales: torch.Tensor,
+    workspace: torch.Tensor,
+    num_bits: int,
+    size_m: int,
+    size_n: int,
+    size_k: int,
+) -> torch.Tensor:
+    return torch.ops._C.fp8_marlin_gemm(
+        a, b_q_weight, b_scales, workspace, num_bits, size_m, size_n, size_k
+    )

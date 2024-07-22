@@ -85,7 +85,6 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 
@@ -101,9 +100,7 @@ def _load_gqa(config, prefix: str, weights):
         ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
     # this is the same as llama except for Phi uses bias=True
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=True, quantize=config.quantize)
-    )
+    return TensorParallelColumnLinear(get_linear(weight, bias=True))
 
 
 class FlashPhiAttention(torch.nn.Module):

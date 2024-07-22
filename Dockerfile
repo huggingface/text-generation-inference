@@ -40,7 +40,9 @@ RUN cargo build --profile release-opt
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
 FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS pytorch-install
 
+# NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
 ARG PYTORCH_VERSION=2.3.0
+
 ARG PYTHON_VERSION=3.10
 # Keep in sync with `server/pyproject.toml
 ARG CUDA_VERSION=12.1
@@ -159,6 +161,17 @@ COPY server/custom_kernels/ .
 # Build specific version of transformers
 RUN python setup.py build
 
+# Build FBGEMM CUDA kernels
+FROM kernel-builder AS fbgemm-builder
+
+WORKDIR /usr/src
+
+COPY server/Makefile-fbgemm Makefile
+COPY server/fbgemm_remove_unused.patch fbgemm_remove_unused.patch
+COPY server/fix_torch90a.sh fix_torch90a.sh
+
+RUN make build-fbgemm
+
 # Build vllm CUDA kernels
 FROM kernel-builder AS vllm-builder
 
@@ -223,10 +236,10 @@ COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-31
 # Copy build artifacts from marlin kernels builder
 COPY --from=marlin-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
 COPY --from=lorax-punica-builder /usr/src/lorax-punica/server/punica_kernels/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
-
-# Copy builds artifacts from vllm builder
+# Copy build artifacts from fbgemm builder
+COPY --from=fbgemm-builder /usr/src/fbgemm/fbgemm_gpu/_skbuild/linux-x86_64-3.10/cmake-install /opt/conda/lib/python3.10/site-packages
+# Copy build artifacts from vllm builder
 COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/conda/lib/python3.10/site-packages
-
 # Copy build artifacts from mamba builder
 COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
@@ -241,7 +254,10 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements_cuda.txt && \
-    pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir
+    pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir && \
+    pip install nvidia-nccl-cu12==2.22.3
+
+ENV LD_PRELOAD=/opt/conda/lib/python3.10/site-packages/nvidia/nccl/lib/libnccl.so.2
 
 # Deps before the binaries
 # The binaries change on every build given we burn the SHA into them

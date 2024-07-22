@@ -23,14 +23,13 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
+from text_generation_server.utils.log import log_master
 from text_generation_server.utils.tokens import batch_top_tokens
-from text_generation_server.utils.dist import RANK
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
     Weights,
-    hub,
 )
 from text_generation_server.models.types import (
     Batch,
@@ -50,6 +49,7 @@ from text_generation_server.models.globals import (
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
+from text_generation_server.utils.quantization import get_loader
 from text_generation_server.utils.segments import SegmentConcatBuilder, find_segments
 
 from text_generation_server.utils.import_utils import (
@@ -838,7 +838,9 @@ class FlashCausalLM(Model):
         default_dtype=torch.float16,
         aliases=None,
         # Used for Santacoder override of config
-        num_kv_heads=None,
+        num_kv_heads: Optional[int] = None,
+        # Deepseek V2 uses different QK and V dims.
+        head_size: Optional[int] = None,
         skip_special_tokens: bool = True,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
@@ -881,12 +883,16 @@ class FlashCausalLM(Model):
 
         torch.distributed.barrier(group=self.process_group)
 
+        weights_loader = get_loader(quantize, model_id, revision)
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
         weights = Weights(
-            filenames, device, dtype, process_group=self.process_group, aliases=aliases
+            filenames,
+            device,
+            dtype,
+            process_group=self.process_group,
+            aliases=aliases,
+            weights_loader=weights_loader,
         )
-        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
-            weights._set_gptq_params(model_id, revision)
 
         prefix = ""
         model = model_class(prefix, config, weights)
@@ -905,15 +911,23 @@ class FlashCausalLM(Model):
         self.num_layers = config.num_hidden_layers
         # Validation is done in the model itself
         if num_kv_heads is None:
-            # Order is important here.
-            for attr in ["num_key_value_heads", "num_key_value_heads", "n_head"]:
-                num_kv_heads = getattr(config, "num_attention_heads", None)
-                if num_kv_heads is not None:
-                    break
+            num_kv_heads = getattr(config, "num_key_value_heads", None)
+            # GPT-2 workaround
             if num_kv_heads is None:
-                raise ValueError("Cannot get the number of key/value heads")
-        self.num_kv_heads = num_kv_heads // self.process_group.size()
-        self.head_size = config.hidden_size // config.num_attention_heads
+                num_kv_heads = getattr(config, "n_head", None)
+        if num_kv_heads is None:
+            raise ValueError("Cannot get the number of key/value heads")
+        self.num_kv_heads = (
+            num_kv_heads // self.process_group.size()
+            if num_kv_heads > 1
+            else num_kv_heads
+        )
+        assert self.num_kv_heads > 0
+
+        if head_size is None:
+            self.head_size = config.hidden_size // config.num_attention_heads
+        else:
+            self.head_size = head_size
 
         self.cuda_graphs = {}
         self.kv_cache = []
@@ -1141,31 +1155,36 @@ class FlashCausalLM(Model):
                     f"tunableop_{MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
-                logger.info(
-                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`."
+                log_master(
+                    logger.info,
+                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
                 )
 
                 if os.path.isfile(tunableop_filepath):
-                    logger.info(
-                        f"The file {tunableop_filepath} already exists and will be reused."
+                    log_master(
+                        logger.info,
+                        f"The file {tunableop_filepath} already exists and will be reused.",
                     )
                     torch.cuda.tunable.read_file(tunableop_filepath)
 
                 os.makedirs(HUGGINGFACE_HUB_CACHE, exist_ok=True)
 
                 for seqlen in tuning_sequences:
-                    logger.info(f"Warming up TunableOp for seqlen={seqlen}")
+                    log_master(logger.info, f"Warming up TunableOp for seqlen={seqlen}")
                     self.tunableop_warmup(seqlen)
                     torch.cuda.tunable.write_file(tunableop_filepath)
                 torch.cuda.tunable.tuning_enable(False)
             else:
-                logger.info(
-                    "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp."
+                log_master(
+                    logger.info,
+                    "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp.",
                 )
 
         if CUDA_GRAPHS:
             try:
-                logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
+                log_master(
+                    logger.info, f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}"
+                )
                 # Warmup cuda graphs
                 for bs in CUDA_GRAPHS:
                     if self.speculate is None or self.speculate + 1 <= bs:
@@ -1173,7 +1192,9 @@ class FlashCausalLM(Model):
             except torch.cuda.OutOfMemoryError:
                 logger.exception(f"Decode cuda graph warmup failed")
         else:
-            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
+            log_master(
+                logger.info, f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS})."
+            )
 
         return int(num_blocks * BLOCK_SIZE)
 
@@ -1525,8 +1546,7 @@ class FlashCausalLM(Model):
             left = 0
 
             if n_accepted_ids > 1:
-                if RANK == 0:
-                    logger.debug(f"Speculated ids {n_accepted_ids - 1}")
+                log_master(logger.debug, f"Speculated ids {n_accepted_ids - 1}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):
