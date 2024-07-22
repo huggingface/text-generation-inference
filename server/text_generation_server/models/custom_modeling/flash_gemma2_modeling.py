@@ -189,6 +189,7 @@ class FlashGemma2Attention(torch.nn.Module):
         self.num_key_value_heads = (
             config.num_key_value_heads // weights.process_group.size()
         )
+        self.softcap = config.attn_logit_softcapping
 
         self.query_key_value = load_attention(config, prefix, weights)
 
@@ -246,6 +247,7 @@ class FlashGemma2Attention(torch.nn.Module):
                 self.softmax_scale,
                 causal=self.causal,
                 window_size_left=self.window_size,
+                softcap=self.softcap,
             )
         # Decode
         else:
@@ -259,6 +261,7 @@ class FlashGemma2Attention(torch.nn.Module):
                 block_tables,
                 input_lengths,
                 max_s,
+                softcap=self.softcap,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -466,6 +469,8 @@ class FlashGemma2ForCausalLM(torch.nn.Module):
             config=config,
             weights=weights,
         )
+        self.softcap = config.final_logit_softcapping
+        assert isinstance(self.softcap, float)
 
     def forward(
         self,
@@ -495,4 +500,9 @@ class FlashGemma2ForCausalLM(torch.nn.Module):
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits, speculative_logits = self.lm_head(hidden_states)
+
+        logits /= self.softcap
+        logits = torch.tanh(logits)
+        logits *= self.softcap
+
         return logits, speculative_logits
