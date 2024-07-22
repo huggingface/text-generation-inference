@@ -62,5 +62,5 @@ COPY --from=cuda-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=cuda-builder /usr/local/tgi /usr/local/tgi
 COPY --from=cuda-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
 
-ENTRYPOINT ["text-generation-launcher"]
+ENTRYPOINT ["./text-generation-launcher"]
 CMD ["--executor-worker", "/usr/local/tgi/bin/executorWorker"]
