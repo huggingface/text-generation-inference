@@ -49,7 +49,7 @@ jobs:
                 export dockerfile="Dockerfile"
                 export label_extension=""
                 export docker_devices=""
-                export runs_on="aws-g5-12xlarge"
+                export runs_on="aws-g5-12xlarge-plus"
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
