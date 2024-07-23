@@ -2,15 +2,15 @@ ARG CUDA_ARCH_LIST="75-real;80-real;86-real;89-real;90-real"
 ARG OMPI_VERSION="4.1.6"
 
 # Build dependencies resolver stage
-FROM lukemathwalker/cargo-chef:latest as chef
+FROM lukemathwalker/cargo-chef:latest AS chef
 WORKDIR /usr/src/text-generation-inference
 
-FROM chef as planner
+FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # CUDA dependent dependencies resolver stage
-FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 as cuda-builder
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 AS cuda-builder
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -34,7 +34,7 @@ ENV TGI_INSTALL_PREFIX=/usr/local/tgi
 ENV TENSORRT_INSTALL_PREFIX=/usr/local/tensorrt
 
 # Install OpenMPI
-FROM cuda-builder as mpi-builder
+FROM cuda-builder AS mpi-builder
 ARG OMPI_VERSION
 
 ENV OMPI_TARBALL_FILENAME="openmpi-$OMPI_VERSION.tar.bz2"
@@ -48,13 +48,13 @@ RUN wget "https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILE
     rm -rf "/opt/src/$OMPI_TARBALL_FILENAME"
 
 # Install TensorRT
-FROM cuda-builder as trt-builder
+FROM cuda-builder AS trt-builder
 COPY backends/trtllm/scripts/install_tensorrt.sh /opt/install_tensorrt.sh
 RUN chmod +x /opt/install_tensorrt.sh && \
     /opt/install_tensorrt.sh
 
 # Build Backend
-FROM cuda-builder as tgi-builder
+FROM cuda-builder AS tgi-builder
 WORKDIR /usr/src/text-generation-inference
 
 # Install Rust
@@ -81,7 +81,7 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --release --bin text-generation-backends-trtllm
 
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 as runtime
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS runtime
 WORKDIR /usr/local/tgi/bin
 
 ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
