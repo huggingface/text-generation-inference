@@ -252,9 +252,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements_cuda.txt && \
-    pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir && \
-
-ENV LD_PRELOAD=/opt/conda/lib/python3.10/site-packages/nvidia/nccl/lib/libnccl.so.2
+    pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir
 
 # Deps before the binaries
 # The binaries change on every build given we burn the SHA into them
