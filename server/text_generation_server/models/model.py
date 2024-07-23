@@ -15,6 +15,7 @@ from text_generation_server.utils.adapter import (
     AdapterParameters,
     AdapterSource,
 )
+from text_generation_server.utils.log import log_master
 from loguru import logger
 
 
@@ -204,8 +205,9 @@ class Model(ABC):
                 f"order to use the dynamic adapter loading feature."
             )
 
-        logger.info(
-            f"Loading adapter weights into model: {','.join(adapter_parameters.adapter_ids)}"
+        log_master(
+            logger.info,
+            f"Loading adapter weights into model: {','.join(adapter_parameters.adapter_ids)}",
         )
         weight_names = tuple([v[0] for v in self.target_to_layer.values()])
         (
@@ -240,8 +242,9 @@ class Model(ABC):
             layer_weights.add_adapter(adapter_index, adapter_weights)
 
         if len(unused_weight_names) > 0:
-            logger.warning(
-                f"{','.join(adapter_parameters.adapter_ids)} unused adapter weights: {unused_weight_names}"
+            log_master(
+                logger.warning,
+                f"{','.join(adapter_parameters.adapter_ids)} unused adapter weights: {unused_weight_names}",
             )
 
         if adapter_tokenizer is not None:

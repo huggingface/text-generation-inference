@@ -1,0 +1,15 @@
+fbgemm_commit := 9cf0429b726931cfab72b8264730bea682f32fca
+
+build-fbgemm:
+	chmod +x fix_torch90a.sh && ./fix_torch90a.sh && \
+	git clone https://github.com/pytorch/FBGEMM.git fbgemm && \
+	cp fbgemm_remove_unused.patch fbgemm && \
+	cd fbgemm && git fetch && git checkout $(fbgemm_commit) && git apply fbgemm_remove_unused.patch && \
+	git submodule update --init --recursive && \
+	cd fbgemm_gpu && \
+	pip install -r requirements.txt && \
+	CUDA_ARCH_LIST="8.0;9.0a" NVCC_GENCODE="-gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_90a,code=sm_90a" TORCH_CUDA_ARCH_LIST="8.0;9.0a" python setup.py --package_variant genai build
+
+install-fbgemm: build-fbgemm
+	cd fbgemm/fbgemm_gpu &&  \
+	CUDA_ARCH_LIST="8.0;9.0a" NVCC_GENCODE="-gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_90a,code=sm_90a" TORCH_CUDA_ARCH_LIST="8.0;9.0a" python setup.py --package_variant genai install

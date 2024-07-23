@@ -21,6 +21,8 @@
     title: Messages API
   - local: architecture
     title: Internal Architecture
+  - local: usage_statistics
+    title: Usage Statistics
   title: Getting started
 - sections:
   - local: basic_tutorials/consuming_tgi

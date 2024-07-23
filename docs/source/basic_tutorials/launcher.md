@@ -425,6 +425,22 @@ Options:
           [env: LORA_ADAPTERS=]
 
 ```
+## DISABLE_USAGE_STATS
+```shell
+      --disable-usage-stats
+          Disable sending of all usage statistics
+          
+          [env: DISABLE_USAGE_STATS=]
+
+```
+## DISABLE_CRASH_REPORTS
+```shell
+      --disable-crash-reports
+          Disable sending of crash reports, but allow anonymous usage statistics
+          
+          [env: DISABLE_CRASH_REPORTS=]
+
+```
 ## HELP
 ```shell
   -h, --help

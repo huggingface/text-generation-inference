@@ -25,6 +25,7 @@ mod env_runtime;
 struct RawConfig {
     max_position_embeddings: Option<usize>,
     n_positions: Option<usize>,
+    model_type: Option<String>,
     max_seq_len: Option<usize>,
 }
 
@@ -457,6 +458,14 @@ struct Args {
     /// startup that will be available to callers via the `adapter_id` field in a request.
     #[clap(long, env)]
     lora_adapters: Option<String>,
+
+    /// Disable sending of all usage statistics
+    #[clap(default_value = "false", long, env)]
+    disable_usage_stats: bool,
+
+    /// Disable sending of crash reports, but allow anonymous usage statistics
+    #[clap(default_value = "false", long, env)]
+    disable_crash_reports: bool,
 }
 
 #[derive(Debug)]
@@ -1201,6 +1210,14 @@ fn spawn_webserver(
         args.model_id,
     ];
 
+    // Pass usage stats flags to router
+    if args.disable_usage_stats {
+        router_args.push("--disable-usage-stats".to_string());
+    }
+    if args.disable_crash_reports {
+        router_args.push("--disable-crash-reports".to_string());
+    }
+
     // Grammar support
     if args.disable_grammar_support {
         router_args.push("--disable-grammar-support".to_string());
@@ -1402,6 +1419,11 @@ fn main() -> Result<(), LauncherError> {
 
         let content = std::fs::read_to_string(filename)?;
         let config: RawConfig = serde_json::from_str(&content)?;
+
+        if config.model_type == Some("gemma2".to_string()) {
+            tracing::info!("Forcing flash decoding because of softcap usage");
+            std::env::set_var("FLASH_DECODING", "1");
+        }
         let config: Config = config.into();
 
         // Quantization usually means you're even more RAM constrained.

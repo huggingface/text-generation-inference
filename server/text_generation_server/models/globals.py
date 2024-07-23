@@ -1,15 +1,16 @@
 import torch
 import os
 from loguru import logger
-from typing import Dict
+from typing import Dict, Optional
+
+from text_generation_server.utils.log import log_master
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 # This is overridden by the cli
 FLASH_DECODING = os.getenv("FLASH_DECODING") in {"1", "true", "True"}
 BLOCK_SIZE: int = 256 if FLASH_DECODING else 16
 if FLASH_DECODING:
-    logger.info("Using FLASH_DECODING")
-
+    log_master(logger.info, "Using FLASH_DECODING")
 
 cuda_graphs = os.getenv("CUDA_GRAPHS")
 if cuda_graphs is not None:
@@ -26,11 +27,9 @@ else:
 if cuda_graphs is not None:
     cuda_graphs.sort(reverse=True)
 
-
 CUDA_GRAPHS = cuda_graphs
 
 # This is overridden at model loading.
-global MODEL_ID
 MODEL_ID = None
 
 
@@ -41,8 +40,7 @@ def set_model_id(model_id: str):
 
 # NOTE: eventually we should move this into the router and pass back the
 # index in all cases.
-global ADAPTER_TO_INDEX
-ADAPTER_TO_INDEX: Dict[str, int] = None
+ADAPTER_TO_INDEX: Optional[Dict[str, int]] = None
 
 
 def set_adapter_to_index(adapter_to_index: Dict[str, int]):

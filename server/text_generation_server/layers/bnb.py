@@ -4,19 +4,11 @@ from functools import lru_cache
 import bitsandbytes as bnb
 import torch
 from bitsandbytes.nn import Int8Params, Params4bit
-from loguru import logger
-from text_generation_server.utils.weights import Weight
-
-
-@lru_cache(1)
-def warn_deprecate_bnb():
-    logger.warning(
-        "Bitsandbytes 8bit is deprecated, using `eetq` is a drop-in replacement, and has much better performnce"
-    )
+from text_generation_server.utils.weights import UnquantizedWeight
 
 
 @dataclass
-class BNBWeight(Weight):
+class BNBWeight(UnquantizedWeight):
     weight: torch.Tensor
 
     def get_linear(self, bias: torch.Tensor):
@@ -82,7 +74,7 @@ class Linear8bitLt(torch.nn.Module):
 
 
 @dataclass
-class BNBFP4Weight(Weight):
+class BNBFP4Weight(UnquantizedWeight):
     weight: torch.Tensor
 
     def get_linear(self, bias: torch.Tensor):
@@ -90,7 +82,7 @@ class BNBFP4Weight(Weight):
 
 
 @dataclass
-class BNBNF4Weight(Weight):
+class BNBNF4Weight(UnquantizedWeight):
     weight: torch.Tensor
 
     def get_linear(self, bias: torch.Tensor):

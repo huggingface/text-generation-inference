@@ -1,12 +1,12 @@
+import torch
+
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from dataclasses import dataclass
-from enum import Enum, auto
 from pathlib import Path
-from typing import Dict, List, Optional, Union
-
-import torch
+from typing import Dict, List, Optional, Union, Type
 from safetensors import safe_open
+from dataclasses import dataclass
+
 from text_generation_server.utils.import_utils import SYSTEM
 
 
@@ -20,6 +20,13 @@ class WeightsLoader(ABC):
     interpreting the raw tensors, sharding tensors in a manner compatible
     with the format, etc.
     """
+
+    @abstractmethod
+    def get_weights(self, weights: "Weights", prefix: str):
+        """
+        Get weights at the given prefix and apply without tensor paralllism.
+        """
+        ...
 
     @abstractmethod
     def get_weights_col_packed(
@@ -77,7 +84,7 @@ class Weight(ABC):
 
 
 @dataclass
-class UnquantizedWeight:
+class UnquantizedWeight(Weight):
     weight: torch.Tensor
 
     def get_linear(self, bias: torch.Tensor):
@@ -92,7 +99,7 @@ class UnquantizedWeight:
 class DefaultWeightsLoader(WeightsLoader):
     """Weight loader that loads (unquantized) Torch tensors."""
 
-    def __init__(self, weight_class):
+    def __init__(self, weight_class: Type[UnquantizedWeight]):
         """Create a loader. Weights will be wrapped using the given `weights_class`,
         normally this will be `UnquantizedWeight`, but a quantizer-specific class
         such as `Fp8Weight` can be used to quantize the weights during loading.
@@ -103,6 +110,9 @@ class DefaultWeightsLoader(WeightsLoader):
     Loader that uses tensors as-is with the exception of applying sharding
     and/or concatenation.
     """
+
+    def get_weights(self, weights: "Weights", prefix: str):
+        return weights.get_tensor(f"{prefix}.weight")
 
     def get_weights_col_packed(
         self,
@@ -198,20 +208,31 @@ class Weights:
     def get_shape(self, tensor_name: str):
         return self._get_slice(tensor_name).get_shape()
 
-    def get_tensor(self, tensor_name: str, to_device=True):
+    def get_tensor(self, tensor_name: str, to_device=True, to_dtype=True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         tensor = f.get_tensor(tensor_name)
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32. Exl2 uses int16
-        # as well.
-        if tensor.dtype not in [torch.int16, torch.int32, torch.int64]:
+        # as well. FP8 uses torch.float8_e4m3fn
+        if (
+            tensor.dtype
+            not in [
+                torch.float8_e4m3fn,
+                torch.int16,
+                torch.int32,
+                torch.int64,
+            ]
+            and to_dtype
+        ):
             tensor = tensor.to(dtype=self.dtype)
         if to_device:
             tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_partial_sharded(self, tensor_name: str, dim: int):
+    def get_partial_sharded(
+        self, tensor_name: str, dim: int, to_device=True, to_dtype=True
+    ):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
@@ -231,12 +252,17 @@ class Weights:
             raise NotImplementedError("Let's make that generic when needed")
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32. exl2 uses int16.
-        if tensor.dtype not in (torch.int16, torch.int32):
+        # FP8 uses torch.float8_e4m3fn.
+        if (
+            tensor.dtype not in (torch.float8_e4m3fn, torch.int16, torch.int32)
+            and to_dtype
+        ):
             tensor = tensor.to(dtype=self.dtype)
-        tensor = tensor.to(device=self.device)
+        if to_device:
+            tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_sharded(self, tensor_name: str, dim: int):
+    def get_sharded(self, tensor_name: str, dim: int, to_device=True, to_dtype=True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         slice_ = f.get_slice(tensor_name)
@@ -245,10 +271,16 @@ class Weights:
         assert (
             size % world_size == 0
         ), f"The choosen size {size} is not compatible with sharding on {world_size} shards"
-        return self.get_partial_sharded(tensor_name, dim)
+        return self.get_partial_sharded(
+            tensor_name, dim, to_device=to_device, to_dtype=to_dtype
+        )
 
     def get_packed_sharded(
-        self, tensor_name: str, dim: int, block_sizes: Union[int, List[int]]
+        self,
+        tensor_name: str,
+        dim: int,
+        block_sizes: Union[int, List[int]],
+        to_dtype=True,
     ) -> torch.Tensor:
         """
         Get a shard from a tensor that packs multiple tensors.
@@ -294,10 +326,22 @@ class Weights:
         tensor = tensor.to(device=self.device)
 
         # Avoid casting quantizer dtypes.
-        if tensor.dtype not in [torch.int16, torch.int32, torch.int64]:
+        if (
+            tensor.dtype
+            not in [
+                torch.float8_e4m3fn,
+                torch.int16,
+                torch.int32,
+                torch.int64,
+            ]
+            and to_dtype
+        ):
             tensor = tensor.to(dtype=self.dtype)
 
         return tensor
+
+    def get_weights(self, prefix: str):
+        return self.weights_loader.get_weights(self, prefix)
 
     def get_weights_col_packed_qkv(
         self,
