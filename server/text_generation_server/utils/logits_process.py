@@ -18,21 +18,15 @@ from transformers import (
     TopKLogitsWarper,
     TopPLogitsWarper,
     TypicalLogitsWarper,
-    NoRepeatNGramLogitsProcessor
 )
+
+from transformers.generation.logits_process import _calc_banned_ngram_tokens
 
 mempool = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
 
 class StaticWarper:
-    def __init__(
-        self,
-        temperature=1.0,
-        top_k=None,
-        top_p=None,
-        typical_p=None,
-        no_repeat_ngram_size=None,
-    ):
+    def __init__(self, temperature=1.0, top_k=None, top_p=None, typical_p=None):
         self.warpers = []
 
         if temperature is not None and temperature != 1.0:
@@ -44,8 +38,6 @@ class StaticWarper:
             self.warpers.append(TopPLogitsWarper(top_p=top_p))
         if typical_p is not None and typical_p < 1.0:
             self.warpers.append(TypicalLogitsWarper(mass=typical_p))
-        if no_repeat_ngram_size is not None and no_repeat_ngram_size > 0:
-            self.warpers.append(NoRepeatNGramLogitsProcessor(no_repeat_ngram_size))
 
         self.cuda_graph = None
         self.static_scores = None
@@ -86,10 +78,12 @@ def static_warper(
     top_k: Optional[int],
     top_p: Optional[float],
     typical_p: Optional[float],
-    no_repeat_ngram_size: Optional[int],
 ) -> StaticWarper:
     return StaticWarper(
-        temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p, no_repeat_ngram_size=no_repeat_ngram_size
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        typical_p=typical_p,
     )
 
 
