@@ -925,7 +925,12 @@ class FlashCausalLM(Model):
         assert self.num_kv_heads > 0
 
         if head_size is None:
-            self.head_size = config.hidden_size // config.num_attention_heads
+            # Some models use GQA and different sizes for o_proj
+            # and q_proj, that allows for that.
+            if hasattr(config, "head_dim"):
+                self.head_size = config.head_dim
+            else:
+                self.head_size = config.hidden_size // config.num_attention_heads
         else:
             self.head_size = head_size
 
