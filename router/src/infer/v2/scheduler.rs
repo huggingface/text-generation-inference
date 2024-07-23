@@ -84,6 +84,7 @@ impl Scheduler for SchedulerV2 {
         self.queue.append(Entry {
             request,
             response_tx,
+            permit: Some(permit),
             span: Span::current(),
             temp_span: None,
             queue_time: Instant::now(),
@@ -95,11 +96,7 @@ impl Scheduler for SchedulerV2 {
         self.batching_task_notifier.notify_one();
 
         // Return stream
-        Ok((
-            permit,
-            input_length,
-            UnboundedReceiverStream::new(response_rx),
-        ))
+        Ok((input_length, UnboundedReceiverStream::new(response_rx)))
     }
 }
 

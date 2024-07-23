@@ -12,7 +12,7 @@ use text_generation_client::v3::{
 };
 use text_generation_client::ChunksToString;
 use text_generation_client::Input;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
 
@@ -21,6 +21,8 @@ use tracing::{info_span, instrument, Instrument, Span};
 pub(crate) struct Entry {
     /// Request
     pub request: ValidGenerateRequest,
+    /// Permit
+    pub permit: Option<OwnedSemaphorePermit>,
     /// Response sender to communicate between the Infer struct and the batching_task
     pub response_tx: mpsc::UnboundedSender<Result<InferStreamResponse, InferError>>,
     /// Span that will live as long as entry
@@ -314,6 +316,9 @@ impl State {
                     }
                 }
             };
+
+            // Drop permit
+            entry.permit = None;
 
             tracing::debug!("Accepting entry");
             // Create a new span to link the batch back to this entry
