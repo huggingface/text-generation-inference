@@ -29,7 +29,7 @@ add_subdirectory("${trtllm_SOURCE_DIR}/cpp" "${trtllm_SOURCE_DIR}/..")
 set_target_properties(executorWorker PROPERTIES SKIP_BUILD_RPATH TRUE)
 
 # TGI TRTLLM Backend definition
-add_library(tgi_trtllm_backend_impl STATIC include/backend.h lib/backend.cpp)
+add_library(tgi_trtllm_backend_impl STATIC include/backend.h lib/backend.cpp include/hardware.h)
 include_directories(${TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR})
 target_include_directories(tgi_trtllm_backend_impl PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

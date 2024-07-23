@@ -1,30 +1,31 @@
 #include <fstream>
 
-#include <nvml.h>
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
+#include <nvml.h>
 
 #include "backend.h"
+#include "hardware.h"
 
 void huggingface::tgi::backends::InitializeBackend() {
     SPDLOG_INFO("Initializing Backend...");
     nvmlInit_v2();
     initTrtLlmPlugins();
+
+    const auto numGpus = huggingface::hardware::cuda::GetNumDevices();
+    if (numGpus.has_value()) {
+        SPDLOG_INFO("Detected {:d} Nvidia GPU(s)", numGpus.value());
+    } else {
+        SPDLOG_WARN("Failed to detected Nvidia GPU(s) on the system");
+    }
 }
 
 [[nodiscard]]
 tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &config, const std::string &workerPath) {
     tle::ExecutorConfig execConfig(1);
 
-    // Get the compute capabilities of the current hardware
-    nvmlDevice_t device;
-    int32_t cudaComputeMajor = 0, cudaComputeMinor = 0;
-    if (nvmlDeviceGetHandleByIndex_v2(0, &device) == NVML_SUCCESS) {
-        SPDLOG_DEBUG("Successfully acquired nvmlDevice_t = 0");
-        if (nvmlDeviceGetCudaComputeCapability(device, &cudaComputeMajor, &cudaComputeMinor) == NVML_SUCCESS) {
-            SPDLOG_DEBUG(FMT_STRING("Detected sm_{:d}{:d} compute capabilities"), cudaComputeMajor, cudaComputeMinor);
-        }
-    }
+    // Retrieve the compute capabilities to enable some options at runtime
+    const auto computeCapabilities = huggingface::hardware::cuda::GetCudaComputeCapabilities();
 
     // Single engine (TP = PP = 1) -> using leader mode (no MPI involved)
     if (config["/pretrained_config/mapping/world_size"_json_pointer].get<uint8_t>() == 1) {
@@ -43,13 +44,13 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
                 tle::CommunicationMode::kORCHESTRATOR,
                 std::nullopt,
                 std::nullopt,
-                tle::OrchestratorConfig(true, workerPath)
+                tle::OrchestratorConfig(true, workerPath, nullptr, true)
         ));
     }
 
     // Define some configuration variables
     execConfig.setKvCacheConfig(tle::KvCacheConfig(true));
-    execConfig.setEnableChunkedContext(cudaComputeMajor >= 8);
+    execConfig.setEnableChunkedContext(computeCapabilities.isPostAmpere());
     return execConfig;
 }
 
@@ -94,6 +95,7 @@ bool huggingface::tgi::backends::TensorRtLlmBackend::IsReady() const {
     return executor.canEnqueueRequests();
 }
 
+[[nodiscard("Returned number of requests needs to be consumed")]]
 size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const {
     return executor.getNumResponsesReady();
 }
