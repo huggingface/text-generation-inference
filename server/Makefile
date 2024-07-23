@@ -30,6 +30,7 @@ install: install-cuda
 
 install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention install-fbgemm
 	pip install -e ".[bnb]"
+	pip install nvidia-nccl-cu12==2.22.3
 
 install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm
 
