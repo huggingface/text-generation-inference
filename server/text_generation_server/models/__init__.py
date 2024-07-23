@@ -762,8 +762,6 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
-                # hidden_size / num_attention_heads is wrong in `google/gemma-2-9b-it`
-                head_size=config_dict["head_dim"],
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma2"))
