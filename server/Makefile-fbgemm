@@ -1,10 +1,8 @@
-fbgemm_commit := 9cf0429b726931cfab72b8264730bea682f32fca
+fbgemm_commit := ddac8dd9fc0bee70a3f456df68b8aac38576c856
 
 build-fbgemm:
-	chmod +x fix_torch90a.sh && ./fix_torch90a.sh && \
 	git clone https://github.com/pytorch/FBGEMM.git fbgemm && \
-	cp fbgemm_remove_unused.patch fbgemm && \
-	cd fbgemm && git fetch && git checkout $(fbgemm_commit) && git apply fbgemm_remove_unused.patch && \
+	cd fbgemm && git fetch && git checkout $(fbgemm_commit)  && \
 	git submodule update --init --recursive && \
 	cd fbgemm_gpu && \
 	pip install -r requirements.txt && \
