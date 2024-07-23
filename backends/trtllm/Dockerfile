@@ -1,6 +1,5 @@
 ARG CUDA_ARCH_LIST="75-real;80-real;86-real;89-real;90-real"
-ARG INSTALL_PREFIX="/usr/local/tgi
-ARG TENSORRT_ROOT_DIR="/usr/local/tensorrt
+ARG OMPI_VERSION="4.1.6"
 
 # Build dependencies resolver stage
 FROM lukemathwalker/cargo-chef:latest as chef
@@ -11,56 +10,91 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # CUDA dependent dependencies resolver stage
-FROM nvcr.io/nvidia/pytorch:24.05-py3 as cuda-builder
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 as cuda-builder
 
-RUN apt update && apt install -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt update && apt install -y \
+    build-essential \
     cmake \
+    curl \
     gcc  \
     g++ \
     git \
     git-lfs \
-    ninja-build
+    libssl-dev \
+    ninja-build \
+    pkg-config \
+    python3 \
+    python3-setuptools \
+    tar \
+    wget
+
+ENV TGI_INSTALL_PREFIX=/usr/local/tgi
+ENV TENSORRT_INSTALL_PREFIX=/usr/local/tensorrt
+
+# Install OpenMPI
+FROM cuda-builder as mpi-builder
+ARG OMPI_VERSION
+
+ENV OMPI_TARBALL_FILENAME="openmpi-$OMPI_VERSION.tar.bz2"
+RUN wget "https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILENAME" -P /opt/src && \
+    mkdir /usr/src/mpi && \
+    tar -xf "/opt/src/$OMPI_TARBALL_FILENAME" -C /usr/src/mpi --strip-components=1 && \
+    cd /usr/src/mpi && \
+    ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --without-slurm && \
+    make -j all && \
+    make install && \
+    rm -rf "/opt/src/$OMPI_TARBALL_FILENAME"
 
 # Install TensorRT
+FROM cuda-builder as trt-builder
 COPY backends/trtllm/scripts/install_tensorrt.sh /opt/install_tensorrt.sh
 RUN chmod +x /opt/install_tensorrt.sh && \
     /opt/install_tensorrt.sh
 
+# Build Backend
+FROM cuda-builder as tgi-builder
+WORKDIR /usr/src/text-generation-inference
+
 # Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y && \
-    chmod -R a+w $HOME/.rustup && \
-    chmod -R a+w $HOME/.cargo
+    chmod -R a+w /root/.rustup && \
+    chmod -R a+w /root/.cargo
 
 ENV PATH="/root/.cargo/bin:$PATH"
 RUN cargo install cargo-chef
-
-# Backend build step
-WORKDIR /usr/src/text-generation-inference
 
 # Cache dependencies
 COPY --from=planner /usr/src/text-generation-inference/recipe.json .
 RUN cargo chef cook --release --recipe-path recipe.json
 
-ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
-
 # Build actual TGI
-ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
-ENV CMAKE_INSTALL_PREFIX="/usr/local/tgi"
-COPY . .
-RUN mkdir /usr/local/tgi && mkdir /usr/local/tgi/include && mkdir /usr/local/tgi/lib && \
-    cargo build --release --bin text-generation-backends-trtllm
+ARG CUDA_ARCH_LIST
+ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
+ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
+ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"a
 
-FROM nvcr.io/nvidia/pytorch:24.05-py3
+COPY . .
+COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
+COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
+RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
+    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --release --bin text-generation-backends-trtllm
+
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 as runtime
 WORKDIR /usr/local/tgi/bin
 
-ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
+ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 
-RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
-    ln -s /usr/local/cuda/lib64/stubs/libnvidia-ml.so /usr/local/cuda/lib64/stubs/libnvidia-ml.so.1
+COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
+COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
+COPY --from=tgi-builder /usr/local/tgi /usr/local/tgi
+COPY --from=tgi-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
 
-COPY --from=cuda-builder /usr/local/tensorrt /usr/local/tensorrt
-COPY --from=cuda-builder /usr/local/tgi /usr/local/tgi
-COPY --from=cuda-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
+FROM runtime
+
+LABEL co.huggingface.vendor="Hugging Face Inc."
+LABEL org.opencontainers.image.authors="hardware@hf.co"
 
 ENTRYPOINT ["./text-generation-launcher"]
 CMD ["--executor-worker", "/usr/local/tgi/bin/executorWorker"]
