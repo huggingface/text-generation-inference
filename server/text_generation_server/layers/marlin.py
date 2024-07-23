@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
+import numpy
 import torch
 import torch.nn as nn
 from loguru import logger
@@ -174,11 +175,12 @@ def can_use_gptq_marlin(
         SYSTEM == "cuda"
         and marlin_kernels is not None
         and has_sm_8_0
-        and quantize == "gptq"
-        and quant_method == "gptq"
+        and quantize in {"awq", "gptq"}
+        and quant_method in {"awq", "gptq"}
         and bits in GPTQ_MARLIN_BITS
         and groupsize in GPTQ_MARLIN_GROUP_SIZES
-        and sym
+        # We only suppord asymmetric quantization for AWQ.
+        and (sym or quant_method == "awq")
     )
 
 
@@ -234,6 +236,7 @@ class GPTQMarlinWeight(Weight):
     """
 
     qweight: torch.Tensor
+    qzeros: torch.Tensor
     scales: torch.Tensor
     g_idx: torch.Tensor
     perm: torch.Tensor
@@ -256,11 +259,13 @@ class GPTQMarlinWeight(Weight):
 def repack_gptq_for_marlin(
     *,
     qweight: torch.Tensor,
+    qzeros: Optional[torch.Tensor],
     scales: torch.Tensor,
-    g_idx: torch.Tensor,
+    g_idx: Optional[torch.Tensor],
     bits: int,
     desc_act: bool,
     groupsize: int,
+    quant_method: str,
     sym: bool,
     sharded_infeatures: bool,
 ) -> GPTQMarlinWeight:
@@ -279,30 +284,54 @@ def repack_gptq_for_marlin(
         raise RuntimeError(
             f"Repacking GPTQ weights with group size {groupsize} as Marlin is not supported, must be one of: {supported_sizes}"
         )
-    if not sym:
+    if not (sym or quant_method == "awq"):
         raise RuntimeError(
             "Repacking GPTQ weights with asymmetric quantization as Marlin is not supported."
         )
 
+    log_once(logger.info, f"Converting {quant_method} model to Marlin packing format.")
+
     weights_per_int = 32 // bits
-    in_features = qweight.shape[0] * weights_per_int
+    in_features = qweight.shape[0]
     out_features = qweight.shape[1]
+
+    # AWQ uses column packing, GPTQ uses row packing
+    if quant_method == "awq":
+        out_features *= weights_per_int
+    else:
+        in_features *= weights_per_int
 
     if in_features % groupsize != 0:
         raise ValueError(
             f"Number of input features ({in_features}) not divisible by group size ({groupsize})"
         )
 
-    if desc_act and groupsize != -1:
+    if g_idx is not None and desc_act and groupsize != -1:
         perm = torch.argsort(g_idx).to(torch.int)
         g_idx = g_idx[perm]
     else:
         perm = torch.empty(0, dtype=torch.int, device=qweight.device)
         g_idx = torch.empty(0, dtype=torch.int, device=qweight.device)
 
-    repacked = marlin_kernels.gptq_marlin_repack(
-        qweight, perm, in_features, out_features, bits
-    )
+    if quant_method == "awq":
+        repacked = marlin_kernels.awq_marlin_repack(
+            qweight, in_features, out_features, bits
+        )
+        if qzeros is not None:
+            qzeros = awq_to_marlin_zero_points(
+                qzeros,
+                in_features // groupsize,
+                out_features,
+                bits,
+            )
+
+    else:
+        repacked = marlin_kernels.gptq_marlin_repack(
+            qweight, perm, in_features, out_features, bits
+        )
+
+    if qzeros is None:
+        qzeros = torch.empty(0, dtype=torch.int, device=qweight.device)
 
     scales = permute_scales(scales)
 
@@ -310,6 +339,7 @@ def repack_gptq_for_marlin(
 
     return GPTQMarlinWeight(
         qweight=repacked,
+        qzeros=qzeros,
         scales=scales,
         g_idx=g_idx,
         perm=perm,
@@ -343,6 +373,7 @@ class GPTQMarlinLinear(nn.Module):
         self.is_full_k = weight.is_full_k
 
         self.qweight = weight.qweight
+        self.qzeros = weight.qzeros
         self.scales = weight.scales
         self.g_idx = weight.g_idx
         self.perm = weight.perm
@@ -363,6 +394,7 @@ class GPTQMarlinLinear(nn.Module):
             A_flat,
             self.qweight,
             self.scales,
+            self.qzeros,
             self.g_idx,
             self.perm,
             self.workspace,
@@ -371,6 +403,7 @@ class GPTQMarlinLinear(nn.Module):
             self.scales.shape[1],
             A_flat.shape[1],
             self.is_full_k,
+            self.qzeros.numel() > 0,
         )
         C = C.reshape(A.shape[:-1] + (self.scales.shape[1],))
 
@@ -688,3 +721,116 @@ class MarlinLinear(nn.Module):
             C += self.bias
 
         return C
+
+
+# Functions below are from vLLM
+
+
+def get_pack_factor(bits: int) -> int:
+    if 32 % bits != 0:
+        raise ValueError(f"Cannot {bits} bit values into uint32")
+    return 32 // bits
+
+
+def pack_cols(
+    q_w: torch.Tensor,
+    num_bits: int,
+    size_k: int,
+    size_n: int,
+):
+    assert q_w.shape == (size_k, size_n)
+
+    pack_factor = get_pack_factor(num_bits)
+    assert size_n % pack_factor == 0
+
+    orig_device = q_w.device
+
+    q_w = q_w.cpu().numpy().astype(numpy.uint32)
+
+    q_res = numpy.zeros((size_k, size_n // pack_factor), dtype=numpy.uint32)
+
+    for i in range(pack_factor):
+        q_res |= q_w[:, i::pack_factor] << num_bits * i
+
+    q_res = torch.from_numpy(q_res.astype(numpy.int32)).to(orig_device)
+    q_res = q_res.contiguous()
+
+    return q_res
+
+
+def unpack_cols(
+    packed_q_w: torch.Tensor,
+    num_bits: int,
+    size_k: int,
+    size_n: int,
+):
+    pack_factor = get_pack_factor(num_bits)
+    assert size_n % pack_factor == 0
+    assert packed_q_w.shape == (
+        size_k,
+        size_n // pack_factor,
+    ), "packed_q_w.shape = {} size_k = {}, size_n = {} pack_Factor = {}".format(
+        packed_q_w.shape, size_k, size_n, pack_factor
+    )
+
+    orig_device = packed_q_w.device
+
+    packed_q_w_cpu = packed_q_w.cpu().numpy().astype(numpy.uint32)
+    q_res = numpy.zeros((size_k, size_n), dtype=numpy.uint32)
+
+    mask = (1 << num_bits) - 1
+    for i in range(pack_factor):
+        vals = packed_q_w_cpu & mask
+        packed_q_w_cpu >>= num_bits
+        q_res[:, i::pack_factor] = vals
+
+    q_res = torch.from_numpy(q_res.astype(numpy.int32)).to(orig_device)
+    q_res = q_res.contiguous()
+
+    return q_res
+
+
+def marlin_zero_points(
+    zp: torch.Tensor, size_k: int, size_n: int, num_bits: int
+) -> torch.Tensor:
+    # Permute zero-points in a similar way to scales, but do not use the
+    # "single" permutation, since zero-points are applied on every MMA
+    zp = zp.reshape((-1, len(_scale_perm)))[:, _scale_perm]
+
+    # Interleave column dim (for the dequantize code) and pack it to int32
+    if num_bits == 4:
+        interleave = numpy.array([0, 2, 4, 6, 1, 3, 5, 7])
+    elif num_bits == 8:
+        interleave = numpy.array([0, 2, 1, 3])
+    else:
+        raise Exception("num_bits must be 4 or 8, got {}".format(num_bits))
+
+    zp = zp.reshape((-1, len(interleave)))[:, interleave].ravel()
+    zp = zp.reshape((-1, size_n)).contiguous()
+    zp = pack_cols(zp, num_bits, size_k, size_n)
+
+    return zp
+
+
+def awq_to_marlin_zero_points(
+    q_zp_packed: torch.Tensor, size_k: int, size_n: int, num_bits: int
+) -> torch.Tensor:
+    # AWQ zero-points are quantized and packed on the column dim.
+    # In addition, the values are permuted based on dequantizer.
+    # Here we undo both of these, and then apply marlin permutation
+    # and pack it back.
+    q_zp = unpack_cols(q_zp_packed, num_bits, size_k, size_n)
+
+    # Undo interleaving (use argsort(..) to get inverse perm)
+    if num_bits == 4:
+        undo_interleave = numpy.argsort(numpy.array([0, 2, 4, 6, 1, 3, 5, 7]))
+    elif num_bits == 8:
+        undo_interleave = numpy.argsort(numpy.array([0, 2, 1, 3]))
+    else:
+        raise Exception("num_bits must be 4 or 8, got {}".format(num_bits))
+
+    q_zp = q_zp.reshape((-1, len(undo_interleave)))[:, undo_interleave].ravel()
+    q_zp = q_zp.reshape((-1, size_n)).contiguous()
+
+    marlin_zp = marlin_zero_points(q_zp, size_k, size_n, num_bits)
+    return marlin_zp
