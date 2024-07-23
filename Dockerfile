@@ -167,8 +167,6 @@ FROM kernel-builder AS fbgemm-builder
 WORKDIR /usr/src
 
 COPY server/Makefile-fbgemm Makefile
-COPY server/fbgemm_remove_unused.patch fbgemm_remove_unused.patch
-COPY server/fix_torch90a.sh fix_torch90a.sh
 
 RUN make build-fbgemm
 
@@ -255,7 +253,6 @@ RUN cd server && \
     make gen-server && \
     pip install -r requirements_cuda.txt && \
     pip install ".[bnb, accelerate, quantize, peft, outlines]" --no-cache-dir && \
-    pip install nvidia-nccl-cu12==2.22.3
 
 ENV LD_PRELOAD=/opt/conda/lib/python3.10/site-packages/nvidia/nccl/lib/libnccl.so.2
 
