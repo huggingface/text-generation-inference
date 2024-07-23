@@ -156,16 +156,26 @@ class GPTQWeightsLoader(WeightsLoader):
                     f"Cannot load `{self.quantize}` weight for GPTQ -> Marlin repacking, make sure the model is already quantized"
                 )
 
-            g_idx = weights.get_tensor(f"{prefix}.g_idx")
+            if not self.sym:
+                qzeros = weights.get_tensor(f"{prefix}.qzeros")
+            else:
+                qzeros = None
+
+            if self.quant_method == "awq":
+                g_idx = None
+            else:
+                g_idx = weights.get_tensor(f"{prefix}.g_idx")
             scales = weights.get_tensor(f"{prefix}.scales")
 
             return repack_gptq_for_marlin(
                 qweight=qweight,
                 scales=scales,
+                qzeros=qzeros,
                 g_idx=g_idx,
                 bits=self.bits,
                 desc_act=self.desc_act,
                 groupsize=self.groupsize,
+                quant_method=self.quant_method,
                 sym=self.sym,
                 sharded_infeatures=False,
             )
@@ -275,14 +285,26 @@ class GPTQWeightsLoader(WeightsLoader):
             quantize=self.quantize,
             sym=self.sym,
         ):
-            g_idx = weights.get_tensor(f"{prefix}.g_idx")
+            if not self.sym:
+                qzeros = weights.get_packed_sharded(
+                    f"{prefix}.qzeros", dim=1, block_sizes=block_sizes
+                )
+            else:
+                qzeros = None
+
+            if self.quant_method == "awq":
+                g_idx = None
+            else:
+                g_idx = weights.get_tensor(f"{prefix}.g_idx")
             return repack_gptq_for_marlin(
                 qweight=qweight,
                 scales=scales,
+                qzeros=qzeros,
                 g_idx=g_idx,
                 bits=self.bits,
                 desc_act=self.desc_act,
                 groupsize=self.groupsize,
+                quant_method=self.quant_method,
                 sym=self.sym,
                 sharded_infeatures=False,
             )
@@ -349,18 +371,31 @@ class GPTQWeightsLoader(WeightsLoader):
             quantize=self.quantize,
             sym=self.sym,
         ):
-            w = [weights.get_tensor(f"{p}.g_idx") for p in prefixes]
-            for w2 in w[1:]:
-                torch.testing.assert_close(w2, w[0])
-            g_idx = w[0]
+
+            if not self.sym:
+                qzeros = torch.cat(
+                    [weights.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1
+                )
+            else:
+                qzeros = None
+
+            if self.quant_method == "awq":
+                g_idx = None
+            else:
+                w = [weights.get_tensor(f"{p}.g_idx") for p in prefixes]
+                for w2 in w[1:]:
+                    torch.testing.assert_close(w2, w[0])
+                g_idx = w[0]
 
             return repack_gptq_for_marlin(
                 qweight=qweight,
                 scales=scales,
+                qzeros=qzeros,
                 g_idx=g_idx,
                 bits=self.bits,
                 desc_act=self.desc_act,
                 groupsize=self.groupsize,
+                quant_method=self.quant_method,
                 sym=self.sym,
                 sharded_infeatures=False,
             )
@@ -438,7 +473,19 @@ class GPTQWeightsLoader(WeightsLoader):
                     f"Cannot load `{self.quantize}` weight for GPTQ -> Marlin repacking, make sure the model is already quantized"
                 )
 
-            g_idx = weights.get_sharded(f"{prefix}.g_idx", dim=0)
+            if not self.sym:
+                if self.desc_act or self.groupsize == -1:
+                    qzeros = weights.get_tensor(f"{prefix}.qzeros")
+                else:
+                    qzeros = weights.get_sharded(f"{prefix}.qzeros", dim=0)
+            else:
+                qzeros = None
+
+            if self.quant_method == "awq":
+                g_idx = None
+            else:
+                g_idx = weights.get_sharded(f"{prefix}.g_idx", dim=0)
+
             if self.desc_act or self.groupsize == -1:
                 scales = weights.get_tensor(f"{prefix}.scales")
             else:
@@ -449,10 +496,12 @@ class GPTQWeightsLoader(WeightsLoader):
             return repack_gptq_for_marlin(
                 qweight=qweight,
                 scales=scales,
+                qzeros=qzeros,
                 g_idx=g_idx,
                 bits=self.bits,
                 desc_act=self.desc_act,
                 groupsize=self.groupsize,
+                quant_method=self.quant_method,
                 sym=self.sym,
                 sharded_infeatures=sharded_in_features,
             )

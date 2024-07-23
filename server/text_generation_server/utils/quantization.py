@@ -34,7 +34,7 @@ def _get_quantizer_config(model_id, revision):
     groupsize = -1
     quant_method = "gptq"
     checkpoint_format = None
-    sym = True
+    sym = False
     desc_act = False
 
     filename = "config.json"
@@ -52,12 +52,17 @@ def _get_quantizer_config(model_id, revision):
                 activation_scale_ub=data["quantization_config"]["activation_scale_ub"]
             )
 
+        if "zero_point" in data["quantization_config"]:
+            sym = not data["quantization_config"]["zero_point"]
+            quant_method = "awq"
+        elif "sym" in data["quantization_config"]:
+            sym = data["quantization_config"]["sym"]
+
         bits = data["quantization_config"]["bits"]
         groupsize = data["quantization_config"]["group_size"]
         # Order is important here, desc_act is missing on some real models
         quant_method = data["quantization_config"]["quant_method"]
         checkpoint_format = data["quantization_config"].get("checkpoint_format")
-        sym = data["quantization_config"]["sym"]
         desc_act = data["quantization_config"]["desc_act"]
     except Exception:
         filename = "quantize_config.json"
@@ -72,7 +77,13 @@ def _get_quantizer_config(model_id, revision):
                 data = json.load(f)
             bits = data["bits"]
             groupsize = data["group_size"]
-            sym = data["sym"]
+
+            if "zero_point" in data:
+                sym = not data["zero_point"]
+                quant_method = "awq"
+            elif "sym" in data:
+                sym = data["sym"]
+
             desc_act = data["desc_act"]
             if "version" in data and data["version"] == "GEMM":
                 quant_method = "awq"
