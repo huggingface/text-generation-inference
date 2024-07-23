@@ -167,7 +167,7 @@ RUN python setup.py build
 FROM base AS base-copy
 
 # Text Generation Inference base env
-ENV HUGGINGFACE_HUB_CACHE=/data \
+ENV HF_HOME=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     PORT=80
 
