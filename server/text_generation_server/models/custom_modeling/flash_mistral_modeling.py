@@ -149,15 +149,14 @@ class MistralAttention(torch.nn.Module):
             bias=False,
         )
 
-        head_size = config.hidden_size // config.num_attention_heads
         self.query_key_value = TensorParallelMultiAdapterLinear.load(
             query_key_value,
             layer_id,
             ["q_proj", "k_proj", "v_proj"],
             sizes=[
-                head_size * config.num_attention_heads,
-                head_size * config.num_key_value_heads,
-                head_size * config.num_key_value_heads,
+                self.head_size * config.num_attention_heads,
+                self.head_size * config.num_key_value_heads,
+                self.head_size * config.num_key_value_heads,
             ],
             process_group=weights.process_group,
         )
