@@ -73,7 +73,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 ARG CUDA_ARCH_LIST
 ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
-ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"a
+ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
 
 COPY . .
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
