@@ -54,6 +54,7 @@ def _get_quantizer_config(model_id, revision):
 
         if "zero_point" in data["quantization_config"]:
             sym = not data["quantization_config"]["zero_point"]
+            quant_method = "awq"
         elif "sym" in data["quantization_config"]:
             sym = data["quantization_config"]["sym"]
 
@@ -76,7 +77,13 @@ def _get_quantizer_config(model_id, revision):
                 data = json.load(f)
             bits = data["bits"]
             groupsize = data["group_size"]
-            sym = data["sym"]
+
+            if "zero_point" in data:
+                sym = not data["zero_point"]
+                quant_method = "awq"
+            elif "sym" in data:
+                sym = data["sym"]
+
             desc_act = data["desc_act"]
             if "version" in data and data["version"] == "GEMM":
                 quant_method = "awq"

@@ -175,7 +175,7 @@ def can_use_gptq_marlin(
         SYSTEM == "cuda"
         and marlin_kernels is not None
         and has_sm_8_0
-        and quantize == "gptq"
+        and quantize in {"awq", "gptq"}
         and quant_method in {"awq", "gptq"}
         and bits in GPTQ_MARLIN_BITS
         and groupsize in GPTQ_MARLIN_GROUP_SIZES
