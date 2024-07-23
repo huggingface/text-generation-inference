@@ -1,5 +1,8 @@
 use clap::{Parser, ValueEnum};
-use hf_hub::{api::sync::Api, Repo, RepoType};
+use hf_hub::{
+    api::sync::{Api, ApiBuilder},
+    Repo, RepoType,
+};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use serde::Deserialize;
@@ -1401,7 +1404,13 @@ fn main() -> Result<(), LauncherError> {
         let mut path = std::path::Path::new(&args.model_id).to_path_buf();
         let filename = if !path.exists() {
             // Assume it's a hub id
-            let api = Api::new()?;
+
+            let api = if let Ok(token) = std::env::var("HF_TOKEN") {
+                // env variable has precedence over on file token.
+                ApiBuilder::new().with_token(Some(token)).build()?
+            } else {
+                Api::new()?
+            };
             let repo = if let Some(ref revision) = args.revision {
                 api.repo(Repo::with_revision(
                     model_id,
