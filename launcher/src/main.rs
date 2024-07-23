@@ -1448,7 +1448,7 @@ fn main() -> Result<(), LauncherError> {
             )))
         }
     };
-    let max_position_embeddings: usize = get_max_position_embeddings().unwrap_or(4096);
+    let max_position_embeddings: usize = get_max_position_embeddings().unwrap();
 
     let max_input_tokens = {
         match (args.max_input_tokens, args.max_input_length) {
