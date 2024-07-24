@@ -20,7 +20,10 @@ FBGEMM_DYN_AVAILABLE = False
 
 
 def is_fbgemm_gpu_available():
-    return importlib.util.find_spec("fbgemm_gpu.experimental.gen_ai") is not None
+    try:
+        return importlib.util.find_spec("fbgemm_gpu.experimental.gen_ai") is not None
+    except ModuleNotFoundError:
+        return False
 
 
 if is_fbgemm_gpu_available():

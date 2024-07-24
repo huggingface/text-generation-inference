@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -85,7 +85,7 @@ class MarlinWeightsLoader(WeightsLoader):
                 )
             except RuntimeError:
                 raise RuntimeError(
-                    f"Cannot load `marlin` weight, make sure the model is already quantized"
+                    "Cannot load `marlin` weight, make sure the model is already quantized"
                 )
 
             B_meta = torch.cat(
@@ -104,7 +104,7 @@ class MarlinWeightsLoader(WeightsLoader):
                 )
             except RuntimeError:
                 raise RuntimeError(
-                    f"Cannot load `marlin` weight, make sure the model is already quantized"
+                    "Cannot load `marlin` weight, make sure the model is already quantized"
                 )
             s = torch.cat(
                 [weights.get_sharded(f"{p}.s", dim=1) for p in prefixes], dim=1
