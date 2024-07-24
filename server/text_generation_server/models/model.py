@@ -4,20 +4,12 @@ import torch
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, TypeVar, Type, Dict, DefaultDict
 from collections import defaultdict
-from transformers import PreTrainedTokenizerBase, PretrainedConfig
+from transformers import PreTrainedTokenizerBase
 
 from text_generation_server.models.types import Batch, Generation
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.pb.generate_pb2 import InfoResponse
 from text_generation_server.adapters.weights import LayerAdapterWeights
-from text_generation_server.utils.adapter import (
-    load_and_merge_adapters,
-    AdapterParameters,
-    AdapterSource,
-)
-from text_generation_server.utils.log import log_master
-from loguru import logger
-
 
 BASE_MODEL_ADAPTER_ID = "__base_model__"
 
@@ -61,7 +53,6 @@ class Model(ABC):
         self.layer_to_adapter_weights: Dict[str, LayerAdapterWeights] = defaultdict(
             LayerAdapterWeights
         )
-        self.target_to_layer = None
         self.loaded_adapters = set()
         self.static_adapter_id = adapter_id
 
@@ -142,140 +133,3 @@ class Model(ABC):
             raise RuntimeError(
                 f"found uninitialized parameters in model {self.__class__.__name__}: {uninitialized_parameters}"
             )
-
-    @property
-    def supports_adapter_loading(self) -> bool:
-        return False
-
-    def adapter_target_to_layer(self) -> Dict[str, Tuple[str, torch.Tensor]]:
-        return {}
-
-    @property
-    def adapter_layers(self) -> List[str]:
-        return []
-
-    @property
-    def default_traced_adapter_layers(self) -> List[str]:
-        return []
-
-    def get_num_layers_for_type(self, layer_type: str) -> int:
-        return 0
-
-    def is_row_parallel(self, layer_type: str) -> bool:
-        return False
-
-    @property
-    def max_speculative_tokens(self) -> int:
-        return max(
-            [
-                weights.max_speculative_tokens
-                for weights in self.layer_to_adapter_weights.values()
-            ],
-            default=0,
-        )
-
-    def load_adapter(
-        self,
-        adapter_parameters: AdapterParameters,
-        adapter_source: AdapterSource,
-        adapter_index: int,
-        api_token: str,
-        dynamic: bool = True,
-    ):
-        """Loads adapter weights from disk / host memory on the GPU.
-
-        adapter_id must be `BASE_MODEL_ADAPTER_ID` if adapter statically loaded
-        into model. Otherwise, the adapter weights are applied during the forward
-        pass and stored separately from the base model parameters.
-        """
-        if self.target_to_layer is None:
-            self.target_to_layer = self.adapter_target_to_layer()
-        if adapter_index in self.loaded_adapters:
-            # Adapter already loaded
-            return
-
-        if not self.supports_adapter_loading:
-            raise ValueError("This model does not support adapter loading.")
-
-        if dynamic and not self.dynamic_adapter_loading_enabled:
-            raise ValueError(
-                f"This model was initialized with the adapter {self.static_adapter_id} "
-                f"and therefore does not support dynamic adapter loading. "
-                f"Please initialize a new model instance from the base model in "
-                f"order to use the dynamic adapter loading feature."
-            )
-
-        log_master(
-            logger.info,
-            f"Loading adapter weights into model: {','.join(adapter_parameters.adapter_ids)}",
-        )
-        weight_names = tuple([v[0] for v in self.target_to_layer.values()])
-        (
-            module_map,
-            adapter_config,
-            adapter_weight_names,
-            adapter_tokenizer,
-        ) = load_and_merge_adapters(
-            self.model_id,
-            adapter_parameters,
-            adapter_source,
-            adapter_index,
-            weight_names,
-            api_token,
-            False,
-        )
-
-        unused_weight_names = adapter_weight_names.copy()
-        for layer_name in self.adapter_layers:
-            adapter_weights = adapter_config.load_batched_adapter_weights(
-                self,
-                module_map,
-                layer_name,
-                unused_weight_names,
-                dynamic,
-            )
-
-            if adapter_weights is None:
-                continue
-
-            layer_weights = self.layer_to_adapter_weights[layer_name]
-            layer_weights.add_adapter(adapter_index, adapter_weights)
-
-        if len(unused_weight_names) > 0:
-            log_master(
-                logger.warning,
-                f"{','.join(adapter_parameters.adapter_ids)} unused adapter weights: {unused_weight_names}",
-            )
-
-        if adapter_tokenizer is not None:
-            self.tokenizers.add_tokenizer(adapter_index, adapter_tokenizer)
-
-        self.loaded_adapters.add(adapter_index)
-
-    def offload_adapter(
-        self,
-        adapter_parameters: AdapterParameters,
-        adapter_source: AdapterSource,
-        adapter_index: int,
-    ):
-        """Offloads the adapter weights from GPU to CPU or disk."""
-        if adapter_index not in self.loaded_adapters:
-            # Adapter already offloaded
-            return
-
-        if not self.supports_adapter_loading:
-            raise ValueError("This model does not support adapter loading.")
-
-        if not self.dynamic_adapter_loading_enabled:
-            raise ValueError(
-                f"This model was initialized with the adapter {self.static_adapter_id} "
-                f"and therefore does not support dynamic adapter loading. "
-                f"Please initialize a new model instance from the base model in "
-                f"order to use the dynamic adapter loading feature."
-            )
-
-        for layer_name in self.adapter_layers:
-            if layer_name in self.layer_to_adapter_weights:
-                self.layer_to_adapter_weights[layer_name].remove_adapter(adapter_index)
-
-        self.loaded_adapters.remove(adapter_index)

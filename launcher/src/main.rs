@@ -1607,6 +1607,10 @@ fn main() -> Result<(), LauncherError> {
     // Download and convert lora adapters if any
     if let Some(lora_adapters) = &args.lora_adapters {
         for adapter in lora_adapters.split(',') {
+            // skip download if a path is provided
+            if adapter.contains('=') {
+                continue;
+            }
             download_convert_model(
                 adapter,
                 None,
