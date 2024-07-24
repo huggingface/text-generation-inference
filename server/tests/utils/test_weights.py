@@ -8,7 +8,10 @@ from text_generation_server.utils.weights import (
 )
 from text_generation_server.layers.gptq import GPTQWeight, GPTQWeightsLoader
 from text_generation_server.layers.exl2 import Exl2Weight, Exl2WeightsLoader
-from text_generation_server.layers.marlin import MarlinWeight, MarlinWeightsLoader
+from text_generation_server.layers.marlin.marlin import (
+    MarlinWeight,
+    MarlinWeightsLoader,
+)
 from types import SimpleNamespace
 from typing import List, Optional, Dict, Union
 from pathlib import Path
