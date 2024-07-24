@@ -14,6 +14,7 @@ from text_generation_server.models.flash_causal_lm import (
 )
 from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
+from text_generation_server.layers.attention import Seqlen
 
 tracer = trace.get_tracer(__name__)
 
@@ -348,6 +349,7 @@ class VlmCausalLM(FlashCausalLM):
         else:
             cuda_graph = None
         if cu_seqlen_prefill is not None or cuda_graph is None:
+            input_lengths = Seqlen(input_lengths=input_lengths)
             logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
