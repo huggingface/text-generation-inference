@@ -959,6 +959,10 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                aliases={
+                    "lm_head.weight": ["model.word_embeddings.weight"],
+                    "model.word_embeddings.weight": ["lm_head.weight"],
+                }
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Qwen2"))
