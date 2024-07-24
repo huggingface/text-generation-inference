@@ -4,12 +4,11 @@ import typer
 
 from pathlib import Path
 from loguru import logger
-from typing import Optional, List, Dict
+from typing import Optional
 from enum import Enum
 from huggingface_hub import hf_hub_download
 from text_generation_server.utils.adapter import parse_lora_adapters
 
-from text_generation_server.utils.log import log_master
 
 app = typer.Typer()
 

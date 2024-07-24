@@ -4,7 +4,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Dict, List, Optional, Set, Tuple, Type, Union
 
 import torch
 from peft import LoraConfig as _LoraConfig
@@ -25,9 +25,6 @@ from text_generation_server.utils.sgmv import (
     pad_rank,
     use_cutlass_shrink,
 )
-
-if TYPE_CHECKING:
-    from text_generation_server.models.model import Model
 
 
 def get_start_stop_idxs_for_rank(offset, size, rank, world_size):
