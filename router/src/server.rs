@@ -1815,7 +1815,7 @@ pub async fn run(
                          request: axum::extract::Request,
                          next: axum::middleware::Next| async move {
             match headers.get(AUTHORIZATION) {
-                Some(token) if token == api_key => {
+                Some(token) if token.to_lowercase() == api_key.to_lowercase() => {
                     let response = next.run(request).await;
                     Ok(response)
                 }
