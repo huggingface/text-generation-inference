@@ -11,6 +11,17 @@ const MPI_REQUIRED_VERSION: &str = "4.1";
 const INSTALL_PREFIX: Option<&str> = option_env!("CMAKE_INSTALL_PREFIX");
 const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
 
+// Dependencies
+const BACKEND_DEPS: [&str; 2] = ["tgi_trtllm_backend_impl", "tgi_trtllm_backend"];
+const CUDA_TRANSITIVE_DEPS: [&str; 5] = ["cuda", "cudart", "cublas", "nvidia-ml", "nccl"];
+const TENSORRT_LLM_TRANSITIVE_DEPS: [(&str, &str); 5] = [
+    ("dylib", "tensorrt-llm"),
+    ("static", "tensorrt_llm_executor_static"),
+    ("dylib", "tensorrt_llm_nvrtc_wrapper"),
+    ("dylib", "nvinfer_plugin_tensorrt_llm"),
+    ("dylib", "decoder_attention"),
+];
+
 macro_rules! probe {
     ($name: expr, $version: expr) => {
         if let Err(_) = pkg_config::probe_library($name) {
@@ -109,7 +120,6 @@ fn main() {
     probe!("ompi", MPI_REQUIRED_VERSION);
 
     // Probe CUDA & co. with pkg-config
-    const CUDA_TRANSITIVE_DEPS: [&str; 5] = ["cuda", "cudart", "cublas", "nvidia-ml", "nccl"];
     CUDA_TRANSITIVE_DEPS.iter().for_each(|name| {
         probe!(name, CUDA_REQUIRED_VERSION);
     });
@@ -120,14 +130,6 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=nvinfer");
 
     // TensorRT-LLM
-    const TENSORRT_LLM_TRANSITIVE_DEPS: [(&str, &str); 5] = [
-        ("dylib", "tensorrt-llm"),
-        ("static", "tensorrt_llm_executor_static"),
-        ("dylib", "tensorrt_llm_nvrtc_wrapper"),
-        ("dylib", "nvinfer_plugin_tensorrt_llm"),
-        ("dylib", "decoder_attention"),
-    ];
-
     TENSORRT_LLM_TRANSITIVE_DEPS
         .iter()
         .for_each(|(link_type, name)| {
@@ -135,7 +137,6 @@ fn main() {
         });
 
     // Backend
-    const BACKEND_DEPS: [&str; 2] = ["tgi_trtllm_backend_impl", "tgi_trtllm_backend"];
     BACKEND_DEPS.iter().for_each(|name| {
         println!("cargo:rustc-link-lib=static={}", name);
     });
