@@ -45,6 +45,7 @@ from text_generation_server.models.globals import (
     get_adapter_to_index,
     MODEL_ID,
 )
+import text_generation_server.models.globals as globals_vars
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
@@ -1156,7 +1157,7 @@ class FlashCausalLM(Model):
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
-                    f"tunableop_{MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                    f"tunableop_{globals_vars.MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
                 log_master(
