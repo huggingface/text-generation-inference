@@ -950,7 +950,6 @@ def get_model(
 
     if model_type == QWEN2:
         if FLASH_ATTENTION:
-            print('!!! aliases !!!')
             return FlashCausalLM(
                 model_id=model_id,
                 model_class=Qwen2ForCausalLM,
@@ -961,8 +960,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 aliases={
-                    "lm_head.weight": ["model.word_embeddings.weight"],
-                    "model.word_embeddings.weight": ["lm_head.weight"],
+                    "lm_head.weight": ["model.embed_tokens.weight"]
                 }
             )
         elif sharded:
