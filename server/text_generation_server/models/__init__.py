@@ -60,7 +60,7 @@ __all__ = [
     "Model",
     "CausalLM",
     "Seq2SeqLM",
-    "get_model",
+    "get_model_with_lora_adapters",
 ]
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
@@ -304,7 +304,7 @@ for data in ModelType:
     __GLOBALS[data.name] = data.value["type"]
 
 
-def _get_model(
+def get_model(
     model_id: str,
     lora_adapter_ids: Optional[List[str]],
     revision: Optional[str],
@@ -1124,7 +1124,7 @@ def _get_model(
 
 # get_model wraps the internal _get_model function and adds support for loading adapters
 # this provides a post model loading hook to load adapters into the model after the model has been loaded
-def get_model(
+def get_model_with_lora_adapters(
     model_id: str,
     lora_adapters: Optional[List[AdapterInfo]],
     revision: Optional[str],
@@ -1137,7 +1137,7 @@ def get_model(
     adapter_to_index: Dict[str, int],
 ):
     lora_adapter_ids = [adapter.id for adapter in lora_adapters]
-    model = _get_model(
+    model = get_model(
         model_id,
         lora_adapter_ids,
         revision,

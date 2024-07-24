@@ -13,7 +13,7 @@ from typing import List, Optional, Dict
 
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
-from text_generation_server.models import Model, get_model
+from text_generation_server.models import Model, get_model_with_lora_adapters
 from text_generation_server.utils.adapter import AdapterInfo
 
 try:
@@ -226,7 +226,7 @@ def serve(
             server_urls = [local_url]
 
         try:
-            model = get_model(
+            model = get_model_with_lora_adapters(
                 model_id,
                 lora_adapters,
                 revision,
