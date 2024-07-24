@@ -1122,7 +1122,7 @@ def get_model(
     raise ValueError(f"Unsupported model type {model_type}")
 
 
-# get_model wraps the internal _get_model function and adds support for loading adapters
+# get_model_with_lora_adapters wraps the internal get_model function and adds support for loading adapters
 # this provides a post model loading hook to load adapters into the model after the model has been loaded
 def get_model_with_lora_adapters(
     model_id: str,
