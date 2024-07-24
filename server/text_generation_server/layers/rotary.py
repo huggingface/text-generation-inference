@@ -4,7 +4,6 @@ import torch
 from torch import nn
 
 # Inverse dim formula to find dim based on number of rotations
-import math
 
 
 from text_generation_server.utils.import_utils import SYSTEM

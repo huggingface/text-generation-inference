@@ -46,7 +46,6 @@ from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
 from text_generation_server.utils.weights import (
-    UnquantizedWeight,
     Weights,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader

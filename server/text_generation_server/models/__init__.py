@@ -298,10 +298,8 @@ class ModelType(enum.Enum):
         "multimodal": True,
     }
 
-
-__GLOBALS = locals()
-for data in ModelType:
-    __GLOBALS[data.name] = data.value["type"]
+    def __str__(self):
+        return self.value["type"]
 
 
 def get_model(
@@ -716,6 +714,7 @@ def get_model(
         or model_type == ModelType.BAICHUAN
         or model_type == ModelType.PHI3
     ):
+        print(f">>> model_type: {model_type}")
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
