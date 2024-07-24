@@ -424,7 +424,7 @@ class FlashLlamaModel(torch.nn.Module):
                 FlashLlamaLayer(
                     index=0,
                     prefix=(
-                        "model.layers.0" if not prefix else "{prefix}.model.layers.0"
+                        "model.layers.0" if not prefix else f"{prefix}.model.layers.0"
                     ),
                     config=config,
                     weights=weights,
