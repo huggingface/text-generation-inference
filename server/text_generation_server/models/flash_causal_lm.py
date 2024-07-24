@@ -44,7 +44,7 @@ from text_generation_server.models.globals import (
     BLOCK_SIZE,
     CUDA_GRAPHS,
     get_adapter_to_index,
-    MODEL_ID,
+    get_model_id,
 )
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
@@ -1155,9 +1155,10 @@ class FlashCausalLM(Model):
                     # For seqlen = 1, we dispatch to LLMM1 kernel.
                     tuning_sequences = [2, 3, 4, 5, 6, 7]
 
+                model_id = get_model_id()
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
-                    f"tunableop_{MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                    f"tunableop_{model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
                 log_master(
