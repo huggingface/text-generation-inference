@@ -1242,7 +1242,7 @@ fn spawn_webserver(
     router_args.push("--otlp-service-name".to_string());
     router_args.push(otlp_service_name);
 
-    // CORS origins
+    // API Key
     for origin in args.cors_allow_origin.into_iter() {
         router_args.push("--cors-allow-origin".to_string());
         router_args.push(origin);
