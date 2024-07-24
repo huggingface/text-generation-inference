@@ -43,10 +43,7 @@ class LoraLinear(nn.Module):
     ) -> torch.Tensor:
         if adapter_data is None:
             return result
-        data = adapter_data.data.get(layer_type)
-        data: Optional["BatchLoraWeights"] = (
-            data.get("lora") if data is not None else None
-        )
+        data: Optional["BatchLoraWeights"] = adapter_data.data.get(layer_type)
 
         if has_sgmv() and data is not None and data.can_vectorize(self.process_group):
             # In tensor-parallel configurations, each GPU processes a specific segment of the output.

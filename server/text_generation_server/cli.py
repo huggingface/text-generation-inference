@@ -4,9 +4,10 @@ import typer
 
 from pathlib import Path
 from loguru import logger
-from typing import Optional
+from typing import Optional, List, Dict
 from enum import Enum
 from huggingface_hub import hf_hub_download
+from text_generation_server.utils.adapter import parse_lora_adapters
 
 from text_generation_server.utils.log import log_master
 
@@ -80,28 +81,19 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(otlp_service_name=otlp_service_name, otlp_endpoint=otlp_endpoint)
 
-    lora_adapter_ids = os.getenv("LORA_ADAPTERS", None)
-
-    # split on comma and strip whitespace
-    lora_adapter_ids = (
-        [x.strip() for x in lora_adapter_ids.split(",")] if lora_adapter_ids else []
-    )
-
-    if len(lora_adapter_ids) > 0:
-        log_master(
-            logger.warning,
-            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected.",
-        )
+    lora_adapters = parse_lora_adapters(os.getenv("LORA_ADAPTERS"))
 
     # TODO: enable lora with cuda graphs. for now disable cuda graphs if lora is enabled
     # and warn the user
-    if len(lora_adapter_ids) > 0 and os.getenv("CUDA_GRAPHS", None) is not None:
-        log_master(
-            logger.warning,
-            f"LoRa adapter are not supported with CUDA Graphs. Disabling CUDA Graphs.",
-        )
-        global CUDA_GRAPHS
-        CUDA_GRAPHS = None
+    if lora_adapters:
+        logger.warning("LoRA adapters enabled (experimental feature).")
+
+        if "CUDA_GRAPHS" in os.environ:
+            logger.warning(
+                "LoRA adapters incompatible with CUDA Graphs. Disabling CUDA Graphs."
+            )
+            global CUDA_GRAPHS
+            CUDA_GRAPHS = None
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
@@ -117,7 +109,7 @@ def serve(
         )
     server.serve(
         model_id,
-        lora_adapter_ids,
+        lora_adapters,
         revision,
         sharded,
         quantize,
