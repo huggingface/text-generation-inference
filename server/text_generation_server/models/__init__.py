@@ -950,6 +950,7 @@ def get_model(
 
     if model_type == QWEN2:
         if FLASH_ATTENTION:
+            print('!!! aliases !!!')
             return FlashCausalLM(
                 model_id=model_id,
                 model_class=Qwen2ForCausalLM,
