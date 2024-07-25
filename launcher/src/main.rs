@@ -1162,6 +1162,7 @@ fn spawn_webserver(
     max_input_tokens: usize,
     max_total_tokens: usize,
     max_batch_prefill_tokens: u32,
+    startup_time: u64,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
 ) -> Result<Child, LauncherError> {
@@ -1199,6 +1200,8 @@ fn spawn_webserver(
         format!("{}-0", args.shard_uds_path),
         "--tokenizer-name".to_string(),
         args.model_id,
+        "--startup-time".to_string(),
+        startup_time.to_string(),
     ];
 
     // Grammar support
@@ -1341,6 +1344,7 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
 fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
     let args: Args = Args::parse();
+    let start_time = Instant::now();
 
     // Filter events with LOG_LEVEL
     let varname = "LOG_LEVEL";
@@ -1622,12 +1626,14 @@ fn main() -> Result<(), LauncherError> {
         return Ok(());
     }
 
+    let download_time = start_time.elapsed().as_secs();
     let mut webserver = spawn_webserver(
         num_shard,
         args,
         max_input_tokens,
         max_total_tokens,
         max_batch_prefill_tokens,
+        download_time,
         shutdown.clone(),
         &shutdown_receiver,
     )
