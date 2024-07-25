@@ -864,6 +864,14 @@
             "nullable": true,
             "minimum": 0
           },
+          "no_repeat_ngram_size": {
+            "type": "integer",
+            "format": "int32",
+            "description": "n-grams are groups of \"n\" consecutive words, characters, or tokens taken from a sequence of text. Given the\nsentence: \"She runs fast\", the bi-grams (n=2) would be (\"she\", \"runs\") and (\"runs\", \"fast\"). Set this to avoid\ngenerating the same n-grams in the completion.",
+            "example": "12",
+            "nullable": true,
+            "minimum": 0
+          },
           "presence_penalty": {
             "type": "number",
             "format": "float",
@@ -1140,6 +1148,14 @@
             "example": "mistralai/Mistral-7B-Instruct-v0.2",
             "nullable": true
           },
+          "no_repeat_ngram_size": {
+            "type": "integer",
+            "format": "int32",
+            "description": "n-grams are groups of \"n\" consecutive words, characters, or tokens taken from a sequence of text. Given the\nsentence: \"She runs fast\", the bi-grams (n=2) would be (\"she\", \"runs\") and (\"runs\", \"fast\"). Set this to avoid\ngenerating the same n-grams in the completion.",
+            "example": "12",
+            "nullable": true,
+            "minimum": 0
+          },
           "prompt": {
             "$ref": "#/components/schemas/Prompt"
           },
@@ -1379,15 +1395,6 @@
             "nullable": true,
             "exclusiveMinimum": -2
           },
-          "no_repeat_ngram_size": {
-            "type": "integer",
-            "format": "int32",
-            "description": "If set to int > 0, all ngrams of that size can only occur once.",
-            "default": "null",
-            "example": 12,
-            "nullable": true,
-            "minimum": 0
-          },
           "grammar": {
             "allOf": [
               {
@@ -1403,6 +1410,14 @@
             "description": "Maximum number of tokens to generate.",
             "default": "100",
             "example": "20",
+            "nullable": true,
+            "minimum": 0
+          },
+          "no_repeat_ngram_size": {
+            "type": "integer",
+            "format": "int32",
+            "description": "n-grams are groups of \"n\" consecutive words, characters, or tokens taken from a sequence of text. Given the\nsentence: \"She runs fast\", the bi-grams (n=2) would be (\"she\", \"runs\") and (\"runs\", \"fast\"). Set this to avoid\ngenerating the same n-grams in the completion.",
+            "example": "12",
             "nullable": true,
             "minimum": 0
           },
