@@ -18,7 +18,6 @@ from transformers import (
     TopKLogitsWarper,
     TopPLogitsWarper,
     TypicalLogitsWarper,
-    NoRepeatNGramLogitsProcessor
 )
 
 mempool = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
@@ -44,8 +43,6 @@ class StaticWarper:
             self.warpers.append(TopPLogitsWarper(top_p=top_p))
         if typical_p is not None and typical_p < 1.0:
             self.warpers.append(TypicalLogitsWarper(mass=typical_p))
-        if no_repeat_ngram_size is not None and no_repeat_ngram_size > 0:
-            self.warpers.append(NoRepeatNGramLogitsProcessor(no_repeat_ngram_size))
 
         self.cuda_graph = None
         self.static_scores = None
