@@ -10,10 +10,11 @@ const CUDA_REQUIRED_VERSION: &str = "12.5";
 const MPI_REQUIRED_VERSION: &str = "4.1";
 const INSTALL_PREFIX: Option<&str> = option_env!("CMAKE_INSTALL_PREFIX");
 const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
+const NCCL_ROOT_DIR: Option<&str> = option_env!("NCCL_ROOT_DIR");
 
 // Dependencies
 const BACKEND_DEPS: [&str; 2] = ["tgi_trtllm_backend_impl", "tgi_trtllm_backend"];
-const CUDA_TRANSITIVE_DEPS: [&str; 5] = ["cuda", "cudart", "cublas", "nvidia-ml", "nccl"];
+const CUDA_TRANSITIVE_DEPS: [&str; 4] = ["cuda", "cudart", "cublas", "nvidia-ml"];
 const TENSORRT_LLM_TRANSITIVE_DEPS: [(&str, &str); 5] = [
     ("dylib", "tensorrt-llm"),
     ("static", "tensorrt_llm_executor_static"),
@@ -123,6 +124,14 @@ fn main() {
     CUDA_TRANSITIVE_DEPS.iter().for_each(|name| {
         probe!(name, CUDA_REQUIRED_VERSION);
     });
+
+    // NCCL is slightly trickier because it might not have a pkgconfig installed
+    let nccl_library_path = NCCL_ROOT_DIR.unwrap_or(&format!(
+        "/usr/local/{}-linux-gnu",
+        env!("CARGO_CFG_TARGET_ARCH")
+    ));
+    println!(r"cargo:rustc-link-search=native={}", nccl_library_path);
+    println!("cargo:rustc-link-lib=dylib=nccl");
 
     // TensorRT
     let tensort_library_path = TENSORRT_ROOT_DIR.unwrap_or("/usr/local/tensorrt/lib");
