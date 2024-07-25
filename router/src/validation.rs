@@ -353,6 +353,14 @@ impl Validation {
                             .compile(&json)
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
 
+                        // The schema can be valid but lack properties.
+                        // We need properties for the grammar to be successfully parsed in Python.
+                        // Therefore, we must check and throw an error if properties are missing.
+                        json.get("properties")
+                            .ok_or(ValidationError::InvalidGrammar(
+                                "Grammar must have a 'properties' field".to_string(),
+                            ))?;
+
                         // Serialize json to string
                         ValidGrammar::Json(
                             serde_json::to_string(&json)
