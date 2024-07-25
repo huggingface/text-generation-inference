@@ -81,7 +81,7 @@ jobs:
           install: true
           buildkitd-config-inline: |
             [registry."docker.io"]
-              mirrors = ["registry-us-east-1-mirror.prod.aws.ci.huggingface.tech"]
+              mirrors = ["${{ env.REGISTRY_MIRROR }}"]
       - name: Login to internal Container Registry
         uses: docker/login-action@v3
         with:
