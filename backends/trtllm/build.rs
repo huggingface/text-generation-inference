@@ -1,4 +1,5 @@
 use std::env;
+use std::env::consts::ARCH;
 use std::path::{absolute, PathBuf};
 
 use cxx_build::CFG;
@@ -126,10 +127,7 @@ fn main() {
     });
 
     // NCCL is slightly trickier because it might not have a pkgconfig installed
-    let nccl_library_path = NCCL_ROOT_DIR.unwrap_or(&format!(
-        "/usr/local/{}-linux-gnu",
-        env::var("CARGO_CFG_TARGET_ARCH").unwrap()
-    ));
+    let nccl_library_path = NCCL_ROOT_DIR.unwrap_or(&format!("/usr/local/{}-linux-gnu", ARCH));
     println!(r"cargo:rustc-link-search=native={}", nccl_library_path);
     println!("cargo:rustc-link-lib=dylib=nccl");
 
