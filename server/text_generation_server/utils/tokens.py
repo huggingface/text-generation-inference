@@ -69,7 +69,11 @@ class NextTokenChooser:
         )
         if has_warpers:
             self.static_warper = static_warper(
-                temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p, no_repeat_ngram_size=no_repeat_ngram_size
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                typical_p=typical_p,
+                no_repeat_ngram_size=no_repeat_ngram_size,
             )
         else:
             self.static_warper = None

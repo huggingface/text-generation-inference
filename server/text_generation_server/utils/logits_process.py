@@ -86,7 +86,11 @@ def static_warper(
     no_repeat_ngram_size: Optional[int],
 ) -> StaticWarper:
     return StaticWarper(
-        temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p, no_repeat_ngram_size=no_repeat_ngram_size
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        typical_p=typical_p,
+        no_repeat_ngram_size=no_repeat_ngram_size,
     )
 
 
