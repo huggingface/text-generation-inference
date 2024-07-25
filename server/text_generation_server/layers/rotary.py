@@ -2,10 +2,6 @@ import os
 import math
 import torch
 from torch import nn
-
-# Inverse dim formula to find dim based on number of rotations
-
-
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "cuda":

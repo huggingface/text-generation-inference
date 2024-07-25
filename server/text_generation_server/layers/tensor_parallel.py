@@ -69,12 +69,13 @@ class TensorParallelHead(SuperLayer):
 
         # GPTQ,AWQ,EETQ don't quantize heads (nor embeddings)
         if config.quantize in ["gptq", "awq", "eetq", "marlin"]:
-            pass
+            # Local variable `quantize` is assigned to but never used
+            quantize = None  # noqa F841
         # See above, exl2 LM head can be quantized or not.
         elif config.quantize == "exl2" and not isinstance(weight, Exl2Weight):
-            pass
+            quantize = None  # noqa F841
         else:
-            pass
+            quantize = config.quantize  # noqa F841
 
         return TensorParallelHead(
             get_linear(weight, bias=None),

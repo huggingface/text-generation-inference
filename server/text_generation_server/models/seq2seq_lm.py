@@ -253,7 +253,7 @@ class Seq2SeqLMBatch(Batch):
         ]
 
         # Ensure that past_key_values tensors can be updated in-place
-        if isinstance(self.past_key_values[0], tuple):
+        if type(self.past_key_values[0]) is tuple:
             self.past_key_values = [
                 [t for t in layer] for layer in self.past_key_values
             ]
