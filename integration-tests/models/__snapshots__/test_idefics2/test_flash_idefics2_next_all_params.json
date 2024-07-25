@@ -30,7 +30,7 @@
       },
       {
         "id": 264,
-        "logprob": -0.37573242,
+        "logprob": -0.38061523,
         "special": false,
         "text": " a"
       },
@@ -42,7 +42,7 @@
       },
       {
         "id": 4480,
-        "logprob": -0.3322754,
+        "logprob": -0.26782227,
         "special": false,
         "text": " feature"
       },
@@ -78,7 +78,7 @@
       },
       {
         "id": 13,
-        "logprob": 0.0,
+        "logprob": -0.10632324,
         "special": false,
         "text": "\n"
       }
