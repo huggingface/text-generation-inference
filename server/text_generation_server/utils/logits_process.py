@@ -524,8 +524,9 @@ class GrammarLogitProcessor(LogitsProcessor):
             try:
                 schema = build_regex_from_schema(schema)
             except Exception as e:
-                logger.error(f"Error compiling FSM: {e}")
-                return None
+                logger.error(f"Error compiling FSM, grammar won't be enforced \n{e}")
+                # allows everything
+                schema = "(.*?)"
         elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
             pass  # schema is already a regex just here for clarity
         fsm = RegexFSM(schema, tokenizer)
