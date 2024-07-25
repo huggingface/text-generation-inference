@@ -43,10 +43,6 @@ class BatchAdapterWeights(ABC):
         pass
 
     @abstractclassmethod
-    def key(cls) -> str:
-        pass
-
-    @abstractclassmethod
     def load(
         cls,
         adapter_weights: Dict[int, AdapterWeights],
@@ -71,13 +67,6 @@ class LayerAdapterWeights:
             return
         del self.adapter_weights[adapter_idx]
 
-    @property
-    def max_speculative_tokens(self) -> int:
-        return max(
-            adapter_weights.speculative_tokens
-            for adapter_weights in self.adapter_weights.values()
-        )
-
     def is_empty(self) -> bool:
         return len(self.adapter_weights) == 0
 
@@ -101,7 +90,7 @@ class LayerAdapterWeights:
                 adapter_weights, meta, prefill, prefill_head_indices
             )
             if batched_weights is not None:
-                batch_data[batch_type.key()] = batched_weights
+                batch_data = batched_weights
         return batch_data
 
 
@@ -133,8 +122,7 @@ class AdapterBatchData:
     def ranks(self) -> Set[int]:
         # TODO(travis): refactor to be less coupled to lora implementation
         ranks = set()
-        for layer_data in self.data.values():
-            lora_data = layer_data.get("lora")
+        for lora_data in self.data.values():
             if lora_data is None:
                 continue
 

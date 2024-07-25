@@ -102,22 +102,6 @@ class LoraConfig(AdapterConfig):
             adapter_weight_names.add(lora_b_name)
         return module_map, adapter_weight_names
 
-    def load_batched_adapter_weights(
-        self,
-        model: "Model",
-        module_map: Dict[str, Dict],
-        layer_type: str,
-        unused_weight_names: Set[str],
-        dynamic: bool,
-    ) -> Optional[AdapterWeights]:
-        return LoraWeights.load(
-            self,
-            model,
-            module_map,
-            layer_type,
-            unused_weight_names,
-        )
-
     @classmethod
     def load(cls, adapter_id: str, api_token: str) -> "LoraConfig":
         hf_config = _LoraConfig.from_pretrained(adapter_id, token=api_token)
@@ -192,22 +176,38 @@ class LoraWeights(AdapterWeights):
     def get_batch_types(cls) -> List[Type[BatchAdapterWeights]]:
         return [BatchLoraWeights]
 
+    # prepare pre-loaded lora weights for use in the model.
+    #
+    # this method processes and organizes lora weights for a specific layer type across all layers:
+    # - uses `config` (LoraConfig) to apply lora-specific settings like scaling factor.
+    # - retrieves weights from `module_map` based on the `layer_type`.
+    # - processes `nlayers` number of layers.
+    # - converts weights to the specified `dtype`.
+    # - shards weights across `world_size` number of processes using the `process_group`.
+    # - maps weights to specific layers using `target_to_layer`.
+    # - tracks `unused_weight_names` to identify any unused weights.
+    #
+    # the method handles weight transposition, scaling, and padding to ensure compatibility
+    # with SGMV or BGMV operations.
     @classmethod
-    def load(
+    def prepare_weights(
         cls,
         config: LoraConfig,
-        model: "Model",
         module_map: Dict[str, Dict],
         layer_type: str,
         unused_weight_names: Set[str],
+        nlayers: int,
+        dtype: torch.dtype,
+        world_size: int,
+        process_group: ProcessGroup,
+        target_to_layer: Dict[str, Tuple[str, torch.Tensor]],
     ) -> Optional[AdapterWeights]:
-        nlayers = model.get_num_layers_for_type(layer_type)
         lora_a_list = [None] * nlayers
         lora_b_list = [None] * nlayers
 
         for layer_id in range(nlayers):
             key = (layer_id, layer_type)
-            weight_name, layer = model.target_to_layer[key]
+            weight_name, layer = target_to_layer[key]
             base_weight = layer.base_layer.linear.weight
             base_device = base_weight.device
 
@@ -216,10 +216,10 @@ class LoraWeights(AdapterWeights):
                 return None
 
             lora_a, lora_a_name = module_map[weight_name]["lora_A"]
-            lora_a = lora_a.to(base_device, model.dtype)
+            lora_a = lora_a.to(base_device, dtype)
 
             lora_b, lora_b_name = module_map[weight_name]["lora_B"]
-            lora_b = lora_b.to(base_device, model.dtype)
+            lora_b = lora_b.to(base_device, dtype)
 
             scale = get_scaling_factor(
                 config.lora_alpha,
@@ -236,12 +236,8 @@ class LoraWeights(AdapterWeights):
             lora_b_list[layer_id] = lora_b.transpose(0, 1) * scale
 
         # pad lora ranks to be compatible with sgmv
-        lora_a_list = [
-            pad_rank(w, dim=1, world_size=model.world_size) for w in lora_a_list
-        ]
-        lora_b_list = [
-            pad_rank(w, dim=0, world_size=model.world_size) for w in lora_b_list
-        ]
+        lora_a_list = [pad_rank(w, dim=1, world_size=world_size) for w in lora_a_list]
+        lora_b_list = [pad_rank(w, dim=0, world_size=world_size) for w in lora_b_list]
 
         if lora_a_list:
             # update rank if it was padded
@@ -252,8 +248,8 @@ class LoraWeights(AdapterWeights):
             *shard_lora_weights(
                 weights_a=lora_a_list,
                 weights_b=lora_b_list,
-                split_dim=0 if model.is_row_parallel(layer_type) else 1,
-                process_group=model.process_group,
+                split_dim=0 if layer_type in {"o_proj", "down_proj", "lm_head"} else 1,
+                process_group=process_group,
             ),
             config,
         )
@@ -292,10 +288,6 @@ class BatchLoraWeights(BatchAdapterWeights):
             rank_data.rank // pg.size() <= MAX_RANK_CUSTOM
             for rank_data in self.rank_data.values()
         )
-
-    @classmethod
-    def key(cls) -> str:
-        return "lora"
 
     @classmethod
     def load(

@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, Set, Tuple
 
 import torch
 
@@ -30,15 +30,4 @@ class AdapterConfig(ABC):
         adapter_weights: Dict[int, AdapterWeights],
         weight_names: Tuple[str],
     ) -> Tuple[ModuleMap, Set[str]]:
-        pass
-
-    @abstractmethod
-    def load_batched_adapter_weights(
-        self,
-        model: "Model",
-        module_map: ModuleMap,
-        layer_type: str,
-        unused_weight_names: Set[str],
-        dynamic: bool,
-    ) -> Optional[AdapterWeights]:
         pass
