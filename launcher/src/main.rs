@@ -1162,7 +1162,7 @@ fn spawn_webserver(
     max_input_tokens: usize,
     max_total_tokens: usize,
     max_batch_prefill_tokens: u32,
-    startup_time: u64,
+    download_time: u64,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
 ) -> Result<Child, LauncherError> {
@@ -1200,8 +1200,6 @@ fn spawn_webserver(
         format!("{}-0", args.shard_uds_path),
         "--tokenizer-name".to_string(),
         args.model_id,
-        "--startup-time".to_string(),
-        startup_time.to_string(),
     ];
 
     // Grammar support
@@ -1277,6 +1275,8 @@ fn spawn_webserver(
     } else if let Some(compute_type) = compute_type(num_shard) {
         envs.push(("COMPUTE_TYPE".into(), compute_type.into()))
     }
+
+    envs.push(("DOWNLOAD_TIME".into(), download_time.to_string().into()));
 
     let mut webserver = match Command::new("text-generation-router")
         .args(router_args)

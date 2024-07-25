@@ -1434,7 +1434,6 @@ pub async fn run(
     grammar_support: bool,
     max_client_batch_size: usize,
     print_schema_command: bool,
-    start_time: u64,
 ) -> Result<(), WebServerError> {
     // OpenAPI documentation
     #[derive(OpenApi)]
@@ -1514,6 +1513,7 @@ pub async fn run(
     )
     )]
     struct ApiDoc;
+    let download_time = std::env::var("DOWNLOAD_TIME").unwrap_or("30".to_string()).parse::<u64>().unwrap_or(30);
     let length_time = Instant::now();
 
     // Create state
@@ -1895,11 +1895,11 @@ pub async fn run(
         .layer(cors_layer);
 
     tracing::info!("Connected");
-    let total_time = length_time.elapsed() + Duration::from_secs(start_time);
+    let total_time = length_time.elapsed() + Duration::from_secs(download_time);
     tracing::info!("total time for router to boot up and connect to model server {:?}", length_time.elapsed());
     tracing::info!("the total time in secs of boot time is {:?}", total_time);
     metrics::gauge!("tgi_model_load_time").set(total_time.as_secs_f64());
-    
+
     
 
     if ngrok {

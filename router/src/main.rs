@@ -87,8 +87,6 @@ struct Args {
     disable_grammar_support: bool,
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
-    #[clap(long, env)]
-    startup_time: u64,
 }
 
 #[derive(Debug, Subcommand)]
@@ -131,7 +129,6 @@ async fn main() -> Result<(), RouterError> {
         disable_grammar_support,
         max_client_batch_size,
         command,
-        startup_time,
     } = args;
 
     let print_schema_command = match command {
@@ -381,8 +378,6 @@ async fn main() -> Result<(), RouterError> {
         }
     };
 
-    tracing::info!("start time of the model is {startup_time}");
-
     // Run server
     server::run(
         master_shard_uds_path,
@@ -414,7 +409,6 @@ async fn main() -> Result<(), RouterError> {
         disable_grammar_support,
         max_client_batch_size,
         print_schema_command,
-        startup_time,
     )
     .await?;
     Ok(())
