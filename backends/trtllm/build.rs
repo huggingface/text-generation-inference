@@ -127,7 +127,8 @@ fn main() {
     });
 
     // NCCL is slightly trickier because it might not have a pkgconfig installed
-    let nccl_library_path = NCCL_ROOT_DIR.unwrap_or(&format!("/usr/local/{}-linux-gnu", ARCH));
+    let nccl_library_path_default = format!("/usr/local/{}-linux-gnu", ARCH);
+    let nccl_library_path = NCCL_ROOT_DIR.unwrap_or(&nccl_library_path_default);
     println!(r"cargo:rustc-link-search=native={}", nccl_library_path);
     println!("cargo:rustc-link-lib=dylib=nccl");
 
