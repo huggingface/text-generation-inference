@@ -9,8 +9,7 @@ is_sm75 = major == 7 and minor == 5
 _PARTITION_SIZE = 512
 
 try:
-    from vllm._C import cache_ops
-    from vllm._C import ops
+    import vllm._custom_ops as ops
 except Exception as e:
     raise ImportError(
         f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
@@ -29,8 +28,8 @@ def reshape_and_cache(
         key_cache.view(-1, shape[-2], shape[-1])[slots] = key
         value_cache.view(-1, shape[-2], shape[-1])[slots] = value
     else:
-        cache_ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
+        ops.reshape_and_cache(
+            key, value, key_cache, value_cache, slots, "auto", 1.0, 1.0
         )
 
 
@@ -114,7 +113,7 @@ def paged_attention(
         if softcap is not None:
             raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths
-        from vllm._C import ops
+        import vllm._custom_ops as ops
 
         use_v1 = max_s <= 8192 and (
             max_num_partitions == 1 or num_seqs * num_heads > 512
@@ -133,6 +132,7 @@ def paged_attention(
                 max_s,
                 None,
                 "auto",
+                1.0,
                 1.0,
             )
         else:
@@ -166,6 +166,7 @@ def paged_attention(
                 max_s,
                 None,
                 "auto",
+                1.0,
                 1.0,
             )
     return out
