@@ -1276,7 +1276,7 @@ fn spawn_webserver(
     }
 
     // OpenTelemetry
-    if let Some(api_key) = args.api_key{
+    if let Some(api_key) = args.api_key {
         router_args.push("--api-key".to_string());
         router_args.push(api_key);
     }
