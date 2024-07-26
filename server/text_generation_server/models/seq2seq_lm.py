@@ -1,7 +1,6 @@
 import torch
 import torch.distributed
 import time
-
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
@@ -11,7 +10,7 @@ from transformers import (
     AutoConfig,
 )
 from typing import Optional, Tuple, List, Type, Dict
-
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -254,7 +253,7 @@ class Seq2SeqLMBatch(Batch):
         ]
 
         # Ensure that past_key_values tensors can be updated in-place
-        if type(self.past_key_values[0]) == tuple:
+        if type(self.past_key_values[0]) is tuple:
             self.past_key_values = [
                 [t for t in layer] for layer in self.past_key_values
             ]
@@ -430,7 +429,7 @@ class Seq2SeqLMBatch(Batch):
             batch.encoder_last_hidden_state = None
 
             # Ensure that we can update tensors in-place
-            if type(batch.past_key_values[0]) == tuple:
+            if isinstance(batch.past_key_values[0], tuple):
                 batch.past_key_values = [
                     [t for t in layer] for layer in batch.past_key_values
                 ]

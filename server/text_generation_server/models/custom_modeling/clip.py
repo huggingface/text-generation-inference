@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import torch
 from torch import nn
@@ -9,9 +9,7 @@ from transformers.modeling_attn_mask_utils import (
     _prepare_4d_attention_mask,
 )
 from transformers.modeling_outputs import (
-    BaseModelOutput,
     BaseModelOutputWithPooling,
-    ImageClassifierOutput,
 )
 from transformers import CLIPConfig, CLIPTextConfig, CLIPVisionConfig
 
@@ -446,11 +444,12 @@ class CLIPEncoder(nn.Module):
 
 
 class CLIPTextTransformer(nn.Module):
-    def __init__(self, prefix: str, config: CLIPTextConfig):
+    def __init__(self, prefix: str, config: CLIPTextConfig, weights=None):
         super().__init__()
         self.config = config
         embed_dim = config.hidden_size
         self.embeddings = CLIPTextEmbeddings(config)
+        # Initialize weights and apply final processing with `self.post_init()`
         self.encoder = CLIPEncoder(
             prefix=f"{prefix}.encoder", config=config, weights=weights
         )
@@ -505,7 +504,7 @@ class CLIPTextTransformer(nn.Module):
             # text_embeds.shape = [batch_size, sequence_length, transformer.width]
             # take features from the eot embedding (eot_token is the highest number in each sequence)
             # casting to torch.int for onnx compatibility: argmax doesn't support int64 inputs with opset 14
-            pooled_output = last_hidden_state[
+            last_hidden_state[
                 torch.arange(
                     last_hidden_state.shape[0], device=last_hidden_state.device
                 ),
@@ -515,7 +514,7 @@ class CLIPTextTransformer(nn.Module):
             ]
         else:
             # The config gets updated `eos_token_id` from PR #24773 (so the use of exta new tokens is possible)
-            pooled_output = last_hidden_state[
+            last_hidden_state[
                 torch.arange(
                     last_hidden_state.shape[0], device=last_hidden_state.device
                 ),
@@ -565,9 +564,6 @@ class CLIPTextModel(CLIPPreTrainedModel):
         >>> last_hidden_state = outputs.last_hidden_state
         >>> pooled_output = outputs.pooler_output  # pooled (EOS token) states
         ```"""
-        return_dict = (
-            return_dict if return_dict is not None else self.config.use_return_dict
-        )
 
         return self.text_model(
             input_ids=input_ids,
@@ -580,7 +576,6 @@ class CLIPVisionTransformer(nn.Module):
     def __init__(self, prefix, config: CLIPVisionConfig, weights):
         super().__init__()
         self.config = config
-        embed_dim = config.hidden_size
 
         self.embeddings = CLIPVisionEmbeddings(
             prefix=f"{prefix}.embeddings", config=config, weights=weights
@@ -661,9 +656,6 @@ class CLIPVisionModel(CLIPPreTrainedModel):
         >>> last_hidden_state = outputs.last_hidden_state
         >>> pooled_output = outputs.pooler_output  # pooled CLS states
         ```"""
-        return_dict = (
-            return_dict if return_dict is not None else self.config.use_return_dict
-        )
 
         return self.vision_model(
             pixel_values=pixel_values,
@@ -799,14 +791,12 @@ class CLIPModel(nn.Module):
         # Use CLIP model's config for some fields (if specified) instead of those of vision & text components.
         vision_outputs = self.vision_model(
             pixel_values=pixel_values,
-            return_dict=return_dict,
         )
 
         text_outputs = self.text_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
-            return_dict=return_dict,
         )
 
         image_embeds = vision_outputs[1]

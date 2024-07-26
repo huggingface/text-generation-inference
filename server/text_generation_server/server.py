@@ -9,7 +9,7 @@ from loguru import logger
 
 from grpc_reflection.v1alpha import reflection
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor

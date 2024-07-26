@@ -8,6 +8,34 @@ from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
+try:
+    major, _minor = torch.cuda.get_device_capability()
+except Exception:
+    major = 1
+
+HAS_EXLLAMA = False
+CAN_EXLLAMA = major >= 8 or SYSTEM == "rocm"
+V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
+if os.getenv("DISABLE_EXLLAMA") == "True":
+    HAS_EXLLAMA = False
+elif CAN_EXLLAMA:
+    try:
+        if V2:
+            from text_generation_server.layers.gptq.exllamav2 import (
+                QuantLinear as ExllamaQuantLinear,  # noqa: F401
+            )
+
+            HAS_EXLLAMA = "2"
+        else:
+            from text_generation_server.layers.gptq.exllama import (
+                Ex4bitLinear as ExllamaQuantLinear,  # noqa: F401
+            )
+
+            HAS_EXLLAMA = "1"
+
+    except ImportError:
+        pass
+
 
 @dataclass
 class GPTQWeight(Weight):
@@ -55,7 +83,7 @@ class GPTQWeight(Weight):
                 from text_generation_server.layers.gptq import ExllamaQuantLinear
             except ImportError:
                 raise NotImplementedError(
-                    f"Exllama gptq kernels are not installed. Install them `cd server/exllama_kernels && python setup.py install && cd ../exllamav2_kernels && python setup.py install`"
+                    "Exllama gptq kernels are not installed. Install them `cd server/exllama_kernels && python setup.py install && cd ../exllamav2_kernels && python setup.py install`"
                 )
 
             return ExllamaQuantLinear(self, bias)
@@ -71,45 +99,6 @@ class GPTQWeight(Weight):
                 self.bits,
                 self.groupsize,
             )
-
-
-try:
-    major, _minor = torch.cuda.get_device_capability()
-except Exception:
-    major = 1
-
-HAS_EXLLAMA = False
-CAN_EXLLAMA = major >= 8 or SYSTEM == "rocm"
-V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
-if os.getenv("DISABLE_EXLLAMA") == "True":
-    HAS_EXLLAMA = False
-elif CAN_EXLLAMA:
-    try:
-        if V2:
-            from text_generation_server.layers.gptq.exllamav2 import (
-                QuantLinear as ExllamaQuantLinear,
-            )
-            from text_generation_server.layers.gptq.exllamav2 import (
-                create_exllama_buffers,
-                set_device,
-            )
-
-            HAS_EXLLAMA = "2"
-        else:
-            from text_generation_server.layers.gptq.exllama import (
-                Ex4bitLinear as ExllamaQuantLinear,
-            )
-            from text_generation_server.layers.gptq.exllama import (
-                create_exllama_buffers,
-                set_device,
-            )
-
-            HAS_EXLLAMA = "1"
-
-    except ImportError:
-        pass
-
-from text_generation_server.layers.gptq.quant_linear import QuantLinear
 
 
 class GPTQWeightsLoader(WeightsLoader):

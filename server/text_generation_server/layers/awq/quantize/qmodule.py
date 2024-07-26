@@ -1,6 +1,5 @@
 # Copied logic from https://github.com/mit-han-lab/llm-awq/blob/f084f40bd996f3cf3a0633c1ad7d9d476c318aaa/awq/quantize/qmodule.py
 
-import math
 from typing import Optional
 import torch
 import torch.nn as nn

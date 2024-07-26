@@ -44,7 +44,6 @@ from text_generation_server.layers.rotary import (
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
-from text_generation_server.utils.log import log_once
 
 
 class DbrxAttentionConfig(PretrainedConfig):

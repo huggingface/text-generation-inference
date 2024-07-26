@@ -1,6 +1,3 @@
-from typing import List, Tuple
-
-import torch
 from text_generation_server.layers.marlin.fp8 import GPTQMarlinFP8Linear
 from text_generation_server.layers.marlin.gptq import (
     GPTQMarlinLinear,

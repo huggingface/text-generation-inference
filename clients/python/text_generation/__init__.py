@@ -19,5 +19,15 @@ DEPRECATION_WARNING = (
     "Please use the `InferenceClient` from the `huggingface_hub` package instead."
 )
 
-from text_generation.client import Client, AsyncClient
-from text_generation.inference_api import InferenceAPIClient, InferenceAPIAsyncClient
+from text_generation.client import Client, AsyncClient  # noqa E402
+from text_generation.inference_api import (  # noqa E402
+    InferenceAPIClient,
+    InferenceAPIAsyncClient,
+)
+
+__all__ = [
+    "Client",
+    "AsyncClient",
+    "InferenceAPIClient",
+    "InferenceAPIAsyncClient",
+]

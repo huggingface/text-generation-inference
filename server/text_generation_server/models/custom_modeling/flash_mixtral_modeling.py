@@ -21,7 +21,6 @@
 import torch
 import torch.distributed
 
-import numpy as np
 
 from torch import nn
 from text_generation_server.utils.import_utils import SYSTEM
@@ -31,7 +30,6 @@ if SYSTEM != "ipex":
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
-from loguru import logger
 
 from text_generation_server.layers.attention import (
     paged_attention,

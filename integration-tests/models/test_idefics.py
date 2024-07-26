@@ -74,9 +74,7 @@ async def test_idefics_load(idefics, generate_load, response_snapshot):
 
     generated_texts = [r.generated_text for r in responses]
 
-    assert (
-        generated_texts[0] == " \nAssistant: A rooster stands"
-    ), f"{response.generated_text}"
+    assert generated_texts[0] == " \nAssistant: A rooster stands"
     assert len(generated_texts) == 4
     assert generated_texts, all(
         [text == generated_texts[0] for text in generated_texts]

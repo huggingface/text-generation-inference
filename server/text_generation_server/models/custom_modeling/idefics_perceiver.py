@@ -169,7 +169,6 @@ class IdeficsPerceiverAttention(nn.Module):
 
         self.qk_scale = self.head_dim**-0.5
 
-        process_group = weights.process_group
         if n_heads % weights.process_group.size() != 0:
             raise ValueError(
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {n_heads} "

@@ -28,7 +28,6 @@ from typing import Optional, List, Tuple
 
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
-    Seqlen,
     paged_attention,
     attention,
     reshape_and_cache,
@@ -38,7 +37,6 @@ from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     SpeculativeHead,
-    get_linear,
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )

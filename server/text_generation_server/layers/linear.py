@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from torch.nn import functional as F

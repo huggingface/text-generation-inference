@@ -20,7 +20,7 @@ def main():
             break
 
     with open("./small.json", "w") as f:
-        data = json.dump(conversations, f, indent=4)
+        json.dump(conversations, f, indent=4)
 
 
 if __name__ == "__main__":

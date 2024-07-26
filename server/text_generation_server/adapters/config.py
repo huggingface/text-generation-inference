@@ -4,14 +4,11 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Set, Tuple
+from typing import Dict, Set, Tuple
 
 import torch
 
 from text_generation_server.adapters.weights import AdapterWeights
-
-if TYPE_CHECKING:
-    from text_generation_server.models.model import Model
 
 
 @dataclass
