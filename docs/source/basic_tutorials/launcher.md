@@ -350,12 +350,6 @@ Options:
           [env: CORS_ALLOW_ORIGIN=]
 
 ```
-## API_KEY
-```shell
-      --api-key <API_KEY>
-          [env: API_KEY=]
-
-```
 ## WATERMARK_GAMMA
 ```shell
       --watermark-gamma <WATERMARK_GAMMA>
@@ -429,6 +423,22 @@ Options:
           Lora Adapters a list of adapter ids i.e. `repo/adapter1,repo/adapter2` to load during startup that will be available to callers via the `adapter_id` field in a request
           
           [env: LORA_ADAPTERS=]
+
+```
+## DISABLE_USAGE_STATS
+```shell
+      --disable-usage-stats
+          Disable sending of all usage statistics
+          
+          [env: DISABLE_USAGE_STATS=]
+
+```
+## DISABLE_CRASH_REPORTS
+```shell
+      --disable-crash-reports
+          Disable sending of crash reports, but allow anonymous usage statistics
+          
+          [env: DISABLE_CRASH_REPORTS=]
 
 ```
 ## HELP
