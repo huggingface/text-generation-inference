@@ -1896,8 +1896,6 @@ pub async fn run(
 
     tracing::info!("Connected");
     let total_time = length_time.elapsed() + Duration::from_secs(download_time);
-    tracing::info!("total time for router to boot up and connect to model server {:?}", length_time.elapsed());
-    tracing::info!("the total time in secs of boot time is {:?}", total_time);
     metrics::gauge!("tgi_model_load_time").set(total_time.as_secs_f64());
 
     
