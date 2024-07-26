@@ -523,6 +523,7 @@ class GrammarLogitProcessor(LogitsProcessor):
         if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
             try:
                 schema = build_regex_from_schema(schema)
+            # TODO: this is only here short term to avoid crashing the python server, mid term we want this in the rust/router layer
             except Exception as e:
                 logger.error(f"Error compiling FSM, grammar won't be enforced \n{e}")
                 # allows everything
