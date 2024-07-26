@@ -13,3 +13,12 @@ elif SYSTEM == "ipex":
     from .ipex import attention, paged_attention, reshape_and_cache, SUPPORTS_WINDOWING
 else:
     raise ImportError(f"System {SYSTEM} doesn't support flash/paged attention")
+
+
+__all__ = [
+    "attention",
+    "paged_attention",
+    "reshape_and_cache",
+    "SUPPORTS_WINDOWING",
+    "Seqlen",
+]

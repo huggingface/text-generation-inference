@@ -12,17 +12,26 @@ from text_generation_server.utils.weights import (
     Weights,
 )
 from text_generation_server.utils.log import log_master, log_once
+import importlib.util
+
 
 FBGEMM_MM_AVAILABLE = False
 FBGEMM_DYN_AVAILABLE = False
-try:
-    import fbgemm_gpu.experimental.gen_ai
 
+
+def is_fbgemm_gpu_available():
+    try:
+        return importlib.util.find_spec("fbgemm_gpu.experimental.gen_ai") is not None
+    except ModuleNotFoundError:
+        return False
+
+
+if is_fbgemm_gpu_available():
     if SYSTEM == "cuda":
         major, _ = torch.cuda.get_device_capability()
         FBGEMM_MM_AVAILABLE = major == 9
         FBGEMM_DYN_AVAILABLE = major >= 8
-except (ImportError, ModuleNotFoundError):
+else:
     log_master(logger.warning, "FBGEMM fp8 kernels are not installed.")
 
 

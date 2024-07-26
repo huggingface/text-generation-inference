@@ -289,7 +289,7 @@ class IdeficsCausalLMBatch(Batch):
             image_hidden_states = self.image_hidden_states[keep_indices]
 
         # Ensure that past_key_values tensors can be updated in-place
-        if type(self.past_key_values[0]) == tuple:
+        if type(self.past_key_values[0]) is tuple:
             self.past_key_values = [list(layer) for layer in self.past_key_values]
 
         # Update tensors in-place to allow incremental garbage collection
@@ -456,7 +456,7 @@ class IdeficsCausalLMBatch(Batch):
             # BLOOM Keys:   [batch_size * num_heads, head_dim, seq_length]
             # BLOOM Values: [batch_size * num_heads, seq_length, head_dim]
             # And ensure that we can update tensors in-place
-            if type(batch.past_key_values[0]) == tuple:
+            if isinstance(batch.past_key_values[0], tuple):
                 batch.past_key_values = [
                     [t.view(len(batch), -1, *t.shape[-2:]) for t in layer]
                     for layer in batch.past_key_values

@@ -46,7 +46,6 @@ from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
 from text_generation_server.utils.weights import (
-    UnquantizedWeight,
     Weights,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
@@ -277,7 +276,7 @@ class LlamaMLP(nn.Module):
                 bias=bias,
             )
         else:
-            prefixes = [f"gate_proj", f"up_proj"]
+            prefixes = ["gate_proj", "up_proj"]
             sizes = [
                 config.intermediate_size,
                 config.intermediate_size,

@@ -14,7 +14,7 @@
 # limitations under the License.
 """ PyTorch Llava-NeXT model."""
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import torch
 import torch.utils.checkpoint

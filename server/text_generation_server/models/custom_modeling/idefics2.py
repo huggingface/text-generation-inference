@@ -14,7 +14,7 @@
 # limitations under the License.
 """ PyTorch Idefics2 model."""
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import torch
 import torch.utils.checkpoint
@@ -22,10 +22,8 @@ from torch import nn
 import math
 
 from transformers.activations import ACT2FN
-from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
-    load_vision_model,
 )
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 

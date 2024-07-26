@@ -5,7 +5,7 @@ import torch.distributed
 
 import math
 from torch import nn
-from typing import Optional, List, Tuple, Any
+from typing import Optional, List, Tuple
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 

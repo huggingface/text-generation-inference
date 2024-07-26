@@ -3,16 +3,11 @@ from PIL import Image
 import torch
 import torch.distributed
 from opentelemetry import trace
-from typing import Iterable, Optional, Tuple
+from typing import Iterable
 from text_generation_server.models.vlm_causal_lm import (
-    VlmCausalLM,
     VlmCausalLMBatch,
     image_text_replacement,
 )
-from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
-    PaliGemmaForConditionalGeneration,
-)
-from transformers import AutoProcessor, AutoConfig
 
 from text_generation_server.pb.generate_pb2 import Request
 

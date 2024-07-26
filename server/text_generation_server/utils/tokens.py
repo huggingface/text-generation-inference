@@ -1,7 +1,6 @@
 import re
 from typing import List, Optional, Tuple, Set, Union
 
-import math
 import torch
 from text_generation_server.pb import generate_pb2
 from text_generation_server.pb.generate_pb2 import FinishReason, GrammarType

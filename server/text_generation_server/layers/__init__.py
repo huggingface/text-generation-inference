@@ -18,3 +18,17 @@ from text_generation_server.layers.lora import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
+
+__all__ = [
+    "get_linear",
+    "FastLinear",
+    "TensorParallelColumnLinear",
+    "TensorParallelRowLinear",
+    "TensorParallelEmbedding",
+    "SpeculativeHead",
+    "LoraLinear",
+    "TensorParallelMultiAdapterLinear",
+    "TensorParallelAdapterRowLinear",
+    "load_layer_norm",
+    "load_conv2d",
+]

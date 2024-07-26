@@ -1,3 +1,6 @@
+# ruff: noqa: F821
+# the above line disables the `undefined-name` rule for the model type variables
+
 import torch
 import enum
 import os
@@ -712,6 +715,7 @@ def get_model(
             )
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
+        print(f">>> model_type: {model_type}")
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -856,7 +860,7 @@ def get_model(
                     lora_adapter_ids=lora_adapter_ids,
                     config_class=RWConfig,
                 )
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Falcon"))
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Falcon"))
         else:
             if FLASH_ATTENTION and not config_dict.get("alibi", False):
                 return FlashCausalLM(

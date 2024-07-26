@@ -2,7 +2,6 @@ import torch
 from text_generation_server.layers import (
     TensorParallelEmbedding,
 )
-from text_generation_server.utils.weights import DefaultWeightsLoader
 
 
 class ProcessGroup:

@@ -1,7 +1,4 @@
 import pytest
-import json
-
-from text_generation.types import GrammarType
 
 
 @pytest.fixture(scope="module")

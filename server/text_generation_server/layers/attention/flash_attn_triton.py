@@ -747,11 +747,8 @@ class _attention(torch.autograd.Function):
         padded_d_model = 1 << (head_size - 1).bit_length()
         padded_d_model = max(padded_d_model, 16)
 
-        grid = lambda META: (
-            triton.cdiv(max_seqlens_q, META["BLOCK_M"]),
-            nheads_q,
-            batch,
-        )
+        def grid(META):
+            return triton.cdiv(max_seqlens_q, META["BLOCK_M"]), nheads_q, batch
 
         encoded_softmax = None
 

@@ -2,7 +2,7 @@ import inspect
 import torch
 
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional, TypeVar, Type, Dict, DefaultDict
+from typing import List, Tuple, Optional, TypeVar, Type, Dict
 from collections import defaultdict
 from transformers import PreTrainedTokenizerBase
 

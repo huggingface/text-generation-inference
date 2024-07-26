@@ -2,7 +2,6 @@ import torch
 import torch.distributed
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from typing import Optional
-import os
 from text_generation_server.models.custom_modeling.mamba_modeling import (
     MambaConfig,
 )
@@ -20,7 +19,7 @@ from text_generation_server.models.custom_modeling.mamba_modeling import (
     InferenceParams,
 )
 from text_generation_server.models import Model
-from typing import Any, List, Optional, Tuple, Type, Dict
+from typing import Any, List, Tuple, Type, Dict
 from text_generation_server.models.types import (
     Batch,
     Tokens,
@@ -31,7 +30,7 @@ from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.quantization import get_loader
 from text_generation_server.utils.tokens import batch_top_tokens, Sampling
 from dataclasses import dataclass
-from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.utils import NextTokenChooser, StoppingCriteria
 
 
 def new_inference_params(
@@ -299,7 +298,6 @@ class MambaBatch(Batch):
         stopping_criterias = []
         top_n_tokens = []
         max_tokens = 0
-        max_seqlen = 0
         seqlen_offset = 0
 
         (n_blocks, _, d_inner, d_conv) = batches[0].inference_params.conv_states.shape
@@ -485,7 +483,7 @@ class Mamba(Model):
                     for bs in CUDA_GRAPHS:
                         self.cuda_graph_warmup(bs)
                 except Exception:
-                    logger.exception(f"Decode cuda graph warmup failed")
+                    logger.exception("Decode cuda graph warmup failed")
         else:
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
@@ -534,7 +532,7 @@ class Mamba(Model):
         }
         self.cuda_graphs[batch_size] = graph_dict
 
-    def tunableop_warmup(self, seqlen: int):
+    def tunableop_warmup(self, batch_size: int, seqlen: int):
         input_ids = torch.zeros((batch_size, 1), dtype=torch.int64, device=self.device)
         n_blocks = len(self.model.blocks)
 

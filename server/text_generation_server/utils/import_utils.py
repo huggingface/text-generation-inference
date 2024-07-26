@@ -1,15 +1,13 @@
 import torch
 from loguru import logger
-import subprocess
 import os
 
 
+import importlib.util
+
+
 def is_ipex_available():
-    try:
-        import intel_extension_for_pytorch
-    except ImportError:
-        return False
-    return True
+    return importlib.util.find_spec("intel_extension_for_pytorch") is not None
 
 
 def get_cuda_free_memory(device, memory_fraction):

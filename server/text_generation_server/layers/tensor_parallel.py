@@ -2,7 +2,6 @@ import torch
 from torch.nn import functional as F
 from typing import Iterable, List
 from text_generation_server.layers.linear import get_linear, FastLinear
-from text_generation_server.layers.exl2 import Exl2Weight
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "ipex":
@@ -50,7 +49,7 @@ class TensorParallelHead(SuperLayer):
                 # If the piece and LM head embeddings are shared, we have
                 # non-quantized weights...
                 weight = weights.get_tensor(f"{prefix}.weight")
-            except:
+            except Exception:
                 # ...otherwise they are quantized.
                 weight = weights.get_weights_col(prefix)
             should_gather = weights.process_group.size() > 1
@@ -66,15 +65,6 @@ class TensorParallelHead(SuperLayer):
         else:
             weight = weights.get_tensor(f"{prefix}.weight")
             should_gather = False
-
-        # GPTQ,AWQ,EETQ don't quantize heads (nor embeddings)
-        if config.quantize in ["gptq", "awq", "eetq", "marlin"]:
-            quantize = None
-        # See above, exl2 LM head can be quantized or not.
-        elif config.quantize == "exl2" and not isinstance(weight, Exl2Weight):
-            quantize = None
-        else:
-            quantize = config.quantize
 
         return TensorParallelHead(
             get_linear(weight, bias=None),

@@ -6,7 +6,6 @@ from typing import Optional
 from huggingface_hub import hf_hub_download
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
-    UnquantizedWeight,
     WeightsLoader,
 )
 
