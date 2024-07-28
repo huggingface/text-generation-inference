@@ -1,8 +1,8 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "length",
-    "generated_tokens": 10,
+    "finish_reason": "eos_token",
+    "generated_tokens": 4,
     "prefill": [
       {
         "id": 100000,
@@ -16,7 +16,7 @@
       },
       {
         "id": 3102,
-        "logprob": -11.1875,
+        "logprob": -11.25,
         "text": " request"
       }
     ],
@@ -30,7 +30,7 @@
       },
       {
         "id": 10081,
-        "logprob": -0.36914062,
+        "logprob": -0.41210938,
         "special": false,
         "text": " successfully"
       },
@@ -41,49 +41,13 @@
         "text": "."
       },
       {
-        "id": 185,
-        "logprob": 0.0,
-        "special": false,
-        "text": "\n"
-      },
-      {
-        "id": 1380,
-        "logprob": -0.38671875,
-        "special": false,
-        "text": "We"
-      },
-      {
-        "id": 543,
-        "logprob": -0.12695312,
-        "special": false,
-        "text": " will"
-      },
-      {
-        "id": 752,
-        "logprob": -0.20117188,
-        "special": false,
-        "text": " get"
-      },
-      {
-        "id": 279,
-        "logprob": 0.0,
-        "special": false,
-        "text": " in"
-      },
-      {
-        "id": 5402,
-        "logprob": 0.0,
-        "special": false,
-        "text": " touch"
-      },
-      {
-        "id": 366,
-        "logprob": 0.0,
-        "special": false,
-        "text": " with"
+        "id": 100001,
+        "logprob": -0.16015625,
+        "special": true,
+        "text": "<｜end▁of▁sentence｜>"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request sent successfully.\nWe will get in touch with"
+  "generated_text": "Test request sent successfully."
 }

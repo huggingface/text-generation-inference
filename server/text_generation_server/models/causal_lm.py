@@ -609,15 +609,16 @@ class CausalLM(Model):
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
+        device_map = (
+            "auto"
+            if torch.cuda.is_available() and torch.cuda.device_count() > 1
+            else None
+        )
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if torch.cuda.is_available() and torch.cuda.device_count() > 1
-                else None
-            ),
+            device_map=device_map,
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
@@ -627,6 +628,11 @@ class CausalLM(Model):
             and quantize != "bitsandbytes"
         ):
             model = model.cuda()
+
+        # if device_map is "auto", it's unclear which device the model is on
+        # therefore, we need to get the device the model is on after loading
+        if device_map is not None:
+            device = next(model.parameters()).device
 
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:

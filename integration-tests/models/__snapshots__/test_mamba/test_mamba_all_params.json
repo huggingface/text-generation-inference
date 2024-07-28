@@ -52,7 +52,7 @@
       },
       {
         "id": 9830,
-        "logprob": -1.65625,
+        "logprob": -2.25,
         "special": false,
         "text": " colors"
       },
@@ -64,13 +64,13 @@
       },
       {
         "id": 329,
-        "logprob": -2.4375,
+        "logprob": -2.171875,
         "special": false,
         "text": " A"
       },
       {
         "id": 1180,
-        "logprob": -1.953125,
+        "logprob": -2.046875,
         "special": false,
         "text": " number"
       },

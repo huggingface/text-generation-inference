@@ -639,20 +639,27 @@ class Seq2SeqLM(Model):
             device = torch.device("cpu")
             dtype = torch.float32 if dtype is None else dtype
 
+        device_map = (
+            "auto"
+            if torch.cuda.is_available() and torch.cuda.device_count() > 1
+            else None
+        )
+
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if torch.cuda.is_available() and torch.cuda.device_count() > 1
-                else None
-            ),
+            device_map=device_map,
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
         if torch.cuda.is_available() and torch.cuda.device_count() == 1:
             model = model.cuda()
+
+        # if device_map is "auto", it's unclear which device the model is on
+        # therefore, we need to get the device the model is on after loading
+        if device_map is not None:
+            device = next(model.parameters()).device
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
