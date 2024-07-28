@@ -100,6 +100,7 @@ impl ShardedClient {
         max_prefill_tokens: u32,
         max_total_tokens: u32,
         max_batch_size: Option<usize>,
+        model_id: &str,
     ) -> Result<Option<u32>> {
         let futures: Vec<_> = self
             .clients
@@ -110,6 +111,7 @@ impl ShardedClient {
                     max_prefill_tokens,
                     max_total_tokens,
                     max_batch_size,
+                    model_id
                 ))
             })
             .collect();

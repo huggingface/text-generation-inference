@@ -96,8 +96,11 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
 
-        batches = [batch_from_pb(batch) for batch in request.batches]
-        self.model.warmup(batches)
+        if self.model.batch_type in VLM_BATCH_TYPES :
+            self.model.warmup(request)
+        else:
+            batches = [batch_from_pb(batch) for batch in request.batches]
+            self.model.warmup(batches)
 
         return generate_pb2.WarmupResponse()
 

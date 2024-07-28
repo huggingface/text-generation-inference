@@ -349,6 +349,7 @@ async fn main() -> Result<(), RouterError> {
             max_batch_prefill_tokens,
             max_total_tokens as u32,
             max_batch_size,
+            &model_info.model_id
         )
         .await
         .map_err(RouterError::Warmup)?

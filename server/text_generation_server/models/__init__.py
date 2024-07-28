@@ -16,6 +16,12 @@ from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
 from text_generation_server.models.starcoder import StarCoder
+from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+from text_generation_server.models.custom_modeling.llava_next import (
+    LlavaNextForConditionalGeneration,
+)
+
+
 
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
@@ -155,6 +161,18 @@ def get_model(
         return BLOOM(
             model_id,
             revision,
+            speculator=speculator,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
+    logger.info(f"model_type = {model_type}")
+    if model_type == "llava_next":
+        logger.info(f"################model_type = {model_type}")
+        return VlmCausalLM(
+            model_class=LlavaNextForConditionalGeneration,
+            model_id=model_id,
+            revision=revision,
+            quantize=None,
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
