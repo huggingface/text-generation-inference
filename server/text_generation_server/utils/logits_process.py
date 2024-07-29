@@ -521,7 +521,13 @@ class GrammarLogitProcessor(LogitsProcessor):
     def _cached_compile_fsm(grammar_type, schema, tokenizer):
         start_time = time.time()
         if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
-            schema = build_regex_from_schema(schema)
+            try:
+                schema = build_regex_from_schema(schema)
+            # TODO: this is only here short term to avoid crashing the python server, mid term we want this in the rust/router layer
+            except Exception as e:
+                logger.error(f"Error compiling FSM, grammar won't be enforced \n{e}")
+                # allows everything
+                schema = "(.*?)"
         elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
             pass  # schema is already a regex just here for clarity
         fsm = RegexFSM(schema, tokenizer)
