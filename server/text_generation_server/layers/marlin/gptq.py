@@ -223,6 +223,7 @@ class GPTQMarlinLinear(nn.Module):
             A_flat.shape[1],
             self.is_full_k,
             self.qzeros.numel() > 0,
+            True,
         )
         C = C.reshape(A.shape[:-1] + (self.scales.shape[1],))
 
