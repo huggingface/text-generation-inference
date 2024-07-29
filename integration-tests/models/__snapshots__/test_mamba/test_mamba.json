@@ -14,55 +14,55 @@
       },
       {
         "id": 187,
-        "logprob": -0.26953125,
+        "logprob": -0.35742188,
         "special": false,
         "text": "\n"
       },
       {
         "id": 30763,
-        "logprob": -1.1953125,
+        "logprob": -1.1015625,
         "special": false,
         "text": "Deep"
       },
       {
         "id": 4715,
-        "logprob": -0.53515625,
+        "logprob": -0.5234375,
         "special": false,
         "text": " learning"
       },
       {
         "id": 310,
-        "logprob": -0.625,
+        "logprob": -0.55078125,
         "special": false,
         "text": " is"
       },
       {
         "id": 247,
-        "logprob": -0.6796875,
+        "logprob": -0.6640625,
         "special": false,
         "text": " a"
       },
       {
         "id": 747,
-        "logprob": -2.0,
+        "logprob": -2.0625,
         "special": false,
         "text": " new"
       },
       {
         "id": 1511,
-        "logprob": -2.3125,
+        "logprob": -2.375,
         "special": false,
         "text": " type"
       },
       {
         "id": 273,
-        "logprob": -0.0028533936,
+        "logprob": -0.0029144287,
         "special": false,
         "text": " of"
       },
       {
         "id": 5145,
-        "logprob": -1.265625,
+        "logprob": -1.2734375,
         "special": false,
         "text": " machine"
       }
