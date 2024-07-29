@@ -155,7 +155,7 @@ impl Infer {
         let use_top_tokens = request.parameters.top_n_tokens.is_some_and(|x| x > 0);
 
         // Create stream and keep semaphore permit as long as generate lives
-        let (_permit, _input_length, mut stream) = self.generate_stream(request).await?;
+        let (_input_length, mut stream) = self.generate_stream(request).await?;
 
         // Return values
         let mut result_prefill = Vec::new();
@@ -462,7 +462,6 @@ impl ToolGrammar {
 
 /// Type alias for generation responses
 pub(crate) type GenerateStreamResponse = (
-    OwnedSemaphorePermit,
     u32, // input_length
     UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
 );
