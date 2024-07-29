@@ -40,10 +40,18 @@ py-cpuinfo = "^9.0.0"
 # Remove later, temporary workaround for outlines.
 numpy = "^1.26"
 
+marlin-kernels = [
+  { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl", python = "~3.9", optional = true },
+  { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl", python = "~3.10", optional = true },
+  { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl", python = "~3.11", optional = true },
+  { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl", python = "~3.12", optional = true },
+]
+
 [tool.poetry.extras]
 torch = ["torch"]
 accelerate = ["accelerate"]
 bnb = ["bitsandbytes"]
+marlin = ["marlin-kernels"]
 peft = ["peft"]
 quantize = ["texttable", "datasets", "accelerate"]
 outlines = ["outlines"]
