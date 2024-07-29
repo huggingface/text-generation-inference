@@ -1140,6 +1140,74 @@ files = [
 ]
 
 [[package]]
+name = "marlin-kernels"
+version = "0.2.0"
+description = "Marlin quantization kernels"
+optional = true
+python-versions = ">=3.7"
+files = [
+    {file = "marlin_kernels-0.2.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:9a5afcf19b0f5917e43353cc19873fb3c4d4d0b924e2a95a37884f9ce208d0bd"},
+]
+
+[package.dependencies]
+torch = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
+
+[[package]]
+name = "marlin-kernels"
+version = "0.2.0"
+description = "Marlin quantization kernels"
+optional = true
+python-versions = ">=3.7"
+files = [
+    {file = "marlin_kernels-0.2.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:1e64fcc7ebadfaffa60091ee9201ae3daaf5c1be3be60c8c054143a3dcb72d5d"},
+]
+
+[package.dependencies]
+torch = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
+
+[[package]]
+name = "marlin-kernels"
+version = "0.2.0"
+description = "Marlin quantization kernels"
+optional = true
+python-versions = ">=3.7"
+files = [
+    {file = "marlin_kernels-0.2.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:e75f3ce9b1c13a4ed43a380d88e1d34d297259452db037ec1973ec33dc2eb78e"},
+]
+
+[package.dependencies]
+torch = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
+
+[[package]]
+name = "marlin-kernels"
+version = "0.2.0"
+description = "Marlin quantization kernels"
+optional = true
+python-versions = ">=3.7"
+files = [
+    {file = "marlin_kernels-0.2.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:2f99a27f70b391887ee6adffeeee7c3f4df7fac37393f9fb16d4cace2b3f6457"},
+]
+
+[package.dependencies]
+torch = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
+
+[[package]]
 name = "mpmath"
 version = "1.3.0"
 description = "Python library for arbitrary-precision floating-point arithmetic"
@@ -3507,6 +3575,7 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [extras]
 accelerate = ["accelerate"]
 bnb = ["bitsandbytes"]
+marlin = ["marlin-kernels", "marlin-kernels", "marlin-kernels", "marlin-kernels"]
 outlines = ["outlines"]
 peft = ["peft"]
 quantize = ["accelerate", "datasets", "texttable"]
@@ -3515,4 +3584,4 @@ torch = ["torch"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "c94bbdf8131750891fb3f7132066718534129d85a4c09126d8d01c2de6c72798"
+content-hash = "a89867b23017d2efa8a7aa14d4764bcbd3b4dea9bfbf06a7a68464cb184ac6a1"
