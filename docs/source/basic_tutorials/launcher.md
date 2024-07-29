@@ -350,6 +350,12 @@ Options:
           [env: CORS_ALLOW_ORIGIN=]
 
 ```
+## API_KEY
+```shell
+      --api-key <API_KEY>
+          [env: API_KEY=]
+
+```
 ## WATERMARK_GAMMA
 ```shell
       --watermark-gamma <WATERMARK_GAMMA>

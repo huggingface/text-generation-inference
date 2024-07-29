@@ -37,6 +37,7 @@ use futures::stream::StreamExt;
 use futures::stream::{FuturesOrdered, FuturesUnordered};
 use futures::Stream;
 use futures::TryStreamExt;
+use http::header::AUTHORIZATION;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use serde_json::Value;
 use std::convert::Infallible;
@@ -1417,6 +1418,7 @@ pub async fn run(
     validation_workers: usize,
     addr: SocketAddr,
     allow_origin: Option<AllowOrigin>,
+    api_key: Option<String>,
     ngrok: bool,
     _ngrok_authtoken: Option<String>,
     _ngrok_edge: Option<String>,
@@ -1810,16 +1812,42 @@ pub async fn run(
     let swagger_ui = SwaggerUi::new("/docs").url("/api-doc/openapi.json", doc);
 
     // Define base and health routes
-    let base_routes = Router::new()
+    let mut base_routes = Router::new()
         .route("/", post(compat_generate))
-        .route("/", get(health))
-        .route("/info", get(get_model_info))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/completions", post(completions))
         .route("/vertex", post(vertex_compatibility))
-        .route("/tokenize", post(tokenize))
+        .route("/tokenize", post(tokenize));
+
+    if let Some(api_key) = api_key {
+        let mut prefix = "Bearer ".to_string();
+        prefix.push_str(&api_key);
+
+        // Leak to allow FnMut
+        let api_key: &'static str = prefix.leak();
+
+        let auth = move |headers: HeaderMap,
+                         request: axum::extract::Request,
+                         next: axum::middleware::Next| async move {
+            match headers.get(AUTHORIZATION) {
+                Some(token) => match token.to_str() {
+                    Ok(token_str) if token_str.to_lowercase() == api_key.to_lowercase() => {
+                        let response = next.run(request).await;
+                        Ok(response)
+                    }
+                    _ => Err(StatusCode::UNAUTHORIZED),
+                },
+                None => Err(StatusCode::UNAUTHORIZED),
+            }
+        };
+
+        base_routes = base_routes.layer(axum::middleware::from_fn(auth))
+    }
+    let info_routes = Router::new()
+        .route("/", get(health))
+        .route("/info", get(get_model_info))
         .route("/health", get(health))
         .route("/ping", get(health))
         .route("/metrics", get(metrics));
@@ -1838,6 +1866,7 @@ pub async fn run(
     let mut app = Router::new()
         .merge(swagger_ui)
         .merge(base_routes)
+        .merge(info_routes)
         .merge(aws_sagemaker_route);
 
     #[cfg(feature = "google")]

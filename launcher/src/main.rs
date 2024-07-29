@@ -422,6 +422,10 @@ struct Args {
 
     #[clap(long, env)]
     cors_allow_origin: Vec<String>,
+
+    #[clap(long, env)]
+    api_key: Option<String>,
+
     #[clap(long, env)]
     watermark_gamma: Option<f32>,
     #[clap(long, env)]
@@ -1271,6 +1275,11 @@ fn spawn_webserver(
         router_args.push(origin);
     }
 
+    // API Key
+    if let Some(api_key) = args.api_key {
+        router_args.push("--api-key".to_string());
+        router_args.push(api_key);
+    }
     // Ngrok
     if args.ngrok {
         router_args.push("--ngrok".to_string());
