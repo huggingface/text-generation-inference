@@ -165,9 +165,8 @@ def get_model(
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
-    logger.info(f"model_type = {model_type}")
+
     if model_type == "llava_next":
-        logger.info(f"################model_type = {model_type}")
         return VlmCausalLM(
             model_class=LlavaNextForConditionalGeneration,
             model_id=model_id,
