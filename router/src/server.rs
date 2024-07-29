@@ -55,6 +55,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+use tokio::time::Duration;
 
 /// Generate tokens if `stream == false` or a stream of token if `stream == true`
 #[utoipa::path(
@@ -1509,6 +1510,8 @@ pub async fn run(
     )
     )]
     struct ApiDoc;
+    let download_time = std::env::var("DOWNLOAD_TIME").unwrap_or("30".to_string()).parse::<u64>().unwrap_or(30);
+    let length_time = Instant::now();
 
     // Create state
     if print_schema_command {
@@ -1916,6 +1919,10 @@ pub async fn run(
         .layer(cors_layer);
 
     tracing::info!("Connected");
+    let total_time = length_time.elapsed() + Duration::from_secs(download_time);
+    metrics::gauge!("tgi_model_load_time").set(total_time.as_secs_f64());
+
+    
 
     if ngrok {
         #[cfg(feature = "ngrok")]
