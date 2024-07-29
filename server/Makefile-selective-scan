@@ -26,6 +26,3 @@ install-selective-scan: install-causal-conv1d build-selective-scan
 	cd mamba && pip install .
 
 build-all: build-causal-conv1d build-selective-scan
-
-install-ssm: install-causal-conv1d install-selective-scan
-	@echo "Selective scan model installed"
