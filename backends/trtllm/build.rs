@@ -1,9 +1,8 @@
+use cxx_build::CFG;
+use pkg_config;
 use std::env;
 use std::env::consts::ARCH;
 use std::path::{absolute, PathBuf};
-
-use cxx_build::CFG;
-use pkg_config;
 
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
 const CUDA_ARCH_LIST: Option<&str> = option_env!("CUDA_ARCH_LIST");
@@ -17,7 +16,7 @@ const NCCL_ROOT_DIR: Option<&str> = option_env!("NCCL_ROOT_DIR");
 const BACKEND_DEPS: [&str; 2] = ["tgi_trtllm_backend_impl", "tgi_trtllm_backend"];
 const CUDA_TRANSITIVE_DEPS: [&str; 4] = ["cuda", "cudart", "cublas", "nvidia-ml"];
 const TENSORRT_LLM_TRANSITIVE_DEPS: [(&str, &str); 5] = [
-    ("dylib", "tensorrt-llm"),
+    ("dylib", "tensorrt_llm"),
     ("static", "tensorrt_llm_executor_static"),
     ("dylib", "tensorrt_llm_nvrtc_wrapper"),
     ("dylib", "nvinfer_plugin_tensorrt_llm"),
