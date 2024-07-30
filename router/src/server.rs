@@ -1396,6 +1396,90 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
 #[derive(Clone, Debug)]
 pub(crate) struct ComputeType(String);
 
+// OpenAPI documentation
+#[derive(OpenApi)]
+#[openapi(
+paths(
+health,
+get_model_info,
+compat_generate,
+generate,
+generate_stream,
+chat_completions,
+completions,
+tokenize,
+metrics,
+),
+components(
+schemas(
+Info,
+CompatGenerateRequest,
+GenerateRequest,
+GrammarType,
+ChatRequest,
+Message,
+MessageContent,
+MessageChunk,
+Url,
+FunctionName,
+OutputMessage,
+TextMessage,
+ToolCallMessage,
+ToolCallDelta,
+ChatCompletionComplete,
+ChatCompletionChoice,
+ChatCompletionDelta,
+ChatCompletionChunk,
+ChatCompletionLogprob,
+ChatCompletionLogprobs,
+ChatCompletionTopLogprob,
+ChatCompletion,
+CompletionRequest,
+CompletionComplete,
+Chunk,
+Completion,
+CompletionFinal,
+Prompt,
+GenerateParameters,
+PrefillToken,
+Token,
+GenerateResponse,
+TokenizeResponse,
+SimpleToken,
+BestOfSequence,
+Details,
+FinishReason,
+StreamResponse,
+StreamDetails,
+ErrorResponse,
+GrammarType,
+Usage,
+DeltaToolCall,
+ToolType,
+Tool,
+ToolCall,
+Function,
+FunctionDefinition,
+ToolChoice,
+)
+),
+tags(
+(name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
+),
+info(
+title = "Text Generation Inference",
+license(
+name = "Apache 2.0",
+url = "https://www.apache.org/licenses/LICENSE-2.0"
+)
+)
+)]
+pub struct ApiDoc;
+
+pub fn schema() -> ApiDoc {
+    ApiDoc
+}
+
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
@@ -1420,95 +1504,7 @@ pub async fn run(
     messages_api_enabled: bool,
     grammar_support: bool,
     max_client_batch_size: usize,
-    print_schema_command: bool,
 ) -> Result<(), WebServerError> {
-    // OpenAPI documentation
-    #[derive(OpenApi)]
-    #[openapi(
-    paths(
-    health,
-    get_model_info,
-    compat_generate,
-    generate,
-    generate_stream,
-    chat_completions,
-    completions,
-    tokenize,
-    metrics,
-    ),
-    components(
-    schemas(
-    Info,
-    CompatGenerateRequest,
-    GenerateRequest,
-    GrammarType,
-    ChatRequest,
-    Message,
-    MessageContent,
-    MessageChunk,
-    Url,
-    FunctionName,
-    OutputMessage,
-    TextMessage,
-    ToolCallMessage,
-    ToolCallDelta,
-    ChatCompletionComplete,
-    ChatCompletionChoice,
-    ChatCompletionDelta,
-    ChatCompletionChunk,
-    ChatCompletionLogprob,
-    ChatCompletionLogprobs,
-    ChatCompletionTopLogprob,
-    ChatCompletion,
-    CompletionRequest,
-    CompletionComplete,
-    Chunk,
-    Completion,
-    CompletionFinal,
-    Prompt,
-    GenerateParameters,
-    PrefillToken,
-    Token,
-    GenerateResponse,
-    TokenizeResponse,
-    SimpleToken,
-    BestOfSequence,
-    Details,
-    FinishReason,
-    StreamResponse,
-    StreamDetails,
-    ErrorResponse,
-    GrammarType,
-    Usage,
-    DeltaToolCall,
-    ToolType,
-    Tool,
-    ToolCall,
-    Function,
-    FunctionDefinition,
-    ToolChoice,
-    )
-    ),
-    tags(
-    (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
-    ),
-    info(
-    title = "Text Generation Inference",
-    license(
-    name = "Apache 2.0",
-    url = "https://www.apache.org/licenses/LICENSE-2.0"
-    )
-    )
-    )]
-    struct ApiDoc;
-
-    // Create state
-    if print_schema_command {
-        let api_doc = ApiDoc::openapi();
-        let api_doc = serde_json::to_string_pretty(&api_doc).unwrap();
-        println!("{}", api_doc);
-        std::process::exit(0);
-    }
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
     // Finally, convert to AllowOrigin

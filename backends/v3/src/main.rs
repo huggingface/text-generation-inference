@@ -113,19 +113,14 @@ async fn main() -> Result<(), RouterError> {
         max_client_batch_size,
     } = args;
 
-    let print_schema_command = match command {
-        Some(Commands::PrintSchema) => true,
-        None => {
-            // only init logging if we are not running the print schema command
-            text_generation_router::logging::init_logging(
-                otlp_endpoint,
-                otlp_service_name,
-                json_output,
-            );
-            false
-        }
+    if let Some(Commands::PrintSchema) = command {
+        use utoipa::OpenApi;
+        let api_doc = text_generation_router::server::ApiDoc::openapi();
+        let api_doc = serde_json::to_string_pretty(&api_doc).unwrap();
+        println!("{}", api_doc);
+        std::process::exit(0);
     };
-    // Launch Tokio runtime
+    text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
 
     // Validate args
     if max_input_tokens >= max_total_tokens {
@@ -187,7 +182,6 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
-        print_schema_command,
     )
     .await?;
     Ok(())
