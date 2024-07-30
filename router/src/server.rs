@@ -814,7 +814,7 @@ async fn completions(
                                 model: model_id.clone(),
                                 system_fingerprint: system_fingerprint.clone(),
                                 choices: vec![CompletionComplete {
-                                    finish_reason: String::new(),
+                                    finish_reason: details.finish_reason.to_string(),
                                     index: index as u32,
                                     logprobs: None,
                                     text: stream_token.token.text,
