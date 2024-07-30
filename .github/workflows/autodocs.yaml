@@ -41,5 +41,5 @@ jobs:
 
     - name: Check that documentation is up-to-date
       run: |
-        npm install -g swagger-cli
+        npm install -g @redocly/cli
         python update_doc.py --check
