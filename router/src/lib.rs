@@ -1158,6 +1158,12 @@ pub(crate) struct GenerateResponse {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(crate) struct ChatTokenizeResponse {
+    pub(crate) tokenize_response: TokenizeResponse,
+    pub(crate) templated_text: String,
+}
+
+#[derive(Serialize, ToSchema)]
 #[serde(transparent)]
 pub(crate) struct TokenizeResponse(Vec<SimpleToken>);
 
