@@ -4,7 +4,7 @@ members = [
   "backends/v3",
   # "backends/client",
   "backends/grpc-metadata",
-  # "backends/trtllm",
+  "backends/trtllm",
   "launcher"
 ]
 resolver = "2"
