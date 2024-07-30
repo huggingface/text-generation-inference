@@ -7,6 +7,14 @@ members = [
   "backends/trtllm",
   "launcher"
 ]
+default-members = [
+  # "benchmark",
+  # "backends/v3",
+  # "backends/client",
+  "backends/grpc-metadata",
+  # "backends/trtllm",
+  "launcher"
+]
 resolver = "2"
 
 [workspace.package]
