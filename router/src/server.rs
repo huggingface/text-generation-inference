@@ -121,7 +121,7 @@ async fn get_model_info(info: Extension<Info>) -> Json<Info> {
     tag = "Text Generation Inference",
     path = "/chat_tokenize",
     request_body = ChatRequest,
-    responses((status = 200, description = "Templated Chat Request", body = Value))
+    responses((status = 200, description = "Templated and tokenized ChatRequest", body = ChatTokenizeResponse))
 )]
 async fn get_chat_tokenize(
     Extension(infer): Extension<Infer>,
