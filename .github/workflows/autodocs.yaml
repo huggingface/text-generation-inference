@@ -28,7 +28,7 @@ jobs:
 
     - name: Install router
       id: install-router
-      run: cargo install --path router/
+      run: cargo install --path backends/v3/
 
     - uses: actions/setup-node@v4
       with:
