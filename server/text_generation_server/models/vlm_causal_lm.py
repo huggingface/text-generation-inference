@@ -494,6 +494,25 @@ class VlmCausalLM(Model):
             kwargs=kwargs,
         )
 
+        # Create profiler
+        ranks_to_profile = [int(val) for val in os.getenv("PROF_RANKS", "0").split(',')]
+        record_shapes = os.getenv("PROF_RECORD_SHAPES", "false").lower() == "true"
+        output_dir = os.getenv("PROF_PATH", "/tmp/hpu_profile")
+        self.profiling_warmup_steps = int(os.getenv("PROF_WARMUPSTEP", "0")) if rank in ranks_to_profile else 0
+        self.profiling_steps = int(os.getenv("PROF_STEP", "0")) if rank in ranks_to_profile else 0
+        self.profiling_wait_steps = int(os.getenv("PROF_WAITSTEP", "0"))
+        if self.profiling_steps > 0:
+            self.hb_profiler = HabanaProfile(
+                wait=self.profiling_wait_steps,
+                warmup=self.profiling_warmup_steps,
+                active=self.profiling_steps,
+                output_dir=output_dir,
+                record_shapes=record_shapes
+            )
+            self.hb_profiler.start()
+        else:
+            self.hb_profiler = None
+        self.step = 0
 
 
     @property
@@ -929,12 +948,12 @@ class VlmCausalLM(Model):
             req.read_offset = read_offset
 
         htorch.core.mark_step()
-        # self.step = self.step + 1
-        # if self.hb_profiler is not None:
-        #     if self.step > self.profiling_wait_steps + self.profiling_warmup_steps + self.profiling_steps:
-        #         self.hb_profiler.stop()
-        #     else:
-        #         self.hb_profiler.step()
+        self.step = self.step + 1
+        if self.hb_profiler is not None:
+            if self.step > self.profiling_wait_steps + self.profiling_warmup_steps + self.profiling_steps:
+                self.hb_profiler.stop()
+            else:
+                self.hb_profiler.step()
 
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode
