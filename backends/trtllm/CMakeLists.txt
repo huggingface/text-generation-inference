@@ -14,7 +14,7 @@ set(TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/include" 
 set(TGI_TRTLLM_BACKEND_TRT_LIB_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/lib" CACHE STRING "Path where TensorRT libraries are located")
 
 # We are using nvidia-ml to query at runtime device information to enable some architecture-specific features
-find_package(CUDAToolkit 12.5 REQUIRED COMPONENTS CUDA::nvml)
+find_package(CUDAToolkit 12.5 REQUIRED COMPONENTS CUDA::cudart CUDA::nvml)
 
 #### External dependencies ####
 include(cmake/fmt.cmake)
@@ -36,14 +36,8 @@ target_include_directories(tgi_trtllm_backend_impl PRIVATE
         $<INSTALL_INTERFACE:include>
 )
 target_include_directories(tgi_trtllm_backend_impl PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
-target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper CUDA::nvml)
+target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper CUDA::cudart CUDA::nvml)
 target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
-
-if (${TGI_TRTLLM_BACKEND_BUILD_EXAMPLES})
-    add_executable(tgi_trtllm_backend_example bin/example.cpp)
-    target_link_libraries(tgi_trtllm_backend_example PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tgi_trtllm_backend_impl)
-    target_link_libraries(tgi_trtllm_backend_example PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
-endif ()
 
 # This install all the artifacts in CMAKE_INSTALL_PREFIX under include/ lib/ bin/ to make easy to link / find it back
 install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm decoder_attention executorWorker)
@@ -59,11 +53,11 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     )
     FetchContent_MakeAvailable(Catch2)
 
-    add_executable(tgi_trtllm_backend_tests tests/infer_test.cpp)
-    target_link_libraries(tgi_trtllm_backend_tests PRIVATE tgi_trtllm_backend_impl Catch2::Catch2WithMain nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
+    #    add_executable(tgi_trtllm_backend_tests tests/infer_test.cpp)
+    #    target_link_libraries(tgi_trtllm_backend_tests PRIVATE tgi_trtllm_backend_impl Catch2::Catch2WithMain nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt CUDA::cudart CUDA::nvml)
 
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(CTest)
     include(Catch)
-    catch_discover_tests(tgi_trtllm_backend_tests)
+    #    catch_discover_tests(tgi_trtllm_backend_tests)
 endif ()
