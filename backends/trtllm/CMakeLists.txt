@@ -14,7 +14,7 @@ set(TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/include" 
 set(TGI_TRTLLM_BACKEND_TRT_LIB_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/lib" CACHE STRING "Path where TensorRT libraries are located")
 
 # We are using nvidia-ml to query at runtime device information to enable some architecture-specific features
-find_package(CUDAToolkit REQUIRED COMPONENTS CUDA::nvml)
+find_package(CUDAToolkit 12.5 REQUIRED COMPONENTS CUDA::nvml)
 
 #### External dependencies ####
 include(cmake/fmt.cmake)
