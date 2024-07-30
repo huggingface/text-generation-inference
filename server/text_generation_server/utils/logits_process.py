@@ -20,17 +20,13 @@ from transformers import (
     TypicalLogitsWarper,
 )
 
+from transformers.generation.logits_process import _calc_banned_ngram_tokens
+
 mempool = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
 
 class StaticWarper:
-    def __init__(
-        self,
-        temperature=1.0,
-        top_k=None,
-        top_p=None,
-        typical_p=None,
-    ):
+    def __init__(self, temperature=1.0, top_k=None, top_p=None, typical_p=None):
         self.warpers = []
 
         if temperature is not None and temperature != 1.0:
@@ -84,7 +80,10 @@ def static_warper(
     typical_p: Optional[float],
 ) -> StaticWarper:
     return StaticWarper(
-        temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        typical_p=typical_p,
     )
 
 
