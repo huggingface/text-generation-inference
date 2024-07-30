@@ -30,6 +30,7 @@ pub struct BackendInfo {
     pub max_batch_size: Option<usize>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn connect_backend(
     max_input_tokens: usize,
     max_total_tokens: usize,

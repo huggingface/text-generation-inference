@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use text_generation_router::server;
 use text_generation_router_v3::{connect_backend, V3Error};
 use thiserror::Error;
@@ -7,6 +7,9 @@ use thiserror::Error;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
     #[clap(default_value = "2", long, env)]
@@ -44,6 +47,8 @@ struct Args {
     #[clap(default_value = "2", long, env)]
     validation_workers: usize,
     #[clap(long, env)]
+    api_key: Option<String>,
+    #[clap(long, env)]
     json_output: bool,
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
@@ -65,12 +70,18 @@ struct Args {
     max_client_batch_size: usize,
 }
 
+#[derive(Debug, Subcommand)]
+enum Commands {
+    PrintSchema,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), RouterError> {
     // Get args
     let args = Args::parse();
     // Pattern match configuration
     let Args {
+        command,
         max_concurrent_requests,
         max_best_of,
         max_stop_sequences,
@@ -89,6 +100,7 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_config_path,
         revision,
         validation_workers,
+        api_key,
         json_output,
         otlp_endpoint,
         otlp_service_name,
@@ -101,8 +113,19 @@ async fn main() -> Result<(), RouterError> {
         max_client_batch_size,
     } = args;
 
+    let print_schema_command = match command {
+        Some(Commands::PrintSchema) => true,
+        None => {
+            // only init logging if we are not running the print schema command
+            text_generation_router::logging::init_logging(
+                otlp_endpoint,
+                otlp_service_name,
+                json_output,
+            );
+            false
+        }
+    };
     // Launch Tokio runtime
-    text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
 
     // Validate args
     if max_input_tokens >= max_total_tokens {
@@ -151,6 +174,7 @@ async fn main() -> Result<(), RouterError> {
         max_input_tokens,
         max_total_tokens,
         validation_workers,
+        api_key,
         tokenizer_name,
         tokenizer_config_path,
         revision,
@@ -163,6 +187,7 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
+        print_schema_command,
     )
     .await?;
     Ok(())

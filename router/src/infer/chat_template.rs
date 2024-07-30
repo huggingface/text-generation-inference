@@ -1,5 +1,7 @@
 use crate::infer::InferError;
-use crate::{ChatTemplateInputs, GrammarType, Message, MessageChunk, Text, TextMessage};
+use crate::{
+    ChatTemplateInputs, GrammarType, Message, MessageChunk, TextMessage, TokenizerConfigToken,
+};
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
 
@@ -19,8 +21,8 @@ pub(crate) struct ChatTemplate {
 impl ChatTemplate {
     pub(crate) fn new(
         template: String,
-        bos_token: Option<String>,
-        eos_token: Option<String>,
+        bos_token: Option<TokenizerConfigToken>,
+        eos_token: Option<TokenizerConfigToken>,
     ) -> Self {
         let mut env = Box::new(Environment::new());
         // enable things like .strip() or .capitalize()
@@ -38,8 +40,8 @@ impl ChatTemplate {
 
         Self {
             template,
-            bos_token,
-            eos_token,
+            bos_token: bos_token.map(|token| token.as_str().to_string()),
+            eos_token: eos_token.map(|token| token.as_str().to_string()),
             use_default_tool_template,
         }
     }
@@ -52,9 +54,9 @@ impl ChatTemplate {
         if self.use_default_tool_template {
             if let Some(last_message) = messages.last_mut() {
                 if let Some((GrammarType::Json(tools), tool_prompt)) = grammar_with_prompt {
-                    last_message.content.push(MessageChunk::Text(Text {
+                    last_message.content.push(MessageChunk::Text {
                         text: format!("\n---\n{}\n{}", tool_prompt, tools),
-                    }));
+                    });
                 }
             }
         }

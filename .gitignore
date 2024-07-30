@@ -3,6 +3,8 @@ target
 router/tokenizer.json
 *__pycache__*
 
+backends/v3/src/client/pb
+
 # ROCm auto-generated files
 *.hip
 server/exllamav2_kernels/exllamav2_kernels/hip/

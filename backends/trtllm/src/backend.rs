@@ -2,8 +2,8 @@ use std::future::Future;
 use std::path::Path;
 use std::pin::{pin, Pin};
 use std::str::FromStr;
-use std::sync::{Arc, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -13,15 +13,15 @@ use log::{error, warn};
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::RwLock;
-use tokio::time::{Instant, sleep};
-use tokio_stream::{Stream, StreamExt};
+use tokio::time::{sleep, Instant};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{instrument, Level, span};
+use tokio_stream::{Stream, StreamExt};
+use tracing::{instrument, span, Level};
 
-use text_generation_router::{FinishReason, Token};
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
-use text_generation_router::validation::{Chunk, ValidationError, ValidGenerateRequest};
 use text_generation_router::validation::ValidationError::UnsupportedModality;
+use text_generation_router::validation::{Chunk, ValidGenerateRequest, ValidationError};
+use text_generation_router::{FinishReason, Token};
 
 use crate::errors::TensorRtLlmBackendError;
 use crate::ffi::{create_tensorrt_llm_backend, GenerationStep, TensorRtLlmBackendImpl};

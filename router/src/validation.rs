@@ -5,13 +5,12 @@ use crate::{
     GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
-use image::{io::Reader as ImageReader, ImageFormat};
+use image::{ImageFormat, ImageReader};
 use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 use std::io::Cursor;
 use std::iter;
-use text_generation_client::{Chunk, Image, InputChunk};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::mpsc;
@@ -181,11 +180,7 @@ impl Validation {
                 input_length = input_length.saturating_sub(max_new_tokens as usize);
             }
 
-            Ok((
-                vec![Chunk::Text(inputs).into()],
-                input_length,
-                max_new_tokens,
-            ))
+            Ok((vec![Chunk::Text(inputs)], input_length, max_new_tokens))
         }
     }
 
@@ -589,7 +584,7 @@ fn prepare_input(
     tokenizer: &Tokenizer,
     config: Option<&Config>,
     preprocessor_config: Option<&HubPreprocessorConfig>,
-) -> Result<(tokenizers::Encoding, Vec<InputChunk>), ValidationError> {
+) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
     use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
@@ -601,16 +596,16 @@ fn prepare_input(
                 let chunk_start = chunk.start();
                 let chunk_end = chunk.end();
                 if chunk_start != start {
-                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()).into());
+                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()));
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
                 let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
+                input_chunks.push(Chunk::Image(Image { data, mimetype }));
                 tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
                 start = chunk_end;
             }
             if start != inputs.len() {
-                input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
+                input_chunks.push(Chunk::Text(inputs[start..].to_string()));
                 tokenizer_query.push_str(&inputs[start..]);
             }
 
@@ -618,7 +613,7 @@ fn prepare_input(
 
             (tokenizer_query, input_chunks)
         }
-        _ => (inputs.clone(), vec![Chunk::Text(inputs).into()]),
+        _ => (inputs.clone(), vec![Chunk::Text(inputs)]),
     };
 
     // Get the number of tokens in the input
@@ -784,8 +779,7 @@ pub enum ValidationError {
     #[error("Could not fetch image: {0}")]
     FailedFetchImage(#[from] reqwest::Error),
     #[error("{0} modality is not supported")]
-    UnsupportedModality(&'static str)
-
+    UnsupportedModality(&'static str),
 }
 
 #[cfg(test)]

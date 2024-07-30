@@ -2,7 +2,7 @@ use crate::client::{ClientError, Result};
 /// Multi shard Client
 use crate::client::{Health, ShardInfo};
 
-use crate::client::client::{DecodeTimings, PrefillTimings};
+use crate::client::grpc_client::{DecodeTimings, PrefillTimings};
 use crate::client::{
     Batch, CachedBatch, Client, Generation, GrammarType, HealthResponse,
     NextTokenChooserParameters, Request, StoppingCriteriaParameters,
