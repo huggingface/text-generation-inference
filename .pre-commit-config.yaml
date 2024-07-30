@@ -15,7 +15,6 @@ repos:
     hooks:
     -   id: fmt
     -   id: cargo-check
-      # -   id: clippy
 -   repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.3.0
     hooks:
