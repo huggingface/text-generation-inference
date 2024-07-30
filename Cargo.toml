@@ -12,6 +12,7 @@ default-members = [
   "backends/v3",
   "backends/grpc-metadata",
   # "backends/trtllm",
+  "backends/client",
   "launcher"
 ]
 resolver = "2"
