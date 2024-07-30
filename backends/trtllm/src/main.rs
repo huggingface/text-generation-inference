@@ -147,6 +147,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         max_input_tokens,
         max_total_tokens,
         validation_workers,
+        None,
         tokenizer_name,
         tokenizer_config_path,
         revision,
