@@ -7,6 +7,7 @@ use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
     kserve_model_metadata, kserve_model_metadata_ready,
 };
+use crate::usage_stats;
 use crate::validation::ValidationError;
 use crate::{
     BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName, GenerateParameters,
@@ -1502,8 +1503,10 @@ pub async fn run(
     _ngrok_authtoken: Option<String>,
     _ngrok_edge: Option<String>,
     messages_api_enabled: bool,
-    grammar_support: bool,
+    disable_grammar_support: bool,
     max_client_batch_size: usize,
+    disable_usage_stats: bool,
+    disable_crash_reports: bool,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
@@ -1690,7 +1693,44 @@ pub async fn run(
         tracing::warn!("Rust input length validation and truncation is disabled");
     }
 
-    // if pipeline-tag == text-generation we default to return_full_text = true
+    // Only send usage stats when TGI is run in container and the function returns Some
+    let is_container = matches!(usage_stats::is_container(), Ok(true));
+
+    let user_agent = if !disable_usage_stats && is_container {
+        let reduced_args = usage_stats::Args::new(
+            config.clone(),
+            tokenizer_config.tokenizer_class.clone(),
+            max_concurrent_requests,
+            max_best_of,
+            max_stop_sequences,
+            max_top_n_tokens,
+            max_input_tokens,
+            max_total_tokens,
+            // waiting_served_ratio,
+            // max_batch_prefill_tokens,
+            // max_batch_total_tokens,
+            // max_waiting_tokens,
+            // max_batch_size,
+            revision.clone(),
+            validation_workers,
+            messages_api_enabled,
+            disable_grammar_support,
+            max_client_batch_size,
+            disable_usage_stats,
+            disable_crash_reports,
+        );
+        Some(usage_stats::UserAgent::new(reduced_args))
+    } else {
+        None
+    };
+
+    if let Some(ref ua) = user_agent {
+        let start_event =
+            usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Start, None);
+        tokio::spawn(async move {
+            start_event.send().await;
+        });
+    };
     let compat_return_full_text = match &model_info.pipeline_tag {
         None => {
             tracing::warn!("no pipeline tag found for model {tokenizer_name}");
@@ -1698,7 +1738,94 @@ pub async fn run(
         }
         Some(pipeline_tag) => pipeline_tag.as_str() == "text-generation",
     };
+    let result = start(
+        backend,
+        max_concurrent_requests,
+        max_best_of,
+        max_stop_sequences,
+        max_top_n_tokens,
+        max_input_tokens,
+        max_total_tokens,
+        validation_workers,
+        api_key,
+        config,
+        (tokenizer, tokenizer_config),
+        (preprocessor_config, processor_config),
+        hostname,
+        port,
+        ngrok,
+        _ngrok_authtoken,
+        _ngrok_edge,
+        messages_api_enabled,
+        disable_grammar_support,
+        max_client_batch_size,
+        model_info,
+        compat_return_full_text,
+        allow_origin,
+    )
+    .await;
 
+    if let Some(ua) = user_agent {
+        match result {
+            Ok(_) => {
+                let stop_event = usage_stats::UsageStatsEvent::new(
+                    ua.clone(),
+                    usage_stats::EventType::Stop,
+                    None,
+                );
+                stop_event.send().await;
+                Ok(())
+            }
+            Err(e) => {
+                if !disable_crash_reports {
+                    let error_event = usage_stats::UsageStatsEvent::new(
+                        ua.clone(),
+                        usage_stats::EventType::Error,
+                        Some(e.to_string()),
+                    );
+                    error_event.send().await;
+                } else {
+                    let unknow_error_event = usage_stats::UsageStatsEvent::new(
+                        ua.clone(),
+                        usage_stats::EventType::Error,
+                        Some("unknow_error".to_string()),
+                    );
+                    unknow_error_event.send().await;
+                }
+                Err(e)
+            }
+        }
+    } else {
+        result
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn start(
+    backend: impl Backend + Send + Sync + 'static,
+    max_concurrent_requests: usize,
+    max_best_of: usize,
+    max_stop_sequences: usize,
+    max_top_n_tokens: u32,
+    max_input_tokens: usize,
+    max_total_tokens: usize,
+    validation_workers: usize,
+    api_key: Option<String>,
+    config: Option<Config>,
+    (tokenizer, tokenizer_config): (Option<Tokenizer>, HubTokenizerConfig),
+    (preprocessor_config, processor_config): (Option<HubPreprocessorConfig>, HubProcessorConfig),
+    hostname: String,
+    port: u16,
+    ngrok: bool,
+    _ngrok_authtoken: Option<String>,
+    _ngrok_edge: Option<String>,
+    messages_api_enabled: bool,
+    disable_grammar_support: bool,
+    max_client_batch_size: usize,
+    model_info: HubModelInfo,
+    compat_return_full_text: bool,
+    allow_origin: Option<AllowOrigin>,
+) -> Result<(), WebServerError> {
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
         std::env::var("AIP_HTTP_PORT")
@@ -1727,7 +1854,7 @@ pub async fn run(
         max_top_n_tokens,
         max_input_tokens,
         max_total_tokens,
-        grammar_support,
+        disable_grammar_support,
     );
 
     let infer = Infer::new(

@@ -68,6 +68,10 @@ struct Args {
     disable_grammar_support: bool,
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
+    #[clap(long, env, default_value_t)]
+    disable_usage_stats: bool,
+    #[clap(long, env, default_value_t)]
+    disable_crash_reports: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -110,6 +114,8 @@ async fn main() -> Result<(), RouterError> {
         ngrok_edge,
         messages_api_enabled,
         disable_grammar_support,
+        disable_usage_stats,
+        disable_crash_reports,
         max_client_batch_size,
     } = args;
 
@@ -182,6 +188,8 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
+        disable_usage_stats,
+        disable_crash_reports,
     )
     .await?;
     Ok(())
