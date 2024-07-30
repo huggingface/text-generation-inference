@@ -3,6 +3,7 @@ from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING, BLOCK_SIZE
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
+import warnings
 
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
@@ -289,9 +290,11 @@ else:
         softcap=None,
     ):
         if window_size_left != -1:
-            raise NotImplementedError(
-                "window_size_left is only available with flash attn v2"
+            warnings.warn(
+                "window_size_left is only available with flash attn v2. It will be ignored.",
+                UserWarning,
             )
+
         if softcap is not None:
             raise NotImplementedError("softcap is only available with flash attn v2")
 
@@ -338,3 +341,6 @@ else:
             0,
             None,
         )
+
+
+SUPPORTS_WINDOWING = True
