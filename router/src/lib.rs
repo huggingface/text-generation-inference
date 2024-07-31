@@ -619,7 +619,7 @@ impl ChatCompletion {
                 message,
                 logprobs: return_logprobs
                     .then(|| ChatCompletionLogprobs::from((details.tokens, details.top_tokens))),
-                finish_reason: details.finish_reason.to_string(),
+                finish_reason: details.finish_reason.format(true),
             }],
             usage: Usage {
                 prompt_tokens: details.prefill.len() as u32,
@@ -1113,6 +1113,15 @@ impl std::fmt::Display for FinishReason {
             FinishReason::Length => write!(f, "length"),
             FinishReason::EndOfSequenceToken => write!(f, "eos_token"),
             FinishReason::StopSequence => write!(f, "stop_sequence"),
+        }
+    }
+}
+
+impl FinishReason {
+    pub fn format(&self, use_stop: bool) -> String {
+        match self {
+            FinishReason::EndOfSequenceToken if use_stop => "stop".to_string(),
+            _ => self.to_string(),
         }
     }
 }
