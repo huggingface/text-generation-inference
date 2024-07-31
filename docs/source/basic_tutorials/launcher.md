@@ -434,7 +434,7 @@ Options:
 ## USAGE_STATS
 ```shell
       --usage-stats <USAGE_STATS>
-          Control if anonymous usage stats are collected. on/off or no-stack. Defaul on
+          Control if anonymous usage stats are collected. Options are "on", "off" and "no-stack" Defaul is on
           
           [env: USAGE_STATS=]
           [default: on]
