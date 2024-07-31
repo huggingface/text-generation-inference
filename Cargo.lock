@@ -3896,6 +3896,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "log",
+ "parking_lot",
  "pkg-config",
  "text-generation-router",
  "thiserror",
