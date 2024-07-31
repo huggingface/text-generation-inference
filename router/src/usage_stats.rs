@@ -1,4 +1,5 @@
 use crate::config::Config;
+use clap::ValueEnum;
 use csv::ReaderBuilder;
 use reqwest::header::HeaderMap;
 use serde::Serialize;
@@ -13,7 +14,7 @@ use uuid::Uuid;
 
 const TELEMETRY_URL: &str = "https://huggingface.co/api/telemetry/tgi";
 
-#[derive(Copy, Clone, Debug, Serialize)]
+#[derive(Copy, Clone, Debug, Serialize, ValueEnum)]
 pub enum UsageStatsLevel {
     On,
     NoStack,

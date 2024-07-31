@@ -69,7 +69,7 @@ struct Args {
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
     #[clap(default_value = "on", long, env)]
-    usage_stats: Option<String>,
+    usage_stats: Option<usage_stats::UsageStatsLevel>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -125,18 +125,9 @@ async fn main() -> Result<(), RouterError> {
     };
     text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
 
+    let usage_stats_level = usage_stats.unwrap_or(usage_stats::UsageStatsLevel::On);
+
     // Validate args
-    let usage_stats_level = match usage_stats.as_deref() {
-        Some("on") => usage_stats::UsageStatsLevel::On,
-        Some("off") => usage_stats::UsageStatsLevel::Off,
-        Some("no-stack") => usage_stats::UsageStatsLevel::NoStack,
-        Some(_) => {
-            return Err(RouterError::ArgumentValidation(
-                "`usage_stats_level` must be 'on' 'off' or 'no_stack'".to_string(),
-            ))
-        }
-        None => usage_stats::UsageStatsLevel::On,
-    };
     if max_input_tokens >= max_total_tokens {
         return Err(RouterError::ArgumentValidation(
             "`max_input_tokens` must be < `max_total_tokens`".to_string(),

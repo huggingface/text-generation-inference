@@ -1697,9 +1697,7 @@ pub async fn run(
     // Only send usage stats when TGI is run in container and the function returns Some
     let is_container = matches!(usage_stats::is_container(), Ok(true));
     let user_agent = match (usage_stats_level, is_container) {
-        (usage_stats::UsageStatsLevel::On | usage_stats::UsageStatsLevel::NoStack, true)  =>
-        {
-        _ => None
+        (usage_stats::UsageStatsLevel::On | usage_stats::UsageStatsLevel::NoStack, true) => {
             let reduced_args = usage_stats::Args::new(
                 config.clone(),
                 tokenizer_config.tokenizer_class.clone(),
@@ -1723,7 +1721,6 @@ pub async fn run(
             );
             Some(usage_stats::UserAgent::new(reduced_args))
         }
-        _ if !is_container => None,
         _ => None,
     };
 
