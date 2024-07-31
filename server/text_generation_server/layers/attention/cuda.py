@@ -34,7 +34,6 @@ def reshape_and_cache(
 
 
 def paged_attention(
-    out: torch.Tensor,
     query: torch.Tensor,
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
@@ -85,7 +84,7 @@ def paged_attention(
         # This fails becuase we're using causal, therefore window_right is set to 0 and the split logic is never applied.
         if softcap is None:
             softcap = 0.0
-        out2 = flash_attn_2_cuda.varlen_fwd(
+        out = flash_attn_2_cuda.varlen_fwd(
             query,
             key_cache,
             value_cache,
@@ -108,12 +107,14 @@ def paged_attention(
             False,  # return softmax
             None,  # generator
         )
-        return out2[0]
+        return out[0]
     else:
         if softcap is not None:
             raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths
         from vllm._C import ops
+
+        out = torch.empty_like(query)
 
         use_v1 = max_s <= 8192 and (
             max_num_partitions == 1 or num_seqs * num_heads > 512
@@ -200,13 +201,13 @@ except ImportError:
 
 
 SUPPORTS_WINDOWING = V2
+
 if V2:
 
     def attention(
         q,
         k,
         v,
-        out,
         cu_seqlens,
         max_s,
         softmax_scale,
@@ -214,6 +215,7 @@ if V2:
         causal=True,
         softcap=0.0,
     ):
+        out = torch.empty_like(q)
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
         return flash_attn_2_cuda.varlen_fwd(
@@ -238,7 +240,7 @@ if V2:
             softcap,
             False,
             None,
-        )
+        )[0]
 
 else:
 
@@ -246,7 +248,6 @@ else:
         q,
         k,
         v,
-        out,
         cu_seqlens,
         max_s,
         softmax_scale,
@@ -286,6 +287,8 @@ else:
                     .reshape(original_shape[0], -1, original_shape[2])
                 )
 
+        out = torch.empty_like(q)
+
         return flash_attn_cuda.fwd(
             q,
             k,
@@ -302,4 +305,4 @@ else:
             False,
             0,
             None,
-        )
+        )[0]

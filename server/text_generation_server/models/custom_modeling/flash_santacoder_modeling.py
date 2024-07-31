@@ -286,17 +286,13 @@ class FlashMQAttention(torch.nn.Module):
             key_value[:, 0], key_value[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
-        # output
-        attn_output = torch.empty_like(query)
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 query,
                 torch.select(key_value, dim=1, index=0),
                 torch.select(key_value, dim=1, index=1),
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
@@ -304,7 +300,6 @@ class FlashMQAttention(torch.nn.Module):
         # Decode
         else:
             attn_output = paged_attention(
-                attn_output,
                 query,
                 kv_cache[0],
                 kv_cache[1],
