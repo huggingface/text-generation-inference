@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use text_generation_router::server;
+use text_generation_router::{server, usage_stats};
 use text_generation_router_v3::{connect_backend, V3Error};
 use thiserror::Error;
 
@@ -68,10 +68,8 @@ struct Args {
     disable_grammar_support: bool,
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
-    #[clap(long, env, default_value_t)]
-    disable_usage_stats: bool,
-    #[clap(long, env, default_value_t)]
-    disable_crash_reports: bool,
+    #[clap(default_value = "on", long, env)]
+    usage_stats: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -114,9 +112,8 @@ async fn main() -> Result<(), RouterError> {
         ngrok_edge,
         messages_api_enabled,
         disable_grammar_support,
-        disable_usage_stats,
-        disable_crash_reports,
         max_client_batch_size,
+        usage_stats,
     } = args;
 
     if let Some(Commands::PrintSchema) = command {
@@ -129,6 +126,17 @@ async fn main() -> Result<(), RouterError> {
     text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
 
     // Validate args
+    let usage_stats_level = match usage_stats.as_deref() {
+        Some("on") => usage_stats::UsageStatsLevel::On,
+        Some("off") => usage_stats::UsageStatsLevel::Off,
+        Some("no-stack") => usage_stats::UsageStatsLevel::NoStack,
+        Some(_) => {
+            return Err(RouterError::ArgumentValidation(
+                "`usage_stats_level` must be 'on' 'off' or 'no_stack'".to_string(),
+            ))
+        }
+        None => usage_stats::UsageStatsLevel::On,
+    };
     if max_input_tokens >= max_total_tokens {
         return Err(RouterError::ArgumentValidation(
             "`max_input_tokens` must be < `max_total_tokens`".to_string(),
@@ -188,8 +196,7 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
-        disable_usage_stats,
-        disable_crash_reports,
+        usage_stats_level,
     )
     .await?;
     Ok(())
