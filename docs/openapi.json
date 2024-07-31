@@ -1580,16 +1580,11 @@
         "type": "object",
         "required": [
           "model_id",
-          "model_dtype",
-          "model_device_type",
           "max_concurrent_requests",
           "max_best_of",
           "max_stop_sequences",
           "max_input_tokens",
           "max_total_tokens",
-          "waiting_served_ratio",
-          "max_batch_total_tokens",
-          "max_waiting_tokens",
           "validation_workers",
           "max_client_batch_size",
           "router",
@@ -1600,18 +1595,6 @@
             "type": "string",
             "example": "null",
             "nullable": true
-          },
-          "max_batch_size": {
-            "type": "integer",
-            "example": "null",
-            "nullable": true,
-            "minimum": 0
-          },
-          "max_batch_total_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "example": "32000",
-            "minimum": 0
           },
           "max_best_of": {
             "type": "integer",
@@ -1643,19 +1626,6 @@
             "type": "integer",
             "example": "2048",
             "minimum": 0
-          },
-          "max_waiting_tokens": {
-            "type": "integer",
-            "example": "20",
-            "minimum": 0
-          },
-          "model_device_type": {
-            "type": "string",
-            "example": "cuda"
-          },
-          "model_dtype": {
-            "type": "string",
-            "example": "torch.float16"
           },
           "model_id": {
             "type": "string",
@@ -1690,11 +1660,6 @@
           "version": {
             "type": "string",
             "example": "0.5.0"
-          },
-          "waiting_served_ratio": {
-            "type": "number",
-            "format": "float",
-            "example": "1.2"
           }
         }
       },

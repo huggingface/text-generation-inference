@@ -6,13 +6,13 @@ install-integration-tests:
 	cd clients/python && pip install .
 
 install-router:
-	cd router && cargo install --locked --path .
+	cargo install --path backends/v3/
 
 install-launcher:
-	cd launcher && cargo install --locked --path .
+	cargo install --path launcher/
 
 install-benchmark:
-	cd benchmark && cargo install --locked --path .
+	cargo install --path benchmark/
 
 install: install-server install-router install-launcher install-custom-kernels
 
