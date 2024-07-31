@@ -158,17 +158,13 @@ class FlashNeoxAttention(torch.nn.Module):
 
         reshape_and_cache(qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots)
 
-        # output tensor
-        attn_output = torch.empty_like(qkv[:, 0])
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
@@ -176,7 +172,6 @@ class FlashNeoxAttention(torch.nn.Module):
         # Decode
         else:
             attn_output = paged_attention(
-                attn_output,
                 qkv[:, 0],
                 kv_cache[0],
                 kv_cache[1],
