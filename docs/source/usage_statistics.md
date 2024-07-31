@@ -71,5 +71,5 @@ As of release 2.1.2 this is an example of the data collected:
 ## How to opt-out
 
 By passing the `--usage-stats` to the text-generation-launcher you can control how much usage statistics are being collected.
-`--usage-stats=no-stack` will emit the stack traces from errors and the error types, but will continue to send start and stop events
+`--usage-stats=no-stack` will not emit the stack traces from errors and the error types, but will continue to send start and stop events
 `--usage-stats=off` will completely disable everything
