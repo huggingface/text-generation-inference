@@ -1,4 +1,5 @@
 use crate::config::Config;
+use clap::ValueEnum;
 use csv::ReaderBuilder;
 use reqwest::header::HeaderMap;
 use serde::Serialize;
@@ -12,6 +13,13 @@ use std::{
 use uuid::Uuid;
 
 const TELEMETRY_URL: &str = "https://huggingface.co/api/telemetry/tgi";
+
+#[derive(Copy, Clone, Debug, Serialize, ValueEnum)]
+pub enum UsageStatsLevel {
+    On,
+    NoStack,
+    Off,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UserAgent {
@@ -71,7 +79,7 @@ impl UsageStatsEvent {
 #[derive(Debug, Clone, Serialize)]
 pub struct Args {
     model_config: Option<Config>,
-    tokenizer_config: Option<String>,
+    tokenizer_class: Option<String>,
     max_concurrent_requests: usize,
     max_best_of: usize,
     max_stop_sequences: usize,
@@ -88,15 +96,14 @@ pub struct Args {
     messages_api_enabled: bool,
     disable_grammar_support: bool,
     max_client_batch_size: usize,
-    disable_usage_stats: bool,
-    disable_crash_reports: bool,
+    usage_stats_level: UsageStatsLevel,
 }
 
 impl Args {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         model_config: Option<Config>,
-        tokenizer_config: Option<String>,
+        tokenizer_class: Option<String>,
         max_concurrent_requests: usize,
         max_best_of: usize,
         max_stop_sequences: usize,
@@ -113,12 +120,11 @@ impl Args {
         messages_api_enabled: bool,
         disable_grammar_support: bool,
         max_client_batch_size: usize,
-        disable_usage_stats: bool,
-        disable_crash_reports: bool,
+        usage_stats_level: UsageStatsLevel,
     ) -> Self {
         Self {
             model_config,
-            tokenizer_config,
+            tokenizer_class,
             max_concurrent_requests,
             max_best_of,
             max_stop_sequences,
@@ -135,8 +141,7 @@ impl Args {
             messages_api_enabled,
             disable_grammar_support,
             max_client_batch_size,
-            disable_usage_stats,
-            disable_crash_reports,
+            usage_stats_level,
         }
     }
 }
