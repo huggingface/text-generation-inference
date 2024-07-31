@@ -497,7 +497,7 @@ struct Args {
     /// Options are "on", "off" and "no-stack"
     /// Defaul is on.
     #[clap(default_value = "on", long, env)]
-    usage_stats: Option<UsageStatsLevel>,
+    usage_stats: UsageStatsLevel,
 }
 
 #[derive(Debug)]
@@ -1243,9 +1243,8 @@ fn spawn_webserver(
     ];
 
     // Pass usage stats flags to router
-    let usage_stats_level = args.usage_stats.unwrap_or(UsageStatsLevel::On);
     router_args.push("--usage-stats".to_string());
-    router_args.push(usage_stats_level.to_string());
+    router_args.push(args.usage_stats.to_string());
 
     // Grammar support
     if args.disable_grammar_support {

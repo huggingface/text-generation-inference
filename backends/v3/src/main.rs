@@ -69,7 +69,7 @@ struct Args {
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
     #[clap(default_value = "on", long, env)]
-    usage_stats: Option<usage_stats::UsageStatsLevel>,
+    usage_stats: usage_stats::UsageStatsLevel,
 }
 
 #[derive(Debug, Subcommand)]
@@ -124,8 +124,6 @@ async fn main() -> Result<(), RouterError> {
         std::process::exit(0);
     };
     text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
-
-    let usage_stats_level = usage_stats.unwrap_or(usage_stats::UsageStatsLevel::On);
 
     // Validate args
     if max_input_tokens >= max_total_tokens {
@@ -187,7 +185,7 @@ async fn main() -> Result<(), RouterError> {
         messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
-        usage_stats_level,
+        usage_stats,
     )
     .await?;
     Ok(())

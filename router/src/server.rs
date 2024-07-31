@@ -1778,19 +1778,17 @@ pub async fn run(
             }
             Err(e) => {
                 let description = match usage_stats_level {
-                    usage_stats::UsageStatsLevel::On => {
-                            Some(e.to_string()),
-                        );
-                 
-                    }
-                    usage_stats::UsageStatsLevel::NoStack => {
-                            "unknow_error".to_string()
-                    }
-                    }
-                    let event =.... // Create event
-                    event.send().await;
-                    _ => {}
+                    usage_stats::UsageStatsLevel::On => Some(e.to_string()),
+                    usage_stats::UsageStatsLevel::NoStack => Some("unknow_error".to_string()),
+                    _ => None,
                 };
+                let event = usage_stats::UsageStatsEvent::new(
+                    ua.clone(),
+                    usage_stats::EventType::Error,
+                    description,
+                );
+                event.send().await;
+
                 Err(e)
             }
         }
