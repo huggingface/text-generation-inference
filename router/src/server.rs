@@ -7,14 +7,13 @@ use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
     kserve_model_metadata, kserve_model_metadata_ready,
 };
-use crate::usage_stats;
 use crate::validation::ValidationError;
 use crate::{
-    BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName, GenerateParameters,
-    GenerateRequest, GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig,
-    HubTokenizerConfig, Info, Message, MessageChunk, MessageContent, OutputMessage, PrefillToken,
-    SimpleToken, StreamDetails, StreamResponse, TextMessage, Token, TokenizeResponse,
-    ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
+    usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
+    GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
+    HubProcessorConfig, HubTokenizerConfig, Info, Message, MessageChunk, MessageContent,
+    OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamResponse, TextMessage, Token,
+    TokenizeResponse, ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -1505,8 +1504,7 @@ pub async fn run(
     messages_api_enabled: bool,
     disable_grammar_support: bool,
     max_client_batch_size: usize,
-    disable_usage_stats: bool,
-    disable_crash_reports: bool,
+    usage_stats_level: usage_stats::UsageStatsLevel,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
@@ -1698,33 +1696,32 @@ pub async fn run(
 
     // Only send usage stats when TGI is run in container and the function returns Some
     let is_container = matches!(usage_stats::is_container(), Ok(true));
-
-    let user_agent = if !disable_usage_stats && is_container {
-        let reduced_args = usage_stats::Args::new(
-            config.clone(),
-            tokenizer_config.tokenizer_class.clone(),
-            max_concurrent_requests,
-            max_best_of,
-            max_stop_sequences,
-            max_top_n_tokens,
-            max_input_tokens,
-            max_total_tokens,
-            // waiting_served_ratio,
-            // max_batch_prefill_tokens,
-            // max_batch_total_tokens,
-            // max_waiting_tokens,
-            // max_batch_size,
-            revision.clone(),
-            validation_workers,
-            messages_api_enabled,
-            disable_grammar_support,
-            max_client_batch_size,
-            disable_usage_stats,
-            disable_crash_reports,
-        );
-        Some(usage_stats::UserAgent::new(reduced_args))
-    } else {
-        None
+    let user_agent = match (usage_stats_level, is_container) {
+        (usage_stats::UsageStatsLevel::On | usage_stats::UsageStatsLevel::NoStack, true) => {
+            let reduced_args = usage_stats::Args::new(
+                config.clone(),
+                tokenizer_config.tokenizer_class.clone(),
+                max_concurrent_requests,
+                max_best_of,
+                max_stop_sequences,
+                max_top_n_tokens,
+                max_input_tokens,
+                max_total_tokens,
+                // waiting_served_ratio,
+                // max_batch_prefill_tokens,
+                // max_batch_total_tokens,
+                // max_waiting_tokens,
+                // max_batch_size,
+                revision.clone(),
+                validation_workers,
+                messages_api_enabled,
+                disable_grammar_support,
+                max_client_batch_size,
+                usage_stats_level,
+            );
+            Some(usage_stats::UserAgent::new(reduced_args))
+        }
+        _ => None,
     };
 
     if let Some(ref ua) = user_agent {
@@ -1780,21 +1777,18 @@ pub async fn run(
                 Ok(())
             }
             Err(e) => {
-                if !disable_crash_reports {
-                    let error_event = usage_stats::UsageStatsEvent::new(
-                        ua.clone(),
-                        usage_stats::EventType::Error,
-                        Some(e.to_string()),
-                    );
-                    error_event.send().await;
-                } else {
-                    let unknow_error_event = usage_stats::UsageStatsEvent::new(
-                        ua.clone(),
-                        usage_stats::EventType::Error,
-                        Some("unknow_error".to_string()),
-                    );
-                    unknow_error_event.send().await;
-                }
+                let description = match usage_stats_level {
+                    usage_stats::UsageStatsLevel::On => Some(e.to_string()),
+                    usage_stats::UsageStatsLevel::NoStack => Some("unknow_error".to_string()),
+                    _ => None,
+                };
+                let event = usage_stats::UsageStatsEvent::new(
+                    ua.clone(),
+                    usage_stats::EventType::Error,
+                    description,
+                );
+                event.send().await;
+
                 Err(e)
             }
         }
