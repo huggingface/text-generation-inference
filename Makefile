@@ -5,13 +5,13 @@ install-server-cpu:
 	cd server && make install-server
 
 install-router:
-	cd router && cargo install --path .
+	cargo install --path backends/v3/
 
 install-launcher:
-	cd launcher && cargo install --path .
+	cargo install --path launcher/
 
 install-benchmark:
-	cd benchmark && cargo install --path .
+	cargo install --path benchmark/
 
 install: install-server install-router install-launcher
 

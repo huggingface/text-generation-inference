@@ -1,23 +1,18 @@
-mod health;
-pub(crate) mod v2;
-pub(crate) mod v3;
-
-pub(crate) use health::HealthCheck;
+// pub(crate) mod v2;
+mod chat_template;
+pub mod tool_grammar;
 
 use crate::validation::{ValidGenerateRequest, Validation, ValidationError};
+use crate::GrammarType;
 use crate::{
-    ChatTemplateInputs, ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig,
-    HubTokenizerConfig, Message, MessageChunk, PrefillToken, TextMessage, Token, ToolChoice,
+    ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig, HubTokenizerConfig,
+    Message, PrefillToken, Token,
 };
-use crate::{
-    FunctionRef, FunctionsMap, GrammarType, Properties, TokenizerConfigToken, Tool, ToolType, Tools,
-};
+use async_trait::async_trait;
+use chat_template::ChatTemplate;
 use futures::future::try_join_all;
-use minijinja::{Environment, ErrorKind, Template};
-use minijinja_contrib::pycompat;
-
-use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use minijinja::ErrorKind;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
@@ -26,12 +21,14 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::instrument;
 
-pub(crate) trait Scheduler {
+#[async_trait]
+pub trait Backend {
     fn schedule(
         &self,
         request: ValidGenerateRequest,
-        permit: OwnedSemaphorePermit,
-    ) -> Result<GenerateStreamResponse, InferError>;
+    ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError>;
+
+    async fn health(&self, current_health: bool) -> bool;
 }
 
 /// Inference struct
@@ -39,18 +36,20 @@ pub(crate) trait Scheduler {
 pub struct Infer {
     /// Validation
     validation: Validation,
-    /// Request scheduler
-    scheduler: Arc<dyn Scheduler + Send + Sync>,
+    /// Request backend
+    backend: Arc<dyn Backend + Send + Sync>,
     /// Chat template
     chat_template: Option<ChatTemplate>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
+    /// Backend health
+    backend_health: Arc<AtomicBool>,
 }
 
 impl Infer {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        scheduler: Arc<dyn Scheduler + Send + Sync>,
+        backend: impl Backend + Send + Sync + 'static,
         validation: Validation,
         max_concurrent_requests: usize,
         tokenizer_config: HubTokenizerConfig,
@@ -71,18 +70,22 @@ impl Infer {
         // Inference limit with a semaphore
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
 
+        // Backend health
+        let backend_health = Arc::new(AtomicBool::new(false));
+
         Self {
             validation,
-            scheduler,
+            backend: Arc::new(backend),
             chat_template,
             limit_concurrent_requests: semaphore,
+            backend_health,
         }
     }
 
     /// Add a new request to the queue and return a stream of InferStreamResponse
     #[instrument(skip_all)]
-    pub(crate) async fn generate_stream(
-        &self,
+    pub(crate) async fn generate_stream<'a>(
+        &'a self,
         request: GenerateRequest,
     ) -> Result<GenerateStreamResponse, InferError> {
         // Limit concurrent requests by acquiring a permit from the semaphore
@@ -103,7 +106,10 @@ impl Infer {
             err
         })?;
 
-        self.scheduler.schedule(valid_request, permit)
+        let input_length = valid_request.input_length;
+        let generation_stream = self.backend.schedule(valid_request)?;
+
+        Ok((permit, input_length, generation_stream))
     }
 
     /// Tokenizer the input
@@ -155,7 +161,7 @@ impl Infer {
         let use_top_tokens = request.parameters.top_n_tokens.is_some_and(|x| x > 0);
 
         // Create stream and keep semaphore permit as long as generate lives
-        let (_permit, _input_length, mut stream) = self.generate_stream(request).await?;
+        let (_permit, _input_length, stream) = self.generate_stream(request).await?;
 
         // Return values
         let mut result_prefill = Vec::new();
@@ -164,6 +170,8 @@ impl Infer {
         let mut result_generated_text = None;
         let mut result_start = None;
         let mut result_queued = None;
+
+        let mut stream = Box::pin(stream);
 
         // Iterate on stream
         while let Some(response) = stream.next().await {
@@ -256,207 +264,15 @@ impl Infer {
         let best_response = infer_responses.remove(max_index);
         Ok((best_response, infer_responses))
     }
-}
 
-/// Raise a exception (custom function) used in the chat templates
-fn raise_exception(err_text: String) -> Result<String, minijinja::Error> {
-    Err(minijinja::Error::new(ErrorKind::SyntaxError, err_text))
-}
-
-#[derive(Clone)]
-struct ChatTemplate {
-    template: Template<'static, 'static>,
-    bos_token: Option<String>,
-    eos_token: Option<String>,
-    use_default_tool_template: bool,
-}
-
-impl ChatTemplate {
-    fn new(
-        template: String,
-        bos_token: Option<TokenizerConfigToken>,
-        eos_token: Option<TokenizerConfigToken>,
-    ) -> Self {
-        let mut env = Box::new(Environment::new());
-        // enable things like .strip() or .capitalize()
-        env.set_unknown_method_callback(pycompat::unknown_method_callback);
-        let template_str = template.into_boxed_str();
-        env.add_function("raise_exception", raise_exception);
-
-        // check if contains the tools variable within the template
-        let use_default_tool_template =
-            !template_str.as_ref().replace(' ', "").contains("{{tools}}");
-        // leaking env and template_str as read-only, static resources for performance.
-        let template = Box::leak(env)
-            .template_from_str(Box::leak(template_str))
-            .unwrap();
-
-        Self {
-            template,
-            bos_token: bos_token.map(|token| token.as_str().to_string()),
-            eos_token: eos_token.map(|token| token.as_str().to_string()),
-            use_default_tool_template,
-        }
-    }
-
-    fn apply(
-        &self,
-        mut messages: Vec<Message>,
-        grammar_with_prompt: Option<(GrammarType, String)>,
-    ) -> Result<String, InferError> {
-        if self.use_default_tool_template {
-            if let Some(last_message) = messages.last_mut() {
-                if let Some((GrammarType::Json(tools), tool_prompt)) = grammar_with_prompt {
-                    last_message.content.push(MessageChunk::Text {
-                        text: format!("\n---\n{}\n{}", tool_prompt, tools),
-                    });
-                }
-            }
-        }
-
-        let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-
-        self.template
-            .render(ChatTemplateInputs {
-                messages,
-                bos_token: self.bos_token.as_deref(),
-                eos_token: self.eos_token.as_deref(),
-                add_generation_prompt: true,
-                tools: None,
-                tools_prompt: None,
-            })
-            .map_err(InferError::TemplateError)
-    }
-}
-
-pub struct ToolGrammar {}
-
-impl ToolGrammar {
-    // find a tool by name
-    fn find_tool_by_name(tools: &[Tool], name: &str) -> Result<Tool, InferError> {
-        tools
-            .iter()
-            .find(|tool| tool.function.name == name)
-            .cloned()
-            .ok_or_else(|| InferError::ToolError(format!("Tool with name {} not found", name)))
-    }
-
-    pub fn apply(
-        tools: Option<Vec<Tool>>,
-        tool_choice: ToolChoice,
-    ) -> Result<Option<Tools>, InferError> {
-        // if no tools are provided, we return None
-        let tools = match tools {
-            Some(tools) if !tools.is_empty() => tools,
-            _ => return Ok(None),
-        };
-
-        let tool_choice = tool_choice.0.unwrap_or(ToolType::OneOf);
-
-        // if tools are provided and no tool_choice we default to the OneOf
-        let tools_to_use = match tool_choice {
-            ToolType::FunctionName(name) => {
-                vec![Self::find_tool_by_name(&tools, &name)?]
-            }
-            ToolType::Function { function } => {
-                vec![Self::find_tool_by_name(&tools, &function.name)?]
-            }
-            ToolType::OneOf => tools,
-            ToolType::NoTool => return Ok(None),
-        };
-
-        // adds the error notification function for LLM feedback if required
-        let mut text_response_properties = Map::new();
-        text_response_properties.insert(
-            "error".to_string(),
-            serde_json::json!({
-                "type": "string",
-                "description": "The error or issue to notify"
-            }),
-        );
-        text_response_properties.insert(
-            "_name".to_string(),
-            serde_json::json!({
-                "type": "string",
-                "const": "notify_error"
-            }),
-        );
-
-        let functions: HashMap<String, serde_json::Value> = tools_to_use
-            .iter()
-            .map(|tool| {
-                let func = tool.function.clone();
-
-                // Clone the existing parameters, which are expected to be a JSON object
-                let mut params = if let Value::Object(params) = &func.arguments {
-                    params.clone()
-                } else {
-                    Map::new()
-                };
-
-                // Insert the function's description at the top level, outside of properties
-                params.insert(
-                    "description".to_string(),
-                    Value::String(func.description.clone().unwrap_or_default()),
-                );
-
-                // Ensure 'properties' exists and is an object
-                let properties = params
-                    .entry("properties".to_string())
-                    .or_insert_with(|| json!({}))
-                    .as_object_mut()
-                    .unwrap();
-
-                // Insert the constant for the function name inside 'properties'
-                properties.insert(
-                    "_name".to_string(),
-                    json!({
-                        "type": "string",
-                        "const": func.name.clone(),
-                        // "description": "The name of the function"
-                    }),
-                );
-
-                // Check if 'required' exists, and it is an array. If not, create an empty array.
-                let required = params
-                    .entry("required".to_string())
-                    .or_insert_with(|| json!([]))
-                    .as_array_mut()
-                    .unwrap();
-
-                // Add 'name' to the 'required' array if it is not already present
-                if !required.iter().any(|r| r == "_name") {
-                    required.push(json!("_name"));
-                }
-
-                (func.name, Value::Object(params))
-            })
-            .chain([(
-                "notify_error".to_string(),
-                serde_json::json!({
-                    "properties": text_response_properties,
-                    "required": ["error", "_name"],
-                    "type": "object"
-                }),
-            )])
-            .collect();
-
-        let tools = Tools {
-            functions_map: FunctionsMap { functions },
-            properties: Properties {
-                function: tools_to_use
-                    .iter()
-                    .map(|tool| FunctionRef {
-                        ref_path: format!("#/$functions/{}", tool.function.name.clone()),
-                    })
-                    .chain(std::iter::once(FunctionRef {
-                        ref_path: "#/$functions/notify_error".to_string(),
-                    }))
-                    .collect(),
-            },
-        };
-
-        Ok(Some(tools))
+    #[instrument(skip(self))]
+    pub(crate) async fn health(&self) -> bool {
+        let health = self
+            .backend
+            .health(self.backend_health.load(Ordering::SeqCst))
+            .await;
+        self.backend_health.store(health, Ordering::SeqCst);
+        health
     }
 }
 
@@ -468,15 +284,15 @@ pub(crate) type GenerateStreamResponse = (
 );
 
 #[derive(Debug)]
-pub(crate) struct GeneratedText {
-    pub(crate) text: String,
-    pub(crate) generated_tokens: u32,
-    pub(crate) finish_reason: FinishReason,
-    pub(crate) seed: Option<u64>,
+pub struct GeneratedText {
+    pub text: String,
+    pub generated_tokens: u32,
+    pub finish_reason: FinishReason,
+    pub seed: Option<u64>,
 }
 
 #[derive(Debug)]
-pub(crate) enum InferStreamResponse {
+pub enum InferStreamResponse {
     // Optional first message
     Prefill(Vec<PrefillToken>),
     // Intermediate messages

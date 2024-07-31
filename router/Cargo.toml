@@ -7,25 +7,18 @@ edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
 
-[lib]
-path = "src/lib.rs"
-
-[[bin]]
-name = "text-generation-router"
-path = "src/main.rs"
-
 [dependencies]
+async-trait = "0.1.74"
 async-stream = "0.3.5"
 axum = { version = "0.7", features = ["json"] }
 axum-tracing-opentelemetry = "0.16"
-text-generation-client = { path = "client" }
 clap = { version = "4.4.5", features = ["derive", "env"] }
 futures = "0.3.28"
 hf-hub = { workspace = true }
 itertools = "0.10"
 jsonschema = { version = "0.17.1", features = ["draft202012"] }
-metrics = "0.23.0"
-metrics-exporter-prometheus = { version = "0.15.1", features = [] }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
 nohash-hasher = "0.2.0"
 opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
 opentelemetry-otlp = "0.13.0"
@@ -55,6 +48,7 @@ base64 = { workspace = true }
 sysinfo = "0.30.13"
 uuid = { version = "1.9.1", default-features = false, features = ["v4", "fast-rng", "macro-diagnostics"] }
 csv = "1.3.0"
+ureq = "=2.9"
 
 
 [build-dependencies]

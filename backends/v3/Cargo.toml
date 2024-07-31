@@ -1,0 +1,66 @@
+[package]
+name = "text-generation-router-v3"
+description = "Text Generation Webserver"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "text-generation-router"
+path = "src/main.rs"
+
+[dependencies]
+async-trait = "0.1.74"
+async-stream = "0.3.5"
+axum = { version = "0.7", features = ["json"] }
+axum-tracing-opentelemetry = "0.16"
+text-generation-router = { path = "../../router" }
+clap = { version = "4.4.5", features = ["derive", "env"] }
+grpc-metadata = { path = "../grpc-metadata" }
+futures = "0.3.28"
+hf-hub = { workspace = true }
+jsonschema = { version = "0.17.1", features = ["draft202012"] }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+nohash-hasher = "0.2.0"
+opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
+opentelemetry-otlp = "0.13.0"
+rand = "0.8.5"
+reqwest = { version = "0.11.20", features = [] }
+serde = "1.0.188"
+serde_json = "1.0.107"
+thiserror = "1.0.48"
+tokenizers = { workspace = true}
+tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
+tokio-stream = "0.1.14"
+tower-http = { version = "0.5.1", features = ["cors"] }
+tracing = "0.1.37"
+tracing-opentelemetry = "0.21.0"
+tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
+utoipa = { version = "4.2.0", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "6.0.0", features = ["axum"] }
+init-tracing-opentelemetry = { version = "0.14.1", features = ["opentelemetry-otlp"] }
+minijinja = { version = "2.0.2" }
+minijinja-contrib = { version = "2.0.2", features = ["pycompat"] }
+futures-util = "0.3.30"
+regex = "1.10.3"
+once_cell = "1.19.0"
+image = "0.25.1"
+base64 = { workspace = true }
+prost = "^0.12"
+tonic = "^0.10"
+tower = "^0.4"
+
+[build-dependencies]
+tonic-build = "0.10.1"
+prost-build = "0.12.1"
+
+[features]
+default = ["ngrok"]
+ngrok = ["text-generation-router/ngrok"]
+google = ["text-generation-router/google"]
+kserve = ["text-generation-router/kserve"]
