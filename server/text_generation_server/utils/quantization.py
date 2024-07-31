@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from huggingface_hub import hf_hub_download
+from text_generation_server.layers.marlin.gptq import can_use_gptq_marlin
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
     WeightsLoader,
@@ -128,14 +129,32 @@ def get_loader(
                 f"Quantize is set to `{quantize}` but received a `{quantizer_config.__class__.__name__}` config."
             )
 
-        return GPTQWeightsLoader(
+        if can_use_gptq_marlin(
             bits=quantizer_config.bits,
-            desc_act=quantizer_config.desc_act,
             groupsize=quantizer_config.groupsize,
             quant_method=quantizer_config.quant_method,
             quantize=quantize,
             sym=quantizer_config.sym,
-        )
+        ):
+            from text_generation_server.layers.marlin import GPTQMarlinWeightsLoader
+
+            return GPTQMarlinWeightsLoader(
+                bits=quantizer_config.bits,
+                desc_act=quantizer_config.desc_act,
+                groupsize=quantizer_config.groupsize,
+                quant_method=quantizer_config.quant_method,
+                quantize=quantize,
+                sym=quantizer_config.sym,
+            )
+        else:
+            return GPTQWeightsLoader(
+                bits=quantizer_config.bits,
+                desc_act=quantizer_config.desc_act,
+                groupsize=quantizer_config.groupsize,
+                quant_method=quantizer_config.quant_method,
+                quantize=quantize,
+                sym=quantizer_config.sym,
+            )
     elif quantize == "bitsandbytes":
         from text_generation_server.layers.bnb import BNBWeight
 
