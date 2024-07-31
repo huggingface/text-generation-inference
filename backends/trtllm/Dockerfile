@@ -42,7 +42,7 @@ RUN wget "https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILE
     mkdir /usr/src/mpi && \
     tar -xf "/opt/src/$OMPI_TARBALL_FILENAME" -C /usr/src/mpi --strip-components=1 && \
     cd /usr/src/mpi && \
-    ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --without-slurm && \
+    ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda && \
     make -j all && \
     make install && \
     rm -rf "/opt/src/$OMPI_TARBALL_FILENAME"
