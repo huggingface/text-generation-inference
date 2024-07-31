@@ -2,6 +2,7 @@ import intel_extension_for_pytorch as ipex
 import torch
 from text_generation_server.models.flash_causal_lm import BLOCK_SIZE
 from text_generation_server.layers.attention import Seqlen
+from typing import Optional
 
 SUPPORTS_WINDOWING = False
 
@@ -16,6 +17,7 @@ def attention(
     softmax_scale,
     window_size_left=-1,
     causal=True,
+    softcap: Optional[float] = None,
 ):
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     return ipex.llm.functional.varlen_attention(
@@ -58,6 +60,7 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
+    softcap: Optional[float] = None,
 ):
     ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
         out,
