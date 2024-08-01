@@ -298,7 +298,10 @@ impl State {
                         + self.speculate
                         - 1;
 
-                    match block_allocator.allocate(tokens).await {
+                    match block_allocator
+                        .allocate(tokens, entry.request.input_ids.clone())
+                        .await
+                    {
                         None => {
                             // Entry is over budget
                             // Add it back to the front

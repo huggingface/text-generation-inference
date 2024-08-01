@@ -11,6 +11,7 @@ use rand::{thread_rng, Rng};
 use serde_json::Value;
 use std::io::Cursor;
 use std::iter;
+use std::sync::Arc;
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::mpsc;
@@ -121,7 +122,7 @@ impl Validation {
         inputs: String,
         truncate: Option<usize>,
         max_new_tokens: Option<u32>,
-    ) -> Result<(Vec<Chunk>, usize, u32), ValidationError> {
+    ) -> Result<(Vec<Chunk>, Option<Vec<u32>>, usize, u32), ValidationError> {
         // If we have a fast tokenizer
         if let Some((encoding, inputs)) = self.tokenize(inputs.clone(), truncate).await? {
             // Create response channel
@@ -156,8 +157,10 @@ impl Validation {
                 ));
             }
 
+            let input_ids = encoding.get_ids()[..input_length].to_owned();
+
             metrics::histogram!("tgi_request_input_length").record(input_length as f64);
-            Ok((inputs, input_length, max_new_tokens))
+            Ok((inputs, Some(input_ids), input_length, max_new_tokens))
         }
         // Return inputs without validation
         else {
@@ -180,7 +183,12 @@ impl Validation {
                 input_length = input_length.saturating_sub(max_new_tokens as usize);
             }
 
-            Ok((vec![Chunk::Text(inputs)], input_length, max_new_tokens))
+            Ok((
+                vec![Chunk::Text(inputs)],
+                None,
+                input_length,
+                max_new_tokens,
+            ))
         }
     }
 
@@ -314,7 +322,7 @@ impl Validation {
             .unwrap_or(Ok(None))?;
 
         // Validate inputs
-        let (inputs, input_length, max_new_tokens) = self
+        let (inputs, input_ids, input_length, max_new_tokens) = self
             .validate_input(request.inputs, truncate, max_new_tokens)
             .await?;
 
@@ -391,6 +399,7 @@ impl Validation {
 
         Ok(ValidGenerateRequest {
             inputs,
+            input_ids: input_ids.map(Arc::new),
             decoder_input_details,
             input_length: input_length as u32,
             truncate: truncate.unwrap_or(self.max_input_length) as u32,
@@ -707,6 +716,7 @@ pub struct ValidStoppingParameters {
 #[derive(Debug, Clone)]
 pub struct ValidGenerateRequest {
     pub inputs: Vec<Chunk>,
+    pub input_ids: Option<Arc<Vec<u32>>>,
     pub input_length: u32,
     pub truncate: u32,
     pub decoder_input_details: bool,
