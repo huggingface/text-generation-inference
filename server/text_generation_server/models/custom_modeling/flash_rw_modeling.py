@@ -94,7 +94,7 @@ class RWConfig(PretrainedConfig):
             else kwargs.pop("n_head", 8)
         )
         self.layer_norm_epsilon = layer_norm_epsilon
-        self.num_ln_in_parallel_attention = num_ln_in_prallel_attention
+        self.num_ln_in_parallel_attn = num_ln_in_prallel_attention
         self.initializer_range = initializer_range
         self.use_cache = use_cache
         self.hidden_dropout = hidden_dropout
