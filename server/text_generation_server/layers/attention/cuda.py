@@ -3,7 +3,6 @@ from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING, BLOCK_SIZE
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
-import warnings
 
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
@@ -172,42 +171,10 @@ def paged_attention(
 
 
 try:
+    if major <= 8:
+        raise ImportError("Flash Attention V2 requires CUDA 11.0 or higher")
+
     import flash_attn_2_cuda
-
-    # try forwarding to see if it works with all dummy inputs
-    batch_size = 1
-    num_heads = 1
-    head_dim = 1
-    seqlen = 1
-
-    try:
-        flash_attn_2_cuda.varlen_fwd(
-            torch.zeros(batch_size, num_heads, seqlen, head_dim),  # q
-            torch.zeros(batch_size, num_heads, seqlen, head_dim),  # k
-            torch.zeros(batch_size, num_heads, seqlen, head_dim),  # v
-            None,  # out (optional)
-            torch.zeros(batch_size + 1, dtype=torch.int32),  # cu_seqlens_q
-            torch.zeros(batch_size + 1, dtype=torch.int32),  # cu_seqlens_k
-            None,  # alibi_slopes (optional)
-            None,  # q_padded (optional)
-            None,  # k_padded (optional)
-            None,  # v_padded (optional)
-            seqlen,  # max_seqlen_q
-            seqlen,  # max_seqlen_k
-            1.0,  # softmax_scale
-            0.0,  # softmax_lse (default value)
-            False,  # is_causal
-            True,  # return_softmax
-            -1,  # window_size_left
-            -1,  # window_size_right
-            0.0,  # softmax_softcap
-            False,  # deterministic
-            None,  # rng_state (optional)
-        )
-    except RuntimeError as e:
-        raise ImportError(
-            "Flash Attention V2 is not supported on this machine. " f"Error: {e}"
-        ) from e
 
     V2 = True
 except ImportError:
@@ -289,10 +256,9 @@ else:
         window_size_left=-1,
         softcap=None,
     ):
-        if window_size_left != -1:
-            warnings.warn(
-                "window_size_left is only available with flash attn v2. It will be ignored.",
-                UserWarning,
+        if window_size_left is not None and window_size_left != -1:
+            raise NotImplementedError(
+                "window_size_left is only available with flash attn v2"
             )
 
         if softcap is not None:
@@ -341,6 +307,3 @@ else:
             0,
             None,
         )
-
-
-SUPPORTS_WINDOWING = True
