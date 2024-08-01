@@ -40,7 +40,18 @@ impl BackendV3 {
         } else {
             false
         };
-        let block_size = if flashdecoding { 256 } else { 16 };
+        let flashinfer = if let Ok(flashinfer) = std::env::var("FLASH_INFER") {
+            matches!(flashinfer.to_lowercase().as_str(), "1" | "true")
+        } else {
+            false
+        };
+        let block_size = if flashdecoding {
+            256
+        } else if flashinfer {
+            1
+        } else {
+            16
+        };
 
         let queue = Queue::new(
             requires_padding,
