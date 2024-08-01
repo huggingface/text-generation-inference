@@ -357,6 +357,8 @@ pub enum InferError {
     ToolError(String),
     #[error("Stream event serialization error")]
     StreamSerializationError(String),
+    #[error("Scheduling error: {0}")]
+    SchedulingError(String),
 }
 
 impl InferError {
@@ -371,6 +373,7 @@ impl InferError {
             InferError::MissingTemplateVariable(_) => "missing_template_variable",
             InferError::ToolError(_) => "tool_error",
             InferError::StreamSerializationError(_) => "stream_serialization_error",
+            InferError::SchedulingError(_) => "schedling"
         }
     }
 }
