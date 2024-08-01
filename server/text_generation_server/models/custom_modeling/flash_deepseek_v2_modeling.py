@@ -358,25 +358,20 @@ class DeepseekV2Attention(torch.nn.Module):
 
         reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
 
-        # Output tensor
-        attn_output = torch.empty_like(query)
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 query,
                 key,
                 value,
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
             )
         # Decode
         else:
-            paged_attention(
-                attn_output,
+            attn_output = paged_attention(
                 query,
                 kv_cache[0],
                 kv_cache[1],
