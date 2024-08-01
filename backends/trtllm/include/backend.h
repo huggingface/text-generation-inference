@@ -48,12 +48,12 @@ namespace huggingface::tgi::backends {
      * @return
      */
     tle::SamplingConfig GetSamplingConfig(
-            uint32_t topK,
-            float_t topP,
-            float_t temperature,
-            float_t repetition_penalty,
-            float_t frequency_penalty,
-            uint64_t seed
+            const uint32_t topK,
+            const float_t topP,
+            const float_t temperature,
+            const float_t repetition_penalty,
+            const float_t frequency_penalty,
+            const uint64_t seed
     );
 
     /**
@@ -94,13 +94,14 @@ namespace huggingface::tgi::backends {
          * @return Request id related to this generation for reference
          */
         [[nodiscard]] RequestId Submit(
-                const std::vector<TokenId> &tokens,
-                int32_t topK,
-                float_t topP,
-                float_t temperature,
-                float_t repetition_penalty,
-                float_t frequency_penalty,
-                uint64_t seed
+                const std::vector <TokenId> &tokens,
+                const uint32_t maxNewTokens,
+                const int32_t topK,
+                const float_t topP,
+                const float_t temperature,
+                const float_t repetition_penalty,
+                const float_t frequency_penalty,
+                const uint64_t seed
         );
 
         /**
@@ -108,7 +109,7 @@ namespace huggingface::tgi::backends {
          * @param requestId The request id to poll the generation results
          * @return
          */
-        std::vector<tle::Response> Poll(RequestId requestId);
+        std::vector <tle::Response> Poll(RequestId requestId);
 
         /**
          * Stop the underlying executor

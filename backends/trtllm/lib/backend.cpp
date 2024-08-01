@@ -55,12 +55,12 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
 }
 
 tle::SamplingConfig huggingface::tgi::backends::GetSamplingConfig(
-        uint32_t topK,
-        float_t topP,
-        float_t temperature,
-        float_t repetition_penalty,
-        float_t frequency_penalty,
-        uint64_t seed) {
+        const uint32_t topK,
+        const float_t topP,
+        const float_t temperature,
+        const float_t repetition_penalty,
+        const float_t frequency_penalty,
+        const uint64_t seed) {
     return tle::SamplingConfig(
             1,  // TGI only use a single beam
             topK,
