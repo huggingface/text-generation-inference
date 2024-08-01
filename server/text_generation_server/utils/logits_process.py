@@ -20,8 +20,6 @@ from transformers import (
     TypicalLogitsWarper,
 )
 
-from transformers.generation.logits_process import _calc_banned_ngram_tokens
-
 mempool = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
 
