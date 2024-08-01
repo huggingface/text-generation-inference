@@ -1,4 +1,9 @@
-use std::{cmp::min, sync::Arc};
+use radix_trie::Trie;
+use std::{
+    cmp::min,
+    collections::{hash_map::Entry, BTreeSet, HashMap},
+    sync::Arc,
+};
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone)]
@@ -106,6 +111,19 @@ async fn block_allocator_task(
     }
 }
 
+#[derive(Debug)]
+enum BlockAllocatorCommand {
+    Free {
+        blocks: Vec<u32>,
+        allocation_id: u64,
+    },
+    Allocate {
+        tokens: u32,
+        prefill_tokens: Option<Arc<Vec<u32>>>,
+        response_sender: oneshot::Sender<Option<(Vec<u32>, Vec<u32>, u64)>>,
+    },
+}
+
 pub trait Allocator {
     fn allocate(
         &mut self,
@@ -182,14 +200,90 @@ impl Allocator for SimpleAllocator {
 }
 
 #[derive(Debug)]
-enum BlockAllocatorCommand {
-    Free {
-        blocks: Vec<u32>,
-        allocation_id: u64,
-    },
-    Allocate {
-        tokens: u32,
-        prefill_tokens: Option<Arc<Vec<u32>>>,
-        response_sender: oneshot::Sender<Option<(Vec<u32>, Vec<u32>, u64)>>,
-    },
+struct PrefixBlockState {
+    /// The block associated wit this prefix.
+    block_id: u32,
+
+    /// Last prefix block use.
+    last_accessed: u64,
+
+    ref_count: usize,
+}
+
+struct RadixAllocator {
+    cache_blocks: Trie<Vec<u32>, ()>,
+
+    /// Blocks that are immediately available for allocation.
+    free_blocks: Vec<u32>,
+
+    /// Prefix blocks with a reference count of zero, by staleness.
+    leaves: BTreeSet<(u64, u64)>,
+
+    // Avoid a system call, use a counter for time.
+    time: u64,
+}
+
+impl RadixAllocator {
+    pub fn new(block_size: u32, n_blocks: u32, window_size: Option<u32>) -> Self {
+        assert_eq!(
+            block_size, 1,
+            "Radix tree allocator only works with block_size=1, was: {}",
+            block_size
+        );
+        if window_size.is_some() {
+            unimplemented!("Window size not supported in the prefix-caching block allocator yet");
+        }
+
+        RadixAllocator {
+            cache_blocks: Trie::new(),
+            free_blocks: (1..n_blocks).collect(),
+            leaves: BTreeSet::new(),
+            time: 0,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct TrieNode {
+    children: HashMap<u32, TrieNode>,
+    key: Vec<u32>,
+    blocks: Vec<u32>,
+    last_accessed: u64,
+}
+
+impl TrieNode {
+    fn new(key: Vec<u32>, blocks: Vec<u32>, last_accessed: u64) -> Self {
+        TrieNode {
+            children: HashMap::new(),
+            key,
+            blocks,
+            last_accessed,
+        }
+    }
+
+    // Insert a prefix into the trie. Returns the length of the shared prefix.
+    fn insert(&mut self, key: &[u32], blocks: &[u32]) -> usize {
+        match self.children.entry(key[0]) {
+            Entry::Occupied(entry) => {
+                let child = entry.into_mut();
+                let shared_prefix_len = child
+                    .key
+                    .iter()
+                    .zip(key)
+                    .take_while(|(a, b)| a == b)
+                    .count();
+
+                // We are done, the prefix is already in the trie.
+                if shared_prefix_len == key.len() {
+                    return shared_prefix_len;
+                }
+
+                return shared_prefix_len
+                    + child.insert(&key[shared_prefix_len..], &blocks[shared_prefix_len..]);
+            }
+            Entry::Vacant(_) => todo!(),
+        }
+
+        //node.last_accessed = last_accessed;
+    }
 }
