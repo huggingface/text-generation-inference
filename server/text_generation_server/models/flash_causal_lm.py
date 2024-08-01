@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 import math
 import os
 import time
@@ -15,7 +16,7 @@ from transformers import (
     AutoTokenizer,
     GenerationConfig,
 )
-from typing import Iterable, Optional, Tuple, List, Type, Dict
+from typing import Any, ContextManager, Iterable, Optional, Tuple, List, Type, Dict
 
 from text_generation_server.adapters import AdapterBatchData, AdapterBatchMetadata
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -40,6 +41,7 @@ from text_generation_server.pb import generate_pb2
 from text_generation_server.models.globals import (
     MEM_POOL,
     FLASH_DECODING,
+    FLASH_INFER,
     BLOCK_SIZE,
     CUDA_GRAPHS,
     get_adapter_to_index,
@@ -907,6 +909,7 @@ class FlashCausalLM(Model):
             config.sliding_window = None
 
         self.num_layers = config.num_hidden_layers
+        self.num_heads = config.num_attention_heads
         # Validation is done in the model itself
         if num_kv_heads is None:
             num_kv_heads = getattr(config, "num_key_value_heads", None)
@@ -934,6 +937,21 @@ class FlashCausalLM(Model):
 
         self.cuda_graphs = {}
         self.kv_cache = []
+
+        if FLASH_INFER:
+            from text_generation_server.layers.attention.flash_infer import (
+                create_prefill_state,
+                create_decode_state,
+            )
+
+            self.prefill_state = create_prefill_state(device=device)
+
+            if not CUDA_GRAPHS:
+                self.decode_state = create_decode_state(
+                    device=device,
+                    num_heads=self.num_heads,
+                    num_kv_heads=self.num_kv_heads,
+                )
 
         super().__init__(
             model_id=model_id,
@@ -972,7 +990,7 @@ class FlashCausalLM(Model):
         else:
             x = BLOCK_SIZE // element_size
 
-        if FLASH_DECODING:
+        if FLASH_DECODING or FLASH_INFER:
             self.kv_cache = [
                 (
                     torch.empty(
@@ -1044,38 +1062,66 @@ class FlashCausalLM(Model):
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs]["graph"] = graph
 
+        if FLASH_INFER:
+            from text_generation_server.layers.attention.flash_infer import (
+                create_decode_state_cuda_graphs,
+            )
+
+            block_tables_ptr = torch.zeros(
+                bs + 1, dtype=torch.int32, device=self.device
+            )
+            last_page_len = torch.ones(bs, dtype=torch.int32, device=self.device)
+            state = create_decode_state_cuda_graphs(
+                device=input_ids.device,
+                block_tables=block_tables.view(-1),
+                block_tables_ptr=block_tables_ptr,
+                last_page_len=last_page_len,
+                num_heads=self.num_heads,
+                num_kv_heads=self.num_kv_heads,
+            )
+            self.cuda_graphs[bs]["state"] = state
+        else:
+            state = None
+
         torch.cuda.synchronize()
         # Run once outside to warmup
-        self.model.forward(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            cu_seqlen_prefill=None,
-            kv_cache=self.kv_cache,
+        with self._forward_context(
             block_tables=block_tables,
-            slots=slots,
-            input_lengths=input_lengths_,
-            max_s=max_s,
-            prefill_cache_indices=None,
-            lm_head_indices=None,
-        )
-        torch.cuda.synchronize()
-
-        with torch.cuda.graph(graph, pool=MEM_POOL):
-            input_lengths = Seqlen(input_lengths=input_lengths)
-            logits, speculative_logits = self.model.forward(
+            cu_seqlen_prefill=None,
+            input_lengths=input_lengths,
+            state=state,
+        ):
+            self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
                 cu_seqlen_prefill=None,
                 kv_cache=self.kv_cache,
                 block_tables=block_tables,
                 slots=slots,
-                input_lengths=input_lengths,
+                input_lengths=input_lengths_,
                 max_s=max_s,
                 prefill_cache_indices=None,
                 lm_head_indices=None,
             )
-            self.cuda_graphs[bs]["logits"] = logits
-            self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
+
+            torch.cuda.synchronize()
+
+            with torch.cuda.graph(graph, pool=MEM_POOL):
+                input_lengths = Seqlen(input_lengths=input_lengths)
+                logits, speculative_logits = self.model.forward(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=None,
+                    kv_cache=self.kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    input_lengths=input_lengths,
+                    max_s=max_s,
+                    prefill_cache_indices=None,
+                    lm_head_indices=None,
+                )
+                self.cuda_graphs[bs]["logits"] = logits
+                self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
 
     def warmup(self, batch: FlashCausalLMBatch):
@@ -1295,23 +1341,28 @@ class FlashCausalLM(Model):
             cuda_graph = None
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
-            input_lengths = Seqlen(input_lengths=input_lengths)
-            logits, speculative_logits = self.model.forward(
-                input_ids=input_ids,
-                position_ids=position_ids,
-                cu_seqlen_prefill=cu_seqlen_prefill,
-                kv_cache=kv_cache,
+            with self._forward_context(
                 block_tables=block_tables,
-                slots=slots,
+                cu_seqlen_prefill=cu_seqlen_prefill,
                 input_lengths=input_lengths,
-                max_s=max_s,
-                prefill_cache_indices=batch.prefill_cache_indices,
-                lm_head_indices=lm_head_indices,
-                adapter_data=adapter_data,
-            )
-            if batch.prefill_cache_indices is not None:
-                batch.prefill_cache_indices = None
-            return logits, speculative_logits
+            ):
+                input_lengths = Seqlen(input_lengths=input_lengths)
+                logits, speculative_logits = self.model.forward(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=cu_seqlen_prefill,
+                    kv_cache=kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    input_lengths=input_lengths,
+                    max_s=max_s,
+                    prefill_cache_indices=batch.prefill_cache_indices,
+                    lm_head_indices=lm_head_indices,
+                    adapter_data=adapter_data,
+                )
+                if batch.prefill_cache_indices is not None:
+                    batch.prefill_cache_indices = None
+                return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph
         # Static inputs are potentially padded
@@ -1325,8 +1376,16 @@ class FlashCausalLM(Model):
         cuda_graph["input_lengths"].zero_()
         cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
 
-        # Replay the graph
-        cuda_graph["graph"].replay()
+        state = cuda_graph.get("state")
+        with self._forward_context(
+            block_tables=block_tables,
+            cu_seqlen_prefill=None,
+            input_lengths=input_lengths,
+            state=state,
+        ):
+            # Replay the graph
+            cuda_graph["graph"].replay()
+
         # Slice output to the correct shape
         speculative_logits = (
             cuda_graph["speculative_logits"][:bs]
@@ -1698,3 +1757,39 @@ class FlashCausalLM(Model):
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)
+
+    def _forward_context(
+        self,
+        *,
+        block_tables: torch.Tensor,
+        cu_seqlen_prefill: Optional[torch.Tensor],
+        input_lengths: torch.Tensor,
+        state: Optional[Any] = None,
+    ) -> ContextManager:
+        if not FLASH_INFER:
+            return nullcontext()
+
+        from text_generation_server.layers.attention.flash_infer import (
+            use_decode_state,
+            use_prefill_state,
+        )
+
+        if cu_seqlen_prefill is not None:
+            return use_prefill_state(
+                state=state if state is not None else self.prefill_state,
+                cu_seqlens=cu_seqlen_prefill,
+                num_heads=self.num_heads,
+                num_kv_heads=self.num_kv_heads,
+                head_size=self.head_size,
+            )
+        else:
+            assert input_lengths is not None
+            return use_decode_state(
+                state=state if state is not None else self.decode_state,
+                input_lengths=input_lengths,
+                block_tables=block_tables.view(-1),
+                num_heads=self.num_heads,
+                num_kv_heads=self.num_kv_heads,
+                head_size=self.head_size,
+                page_size=BLOCK_SIZE,
+            )
