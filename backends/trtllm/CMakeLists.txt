@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 
+if (NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    find_program(CCACHE_EXECUTABLE "ccache")
+    if (CCACHE_EXECUTABLE)
+        message(STATUS "Using ccache")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_EXECUTABLE}" CACHE PATH "Path to ccache" FORCE)
+    endif ()
+endif ()
+
 project(tgi-trtllm-backend VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 20)
 
