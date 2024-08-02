@@ -56,7 +56,7 @@ namespace huggingface::tgi::backends {
             const float_t repetition_penalty,
             const float_t frequency_penalty,
             const uint64_t seed
-    );
+    ) noexcept;
 
     /**
      *
@@ -71,12 +71,6 @@ namespace huggingface::tgi::backends {
                 const std::filesystem::path &engineFolder,
                 const std::filesystem::path &executorWorker
         );
-
-        /**
-         * Indicate if the backend is ready to accept incoming request
-         * @return true if ready, false otherwise
-         */
-        [[nodiscard]] bool IsReady() const;
 
         /**
          * Query the executor for the number of token available for pulling
@@ -106,17 +100,7 @@ namespace huggingface::tgi::backends {
                 const uint64_t seed
         );
 
-        /**
-         *
-         * @param requestId The request id to poll the generation results
-         * @return
-         */
-        std::vector <tle::Response> Poll(RequestId requestId);
-
-        /**
-         * Stop the underlying executor
-         */
-        void Shutdown();
+        [[nodiscard]] std::vector<tle::Response> PullNewTokens();
     };
 }
 

@@ -54,17 +54,12 @@ namespace huggingface::tgi::backends {
 
         /***
          *
-         * @param requestId
-         * @param ctx
-         * @param callback
          * @return
          */
-        size_t StreamTokens(
-                const RequestId requestId,
-                huggingface::tgi::backends::GenerationContext *ctx,
-                rust::Fn<void(huggingface::tgi::backends::GenerationContext *,
-                              huggingface::tgi::backends::GenerationStep)> callback);
+        std::unique_ptr<std::vector<GenerationStep>> PullTokens();
     };
+
+    GenerationStep ConvertResponseToGenerationStep(const tle::Response &response);
 
     /***
     *

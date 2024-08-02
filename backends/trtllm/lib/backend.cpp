@@ -84,16 +84,9 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
         const std::filesystem::path &executorWorker
 ) :
         config(json::parse(std::ifstream(enginesFolder / "config.json"))),
-        executor(
-                enginesFolder,
-                tensorrt_llm::executor::ModelType::kDECODER_ONLY,
-                GetExecutorConfig(config, executorWorker.string()
-                )) {
+        executor(enginesFolder, tensorrt_llm::executor::ModelType::kDECODER_ONLY,
+                 GetExecutorConfig(config, executorWorker.string())) {
     SPDLOG_INFO(FMT_STRING("Engine (version={})"), config["/version"_json_pointer].get_ref<const std::string &>());
-}
-
-bool huggingface::tgi::backends::TensorRtLlmBackend::IsReady() const {
-    return executor.canEnqueueRequests();
 }
 
 [[nodiscard("Returned number of requests needs to be consumed")]]
@@ -134,8 +127,6 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
     return executor.enqueueRequest(tle::Request{tokens, maxNewTokensChecked, true, sampling, OUTPUT_CONFIG});
 }
 
-
-void huggingface::tgi::backends::TensorRtLlmBackend::Shutdown() {
-    SPDLOG_INFO("Shutting down executor");
-    executor.shutdown();
+std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::PullNewTokens() {
+    return std::move(executor.awaitResponses());
 }
