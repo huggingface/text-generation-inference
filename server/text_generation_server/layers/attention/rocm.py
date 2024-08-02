@@ -3,6 +3,7 @@ import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING
 from text_generation_server.layers.attention import Seqlen
+from text_generation_server.utils.log import log_master
 from loguru import logger
 
 major, minor = torch.cuda.get_device_capability()
@@ -14,7 +15,6 @@ ENGINE = "triton" if use_triton else "ck"
 
 try:
     from vllm._C import cache_ops
-    from vllm._C import ops
 except Exception as e:
     raise ImportError(
         f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
@@ -39,7 +39,6 @@ def reshape_and_cache(
 
 
 def paged_attention(
-    out: torch.Tensor,
     query: torch.Tensor,
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
@@ -71,6 +70,8 @@ def paged_attention(
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
     input_lengths = input_lengths.input_lengths
+
+    out = torch.empty_like(query)
 
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
@@ -136,7 +137,10 @@ if ENGINE != "triton":
     try:
         import flash_attn_2_cuda
 
-        logger.info("ROCm: using Flash Attention 2 Composable Kernel implementation.")
+        log_master(
+            logger.info,
+            "ROCm: using Flash Attention 2 Composable Kernel implementation.",
+        )
     except ImportError as e:
         if major >= 8:
             architecture_suffix = f"-{SYSTEM}"
@@ -171,7 +175,6 @@ if ENGINE == "ck":
         q,
         k,
         v,
-        out,
         cu_seqlens,
         max_s,
         softmax_scale,
@@ -180,6 +183,8 @@ if ENGINE == "ck":
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
+
+        out = torch.empty_like(q)
 
         # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
         return flash_attn_2_cuda.varlen_fwd(
@@ -206,13 +211,14 @@ elif ENGINE == "triton":
         q,
         k,
         v,
-        out,
         cu_seqlens,
         max_s,
         softmax_scale,
         window_size_left=-1,
         causal=True,
     ):
+        out = torch.empty_like(q)
+
         # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
         output, _ = triton_attention(
             q,

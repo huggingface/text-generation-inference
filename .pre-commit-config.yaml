@@ -13,6 +13,11 @@ repos:
 -   repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0
     hooks:
-    -   id: fmt
     -   id: cargo-check
+    -   id: fmt
     -   id: clippy
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+    -   id: ruff
+        args: [--fix, --exit-non-zero-on-fix]

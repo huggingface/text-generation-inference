@@ -7,6 +7,7 @@ from loguru import logger
 from typing import Optional
 from enum import Enum
 from huggingface_hub import hf_hub_download
+from text_generation_server.utils.adapter import parse_lora_adapters
 
 
 app = typer.Typer()
@@ -79,17 +80,19 @@ def serve(
     if otlp_endpoint is not None:
         setup_tracing(otlp_service_name=otlp_service_name, otlp_endpoint=otlp_endpoint)
 
-    lora_adapter_ids = os.getenv("LORA_ADAPTERS", None)
+    lora_adapters = parse_lora_adapters(os.getenv("LORA_ADAPTERS"))
 
-    # split on comma and strip whitespace
-    lora_adapter_ids = (
-        [x.strip() for x in lora_adapter_ids.split(",")] if lora_adapter_ids else []
-    )
+    # TODO: enable lora with cuda graphs. for now disable cuda graphs if lora is enabled
+    # and warn the user
+    if lora_adapters:
+        logger.warning("LoRA adapters enabled (experimental feature).")
 
-    if len(lora_adapter_ids) > 0:
-        logger.warning(
-            f"LoRA adapters are enabled. This is an experimental feature and may not work as expected."
-        )
+        if "CUDA_GRAPHS" in os.environ:
+            logger.warning(
+                "LoRA adapters incompatible with CUDA Graphs. Disabling CUDA Graphs."
+            )
+            global CUDA_GRAPHS
+            CUDA_GRAPHS = None
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
@@ -105,7 +108,7 @@ def serve(
         )
     server.serve(
         model_id,
-        lora_adapter_ids,
+        lora_adapters,
         revision,
         sharded,
         quantize,
@@ -161,7 +164,7 @@ def download_weights(
         # currently by default we don't merge the weights with the base model
         if merge_lora:
             try:
-                adapter_config_filename = hf_hub_download(
+                hf_hub_download(
                     model_id, revision=revision, filename="adapter_config.json"
                 )
                 utils.download_and_unload_peft(
@@ -281,9 +284,9 @@ def download_weights(
     if auto_convert:
         if not trust_remote_code:
             logger.warning(
-                f"🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
-                f"Pickle files are unsafe and can essentially contain remote code execution!"
-                f"Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
+                "🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
+                "Pickle files are unsafe and can essentially contain remote code execution!"
+                "Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
             )
 
         logger.warning(
@@ -315,7 +318,7 @@ def download_weights(
             # Name for this varible depends on transformers version.
             discard_names = getattr(class_, "_tied_weights_keys", [])
 
-        except Exception as e:
+        except Exception:
             discard_names = []
         # Convert pytorch weights to safetensors
         utils.convert_files(local_pt_files, local_st_files, discard_names)
@@ -332,6 +335,7 @@ def quantize(
     upload_to_model_id: Optional[str] = None,
     percdamp: float = 0.01,
     act_order: bool = False,
+    groupsize: int = 128,
 ):
     if revision is None:
         revision = "main"
@@ -346,13 +350,14 @@ def quantize(
     quantize(
         model_id=model_id,
         bits=4,
-        groupsize=128,
+        groupsize=groupsize,
         output_dir=output_dir,
         revision=revision,
         trust_remote_code=trust_remote_code,
         upload_to_model_id=upload_to_model_id,
         percdamp=percdamp,
         act_order=act_order,
+        sym=True,
     )
 
 

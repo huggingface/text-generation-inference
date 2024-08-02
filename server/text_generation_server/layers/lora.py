@@ -1,12 +1,8 @@
-import math
-import os
-from typing import TYPE_CHECKING, Optional, Tuple, List
+from typing import TYPE_CHECKING, Optional, List
 
 import torch
 import torch.distributed
-from accelerate import init_empty_weights
 from torch import nn
-from torch.nn import functional as F
 from torch.distributed import ProcessGroup
 
 from text_generation_server.utils.sgmv import (
@@ -43,10 +39,7 @@ class LoraLinear(nn.Module):
     ) -> torch.Tensor:
         if adapter_data is None:
             return result
-        data = adapter_data.data.get(layer_type)
-        data: Optional["BatchLoraWeights"] = (
-            data.get("lora") if data is not None else None
-        )
+        data: Optional["BatchLoraWeights"] = adapter_data.data.get(layer_type)
 
         if has_sgmv() and data is not None and data.can_vectorize(self.process_group):
             # In tensor-parallel configurations, each GPU processes a specific segment of the output.

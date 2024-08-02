@@ -11,17 +11,17 @@
       },
       {
         "id": 1459,
-        "logprob": -5.6328125,
+        "logprob": -5.625,
         "text": " print"
       },
       {
         "id": 81,
-        "logprob": -1.6035156,
+        "logprob": -1.6064453,
         "text": "_"
       },
       {
         "id": 7656,
-        "logprob": -5.9882812,
+        "logprob": -5.9921875,
         "text": "hello"
       }
     ],
@@ -29,7 +29,7 @@
     "tokens": [
       {
         "id": 2262,
-        "logprob": -0.042999268,
+        "logprob": -0.045715332,
         "special": false,
         "text": "():"
       },
@@ -59,7 +59,7 @@
       },
       {
         "id": 10896,
-        "logprob": -0.38549805,
+        "logprob": -0.3659668,
         "special": false,
         "text": " World"
       },
@@ -113,7 +113,7 @@
       },
       {
         "id": 426,
-        "logprob": 0.0,
+        "logprob": -0.051635742,
         "special": false,
         "text": "name"
       },
@@ -323,7 +323,7 @@
       },
       {
         "id": 313,
-        "logprob": -0.6328125,
+        "logprob": -0.6933594,
         "special": false,
         "text": " \""
       },
@@ -387,7 +387,8 @@
         "special": false,
         "text": " print"
       }
-    ]
+    ],
+    "top_tokens": null
   },
   "generated_text": "():\n    print(\"Hello World\")\n\ndef print_hello_name(name):\n    print(\"Hello \" + name)\n\ndef print_hello_name_age(name, age):\n    print(\"Hello \" + name + \" \" + str(age))\n\ndef print"
 }

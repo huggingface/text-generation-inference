@@ -27,8 +27,8 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    # TODO see with @Glegendre to get CPU runner here instead
-    runs-on: [self-hosted, intel-cpu, 32-cpu, 256-ram, ci]
+    runs-on:
+      group: aws-highmemory-32-plus-priv
     permissions:
       contents: write
       packages: write
@@ -49,7 +49,7 @@ jobs:
                 export dockerfile="Dockerfile"
                 export label_extension=""
                 export docker_devices=""
-                export runs_on="nvidia-gpu"
+                export runs_on="aws-g6-12xlarge-plus-priv"
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
@@ -75,13 +75,18 @@ jobs:
           echo "LABEL=${label_extension}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
           echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
+          echo REGISTRY_MIRROR=$REGISTRY_MIRROR >> $GITHUB_ENV
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
-          config-inline: |
-            [registry."docker.io"]
-              mirrors = ["registry.github-runners.huggingface.tech"]
+          buildkitd-config: /tmp/buildkitd.toml
+      - name: Login to internal Container Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry: registry.internal.huggingface.tech
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -103,7 +108,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
+            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
           tags: |
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
       # If main, release or tag
@@ -115,7 +120,7 @@ jobs:
           flavor: |
             latest=auto
           images: |
-            registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference
+            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
             ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
@@ -141,7 +146,7 @@ jobs:
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry-push.github-runners.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
@@ -150,7 +155,8 @@ jobs:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     needs: build-and-push
-    runs-on: ["self-hosted", "${{ needs.build-and-push.outputs.runs_on }}", "multi-gpu"]
+    runs-on:
+      group: ${{ needs.build-and-push.outputs.runs_on }}
     if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
     env:
       PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == true) && '--release' || '' }}

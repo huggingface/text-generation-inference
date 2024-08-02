@@ -1,10 +1,16 @@
 {
   "choices": [
     {
-      "finish_reason": "eos_token",
+      "finish_reason": "stop",
       "index": 1,
       "logprobs": null,
       "text": " PR for more information?"
+    },
+    {
+      "finish_reason": "length",
+      "index": 3,
+      "logprobs": null,
+      "text": "hd20220811-"
     },
     {
       "finish_reason": "length",
@@ -17,19 +23,13 @@
       "index": 2,
       "logprobs": null,
       "text": " severely flawed and often has a substandard"
-    },
-    {
-      "finish_reason": "length",
-      "index": 3,
-      "logprobs": null,
-      "text": "hd20220811-"
     }
   ],
-  "created": 1713284455,
+  "created": 1722014725,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",
-  "system_fingerprint": "2.0.1-native",
+  "system_fingerprint": "2.2.1-dev0-native",
   "usage": {
     "completion_tokens": 36,
     "prompt_tokens": 8,

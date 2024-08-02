@@ -1,11 +1,14 @@
 /// Text Generation Inference Webserver
 pub mod config;
-mod infer;
+pub mod infer;
 pub mod server;
-mod validation;
+pub mod validation;
 
 #[cfg(feature = "kserve")]
 mod kserve;
+pub mod logging;
+
+pub mod usage_stats;
 
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -40,13 +43,13 @@ pub struct HubModelInfo {
     pub pipeline_tag: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChatTemplate {
     name: String,
     template: String,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum ChatTemplateVersions {
     Single(String),
@@ -55,7 +58,7 @@ pub enum ChatTemplateVersions {
 
 use std::path::Path;
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HubTokenizerConfig {
     pub chat_template: Option<ChatTemplateVersions>,
     pub completion_template: Option<String>,
@@ -146,12 +149,13 @@ pub struct Info {
     pub model_id: String,
     #[schema(nullable = true, example = "e985a63cdc139290c5f700ff1929f0b5942cced2")]
     pub model_sha: Option<String>,
-    #[schema(example = "torch.float16")]
-    pub model_dtype: String,
-    #[schema(example = "cuda")]
-    pub model_device_type: String,
+    // #[schema(example = "torch.float16")]
+    // pub model_dtype: String,
+    // #[schema(example = "cuda")]
+    // pub model_device_type: String,
     #[schema(nullable = true, example = "text-generation")]
     pub model_pipeline_tag: Option<String>,
+
     /// Router Parameters
     #[schema(example = "128")]
     pub max_concurrent_requests: usize,
@@ -163,18 +167,11 @@ pub struct Info {
     pub max_input_tokens: usize,
     #[schema(example = "2048")]
     pub max_total_tokens: usize,
-    #[schema(example = "1.2")]
-    pub waiting_served_ratio: f32,
-    #[schema(example = "32000")]
-    pub max_batch_total_tokens: u32,
-    #[schema(example = "20")]
-    pub max_waiting_tokens: usize,
-    #[schema(nullable = true, example = "null")]
-    pub max_batch_size: Option<usize>,
     #[schema(example = "2")]
     pub validation_workers: usize,
     #[schema(example = "32")]
     pub max_client_batch_size: usize,
+
     /// Router Info
     #[schema(example = "text-generation-router")]
     pub router: &'static str,
@@ -824,7 +821,7 @@ pub(crate) struct ChatRequest {
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
-    pub tool_choice: Option<ToolType>,
+    pub tool_choice: ToolChoice,
 
     /// Response format constraints for the generation.
     ///
@@ -846,6 +843,7 @@ pub enum ToolType {
     OneOf,
     FunctionName(String),
     Function { function: FunctionName },
+    NoTool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -853,27 +851,26 @@ pub struct FunctionName {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, ToSchema)]
 #[serde(from = "ToolTypeDeserializer")]
 pub struct ToolChoice(pub Option<ToolType>);
 
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum ToolTypeDeserializer {
-    None(Option<String>),
-    Some(ToolType),
+    String(String),
+    ToolType(ToolType),
 }
 
 impl From<ToolTypeDeserializer> for ToolChoice {
     fn from(value: ToolTypeDeserializer) -> Self {
         match value {
-            ToolTypeDeserializer::None(opt) => match opt.as_deref() {
-                Some("none") => ToolChoice(None),
-                Some("auto") => ToolChoice(Some(ToolType::OneOf)),
-                Some(s) => ToolChoice(Some(ToolType::FunctionName(s.to_string()))),
-                None => ToolChoice(Some(ToolType::OneOf)),
+            ToolTypeDeserializer::String(s) => match s.as_str() {
+                "none" => ToolChoice(Some(ToolType::NoTool)),
+                "auto" => ToolChoice(Some(ToolType::OneOf)),
+                _ => ToolChoice(Some(ToolType::FunctionName(s))),
             },
-            ToolTypeDeserializer::Some(tool_type) => ToolChoice(Some(tool_type)),
+            ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
     }
 }
@@ -1066,23 +1063,23 @@ impl From<CompatGenerateRequest> for GenerateRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PrefillToken {
     #[schema(example = 0)]
-    id: u32,
+    pub id: u32,
     #[schema(example = "test")]
-    text: String,
+    pub text: String,
     #[schema(nullable = true, example = - 0.34)]
-    logprob: f32,
+    pub logprob: f32,
 }
 
 #[derive(Debug, Serialize, ToSchema, Clone)]
 pub struct Token {
     #[schema(example = 0)]
-    id: u32,
+    pub id: u32,
     #[schema(example = "test")]
-    text: String,
+    pub text: String,
     #[schema(nullable = true, example = - 0.34)]
-    logprob: f32,
+    pub logprob: f32,
     #[schema(example = "false")]
-    special: bool,
+    pub special: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -1100,7 +1097,7 @@ pub struct SimpleToken {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
-pub(crate) enum FinishReason {
+pub enum FinishReason {
     #[schema(rename = "length")]
     Length,
     #[serde(rename = "eos_token")]

@@ -42,7 +42,7 @@ def load_vision_model(prefix, config, weights):
         )
 
         return SiglipVisionTransformer(
-            prefix=f"vision_tower.vision_model", config=config, weights=weights
+            prefix="vision_tower.vision_model", config=config, weights=weights
         )
     else:
         raise RuntimeError(f"Unsupported model type {config.model_type}")

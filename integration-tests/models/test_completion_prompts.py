@@ -100,6 +100,8 @@ async def test_flash_llama_completion_many_prompts_stream(
                 chunk = [c.replace("data:", "") for c in chunk]
                 # remove empty strings
                 chunk = [c for c in chunk if c]
+                # remove completion marking chunk
+                chunk = [c for c in chunk if c != " [DONE]"]
                 # parse json
                 chunk = [json.loads(c) for c in chunk]
 

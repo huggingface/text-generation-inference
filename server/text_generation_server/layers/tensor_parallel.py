@@ -2,7 +2,6 @@ import torch
 from torch.nn import functional as F
 from typing import Iterable, List
 from text_generation_server.layers.linear import get_linear, FastLinear
-from text_generation_server.layers.exl2 import Exl2Weight
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "ipex":
@@ -50,7 +49,7 @@ class TensorParallelHead(SuperLayer):
                 # If the piece and LM head embeddings are shared, we have
                 # non-quantized weights...
                 weight = weights.get_tensor(f"{prefix}.weight")
-            except:
+            except Exception:
                 # ...otherwise they are quantized.
                 weight = weights.get_weights_col(prefix)
             should_gather = weights.process_group.size() > 1
@@ -67,17 +66,8 @@ class TensorParallelHead(SuperLayer):
             weight = weights.get_tensor(f"{prefix}.weight")
             should_gather = False
 
-        # GPTQ,AWQ,EETQ don't quantize heads (nor embeddings)
-        if config.quantize in ["gptq", "awq", "eetq", "marlin"]:
-            quantize = None
-        # See above, exl2 LM head can be quantized or not.
-        elif config.quantize == "exl2" and not isinstance(weight, Exl2Weight):
-            quantize = None
-        else:
-            quantize = config.quantize
-
         return TensorParallelHead(
-            get_linear(weight, bias=None, quantize=quantize),
+            get_linear(weight, bias=None),
             process_group=weights.process_group,
             should_gather=should_gather,
         )
@@ -134,7 +124,7 @@ class TensorParallelColumnLinear(SuperLayer):
             raise NotImplementedError("packed_gate_up only implemented without bias")
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
@@ -157,7 +147,7 @@ class TensorParallelColumnLinear(SuperLayer):
             raise NotImplementedError("packed_qkv only implemented for baichuan")
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
@@ -167,7 +157,7 @@ class TensorParallelColumnLinear(SuperLayer):
             bias = weights.get_sharded(f"{prefix}.bias", dim=0)
         else:
             bias = None
-        linear = get_linear(weight, bias, config.quantize)
+        linear = get_linear(weight, bias)
         return cls(linear)
 
     @classmethod
@@ -177,7 +167,7 @@ class TensorParallelColumnLinear(SuperLayer):
             for prefix in prefixes:
                 weight = weights.get_weights_col(prefix)
                 b = weights.get_tensor(f"{prefix}.bias") if bias else None
-                linears.append(get_linear(weight, b, config.quantize))
+                linears.append(get_linear(weight, b))
             linear = LayerConcat(linears)
         else:
             weight = weights.get_multi_weights_col(prefixes, dim=dim)
@@ -186,7 +176,7 @@ class TensorParallelColumnLinear(SuperLayer):
                 bias = torch.cat(b, dim=dim)
             else:
                 bias = None
-            linear = get_linear(weight, bias, config.quantize)
+            linear = get_linear(weight, bias)
         return cls(linear)
 
 
@@ -205,7 +195,7 @@ class TensorParallelRowLinear(SuperLayer):
         else:
             bias = None
         return cls(
-            get_linear(weight, bias, config.quantize),
+            get_linear(weight, bias),
             process_group=weights.process_group,
         )
 

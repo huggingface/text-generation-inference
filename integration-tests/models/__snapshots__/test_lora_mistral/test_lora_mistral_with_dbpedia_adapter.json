@@ -1,0 +1,53 @@
+{
+  "details": {
+    "finish_reason": "eos_token",
+    "generated_tokens": 7,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 1,
+        "logprob": -0.49658203,
+        "special": true,
+        "text": "<s>"
+      },
+      {
+        "id": 28705,
+        "logprob": -0.0016384125,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 1,
+        "logprob": -1.4931641,
+        "special": true,
+        "text": "<s>"
+      },
+      {
+        "id": 28705,
+        "logprob": -0.00075769424,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 28740,
+        "logprob": -0.25024414,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 28740,
+        "logprob": -0.2631836,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 2,
+        "logprob": -0.0003285408,
+        "special": true,
+        "text": "</s>"
+      }
+    ]
+  },
+  "generated_text": "  11"
+}

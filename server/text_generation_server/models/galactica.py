@@ -2,23 +2,15 @@ import re
 import torch
 import torch.distributed
 
-from typing import List, Optional, Type
 
 from transformers import (
-    AutoTokenizer,
-    AutoConfig,
     PreTrainedTokenizerBase,
 )
-from text_generation_server.models import CausalLM
 from text_generation_server.models.causal_lm import CausalLMBatch
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.custom_modeling.opt_modeling import OPTForCausalLM
 from text_generation_server.utils import (
     NextTokenChooser,
     StoppingCriteria,
-    initialize_torch_distributed,
-    weight_files,
-    Weights,
 )
 from text_generation_server.utils.chunks import concat_text_chunks
 

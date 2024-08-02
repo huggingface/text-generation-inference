@@ -8,49 +8,49 @@
     "tokens": [
       {
         "id": 2502,
-        "logprob": -1.734375,
+        "logprob": -1.7890625,
         "special": false,
         "text": "image"
       },
       {
         "id": 2196,
-        "logprob": -0.5756836,
+        "logprob": -0.53125,
         "special": false,
         "text": " result"
       },
       {
         "id": 604,
-        "logprob": -0.007843018,
+        "logprob": -0.0077209473,
         "special": false,
         "text": " for"
       },
       {
         "id": 12254,
-        "logprob": -1.7167969,
+        "logprob": -1.703125,
         "special": false,
         "text": " chicken"
       },
       {
         "id": 611,
-        "logprob": -0.17053223,
+        "logprob": -0.21582031,
         "special": false,
         "text": " on"
       },
       {
         "id": 573,
-        "logprob": -0.7626953,
+        "logprob": -0.734375,
         "special": false,
         "text": " the"
       },
       {
         "id": 8318,
-        "logprob": -0.02709961,
+        "logprob": -0.026000977,
         "special": false,
         "text": " beach"
       },
       {
         "id": 1,
-        "logprob": -0.20739746,
+        "logprob": -0.2109375,
         "special": true,
         "text": "<eos>"
       }

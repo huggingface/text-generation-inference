@@ -1,3 +1,6 @@
+# ruff: noqa: F821
+# the above line disables the `undefined-name` rule for the model type variables
+
 import torch
 import enum
 import os
@@ -6,7 +9,7 @@ from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pathlib import Path
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
@@ -33,7 +36,18 @@ from text_generation_server.models.custom_modeling.t5_modeling import (
     T5ForConditionalGeneration,
 )
 
+
+from text_generation_server.utils.adapter import (
+    AdapterParameters,
+    build_layer_weight_lookup,
+    load_and_merge_adapters,
+    AdapterInfo,
+)
+from text_generation_server.adapters.lora import LoraWeights
+
+
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.log import log_master
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -47,11 +61,9 @@ torch.set_grad_enabled(False)
 
 __all__ = [
     "Model",
-    "BLOOMSharded",
     "CausalLM",
-    "GalacticaSharded",
     "Seq2SeqLM",
-    "get_model",
+    "get_model_with_lora_adapters",
 ]
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
@@ -61,6 +73,10 @@ FLASH_ATTENTION = True
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
     from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+    from text_generation_server.models.custom_modeling.flash_deepseek_v2_modeling import (
+        FlashDeepseekV2ForCausalLM,
+        DeepseekV2Config,
+    )
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
     )
@@ -121,7 +137,7 @@ try:
     )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
-    logger.warning(f"Could not import Flash Attention enabled models: {e}")
+    log_master(logger.warning, f"Could not import Flash Attention enabled models: {e}")
     SUPPORTS_WINDOWING = False
     FLASH_ATTENTION = False
 
@@ -133,7 +149,7 @@ MAMBA_AVAILABLE = True
 try:
     from text_generation_server.models.mamba import Mamba
 except ImportError as e:
-    logger.warning(f"Could not import Mamba: {e}")
+    log_master(logger.warning, f"Could not import Mamba: {e}")
     MAMBA_AVAILABLE = False
 
 if MAMBA_AVAILABLE:
@@ -141,6 +157,11 @@ if MAMBA_AVAILABLE:
 
 
 class ModelType(enum.Enum):
+    DEEPSEEK_V2 = {
+        "type": "deepseek_v2",
+        "name": "Deepseek V2",
+        "url": "https://huggingface.co/deepseek-ai/DeepSeek-V2",
+    }
     IDEFICS2 = {
         "type": "idefics2",
         "name": "Idefics 2",
@@ -298,10 +319,34 @@ def get_model(
     max_input_tokens: int,
 ) -> Model:
     global FLASH_ATTENTION
+
+    config_dict, _ = PretrainedConfig.get_config_dict(
+        model_id, revision=revision, trust_remote_code=trust_remote_code
+    )
+    model_type = config_dict.get("model_type", None)
+
+    quantization_config = config_dict.get("quantization_config", None)
+    if quantization_config is not None and quantize is None:
+        method = quantization_config.get("quant_method", None)
+        if method in {"gptq", "awq", "exl2"}:
+            log_master(logger.info, f"Auto selecting quantization method {method}")
+            quantize = method
+        elif method == "fbgemm_fp8":
+            log_master(logger.info, "Auto selecting quantization method fp8")
+            quantize = "fp8"
+        else:
+            log_master(logger.warning, f"Unknown quantization method {method}")
+
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
             # These quantizers only work with float16 params.
             dtype = torch.float16
+        elif quantize == "fp8":
+            from text_generation_server.layers.fp8 import FBGEMM_DYN_AVAILABLE
+
+            if FBGEMM_DYN_AVAILABLE:
+                # fbgemm kernels are fp8xfp8->bf16
+                dtype = torch.bfloat16
         else:
             # Keep it as default for now and let
             # every model resolve their own default dtype.
@@ -317,11 +362,6 @@ def get_model(
         set_speculate(speculate)
     else:
         set_speculate(0)
-
-    config_dict, _ = PretrainedConfig.get_config_dict(
-        model_id, revision=revision, trust_remote_code=trust_remote_code
-    )
-    model_type = config_dict.get("model_type", None)
 
     speculator = None
     if "medusa_num_heads" in config_dict:
@@ -424,7 +464,9 @@ def get_model(
 
     speculate = get_speculate()
     if speculate > 0:
-        logger.info(f"Using speculation {method} with {speculate} input ids.")
+        log_master(
+            logger.info, f"Using speculation {method} with {speculate} input ids."
+        )
 
     if model_type is None:
         # TODO: fix how we determine model type for Mamba
@@ -435,14 +477,6 @@ def get_model(
             raise RuntimeError(
                 f"Could not determine model type for {model_id} revision {revision}"
             )
-    quantization_config = config_dict.get("quantization_config", None)
-    if quantization_config is not None and quantize is None:
-        method = quantization_config.get("quant_method", None)
-        if method in {"gptq", "awq", "exl2"}:
-            logger.info(f"Auto selecting quantization method {method}")
-            quantize = method
-        else:
-            logger.info(f"Unknown quantization method {method}")
 
     if quantize == "exl2" and sharded:
         raise RuntimeError(
@@ -459,7 +493,40 @@ def get_model(
             f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
         )
 
-    if model_type == MAMBA:
+    if model_type == DEEPSEEK_V2:
+        if FLASH_ATTENTION:
+            head_size = max(
+                config_dict.get("qk_nope_dim", 128)
+                + config_dict.get("qk_rope_dim", 64),
+                config_dict.get("v_head_dim", 128),
+            )
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashDeepseekV2ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                default_dtype=torch.bfloat16,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=DeepseekV2Config,
+                head_size=head_size,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Deepseek V2")
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == MAMBA:
         return Mamba(
             model_id,
             revision,
@@ -551,7 +618,7 @@ def get_model(
                 )
             except RuntimeError as e:
                 # Lots of legacy models with various weight names.
-                logger.warning(f"Couldn't load flash gpt2 variant: {e}")
+                log_master(logger.warning, f"Couldn't load flash gpt2 variant: {e}")
                 return CausalLM.fallback(
                     model_id,
                     revision,
@@ -573,6 +640,10 @@ def get_model(
             )
     elif model_type == GPT_NEOX:
         if FLASH_ATTENTION:
+            from text_generation_server.models.custom_modeling.flash_neox_modeling import (
+                GPTNeoXConfig,
+            )
+
             return FlashCausalLM(
                 model_id=model_id,
                 model_class=FlashGPTNeoXForCausalLM,
@@ -582,6 +653,7 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                config_class=GPTNeoXConfig,
             )
         elif sharded:
             return CausalLM(
@@ -643,6 +715,7 @@ def get_model(
             )
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
+        print(f">>> model_type: {model_type}")
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -787,7 +860,7 @@ def get_model(
                     lora_adapter_ids=lora_adapter_ids,
                     config_class=RWConfig,
                 )
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format(f"Sharded Falcon"))
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Falcon"))
         else:
             if FLASH_ATTENTION and not config_dict.get("alibi", False):
                 return FlashCausalLM(
@@ -1056,3 +1129,116 @@ def get_model(
             )
 
     raise ValueError(f"Unsupported model type {model_type}")
+
+
+# get_model_with_lora_adapters wraps the internal get_model function and adds support for loading adapters
+# this provides a post model loading hook to load adapters into the model after the model has been loaded
+def get_model_with_lora_adapters(
+    model_id: str,
+    lora_adapters: Optional[List[AdapterInfo]],
+    revision: Optional[str],
+    sharded: bool,
+    quantize: Optional[str],
+    speculate: Optional[int],
+    dtype: Optional[str],
+    trust_remote_code: bool,
+    max_input_tokens: int,
+    adapter_to_index: Dict[str, int],
+):
+    lora_adapter_ids = [adapter.id for adapter in lora_adapters]
+    model = get_model(
+        model_id,
+        lora_adapter_ids,
+        revision,
+        sharded,
+        quantize,
+        speculate,
+        dtype,
+        trust_remote_code,
+        max_input_tokens,
+    )
+
+    if len(lora_adapters) > 0:
+        target_to_layer = build_layer_weight_lookup(model.model)
+
+        for index, adapter in enumerate(lora_adapters):
+            # The AdapterParameters object allows for merging multiple adapters into a single adapter.
+            # At the moment, we only support loading a single adapter into the model, but we keep the
+            # AdapterParameters object for easier extension in the future.
+            adapter_parameters = AdapterParameters(
+                adapter_info=[adapter],
+                # when merging multiple adapters we can weight them differently
+                # if this is not set, all adapters will be weighted equally
+                # see: text_generation_server.utils.merges.strategies for impl
+                weights=None,
+                merge_strategy=0,
+                density=1.0,
+                majority_sign_method=0,
+            )
+
+            adapter_index = index + 1
+            adapter_to_index[adapter.id] = adapter_index
+
+            logger.info(
+                f"Loading adapter weights into model: {','.join([adapter.id for adapter in adapter_parameters.adapter_info])}"
+            )
+            weight_names = tuple([v[0] for v in target_to_layer.values()])
+            (
+                module_map,
+                adapter_config,
+                adapter_weight_names,
+                adapter_tokenizer,
+            ) = load_and_merge_adapters(
+                model.model_id,
+                adapter_parameters,
+                adapter_index,
+                weight_names,
+                False,
+            )
+
+            unused_weight_names = adapter_weight_names.copy()
+
+            adapter_layers = [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ]
+
+            for layer_name in adapter_layers:
+                nlayers = (
+                    1 if layer_name == "lm_head" else len(model.model.model.layers)
+                )
+                adapter_weights = LoraWeights.prepare_weights(
+                    config=adapter_config,
+                    module_map=module_map,
+                    layer_type=layer_name,
+                    unused_weight_names=unused_weight_names,
+                    nlayers=nlayers,
+                    dtype=model.dtype,
+                    world_size=model.world_size,
+                    process_group=model.process_group,
+                    target_to_layer=target_to_layer,
+                )
+
+                if adapter_weights is None:
+                    continue
+
+                model.layer_to_adapter_weights[layer_name].add_adapter(
+                    adapter_index, adapter_weights
+                )
+
+            if len(unused_weight_names) > 0:
+                logger.warning(
+                    f"{','.join(adapter_parameters.adapter_ids)} unused adapter weights: {unused_weight_names}"
+                )
+
+            if adapter_tokenizer is not None:
+                model.tokenizers.add_tokenizer(adapter_index, adapter_tokenizer)
+
+            model.loaded_adapters.add(adapter_index)
+
+    return model

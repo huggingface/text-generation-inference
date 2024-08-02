@@ -28,7 +28,7 @@ def download_and_unload_peft(model_id, revision, trust_remote_code):
             low_cpu_mem_usage=True,
         )
     logger.info("Peft model detected.")
-    logger.info(f"Merging the lora weights.")
+    logger.info("Merging the lora weights.")
 
     base_model_id = model.peft_config["default"].base_model_name_or_path
 

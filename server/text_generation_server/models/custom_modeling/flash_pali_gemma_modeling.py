@@ -16,7 +16,6 @@
 import torch
 import torch.distributed
 from torch import nn
-from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
 from text_generation_server.layers.tensor_parallel import TensorParallelColumnLinear

@@ -21,7 +21,7 @@ def deployed_models(headers: Optional[Dict] = None) -> List[DeployedModel]:
         List[DeployedModel]: list of all currently deployed models
     """
     resp = requests.get(
-        f"https://api-inference.huggingface.co/framework/text-generation-inference",
+        "https://api-inference.huggingface.co/framework/text-generation-inference",
         headers=headers,
         timeout=5,
     )

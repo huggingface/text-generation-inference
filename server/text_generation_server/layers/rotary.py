@@ -1,11 +1,10 @@
 import os
+import math
 import torch
 from torch import nn
-
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "cuda":
-    from flash_attn.layers.rotary import RotaryEmbedding
     import rotary_emb
 elif SYSTEM == "rocm":
     from vllm._C import ops
@@ -84,9 +83,13 @@ class PositionRotaryEmbedding(nn.Module):
         scaling_factor = None
         rope_scaling = _get_rope_config(config)
         if rope_scaling is not None:
-            if rope_scaling["type"] == "linear":
+            # `rope_type` is now standard in transformers, but some existing models
+            # have `type` instead.
+            rope_type = rope_scaling.get("rope_type", rope_scaling.get("type", None))
+
+            if rope_type == "linear":
                 pass
-            elif rope_scaling["type"] == "dynamic":
+            elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
                 return DynamicPositionRotaryEmbedding(
                     dim=dim,
@@ -95,22 +98,39 @@ class PositionRotaryEmbedding(nn.Module):
                     device=inv_freq.device,
                     scaling_factor=scaling_factor,
                 )
-            elif rope_scaling["type"] == "yarn":
+            elif rope_type == "llama3":
+                inv_freq = apply_llama3_scaling(
+                    inv_freq,
+                    scaling_factor=rope_scaling["factor"],
+                    low_freq_factor=rope_scaling["low_freq_factor"],
+                    high_freq_factor=rope_scaling["high_freq_factor"],
+                    original_max_position_embeddings=rope_scaling[
+                        "original_max_position_embeddings"
+                    ],
+                )
+
+                return cls(inv_freq, scaling_factor)
+
+            elif rope_type == "yarn":
                 scaling_factor = rope_scaling["factor"]
+                mscale = rope_scaling.get("mscale", 1.0)
+                mscale_all_dim = rope_scaling.get("mscale_all_dim", 0.0)
                 return YarnPositionRotaryEmbedding(
                     dim=2 * inv_freq.shape[0],
                     max_position_embeddings=rope_scaling[
                         "original_max_position_embeddings"
                     ],
-                    base=10000.0,
+                    base=base,
                     device=inv_freq.device,
                     scaling_factor=scaling_factor,
                     extrapolation_factor=1,
                     attn_factor=1,
                     beta_fast=32,
                     beta_slow=1,
+                    mscale=mscale,
+                    mscale_all_dim=mscale_all_dim,
                 )
-            elif rope_scaling["type"] in ["su", "longrope"]:
+            elif rope_type in ["su", "longrope"]:
                 short_factor = torch.tensor(
                     rope_scaling["short_factor"], dtype=torch.float32, device=device
                 )
@@ -181,6 +201,8 @@ class PositionRotaryEmbedding(nn.Module):
                     scaling_factor=scaling_factor,
                 )
             elif rope_scaling["type"] == "yarn":
+                mscale = rope_scaling.get("mscale", 1.0)
+                mscale_all_dim = rope_scaling.get("mscale_all_dim", 0.0)
                 return YarnPositionRotaryEmbedding(
                     dim=2 * inv_freq.shape[0],
                     max_position_embeddings=rope_scaling[
@@ -193,6 +215,8 @@ class PositionRotaryEmbedding(nn.Module):
                     attn_factor=1,
                     beta_fast=32,
                     beta_slow=1,
+                    mscale=mscale,
+                    mscale_all_dim=mscale_all_dim,
                 )
             else:
                 raise NotImplementedError(
@@ -318,10 +342,6 @@ class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
             self._sin_cached = torch.sin(freqs).to(dtype)
 
 
-# Inverse dim formula to find dim based on number of rotations
-import math
-
-
 def find_correction_dim(num_rotations, dim, base=10000, max_position_embeddings=2048):
     return (dim * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (
         2 * math.log(base)
@@ -346,10 +366,10 @@ def linear_ramp_mask(min, max, dim):
     return ramp_func
 
 
-def get_mscale(scale=1):
+def get_mscale(scale: float = 1.0, mscale: float = 1.0):
     if scale <= 1:
         return 1.0
-    return 0.1 * math.log(scale) + 1.0
+    return 0.1 * mscale * math.log(scale) + 1.0
 
 
 class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
@@ -365,6 +385,8 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
         attn_factor,
         beta_fast,
         beta_slow,
+        mscale: float,
+        mscale_all_dim: float,
     ):
         inv_freq = _create_inv_freq(dim, base, device)
         super().__init__(inv_freq, scaling_factor)
@@ -375,8 +397,12 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
         self.attn_factor = attn_factor
         self.beta_fast = beta_fast
         self.beta_slow = beta_slow
+        self.mscale_all_dim = mscale_all_dim
+        self.scaling_factor = scaling_factor
         self.mscale = float(
-            get_mscale(self.scaling_factor) * self.attn_factor
+            get_mscale(self.scaling_factor, mscale)
+            / get_mscale(self.scaling_factor, mscale_all_dim)
+            * self.attn_factor
         )  # Get n-d magnitude scaling corrected for interpolation
 
     def _update_cos_sin_cache(self, dtype, device, seqlen):
@@ -387,7 +413,7 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
             or self._cos_cached.device != device
             or self._cos_cached.dtype != dtype
         ):
-            if seqlen > self.max_position_embeddings:
+            if seqlen > self.max_position_embeddings or True:
                 inv_freq_extrapolation = _create_inv_freq(
                     self.dim, self.base, self.inv_freq.device
                 )
@@ -400,6 +426,7 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
                     self.base,
                     self.max_position_embeddings,
                 )
+
                 inv_freq_mask = (
                     1 - linear_ramp_mask(low, high, self.dim // 2).float().to(device)
                 ) * self.extrapolation_factor  # Get n-d rotational scaling corrected for extrapolation
@@ -409,9 +436,6 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
                 )
 
                 self.inv_freq = inv_freq
-                self.mscale = float(
-                    get_mscale(self.scaling_factor) * self.attn_factor
-                )  # Get n-d magnitude scaling corrected for interpolation
 
             self._seq_len_cached = seqlen
             t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
@@ -421,3 +445,33 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
             freqs = torch.outer(t, self.inv_freq.to(device=t.device))
             self._cos_cached = (torch.cos(freqs) * self.mscale).to(dtype)
             self._sin_cached = (torch.sin(freqs) * self.mscale).to(dtype)
+
+
+def apply_llama3_scaling(
+    freqs: torch.Tensor,
+    *,
+    scaling_factor: int,
+    low_freq_factor: int,
+    high_freq_factor: int,
+    original_max_position_embeddings: int,
+):
+    low_freq_wavelen = original_max_position_embeddings / low_freq_factor
+    high_freq_wavelen = original_max_position_embeddings / high_freq_factor
+    new_freqs = []
+
+    for freq in freqs:
+        wavelen = 2 * math.pi / freq
+
+        if wavelen < high_freq_wavelen:
+            new_freqs.append(freq)
+        elif wavelen > low_freq_wavelen:
+            new_freqs.append(freq / scaling_factor)
+        else:
+
+            assert low_freq_wavelen != high_freq_wavelen
+            smooth = (original_max_position_embeddings / wavelen - low_freq_factor) / (
+                high_freq_factor - low_freq_factor
+            )
+            new_freqs.append((1 - smooth) * freq / scaling_factor + smooth * freq)
+
+    return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)

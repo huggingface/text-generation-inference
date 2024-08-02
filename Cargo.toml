@@ -1,15 +1,24 @@
 [workspace]
 members = [
-    "benchmark",
-    "router",
-    "router/client",
-    "router/grpc-metadata",
-    "launcher"
+  "benchmark",
+  "backends/v3",
+  "backends/grpc-metadata",
+  "backends/trtllm",
+  "backends/client",
+  "launcher"
+]
+default-members = [
+  "benchmark",
+  "backends/v3",
+  "backends/grpc-metadata",
+  # "backends/trtllm",
+  "backends/client",
+  "launcher"
 ]
 resolver = "2"
 
 [workspace.package]
-version = "2.1.2-dev0"
+version = "2.2.1-dev0"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 homepage = "https://github.com/huggingface/text-generation-inference"
@@ -18,6 +27,8 @@ homepage = "https://github.com/huggingface/text-generation-inference"
 base64 = "0.22.0"
 tokenizers = { version = "0.19.1", features = ["http"] }
 hf-hub = { version = "0.3.1", features = ["tokio"] }
+metrics = { version = "0.23.0" }
+metrics-exporter-prometheus = { version = "0.15.1", features = [] }
 
 [profile.release]
 incremental = true

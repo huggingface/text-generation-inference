@@ -1,7 +1,4 @@
 import pytest
-import json
-
-from text_generation.types import GrammarType
 
 
 @pytest.fixture(scope="module")
@@ -91,7 +88,7 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
             },
         ],
     )
-    assert response.choices[0].message.content == None
+    assert response.choices[0].message.content is None
     assert response.choices[0].message.tool_calls == [
         {
             "id": 0,
@@ -129,7 +126,7 @@ async def test_flash_llama_grammar_tools_auto(
             },
         ],
     )
-    assert response.choices[0].message.content == None
+    assert response.choices[0].message.content is None
     assert response.choices[0].message.tool_calls == [
         {
             "id": 0,
@@ -168,7 +165,7 @@ async def test_flash_llama_grammar_tools_choice(
             },
         ],
     )
-    assert response.choices[0].message.content == None
+    assert response.choices[0].message.content is None
     assert response.choices[0].message.tool_calls == [
         {
             "id": 0,
@@ -241,7 +238,7 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         stream=False,
     )
 
-    assert responses.choices[0].message.content == None
+    assert responses.choices[0].message.content is None
     assert responses.choices[0].message.tool_calls == [
         {
             "function": {

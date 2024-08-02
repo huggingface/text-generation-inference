@@ -44,7 +44,6 @@ from text_generation_server.layers.rotary import (
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
-from text_generation_server.utils.log import log_once
 
 
 class DbrxAttentionConfig(PretrainedConfig):
@@ -247,10 +246,10 @@ def _load_experts_quantized(config, prefix, weights, cls):
 
         if cls == TensorParallelRowLinear:
             expert_slice = expert_slice.t().contiguous()
-            linear = get_linear(expert_slice, None, config.quantize)
+            linear = get_linear(expert_slice, None)
             experts.append(cls(linear, weights.process_group))
         else:
-            linear = get_linear(expert_slice, None, config.quantize)
+            linear = get_linear(expert_slice, None)
             experts.append(cls(linear))
 
     return experts
@@ -331,17 +330,13 @@ class DbrxAttention(torch.nn.Module):
 
         reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
 
-        # output tensor
-        attn_output = torch.empty_like(query)
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
@@ -349,7 +344,6 @@ class DbrxAttention(torch.nn.Module):
         # Decode
         else:
             attn_output = paged_attention(
-                attn_output,
                 query,
                 kv_cache[0],
                 kv_cache[1],

@@ -1,5 +1,8 @@
 use clap::{Parser, ValueEnum};
-use hf_hub::{api::sync::Api, Repo, RepoType};
+use hf_hub::{
+    api::sync::{Api, ApiBuilder},
+    Repo, RepoType,
+};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use serde::Deserialize;
@@ -25,6 +28,7 @@ mod env_runtime;
 struct RawConfig {
     max_position_embeddings: Option<usize>,
     n_positions: Option<usize>,
+    model_type: Option<String>,
     max_seq_len: Option<usize>,
 }
 
@@ -159,6 +163,33 @@ impl std::fmt::Display for RopeScaling {
             }
             RopeScaling::Dynamic => {
                 write!(f, "dynamic")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum UsageStatsLevel {
+    /// Default option, usage statistics are collected anonymously
+    On,
+    /// Disables all collection of usage statistics
+    Off,
+    /// Doesn't send the error stack trace or error type, but allows sending a crash event
+    NoStack,
+}
+
+impl std::fmt::Display for UsageStatsLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self {
+            UsageStatsLevel::On => {
+                write!(f, "on")
+            }
+            UsageStatsLevel::Off => {
+                write!(f, "off")
+            }
+            UsageStatsLevel::NoStack => {
+                write!(f, "no-stack")
             }
         }
     }
@@ -418,6 +449,10 @@ struct Args {
 
     #[clap(long, env)]
     cors_allow_origin: Vec<String>,
+
+    #[clap(long, env)]
+    api_key: Option<String>,
+
     #[clap(long, env)]
     watermark_gamma: Option<f32>,
     #[clap(long, env)]
@@ -457,6 +492,12 @@ struct Args {
     /// startup that will be available to callers via the `adapter_id` field in a request.
     #[clap(long, env)]
     lora_adapters: Option<String>,
+
+    /// Control if anonymous usage stats are collected.
+    /// Options are "on", "off" and "no-stack"
+    /// Defaul is on.
+    #[clap(default_value = "on", long, env)]
+    usage_stats: UsageStatsLevel,
 }
 
 #[derive(Debug)]
@@ -1201,6 +1242,10 @@ fn spawn_webserver(
         args.model_id,
     ];
 
+    // Pass usage stats flags to router
+    router_args.push("--usage-stats".to_string());
+    router_args.push(args.usage_stats.to_string());
+
     // Grammar support
     if args.disable_grammar_support {
         router_args.push("--disable-grammar-support".to_string());
@@ -1251,6 +1296,11 @@ fn spawn_webserver(
         router_args.push(origin);
     }
 
+    // API Key
+    if let Some(api_key) = args.api_key {
+        router_args.push("--api-key".to_string());
+        router_args.push(api_key);
+    }
     // Ngrok
     if args.ngrok {
         router_args.push("--ngrok".to_string());
@@ -1384,7 +1434,13 @@ fn main() -> Result<(), LauncherError> {
         let mut path = std::path::Path::new(&args.model_id).to_path_buf();
         let filename = if !path.exists() {
             // Assume it's a hub id
-            let api = Api::new()?;
+
+            let api = if let Ok(token) = std::env::var("HF_TOKEN") {
+                // env variable has precedence over on file token.
+                ApiBuilder::new().with_token(Some(token)).build()?
+            } else {
+                Api::new()?
+            };
             let repo = if let Some(ref revision) = args.revision {
                 api.repo(Repo::with_revision(
                     model_id,
@@ -1402,6 +1458,11 @@ fn main() -> Result<(), LauncherError> {
 
         let content = std::fs::read_to_string(filename)?;
         let config: RawConfig = serde_json::from_str(&content)?;
+
+        if config.model_type == Some("gemma2".to_string()) {
+            tracing::info!("Forcing flash decoding because of softcap usage");
+            std::env::set_var("FLASH_DECODING", "1");
+        }
         let config: Config = config.into();
 
         // Quantization usually means you're even more RAM constrained.
@@ -1576,6 +1637,10 @@ fn main() -> Result<(), LauncherError> {
     // Download and convert lora adapters if any
     if let Some(lora_adapters) = &args.lora_adapters {
         for adapter in lora_adapters.split(',') {
+            // skip download if a path is provided
+            if adapter.contains('=') {
+                continue;
+            }
             download_convert_model(
                 adapter,
                 None,

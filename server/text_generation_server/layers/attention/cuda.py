@@ -2,6 +2,7 @@ import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import FLASH_DECODING, BLOCK_SIZE
 from text_generation_server.layers.attention import Seqlen
+from typing import Optional
 
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
@@ -9,7 +10,6 @@ _PARTITION_SIZE = 512
 
 try:
     from vllm._C import cache_ops
-    from vllm._C import ops
 except Exception as e:
     raise ImportError(
         f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
@@ -34,7 +34,6 @@ def reshape_and_cache(
 
 
 def paged_attention(
-    out: torch.Tensor,
     query: torch.Tensor,
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
@@ -43,6 +42,7 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
+    softcap: Optional[float] = None,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -82,13 +82,16 @@ def paged_attention(
         # by the current path
         # https://github.com/Dao-AILab/flash-attention/blob/320fb59487658f033f56711efd3d61b7c7a6f8f3/csrc/flash_attn/flash_api.cpp#L577
         # This fails becuase we're using causal, therefore window_right is set to 0 and the split logic is never applied.
-        out2 = flash_attn_2_cuda.varlen_fwd(
+        if softcap is None:
+            softcap = 0.0
+        out = flash_attn_2_cuda.varlen_fwd(
             query,
             key_cache,
             value_cache,
             None,
             seqlen.cu_seqlen_q,
             seqlen.cu_seqlen_k,
+            None,  # pad_k
             None,
             block_tables,
             None,
@@ -100,13 +103,18 @@ def paged_attention(
             True,  # causal
             -1,  # Window_left
             -1,  # Window right
+            softcap,
             False,  # return softmax
             None,  # generator
         )
-        return out2[0]
+        return out[0]
     else:
+        if softcap is not None:
+            raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths
         from vllm._C import ops
+
+        out = torch.empty_like(query)
 
         use_v1 = max_s <= 8192 and (
             max_num_partitions == 1 or num_seqs * num_heads > 512
@@ -193,19 +201,21 @@ except ImportError:
 
 
 SUPPORTS_WINDOWING = V2
+
 if V2:
 
     def attention(
         q,
         k,
         v,
-        out,
         cu_seqlens,
         max_s,
         softmax_scale,
         window_size_left=-1,
         causal=True,
+        softcap=0.0,
     ):
+        out = torch.empty_like(q)
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
         return flash_attn_2_cuda.varlen_fwd(
@@ -218,6 +228,7 @@ if V2:
             None,
             None,
             None,
+            None,
             max_s,
             max_s,
             0.0,
@@ -226,9 +237,10 @@ if V2:
             causal,
             window_size_left,
             0,
+            softcap,
             False,
             None,
-        )
+        )[0]
 
 else:
 
@@ -236,16 +248,18 @@ else:
         q,
         k,
         v,
-        out,
         cu_seqlens,
         max_s,
         softmax_scale,
         window_size_left=-1,
+        softcap=None,
     ):
         if window_size_left != -1:
             raise NotImplementedError(
                 "window_size_left is only available with flash attn v2"
             )
+        if softcap is not None:
+            raise NotImplementedError("softcap is only available with flash attn v2")
 
         # Flash attention v1 requires q, k and v to have the same number of heads
         if k.shape[1] != q.shape[1]:
@@ -273,6 +287,8 @@ else:
                     .reshape(original_shape[0], -1, original_shape[2])
                 )
 
+        out = torch.empty_like(q)
+
         return flash_attn_cuda.fwd(
             q,
             k,
@@ -289,4 +305,4 @@ else:
             False,
             0,
             None,
-        )
+        )[0]

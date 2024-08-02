@@ -129,7 +129,6 @@ class IdeficsVisionAttention(nn.Module):
         self.scale = self.head_dim**-0.5
         self.dropout = config.attention_dropout
 
-        process_group = weights.process_group
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
@@ -460,7 +459,6 @@ class IdeficsVisionTransformer(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
-        embed_dim = config.hidden_size
 
         self.embeddings = IdeficsVisionEmbeddings(
             prefix=f"{prefix}.embeddings", config=config, weights=weights

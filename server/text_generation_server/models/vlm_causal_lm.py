@@ -1,4 +1,3 @@
-from itertools import repeat
 import torch
 from PIL import Image
 from io import BytesIO
@@ -13,7 +12,9 @@ from text_generation_server.models.flash_causal_lm import (
     FlashCausalLMBatch,
     FlashCausalLM,
 )
+from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
+from text_generation_server.layers.attention import Seqlen
 
 tracer = trace.get_tracer(__name__)
 
@@ -56,8 +57,9 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         num_features = get_number_of_features(height, width, config)
         from loguru import logger
 
-        logger.info(
-            f"Found {num_features} features in image of resolution {height}x{width}"
+        log_master(
+            logger.info,
+            f"Found {num_features} features in image of resolution {height}x{width}",
         )
         return "<image>" * num_features
 
@@ -261,7 +263,12 @@ class VlmCausalLM(FlashCausalLM):
             **processor_kwargs,
         )
         self.batch_class = batch_class
-        super().__init__(model_id=model_id, **kwargs)
+        super().__init__(
+            model_id=model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+            **kwargs,
+        )
 
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
@@ -342,6 +349,7 @@ class VlmCausalLM(FlashCausalLM):
         else:
             cuda_graph = None
         if cu_seqlen_prefill is not None or cuda_graph is None:
+            input_lengths = Seqlen(input_lengths=input_lengths)
             logits, speculative_logits = self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,

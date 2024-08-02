@@ -1,9 +1,7 @@
 /// HTTP Server logic
 use crate::config::Config;
-use crate::infer::v2::SchedulerV2;
-use crate::infer::v3::SchedulerV3;
-use crate::infer::{HealthCheck, Scheduler};
-use crate::infer::{Infer, InferError, InferResponse, InferStreamResponse, ToolGrammar};
+use crate::infer::tool_grammar::ToolGrammar;
+use crate::infer::{Backend, Infer, InferError, InferResponse, InferStreamResponse};
 #[cfg(feature = "kserve")]
 use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
@@ -11,11 +9,11 @@ use crate::kserve::{
 };
 use crate::validation::ValidationError;
 use crate::{
-    BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName, GenerateParameters,
-    GenerateRequest, GenerateResponse, GrammarType, HubModelInfo, HubProcessorConfig,
-    HubTokenizerConfig, Info, Message, MessageChunk, MessageContent, OutputMessage, PrefillToken,
-    SimpleToken, StreamDetails, StreamResponse, TextMessage, Token, TokenizeResponse,
-    ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
+    usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
+    GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
+    HubProcessorConfig, HubTokenizerConfig, Info, Message, MessageChunk, MessageContent,
+    OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamResponse, TextMessage, Token,
+    TokenizeResponse, ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -24,10 +22,10 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
     VertexResponse,
 };
-use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolType};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
-use axum::http::{HeaderMap, Method, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -37,14 +35,18 @@ use futures::stream::StreamExt;
 use futures::stream::{FuturesOrdered, FuturesUnordered};
 use futures::Stream;
 use futures::TryStreamExt;
+use hf_hub::api::tokio::{Api, ApiBuilder, ApiRepo};
+use hf_hub::{Cache, Repo, RepoType};
+use http::header::AUTHORIZATION;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use serde_json::Value;
 use std::convert::Infallible;
-use std::net::SocketAddr;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use text_generation_client::{v2, v3, ClientError, ShardInfo};
+use std::fs::File;
+use std::io::BufReader;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tokenizers::processors::template::TemplateProcessing;
 use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
@@ -123,12 +125,10 @@ responses(
 example = json ! ({"error": "unhealthy", "error_type": "healthcheck"})),
 )
 )]
-#[instrument(skip(health))]
+#[instrument(skip(infer))]
 /// Health check method
-async fn health(
-    mut health: Extension<HealthCheck>,
-) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
-    match health.check().await {
+async fn health(infer: Extension<Infer>) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    match infer.health().await {
         true => Ok(()),
         false => Err((
             StatusCode::SERVICE_UNAVAILABLE,
@@ -429,8 +429,9 @@ async fn generate_stream_internal(
         } else {
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
-                Ok((_permit, _input_length, mut response_stream)) => {
+                Ok((_permit, _input_length, response_stream)) => {
                     let mut index = 0;
+                    let mut response_stream = Box::pin(response_stream);
                     // Server-Sent Event stream
                     while let Some(response) = response_stream.next().await {
                         index += 1;
@@ -812,6 +813,10 @@ async fn completions(
             }
         };
 
+        let stream = stream.chain(futures::stream::once(async {
+            Ok(Event::default().data("[DONE]"))
+        }));
+
         let sse = Sse::new(stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
@@ -1171,6 +1176,11 @@ async fn chat_completions(
             span,
         )
         .await;
+
+        let response_stream = response_stream.chain(futures::stream::once(async {
+            Ok(Event::default().data("[DONE]"))
+        }));
+
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
@@ -1183,39 +1193,33 @@ async fn chat_completions(
             .as_secs();
 
         let (tool_calls, output) = if tool_grammar.is_some() {
-            // gen_text should be valid json
-            let gen_text_value: Value =
-                serde_json::from_str(&generation.generated_text).map_err(|e| {
-                    (
-                        StatusCode::UNPROCESSABLE_ENTITY,
-                        Json(ErrorResponse {
-                            error: e.to_string(),
-                            error_type: "Input validation error".to_string(),
-                        }),
-                    )
-                })?;
+            let gen_text_value: Value = serde_json::from_str(&generation.generated_text)
+                .map_err(|e| InferError::ToolError(e.to_string()))?;
+
+            let function = gen_text_value.get("function").ok_or(InferError::ToolError(
+                "No function found in generated text".to_string(),
+            ))?;
+
+            let name = function
+                .get("_name")
+                .and_then(Value::as_str)
+                .ok_or(InferError::ToolError(
+                    "No _name found in generated text".to_string(),
+                ))?
+                .to_string();
+
+            let mut arguments = function.clone();
+            if let Value::Object(ref mut props) = arguments {
+                props.remove("_name");
+            }
+
             let tool_calls = vec![ToolCall {
                 id: "0".to_string(),
                 r#type: "function".to_string(),
                 function: FunctionDefinition {
                     description: None,
-                    name: gen_text_value
-                        .get("function")
-                        .and_then(|f| f.get("_name"))
-                        .and_then(|name| name.as_str())
-                        .unwrap_or("default_function_name")
-                        .to_string(),
-                    // Serialize the JSON object obtained from "function" to an escaped JSON string
-                    arguments: gen_text_value
-                        .get("function")
-                        .map(|f| {
-                            let mut f_cloned = f.clone();
-                            if let Value::Object(ref mut props) = f_cloned {
-                                props.remove("_name");
-                            }
-                            f_cloned
-                        })
-                        .unwrap_or_default(),
+                    name,
+                    arguments,
                 },
             }];
             (Some(tool_calls), None)
@@ -1392,260 +1396,451 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
 #[derive(Clone, Debug)]
 pub(crate) struct ComputeType(String);
 
+// OpenAPI documentation
+#[derive(OpenApi)]
+#[openapi(
+paths(
+health,
+get_model_info,
+compat_generate,
+generate,
+generate_stream,
+chat_completions,
+completions,
+tokenize,
+metrics,
+),
+components(
+schemas(
+Info,
+CompatGenerateRequest,
+GenerateRequest,
+GrammarType,
+ChatRequest,
+Message,
+MessageContent,
+MessageChunk,
+Url,
+FunctionName,
+OutputMessage,
+TextMessage,
+ToolCallMessage,
+ToolCallDelta,
+ChatCompletionComplete,
+ChatCompletionChoice,
+ChatCompletionDelta,
+ChatCompletionChunk,
+ChatCompletionLogprob,
+ChatCompletionLogprobs,
+ChatCompletionTopLogprob,
+ChatCompletion,
+CompletionRequest,
+CompletionComplete,
+Chunk,
+Completion,
+CompletionFinal,
+Prompt,
+GenerateParameters,
+PrefillToken,
+Token,
+GenerateResponse,
+TokenizeResponse,
+SimpleToken,
+BestOfSequence,
+Details,
+FinishReason,
+StreamResponse,
+StreamDetails,
+ErrorResponse,
+GrammarType,
+Usage,
+DeltaToolCall,
+ToolType,
+Tool,
+ToolCall,
+Function,
+FunctionDefinition,
+ToolChoice,
+)
+),
+tags(
+(name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
+),
+info(
+title = "Text Generation Inference",
+license(
+name = "Apache 2.0",
+url = "https://www.apache.org/licenses/LICENSE-2.0"
+)
+)
+)]
+pub struct ApiDoc;
+
+pub fn schema() -> ApiDoc {
+    ApiDoc
+}
+
 /// Serving method
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
-    master_shard_uds_path: String,
-    model_info: HubModelInfo,
-    compat_return_full_text: bool,
+    backend: impl Backend + Send + Sync + 'static,
     max_concurrent_requests: usize,
     max_best_of: usize,
     max_stop_sequences: usize,
     max_top_n_tokens: u32,
     max_input_tokens: usize,
     max_total_tokens: usize,
-    waiting_served_ratio: f32,
-    max_batch_prefill_tokens: u32,
-    max_batch_total_tokens: Option<u32>,
-    max_waiting_tokens: usize,
-    max_batch_size: Option<usize>,
-    tokenizer: Option<Tokenizer>,
-    config: Option<Config>,
     validation_workers: usize,
-    addr: SocketAddr,
-    allow_origin: Option<AllowOrigin>,
+    api_key: Option<String>,
+    tokenizer_name: String,
+    tokenizer_config_path: Option<String>,
+    revision: Option<String>,
+    hostname: String,
+    port: u16,
+    cors_allow_origin: Option<Vec<String>>,
     ngrok: bool,
     _ngrok_authtoken: Option<String>,
     _ngrok_edge: Option<String>,
-    tokenizer_config: HubTokenizerConfig,
-    preprocessor_config: Option<HubPreprocessorConfig>,
-    processor_config: HubProcessorConfig,
     messages_api_enabled: bool,
-    grammar_support: bool,
+    disable_grammar_support: bool,
     max_client_batch_size: usize,
-    print_schema_command: bool,
+    usage_stats_level: usage_stats::UsageStatsLevel,
 ) -> Result<(), WebServerError> {
-    // OpenAPI documentation
-    #[derive(OpenApi)]
-    #[openapi(
-    paths(
-    health,
-    get_model_info,
-    compat_generate,
-    generate,
-    generate_stream,
-    chat_completions,
-    completions,
-    tokenize,
-    metrics,
-    ),
-    components(
-    schemas(
-    Info,
-    CompatGenerateRequest,
-    GenerateRequest,
-    GrammarType,
-    ChatRequest,
-    Message,
-    MessageContent,
-    MessageChunk,
-    Url,
-    FunctionName,
-    OutputMessage,
-    TextMessage,
-    ToolCallMessage,
-    ToolCallDelta,
-    ChatCompletionComplete,
-    ChatCompletionChoice,
-    ChatCompletionDelta,
-    ChatCompletionChunk,
-    ChatCompletionLogprob,
-    ChatCompletionLogprobs,
-    ChatCompletionTopLogprob,
-    ChatCompletion,
-    CompletionRequest,
-    CompletionComplete,
-    Chunk,
-    Completion,
-    CompletionFinal,
-    Prompt,
-    GenerateParameters,
-    PrefillToken,
-    Token,
-    GenerateResponse,
-    TokenizeResponse,
-    SimpleToken,
-    BestOfSequence,
-    Details,
-    FinishReason,
-    StreamResponse,
-    StreamDetails,
-    ErrorResponse,
-    GrammarType,
-    Usage,
-    DeltaToolCall,
-    ToolType,
-    Tool,
-    ToolCall,
-    Function,
-    FunctionDefinition,
-    )
-    ),
-    tags(
-    (name = "Text Generation Inference", description = "Hugging Face Text Generation Inference API")
-    ),
-    info(
-    title = "Text Generation Inference",
-    license(
-    name = "Apache 2.0",
-    url = "https://www.apache.org/licenses/LICENSE-2.0"
-    )
-    )
-    )]
-    struct ApiDoc;
+    // CORS allowed origins
+    // map to go inside the option and then map to parse from String to HeaderValue
+    // Finally, convert to AllowOrigin
+    let allow_origin: Option<AllowOrigin> = cors_allow_origin.map(|cors_allow_origin| {
+        AllowOrigin::list(
+            cors_allow_origin
+                .iter()
+                .map(|origin| origin.parse::<HeaderValue>().unwrap()),
+        )
+    });
 
-    // Create state
-    if print_schema_command {
-        let api_doc = ApiDoc::openapi();
-        let api_doc = serde_json::to_string_pretty(&api_doc).unwrap();
-        println!("{}", api_doc);
-        std::process::exit(0);
+    // Parse Huggingface hub token
+    let authorization_token = std::env::var("HF_TOKEN")
+        .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
+        .ok();
+
+    // Tokenizer instance
+    // This will only be used to validate payloads
+    let local_path = Path::new(&tokenizer_name);
+
+    // Shared API builder initialization
+    let api_builder = || {
+        let mut builder = ApiBuilder::new()
+            .with_progress(false)
+            .with_token(authorization_token);
+
+        if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
+            builder = builder.with_cache_dir(cache_dir.into());
+        }
+
+        builder
+    };
+
+    // Decide if we need to use the API based on the revision and local path
+    let use_api = revision.is_some() || !local_path.exists() || !local_path.is_dir();
+
+    // Initialize API if needed
+    #[derive(Clone)]
+    enum Type {
+        Api(Api),
+        Cache(Cache),
+        None,
     }
-
-    // Open connection, get model info and warmup
-    let (scheduler, health_ext, shard_info, max_batch_total_tokens): (
-        Arc<dyn Scheduler + Send + Sync>,
-        HealthCheck,
-        ShardInfo,
-        u32,
-    ) = {
-        // Helper function to check both v2 and v3
-        let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
-            match max_supported_batch_total_tokens {
-                // Older models do not support automatic max-batch-total-tokens
-                None => {
-                    let max_batch_total_tokens = max_batch_total_tokens.unwrap_or(
-                        16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)),
-                    );
-                    tracing::warn!("Model does not support automatic max batch total tokens");
-                    Ok(max_batch_total_tokens)
+    let api = if use_api {
+        if std::env::var("HF_HUB_OFFLINE") == Ok("1".to_string()) {
+            let cache = std::env::var("HUGGINGFACE_HUB_CACHE")
+                .map_err(|_| ())
+                .map(|cache_dir| Cache::new(cache_dir.into()))
+                .unwrap_or_else(|_| Cache::default());
+            tracing::warn!("Offline mode active using cache defaults");
+            Type::Cache(cache)
+        } else {
+            tracing::info!("Using the Hugging Face API");
+            match api_builder().build() {
+                Ok(api) => Type::Api(api),
+                Err(_) => {
+                    tracing::warn!("Unable to build the Hugging Face API");
+                    Type::None
                 }
-                // Flash attention models return their max supported total tokens
-                Some(max_supported_batch_total_tokens) => {
-                    // Warn if user added his own max-batch-total-tokens as we will ignore it
-                    if max_batch_total_tokens.is_some() {
-                        tracing::warn!(
-                            "`--max-batch-total-tokens` is deprecated for Flash \
-                        Attention models."
-                        );
-                        tracing::warn!(
-                            "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
-                        );
-                    }
-                    if max_total_tokens as u32 > max_supported_batch_total_tokens {
-                        return Err(WebServerError::NotEnoughMemory(max_total_tokens));
-                    }
-
-                    Ok(max_supported_batch_total_tokens)
-                }
-            }
-        };
-
-        let generation_health = Arc::new(AtomicBool::new(false));
-
-        match v3::ShardedClient::connect_uds(master_shard_uds_path.clone()).await {
-            Ok(mut sharded_client) => {
-                // server is running on v3
-                // Clear the cache; useful if the webserver rebooted
-                sharded_client
-                    .clear_cache(None)
-                    .await
-                    .map_err(WebServerError::Cache)?;
-                // Get info from the shard
-                let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
-
-                // Warmup model
-                tracing::info!("Warming up model");
-                let max_batch_total_tokens = check_max_batch_total_tokens(
-                    sharded_client
-                        .warmup(
-                            max_input_tokens as u32,
-                            max_batch_prefill_tokens,
-                            max_total_tokens as u32,
-                            max_batch_size,
-                        )
-                        .await
-                        .map_err(WebServerError::Warmup)?,
-                )?;
-
-                let health_ext =
-                    HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
-                let scheduler = Arc::new(SchedulerV3::new(
-                    sharded_client,
-                    waiting_served_ratio,
-                    max_batch_prefill_tokens,
-                    max_batch_total_tokens,
-                    max_waiting_tokens,
-                    max_batch_size,
-                    shard_info.requires_padding,
-                    shard_info.window_size,
-                    shard_info.speculate,
-                    generation_health,
-                ));
-                tracing::info!("Using scheduler V3");
-
-                (scheduler, health_ext, shard_info, max_batch_total_tokens)
-            }
-            Err(_) => {
-                let mut sharded_client = v2::ShardedClient::connect_uds(master_shard_uds_path)
-                    .await
-                    .map_err(WebServerError::Connection)?;
-
-                // server is running on v2
-                // Clear the cache; useful if the webserver rebooted
-                sharded_client
-                    .clear_cache(None)
-                    .await
-                    .map_err(WebServerError::Cache)?;
-                // Get info from the shard
-                let shard_info = sharded_client.info().await.map_err(WebServerError::Info)?;
-
-                // Warmup model
-                tracing::info!("Warming up model");
-                let max_batch_total_tokens = check_max_batch_total_tokens(
-                    sharded_client
-                        .warmup(
-                            max_input_tokens as u32,
-                            max_batch_prefill_tokens,
-                            max_total_tokens as u32,
-                            max_batch_size,
-                        )
-                        .await
-                        .map_err(WebServerError::Warmup)?,
-                )?;
-
-                let health_ext =
-                    HealthCheck::new(Arc::new(sharded_client.clone()), generation_health.clone());
-                let scheduler = Arc::new(SchedulerV2::new(
-                    sharded_client,
-                    waiting_served_ratio,
-                    max_batch_prefill_tokens,
-                    max_batch_total_tokens,
-                    max_waiting_tokens,
-                    max_batch_size,
-                    shard_info.requires_padding,
-                    shard_info.window_size,
-                    shard_info.speculate,
-                    generation_health,
-                ));
-                tracing::info!("Using scheduler V2");
-
-                (scheduler, health_ext, shard_info, max_batch_total_tokens)
             }
         }
+    } else {
+        Type::None
     };
-    tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
 
+    // Load tokenizer and model info
+    let (
+        tokenizer_filename,
+        config_filename,
+        tokenizer_config_filename,
+        preprocessor_config_filename,
+        processor_config_filename,
+        model_info,
+    ) = match api {
+        Type::None => (
+            Some(local_path.join("tokenizer.json")),
+            Some(local_path.join("config.json")),
+            Some(local_path.join("tokenizer_config.json")),
+            Some(local_path.join("preprocessor_config.json")),
+            Some(local_path.join("processor_config.json")),
+            None,
+        ),
+        Type::Api(api) => {
+            let api_repo = api.repo(Repo::with_revision(
+                tokenizer_name.to_string(),
+                RepoType::Model,
+                revision.clone().unwrap_or_else(|| "main".to_string()),
+            ));
+
+            let tokenizer_filename = match api_repo.get("tokenizer.json").await {
+                Ok(tokenizer_filename) => Some(tokenizer_filename),
+                Err(_) => get_base_tokenizer(&api, &api_repo).await,
+            };
+            let config_filename = api_repo.get("config.json").await.ok();
+            let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
+            let preprocessor_config_filename = api_repo.get("preprocessor_config.json").await.ok();
+            let processor_config_filename = api_repo.get("processor_config.json").await.ok();
+
+            let model_info = if let Some(model_info) = get_hub_model_info(&api_repo).await {
+                Some(model_info)
+            } else {
+                tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
+                None
+            };
+            (
+                tokenizer_filename,
+                config_filename,
+                tokenizer_config_filename,
+                preprocessor_config_filename,
+                processor_config_filename,
+                model_info,
+            )
+        }
+        Type::Cache(cache) => {
+            let repo = cache.repo(Repo::with_revision(
+                tokenizer_name.to_string(),
+                RepoType::Model,
+                revision.clone().unwrap_or_else(|| "main".to_string()),
+            ));
+            (
+                repo.get("tokenizer.json"),
+                repo.get("config.json"),
+                repo.get("tokenizer_config.json"),
+                repo.get("preprocessor_config.json"),
+                repo.get("processor_config.json"),
+                None,
+            )
+        }
+    };
+
+    // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
+    let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
+    {
+        HubTokenizerConfig::from_file(filename)
+    } else {
+        tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
+    };
+    let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
+        tracing::warn!("Could not find tokenizer config locally and no API specified");
+        HubTokenizerConfig::default()
+    });
+
+    let tokenizer: Option<Tokenizer> = tokenizer_filename.and_then(|filename| {
+        let mut tokenizer = Tokenizer::from_file(filename).ok();
+        if let Some(tokenizer) = &mut tokenizer {
+            if let Some(class) = &tokenizer_config.tokenizer_class {
+                if class == "LlamaTokenizer" || class == "LlamaTokenizerFast"{
+                    if let Ok(post_processor) = create_post_processor(tokenizer, &tokenizer_config) {
+                        tracing::info!("Overriding LlamaTokenizer with TemplateProcessing to follow python override defined in https://github.com/huggingface/transformers/blob/4aa17d00690b7f82c95bb2949ea57e22c35b4336/src/transformers/models/llama/tokenization_llama_fast.py#L203-L205");
+                        tokenizer.with_post_processor(post_processor);
+                    }
+                }
+            }
+        }
+        tokenizer
+    });
+
+    let config: Option<Config> = config_filename.and_then(|filename| {
+        std::fs::read_to_string(filename)
+            .ok()
+            .as_ref()
+            .and_then(|c| {
+                let config: Result<Config, _> = serde_json::from_str(c);
+                if let Err(err) = &config {
+                    tracing::warn!("Could not parse config {err:?}");
+                }
+                config.ok()
+            })
+    });
+    let model_info = model_info.unwrap_or_else(|| HubModelInfo {
+        model_id: tokenizer_name.to_string(),
+        sha: None,
+        pipeline_tag: None,
+    });
+
+    let processor_config = processor_config_filename
+        .and_then(HubProcessorConfig::from_file)
+        .unwrap_or_default();
+
+    let preprocessor_config: Option<HubPreprocessorConfig> =
+        preprocessor_config_filename.and_then(HubPreprocessorConfig::from_file);
+
+    tracing::info!("Using config {config:?}");
+    if tokenizer.is_none() {
+        tracing::warn!("Could not find a fast tokenizer implementation for {tokenizer_name}");
+        tracing::warn!("Rust input length validation and truncation is disabled");
+    }
+
+    // Only send usage stats when TGI is run in container and the function returns Some
+    let is_container = matches!(usage_stats::is_container(), Ok(true));
+    let user_agent = match (usage_stats_level, is_container) {
+        (usage_stats::UsageStatsLevel::On | usage_stats::UsageStatsLevel::NoStack, true) => {
+            let reduced_args = usage_stats::Args::new(
+                config.clone(),
+                tokenizer_config.tokenizer_class.clone(),
+                max_concurrent_requests,
+                max_best_of,
+                max_stop_sequences,
+                max_top_n_tokens,
+                max_input_tokens,
+                max_total_tokens,
+                // waiting_served_ratio,
+                // max_batch_prefill_tokens,
+                // max_batch_total_tokens,
+                // max_waiting_tokens,
+                // max_batch_size,
+                revision.clone(),
+                validation_workers,
+                messages_api_enabled,
+                disable_grammar_support,
+                max_client_batch_size,
+                usage_stats_level,
+            );
+            Some(usage_stats::UserAgent::new(reduced_args))
+        }
+        _ => None,
+    };
+
+    if let Some(ref ua) = user_agent {
+        let start_event =
+            usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Start, None);
+        tokio::spawn(async move {
+            start_event.send().await;
+        });
+    };
+    let compat_return_full_text = match &model_info.pipeline_tag {
+        None => {
+            tracing::warn!("no pipeline tag found for model {tokenizer_name}");
+            true
+        }
+        Some(pipeline_tag) => pipeline_tag.as_str() == "text-generation",
+    };
+    let result = start(
+        backend,
+        max_concurrent_requests,
+        max_best_of,
+        max_stop_sequences,
+        max_top_n_tokens,
+        max_input_tokens,
+        max_total_tokens,
+        validation_workers,
+        api_key,
+        config,
+        (tokenizer, tokenizer_config),
+        (preprocessor_config, processor_config),
+        hostname,
+        port,
+        ngrok,
+        _ngrok_authtoken,
+        _ngrok_edge,
+        messages_api_enabled,
+        disable_grammar_support,
+        max_client_batch_size,
+        model_info,
+        compat_return_full_text,
+        allow_origin,
+    )
+    .await;
+
+    if let Some(ua) = user_agent {
+        match result {
+            Ok(_) => {
+                let stop_event = usage_stats::UsageStatsEvent::new(
+                    ua.clone(),
+                    usage_stats::EventType::Stop,
+                    None,
+                );
+                stop_event.send().await;
+                Ok(())
+            }
+            Err(e) => {
+                let description = match usage_stats_level {
+                    usage_stats::UsageStatsLevel::On => Some(e.to_string()),
+                    usage_stats::UsageStatsLevel::NoStack => Some("unknow_error".to_string()),
+                    _ => None,
+                };
+                let event = usage_stats::UsageStatsEvent::new(
+                    ua.clone(),
+                    usage_stats::EventType::Error,
+                    description,
+                );
+                event.send().await;
+
+                Err(e)
+            }
+        }
+    } else {
+        result
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn start(
+    backend: impl Backend + Send + Sync + 'static,
+    max_concurrent_requests: usize,
+    max_best_of: usize,
+    max_stop_sequences: usize,
+    max_top_n_tokens: u32,
+    max_input_tokens: usize,
+    max_total_tokens: usize,
+    validation_workers: usize,
+    api_key: Option<String>,
+    config: Option<Config>,
+    (tokenizer, tokenizer_config): (Option<Tokenizer>, HubTokenizerConfig),
+    (preprocessor_config, processor_config): (Option<HubPreprocessorConfig>, HubProcessorConfig),
+    hostname: String,
+    port: u16,
+    ngrok: bool,
+    _ngrok_authtoken: Option<String>,
+    _ngrok_edge: Option<String>,
+    messages_api_enabled: bool,
+    disable_grammar_support: bool,
+    max_client_batch_size: usize,
+    model_info: HubModelInfo,
+    compat_return_full_text: bool,
+    allow_origin: Option<AllowOrigin>,
+) -> Result<(), WebServerError> {
+    // Determine the server port based on the feature and environment variable.
+    let port = if cfg!(feature = "google") {
+        std::env::var("AIP_HTTP_PORT")
+            .map(|aip_http_port| aip_http_port.parse::<u16>().unwrap_or(port))
+            .unwrap_or(port)
+    } else {
+        port
+    };
+
+    let addr = match hostname.parse() {
+        Ok(ip) => SocketAddr::new(ip, port),
+        Err(_) => {
+            tracing::warn!("Invalid hostname, defaulting to 0.0.0.0");
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port)
+        }
+    };
+
+    // Create state
     let validation = Validation::new(
         validation_workers,
         tokenizer,
@@ -1656,11 +1851,11 @@ pub async fn run(
         max_top_n_tokens,
         max_input_tokens,
         max_total_tokens,
-        grammar_support,
+        disable_grammar_support,
     );
 
     let infer = Infer::new(
-        scheduler,
+        backend,
         validation,
         max_concurrent_requests,
         tokenizer_config,
@@ -1697,8 +1892,8 @@ pub async fn run(
     let batch_size_matcher = Matcher::Full(String::from("tgi_batch_next_size"));
     let batch_size_buckets: Vec<f64> = (0..1024).map(|x| (x + 1) as f64).collect();
     // Speculated tokens buckets
-    let skipped_matcher = Matcher::Full(String::from("tgi_request_skipped_tokens"));
-    let skipped_buckets: Vec<f64> = (0..shard_info.speculate + 1).map(|x| x as f64).collect();
+    // let skipped_matcher = Matcher::Full(String::from("tgi_request_skipped_tokens"));
+    // let skipped_buckets: Vec<f64> = (0..shard_info.speculate + 1).map(|x| x as f64).collect();
 
     // Prometheus handler
     let builder = PrometheusBuilder::new()
@@ -1711,9 +1906,9 @@ pub async fn run(
         .set_buckets_for_metric(max_new_tokens_matcher, &max_new_tokens_buckets)
         .unwrap()
         .set_buckets_for_metric(batch_size_matcher, &batch_size_buckets)
-        .unwrap()
-        .set_buckets_for_metric(skipped_matcher, &skipped_buckets)
         .unwrap();
+    // .set_buckets_for_metric(skipped_matcher, &skipped_buckets)
+    // .unwrap();
     let prom_handle = builder
         .install_recorder()
         .expect("failed to install metrics recorder");
@@ -1729,18 +1924,18 @@ pub async fn run(
     let info = Info {
         model_id: model_info.model_id,
         model_sha: model_info.sha,
-        model_dtype: shard_info.dtype,
-        model_device_type: shard_info.device_type,
+        // model_dtype: shard_info.dtype,
+        // model_device_type: shard_info.device_type,
         model_pipeline_tag: model_info.pipeline_tag,
         max_concurrent_requests,
         max_best_of,
         max_stop_sequences,
         max_input_tokens,
         max_total_tokens,
-        waiting_served_ratio,
-        max_batch_total_tokens,
-        max_waiting_tokens,
-        max_batch_size,
+        // waiting_served_ratio,
+        // max_batch_total_tokens,
+        // max_waiting_tokens,
+        // max_batch_size,
         validation_workers,
         max_client_batch_size,
         router: env!("CARGO_PKG_NAME"),
@@ -1806,16 +2001,42 @@ pub async fn run(
     let swagger_ui = SwaggerUi::new("/docs").url("/api-doc/openapi.json", doc);
 
     // Define base and health routes
-    let base_routes = Router::new()
+    let mut base_routes = Router::new()
         .route("/", post(compat_generate))
-        .route("/", get(health))
-        .route("/info", get(get_model_info))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/completions", post(completions))
         .route("/vertex", post(vertex_compatibility))
-        .route("/tokenize", post(tokenize))
+        .route("/tokenize", post(tokenize));
+
+    if let Some(api_key) = api_key {
+        let mut prefix = "Bearer ".to_string();
+        prefix.push_str(&api_key);
+
+        // Leak to allow FnMut
+        let api_key: &'static str = prefix.leak();
+
+        let auth = move |headers: HeaderMap,
+                         request: axum::extract::Request,
+                         next: axum::middleware::Next| async move {
+            match headers.get(AUTHORIZATION) {
+                Some(token) => match token.to_str() {
+                    Ok(token_str) if token_str.to_lowercase() == api_key.to_lowercase() => {
+                        let response = next.run(request).await;
+                        Ok(response)
+                    }
+                    _ => Err(StatusCode::UNAUTHORIZED),
+                },
+                None => Err(StatusCode::UNAUTHORIZED),
+            }
+        };
+
+        base_routes = base_routes.layer(axum::middleware::from_fn(auth))
+    }
+    let info_routes = Router::new()
+        .route("/", get(health))
+        .route("/info", get(get_model_info))
         .route("/health", get(health))
         .route("/ping", get(health))
         .route("/metrics", get(metrics));
@@ -1834,6 +2055,7 @@ pub async fn run(
     let mut app = Router::new()
         .merge(swagger_ui)
         .merge(base_routes)
+        .merge(info_routes)
         .merge(aws_sagemaker_route);
 
     #[cfg(feature = "google")]
@@ -1874,7 +2096,6 @@ pub async fn run(
     // add layers after routes
     app = app
         .layer(Extension(info))
-        .layer(Extension(health_ext.clone()))
         .layer(Extension(compat_return_full_text))
         .layer(Extension(infer))
         .layer(Extension(compute_type))
@@ -1910,6 +2131,68 @@ pub async fn run(
             .map_err(|err| WebServerError::Axum(Box::new(err)))?;
     }
     Ok(())
+}
+
+/// get model info from the Huggingface Hub
+pub async fn get_hub_model_info(api: &ApiRepo) -> Option<HubModelInfo> {
+    let response = api.info_request().send().await.ok()?;
+
+    if response.status().is_success() {
+        let hub_model_info: HubModelInfo =
+            serde_json::from_str(&response.text().await.ok()?).ok()?;
+        if let Some(sha) = &hub_model_info.sha {
+            tracing::info!(
+                "Serving revision {sha} of model {}",
+                hub_model_info.model_id
+            );
+        }
+        Some(hub_model_info)
+    } else {
+        None
+    }
+}
+
+/// get base tokenizer
+pub async fn get_base_tokenizer(api: &Api, api_repo: &ApiRepo) -> Option<PathBuf> {
+    let config_filename = api_repo.get("config.json").await.ok()?;
+
+    // Open the file in read-only mode with buffer.
+    let file = File::open(config_filename).ok()?;
+    let reader = BufReader::new(file);
+
+    // Read the JSON contents of the file as an instance of `User`.
+    let config: serde_json::Value = serde_json::from_reader(reader).ok()?;
+
+    if let Some(serde_json::Value::String(base_model_id)) = config.get("base_model_name_or_path") {
+        let api_base_repo = api.repo(Repo::with_revision(
+            base_model_id.to_string(),
+            RepoType::Model,
+            "main".to_string(),
+        ));
+
+        api_base_repo.get("tokenizer.json").await.ok()
+    } else {
+        None
+    }
+}
+
+/// get tokenizer_config from the Huggingface Hub
+pub async fn get_tokenizer_config(api_repo: &ApiRepo) -> Option<HubTokenizerConfig> {
+    let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok()?;
+
+    // Open the file in read-only mode with buffer.
+    let file = File::open(tokenizer_config_filename).ok()?;
+    let reader = BufReader::new(file);
+
+    // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
+    let tokenizer_config: HubTokenizerConfig = serde_json::from_reader(reader)
+        .map_err(|e| {
+            tracing::warn!("Unable to parse tokenizer config: {}", e);
+            e
+        })
+        .ok()?;
+
+    Some(tokenizer_config)
 }
 
 /// Shutdown signal handler
@@ -1975,16 +2258,77 @@ impl From<InferError> for Event {
 
 #[derive(Debug, Error)]
 pub enum WebServerError {
-    #[error("Unable to connect to the Python model shards: {0}")]
-    Connection(ClientError),
-    #[error("Unable to clear the Python model shards cache: {0}")]
-    Cache(ClientError),
-    #[error("Unable to get the Python model shards info: {0}")]
-    Info(ClientError),
-    #[error("Unable to warmup the Python model shards: {0}")]
-    Warmup(ClientError),
-    #[error("Not enough memory to handle `max_total_tokens={0}`")]
-    NotEnoughMemory(usize),
     #[error("Axum error: {0}")]
     Axum(#[from] axum::BoxError),
+}
+
+/// Create a post_processor for the LlamaTokenizer
+fn create_post_processor(
+    tokenizer: &Tokenizer,
+    tokenizer_config: &HubTokenizerConfig,
+) -> Result<TemplateProcessing, tokenizers::processors::template::TemplateProcessingBuilderError> {
+    let add_bos_token = tokenizer_config.add_bos_token.unwrap_or(true);
+    let add_eos_token = tokenizer_config.add_eos_token.unwrap_or(false);
+
+    let bos_token = tokenizer_config.bos_token.as_ref();
+    let eos_token = tokenizer_config.eos_token.as_ref();
+
+    if add_bos_token && bos_token.is_none() {
+        panic!("add_bos_token = true but bos_token is None");
+    }
+
+    if add_eos_token && eos_token.is_none() {
+        panic!("add_eos_token = true but eos_token is None");
+    }
+
+    let mut single = Vec::new();
+    let mut pair = Vec::new();
+    let mut special_tokens = Vec::new();
+
+    if add_bos_token {
+        if let Some(bos) = bos_token {
+            let bos_token_id = tokenizer
+                .token_to_id(bos.as_str())
+                .expect("Should have found the bos token id");
+            special_tokens.push((bos.as_str(), bos_token_id));
+            single.push(format!("{}:0", bos.as_str()));
+            pair.push(format!("{}:0", bos.as_str()));
+        }
+    }
+
+    single.push("$A:0".to_string());
+    pair.push("$A:0".to_string());
+
+    if add_eos_token {
+        if let Some(eos) = eos_token {
+            let eos_token_id = tokenizer
+                .token_to_id(eos.as_str())
+                .expect("Should have found the eos token id");
+            special_tokens.push((eos.as_str(), eos_token_id));
+            single.push(format!("{}:0", eos.as_str()));
+            pair.push(format!("{}:0", eos.as_str()));
+        }
+    }
+
+    if add_bos_token {
+        if let Some(bos) = bos_token {
+            pair.push(format!("{}:1", bos.as_str()));
+        }
+    }
+
+    pair.push("$B:1".to_string());
+
+    if add_eos_token {
+        if let Some(eos) = eos_token {
+            pair.push(format!("{}:1", eos.as_str()));
+        }
+    }
+
+    let post_processor = TemplateProcessing::builder()
+        .try_single(single)?
+        .try_pair(pair)?
+        .special_tokens(special_tokens)
+        .build()?;
+
+    Ok(post_processor)
 }

@@ -28,7 +28,6 @@ from typing import Optional, List, Tuple
 
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
-    Seqlen,
     paged_attention,
     attention,
     reshape_and_cache,
@@ -38,7 +37,6 @@ from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     SpeculativeHead,
-    get_linear,
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
@@ -117,7 +115,10 @@ class MistralAttention(torch.nn.Module):
         )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
-        self.head_size = self.hidden_size // self.num_heads
+        if hasattr(config, "head_dim"):
+            self.head_size = config.head_dim
+        else:
+            self.head_size = self.hidden_size // self.num_heads
 
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
@@ -146,15 +147,14 @@ class MistralAttention(torch.nn.Module):
             bias=False,
         )
 
-        head_size = config.hidden_size // config.num_attention_heads
         self.query_key_value = TensorParallelMultiAdapterLinear.load(
             query_key_value,
             layer_id,
             ["q_proj", "k_proj", "v_proj"],
             sizes=[
-                head_size * config.num_attention_heads,
-                head_size * config.num_key_value_heads,
-                head_size * config.num_key_value_heads,
+                self.head_size * config.num_attention_heads,
+                self.head_size * config.num_key_value_heads,
+                self.head_size * config.num_key_value_heads,
             ],
             process_group=weights.process_group,
         )
@@ -212,17 +212,13 @@ class MistralAttention(torch.nn.Module):
             kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
 
-        # output tensor
-        attn_output = torch.empty_like(query)
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
@@ -231,7 +227,6 @@ class MistralAttention(torch.nn.Module):
         # Decode
         else:
             attn_output = paged_attention(
-                attn_output,
                 query,
                 kv_cache[0],
                 kv_cache[1],

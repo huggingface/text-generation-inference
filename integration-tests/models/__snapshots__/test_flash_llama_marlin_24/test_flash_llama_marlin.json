@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 4321,
+        "logprob": -9.0859375,
+        "text": "Test"
+      },
+      {
+        "id": 2009,
+        "logprob": -16.359375,
+        "text": "request"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 5229,
+        "logprob": -2.7988281,
+        "special": false,
+        "text": " failed"
+      },
+      {
+        "id": 29901,
+        "logprob": -0.91259766,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 853,
+        "logprob": -2.8496094,
+        "special": false,
+        "text": " Un"
+      },
+      {
+        "id": 23765,
+        "logprob": -1.1894531,
+        "special": false,
+        "text": "supported"
+      },
+      {
+        "id": 4714,
+        "logprob": -1.5917969,
+        "special": false,
+        "text": " browser"
+      },
+      {
+        "id": 29892,
+        "logprob": -0.34765625,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 1873,
+        "logprob": -1.2695312,
+        "special": false,
+        "text": " version"
+      },
+      {
+        "id": 470,
+        "logprob": -0.25170898,
+        "special": false,
+        "text": " or"
+      },
+      {
+        "id": 7481,
+        "logprob": -0.21411133,
+        "special": false,
+        "text": " platform"
+      },
+      {
+        "id": 13,
+        "logprob": -1.1162109,
+        "special": false,
+        "text": "\n"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " failed: Unsupported browser, version or platform\n"
+}

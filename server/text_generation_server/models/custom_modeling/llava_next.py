@@ -14,7 +14,7 @@
 # limitations under the License.
 """ PyTorch Llava-NeXT model."""
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import torch
 import torch.utils.checkpoint
@@ -280,6 +280,7 @@ class LlavaNextForConditionalGeneration(nn.Module):
             max_s=max_s,
             true_max_s=max_s,
             prefill_cache_indices=None,
+            adapter_data=adapter_data,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

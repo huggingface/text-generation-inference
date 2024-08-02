@@ -24,7 +24,7 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
-from transformers.models.gpt_neox import GPTNeoXConfig
+from transformers.models.gpt_neox import GPTNeoXConfig as TransformersGPTNeoXConfig
 from typing import Optional, List, Tuple
 
 from text_generation_server.layers.attention import (
@@ -45,6 +45,13 @@ from text_generation_server.layers.layernorm import (
 from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
+from text_generation_server.utils.weights import UnquantizedWeight
+
+
+class GPTNeoXConfig(TransformersGPTNeoXConfig):
+    attribute_map = {
+        "num_key_value_heads": "num_attention_heads",
+    }
 
 
 def load_row(config, prefix: str, weights, bias: bool):
@@ -56,7 +63,7 @@ def load_row(config, prefix: str, weights, bias: bool):
     else:
         bias = None
 
-    linear = get_linear(weight, bias, config.quantize)
+    linear = get_linear(weight, bias)
     if config.use_parallel_residual:
         return linear
     else:
@@ -65,10 +72,10 @@ def load_row(config, prefix: str, weights, bias: bool):
 
 def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
     weight = weights.get_multi_weights_col([prefix], dim=0)
-    if isinstance(weight, torch.Tensor):
+    if isinstance(weight, UnquantizedWeight):
         # Only on non quantized versions
-        weight = (
-            weight.view(
+        weight.weight = (
+            weight.weight.view(
                 num_heads,
                 3,
                 head_size,
@@ -81,7 +88,7 @@ def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
     bias = weights.get_sharded(f"{prefix}.bias", dim=0)
     bias = bias.view(num_heads, 3, head_size).permute(1, 0, 2).reshape(-1)
 
-    linear = get_linear(weight, bias, config.quantize)
+    linear = get_linear(weight, bias)
     if config.use_parallel_residual:
         return linear
     else:
@@ -151,17 +158,13 @@ class FlashNeoxAttention(torch.nn.Module):
 
         reshape_and_cache(qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots)
 
-        # output tensor
-        attn_output = torch.empty_like(qkv[:, 0])
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 qkv[:, 0],
                 qkv[:, 1],
                 qkv[:, 2],
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
@@ -169,7 +172,6 @@ class FlashNeoxAttention(torch.nn.Module):
         # Decode
         else:
             attn_output = paged_attention(
-                attn_output,
                 qkv[:, 0],
                 kv_cache[0],
                 kv_cache[1],

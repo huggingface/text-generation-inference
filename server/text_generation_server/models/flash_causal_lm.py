@@ -1,7 +1,6 @@
 import math
 import os
 import time
-import itertools
 import torch
 import torch.distributed
 
@@ -23,14 +22,13 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
+from text_generation_server.utils.log import log_master
 from text_generation_server.utils.tokens import batch_top_tokens
-from text_generation_server.utils.dist import RANK
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
     Weights,
-    hub,
 )
 from text_generation_server.models.types import (
     Batch,
@@ -45,7 +43,6 @@ from text_generation_server.models.globals import (
     BLOCK_SIZE,
     CUDA_GRAPHS,
     get_adapter_to_index,
-    MODEL_ID,
 )
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
@@ -839,7 +836,9 @@ class FlashCausalLM(Model):
         default_dtype=torch.float16,
         aliases=None,
         # Used for Santacoder override of config
-        num_kv_heads=None,
+        num_kv_heads: Optional[int] = None,
+        # Deepseek V2 uses different QK and V dims.
+        head_size: Optional[int] = None,
         skip_special_tokens: bool = True,
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
@@ -922,7 +921,16 @@ class FlashCausalLM(Model):
             else num_kv_heads
         )
         assert self.num_kv_heads > 0
-        self.head_size = config.hidden_size // config.num_attention_heads
+
+        if head_size is None:
+            # Some models use GQA and different sizes for o_proj
+            # and q_proj, that allows for that.
+            if hasattr(config, "head_dim"):
+                self.head_size = config.head_dim
+            else:
+                self.head_size = config.hidden_size // config.num_attention_heads
+        else:
+            self.head_size = head_size
 
         self.cuda_graphs = {}
         self.kv_cache = []
@@ -1147,42 +1155,49 @@ class FlashCausalLM(Model):
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
-                    f"tunableop_{MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                    f"tunableop_{self.model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
-                logger.info(
-                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`."
+                log_master(
+                    logger.info,
+                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
                 )
 
                 if os.path.isfile(tunableop_filepath):
-                    logger.info(
-                        f"The file {tunableop_filepath} already exists and will be reused."
+                    log_master(
+                        logger.info,
+                        f"The file {tunableop_filepath} already exists and will be reused.",
                     )
                     torch.cuda.tunable.read_file(tunableop_filepath)
 
                 os.makedirs(HUGGINGFACE_HUB_CACHE, exist_ok=True)
 
                 for seqlen in tuning_sequences:
-                    logger.info(f"Warming up TunableOp for seqlen={seqlen}")
+                    log_master(logger.info, f"Warming up TunableOp for seqlen={seqlen}")
                     self.tunableop_warmup(seqlen)
                     torch.cuda.tunable.write_file(tunableop_filepath)
                 torch.cuda.tunable.tuning_enable(False)
             else:
-                logger.info(
-                    "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp."
+                log_master(
+                    logger.info,
+                    "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp.",
                 )
 
         if CUDA_GRAPHS:
             try:
-                logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
+                log_master(
+                    logger.info, f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}"
+                )
                 # Warmup cuda graphs
                 for bs in CUDA_GRAPHS:
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except torch.cuda.OutOfMemoryError:
-                logger.exception(f"Decode cuda graph warmup failed")
+                logger.exception("Decode cuda graph warmup failed")
         else:
-            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
+            log_master(
+                logger.info, f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS})."
+            )
 
         return int(num_blocks * BLOCK_SIZE)
 
@@ -1534,8 +1549,7 @@ class FlashCausalLM(Model):
             left = 0
 
             if n_accepted_ids > 1:
-                if RANK == 0:
-                    logger.debug(f"Speculated ids {n_accepted_ids - 1}")
+                log_master(logger.debug, f"Speculated ids {n_accepted_ids - 1}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):
@@ -1684,72 +1698,3 @@ class FlashCausalLM(Model):
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)
-
-    @property
-    def supports_adapter_loading(self) -> bool:
-        return True
-
-    def adapter_target_to_layer(self) -> Dict[str, Tuple[str, torch.Tensor]]:
-        layer_weights = {}
-
-        prefix = "model.layers"
-
-        # This accounts for VLMs (e.g. LlavaNext, Idefics2)
-        # that have a language_model inside of the larger model.
-        if hasattr(self.model, "language_model"):
-            _model = self.model.language_model
-        elif hasattr(self.model, "text_model"):
-            _model = self.model.text_model
-        else:
-            _model = self.model
-
-        for i, layer in enumerate(_model.model.layers):
-            layer_weights[(i, "q_proj")] = (
-                f"{prefix}.{i}.self_attn.q_proj",
-                layer.self_attn.query_key_value,
-            )
-            layer_weights[(i, "k_proj")] = (
-                f"{prefix}.{i}.self_attn.k_proj",
-                layer.self_attn.query_key_value,
-            )
-            layer_weights[(i, "v_proj")] = (
-                f"{prefix}.{i}.self_attn.v_proj",
-                layer.self_attn.query_key_value,
-            )
-            layer_weights[(i, "o_proj")] = (
-                f"{prefix}.{i}.self_attn.o_proj",
-                layer.self_attn.o_proj,
-            )
-
-            # TODO: this is a hack to avoid the gate_proj for
-            # FlashStarcoder2 that doesnt have these layers
-            if hasattr(layer, "mlp") and hasattr(layer.mlp, "gate_up_proj"):
-                layer_weights[(i, "gate_proj")] = (
-                    f"{prefix}.{i}.mlp.gate_proj",
-                    layer.mlp.gate_up_proj,
-                )
-                layer_weights[(i, "up_proj")] = (
-                    f"{prefix}.{i}.mlp.up_proj",
-                    layer.mlp.gate_up_proj,
-                )
-                layer_weights[(i, "down_proj")] = (
-                    f"{prefix}.{i}.mlp.down_proj",
-                    layer.mlp.down_proj,
-                )
-
-        layer_weights[(0, "lm_head")] = ("lm_head", _model.lm_head)
-        return layer_weights
-
-    @property
-    def adapter_layers(self) -> List[str]:
-        return ADAPTER_LAYERS
-
-    @property
-    def default_traced_adapter_layers(self) -> List[str]:
-        return ["q_proj", "v_proj"]
-
-    def get_num_layers_for_type(self, layer_type: str) -> int:
-        return 1 if layer_type == "lm_head" else len(self.model.model.layers)
-
-    def is_row_parallel(self, layer_type: str) -> bool:
-        return layer_type in ROW_PARALLEL

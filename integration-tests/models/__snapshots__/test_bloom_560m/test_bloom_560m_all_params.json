@@ -11,7 +11,7 @@
       },
       {
         "id": 1669,
-        "logprob": -5.4414062,
+        "logprob": -5.4453125,
         "text": " il"
       },
       {
@@ -21,12 +21,12 @@
       },
       {
         "id": 3913,
-        "logprob": -4.3554688,
+        "logprob": -4.3320312,
         "text": " tout"
       },
       {
         "id": 39261,
-        "logprob": -2.9238281,
+        "logprob": -2.9160156,
         "text": " d'abord"
       }
     ],
@@ -34,65 +34,66 @@
     "tokens": [
       {
         "id": 408,
-        "logprob": -0.07891846,
+        "logprob": -0.16687012,
         "special": false,
         "text": " que"
       },
       {
         "id": 366,
-        "logprob": -1.2939453,
+        "logprob": -1.5517578,
         "special": false,
         "text": " la"
       },
       {
         "id": 8769,
-        "logprob": -0.3708496,
+        "logprob": -0.16687012,
         "special": false,
         "text": " personne"
       },
       {
         "id": 1479,
-        "logprob": -2.2871094,
+        "logprob": -2.1035156,
         "special": false,
         "text": " qui"
       },
       {
-        "id": 2997,
-        "logprob": -0.8671875,
+        "id": 143926,
+        "logprob": -2.8671875,
         "special": false,
-        "text": " vous"
+        "text": " réalise"
       },
       {
-        "id": 35977,
-        "logprob": -1.5097656,
+        "id": 578,
+        "logprob": 0.0,
         "special": false,
-        "text": " suit"
+        "text": " le"
       },
       {
-        "id": 21558,
-        "logprob": -0.07891846,
+        "id": 8138,
+        "logprob": -0.66748047,
         "special": false,
-        "text": " ait"
+        "text": " projet"
       },
       {
-        "id": 447,
-        "logprob": -0.12695312,
+        "id": 795,
+        "logprob": -1.6279297,
         "special": false,
-        "text": " un"
+        "text": " ne"
       },
       {
-        "id": 78606,
-        "logprob": -2.21875,
+        "id": 9802,
+        "logprob": -0.47875977,
         "special": false,
-        "text": " profil"
+        "text": " soit"
       },
       {
-        "id": 3899,
-        "logprob": -1.3535156,
+        "id": 1230,
+        "logprob": 0.0,
         "special": false,
-        "text": " bien"
+        "text": " pas"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": "Pour déguster un ortolan, il faut tout d'abord que la personne qui vous suit ait un profil bien"
+  "generated_text": "Pour déguster un ortolan, il faut tout d'abord que la personne qui réalise le projet ne soit pas"
 }

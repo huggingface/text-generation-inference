@@ -4,14 +4,11 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
+from typing import Dict, Set, Tuple
 
 import torch
 
 from text_generation_server.adapters.weights import AdapterWeights
-
-if TYPE_CHECKING:
-    from text_generation_server.models.model import Model
 
 
 @dataclass
@@ -30,15 +27,4 @@ class AdapterConfig(ABC):
         adapter_weights: Dict[int, AdapterWeights],
         weight_names: Tuple[str],
     ) -> Tuple[ModuleMap, Set[str]]:
-        pass
-
-    @abstractmethod
-    def load_batched_adapter_weights(
-        self,
-        model: "Model",
-        module_map: ModuleMap,
-        layer_type: str,
-        unused_weight_names: Set[str],
-        dynamic: bool,
-    ) -> Optional[AdapterWeights]:
         pass

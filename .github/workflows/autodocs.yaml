@@ -28,7 +28,7 @@ jobs:
 
     - name: Install router
       id: install-router
-      run: cargo install --path router/
+      run: cargo install --path backends/v3/
 
     - uses: actions/setup-node@v4
       with:
@@ -41,5 +41,5 @@ jobs:
 
     - name: Check that documentation is up-to-date
       run: |
-        npm install -g swagger-cli
+        npm install -g @redocly/cli
         python update_doc.py --check
