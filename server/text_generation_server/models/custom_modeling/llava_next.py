@@ -26,7 +26,6 @@ from transformers.models.llava_next.modeling_llava_next import (
 )
 from optimum.habana.transformers.models import GaudiLlavaNextForConditionalGeneration 
 from transformers.image_processing_utils import select_best_resolution
-from loguru import logger
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     """

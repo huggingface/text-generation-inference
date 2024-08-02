@@ -97,12 +97,13 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             )
 
         if self.model.batch_type in VLM_BATCH_TYPES :
-            self.model.warmup(request)
+            max_supported_total_tokens = self.model.warmup(request)
+            return generate_pb2.WarmupResponse(max_supported_total_tokens=max_supported_total_tokens)
         else:
             batches = [batch_from_pb(batch) for batch in request.batches]
             self.model.warmup(batches)
+            return generate_pb2.WarmupResponse()
 
-        return generate_pb2.WarmupResponse()
 
     async def Prefill(self, request, context):
         start = time.time_ns()
@@ -171,7 +172,7 @@ def serve(
     uds_path: Path,
 ):
     # Remove default handler
-    logger.remove()
+    #logger.remove()
     logger.add(
         sys.stdout,
         format="{message}",
