@@ -14,6 +14,18 @@ namespace huggingface::tgi::backends {
     class TensorRtLlmBackendImpl;
 }
 
+// Template to support returning error from TllmException back to Rust in a Result<>
+#include <tensorrt_llm/common/tllmException.h>
+
+namespace rust::behavior {
+    template<typename Try, typename Fail>
+    static void trycatch(Try &&func, Fail &&fail) noexcept try {
+        func();
+    } catch (tensorrt_llm::common::TllmException &e) {
+        fail(e.what());
+    }
+}
+
 #include "backends/trtllm/src/lib.rs.h"
 
 namespace huggingface::tgi::backends {
