@@ -484,14 +484,13 @@ def get_model(
         )
     sliding_window = config_dict.get("sliding_window", -1)
 
-    is_max_input_within_sliding_window = (
-        max_input_tokens <= sliding_window if max_input_tokens is not None else False
-    )
+    if max_input_tokens <= sliding_window:
+        sliding_window = -1
 
     if (
         (sliding_window is not None and sliding_window != -1)
         and not SUPPORTS_WINDOWING
-        and is_max_input_within_sliding_window
+        and max_input_tokens > sliding_window
     ):
         raise ValueError(
             f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
