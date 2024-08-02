@@ -12,6 +12,7 @@ void huggingface::tgi::backends::InitializeBackend() {
     nvmlInit_v2();
     initTrtLlmPlugins();
 
+    SPDLOG_INFO("Backend Executor Version: {}", tle::version());
     const auto numGpus = huggingface::hardware::cuda::GetNumDevices();
     if (numGpus.has_value()) {
         SPDLOG_INFO("Detected {:d} Nvidia GPU(s)", numGpus.value());
@@ -22,7 +23,7 @@ void huggingface::tgi::backends::InitializeBackend() {
 
 [[nodiscard]]
 tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &config, const std::string &workerPath) {
-    tle::ExecutorConfig execConfig(1);
+    tle::ExecutorConfig execConfig(/* maxBeamWidth = */ 1);
 
     // Retrieve the compute capabilities to enable some options at runtime
     const auto computeCapabilities = huggingface::hardware::cuda::GetCudaComputeCapabilities();
@@ -60,7 +61,7 @@ tle::SamplingConfig huggingface::tgi::backends::GetSamplingConfig(
         const float_t temperature,
         const float_t repetition_penalty,
         const float_t frequency_penalty,
-        const uint64_t seed) {
+        const uint64_t seed) noexcept {
     return tle::SamplingConfig(
             1,  // TGI only use a single beam
             topK,

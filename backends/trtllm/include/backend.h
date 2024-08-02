@@ -23,6 +23,8 @@ namespace huggingface::tgi::backends {
     using RequestId = tle::IdType;
     using TokenId = tle::TokenIdType;
 
+    const static auto OUTPUT_CONFIG = tle::OutputConfig(true, false, false, true, false);
+
     /**
      * Initialize all the components required by TRTLLM.
      * It is required to call this function before attempting to load any engine
