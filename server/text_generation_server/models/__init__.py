@@ -132,6 +132,9 @@ try:
     from text_generation_server.models.custom_modeling.flash_gpt2_modeling import (
         FlashGPT2ForCausalLM,
     )
+    from text_generation_server.models.custom_modeling.flash_gptj_modeling import (
+        FlashGPTJForCausalLM,
+    )
     from text_generation_server.models.custom_modeling.idefics2 import (
         Idefics2ForConditionalGeneration,
     )
@@ -293,6 +296,11 @@ class ModelType(enum.Enum):
         "type": "gpt_neox",
         "name": "Gpt Neox",
         "url": "https://huggingface.co/EleutherAI/gpt-neox-20b",
+    }
+    GPTJ = {
+        "type": "gptj",
+        "name": "Gptj",
+        "url": "https://huggingface.co/EleutherAI/gpt-j-6b",
     }
     IDEFICS = {
         "type": "idefics",
@@ -632,6 +640,41 @@ def get_model(
                 )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-2"))
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == GPTJ:
+        if FLASH_ATTENTION:
+            try:
+                return FlashCausalLM(
+                    model_id=model_id,
+                    model_class=FlashGPTJForCausalLM,
+                    revision=revision,
+                    quantize=quantize,
+                    speculator=speculator,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+                    lora_adapter_ids=lora_adapter_ids,
+                )
+            except RuntimeError as e:
+                # Lots of legacy models with various weight names.
+                log_master(logger.warning, f"Couldn't load flash gptj variant: {e}")
+                return CausalLM.fallback(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    speculator=speculator,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+                )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-J"))
         else:
             return CausalLM.fallback(
                 model_id,
