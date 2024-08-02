@@ -24,7 +24,7 @@ pub struct RadixTrie {
 
 impl RadixTrie {
     pub fn new() -> Self {
-        let root = TrieNode::new(vec![], vec![], 0);
+        let root = TrieNode::new(vec![], vec![], 0, None);
         let mut nodes = SlotMap::new();
         let root = nodes.insert(root);
         RadixTrie {
@@ -90,11 +90,11 @@ impl RadixTrie {
             let blocks = &blocks[shared_prefix_len..];
             self.insert_(child_id, key, blocks)
         } else {
-            let child = TrieNode::new(key.to_vec(), blocks.to_vec(), self.time);
+            let child = TrieNode::new(key.to_vec(), blocks.to_vec(), self.time, Some(node_id));
             let child_id = self.nodes.insert(child);
             let node = self.nodes.get_mut(node_id).unwrap();
             node.children.insert(key[0], child_id);
-            return key.len();
+            key.len()
         }
     }
 
@@ -105,9 +105,12 @@ impl RadixTrie {
         let rest_blocks = node.blocks.split_off(prefix_len);
         let first = rest_key[0];
 
-        let new_id = self
-            .nodes
-            .insert(TrieNode::new(rest_key, rest_blocks, self.time));
+        let new_id = self.nodes.insert(TrieNode::new(
+            rest_key,
+            rest_blocks,
+            self.time,
+            Some(node_id),
+        ));
 
         let node = self.nodes.get_mut(node_id).unwrap();
         node.children.insert(first, new_id);
@@ -115,19 +118,21 @@ impl RadixTrie {
 }
 
 struct TrieNode {
+    blocks: Vec<u32>,
     children: HashMap<u32, NodeId>,
     key: Vec<u32>,
-    blocks: Vec<u32>,
     last_accessed: u64,
+    parent: Option<NodeId>,
 }
 
 impl TrieNode {
-    fn new(key: Vec<u32>, blocks: Vec<u32>, last_accessed: u64) -> Self {
+    fn new(key: Vec<u32>, blocks: Vec<u32>, last_accessed: u64, parent: Option<NodeId>) -> Self {
         TrieNode {
             children: HashMap::new(),
             key,
             blocks,
             last_accessed,
+            parent,
         }
     }
 }
