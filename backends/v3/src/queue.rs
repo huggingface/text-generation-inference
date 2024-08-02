@@ -476,6 +476,8 @@ impl From<ValidStoppingParameters> for StoppingCriteriaParameters {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use tracing::info_span;
 
@@ -488,6 +490,7 @@ mod tests {
         let entry = Entry {
             request: ValidGenerateRequest {
                 inputs: vec![],
+                input_ids: Some(Arc::new(vec![])),
                 input_length: 0,
                 truncate: 0,
                 decoder_input_details: false,

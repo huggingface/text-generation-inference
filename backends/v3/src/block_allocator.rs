@@ -1,10 +1,11 @@
-use radix_trie::Trie;
 use std::{
     cmp::min,
     collections::{hash_map::Entry, BTreeSet, HashMap},
     sync::Arc,
 };
 use tokio::sync::{mpsc, oneshot};
+
+use crate::TrieNode;
 
 #[derive(Debug, Clone)]
 pub(crate) struct BlockAllocation {
@@ -211,7 +212,7 @@ struct PrefixBlockState {
 }
 
 struct RadixAllocator {
-    cache_blocks: Trie<Vec<u32>, ()>,
+    cache_blocks: TrieNode,
 
     /// Blocks that are immediately available for allocation.
     free_blocks: Vec<u32>,
@@ -235,55 +236,10 @@ impl RadixAllocator {
         }
 
         RadixAllocator {
-            cache_blocks: Trie::new(),
+            cache_blocks: TrieNode::new(vec![], vec![], 0),
             free_blocks: (1..n_blocks).collect(),
             leaves: BTreeSet::new(),
             time: 0,
         }
-    }
-}
-
-#[derive(Debug)]
-struct TrieNode {
-    children: HashMap<u32, TrieNode>,
-    key: Vec<u32>,
-    blocks: Vec<u32>,
-    last_accessed: u64,
-}
-
-impl TrieNode {
-    fn new(key: Vec<u32>, blocks: Vec<u32>, last_accessed: u64) -> Self {
-        TrieNode {
-            children: HashMap::new(),
-            key,
-            blocks,
-            last_accessed,
-        }
-    }
-
-    // Insert a prefix into the trie. Returns the length of the shared prefix.
-    fn insert(&mut self, key: &[u32], blocks: &[u32]) -> usize {
-        match self.children.entry(key[0]) {
-            Entry::Occupied(entry) => {
-                let child = entry.into_mut();
-                let shared_prefix_len = child
-                    .key
-                    .iter()
-                    .zip(key)
-                    .take_while(|(a, b)| a == b)
-                    .count();
-
-                // We are done, the prefix is already in the trie.
-                if shared_prefix_len == key.len() {
-                    return shared_prefix_len;
-                }
-
-                return shared_prefix_len
-                    + child.insert(&key[shared_prefix_len..], &blocks[shared_prefix_len..]);
-            }
-            Entry::Vacant(_) => todo!(),
-        }
-
-        //node.last_accessed = last_accessed;
     }
 }
