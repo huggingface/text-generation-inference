@@ -261,7 +261,6 @@ else:
             raise NotImplementedError(
                 "window_size_left is only available with flash attn v2"
             )
-
         if softcap is not None:
             raise NotImplementedError("softcap is only available with flash attn v2")
 
