@@ -34,15 +34,17 @@ impl RadixTrie {
         }
     }
 
-    pub fn find(&self, key: &[u32], blocks: &mut Vec<u32>) {
+    pub fn find(&mut self, key: &[u32], blocks: &mut Vec<u32>) {
+        self.time += 1;
         self.find_(self.root, key, blocks);
     }
 
-    fn find_(&self, node_id: NodeId, key: &[u32], blocks: &mut Vec<u32>) {
+    fn find_(&mut self, node_id: NodeId, key: &[u32], blocks: &mut Vec<u32>) {
         let node = &self.nodes[node_id];
 
         if let Some(&child_id) = node.children.get(&key[0]) {
-            let child = &self.nodes[child_id];
+            let child = self.nodes.get_mut(child_id).unwrap();
+            child.last_accessed = self.time;
             let shared_prefix_len = child.key.shared_prefix_len(key);
             blocks.extend(&child.blocks[..shared_prefix_len]);
 
@@ -61,10 +63,9 @@ impl RadixTrie {
     fn insert_(&mut self, node_id: NodeId, key: &[u32], blocks: &[u32]) -> usize {
         assert_eq!(key.len(), blocks.len());
 
-        //let node = self.nodes.get_mut(node).unwrap();
-
         if let Some(&child_id) = self.nodes[node_id].children.get(&key[0]) {
             let child = self.nodes.get_mut(child_id).unwrap();
+            child.last_accessed = self.time;
             let shared_prefix_len = child.key.shared_prefix_len(key);
 
             // We are done, the prefix is already in the trie.
