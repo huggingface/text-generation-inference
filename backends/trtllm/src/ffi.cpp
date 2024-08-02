@@ -3,11 +3,13 @@
 //
 #pragma once
 
-#include <cmath>
+#include <algorithm>
 #include <exception>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <iterator>
+#include <ranges>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -28,7 +30,7 @@ uint64_t huggingface::tgi::backends::TensorRtLlmBackendImpl::Submit(
     // This will copy all the items from the initial slice
     std::vector<int32_t> tokens_(std::make_move_iterator(tokens.begin()), std::make_move_iterator(tokens.end()));
     return TensorRtLlmBackend::Submit(
-            std::move(tokens_), topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
+            std::move(tokens_), maxNewTokens, topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
 }
 
 std::unique_ptr<std::vector<huggingface::tgi::backends::GenerationStep>>

@@ -5,7 +5,9 @@
 #ifndef TGI_TRTLLM_BACKEND_FFI_H
 #define TGI_TRTLLM_BACKEND_FFI_H
 
+ad#include <cmath>
 #include <cstddef>
+#include <memory>
 #include "backend.h"
 
 namespace huggingface::tgi::backends {
