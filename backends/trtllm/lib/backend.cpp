@@ -103,6 +103,7 @@ size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const
 [[nodiscard("Returned request id needs to be provided back to gather generated tokens")]]
 tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const std::vector<tle::TokenIdType> &tokens,
+        const uint32_t maxNewTokens,
         const int32_t topK,
         const float_t topP,
         const float_t temperature,
@@ -124,19 +125,12 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
     );
 #endif
 
-    const auto maxNumTokens = config["/build_config/max_num_tokens"_json_pointer].get<size_t>();
-    const auto maxNewTokens = static_cast<int32_t>(std::max(1ul, maxNumTokens - tokens.size()));
+    const auto maxNumTokens = config["/build_config/max_num_tokens"_json_pointer].get<uint64_t>();
+    const auto maxNewTokensChecked = static_cast<tle::SizeType32>(
+            std::min(maxNewTokens, static_cast<uint32_t>(maxNumTokens - tokens.size())));
 
     const auto sampling = GetSamplingConfig(topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
-    const auto output = tle::OutputConfig(true, false, false, true, false);
-    return executor.enqueueRequest(
-            tle::Request{tokens, maxNewTokens, true, sampling, output});
-}
-
-[[nodiscard("Generated tokens result must be used")]]
-std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::Poll(const tle::IdType requestId) {
-    SPDLOG_DEBUG(FMT_STRING("Polling status for request {:d}"), requestId);
-    return executor.awaitResponses(requestId);
+    return executor.enqueueRequest(tle::Request{tokens, maxNewTokensChecked, true, sampling, OUTPUT_CONFIG});
 }
 
 

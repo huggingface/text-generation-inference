@@ -56,6 +56,7 @@ mod ffi {
         fn Submit(
             self: Pin<&mut TensorRtLlmBackendImpl>,
             tokens: &[u32],
+            max_new_tokens: u32,
             top_k: i32,
             top_p: f32,
             temperature: f32,

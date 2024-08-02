@@ -25,8 +25,9 @@ bool huggingface::tgi::backends::TensorRtLlmBackendImpl::IsReady() const {
 }
 
 uint64_t huggingface::tgi::backends::TensorRtLlmBackendImpl::Submit(
-        rust::Slice<const uint32_t> tokens, int32_t topK, float_t topP, float_t temperature, float_t repetition_penalty,
-        float_t frequency_penalty, uint64_t seed) {
+        rust::Slice<const uint32_t> tokens, uint32_t maxNewTokens,
+        int32_t topK, float_t topP, float_t temperature,
+        float_t repetition_penalty, float_t frequency_penalty, uint64_t seed) {
 
     // This will copy all the items from the initial slice
     std::vector<int32_t> tokens_(std::make_move_iterator(tokens.begin()), std::make_move_iterator(tokens.end()));

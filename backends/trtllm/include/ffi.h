@@ -37,6 +37,7 @@ namespace huggingface::tgi::backends {
         /***
          *
          * @param tokens
+         * @param maxNewTokens
          * @param topK
          * @param topP
          * @param temperature
@@ -47,7 +48,8 @@ namespace huggingface::tgi::backends {
          */
         [[nodiscard("returned request id should be used to refer to the request's generation result later on")]]
         uint64_t
-        Submit(rust::Slice<const uint32_t> tokens, int32_t topK, float_t topP, float_t temperature,
+        Submit(rust::Slice<const uint32_t> tokens, uint32_t maxNewTokens,
+               int32_t topK, float_t topP, float_t temperature,
                float_t repetition_penalty, float_t frequency_penalty, uint64_t seed);
 
         /***

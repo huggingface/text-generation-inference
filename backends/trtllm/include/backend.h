@@ -94,7 +94,7 @@ namespace huggingface::tgi::backends {
          * @return Request id related to this generation for reference
          */
         [[nodiscard]] RequestId Submit(
-                const std::vector <TokenId> &tokens,
+                const std::vector<TokenId> &tokens,
                 const uint32_t maxNewTokens,
                 const int32_t topK,
                 const float_t topP,
