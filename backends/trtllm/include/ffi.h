@@ -14,10 +14,7 @@ namespace huggingface::tgi::backends {
 
 #include "backends/trtllm/src/lib.rs.h"
 
-
 namespace huggingface::tgi::backends {
-
-//    struct GenerationContext;
 
     class TensorRtLlmBackendImpl : public TensorRtLlmBackend {
     public:
@@ -27,12 +24,6 @@ namespace huggingface::tgi::backends {
          * @param executorWorker
          */
         TensorRtLlmBackendImpl(const std::string_view &engineFolder, const std::string_view &executorWorker);
-
-        /***
-         *
-         * @return
-         */
-        bool IsReady() const;
 
         /***
          *

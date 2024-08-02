@@ -20,10 +20,6 @@ huggingface::tgi::backends::TensorRtLlmBackendImpl::TensorRtLlmBackendImpl(
 ) : TensorRtLlmBackend(engineFolder, executorWorker) {}
 
 
-bool huggingface::tgi::backends::TensorRtLlmBackendImpl::IsReady() const {
-    return TensorRtLlmBackend::IsReady();
-}
-
 uint64_t huggingface::tgi::backends::TensorRtLlmBackendImpl::Submit(
         rust::Slice<const uint32_t> tokens, uint32_t maxNewTokens,
         int32_t topK, float_t topP, float_t temperature,
