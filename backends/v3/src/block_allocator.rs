@@ -1,11 +1,7 @@
-use std::{
-    cmp::min,
-    collections::{hash_map::Entry, BTreeSet, HashMap},
-    sync::Arc,
-};
+use std::{cmp::min, collections::BTreeSet, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::TrieNode;
+use crate::RadixTrie;
 
 #[derive(Debug, Clone)]
 pub(crate) struct BlockAllocation {
@@ -212,7 +208,7 @@ struct PrefixBlockState {
 }
 
 struct RadixAllocator {
-    cache_blocks: TrieNode,
+    cache_blocks: RadixTrie,
 
     /// Blocks that are immediately available for allocation.
     free_blocks: Vec<u32>,
@@ -236,7 +232,7 @@ impl RadixAllocator {
         }
 
         RadixAllocator {
-            cache_blocks: TrieNode::new(vec![], vec![], 0),
+            cache_blocks: RadixTrie::new(),
             free_blocks: (1..n_blocks).collect(),
             leaves: BTreeSet::new(),
             time: 0,

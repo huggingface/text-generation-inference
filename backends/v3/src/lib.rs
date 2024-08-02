@@ -6,7 +6,7 @@ mod radix;
 
 use crate::client::{ClientError, ShardedClient};
 pub(crate) use backend::BackendV3;
-pub(crate) use radix::TrieNode;
+pub(crate) use radix::RadixTrie;
 use serde::Serialize;
 use thiserror::Error;
 use utoipa::ToSchema;
