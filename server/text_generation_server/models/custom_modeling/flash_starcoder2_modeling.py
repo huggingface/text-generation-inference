@@ -30,7 +30,6 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     reshape_and_cache,
-    SUPPORTS_WINDOWING,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -162,7 +161,9 @@ class Starcoder2Attention(torch.nn.Module):
         weights,
     ):
         super().__init__()
-        self.max_past = config.sliding_window if SUPPORTS_WINDOWING else None
+        self.max_past = (
+            config.sliding_window if config.sliding_window is not None else -1
+        )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
@@ -508,10 +509,10 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
                 weights=weights,
             )
 
-        self.max_past = config.sliding_window if SUPPORTS_WINDOWING else None
+        self.max_past = config.sliding_window
         self.max_past_tensor = (
-            torch.tensor(self.max_past, device=weights.device)
-            if self.max_past
+            torch.tensor(config.sliding_window, device=weights.device)
+            if self.max_past is not None
             else None
         )
 
