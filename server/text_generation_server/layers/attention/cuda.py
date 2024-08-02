@@ -257,7 +257,7 @@ else:
         window_size_left=-1,
         softcap=None,
     ):
-        if window_size_left is not None and window_size_left != -1:
+        if window_size_left != -1:
             raise NotImplementedError(
                 "window_size_left is only available with flash attn v2"
             )
