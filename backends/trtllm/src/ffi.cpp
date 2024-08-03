@@ -48,7 +48,7 @@ huggingface::tgi::backends::ConvertResponseToGenerationStep(const tle::Response 
         const auto result = response.getResult();
         return std::move(GenerationStep{
                 reqId,
-                result.outputTokenIds[0][0],
+                static_cast<uint32_t>(result.outputTokenIds[0][0]),
                 result.logProbs.value()[0][0],
                 result.isFinal,
                 false,
