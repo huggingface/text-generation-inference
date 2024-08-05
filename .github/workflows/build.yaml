@@ -126,6 +126,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}${{ env.LABEL }}
             type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
+            type=semver,pattern={{major}}.{{minor}}-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
             type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
       - name: Build and push Docker image
