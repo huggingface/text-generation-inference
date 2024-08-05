@@ -13,7 +13,6 @@ async def bloom_560(bloom_560_handle):
     return bloom_560_handle.client
 
 
-@pytest.mark.release
 @pytest.mark.asyncio
 async def test_bloom_560m(bloom_560):
 
